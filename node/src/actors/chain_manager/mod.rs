@@ -445,9 +445,9 @@ impl ChainManager {
                     }
                 };
 
-                // Print reputation logs on debug level on synced state,
+                // Print reputation logs on debug level on Live state,
                 // but on trace level while synchronizing
-                let log_level = if let StateMachine::Synced = self.sm_state {
+                let log_level = if let StateMachine::Live = self.sm_state {
                     log::Level::Debug
                 } else {
                     log::Level::Trace
@@ -1069,26 +1069,24 @@ fn update_reputation(
     // Retain identities that exist in the ARS
     secp_bls_mapping.retain(|k| rep_eng.is_ars_member(k));
 
-    log::log!(
-        log_level,
-        "Active users number: {}",
-        rep_eng.ars().active_identities_number()
-    );
+    if log::log_enabled!(log_level) {
+        log::log!(
+            log_level,
+            "Active users number: {}",
+            rep_eng.ars().active_identities_number()
+        );
 
-    log::log!(log_level, "Total Reputation: {{");
-    for (pkh, rep) in rep_eng
-        .trs()
-        .identities()
-        .sorted_by_key(|&(_, &r)| std::cmp::Reverse(r))
-    {
-        let active = if rep_eng.ars().contains(pkh) {
-            'A'
-        } else {
-            ' '
-        };
-        log::log!(log_level, "    [{}] {}: {}", active, pkh, rep.0);
+        log::log!(log_level, "Total Reputation: {{");
+        for (pkh, rep) in rep_eng
+            .trs()
+            .identities()
+            .sorted_by_key(|&(_, &r)| std::cmp::Reverse(r))
+        {
+            let active = if rep_eng.is_ars_member(pkh) { 'A' } else { ' ' };
+            log::log!(log_level, "    [{}] {}: {}", active, pkh, rep.0);
+        }
+        log::log!(log_level, "}}");
     }
-    log::log!(log_level, "}}");
 
     rep_eng.current_alpha = new_alpha;
 }
