@@ -1,3 +1,9 @@
+use actix::{
+    actors::resolver::ResolverError,
+    dev::{MessageResponse, ResponseChannel, ToEnvelope},
+    Actor, Addr, Handler, Message,
+};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt,
@@ -7,21 +13,13 @@ use std::{
     ops::{Bound, RangeBounds},
     time::Duration,
 };
-
-use actix::{
-    actors::resolver::ResolverError,
-    dev::{MessageResponse, ResponseChannel, ToEnvelope},
-    Actor, Addr, Handler, Message,
-};
-
-use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, PointerToBlock, PublicKeyHash, RADRequest, RADTally,
-        Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
+        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
+        RADTally, Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
@@ -553,6 +551,13 @@ pub struct GetKnownPeers;
 
 impl Message for GetKnownPeers {
     type Result = Result<PeersNewTried, failure::Error>;
+}
+
+/// Message to get node stats
+pub struct GetNodeStats;
+
+impl Message for GetNodeStats {
+    type Result = Result<NodeStats, failure::Error>;
 }
 
 /// List of known peers sorted by bucket

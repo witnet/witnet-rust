@@ -33,8 +33,9 @@ use crate::{
         messages::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
             GetConsolidatedPeers, GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon,
-            GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetReputation,
-            GetReputationAll, GetReputationStatus, GetState, GetUtxoInfo, NumSessions,
+            GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetNodeStats,
+            GetReputation, GetReputationAll, GetReputationStatus, GetState, GetUtxoInfo,
+            NumSessions,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -73,6 +74,7 @@ pub fn jsonrpc_io_handler(
     io.add_method("getReputationAll", |_params: Params| get_reputation_all());
     io.add_method("peers", |_params: Params| peers());
     io.add_method("knownPeers", |_params: Params| known_peers());
+    io.add_method("nodeStats", |_params: Params| node_stats());
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
     // A method is sensitive if it touches in some way the master key of the node.
@@ -1078,6 +1080,27 @@ pub fn known_peers() -> JsonRpcResultAsync {
     Box::new(fut)
 }
 
+/// Get the node stats
+pub fn node_stats() -> JsonRpcResultAsync {
+    let chain_manager_addr = ChainManager::from_registry();
+
+    let fut = chain_manager_addr
+        .send(GetNodeStats)
+        .map_err(internal_error)
+        .and_then(|node_stats| match node_stats {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -1378,6 +1401,7 @@ mod tests {
                 "inventory",
                 "knownPeers",
                 "masterKeyExport",
+                "nodeStats",
                 "peers",
                 "sendRequest",
                 "sendValue",

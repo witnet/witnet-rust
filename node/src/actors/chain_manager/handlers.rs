@@ -1,15 +1,17 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::Future;
-use std::{cmp::Ordering, collections::HashMap, convert::TryFrom};
+use itertools::Itertools;
+use std::{cmp::Ordering, collections::BTreeMap, collections::HashMap, convert::TryFrom};
 
 use witnet_data_structures::{
     chain::{
         get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
-        Hash, Hashable, PublicKeyHash, Reputation, UtxoInfo,
+        Hash, Hashable, NodeStats, PublicKeyHash, Reputation, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
+use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{compare_block_candidates, validate_rad_request, VrfSlots};
 
 use super::{
@@ -21,18 +23,15 @@ use crate::{
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddTransaction, Anycast, Broadcast,
             BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
-            GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetReputation,
-            GetReputationAll, GetReputationStatus, GetReputationStatusResult, GetState,
-            GetUtxoInfo, PeersBeacons, SendLastBeacon, SessionUnitResult, TryMineBlock,
+            GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetNodeStats,
+            GetReputation, GetReputationAll, GetReputationStatus, GetReputationStatusResult,
+            GetState, GetUtxoInfo, PeersBeacons, SendLastBeacon, SessionUnitResult, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
     storage_mngr,
     utils::mode_consensus,
 };
-use itertools::Itertools;
-use std::collections::BTreeMap;
-use witnet_util::timestamp::get_timestamp;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -282,6 +281,15 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
 
             Err(ChainInfoError::ChainInfoNotFound.into())
         }
+    }
+}
+
+/// Handler for GetNodeStats message
+impl Handler<GetNodeStats> for ChainManager {
+    type Result = Result<NodeStats, failure::Error>;
+
+    fn handle(&mut self, _msg: GetNodeStats, _ctx: &mut Context<Self>) -> Self::Result {
+        Ok(self.chain_state.node_stats.clone())
     }
 }
 

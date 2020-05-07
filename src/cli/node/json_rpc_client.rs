@@ -1,3 +1,9 @@
+use ansi_term::Color::{Purple, Red, White, Yellow};
+use failure::{bail, Fail};
+use itertools::Itertools;
+use prettytable::{cell, row, Table};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -8,17 +14,11 @@ use std::{
     str::FromStr,
 };
 
-use ansi_term::Color::{Purple, Red, White, Yellow};
-use failure::{bail, Fail};
-use itertools::Itertools;
-use prettytable::{cell, row, Table};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
 use witnet_data_structures::{
     chain::{
-        DataRequestInfo, DataRequestOutput, Environment, OutputPointer, PublicKey, PublicKeyHash,
-        Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
+        DataRequestInfo, DataRequestOutput, Environment, NodeStats, OutputPointer, PublicKey,
+        PublicKeyHash, Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -813,6 +813,32 @@ pub fn get_known_peers(addr: SocketAddr) -> Result<(), failure::Error> {
         table.add_row(row![address, type_]);
     }
     table.printstd();
+
+    Ok(())
+}
+
+pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "nodeStats", "id": "1"}"#;
+    let response = send_request(&mut stream, &request)?;
+    let node_stats: NodeStats = parse_response(&response)?;
+
+    println!(
+        "Block mining stats:\n\
+     - Proposed blocks: {}\n\
+     - Blocks included in the block chain: {}\n\
+    Data Request mining stats:\n\
+     - Times with eligibility to mine a data request: {}\n\
+     - Proposed commits: {}\n\
+     - Accepted commits: {}\n\
+     - Slashed commits: {}",
+        node_stats.block_proposed_count,
+        node_stats.block_mined_count,
+        node_stats.dr_eligibility_count,
+        node_stats.commits_proposed_count,
+        node_stats.commits_count,
+        node_stats.out_of_consensus_count
+    );
 
     Ok(())
 }
