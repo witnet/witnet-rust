@@ -1,5 +1,3 @@
-use std::cmp;
-
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -27,11 +25,9 @@ impl Handler<GetAddressesRequest> for app::App {
         let offset = msg
             .offset
             .unwrap_or_else(|| constants::DEFAULT_PAGINATION_OFFSET);
-        let limit = cmp::min(
-            msg.limit
-                .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT),
-            constants::MAX_PAGINATION_LIMIT,
-        );
+        let limit = msg
+            .limit
+            .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT);
         let f = self.get_addresses(msg.session_id, msg.wallet_id, offset, limit);
 
         Box::new(f)
