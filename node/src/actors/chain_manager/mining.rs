@@ -130,9 +130,12 @@ impl ChainManager {
         let is_ars_member = rep_engine.is_ars_member(&own_pkh);
 
         let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
+        // FIXME: Only ARS members from the last block of the previous SuperBlock can create a SuperBlock
         if rep_engine.is_ars_member(&own_pkh) && current_epoch % superblock_period == 0 {
-            // FIXME(#1236): ARS Members have to use the BLS address when forwarding
-            // FIXME: ARS Member addresses have to be selected from the last SuperBlock
+            // FIXME(#1236): ARS Members have to include the BLS signature instead of PublicKeyHash
+            // FIXME: After Reputation Merkelitation, only the ARS Members from the previous consolidated
+            // block will be added, to avoid include addresses that could be wrong later by
+            // block reorganization
             let ars_members: Vec<PublicKeyHash> = rep_engine
                 .ars()
                 .active_identities()
@@ -140,7 +143,7 @@ impl ChainManager {
                 .sorted()
                 .collect();
 
-            self.superblock_forwarding(
+            self.superblock_creating_and_broadcasting(
                 ctx,
                 current_epoch,
                 superblock_period,
@@ -568,8 +571,8 @@ impl ChainManager {
         }
     }
 
-    /// Create a superblock and forward it
-    fn superblock_forwarding(
+    /// Create a superblock and broadcast it
+    fn superblock_creating_and_broadcasting(
         &mut self,
         ctx: &mut Context<Self>,
         current_epoch: u32,
@@ -595,7 +598,7 @@ impl ChainManager {
                 futures::future::ok(block_hashes)
             }
             Err(e) => {
-                log::error!("{}", e);
+                log::error!("Error in GetBlocksEpochRange: {}", e);
                 futures::future::err(())
             }
         })
@@ -606,11 +609,11 @@ impl ChainManager {
                     .then(move |res| match res {
                         Ok(Ok(block)) => futures::future::ok(block.block_header),
                         Ok(Err(e)) => {
-                            log::error!("{}", e);
+                            log::error!("Error in GetItemBlock: {}", e);
                             futures::future::err(())
                         }
                         Err(e) => {
-                            log::error!("{}", e);
+                            log::error!("Error in GetItemBlock: {}", e);
                             futures::future::err(())
                         }
                     })
@@ -636,7 +639,7 @@ impl ChainManager {
             match last_hash {
                 Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
                 Err(e) => {
-                    log::error!("{}", e);
+                    log::error!("Error in GetBlocksEpochRange: {}", e);
                     actix::fut::err(())
                 }
             }
@@ -649,7 +652,7 @@ impl ChainManager {
                 Some(superblock) => {
                     let superblock_hash = superblock.hash();
 
-                    // FIXME(#1236): Bootstrapping SUPERBLOCK to the people (and remove these logs)
+                    // FIXME(#1236): Superblock signing and broadcasting (and remove these logs)
                     log::error!("SUPERBLOCK: {:?}", superblock);
                     log::error!("SUPERBLOCK hash: {}", superblock_hash);
                 }
@@ -980,8 +983,7 @@ fn build_block(
     (block_header, txns)
 }
 
-/// Function that return an Option of a SuperBlock or None in case if there are not blocks
-/// to produce a SuperBlock
+/// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
 fn build_superblock(
     block_headers: &[BlockHeader],
     sorted_ars_identities: &[PublicKeyHash],
