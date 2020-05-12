@@ -52,7 +52,7 @@ impl<T: Storage> Storage for Backend<T> {
             })
     }
 
-    fn put(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
+    fn put(&self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
         let hash_key = calculate_sha256(key.as_ref());
         let iv = cipher::generate_random(IV_LENGTH)?;
         let salt = cipher::generate_random(SALT_LENGTH)?;
@@ -65,7 +65,7 @@ impl<T: Storage> Storage for Backend<T> {
         self.backend.put(hash_key.as_ref().to_vec(), final_value)
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<()> {
+    fn delete(&self, key: &[u8]) -> Result<()> {
         let hash_key = calculate_sha256(key);
         self.backend.delete(hash_key.as_ref())
     }
@@ -79,11 +79,12 @@ fn get_secret(password: &[u8], salt: &[u8]) -> Protected {
 mod tests {
     use super::*;
     use crate::backends::hashmap;
+    use std::sync::RwLock;
 
     #[test]
     fn test_encrypt_decrypt() {
         let password = "".into();
-        let mut backend = Backend::new(password, hashmap::Backend::new());
+        let backend = Backend::new(password, hashmap::Backend::default());
 
         assert_eq!(None, backend.get(b"name").unwrap());
         backend.put("name".into(), "johnny".into()).unwrap();
@@ -95,11 +96,12 @@ mod tests {
         let password1 = "pass1".into();
         let password2 = "pass2".into();
 
-        let mut backend1 = Backend::new(password1, hashmap::Backend::new());
+        let backend1 = Backend::new(password1, hashmap::Backend::default());
 
         backend1.put("name".into(), "johnny".into()).unwrap();
 
-        let backend2 = Backend::new(password2, backend1.inner().clone());
+        let backend1_clone = RwLock::new(backend1.inner().read().unwrap().clone());
+        let backend2 = Backend::new(password2, backend1_clone);
 
         assert_ne!(
             backend2.get(b"name").unwrap_or(None),
@@ -110,7 +112,7 @@ mod tests {
     #[test]
     fn test_delete() {
         let password = "".into();
-        let mut backend = Backend::new(password, hashmap::Backend::new());
+        let backend = Backend::new(password, hashmap::Backend::default());
 
         assert_eq!(None, backend.get(b"name").unwrap());
         backend.put("name".into(), "johnny".into()).unwrap();

@@ -480,6 +480,9 @@ impl ChainManager {
             if self.current_epoch.is_none() {
                 log::trace!("Called process_requested_block when current_epoch is None");
             }
+            if self.chain_state.unspent_outputs_pool.db.is_none() {
+                panic!("NO UTXO DB");
+            }
             let block_number = self.chain_state.block_number();
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = block.block_header.beacon.checkpoint;

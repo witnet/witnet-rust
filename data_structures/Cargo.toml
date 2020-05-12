@@ -9,6 +9,7 @@ workspace = ".."
 [dependencies]
 bls-signatures-rs = "0.1.0"
 bech32 = "0.7.2"
+bincode = "1.2.1"
 byteorder = "1.3.4"
 cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/ldexpf-shim" }
 chrono = "0.4.10"
@@ -32,6 +33,7 @@ vrf = "0.2.3"
 witnet_crypto = { path = "../crypto" }
 witnet_reputation = { path = "../reputation", features = ["serde"] }
 witnet_protected = { path = "../protected", features = ["serde"] }
+witnet_storage = { path = "../storage", features = ["rocksdb-backend"] }
 witnet_util = { path = "../util" }
 
 [build-dependencies]

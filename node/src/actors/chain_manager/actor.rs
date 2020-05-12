@@ -300,6 +300,15 @@ impl ChainManager {
                     },
                 });
 
+            }).and_then(|(), act, _ctx| {
+                storage_mngr::get_backend()
+                    .into_actor(act)
+                    .map_err(|err, _act, _ctx| {
+                        log::error!("Failed to get storage backend: {}", err);
+                    })
+                    .map_ok(|backend, act, _ctx| {
+                        act.chain_state.unspent_outputs_pool.db = Some(backend);
+                    })
             });
 
         Box::pin(fut)

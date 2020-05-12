@@ -5630,6 +5630,7 @@ version = "0.3.2"
 dependencies = [
  "bech32",
  "bencher",
+ "bincode",
  "bls-signatures-rs",
  "byteorder",
  "cbor-codec",
@@ -5654,6 +5655,7 @@ dependencies = [
  "witnet_crypto",
  "witnet_protected",
  "witnet_reputation",
+ "witnet_storage",
  "witnet_util",
 ]
 

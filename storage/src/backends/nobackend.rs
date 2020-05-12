@@ -16,11 +16,11 @@ impl Storage for Backend {
         bail!("This is a no backend storage")
     }
 
-    fn put(&mut self, _key: Vec<u8>, _value: Vec<u8>) -> Result<()> {
+    fn put(&self, _key: Vec<u8>, _value: Vec<u8>) -> Result<()> {
         bail!("This is a no backend storage")
     }
 
-    fn delete(&mut self, _key: &[u8]) -> Result<()> {
+    fn delete(&self, _key: &[u8]) -> Result<()> {
         bail!("This is a no backend storage")
     }
 }

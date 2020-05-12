@@ -675,7 +675,12 @@ mod tests {
             vec![],
         )));
 
-        let (mut own_utxos, all_utxos) = own_utxos_all_utxos.into().unwrap_or_default();
+        let (mut own_utxos, all_utxos) = own_utxos_all_utxos.into().unwrap_or_else(|| {
+            (
+                OwnUnspentOutputsPool::default(),
+                UnspentOutputsPool::in_memory(),
+            )
+        });
         let all_utxos = generate_unspent_outputs_pool(&all_utxos, &txns, block_number);
         update_own_utxos(&mut own_utxos, own_pkh, &txns);
 

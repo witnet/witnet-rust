@@ -5750,7 +5750,7 @@ mod tests {
 
     #[test]
     fn utxo_set_coin_age() {
-        let mut p = UnspentOutputsPool::default();
+        let mut p = UnspentOutputsPool::in_memory();
         let v = ValueTransferOutput::default;
 
         let k0: OutputPointer =
@@ -5789,13 +5789,13 @@ mod tests {
         p.remove(&k0);
         assert_eq!(p.included_in_block_number(&k0), None);
 
-        assert_eq!(p, UnspentOutputsPool::default());
+        assert_eq!(p, UnspentOutputsPool::in_memory());
     }
 
     #[test]
     fn utxo_set_insert_twice() {
         // Inserting the same input twice into the UTXO set overwrites the transaction
-        let mut p = UnspentOutputsPool::default();
+        let mut p = UnspentOutputsPool::in_memory();
         let v = ValueTransferOutput::default;
 
         let k0: OutputPointer =
@@ -5814,7 +5814,7 @@ mod tests {
     fn utxo_set_insert_same_transaction_different_epoch() {
         // Inserting the same transaction twice with different indexes means a different UTXO
         // so, each UTXO keeps their own block number
-        let mut p = UnspentOutputsPool::default();
+        let mut p = UnspentOutputsPool::in_memory();
         let v = ValueTransferOutput::default;
 
         let k0: OutputPointer =
@@ -5856,7 +5856,7 @@ mod tests {
             vec![],
         ));
 
-        let utxo_pool = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &[vt], 0);
+        let utxo_pool = generate_unspent_outputs_pool(&UnspentOutputsPool::in_memory(), &[vt], 0);
         assert_eq!(utxo_pool.iter().len(), 4);
 
         let mut own_utxos = OwnUnspentOutputsPool::default();
