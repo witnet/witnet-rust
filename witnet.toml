@@ -68,11 +68,11 @@ enabled = true
 data_request_max_retrievals_per_epoch = 30
 data_request_timeout_milliseconds = 2000
 genesis_path = "genesis_block.json"
-# Enables or disables automatically splitting block mining rewards.
-# If set to `true`, the rewards will be split into multiple outputs of the same value as `collateral_minimum`
-# until the node's set of outputs available for collateralization outnumbers `data_request_max_retrievals_per_epoch`
-# multiplied by `collateral_coinage`, i.e. makes sure it always has spare outputs to collateralize.
-split_mint = true
+# `mint_external_address` and `mint_external_percentage` enable splitting the mint reward between the node's
+# own address and an "external" address, e.g. a the address of a wallet. `mint_external_percentage` indicates
+# the percentage of the block rewards that will be assigned to `mint_external_address` (50% by default)
+#mint_external_address = "twit1jqgf4rxjrgas3kdhj3t4cr3mg3n33m8zw0aulr"
+#mint_external_percentage = 50
 
 [log]
 # Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"

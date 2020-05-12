@@ -246,7 +246,6 @@ pub fn validate_mint_transaction(
     mint_tx: &MintTransaction,
     total_fees: u64,
     block_epoch: Epoch,
-    collateral_minimum: u64,
 ) -> Result<(), failure::Error> {
     // Mint epoch must be equal to block epoch
     if mint_tx.epoch != block_epoch {
@@ -261,28 +260,29 @@ pub fn validate_mint_transaction(
     let block_reward_value = block_reward(mint_tx.epoch);
     // Mint value must be equal to block_reward + transaction fees
     if mint_value != total_fees + block_reward_value {
-        Err(BlockError::MismatchedMintValue {
+        return Err(BlockError::MismatchedMintValue {
             mint_value,
             fees_value: total_fees,
             reward_value: block_reward_value,
         }
-        .into())
-    } else {
-        let outputs_len = mint_tx.outputs.len();
-
-        if !mint_tx.outputs.iter().map(|vto| vto.pkh).all_equal() {
-            return Err(BlockError::MultiplePkhsInMint.into());
-        }
-
-        for output in mint_tx.outputs.iter() {
-            // a MintTransaction valid can not be splitted in utxos smaller than collateral minimum
-            if outputs_len > 1 && output.value < collateral_minimum {
-                return Err(BlockError::TooSplitMint.into());
-            }
-        }
-
-        Ok(())
+        .into());
     }
+
+    if mint_tx.outputs.len() > 2 {
+        return Err(BlockError::TooSplitMint.into());
+    }
+
+    for (idx, output) in mint_tx.outputs.iter().enumerate() {
+        if output.value == 0 {
+            return Err(TransactionError::ZeroValueOutput {
+                tx_hash: mint_tx.hash(),
+                output_id: idx,
+            }
+            .into());
+        }
+    }
+
+    Ok(())
 }
 
 /// Function to validate a rad request
@@ -1520,12 +1520,7 @@ pub fn validate_block_transactions(
 
     if !is_genesis {
         // Validate mint
-        validate_mint_transaction(
-            &block.txns.mint,
-            total_fee,
-            block_beacon.checkpoint,
-            collateral_minimum,
-        )?;
+        validate_mint_transaction(&block.txns.mint, total_fee, block_beacon.checkpoint)?;
 
         // Insert mint in utxo
         update_utxo_diff(

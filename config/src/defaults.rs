@@ -140,9 +140,9 @@ pub trait Defaults {
         "genesis_block.json".to_string()
     }
 
-    /// Binary flag to create a mint with a split reward
-    fn mining_split_mint(&self) -> bool {
-        true
+    /// Percentage to redistribute mint reward in another address
+    fn mining_mint_external_percentage(&self) -> u8 {
+        50
     }
 
     fn consensus_constants_max_block_weight(&self) -> u32 {

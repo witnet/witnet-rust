@@ -17,8 +17,8 @@ use std::{
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, EpochConstants, Hash, Hashable, OwnUnspentOutputsPool, PublicKeyHash,
-        ReputationEngine, SuperBlock, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        CheckpointVRF, EpochConstants, Hash, Hashable, PublicKeyHash, ReputationEngine, SuperBlock,
+        TransactionsPool, UnspentOutputsPool,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -104,7 +104,6 @@ impl ChainManager {
         let mining_rf = chain_info.consensus_constants.mining_replication_factor;
 
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
-        let collateral_age = chain_info.consensus_constants.collateral_age;
 
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
@@ -210,7 +209,6 @@ impl ChainManager {
                         &mut act.transactions_pool,
                         &act.chain_state.unspent_outputs_pool,
                         &act.chain_state.data_request_pool,
-                        &act.chain_state.own_utxos,
                     ),
                     max_block_weight,
                     beacon,
@@ -219,11 +217,10 @@ impl ChainManager {
                     own_pkh,
                     epoch_constants,
                     act.chain_state.block_number(),
-                    act.split_mint,
                     collateral_minimum,
-                    collateral_age,
-                    act.data_request_max_retrievals_per_epoch,
                     bn256_public_key,
+                    act.external_address,
+                    act.external_percentage,
                 );
 
                 // Sign the block hash
@@ -803,12 +800,7 @@ impl ChainManager {
 /// Returns an unsigned block!
 #[allow(clippy::too_many_arguments)]
 fn build_block(
-    pools_ref: (
-        &mut TransactionsPool,
-        &UnspentOutputsPool,
-        &DataRequestPool,
-        &OwnUnspentOutputsPool,
-    ),
+    pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_block_weight: u32,
     beacon: CheckpointBeacon,
     proof: BlockEligibilityClaim,
@@ -816,13 +808,12 @@ fn build_block(
     own_pkh: PublicKeyHash,
     epoch_constants: EpochConstants,
     block_number: u32,
-    split_mint: bool,
     collateral_minimum: u64,
-    collateral_age: u32,
-    data_request_max_retrievals_per_epoch: u16,
     bn256_public_key: Option<Bn256PublicKey>,
+    external_address: Option<PublicKeyHash>,
+    external_percentage: u8,
 ) -> (BlockHeader, BlockTransactions) {
-    let (transactions_pool, unspent_outputs_pool, dr_pool, own_utxos) = pools_ref;
+    let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
     let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
 
@@ -920,36 +911,13 @@ fn build_block(
 
     // Include Mint Transaction by miner
     let reward = block_reward(epoch) + transaction_fees;
-
-    // Build Mint Transaction
-    let mint = if split_mint {
-        // The rewards will be split into multiple outputs of the same value as `collateral_minimum`
-        // until the node's set of outputs available for collateralization outnumbers
-        // `data_request_max_retrievals_per_epoch` multiplied by `collateral_coinage`,
-        // i.e. makes sure it always has spare outputs to collateralize.
-
-        let utxos_to_achieve = collateral_age
-            .saturating_mul(u32::from(data_request_max_retrievals_per_epoch))
-            as usize;
-        let utxos_required = utxos_to_achieve.saturating_sub(own_utxos.bigger_than_min_counter());
-
-        MintTransaction::with_split_utxos(
-            epoch,
-            reward,
-            own_pkh,
-            collateral_minimum,
-            utxos_required,
-        )
-    } else {
-        MintTransaction::new(
-            epoch,
-            vec![ValueTransferOutput {
-                pkh: own_pkh,
-                value: reward,
-                time_lock: 0,
-            }],
-        )
-    };
+    let mint = MintTransaction::with_external_address(
+        epoch,
+        reward,
+        own_pkh,
+        external_address,
+        external_percentage,
+    );
 
     // Compute `hash_merkle_root` and build block header
     let vt_hash_merkle_root = merkle_tree_root(&value_transfer_txns);
@@ -1140,12 +1108,7 @@ mod tests {
 
         // Build empty block (because max weight is zero)
         let (block_header, txns) = build_block(
-            (
-                &mut transaction_pool,
-                &unspent_outputs_pool,
-                &dr_pool,
-                &OwnUnspentOutputsPool::default(),
-            ),
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -1153,11 +1116,10 @@ mod tests {
             PublicKeyHash::default(),
             EpochConstants::default(),
             block_number,
-            false,
             collateral_minimum,
-            0,
-            1,
             None,
+            None,
+            0,
         );
         let block = Block {
             block_header,
@@ -1209,12 +1171,7 @@ mod tests {
         // Build empty block (because max weight is zero)
 
         let (block_header, txns) = build_block(
-            (
-                &mut transaction_pool,
-                &unspent_outputs_pool,
-                &dr_pool,
-                &OwnUnspentOutputsPool::default(),
-            ),
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -1222,11 +1179,10 @@ mod tests {
             PublicKeyHash::default(),
             EpochConstants::default(),
             block_number,
-            false,
             collateral_minimum,
-            0,
-            1,
             None,
+            None,
+            0,
         );
 
         // Create a KeyedSignature
@@ -1365,12 +1321,7 @@ mod tests {
         // Build block with
 
         let (block_header, txns) = build_block(
-            (
-                &mut transaction_pool,
-                &unspent_outputs_pool,
-                &dr_pool,
-                &OwnUnspentOutputsPool::default(),
-            ),
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -1378,11 +1329,10 @@ mod tests {
             PublicKeyHash::default(),
             EpochConstants::default(),
             block_number,
-            false,
             collateral_minimum,
-            0,
-            1,
             None,
+            None,
+            0,
         );
         let block = Block {
             block_header,

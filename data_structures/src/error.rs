@@ -268,9 +268,7 @@ pub enum BlockError {
         fees_value: u64,
         reward_value: u64,
     },
-    #[fail(display = "Multiple addresses found in the Mint transaction")]
-    MultiplePkhsInMint,
-    #[fail(display = "MintTransaction was split in outputs smaller than minimum collateral")]
+    #[fail(display = "MintTransaction was split in more than two 'ValueTransferOutput'")]
     TooSplitMint,
     #[fail(
         display = "Mint transaction has invalid epoch: mint {}, block {}",

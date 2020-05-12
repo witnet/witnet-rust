@@ -110,7 +110,7 @@ fn mint_mismatched_reward() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
     // Error: block reward mismatch
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -134,7 +134,7 @@ fn mint_invalid_epoch() {
     };
     // Build a mint for the next epoch
     let mint_tx = MintTransaction::new(epoch + 1, vec![output]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
     // Error: invalid mint epoch
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -146,31 +146,7 @@ fn mint_invalid_epoch() {
 }
 
 #[test]
-fn mint_invalid_pkh() {
-    let epoch = 0;
-    let reward = block_reward(epoch);
-    let total_fees = 100;
-    let output1 = ValueTransferOutput {
-        pkh: Default::default(),
-        value: total_fees,
-        time_lock: 0,
-    };
-    let output2 = ValueTransferOutput {
-        pkh: PublicKeyHash::from_bytes(&[1; 20]).unwrap(),
-        value: reward,
-        time_lock: 0,
-    };
-    let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
-    // Error: different pkhs in mint transaction
-    assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::MultiplePkhsInMint
-    );
-}
-
-#[test]
-fn mint_small_split() {
+fn mint_multiple_split() {
     let epoch = 0;
     let reward = block_reward(epoch);
     let total_fees = 100;
@@ -184,8 +160,13 @@ fn mint_small_split() {
         value: 0,
         time_lock: 0,
     };
-    let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    let output3 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: 0,
+        time_lock: 0,
+    };
+    let mint_tx = MintTransaction::new(epoch, vec![output1, output2, output3]);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
     // Error: Mint outputs smaller than collateral minimum
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -209,7 +190,7 @@ fn mint_split_valid() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
     x.unwrap();
 }
 
@@ -224,7 +205,7 @@ fn mint_valid() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
     x.unwrap();
 }
 

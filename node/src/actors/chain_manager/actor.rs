@@ -1,4 +1,5 @@
 use actix::prelude::*;
+use std::{str::FromStr, time::Duration};
 
 use super::{handlers::EveryEpochPayload, ChainManager};
 use crate::{
@@ -9,16 +10,14 @@ use crate::{
     },
     config_mngr, signature_mngr, storage_mngr,
 };
+use witnet_crypto::key::CryptoEngine;
 use witnet_data_structures::{
     chain::{
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo,
-        OwnUnspentOutputsPool, ReputationEngine,
+        OwnUnspentOutputsPool, PublicKeyHash, ReputationEngine,
     },
     vrf::VrfCtx,
 };
-
-use std::time::Duration;
-use witnet_crypto::key::CryptoEngine;
 use witnet_util::timestamp::pretty_print;
 
 /// Implement Actor trait for `ChainManager`
@@ -79,8 +78,10 @@ impl ChainManager {
                 // Do not start the MiningManager if the configuration disables it
                 act.mining_enabled = config.mining.enabled;
 
-                // Flag to indicate if we want to split the mint transaction
-                act.split_mint = config.mining.split_mint;
+                // External mint address
+                act.external_address = config.mining.mint_external_address.clone().and_then(|pkh| PublicKeyHash::from_str(pkh.as_str()).ok());
+                // External mint percentage should not exceed 100%
+                act.external_percentage = std::cmp::min(config.mining.mint_external_percentage, 100);
 
                 // Get consensus parameter from config
                 act.consensus_c = config.connections.consensus_c;

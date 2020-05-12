@@ -479,49 +479,53 @@ impl MintTransaction {
         }
     }
 
-    /// Try to create a MintTransaction with number of outputs equal to `utxos_required`,
-    /// where every one of those outputs must be equal to or greater than `collateral_minimum`.
-    /// If the reward is too small, the number of outputs may be smaller than `utxos_required`.
-    /// The output value will only be smaller than `collateral_minimum` if the `reward` is smaller
-    /// than `collateral_minimum`, in which case this function will create a MintTransaction with
-    /// exactly one output
-    pub fn with_split_utxos(
+    /// This method creates a MintTransaction with a reward split between the node and an
+    /// external address. The external_percentage must be lower than or equal to 100.
+    /// If external_address is None all the reward goes to own_pkh.
+    pub fn with_external_address(
         epoch: Epoch,
         reward: u64,
         own_pkh: PublicKeyHash,
-        collateral_minimum: u64,
-        utxos_required: usize,
+        external_address: Option<PublicKeyHash>,
+        external_percentage: u8,
     ) -> Self {
-        let mut vt_outputs = vec![];
         let mut reward = reward;
-        let mut utxo_counter = 1;
-        while reward >= 2 * collateral_minimum && utxo_counter < utxos_required {
-            reward -= collateral_minimum;
-            utxo_counter += 1;
+        let mut vt_outputs = vec![];
+        let mut external_reward = 0;
+        let mut external_pkh = PublicKeyHash::default();
+        if let Some(pkh) = external_address {
+            // In case of a specified PKH, the reward will be distributed between the node's PKH
+            // and the external one, where the external will get `reward * external_percentage`.
+            external_reward = reward.saturating_mul(u64::from(external_percentage)) / 100;
+            reward -= external_reward;
+            external_pkh = pkh;
+        }
+        // If `external_percentage` is `100`, the external address will receive the entire
+        // reward, and the output assigning tokens to the node is not needed.
+        if reward > 0 {
             vt_outputs.push(ValueTransferOutput {
                 pkh: own_pkh,
-                value: collateral_minimum,
+                value: reward,
+                time_lock: 0,
+            });
+        }
+        // If `external_percentage` is `0` or there is no address specified as 'external_address',
+        // the node address will receive the entire reward, and the output assigning tokens to
+        // the external address is not needed.
+        if external_reward > 0 {
+            vt_outputs.push(ValueTransferOutput {
+                pkh: external_pkh,
+                value: external_reward,
                 time_lock: 0,
             })
         }
-
-        vt_outputs.push(ValueTransferOutput {
-            pkh: own_pkh,
-            value: reward,
-            time_lock: 0,
-        });
 
         MintTransaction::new(epoch, vt_outputs)
     }
 
     pub fn len(&self) -> usize {
-        if self.is_empty() {
-            0
-        } else {
-            1
-        }
+        1
     }
-
     pub fn is_empty(&self) -> bool {
         false
     }
@@ -639,8 +643,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::chain::Hashable;
-    use crate::transaction::*;
+    use crate::{
+        chain::{Hashable, PublicKeyHash, ValueTransferOutput},
+        transaction::*,
+    };
 
     #[test]
     fn test_memoized_hashable_trait() {
@@ -673,5 +679,98 @@ mod tests {
         assert_eq!(mint_tx.hash.get(), None);
         let hash = mint_tx.hash();
         assert_eq!(mint_tx.hash.get(), Some(hash));
+    }
+
+    #[test]
+    fn test_mint_with_external_address() {
+        let epoch = 1;
+        let own_pkh = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
+        let external_pkh = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
+        let external_percentage = 30;
+        let reward = 500;
+
+        // Without external address
+        let expected_mint = MintTransaction::new(
+            epoch,
+            vec![ValueTransferOutput {
+                pkh: own_pkh,
+                value: 500,
+                time_lock: 0,
+            }],
+        );
+        let mint = MintTransaction::with_external_address(
+            epoch,
+            reward,
+            own_pkh,
+            None,
+            external_percentage,
+        );
+        assert_eq!(expected_mint, mint);
+        let mint =
+            MintTransaction::with_external_address(epoch, reward, own_pkh, Some(external_pkh), 0);
+        assert_eq!(expected_mint, mint);
+
+        // Optimistic rollup case
+        let expected_mint = MintTransaction::new(
+            epoch,
+            vec![
+                ValueTransferOutput {
+                    pkh: own_pkh,
+                    value: 350,
+                    time_lock: 0,
+                },
+                ValueTransferOutput {
+                    pkh: external_pkh,
+                    value: 150,
+                    time_lock: 0,
+                },
+            ],
+        );
+        let mint = MintTransaction::with_external_address(
+            epoch,
+            reward,
+            own_pkh,
+            Some(external_pkh),
+            external_percentage,
+        );
+        assert_eq!(expected_mint, mint);
+
+        // Non exactly division case
+        let expected_mint = MintTransaction::new(
+            epoch,
+            vec![
+                ValueTransferOutput {
+                    pkh: own_pkh,
+                    value: 351,
+                    time_lock: 0,
+                },
+                ValueTransferOutput {
+                    pkh: external_pkh,
+                    value: 150,
+                    time_lock: 0,
+                },
+            ],
+        );
+        let mint = MintTransaction::with_external_address(
+            epoch,
+            reward + 1,
+            own_pkh,
+            Some(external_pkh),
+            external_percentage,
+        );
+        assert_eq!(expected_mint, mint);
+
+        // 100% external
+        let expected_mint = MintTransaction::new(
+            epoch,
+            vec![ValueTransferOutput {
+                pkh: external_pkh,
+                value: 500,
+                time_lock: 0,
+            }],
+        );
+        let mint =
+            MintTransaction::with_external_address(epoch, reward, own_pkh, Some(external_pkh), 100);
+        assert_eq!(expected_mint, mint);
     }
 }

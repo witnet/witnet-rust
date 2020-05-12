@@ -138,8 +138,6 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Mining enabled
     mining_enabled: bool,
-    /// Binary flag to create a mint with a split reward
-    split_mint: bool,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
@@ -169,6 +167,10 @@ pub struct ChainManager {
     tx_pending_timeout: u64,
     /// Magic number from ConsensusConstants
     magic: u16,
+    /// External mint address
+    external_address: Option<PublicKeyHash>,
+    /// Mint Percentage to share with the external address
+    external_percentage: u8,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

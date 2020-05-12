@@ -38,15 +38,14 @@
 //! // Default config for mainnet
 //! // Config::from_partial(&PartialConfig::default_mainnet());
 //! ```
-use std::collections::HashSet;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{collections::HashSet, net::SocketAddr, path::PathBuf, time::Duration};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::defaults::{Defaults, Testnet};
-use crate::dirs;
+use crate::{
+    defaults::{Defaults, Testnet},
+    dirs,
+};
 use partial_struct::PartialStruct;
 use witnet_crypto::hash::HashFunction;
 use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
@@ -326,8 +325,12 @@ pub struct Mining {
     pub data_request_timeout: Duration,
     /// Genesis block path
     pub genesis_path: String,
-    /// Binary flag to create a mint with a split reward
-    pub split_mint: bool,
+    /// Percentage to redistribute mint reward in another address
+    pub mint_external_percentage: u8,
+    /// Address where redistribute mint reward
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub mint_external_address: Option<String>,
 }
 
 /// NTP-related configuration
@@ -598,10 +601,11 @@ impl Mining {
                 .genesis_path
                 .clone()
                 .unwrap_or_else(|| defaults.mining_genesis_path()),
-            split_mint: config
-                .split_mint
+            mint_external_percentage: config
+                .mint_external_percentage
                 .to_owned()
-                .unwrap_or_else(|| defaults.mining_split_mint()),
+                .unwrap_or_else(|| defaults.mining_mint_external_percentage()),
+            mint_external_address: config.mint_external_address.clone(),
         }
     }
 }
