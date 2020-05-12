@@ -287,7 +287,6 @@ impl ChainManager {
         let own_pkh = self.own_pkh.unwrap();
         let current_epoch = self.current_epoch.unwrap();
         let data_request_timeout = self.data_request_timeout;
-        let tx_pending_timeout = self.tx_pending_timeout;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         // Data Request mining
@@ -443,13 +442,14 @@ impl ChainManager {
                 // Collect outputs to be used as input for collateralized commitment,
                 // as well as outputs for change.
                 .and_then(move |vrf_proof, act, _| {
-                    let collateral_age = match &act.chain_state.chain_info {
-                        Some(x) => x.consensus_constants.collateral_age,
+                    let (collateral_age, checkpoint_period) = match &act.chain_state.chain_info {
+                        Some(x) => (x.consensus_constants.collateral_age, x.consensus_constants.checkpoints_period),
                         None => {
                             log::error!("ChainInfo is None");
                             return actix::fut::err(());
                         },
                     };
+
                     let block_number_limit = act.chain_state.block_number().saturating_sub(collateral_age);
                     // Check if we have enough collateralizable unspent outputs before starting
                     // retrieval
@@ -459,7 +459,10 @@ impl ChainManager {
                         own_pkh,
                         &act.chain_state.unspent_outputs_pool,
                         timestamp,
-                        tx_pending_timeout,
+                        // The timeout included when using collateral is only one epoch to ensure
+                        // that if your commit has not been accepted you can use your utxo in
+                        // the next epoch or at least in two epochs
+                        u64::from(checkpoint_period),
                         // The block number must be lower than this limit
                         block_number_limit
                     ) {

@@ -48,7 +48,7 @@ pub fn take_enough_utxos(
             continue;
         }
 
-        if timestamp < *ts + tx_pending_timeout {
+        if timestamp < *ts {
             continue;
         }
 
@@ -73,7 +73,8 @@ pub fn take_enough_utxos(
         // Mark UTXOs as used so we don't double spend
         for elem in &list {
             let ts = own_utxos.get_mut(elem).unwrap();
-            *ts = timestamp;
+            // Save the timestamp until it could be spend it
+            *ts = timestamp + tx_pending_timeout;
         }
         Ok((list, acc))
     } else {
@@ -1204,5 +1205,66 @@ mod tests {
         assert_eq!(inputs.len(), 3);
         assert_eq!(outputs.len(), 1);
         assert_eq!(transaction_outputs_sum(&outputs).unwrap(), 100);
+    }
+
+    #[test]
+    fn collateral_utxo_blocked_until_timeout() {
+        let timestamp = 777;
+        let tx_pending_timeout = 100;
+        let own_pkh = my_pkh();
+        let outputs = vec![pay_me(1000)];
+        // This UTXOs are created in block number 0
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        assert_eq!(own_utxos.len(), 1);
+
+        let collateral = 1000;
+        // A limit of block number 0 means that only UTXOs from block 0 can be valid
+        let block_number_limit = 0;
+        let (inputs, outputs) = build_commit_collateral(
+            collateral,
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+            timestamp,
+            tx_pending_timeout,
+            block_number_limit,
+        )
+        .unwrap();
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(outputs.len(), 0);
+
+        let timestamp = 777 + tx_pending_timeout - 1;
+        let res = build_commit_collateral(
+            collateral,
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+            timestamp,
+            tx_pending_timeout,
+            block_number_limit,
+        )
+        .unwrap_err();
+        assert_eq!(
+            res,
+            TransactionError::NoMoney {
+                total_balance: 1000,
+                available_balance: 0,
+                transaction_value: 1000,
+            }
+        );
+
+        let timestamp = 777 + tx_pending_timeout;
+        let (inputs, outputs) = build_commit_collateral(
+            collateral,
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+            timestamp,
+            tx_pending_timeout,
+            block_number_limit,
+        )
+        .unwrap();
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(outputs.len(), 0);
     }
 }
