@@ -90,7 +90,7 @@ pub fn get_total_balance(all_utxos: &UnspentOutputsPool, pkh: PublicKeyHash) -> 
     // FIXME: this does not scale, we need to be able to get UTXOs by PKH
     all_utxos
         .iter()
-        .filter_map(|(_output_pointer, vto)| {
+        .filter_map(|(_output_pointer, (vto, _))| {
             if vto.pkh == pkh {
                 Some(vto.value)
             } else {

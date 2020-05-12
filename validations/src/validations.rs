@@ -1185,31 +1185,40 @@ pub fn validate_commit_reveal_signature<'a>(
     signatures: &'a [KeyedSignature],
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<&'a KeyedSignature, failure::Error> {
-    if let Some(tx_keyed_signature) = signatures.get(0) {
-        let Hash::SHA256(message) = tx_hash;
+    let tx_keyed_signature = signatures
+        .get(0)
+        .ok_or(TransactionError::SignatureNotFound)?;
 
-        let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
-            hash: tx_hash,
-            msg: e.to_string(),
-        };
-
-        let signature = tx_keyed_signature
-            .signature
-            .clone()
-            .try_into()
-            .map_err(fte)?;
-        let public_key = tx_keyed_signature
-            .public_key
-            .clone()
-            .try_into()
-            .map_err(fte)?;
-
-        add_secp_tx_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
-
-        Ok(tx_keyed_signature)
-    } else {
-        Err(TransactionError::SignatureNotFound.into())
+    // Commitments and reveals should only have one signature
+    if signatures.len() != 1 {
+        return Err(TransactionError::MismatchingSignaturesNumber {
+            signatures_n: u8::try_from(signatures.len())?,
+            inputs_n: 1,
+        }
+        .into());
     }
+
+    let Hash::SHA256(message) = tx_hash;
+
+    let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+        hash: tx_hash,
+        msg: e.to_string(),
+    };
+
+    let signature = tx_keyed_signature
+        .signature
+        .clone()
+        .try_into()
+        .map_err(fte)?;
+    let public_key = tx_keyed_signature
+        .public_key
+        .clone()
+        .try_into()
+        .map_err(fte)?;
+
+    add_secp_tx_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
+
+    Ok(tx_keyed_signature)
 }
 
 /// Function to validate a transaction signature
@@ -1288,9 +1297,24 @@ pub fn update_utxo_diff(
     outputs: Vec<&ValueTransferOutput>,
     tx_hash: Hash,
 ) {
+    let mut input_pkh = inputs
+        .first()
+        .and_then(|first| utxo_diff.get(first.output_pointer()).map(|vt| vt.pkh));
+
+    let mut block_number_input = 0;
     for input in inputs {
         // Obtain the OuputPointer of each input and remove it from the utxo_diff
         let output_pointer = input.output_pointer();
+
+        // Returns the input PKH in case that all PKHs are the same
+        if input_pkh != utxo_diff.get(output_pointer).map(|vt| vt.pkh) {
+            input_pkh = None;
+        }
+
+        let block_number = utxo_diff
+            .included_in_block_number(output_pointer)
+            .unwrap_or(0);
+        block_number_input = std::cmp::max(block_number, block_number_input);
 
         utxo_diff.remove_utxo(output_pointer.clone());
     }
@@ -1302,7 +1326,13 @@ pub fn update_utxo_diff(
             output_index: u32::try_from(index).unwrap(),
         };
 
-        utxo_diff.insert_utxo(output_pointer, output.clone());
+        let block_number = if input_pkh == Some(output.pkh) {
+            Some(block_number_input)
+        } else {
+            None
+        };
+
+        utxo_diff.insert_utxo(output_pointer, output.clone(), block_number);
     }
 }
 
@@ -1912,8 +1942,8 @@ impl Diff {
     }
 
     pub fn apply(mut self, utxo_set: &mut UnspentOutputsPool) {
-        for (output_pointer, output) in self.utxos_to_add.drain() {
-            utxo_set.insert(output_pointer, output, self.block_number);
+        for (output_pointer, (output, block_number)) in self.utxos_to_add.drain() {
+            utxo_set.insert(output_pointer, output, block_number);
         }
 
         for output_pointer in self.utxos_to_remove.iter() {
@@ -1946,7 +1976,7 @@ impl Diff {
         F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput) -> (),
         F2: Fn(&mut A, &OutputPointer) -> (),
     {
-        for (output_pointer, output) in self.utxos_to_add.iter() {
+        for (output_pointer, (output, _)) in self.utxos_to_add.iter() {
             fn_add(args, output_pointer, output);
         }
 
@@ -1974,10 +2004,17 @@ impl<'a> UtxoDiff<'a> {
     }
 
     /// Record an insertion to perform on the utxo set
-    pub fn insert_utxo(&mut self, output_pointer: OutputPointer, output: ValueTransferOutput) {
-        self.diff
-            .utxos_to_add
-            .insert(output_pointer, output, self.diff.block_number);
+    pub fn insert_utxo(
+        &mut self,
+        output_pointer: OutputPointer,
+        output: ValueTransferOutput,
+        block_number: Option<u32>,
+    ) {
+        self.diff.utxos_to_add.insert(
+            output_pointer,
+            output,
+            block_number.unwrap_or(self.diff.block_number),
+        );
     }
 
     /// Record a deletion to perform on the utxo set
@@ -2017,7 +2054,7 @@ impl<'a> UtxoDiff<'a> {
 
     /// Returns the number of the block that included the transaction referenced
     /// by this OutputPointer. The difference between that number and the
-    /// current number of consolidated blocks is the "coin age".
+    /// current number of consolidated blocks is the "collateral age".
     pub fn included_in_block_number(&self, output_pointer: &OutputPointer) -> Option<Epoch> {
         self.utxo_set
             .included_in_block_number(output_pointer)
