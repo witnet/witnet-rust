@@ -19,7 +19,7 @@ use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
+        RADTally, Reputation, SuperBlockVote, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
@@ -668,6 +668,19 @@ pub struct SendLastBeacon {
 impl fmt::Display for SendLastBeacon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SendLastBeacon")
+    }
+}
+
+/// Message to send beacon through the network
+#[derive(Clone, Debug, Message)]
+pub struct SendSuperBlockVote {
+    /// The superblock vote
+    pub superblock_vote: SuperBlockVote,
+}
+
+impl fmt::Display for SendSuperBlockVote {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SendSuperBlockVote")
     }
 }
 

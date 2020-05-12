@@ -14,6 +14,7 @@ message Message {
             InventoryRequest InventoryRequest = 7;
             LastBeacon LastBeacon = 8;
             Transaction Transaction = 9;
+            SuperBlockVote SuperBlockVote = 10;
         }
     }
 
@@ -322,4 +323,9 @@ message SuperBlock {
     Hash last_block = 4;
     Hash last_block_in_previous_superblock = 5;
     Hash tally_root = 6;
+}
+
+message SuperBlockVote {
+    Bn256KeyedSignature signature = 1;
+    Hash superblock_hash = 2;
 }

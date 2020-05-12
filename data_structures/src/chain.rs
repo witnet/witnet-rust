@@ -572,6 +572,13 @@ impl Hashable for SuperBlock {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::SuperBlockVote")]
+pub struct SuperBlockVote {
+    pub signature: Bn256KeyedSignature,
+    pub superblock_hash: Hash,
+}
+
 /// Digital signatures structure (based on supported cryptosystems)
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Signature")]

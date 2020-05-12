@@ -7,6 +7,7 @@ use witnet_util::timestamp::get_timestamp;
 use crate::{
     chain::{
         Block, BlockHeader, BlockTransactions, CheckpointBeacon, InventoryEntry, KeyedSignature,
+        SuperBlockVote,
     },
     error::BuildersError,
     transaction::Transaction,
@@ -149,6 +150,11 @@ impl Message {
                 highest_block_checkpoint,
             }),
         )
+    }
+
+    /// Function to build SuperBlockVote messages
+    pub fn build_superblock_vote(magic: u16, superblock_vote: SuperBlockVote) -> Message {
+        Message::build_message(magic, Command::SuperBlockVote(superblock_vote))
     }
 
     /// Function to build a message from a command

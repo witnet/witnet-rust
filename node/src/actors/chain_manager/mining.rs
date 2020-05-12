@@ -18,7 +18,7 @@ use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, EpochConstants, Hash, Hashable, PublicKeyHash, ReputationEngine, SuperBlock,
-        TransactionsPool, UnspentOutputsPool,
+        SuperBlockVote, TransactionsPool, UnspentOutputsPool,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -44,9 +44,11 @@ use crate::{
         },
         inventory_manager::InventoryManager,
         messages::{
-            AddCandidates, AddCommitReveal, GetBlocksEpochRange, GetItemBlock, ResolveRA, RunTally,
+            AddCandidates, AddCommitReveal, Broadcast, GetBlocksEpochRange, GetItemBlock,
+            ResolveRA, RunTally, SendSuperBlockVote,
         },
         rad_manager::RadManager,
+        sessions_manager::SessionsManager,
     },
     signature_mngr,
 };
@@ -644,24 +646,64 @@ impl ChainManager {
                 }
             }
         })
-        .and_then(move |(block_headers, last_hash), _act, _ctx| {
+        .map_err(|e, _, _| log::error!("Superblock forwarding failed: {:?}", e))
+        .and_then(move |(block_headers, last_hash), act, _ctx| {
             let superblock =
                 build_superblock(&block_headers, &ars_members, superblock_index, last_hash);
 
             match superblock {
                 Some(superblock) => {
                     let superblock_hash = superblock.hash();
+                    log::debug!(
+                        "SUPERBLOCK #{} {}: {:?}",
+                        superblock.index,
+                        superblock_hash,
+                        superblock
+                    );
 
-                    // FIXME(#1236): Superblock signing and broadcasting (and remove these logs)
-                    log::trace!("SUPERBLOCK: {:?}", superblock);
-                    log::trace!("SUPERBLOCK hash: {}", superblock_hash);
+                    // The message to be signed is the hash of the superblock as bytes:
+                    let superblock_hash_bytes: Vec<u8> = superblock_hash.as_ref().to_vec();
+                    let fut = signature_mngr::bn256_sign(superblock_hash_bytes)
+                        .then(move |signature| match signature {
+                            Ok(signature) => {
+                                let ssbv = SendSuperBlockVote {
+                                    superblock_vote: SuperBlockVote {
+                                        superblock_hash,
+                                        signature,
+                                    },
+                                };
+                                let sessions_manager_addr = SessionsManager::from_registry();
+                                let fut = sessions_manager_addr
+                                    .send(Broadcast {
+                                        command: ssbv,
+                                        only_inbound: false,
+                                    })
+                                    .then(|res| match res {
+                                        Ok(()) => Ok(()),
+                                        Err(e) => {
+                                            log::error!(
+                                                "Failed to broadcast superblock vote: {}",
+                                                e
+                                            );
+                                            Err(())
+                                        }
+                                    });
+                                futures::future::Either::A(fut)
+                            }
+                            Err(e) => {
+                                log::error!("Failed to sign superblock: {}", e);
+                                futures::future::Either::B(futures::future::err(()))
+                            }
+                        })
+                        .into_actor(act);
+                    actix::fut::Either::A(fut)
                 }
-                None => log::warn!("No blocks to build a superblocks"),
+                None => {
+                    log::warn!("No blocks to build a superblock");
+                    actix::fut::Either::B(actix::fut::ok(()))
+                }
             }
-
-            actix::fut::ok(())
         })
-        .map_err(|e, _, _| log::error!("Superblock forwarding process fail: {:?}", e))
         .wait(ctx)
     }
 

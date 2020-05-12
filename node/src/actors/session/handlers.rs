@@ -8,7 +8,7 @@ use futures::future;
 
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem},
+    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem, SuperBlockVote},
     proto::ProtobufConvert,
     transaction::Transaction,
     types::{
@@ -27,7 +27,7 @@ use crate::actors::{
         AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddTransaction, CloseSession,
         Consolidate, EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
         PeerBeacon, RequestPeers, SendGetPeers, SendInventoryAnnouncement, SendInventoryItem,
-        SendLastBeacon, SessionUnitResult,
+        SendLastBeacon, SendSuperBlockVote, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -245,6 +245,14 @@ impl StreamHandler<BytesMut, Error> for Session {
                     (_, SessionStatus::Consolidated, Command::InventoryAnnouncement(inv)) => {
                         inventory_process_inv(self, &inv);
                     }
+
+                    /////////////////////
+                    // SUPERBLOCK VOTE //
+                    /////////////////////
+                    (_, SessionStatus::Consolidated, Command::SuperBlockVote(sbv)) => {
+                        process_superblock_vote(self, &sbv)
+                    }
+
                     /////////////////////
                     // NOT SUPPORTED   //
                     /////////////////////
@@ -314,6 +322,19 @@ impl Handler<SendLastBeacon> for Session {
     fn handle(&mut self, SendLastBeacon { beacon }: SendLastBeacon, _ctx: &mut Context<Self>) {
         log::trace!("Sending LastBeacon to peer at {:?}", self.remote_addr);
         send_last_beacon(self, beacon);
+    }
+}
+
+impl Handler<SendSuperBlockVote> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(
+        &mut self,
+        SendSuperBlockVote { superblock_vote }: SendSuperBlockVote,
+        _ctx: &mut Context<Self>,
+    ) {
+        log::trace!("Sending SuperBlockVote to peer at {:?}", self.remote_addr);
+        send_superblock_vote(self, superblock_vote);
     }
 }
 
@@ -704,4 +725,26 @@ fn send_last_beacon(session: &mut Session, beacon: CheckpointBeacon) {
     let beacon_msg = WitnetMessage::build_last_beacon(session.magic_number, beacon);
     // Send LastBeacon msg
     session.send_message(beacon_msg);
+}
+
+/// Function called when the `Session` actor recieves a `SendSuperBlockVote` message
+/// Send a `SuperBlockVote` message to this peer
+fn send_superblock_vote(session: &mut Session, superblock_vote: SuperBlockVote) {
+    let superblock_vote_msg =
+        WitnetMessage::build_superblock_vote(session.magic_number, superblock_vote);
+    // Send SuperBlockVote msg
+    session.send_message(superblock_vote_msg);
+}
+
+/// Function called when SuperBlockVote message is received
+fn process_superblock_vote(_session: &mut Session, superblock_vote: &SuperBlockVote) {
+    // FIXME(#1233): forward received superblock votes
+    // Nodes should forward superblock votes as long as they belong to the ARS and have not being
+    // forwarded yet. Therefore, each node should store the information of the votes already
+    // forwarded per superblock. When a new superblock epoch is reached, this information can be
+    // deleted.
+    log::error!(
+        "Received SuperBlockVote (unimplemented): {:?}",
+        superblock_vote
+    );
 }

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry},
+    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, SuperBlockVote},
     proto::{schema::witnet, ProtobufConvert},
     transaction::Transaction,
 };
@@ -34,6 +34,9 @@ pub enum Command {
     InventoryAnnouncement(InventoryAnnouncement),
     InventoryRequest(InventoryRequest),
     LastBeacon(LastBeacon),
+
+    // Superblock
+    SuperBlockVote(SuperBlockVote),
 }
 
 impl fmt::Display for Command {
@@ -69,6 +72,7 @@ impl fmt::Display for Command {
                 }
                 write!(f, ": {}", tx.hash())
             }
+            Command::SuperBlockVote(sbv) => write!(f, "SUPERBLOCK_VOTE: {}", sbv.superblock_hash),
         }
     }
 }
