@@ -259,7 +259,15 @@ impl ChainManager {
                         highest_superblock_checkpoint: act.get_superblock_beacon(),
                     },
                 });
-
+            }).and_then(|(), act, _ctx| {
+                storage_mngr::get_backend()
+                    .into_actor(act)
+                    .map_err(|err, _act, _ctx| {
+                        log::error!("Failed to get storage backend: {}", err);
+                    })
+                    .map(|backend, act, _ctx| {
+                        act.chain_state.unspent_outputs_pool.db = Some(backend);
+                    })
             }).wait(ctx);
     }
 
