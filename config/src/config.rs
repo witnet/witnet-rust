@@ -468,6 +468,10 @@ pub fn consensus_constants_from_partial(
             .collateral_age
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_collateral_age()),
+        extra_rounds: config
+            .extra_rounds
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_extra_rounds()),
     }
 }
 

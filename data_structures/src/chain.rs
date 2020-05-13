@@ -156,6 +156,9 @@ pub struct ConsensusConstants {
 
     /// Build a superblock every `superblock_period` epochs
     pub superblock_period: u16,
+
+    /// Extra rounds for commitments and reveals
+    pub extra_rounds: u16,
 }
 
 impl ConsensusConstants {

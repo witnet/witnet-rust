@@ -213,6 +213,11 @@ pub trait Defaults {
         2000
     }
 
+    /// Number of extra rounds for commitments and reveals
+    fn consensus_constants_extra_rounds(&self) -> u16 {
+        3
+    }
+
     /// Wallet server address
     fn wallet_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11212)

@@ -300,6 +300,7 @@ message ConsensusConstants {
     uint64 collateral_minimum = 13;
     uint32 collateral_age = 14;
     uint32 superblock_period = 15;
+    uint32 extra_rounds = 16;
 }
 
 message VrfProof {
