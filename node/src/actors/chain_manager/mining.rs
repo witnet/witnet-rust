@@ -14,6 +14,7 @@ use std::{
     },
 };
 
+use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
@@ -661,15 +662,28 @@ impl ChainManager {
                         superblock
                     );
 
-                    // The message to be signed is the hash of the superblock as bytes:
-                    let superblock_hash_bytes: Vec<u8> = superblock_hash.as_ref().to_vec();
-                    let fut = signature_mngr::bn256_sign(superblock_hash_bytes)
-                        .then(move |signature| match signature {
-                            Ok(signature) => {
+                    let mut superblock_vote = SuperBlockVote::new_unsigned(superblock_hash);
+                    let bn256_message = superblock_vote.bn256_signature_message();
+                    let fut = signature_mngr::bn256_sign(bn256_message)
+                        .and_then(move |bn256_keyed_signature| {
+                            // Actually, we don't need to include the BN256 public key because
+                            // it is stored in the `alt_keys` mapping, indexed by the
+                            // secp256k1 public key hash
+                            let bn256_signature = bn256_keyed_signature.signature;
+                            superblock_vote.set_bn256_signature(bn256_signature.clone());
+                            let secp256k1_message = superblock_vote.secp256k1_signature_message();
+                            let sign_bytes = calculate_sha256(&secp256k1_message).0;
+                            signature_mngr::sign_data(sign_bytes).map(move |secp256k1_signature| {
+                                (bn256_signature, secp256k1_signature)
+                            })
+                        })
+                        .then(move |res| match res {
+                            Ok((bn256_signature, secp256k1_signature)) => {
                                 let ssbv = SendSuperBlockVote {
                                     superblock_vote: SuperBlockVote {
                                         superblock_hash,
-                                        signature,
+                                        bn256_signature,
+                                        secp256k1_signature,
                                     },
                                 };
                                 let sessions_manager_addr = SessionsManager::from_registry();

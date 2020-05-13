@@ -575,8 +575,41 @@ impl Hashable for SuperBlock {
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::SuperBlockVote")]
 pub struct SuperBlockVote {
-    pub signature: Bn256KeyedSignature,
     pub superblock_hash: Hash,
+    pub bn256_signature: Bn256Signature,
+    pub secp256k1_signature: KeyedSignature,
+}
+
+impl SuperBlockVote {
+    /// Create a new vote for the `superblock_hash`, but do not sign it.
+    /// The vote needs to be signed with a BN256 key, and that signature must
+    /// later be signed with a secp256k1 key
+    pub fn new_unsigned(superblock_hash: Hash) -> Self {
+        Self {
+            superblock_hash,
+            bn256_signature: Bn256Signature { signature: vec![] },
+            secp256k1_signature: Default::default(),
+        }
+    }
+    pub fn set_bn256_signature(&mut self, bn256_signature: Bn256Signature) {
+        self.bn256_signature = bn256_signature;
+    }
+    pub fn set_secp256k1_signature(&mut self, secp256k1_signature: KeyedSignature) {
+        self.secp256k1_signature = secp256k1_signature;
+    }
+    /// The message to be signed with the bn256 key is the hash of the superblock as bytes:
+    pub fn bn256_signature_message(&self) -> Vec<u8> {
+        self.superblock_hash.as_ref().to_vec()
+    }
+    /// The message to be signed with the secp256k1 key is the concatenation
+    /// of the hash of the superblock and the BN256 signature as bytes:
+    pub fn secp256k1_signature_message(&self) -> Vec<u8> {
+        [
+            self.superblock_hash.as_ref(),
+            &self.bn256_signature.signature,
+        ]
+        .concat()
+    }
 }
 
 /// Digital signatures structure (based on supported cryptosystems)
@@ -1140,6 +1173,12 @@ impl Bn256SecretKey {
         let signature = Bn256.sign(&self.bytes, &message)?;
 
         Ok(Bn256Signature { signature })
+    }
+}
+
+impl Hashable for Bn256Signature {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.signature).into()
     }
 }
 
