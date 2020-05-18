@@ -75,7 +75,10 @@ genesis_path = "genesis_block.json"
 split_mint = true
 
 [log]
+# Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"
 level = "debug"
+# Automated bug reporting (helps the community improve the software)
+sentry_telemetry = true
 
 [wallet]
 testnet = true

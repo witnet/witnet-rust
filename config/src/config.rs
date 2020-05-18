@@ -118,9 +118,11 @@ pub struct Config {
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
 #[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Log {
-    /// Level  for the log messages.
+    /// Level for the log messages.
     #[partial_struct(serde(deserialize_with = "as_log_filter"))]
     pub level: log::LevelFilter,
+    /// Automated bug reporting (helps the community improve the software)
+    pub sentry_telemetry: bool,
 }
 
 fn as_log_filter<'de, D>(deserializer: D) -> Result<Option<log::LevelFilter>, D::Error>
@@ -479,6 +481,7 @@ impl Log {
                 .level
                 .to_owned()
                 .unwrap_or_else(|| defaults.log_level()),
+            sentry_telemetry: config.sentry_telemetry.unwrap_or_else(|| false),
         }
     }
 }

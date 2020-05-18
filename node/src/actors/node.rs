@@ -62,9 +62,7 @@ pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
     SystemRegistry::set(json_rpc_server_addr);
 
     // Run system
-    system.run()?;
-
-    Ok(())
+    system.run().or_else(|error| Err(error.into()))
 }
 
 /// Function to close the main system

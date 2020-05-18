@@ -29,6 +29,7 @@ pub fn exec(
     let config = get_config(config.or_else(config::dirs::find_config))?;
 
     log_opts.level = config.log.level;
+    log_opts.sentry_telemetry = config.log.sentry_telemetry;
     log_opts.source = LogOptionsSource::Config;
     log_opts.timestamp = !no_timestamp;
     log_opts.module_path = !no_module_path;
@@ -48,7 +49,7 @@ pub fn exec(
         log_opts.source = LogOptionsSource::Flag;
     }
 
-    init_logger(log_opts);
+    let _guard = init_logger(log_opts);
     witnet_data_structures::set_environment(config.environment);
 
     exec_cmd(cmd, config)
@@ -61,12 +62,14 @@ fn exec_cmd(command: Command, config: config::config::Config) -> Result<(), fail
     }
 }
 
-fn init_logger(opts: LogOptions) {
+fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
     println!(
         "Setting log level to: {}, source: {:?}",
         opts.level, opts.source
     );
-    env_logger::Builder::from_env(env_logger::Env::default())
+
+    let mut logger_builder = env_logger::Builder::from_env(env_logger::Env::default());
+    logger_builder
         .format_timestamp(if opts.timestamp {
             Some(TimestampPrecision::Seconds)
         } else {
@@ -75,7 +78,28 @@ fn init_logger(opts: LogOptions) {
         .format_module_path(opts.module_path)
         .filter_level(log::LevelFilter::Info)
         .filter_module("witnet", opts.level)
-        .init();
+        .filter_module("witnet_node", opts.level);
+
+    // Initialize Sentry (automated bug reporting) if explicitly enabled in configuration
+    if opts.sentry_telemetry {
+        // Initialize client
+        let guard = sentry::init(
+            "https://def0c5d0fb354ef9ad6dddb576a21624@o394464.ingest.sentry.io/5244595",
+        );
+        // Logger integration for capturing errors. This actually intercepts errors but forwards all
+        // log lines to the underlying logging backend, `env_logger` in this case.
+        sentry::integrations::env_logger::init(Some(logger_builder.build()), Default::default());
+        // Panic capturing
+        sentry::integrations::panic::register_panic_handler();
+
+        // Return client guard so it is not freed and it lives for as long as the application does
+        Some(guard)
+    } else {
+        // If telemetry is not enabled, initialize logger directly
+        logger_builder.init();
+
+        None
+    }
 }
 
 fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::Error> {
@@ -126,6 +150,7 @@ struct LogOptions {
     level: log::LevelFilter,
     timestamp: bool,
     module_path: bool,
+    sentry_telemetry: bool,
     source: LogOptionsSource,
 }
 
@@ -135,6 +160,7 @@ impl Default for LogOptions {
             level: log::LevelFilter::Error,
             timestamp: true,
             module_path: true,
+            sentry_telemetry: false,
             source: LogOptionsSource::Defaults,
         }
     }
