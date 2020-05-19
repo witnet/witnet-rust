@@ -75,6 +75,16 @@ impl Message for AddCandidates {
     type Result = SessionUnitResult;
 }
 
+/// Add a superblock vote
+pub struct AddSuperBlockVote {
+    /// Superblock vote
+    pub superblock_vote: SuperBlockVote,
+}
+
+impl Message for AddSuperBlockVote {
+    type Result = Result<(), failure::Error>;
+}
+
 /// Add a new transaction
 pub struct AddTransaction {
     /// Transaction

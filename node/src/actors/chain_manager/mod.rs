@@ -48,10 +48,12 @@ use witnet_validations::validations::{
 
 use crate::{
     actors::{
+        chain_manager::superblock::{AddSuperBlockVote, SuperBlockState},
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
-            AddItems, AddTransaction, Broadcast, NewBlock, SendInventoryItem, StoreInventoryItem,
+            AddItems, AddTransaction, Broadcast, NewBlock, SendInventoryItem, SendSuperBlockVote,
+            StoreInventoryItem,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -63,7 +65,8 @@ use witnet_data_structures::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, Bn256PublicKey, ChainState,
         CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
         EpochConstants, Hash, Hashable, InventoryItem, NodeStats, OwnUnspentOutputsPool,
-        PublicKeyHash, Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
+        PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlockVote,
+        TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -74,6 +77,7 @@ use witnet_data_structures::{
 mod actor;
 mod handlers;
 mod mining;
+mod superblock;
 /// High level transaction factory
 pub mod transaction_factory;
 
@@ -171,6 +175,8 @@ pub struct ChainManager {
     external_address: Option<PublicKeyHash>,
     /// Mint Percentage to share with the external address
     external_percentage: u8,
+    /// State related to SuperBlocks
+    superblock_state: SuperBlockState,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -582,6 +588,61 @@ impl ChainManager {
             .expect("ChainInfo is None")
             .consensus_constants
             .clone()
+    }
+
+    fn add_superblock_vote(
+        &mut self,
+        superblock_vote: SuperBlockVote,
+        ctx: &mut Context<Self>,
+    ) -> Result<(), failure::Error> {
+        log::trace!(
+            "AddSuperBlockVote received while StateMachine is in state {:?}",
+            self.sm_state
+        );
+
+        // We broadcast all superblock votes with valid secp256k1 signature, signed by members
+        // of the ARS, even if the superblock hash is different from our local superblock hash
+        let should_broadcast = match self.superblock_state.add_vote(&superblock_vote) {
+            AddSuperBlockVote::AlreadySeen => false,
+            AddSuperBlockVote::NotInArs => {
+                log::debug!("Received superblock vote: {:?}", superblock_vote);
+                log::debug!(
+                    "Not forwarding superblock vote: identity not in ARS: {}",
+                    superblock_vote.secp256k1_signature.public_key.pkh()
+                );
+
+                false
+            }
+            AddSuperBlockVote::ValidButDifferent | AddSuperBlockVote::ValidWithSameHash => {
+                log::debug!("Received superblock vote: {:?}", superblock_vote);
+
+                true
+            }
+        };
+
+        if should_broadcast {
+            // Validate secp256k1 signature
+            signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
+                superblock_vote: superblock_vote.clone(),
+            }])
+            .map_err(|e| {
+                log::error!("Verify superblock vote signature: {}", e);
+            })
+            .and_then(|()| {
+                SessionsManager::from_registry()
+                    .send(Broadcast {
+                        command: SendSuperBlockVote { superblock_vote },
+                        only_inbound: false,
+                    })
+                    .map_err(|e| {
+                        log::error!("Forward superblock vote: {}", e);
+                    })
+            })
+            .into_actor(self)
+            .spawn(ctx);
+        }
+
+        Ok(())
     }
 
     fn add_transaction(

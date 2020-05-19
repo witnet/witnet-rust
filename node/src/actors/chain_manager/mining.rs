@@ -18,7 +18,7 @@ use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, EpochConstants, Hash, Hashable, PublicKeyHash, ReputationEngine, SuperBlock,
+        CheckpointVRF, EpochConstants, Hash, Hashable, PublicKeyHash, ReputationEngine,
         SuperBlockVote, TransactionsPool, UnspentOutputsPool,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
@@ -34,7 +34,7 @@ use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    hash_merkle_tree_root, merkle_tree_root, update_utxo_diff, vt_transaction_fee, UtxoDiff,
+    merkle_tree_root, update_utxo_diff, vt_transaction_fee, UtxoDiff,
 };
 
 use crate::{
@@ -45,11 +45,9 @@ use crate::{
         },
         inventory_manager::InventoryManager,
         messages::{
-            AddCandidates, AddCommitReveal, Broadcast, GetBlocksEpochRange, GetItemBlock,
-            ResolveRA, RunTally, SendSuperBlockVote,
+            AddCandidates, AddCommitReveal, GetBlocksEpochRange, GetItemBlock, ResolveRA, RunTally,
         },
         rad_manager::RadManager,
-        sessions_manager::SessionsManager,
     },
     signature_mngr,
 };
@@ -132,11 +130,11 @@ impl ChainManager {
         let is_ars_member = rep_engine.is_ars_member(&own_pkh);
 
         let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
-        // FIXME: Only ARS members from the last block of the previous SuperBlock can create a SuperBlock
-        if rep_engine.is_ars_member(&own_pkh) && current_epoch % superblock_period == 0 {
+        // Everyone creates superblocks, but only ARS members sign and broadcast them
+        if current_epoch % superblock_period == 0 {
             // FIXME(#1236): ARS Members have to include the BLS signature instead of PublicKeyHash
             // FIXME: After Reputation Merkelitation, only the ARS Members from the previous consolidated
-            // block will be added, to avoid include addresses that could be wrong later by
+            // Superblock will be added, to avoid include addresses that could be wrong later by
             // block reorganization
             let ars_members: Vec<PublicKeyHash> = rep_engine
                 .ars()
@@ -649,8 +647,12 @@ impl ChainManager {
         })
         .map_err(|e, _, _| log::error!("Superblock forwarding failed: {:?}", e))
         .and_then(move |(block_headers, last_hash), act, _ctx| {
-            let superblock =
-                build_superblock(&block_headers, &ars_members, superblock_index, last_hash);
+            let superblock = act.superblock_state.build_superblock(
+                &block_headers,
+                &ars_members,
+                superblock_index,
+                last_hash,
+            );
 
             match superblock {
                 Some(superblock) => {
@@ -665,6 +667,9 @@ impl ChainManager {
                     let mut superblock_vote = SuperBlockVote::new_unsigned(superblock_hash);
                     let bn256_message = superblock_vote.bn256_signature_message();
                     let fut = signature_mngr::bn256_sign(bn256_message)
+                        .map_err(|e| {
+                            log::error!("Failed to sign superblock with bn256 key: {}", e);
+                        })
                         .and_then(move |bn256_keyed_signature| {
                             // Actually, we don't need to include the BN256 public key because
                             // it is stored in the `alt_keys` mapping, indexed by the
@@ -673,43 +678,31 @@ impl ChainManager {
                             superblock_vote.set_bn256_signature(bn256_signature.clone());
                             let secp256k1_message = superblock_vote.secp256k1_signature_message();
                             let sign_bytes = calculate_sha256(&secp256k1_message).0;
-                            signature_mngr::sign_data(sign_bytes).map(move |secp256k1_signature| {
-                                (bn256_signature, secp256k1_signature)
-                            })
+                            signature_mngr::sign_data(sign_bytes)
+                                .map(move |secp256k1_signature| SuperBlockVote {
+                                    superblock_hash,
+                                    bn256_signature,
+                                    secp256k1_signature,
+                                })
+                                .map_err(|e| {
+                                    log::error!(
+                                        "Failed to sign superblock with secp256k1 key: {}",
+                                        e
+                                    );
+                                })
                         })
-                        .then(move |res| match res {
-                            Ok((bn256_signature, secp256k1_signature)) => {
-                                let ssbv = SendSuperBlockVote {
-                                    superblock_vote: SuperBlockVote {
-                                        superblock_hash,
-                                        bn256_signature,
-                                        secp256k1_signature,
-                                    },
-                                };
-                                let sessions_manager_addr = SessionsManager::from_registry();
-                                let fut = sessions_manager_addr
-                                    .send(Broadcast {
-                                        command: ssbv,
-                                        only_inbound: false,
-                                    })
-                                    .then(|res| match res {
-                                        Ok(()) => Ok(()),
-                                        Err(e) => {
-                                            log::error!(
-                                                "Failed to broadcast superblock vote: {}",
-                                                e
-                                            );
-                                            Err(())
-                                        }
-                                    });
-                                futures::future::Either::A(fut)
-                            }
+                        .into_actor(act)
+                        .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
+                            Ok(()) => actix::fut::ok(()),
                             Err(e) => {
-                                log::error!("Failed to sign superblock: {}", e);
-                                futures::future::Either::B(futures::future::err(()))
+                                log::error!(
+                                    "Error when broadcasting recently created superblock: {}",
+                                    e
+                                );
+
+                                actix::fut::err(())
                             }
-                        })
-                        .into_actor(act);
+                        });
                     actix::fut::Either::A(fut)
                 }
                 None => {
@@ -1008,35 +1001,6 @@ fn build_block(
     };
 
     (block_header, txns)
-}
-
-/// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
-fn build_superblock(
-    block_headers: &[BlockHeader],
-    sorted_ars_identities: &[PublicKeyHash],
-    index: u32,
-    last_block_in_previous_superblock: Hash,
-) -> Option<SuperBlock> {
-    let last_block = block_headers.last()?.hash();
-    let merkle_drs: Vec<Hash> = block_headers
-        .iter()
-        .map(|b| b.merkle_roots.dr_hash_merkle_root)
-        .collect();
-    let merkle_tallies: Vec<Hash> = block_headers
-        .iter()
-        .map(|b| b.merkle_roots.tally_hash_merkle_root)
-        .collect();
-
-    let pkh_hashes: Vec<Hash> = sorted_ars_identities.iter().map(|pkh| pkh.hash()).collect();
-
-    Some(SuperBlock {
-        data_request_root: hash_merkle_tree_root(&merkle_drs),
-        tally_root: hash_merkle_tree_root(&merkle_tallies),
-        ars_root: hash_merkle_tree_root(&pkh_hashes),
-        index,
-        last_block,
-        last_block_in_previous_superblock,
-    })
 }
 
 #[allow(clippy::many_single_char_names)]
@@ -1439,127 +1403,6 @@ mod tests {
         assert_eq!(public_key, public_key2);
 
         assert!(verify(secp, &public_key2, &data, &signature2).is_ok());
-    }
-
-    #[test]
-    fn test_superblock_creation_no_blocks() {
-        let default_hash = Hash::default();
-        let superblock = build_superblock(&[], &[], 0, default_hash);
-        assert_eq!(superblock, None);
-    }
-
-    static DR_MERKLE_ROOT_1: &str =
-        "0000000000000000000000000000000000000000000000000000000000000000";
-    static TALLY_MERKLE_ROOT_1: &str =
-        "1111111111111111111111111111111111111111111111111111111111111111";
-    static DR_MERKLE_ROOT_2: &str =
-        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-    static TALLY_MERKLE_ROOT_2: &str =
-        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
-    #[test]
-    fn test_superblock_creation_one_block() {
-        let default_hash = Hash::default();
-        let default_proof = BlockEligibilityClaim::default();
-        let default_beacon = CheckpointBeacon::default();
-        let dr_merkle_root_1 = DR_MERKLE_ROOT_1.parse().unwrap();
-        let tally_merkle_root_1 = TALLY_MERKLE_ROOT_1.parse().unwrap();
-
-        let block = BlockHeader {
-            version: 1,
-            beacon: default_beacon,
-            merkle_roots: BlockMerkleRoots {
-                mint_hash: default_hash,
-                vt_hash_merkle_root: default_hash,
-                dr_hash_merkle_root: dr_merkle_root_1,
-                commit_hash_merkle_root: default_hash,
-                reveal_hash_merkle_root: default_hash,
-                tally_hash_merkle_root: tally_merkle_root_1,
-            },
-            proof: default_proof,
-            bn256_public_key: None,
-        };
-
-        let expected_superblock = SuperBlock {
-            data_request_root: dr_merkle_root_1,
-            tally_root: tally_merkle_root_1,
-            ars_root: PublicKeyHash::default().hash(),
-            index: 0,
-            last_block: block.hash(),
-            last_block_in_previous_superblock: default_hash,
-        };
-
-        let superblock =
-            build_superblock(&[block], &[PublicKeyHash::default()], 0, default_hash).unwrap();
-        assert_eq!(superblock, expected_superblock);
-    }
-
-    #[test]
-    fn test_superblock_creation_two_blocks() {
-        let default_hash = Hash::default();
-        let default_proof = BlockEligibilityClaim::default();
-        let default_beacon = CheckpointBeacon::default();
-        let dr_merkle_root_1 = DR_MERKLE_ROOT_1.parse().unwrap();
-        let tally_merkle_root_1 = TALLY_MERKLE_ROOT_1.parse().unwrap();
-        let dr_merkle_root_2 = DR_MERKLE_ROOT_2.parse().unwrap();
-        let tally_merkle_root_2 = TALLY_MERKLE_ROOT_2.parse().unwrap();
-        // Sha256(dr_merkle_root_1 || dr_merkle_root_2)
-        let expected_superblock_dr_root =
-            "bba91ca85dc914b2ec3efb9e16e7267bf9193b14350d20fba8a8b406730ae30a"
-                .parse()
-                .unwrap();
-        // Sha256(tally_merkle_root_1 || tally_merkle_root_2)
-        let expected_superblock_tally_root =
-            "83a70a79e9bef7bd811df52736eb61373095d7a8936aed05d0dc96d959b30b50"
-                .parse()
-                .unwrap();
-
-        let block_1 = BlockHeader {
-            version: 1,
-            beacon: default_beacon,
-            merkle_roots: BlockMerkleRoots {
-                mint_hash: default_hash,
-                vt_hash_merkle_root: default_hash,
-                dr_hash_merkle_root: dr_merkle_root_1,
-                commit_hash_merkle_root: default_hash,
-                reveal_hash_merkle_root: default_hash,
-                tally_hash_merkle_root: tally_merkle_root_1,
-            },
-            proof: default_proof.clone(),
-            bn256_public_key: None,
-        };
-
-        let block_2 = BlockHeader {
-            version: 1,
-            beacon: default_beacon,
-            merkle_roots: BlockMerkleRoots {
-                mint_hash: default_hash,
-                vt_hash_merkle_root: default_hash,
-                dr_hash_merkle_root: dr_merkle_root_2,
-                commit_hash_merkle_root: default_hash,
-                reveal_hash_merkle_root: default_hash,
-                tally_hash_merkle_root: tally_merkle_root_2,
-            },
-            proof: default_proof,
-            bn256_public_key: None,
-        };
-
-        let expected_superblock = SuperBlock {
-            data_request_root: expected_superblock_dr_root,
-            tally_root: expected_superblock_tally_root,
-            ars_root: PublicKeyHash::default().hash(),
-            index: 0,
-            last_block: block_2.hash(),
-            last_block_in_previous_superblock: default_hash,
-        };
-
-        let superblock = build_superblock(
-            &[block_1, block_2],
-            &[PublicKeyHash::default()],
-            0,
-            default_hash,
-        )
-        .unwrap();
-        assert_eq!(superblock, expected_superblock);
     }
 
     fn init_rep_engine(v_rep: Vec<u32>) -> (ReputationEngine, Vec<PublicKeyHash>) {

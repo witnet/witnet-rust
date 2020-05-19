@@ -24,10 +24,11 @@ use crate::actors::{
     codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
-        AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddTransaction, CloseSession,
-        Consolidate, EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
-        PeerBeacon, RequestPeers, SendGetPeers, SendInventoryAnnouncement, SendInventoryItem,
-        SendLastBeacon, SendSuperBlockVote, SessionUnitResult,
+        AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlockVote, AddTransaction,
+        CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
+        GetHighestCheckpointBeacon, GetItem, PeerBeacon, RequestPeers, SendGetPeers,
+        SendInventoryAnnouncement, SendInventoryItem, SendLastBeacon, SendSuperBlockVote,
+        SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -250,7 +251,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                     // SUPERBLOCK VOTE //
                     /////////////////////
                     (_, SessionStatus::Consolidated, Command::SuperBlockVote(sbv)) => {
-                        process_superblock_vote(self, &sbv)
+                        process_superblock_vote(self, sbv)
                     }
 
                     /////////////////////
@@ -526,7 +527,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
     }
 }
 
-/// Function called when Block message is received
+/// Function called when Transaction message is received
 fn inventory_process_transaction(
     _session: &mut Session,
     _ctx: &mut Context<Session>,
@@ -736,15 +737,11 @@ fn send_superblock_vote(session: &mut Session, superblock_vote: SuperBlockVote) 
     session.send_message(superblock_vote_msg);
 }
 
-/// Function called when SuperBlockVote message is received
-fn process_superblock_vote(_session: &mut Session, superblock_vote: &SuperBlockVote) {
-    // FIXME(#1233): forward received superblock votes
-    // Nodes should forward superblock votes as long as they belong to the ARS and have not being
-    // forwarded yet. Therefore, each node should store the information of the votes already
-    // forwarded per superblock. When a new superblock epoch is reached, this information can be
-    // deleted.
-    log::error!(
-        "Received SuperBlockVote (unimplemented): {:?}",
-        superblock_vote
-    );
+/// Function called when SuperBlockVote message is received from another peer
+fn process_superblock_vote(_session: &mut Session, superblock_vote: SuperBlockVote) {
+    // Get ChainManager address
+    let chain_manager_addr = ChainManager::from_registry();
+
+    // Send a message to the ChainManager to try to validate this superblock vote
+    chain_manager_addr.do_send(AddSuperBlockVote { superblock_vote });
 }

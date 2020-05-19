@@ -7,7 +7,7 @@ use std::{
 
 use itertools::Itertools;
 use witnet_crypto::{
-    hash::Sha256,
+    hash::{calculate_sha256, Sha256},
     key::CryptoEngine,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
@@ -2168,7 +2168,6 @@ pub fn verify_signatures(
                     msg: e.to_string(),
                 }
             })?,
-
             SignaturesToVerify::SecpBlock {
                 public_key,
                 data,
@@ -2182,6 +2181,26 @@ pub fn verify_signatures(
                     },
                 }
             })?,
+            SignaturesToVerify::SuperBlockVote { superblock_vote } => {
+                // Validates secp256k1 signature only, bn256 signature is not validated
+                let secp_message = superblock_vote.secp256k1_signature_message();
+                let secp_message_hash = calculate_sha256(&secp_message);
+                verify(
+                    secp,
+                    &superblock_vote
+                        .secp256k1_signature
+                        .public_key
+                        .try_into()
+                        .unwrap(),
+                    &secp_message_hash.0,
+                    &superblock_vote
+                        .secp256k1_signature
+                        .signature
+                        .try_into()
+                        .unwrap(),
+                )
+                .map_err(|e| e)?;
+            }
         }
     }
 

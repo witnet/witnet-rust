@@ -572,7 +572,7 @@ impl Hashable for SuperBlock {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::SuperBlockVote")]
 pub struct SuperBlockVote {
     pub superblock_hash: Hash,
@@ -613,7 +613,7 @@ impl SuperBlockVote {
 }
 
 /// Digital signatures structure (based on supported cryptosystems)
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Signature")]
 pub enum Signature {
     /// ECDSA over secp256k1
@@ -649,7 +649,7 @@ impl Signature {
 }
 
 /// ECDSA (over secp256k1) signature
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Secp256k1Signature")]
 pub struct Secp256k1Signature {
     /// The signature serialized in DER
@@ -1047,7 +1047,7 @@ impl DataRequestOutput {
 }
 
 /// Keyed signature data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::KeyedSignature")]
 pub struct KeyedSignature {
     pub signature: Signature,
@@ -1055,7 +1055,7 @@ pub struct KeyedSignature {
 }
 
 /// Public Key data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize)]
 pub struct PublicKey {
     pub compressed: u8,
     pub bytes: [u8; 32],
@@ -1116,7 +1116,7 @@ pub struct ExtendedSecretKey {
 
 /// BLS data structures
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256PublicKey")]
 pub struct Bn256PublicKey {
     /// Compressed form of a BN256 public key
@@ -1126,12 +1126,12 @@ pub struct Bn256PublicKey {
 pub struct Bn256SecretKey {
     pub bytes: Protected,
 }
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256Signature")]
 pub struct Bn256Signature {
     pub signature: Vec<u8>,
 }
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256KeyedSignature")]
 pub struct Bn256KeyedSignature {
     pub signature: Bn256Signature,
@@ -2956,6 +2956,9 @@ pub enum SignaturesToVerify {
         public_key: Secp256k1_PublicKey,
         data: Vec<u8>,
         signature: Secp256k1_Signature,
+    },
+    SuperBlockVote {
+        superblock_vote: SuperBlockVote,
     },
 }
 

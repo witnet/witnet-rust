@@ -21,8 +21,8 @@ use crate::{
     actors::{
         chain_manager::process_validations,
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddTransaction, Anycast, Broadcast,
-            BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
+            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction, Anycast,
+            Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
             GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetNodeStats,
             GetReputation, GetReputationAll, GetReputationStatus, GetReputationStatusResult,
             GetState, GetUtxoInfo, PeersBeacons, SendLastBeacon, SessionUnitResult, TryMineBlock,
@@ -438,6 +438,19 @@ impl Handler<AddCandidates> for ChainManager {
         for block in msg.blocks {
             self.process_candidate(block);
         }
+    }
+}
+
+/// Handler for AddSuperBlockVote message
+impl Handler<AddSuperBlockVote> for ChainManager {
+    type Result = Result<(), failure::Error>;
+
+    fn handle(
+        &mut self,
+        AddSuperBlockVote { superblock_vote }: AddSuperBlockVote,
+        ctx: &mut Context<Self>,
+    ) -> Self::Result {
+        self.add_superblock_vote(superblock_vote, ctx)
     }
 }
 
