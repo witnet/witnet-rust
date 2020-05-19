@@ -14,7 +14,7 @@ edition = "2018"
 members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "bridges/ethereum"]
 
 [features]
-default = ["wallet", "node"]
+default = ["wallet", "node", "sentry"]
 node = ["witnet_node"]
 wallet = ["witnet_wallet"]
 
