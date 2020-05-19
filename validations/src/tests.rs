@@ -1616,7 +1616,6 @@ fn example_data_request_output(witnesses: u16, witness_reward: u64, fee: u64) ->
         min_consensus_percentage: 51,
         data_request: example_data_request(),
         collateral: ONE_WIT,
-        ..DataRequestOutput::default()
     }
 }
 
@@ -1634,7 +1633,6 @@ fn example_data_request_output_with_mode_filter(
         min_consensus_percentage: 51,
         data_request: example_data_request_with_mode_filter(),
         collateral: ONE_WIT,
-        ..DataRequestOutput::default()
     }
 }
 
@@ -1764,7 +1762,6 @@ fn data_request_no_reward() {
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
         data_request,
-        ..DataRequestOutput::default()
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1784,7 +1781,6 @@ fn data_request_value_overflow() {
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
         data_request,
-        ..DataRequestOutput::default()
     };
     // Test different combinations of overflowing values
     let x = test_drtx(DataRequestOutput {
@@ -2038,7 +2034,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "2b3e5252d9266d5bc62666052e9a6a8b00167c04a2339c3929acd62aee5aa4f4";
+static DR_HASH: &str = "a852dcb0c24d385298ea927b68e8ff3285a429e052403f0dad4b2281a865218a";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr_and_utxo_set(
@@ -2930,7 +2926,7 @@ fn commitment_collateral_zero_is_minimum() {
         // dr_hash changed because the collateral is 0
         assert_eq!(
             dr_hash,
-            "0a866ced5ca378e3e01a75f755384972868e99f838dec4ddb06adc465f5e481c"
+            "749e480363305800fe1ba8fff3d900264fa8205eec38a1a996c442575993a5ca"
                 .parse()
                 .unwrap()
         );
@@ -3346,7 +3342,7 @@ fn reveal_invalid_commitment() {
 fn reveal_valid_commitment() {
     let mut signatures_to_verify = vec![];
     // Create DataRequestPool
-    let mut dr_pool = DataRequestPool::default();
+    let mut dr_pool = DataRequestPool::new(2);
 
     // Create DRTransaction
     let fake_block_hash = Hash::SHA256([1; 32]);
@@ -3354,7 +3350,6 @@ fn reveal_valid_commitment() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
         reveal_fee: 20,
-        extra_reveal_rounds: 2,
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
         ..DataRequestOutput::default()

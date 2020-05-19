@@ -735,8 +735,7 @@ pub fn validate_commit_transaction(
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
     let dr_state = dr_pool
-        .data_request_pool
-        .get(&dr_pointer)
+        .data_request_state(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
     if dr_state.stage != DataRequestStage::COMMIT {
         return Err(DataRequestError::NotCommitStage.into());
@@ -806,7 +805,8 @@ pub fn validate_commit_transaction(
     }
 
     let pkh = proof_pkh;
-    let num_witnesses = dr_output.witnesses + dr_output.backup_witnesses;
+    let backup_witnesses = dr_state.backup_witnesses();
+    let num_witnesses = dr_output.witnesses + backup_witnesses;
     let (target_hash, _) = calculate_reppoe_threshold(rep_eng, &pkh, num_witnesses);
     add_dr_vrf_signature_to_verify(
         signatures_to_verify,
@@ -829,8 +829,7 @@ pub fn validate_reveal_transaction(
     // Get DataRequest information
     let dr_pointer = re_tx.body.dr_pointer;
     let dr_state = dr_pool
-        .data_request_pool
-        .get(&dr_pointer)
+        .data_request_state(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     if dr_state.stage != DataRequestStage::REVEAL {
@@ -904,8 +903,7 @@ fn create_expected_tally_transaction(
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
     let dr_state = dr_pool
-        .data_request_pool
-        .get(&dr_pointer)
+        .data_request_state(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     if dr_state.stage != DataRequestStage::TALLY {

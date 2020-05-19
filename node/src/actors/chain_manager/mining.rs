@@ -313,15 +313,15 @@ impl ChainManager {
         let current_retrieval_count = Arc::new(AtomicU16::new(0u16));
         let maximum_retrieval_count = self.data_request_max_retrievals_per_epoch;
 
-        for (dr_pointer, data_request_output) in dr_pointers.into_iter().filter_map(|dr_pointer| {
+        for (dr_pointer, dr_state) in dr_pointers.into_iter().filter_map(|dr_pointer| {
             // Filter data requests that are not in data_request_pool
             self.chain_state
                 .data_request_pool
-                .get_dr_output(&dr_pointer)
-                .map(|data_request_output| (dr_pointer, data_request_output))
+                .data_request_state(&dr_pointer)
+                .map(|dr_state| (dr_pointer, dr_state.clone()))
         }) {
-            let num_witnesses = data_request_output.witnesses;
-            let num_backup_witnesses = data_request_output.backup_witnesses;
+            let num_witnesses = dr_state.data_request.witnesses;
+            let num_backup_witnesses = dr_state.backup_witnesses();
             // The vrf_input used to create and verify data requests must be set to the current epoch
             let dr_vrf_input = CheckpointVRF {
                 checkpoint: current_epoch,
@@ -335,10 +335,10 @@ impl ChainManager {
             let cloned_retrieval_count = Arc::clone(&current_retrieval_count);
             let cloned_retrieval_count2 = Arc::clone(&current_retrieval_count);
             let added_retrieval_count =
-                u16::try_from(data_request_output.data_request.retrieve.len())
+                u16::try_from(dr_state.data_request.data_request.retrieve.len())
                     .unwrap_or(core::u16::MAX);
 
-            let collateral_amount = if data_request_output.collateral == 0 {
+            let collateral_amount = if dr_state.data_request.collateral == 0 {
                 self.chain_state
                     .chain_info
                     .as_ref()
@@ -346,7 +346,7 @@ impl ChainManager {
                     .consensus_constants
                     .collateral_minimum
             } else {
-                data_request_output.collateral
+                dr_state.data_request.collateral
             };
 
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_vrf_input, dr_pointer))
@@ -486,7 +486,7 @@ impl ChainManager {
                     }
                 })
                 .and_then(move |(vrf_proof, collateral), act, _| {
-                    let rad_request = data_request_output.data_request.clone();
+                    let rad_request = dr_state.data_request.data_request.clone();
 
                     // Send ResolveRA message to RADManager
                     let rad_manager_addr = RadManager::from_registry();

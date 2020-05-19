@@ -1026,12 +1026,9 @@ pub struct DataRequestOutput {
     pub data_request: RADRequest,
     pub witness_reward: u64,
     pub witnesses: u16,
-    pub backup_witnesses: u16,
     pub commit_fee: u64,
     pub reveal_fee: u64,
     pub tally_fee: u64,
-    pub extra_commit_rounds: u16,
-    pub extra_reveal_rounds: u16,
     // This field must be >50 and <100.
     // >50 because simple majority
     // <100 because a 100% consensus encourages to commit a RadError for free
@@ -2110,11 +2107,11 @@ impl DataRequestState {
     /// Advance to the next stage.
     /// Since the data requests are updated by looking at the transactions from a valid block,
     /// the only issue would be that there were no commits in that block.
-    pub fn update_stage(&mut self) {
+    pub fn update_stage(&mut self, extra_rounds: u16) {
         self.stage = match self.stage {
             DataRequestStage::COMMIT => {
                 if self.info.commits.is_empty() {
-                    if self.info.current_commit_round <= self.data_request.extra_commit_rounds {
+                    if self.info.current_commit_round <= extra_rounds {
                         self.info.current_commit_round += 1;
                         DataRequestStage::COMMIT
                     } else {
@@ -2127,7 +2124,7 @@ impl DataRequestState {
             }
             DataRequestStage::REVEAL => {
                 if self.info.reveals.len() < self.data_request.witnesses as usize
-                    && self.info.current_reveal_round <= self.data_request.extra_reveal_rounds
+                    && self.info.current_reveal_round <= extra_rounds
                 {
                     self.info.current_reveal_round += 1;
                     DataRequestStage::REVEAL
@@ -2145,6 +2142,18 @@ impl DataRequestState {
         };
         self.info.current_stage = Some(self.stage);
     }
+
+    /// Function to calculate the backup witnesses required
+    pub fn backup_witnesses(&self) -> u16 {
+        calculate_backup_witnesses(self.data_request.witnesses, self.info.current_commit_round)
+    }
+}
+
+fn calculate_backup_witnesses(witnesses: u16, commit_round: u16) -> u16 {
+    let exponent = u32::from(commit_round).saturating_sub(1);
+    let coefficient = 2_u16.saturating_pow(exponent);
+
+    witnesses.saturating_mul(coefficient) / 2
 }
 
 /// Data request current stage
@@ -3863,5 +3872,18 @@ mod tests {
             assert!(value > aux);
             aux = value;
         }
+    }
+
+    #[test]
+    fn test_calculate_backup_witnesses() {
+        assert_eq!(calculate_backup_witnesses(10, 1), 5);
+        assert_eq!(calculate_backup_witnesses(10, 2), 10);
+        assert_eq!(calculate_backup_witnesses(10, 3), 20);
+        assert_eq!(calculate_backup_witnesses(10, 4), 40);
+
+        assert_eq!(calculate_backup_witnesses(11, 1), 5);
+        assert_eq!(calculate_backup_witnesses(11, 2), 11);
+        assert_eq!(calculate_backup_witnesses(11, 3), 22);
+        assert_eq!(calculate_backup_witnesses(11, 4), 44);
     }
 }

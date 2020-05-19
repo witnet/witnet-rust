@@ -25,9 +25,19 @@ pub struct DataRequestPool {
     pub data_request_pool: HashMap<Hash, DataRequestState>,
     /// List of data requests that should be persisted into storage
     pub to_be_stored: Vec<DataRequestReport>,
+    /// Extra rounds for commitments and reveals
+    pub extra_rounds: u16,
 }
 
 impl DataRequestPool {
+    /// Create a new 'DataRequestPool' initialized with a number of extra rounds
+    pub fn new(extra_rounds: u16) -> Self {
+        Self {
+            extra_rounds,
+            ..Default::default()
+        }
+    }
+
     /// Get all available data requests output pointers for an epoch
     pub fn get_dr_output_pointers_by_epoch(&self, epoch: Epoch) -> Vec<Hash> {
         let range = 0..=epoch;
@@ -196,13 +206,14 @@ impl DataRequestPool {
     pub fn update_data_request_stages(&mut self) -> Vec<RevealTransaction> {
         let waiting_for_reveal = &mut self.waiting_for_reveal;
         let data_requests_by_epoch = &mut self.data_requests_by_epoch;
+        let extra_rounds = self.extra_rounds;
         // Update the stage of the active data requests
         self.data_request_pool
             .iter_mut()
             .filter_map(|(dr_pointer, dr_state)| {
                 // We can notify the user that a data request from "my_claims" is available
                 // for reveal.
-                dr_state.update_stage();
+                dr_state.update_stage(extra_rounds);
                 match dr_state.stage {
                     DataRequestStage::REVEAL => {
                         // When a data request changes from commit stage to reveal stage, it should
@@ -531,7 +542,7 @@ mod tests {
         (epoch, fake_block_hash, p, dr_transaction.hash())
     }
 
-    fn add_data_requests_with_2_commit_stages() -> (u32, Hash, DataRequestPool, Hash) {
+    fn add_data_requests_with_3_commit_stages() -> (u32, Hash, DataRequestPool, Hash) {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
         let empty_info = DataRequestInfo {
@@ -540,7 +551,6 @@ mod tests {
         };
         let dr_output = DataRequestOutput {
             witnesses: 2,
-            extra_commit_rounds: 1,
             ..DataRequestOutput::default()
         };
         let dr_transaction = DRTransaction::new(
@@ -549,7 +559,7 @@ mod tests {
         );
         let dr_pointer = dr_transaction.hash();
 
-        let mut p = DataRequestPool::default();
+        let mut p = DataRequestPool::new(2);
         p.process_data_request(
             &dr_transaction,
             epoch,
@@ -581,7 +591,6 @@ mod tests {
         };
         let dr_output = DataRequestOutput {
             witnesses: 2,
-            extra_reveal_rounds: 2,
             ..DataRequestOutput::default()
         };
         let dr_transaction = DRTransaction::new(
@@ -590,7 +599,7 @@ mod tests {
         );
         let dr_pointer = dr_transaction.hash();
 
-        let mut p = DataRequestPool::default();
+        let mut p = DataRequestPool::new(2);
         p.process_data_request(
             &dr_transaction,
             epoch,
@@ -719,7 +728,7 @@ mod tests {
             .unwrap();
 
         // And the data request has been removed from the pool
-        assert_eq!(p.data_request_pool.get(&dr_pointer), None);
+        assert_eq!(p.data_request_state(&dr_pointer), None);
 
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
@@ -1109,9 +1118,9 @@ mod tests {
 
     #[test]
     fn update_no_commits_1_extra() {
-        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_2_commit_stages();
+        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_commit_stages();
 
-        // 1 extra commit rounds
+        // First commitment round
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
@@ -1120,7 +1129,9 @@ mod tests {
             p.data_request_pool[&dr_pointer].info.current_commit_round,
             1
         );
+        assert_eq!(p.data_request_pool[&dr_pointer].backup_witnesses(), 1);
 
+        // Second commitment round
         assert!(p.update_data_request_stages().is_empty());
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1130,6 +1141,19 @@ mod tests {
             p.data_request_pool[&dr_pointer].info.current_commit_round,
             2
         );
+        assert_eq!(p.data_request_pool[&dr_pointer].backup_witnesses(), 2);
+
+        // Third commitment round
+        assert!(p.update_data_request_stages().is_empty());
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::COMMIT
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_commit_round,
+            3
+        );
+        assert_eq!(p.data_request_pool[&dr_pointer].backup_witnesses(), 4);
 
         // Since extra_commit_rounds = 1, updating again in commit stage will
         // move the data request to tally stage
@@ -1146,9 +1170,9 @@ mod tests {
 
     #[test]
     fn update_commits_1_extra() {
-        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_2_commit_stages();
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_commit_stages();
 
-        // 1 extra commit rounds
+        // 2 extra commit rounds
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
@@ -1157,6 +1181,7 @@ mod tests {
             p.data_request_pool[&dr_pointer].info.current_commit_round,
             1
         );
+        assert_eq!(p.data_request_pool[&dr_pointer].backup_witnesses(), 1);
 
         assert!(p.update_data_request_stages().is_empty());
 

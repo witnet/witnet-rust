@@ -16,6 +16,7 @@ use witnet_data_structures::{
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo,
         OwnUnspentOutputsPool, PublicKeyHash, ReputationEngine,
     },
+    data_request::DataRequestPool,
     vrf::VrfCtx,
 };
 use witnet_util::timestamp::pretty_print;
@@ -176,6 +177,7 @@ impl ChainManager {
                             chain_info: Some(chain_info),
                             reputation_engine: Some(reputation_engine),
                             own_utxos: OwnUnspentOutputsPool::new(consensus_constants.collateral_minimum),
+                            data_request_pool: DataRequestPool::new(consensus_constants.extra_rounds),
                             ..ChainState::default()
                         }
                     }

@@ -565,15 +565,13 @@ impl fmt::Display for DataRequestTransactionInfo {
             }
             writeln!(
                 f,
-                "Commit rounds: {}/{}",
+                "Commit rounds: {}",
                 data_request_state.current_commit_round,
-                1 + self.data_request_output.extra_commit_rounds
             )?;
             writeln!(
                 f,
-                "Reveal rounds: {}/{}",
+                "Reveal rounds: {}",
                 data_request_state.current_reveal_round,
-                1 + self.data_request_output.extra_reveal_rounds
             )?;
         }
 
