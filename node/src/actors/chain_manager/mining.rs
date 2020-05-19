@@ -653,8 +653,8 @@ impl ChainManager {
                     let superblock_hash = superblock.hash();
 
                     // FIXME(#1236): Superblock signing and broadcasting (and remove these logs)
-                    log::error!("SUPERBLOCK: {:?}", superblock);
-                    log::error!("SUPERBLOCK hash: {}", superblock_hash);
+                    log::trace!("SUPERBLOCK: {:?}", superblock);
+                    log::trace!("SUPERBLOCK hash: {}", superblock_hash);
                 }
                 None => log::warn!("No blocks to build a superblocks"),
             }
