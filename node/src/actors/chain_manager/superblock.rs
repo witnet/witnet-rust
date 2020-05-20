@@ -17,13 +17,15 @@ pub enum AddSuperBlockVote {
 /// State related to superblocks
 #[derive(Debug, Default)]
 pub struct SuperBlockState {
-    // Set of ARS identities that can currently send superblock votes
-    ars_identities: HashSet<PublicKeyHash>,
+    // Set of ARS identities that will be able to send superblock votes in the next superblock epoch
+    current_ars_identities: Option<HashSet<PublicKeyHash>>,
     // Current superblock hash created by this node
     current_superblock_hash: Option<Hash>,
     // Current superblock index, used to limit the range of broadcasted votes to
     // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
     current_superblock_index: Option<u32>,
+    // Set of ARS identities that can currently send superblock votes
+    previous_ars_identities: Option<HashSet<PublicKeyHash>>,
     // Set of received superblock votes
     // This is cleared when we try to create a new superblock
     received_superblocks: HashSet<SuperBlockVote>,
@@ -78,10 +80,10 @@ impl SuperBlockState {
             None => None,
             // If the index is the same as the current one, the vote is valid if it is signed by a
             // member of the ARS
-            Some(x) if x == sbv.superblock_index => Some(
-                self.ars_identities
-                    .contains(&sbv.secp256k1_signature.public_key.pkh()),
-            ),
+            Some(x) if x == sbv.superblock_index => self
+                .previous_ars_identities
+                .as_ref()
+                .map(|x| x.contains(&sbv.secp256k1_signature.public_key.pkh())),
             // If the index is not the same as the current one, but it is within an acceptable range
             // of [x-1, x+1], broadcast the vote without checking if it is a member of the ARS, as
             // the ARS may have changed and we do not keep older copies of the ARS in memory
@@ -97,8 +99,9 @@ impl SuperBlockState {
     }
 
     /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
-    /// `sorted_ars_identities` will be used to validate all the superblock votes received until the
-    /// next superblock is built (only those identities can sign superblock votes), so it must be accurate.
+    /// `sorted_ars_identities` will be used to validate all the superblock votes received for the
+    /// next superblock. The votes for the current superblock must be validated using
+    /// `previous_ars_identities`.
     pub fn build_superblock(
         &mut self,
         block_headers: &[BlockHeader],
@@ -108,7 +111,6 @@ impl SuperBlockState {
     ) -> Option<SuperBlock> {
         self.current_superblock_index = Some(superblock_index);
         self.votes_on_local_superlock.clear();
-        self.ars_identities = sorted_ars_identities.iter().cloned().collect();
 
         match mining_build_superblock(
             block_headers,
@@ -118,6 +120,7 @@ impl SuperBlockState {
         ) {
             None => {
                 // Clear state when there is no superblock
+                // Note that the ARS members list is not updated in this case
                 self.current_superblock_hash = None;
                 self.received_superblocks.clear();
 
@@ -127,10 +130,24 @@ impl SuperBlockState {
                 let superblock_hash = superblock.hash();
                 self.current_superblock_hash = Some(superblock_hash);
 
-                let old_superblocks =
-                    std::mem::replace(&mut self.received_superblocks, HashSet::new());
+                // Save ARS identities:
+                // previous = current
+                // current = sorted_ars_identities
+                {
+                    std::mem::swap(
+                        &mut self.previous_ars_identities,
+                        &mut self.current_ars_identities,
+                    );
+                    // Reuse allocated memory
+                    let hs = self.current_ars_identities.get_or_insert(HashSet::new());
+                    hs.clear();
+                    hs.extend(sorted_ars_identities.iter().cloned());
+                }
 
-                for sbv in old_superblocks {
+                let mut old_superblock_votes =
+                    std::mem::replace(&mut self.received_superblocks, HashSet::new());
+                // Process old superblock votes
+                for sbv in old_superblock_votes.drain() {
                     // Validate again, check if they are valid now
                     let valid = self.is_valid(&sbv);
 
@@ -142,6 +159,12 @@ impl SuperBlockState {
                         self.votes_on_local_superlock.insert(sbv);
                     }
                 }
+                // old_superblock_votes should be empty, as we have drained it
+                // But swap it back to reuse allocated memory
+                // TODO: remove asserts after adding tests
+                assert!(old_superblock_votes.is_empty());
+                assert!(self.received_superblocks.is_empty());
+                std::mem::replace(&mut self.received_superblocks, old_superblock_votes);
 
                 Some(superblock)
             }
