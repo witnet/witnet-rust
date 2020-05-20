@@ -5,6 +5,8 @@ use structopt::StructOpt;
 use terminal_size as term;
 
 use env_logger::TimestampPrecision;
+use std::borrow::Cow;
+use std::str::FromStr;
 use witnet_config as config;
 
 mod node;
@@ -82,10 +84,24 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
 
     // Initialize Sentry (automated bug reporting) if explicitly enabled in configuration
     if cfg!(not(debug_assertions)) && opts.sentry_telemetry {
-        // Initialize client
-        let guard = sentry::init(
+        // Configure Sentry DSN
+        let dsn = sentry::internals::Dsn::from_str(
             "https://def0c5d0fb354ef9ad6dddb576a21624@o394464.ingest.sentry.io/5244595",
-        );
+        )
+        .ok();
+        // Acquire the crate name and version from the environment at compile time so Sentry can
+        // report which release is being used
+        let release = option_env!("CARGO_PKG_NAME")
+            .and_then(|name| {
+                option_env!("CARGO_PKG_VERSION").map(|version| format!("{}@{}", name, version))
+            })
+            .map(Cow::from);
+        // Initialize client. The guard binding needs to live as long as `main()` so as not to drop it
+        let guard = sentry::init(sentry::ClientOptions {
+            dsn,
+            release,
+            ..Default::default()
+        });
         // Logger integration for capturing errors. This actually intercepts errors but forwards all
         // log lines to the underlying logging backend, `env_logger` in this case.
         sentry::integrations::env_logger::init(Some(logger_builder.build()), Default::default());
