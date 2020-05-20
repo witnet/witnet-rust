@@ -81,7 +81,7 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
         .filter_module("witnet_node", opts.level);
 
     // Initialize Sentry (automated bug reporting) if explicitly enabled in configuration
-    if opts.sentry_telemetry {
+    if cfg!(not(debug_assertions)) && opts.sentry_telemetry {
         // Initialize client
         let guard = sentry::init(
             "https://def0c5d0fb354ef9ad6dddb576a21624@o394464.ingest.sentry.io/5244595",
