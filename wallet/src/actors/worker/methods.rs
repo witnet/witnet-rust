@@ -773,18 +773,34 @@ impl Worker {
         let block_hash = block.hash();
 
         // Block transactions to be indexed.
-        // NOTE: only `VttTransaction` and `DRTransaction` are currently supported.
-        let dr_txns = block
-            .txns
-            .data_request_txns
-            .into_iter()
-            .map(types::Transaction::from);
+        // Note: reveal transactions do not change wallet balances
         let vtt_txns = block
             .txns
             .value_transfer_txns
             .into_iter()
             .map(types::Transaction::from);
-        let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
+        let dr_txns = block
+            .txns
+            .data_request_txns
+            .into_iter()
+            .map(types::Transaction::from);
+        let commit_txns = block
+            .txns
+            .commit_txns
+            .into_iter()
+            .map(types::Transaction::from);
+        let tally_txns = block
+            .txns
+            .tally_txns
+            .into_iter()
+            .map(types::Transaction::from);
+
+        let block_txns = vtt_txns
+            .chain(dr_txns)
+            .chain(commit_txns)
+            .chain(tally_txns)
+            .chain(std::iter::once(types::Transaction::Mint(block.txns.mint)))
+            .collect::<Vec<types::Transaction>>();
 
         let block_info = model::Beacon {
             epoch: block_epoch,
