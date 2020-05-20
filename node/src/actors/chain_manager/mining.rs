@@ -664,7 +664,8 @@ impl ChainManager {
                         superblock
                     );
 
-                    let mut superblock_vote = SuperBlockVote::new_unsigned(superblock_hash);
+                    let mut superblock_vote =
+                        SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
                     let bn256_message = superblock_vote.bn256_signature_message();
                     let fut = signature_mngr::bn256_sign(bn256_message)
                         .map_err(|e| {
@@ -675,14 +676,14 @@ impl ChainManager {
                             // it is stored in the `alt_keys` mapping, indexed by the
                             // secp256k1 public key hash
                             let bn256_signature = bn256_keyed_signature.signature;
-                            superblock_vote.set_bn256_signature(bn256_signature.clone());
+                            superblock_vote.set_bn256_signature(bn256_signature);
                             let secp256k1_message = superblock_vote.secp256k1_signature_message();
                             let sign_bytes = calculate_sha256(&secp256k1_message).0;
                             signature_mngr::sign_data(sign_bytes)
-                                .map(move |secp256k1_signature| SuperBlockVote {
-                                    superblock_hash,
-                                    bn256_signature,
-                                    secp256k1_signature,
+                                .map(move |secp256k1_signature| {
+                                    superblock_vote.set_secp256k1_signature(secp256k1_signature);
+
+                                    superblock_vote
                                 })
                                 .map_err(|e| {
                                     log::error!(

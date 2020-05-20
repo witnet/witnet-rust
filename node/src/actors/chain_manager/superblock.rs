@@ -7,8 +7,10 @@ use witnet_validations::validations::hash_merkle_tree_root;
 /// Possible result of SuperBlockState::add_vote
 pub enum AddSuperBlockVote {
     AlreadySeen,
+    InvalidIndex,
+    MaybeValid,
     NotInArs,
-    ValidButDifferent,
+    ValidButDifferentHash,
     ValidWithSameHash,
 }
 
@@ -19,6 +21,9 @@ pub struct SuperBlockState {
     ars_identities: HashSet<PublicKeyHash>,
     // Current superblock hash created by this node
     current_superblock_hash: Option<Hash>,
+    // Current superblock index, used to limit the range of broadcasted votes to
+    // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
+    current_superblock_index: Option<u32>,
     // Set of received superblock votes
     // This is cleared when we try to create a new superblock
     received_superblocks: HashSet<SuperBlockVote>,
@@ -40,27 +45,55 @@ impl SuperBlockState {
 
             let valid = self.is_valid(sbv);
 
-            if valid {
-                // If the superblock vote is valid and agrees with the local superblock hash,
-                // store it
-                if Some(sbv.superblock_hash) == self.current_superblock_hash {
-                    self.votes_on_local_superlock.insert(sbv.clone());
+            match valid {
+                Some(true) => {
+                    // If the superblock vote is valid and agrees with the local superblock hash,
+                    // store it
+                    if Some(sbv.superblock_hash) == self.current_superblock_hash {
+                        self.votes_on_local_superlock.insert(sbv.clone());
 
-                    AddSuperBlockVote::ValidWithSameHash
-                } else {
-                    AddSuperBlockVote::ValidButDifferent
+                        AddSuperBlockVote::ValidWithSameHash
+                    } else {
+                        AddSuperBlockVote::ValidButDifferentHash
+                    }
                 }
-            } else {
-                AddSuperBlockVote::NotInArs
+                Some(false) => {
+                    if Some(sbv.superblock_index) == self.current_superblock_index {
+                        AddSuperBlockVote::NotInArs
+                    } else {
+                        AddSuperBlockVote::InvalidIndex
+                    }
+                }
+                None => AddSuperBlockVote::MaybeValid,
             }
         }
     }
 
     /// Since we do not check signatures here, a superblock vote is valid if the signing identity
-    /// is in the ARS
-    fn is_valid(&self, sbv: &SuperBlockVote) -> bool {
-        self.ars_identities
-            .contains(&sbv.secp256k1_signature.public_key.pkh())
+    /// is in the ARS.
+    /// Returns true, false, or unknown
+    fn is_valid(&self, sbv: &SuperBlockVote) -> Option<bool> {
+        match self.current_superblock_index {
+            // We do not know the current index, we cannot know if the vote is valid
+            None => None,
+            // If the index is the same as the current one, the vote is valid if it is signed by a
+            // member of the ARS
+            Some(x) if x == sbv.superblock_index => Some(
+                self.ars_identities
+                    .contains(&sbv.secp256k1_signature.public_key.pkh()),
+            ),
+            // If the index is not the same as the current one, but it is within an acceptable range
+            // of [x-1, x+1], broadcast the vote without checking if it is a member of the ARS, as
+            // the ARS may have changed and we do not keep older copies of the ARS in memory
+            Some(x) => {
+                // Check [x-1, x+1] range with overflow prevention
+                if ((x.saturating_sub(1))..=(x.saturating_add(1))).contains(&sbv.superblock_index) {
+                    None
+                } else {
+                    Some(false)
+                }
+            }
+        }
     }
 
     /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
@@ -70,16 +103,17 @@ impl SuperBlockState {
         &mut self,
         block_headers: &[BlockHeader],
         sorted_ars_identities: &[PublicKeyHash],
-        index: u32,
+        superblock_index: u32,
         last_block_in_previous_superblock: Hash,
     ) -> Option<SuperBlock> {
+        self.current_superblock_index = Some(superblock_index);
         self.votes_on_local_superlock.clear();
         self.ars_identities = sorted_ars_identities.iter().cloned().collect();
 
         match mining_build_superblock(
             block_headers,
             sorted_ars_identities,
-            index,
+            superblock_index,
             last_block_in_previous_superblock,
         ) {
             None => {
@@ -102,13 +136,9 @@ impl SuperBlockState {
 
                     // If the superblock vote is valid and agrees with the local superblock hash,
                     // store it
-                    if valid && Some(sbv.superblock_hash) == self.current_superblock_hash {
-                        // TODO: should be broadcast valid votes again?
-                        // Ideally we want to broadcast votes that are valid now but were not valid
-                        // before, so we must store whether the votes were valid before
-                        // But if we do that there is a high chance that old superblock votes will
-                        // never be deleted, as they will be valid as long as the identity is in the
-                        // ARS
+                    if valid == Some(true)
+                        && Some(sbv.superblock_hash) == self.current_superblock_hash
+                    {
                         self.votes_on_local_superlock.insert(sbv);
                     }
                 }

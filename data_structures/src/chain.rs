@@ -578,17 +578,19 @@ pub struct SuperBlockVote {
     pub superblock_hash: Hash,
     pub bn256_signature: Bn256Signature,
     pub secp256k1_signature: KeyedSignature,
+    pub superblock_index: u32,
 }
 
 impl SuperBlockVote {
     /// Create a new vote for the `superblock_hash`, but do not sign it.
     /// The vote needs to be signed with a BN256 key, and that signature must
     /// later be signed with a secp256k1 key
-    pub fn new_unsigned(superblock_hash: Hash) -> Self {
+    pub fn new_unsigned(superblock_hash: Hash, superblock_index: Epoch) -> Self {
         Self {
             superblock_hash,
             bn256_signature: Bn256Signature { signature: vec![] },
             secp256k1_signature: Default::default(),
+            superblock_index,
         }
     }
     pub fn set_bn256_signature(&mut self, bn256_signature: Bn256Signature) {
@@ -597,14 +599,20 @@ impl SuperBlockVote {
     pub fn set_secp256k1_signature(&mut self, secp256k1_signature: KeyedSignature) {
         self.secp256k1_signature = secp256k1_signature;
     }
-    /// The message to be signed with the bn256 key is the hash of the superblock as bytes:
+    /// The message to be signed with the secp256k1 key is the concatenation
+    /// of the superblock index in big endian and the hash of the superblock as bytes
     pub fn bn256_signature_message(&self) -> Vec<u8> {
-        self.superblock_hash.as_ref().to_vec()
+        [
+            &self.superblock_index.to_be_bytes()[..],
+            self.superblock_hash.as_ref(),
+        ]
+        .concat()
     }
     /// The message to be signed with the secp256k1 key is the concatenation
-    /// of the hash of the superblock and the BN256 signature as bytes:
+    /// of the superblock index in big endian, the hash of the superblock and the BN256 signature as bytes:
     pub fn secp256k1_signature_message(&self) -> Vec<u8> {
         [
+            &self.superblock_index.to_be_bytes()[..],
             self.superblock_hash.as_ref(),
             &self.bn256_signature.signature,
         ]

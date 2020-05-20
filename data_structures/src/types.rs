@@ -72,7 +72,11 @@ impl fmt::Display for Command {
                 }
                 write!(f, ": {}", tx.hash())
             }
-            Command::SuperBlockVote(sbv) => write!(f, "SUPERBLOCK_VOTE: {}", sbv.superblock_hash),
+            Command::SuperBlockVote(sbv) => write!(
+                f,
+                "SUPERBLOCK_VOTE #{}: {}",
+                sbv.superblock_index, sbv.superblock_hash
+            ),
         }
     }
 }
