@@ -744,12 +744,24 @@ pub fn validate_commit_transaction(
 
     let dr_output = &dr_state.data_request;
 
-    // A value transfer output cannot have zero value
-    for (idx, output) in co_tx.body.outputs.iter().enumerate() {
+    // Commitment's output is only for change propose, so it only has to be one output and the
+    // address has to be the same than the address which creates the commitment
+    let proof_pkh = co_tx.body.proof.proof.pkh();
+    if co_tx.body.outputs.len() > 1 {
+        return Err(TransactionError::SeveralCommitOutputs.into());
+    }
+    if let Some(output) = &co_tx.body.outputs.first() {
         if output.value == 0 {
             return Err(TransactionError::ZeroValueOutput {
                 tx_hash: co_tx.hash(),
-                output_id: idx,
+                output_id: 0,
+            }
+            .into());
+        }
+        if output.pkh != proof_pkh {
+            return Err(TransactionError::PublicKeyHashMismatch {
+                expected_pkh: proof_pkh,
+                signature_pkh: output.pkh,
             }
             .into());
         }
@@ -784,17 +796,16 @@ pub fn validate_commit_transaction(
     let commit_signature =
         validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures, signatures_to_verify)?;
 
-    let pkh = commit_signature.public_key.pkh();
-    let pkh2 = co_tx.body.proof.proof.pkh();
-    if pkh != pkh2 {
+    let sign_pkh = commit_signature.public_key.pkh();
+    if proof_pkh != sign_pkh {
         return Err(TransactionError::PublicKeyHashMismatch {
-            expected_pkh: pkh2,
-            signature_pkh: pkh,
+            expected_pkh: proof_pkh,
+            signature_pkh: sign_pkh,
         }
         .into());
     }
 
-    let pkh = co_tx.body.proof.proof.pkh();
+    let pkh = proof_pkh;
     let num_witnesses = dr_output.witnesses + dr_output.backup_witnesses;
     let (target_hash, _) = calculate_reppoe_threshold(rep_eng, &pkh, num_witnesses);
     add_dr_vrf_signature_to_verify(

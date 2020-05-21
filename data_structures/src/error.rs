@@ -248,6 +248,9 @@ pub enum TransactionError {
         output_pkh: PublicKeyHash,
         proof_pkh: PublicKeyHash,
     },
+    /// More than one output for the collateral change
+    #[fail(display = "More than one output for the collateral change")]
+    SeveralCommitOutputs,
 }
 
 /// The error type for operations on a [`Block`](Block)

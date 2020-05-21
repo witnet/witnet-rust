@@ -2676,6 +2676,66 @@ fn commitment_collateral_pkh_mismatch() {
 }
 
 #[test]
+fn commitment_mismatched_output_pkh() {
+    let fake_pkh = Default::default();
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: ONE_WIT + 100,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+
+    let change_output = ValueTransferOutput {
+        pkh: fake_pkh,
+        value: 100,
+        time_lock: 0,
+    };
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![change_output]), 100_000);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::PublicKeyHashMismatch {
+            expected_pkh: MY_PKH_1.parse().unwrap(),
+            signature_pkh: fake_pkh
+        }
+    );
+}
+
+#[test]
+fn commitment_several_outputs() {
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: ONE_WIT + 100,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+
+    let change_output = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 50,
+        time_lock: 0,
+    };
+
+    let change_output2 = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 50,
+        time_lock: 0,
+    };
+
+    let x = test_commit_with_collateral(
+        &utxo_set,
+        (vec![vti], vec![change_output, change_output2]),
+        100_000,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::SeveralCommitOutputs
+    );
+}
+
+#[test]
 fn commitment_collateral_timelocked() {
     let time_lock = 1_000_000_000_000;
     let vto = ValueTransferOutput {
@@ -2773,7 +2833,7 @@ fn commitment_collateral_wrong_amount() {
     let output = utxo_set.iter().next().unwrap().0.clone();
     let vti = Input::new(output);
     let change_output = ValueTransferOutput {
-        pkh: Default::default(),
+        pkh: MY_PKH_1.parse().unwrap(),
         value: 1,
         time_lock: 0,
     };
@@ -2805,22 +2865,13 @@ fn commitment_collateral_negative_amount() {
     let output1 = utxo_set.iter().next().unwrap().0.clone();
     let output2 = utxo_set.iter().nth(1).unwrap().0.clone();
     let inputs = vec![Input::new(output1), Input::new(output2)];
-    let change_output1 = ValueTransferOutput {
-        pkh: Default::default(),
-        value: 1,
-        time_lock: 0,
-    };
-    let change_output2 = ValueTransferOutput {
+    let change_output = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: ONE_WIT,
+        value: ONE_WIT + 1,
         time_lock: 0,
     };
 
-    let x = test_commit_with_collateral(
-        &utxo_set,
-        (inputs, vec![change_output1, change_output2]),
-        100_000,
-    );
+    let x = test_commit_with_collateral(&utxo_set, (inputs, vec![change_output]), 100_000);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2847,18 +2898,13 @@ fn commitment_collateral_zero_is_minimum() {
     let output1 = utxo_set.iter().next().unwrap().0.clone();
     let output2 = utxo_set.iter().nth(1).unwrap().0.clone();
     let inputs = vec![Input::new(output1), Input::new(output2)];
-    let change_output1 = ValueTransferOutput {
-        pkh: Default::default(),
-        value: 1,
-        time_lock: 0,
-    };
-    let change_output2 = ValueTransferOutput {
+    let change_output = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: ONE_WIT,
+        value: ONE_WIT + 1,
         time_lock: 0,
     };
 
-    let collateral = (inputs, vec![change_output1, change_output2]);
+    let collateral = (inputs, vec![change_output]);
     let x = {
         let mut signatures_to_verify = vec![];
         let mut dr_pool = DataRequestPool::default();
@@ -6326,7 +6372,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
     let change_value = 250;
 
     let change_vto = ValueTransferOutput {
-        pkh: Default::default(),
+        pkh: MY_PKH_1.parse().unwrap(),
         value: change_value,
         time_lock: 0,
     };
@@ -6469,7 +6515,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         transaction_id: commit_tx_hash,
         output_index: 0,
     };
-    expected_utxo_set.insert(change_output_pointer, change_vto, block_number);
+    expected_utxo_set.insert(change_output_pointer, change_vto, 0);
 
     // In total, 2 outputs
     assert_eq!(expected_utxo_set.iter().len(), 2);

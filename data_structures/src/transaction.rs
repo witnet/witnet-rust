@@ -301,7 +301,8 @@ pub struct CommitTransactionBody {
     pub proof: DataRequestEligibilityClaim,
     // Inputs used as collateral
     pub collateral: Vec<Input>,
-    // Change from collateral
+    // Change from collateral. The output pkh must be the same as the inputs,
+    // and there can only be one output
     pub outputs: Vec<ValueTransferOutput>,
     // BLS public key (curve bn256)
     pub bn256_public_key: Option<Bn256PublicKey>,
