@@ -127,7 +127,7 @@ impl Session {
         match ProtobufConvert::to_pb_bytes(&msg) {
             Ok(bytes) => {
                 match msg.kind {
-                    Command::Transaction(_) | Command::Block(_) => {
+                    Command::Transaction(_) | Command::Block(_) | Command::SuperBlockVote(_) => {
                         let log_data = format!(
                             "{} Sending {} message ({} bytes)",
                             Green.bold().paint("[>]"),
@@ -166,7 +166,7 @@ impl Session {
     // This method is useful to align the logs from receive_message with logs from send_message
     fn log_received_message(&self, msg: &WitnetMessage, bytes: &[u8]) {
         match msg.kind {
-            Command::Transaction(_) | Command::Block(_) => {
+            Command::Transaction(_) | Command::Block(_) | Command::SuperBlockVote(_) => {
                 let log_data = format!(
                     "{} Received {} message ({} bytes)",
                     Green.bold().paint("[<]"),
