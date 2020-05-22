@@ -7,6 +7,7 @@ use terminal_size as term;
 use env_logger::TimestampPrecision;
 use std::borrow::Cow;
 use std::str::FromStr;
+use std::sync::Arc;
 use witnet_config as config;
 
 mod node;
@@ -80,7 +81,8 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
         .format_module_path(opts.module_path)
         .filter_level(log::LevelFilter::Info)
         .filter_module("witnet", opts.level)
-        .filter_module("witnet_node", opts.level);
+        .filter_module("witnet_node", opts.level)
+        .filter_module("witnet_wallet", opts.level);
 
     // Initialize Sentry (automated bug reporting) if explicitly enabled in configuration
     if cfg!(not(debug_assertions)) && opts.sentry_telemetry {
@@ -100,6 +102,7 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
         let guard = sentry::init(sentry::ClientOptions {
             dsn,
             release,
+            before_send: Some(Arc::new(Box::new(filter_private_data))),
             ..Default::default()
         });
         // Logger integration for capturing errors. This actually intercepts errors but forwards all
@@ -131,6 +134,22 @@ fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::
             Ok(config::config::Config::default())
         }
     }
+}
+
+/// Prevents sending Sentry events containing private data
+fn filter_private_data(
+    event: sentry::protocol::Event<'static>,
+) -> Option<sentry::protocol::Event<'static>> {
+    Some(event).filter(|event| {
+        event.logger != Some(String::from("witnet_node::signature_mngr"))
+            || event.breadcrumbs.values.iter().any(|breadcrumb| {
+                breadcrumb
+                    .message
+                    .as_ref()
+                    .filter(|message| !message.contains("xprv"))
+                    .is_some()
+            })
+    })
 }
 
 #[derive(Debug, StructOpt)]
@@ -211,3 +230,40 @@ in these paths:
 - /etc/witnet/witnet.toml if in a *nix platform
 If no configuration is found. The default configuration is used, see `config` subcommand if
 you want to know more about the default config."#;
+
+#[test]
+fn test_filter_private_data() {
+    let chain_manager_event = sentry::protocol::Event {
+        logger: Some(String::from("witnet_node::chain_manager")),
+        ..Default::default()
+    };
+    let signature_manager_ok_event = sentry::protocol::Event {
+        logger: Some(String::from("witnet_node::signature_mngr")),
+        breadcrumbs: sentry::protocol::Values::from(vec![sentry::protocol::Breadcrumb {
+            message: Some(String::from("This is perfectly OK")),
+            ..Default::default()
+        }]),
+        ..Default::default()
+    };
+    let signature_manager_filtered_event = sentry::protocol::Event {
+        logger: Some(String::from("witnet_node::signature_mngr")),
+        breadcrumbs: sentry::protocol::Values::from(vec![sentry::protocol::Breadcrumb {
+            message: Some(String::from("This is an xprv encoded private key")),
+            ..Default::default()
+        }]),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        filter_private_data(chain_manager_event.clone()),
+        Some(chain_manager_event)
+    );
+    assert_eq!(
+        filter_private_data(signature_manager_ok_event.clone()),
+        Some(signature_manager_ok_event)
+    );
+    assert_eq!(
+        filter_private_data(signature_manager_filtered_event.clone()),
+        None
+    );
+}
