@@ -600,15 +600,6 @@ impl ChainManager {
             self.sm_state
         );
 
-        let log_superblock_vote = || {
-            log::debug!(
-                "Received superblock vote from identity {}: #{} {}",
-                superblock_vote.secp256k1_signature.public_key.pkh(),
-                superblock_vote.superblock_index,
-                superblock_vote.superblock_hash
-            );
-        };
-
         // We broadcast all superblock votes with valid secp256k1 signature, signed by members
         // of the ARS, even if the superblock hash is different from our local superblock hash.
         // If the superblock index is different from the current one we cannot check ARS membership,
@@ -616,7 +607,6 @@ impl ChainManager {
         let should_broadcast = match self.superblock_state.add_vote(&superblock_vote) {
             AddSuperBlockVote::AlreadySeen => false,
             AddSuperBlockVote::InvalidIndex => {
-                log_superblock_vote();
                 log::debug!(
                     "Not forwarding superblock vote: invalid superblock index: {}",
                     superblock_vote.superblock_index
@@ -625,7 +615,6 @@ impl ChainManager {
                 false
             }
             AddSuperBlockVote::NotInArs => {
-                log_superblock_vote();
                 log::debug!(
                     "Not forwarding superblock vote: identity not in ARS: {}",
                     superblock_vote.secp256k1_signature.public_key.pkh()
@@ -635,11 +624,7 @@ impl ChainManager {
             }
             AddSuperBlockVote::MaybeValid
             | AddSuperBlockVote::ValidButDifferentHash
-            | AddSuperBlockVote::ValidWithSameHash => {
-                log_superblock_vote();
-
-                true
-            }
+            | AddSuperBlockVote::ValidWithSameHash => true,
         };
 
         if should_broadcast {
