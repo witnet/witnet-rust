@@ -326,8 +326,8 @@ message SuperBlock {
 }
 
 message SuperBlockVote {
-    Hash superblock_hash = 1;
-    Bn256Signature bn256_signature = 2;
-    KeyedSignature secp256k1_signature = 3;
+    Bn256Signature bn256_signature = 1;
+    KeyedSignature secp256k1_signature = 2;
+    Hash superblock_hash = 3;
     fixed32 superblock_index = 4;
 }
