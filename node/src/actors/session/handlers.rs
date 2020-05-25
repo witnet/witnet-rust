@@ -480,37 +480,28 @@ fn peer_discovery_peers(peers: &[Address], src_address: SocketAddr) {
 fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, block: Block) {
     // Get ChainManager address
     let chain_manager_addr = ChainManager::from_registry();
-
-    let block_epoch = block.block_header.beacon.checkpoint;
     let block_hash = block.hash();
 
-    if block_epoch == session.current_epoch {
-        // Send a message to the ChainManager to try to add a new candidate
-        chain_manager_addr.do_send(AddCandidates {
-            blocks: vec![block],
-        });
-    } else {
+    if session.requested_block_hashes.contains(&block_hash) {
         // Add block to requested_blocks
-        if session.requested_block_hashes.contains(&block_hash) {
-            session.requested_blocks.insert(block_hash, block);
-        } else if block_epoch != session.current_epoch {
-            log::debug!("Unexpected not requested block: {}", block_hash);
-        }
+        session.requested_blocks.insert(block_hash, block);
 
         if session.requested_blocks.len() == session.requested_block_hashes.len() {
-            let mut blocks_vector = vec![];
+            let mut blocks_vector = Vec::with_capacity(session.requested_blocks.len());
             // Iterate over requested block hashes ordered by epoch
-            // TODO: Now we assume that it is sort by epoch,
-            // It would be nice to check it to sort it or discard it
-            for hash in session.requested_block_hashes.clone() {
+            // TODO: We assume that the received InventoryAnnouncement message returns the list of
+            // block hashes ordered by epoch.
+            // If that is not the case, we can sort blocks_vector by block.block_header.checkpoint
+            for hash in session.requested_block_hashes.drain(..) {
                 if let Some(block) = session.requested_blocks.remove(&hash) {
                     blocks_vector.push(block);
                 } else {
-                    // As soon as there is a missing block, stop processing the other
-                    // blocks, send a empty message to the ChainManager and close the session
-                    blocks_vector.clear();
-                    chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+                    // Assuming that we always clear requested_blocks after mutating
+                    // requested_block_hashes, this branch should be unreachable.
+                    // But if it happens, immediately exit the for loop and send an empty AddBlocks
+                    // message to ChainManager.
                     log::warn!("Unexpected missing block: {}", hash);
+                    break;
                 }
             }
 
@@ -522,8 +513,14 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
             // Clear requested block structures
             session.blocks_timestamp = 0;
             session.requested_blocks.clear();
-            session.requested_block_hashes.clear();
+            // requested_block_hashes is cleared by using drain(..) above
         }
+    } else {
+        // If this is not a requested block, assume it is a candidate
+        // Send a message to the ChainManager to try to add a new candidate
+        chain_manager_addr.do_send(AddCandidates {
+            blocks: vec![block],
+        });
     }
 }
 
@@ -545,6 +542,10 @@ fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
     // Check how many of the received inventory vectors need to be requested
     let inv_entries = &inv.inventory;
 
+    if !session.requested_block_hashes.is_empty() {
+        log::warn!("Received InventoryAnnouncement message while processing an older InventoryAnnouncement. Will stop processing the old one.");
+    }
+
     session.requested_block_hashes = inv_entries
         .iter()
         .map(|inv_entry| match inv_entry.clone() {
@@ -552,6 +553,9 @@ fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
         })
         .collect();
 
+    // Clear requested block structures. If a different block download was already in process, we
+    // may receive some "unrequested" blocks, but that should not break the synchronization.
+    session.requested_blocks.clear();
     session.blocks_timestamp = get_timestamp();
 
     // Try to create InventoryRequest protocol message to request missing inventory vectors
