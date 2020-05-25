@@ -3045,6 +3045,46 @@ mod tests {
     }
 
     #[test]
+    fn test_superblock_hashable_trait() {
+        let superblock = SuperBlock {
+            ars_root: Hash::SHA256([1; 32]),
+            data_request_root: Hash::SHA256([2; 32]),
+            index: 1,
+            last_block: Hash::SHA256([3; 32]),
+            last_block_in_previous_superblock: Hash::SHA256([4; 32]),
+            tally_root: Hash::SHA256([5; 32]),
+        };
+        let expected = "4ee0395751a5b8d94217ba71623414721ab8dc8c1634a5c79769d5196a1b3993";
+        assert_eq!(superblock.hash().to_string(), expected);
+    }
+
+    #[test]
+    fn test_superblock_vote_bn256_signature_message() {
+        // If this test fails, the bridge will also fail
+        let superblock_hash = "4ee0395751a5b8d94217ba71623414721ab8dc8c1634a5c79769d5196a1b3993"
+            .parse()
+            .unwrap();
+        let superblock_vote = SuperBlockVote::new_unsigned(superblock_hash, 1);
+        let expected_bls =
+            hex::decode("000000014ee0395751a5b8d94217ba71623414721ab8dc8c1634a5c79769d5196a1b3993")
+                .unwrap();
+        assert_eq!(superblock_vote.bn256_signature_message(), expected_bls);
+    }
+
+    #[test]
+    fn test_superblock_vote_secp256k1_signature_message() {
+        let superblock_hash = "4ee0395751a5b8d94217ba71623414721ab8dc8c1634a5c79769d5196a1b3993"
+            .parse()
+            .unwrap();
+        let mut superblock_vote = SuperBlockVote::new_unsigned(superblock_hash, 1);
+        superblock_vote.bn256_signature.signature =
+            hex::decode("03100709d625d82c4eedf5f330d538b0cfa0dd68a5c505b6896902ed935b5cce0e")
+                .unwrap();
+        let expected_secp = hex::decode("000000014ee0395751a5b8d94217ba71623414721ab8dc8c1634a5c79769d5196a1b399303100709d625d82c4eedf5f330d538b0cfa0dd68a5c505b6896902ed935b5cce0e").unwrap();
+        assert_eq!(superblock_vote.secp256k1_signature_message(), expected_secp);
+    }
+
+    #[test]
     fn test_output_pointer_from_str() {
         let result_success = OutputPointer::from_str(
             "1111111111111111111111111111111111111111111111111111111111111111:1",
