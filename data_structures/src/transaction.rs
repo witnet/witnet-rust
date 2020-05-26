@@ -9,16 +9,36 @@ use crate::{
     vrf::DataRequestEligibilityClaim,
 };
 use protobuf::Message;
-use std::{cell::Cell, convert::TryFrom};
+use std::convert::TryFrom;
+use std::sync::{Arc, RwLock};
 use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 pub trait MemoizedHashable {
     fn hashable_bytes(&self) -> Vec<u8>;
     fn memoized_hash(&self) -> &MemoHash;
 }
-#[derive(Debug, Default, Eq, Clone)]
+
+/// A shareable wrapper for hash that may or may not be already computed.
+/// This low level structure does not include the implementation for compute-on-read, as that is up
+/// to the implementors of `MemoizedHashable`.
+///
+/// # Examples
+/// ```rust
+/// use witnet_data_structures::{chain::Hash, transaction::MemoHash};
+///
+/// let memo_hash = MemoHash::new();
+/// assert_eq!(memo_hash.get(), None);
+///
+/// let hash = Some(Hash::SHA256([0u8; 32]));
+/// memo_hash.set(hash);
+/// assert_eq!(memo_hash.get(), hash);
+///
+/// memo_hash.set(None);
+/// assert_eq!(memo_hash.get(), None);
+/// ```
+#[derive(Clone, Debug, Default)]
 pub struct MemoHash {
-    hash: Cell<Option<Hash>>,
+    hash: Arc<RwLock<Option<Hash>>>,
 }
 
 // PartialEq always returns true because we dont want to compare
@@ -29,19 +49,32 @@ impl PartialEq for MemoHash {
     }
 }
 
+// Force `Eq` implementation
+impl Eq for MemoHash {}
+
 impl MemoHash {
-    fn new() -> Self {
+    /// Initialize a new `MemoHash` set to `None` (not computed yet)
+    pub fn new() -> Self {
         Self {
-            hash: Cell::new(None),
+            hash: Arc::new(RwLock::new(None)),
         }
     }
 
-    fn get(&self) -> Option<Hash> {
-        self.hash.get()
+    /// Get the hash, if already computed.
+    pub fn get(&self) -> Option<Hash> {
+        *self
+            .hash
+            .read()
+            .expect("read locks should only fail if poisoned")
     }
 
-    fn set(&self, h: Option<Hash>) {
-        self.hash.set(h);
+    /// Set or replace the hash.
+    pub fn set(&self, h: Option<Hash>) {
+        let mut lock = self
+            .hash
+            .write()
+            .expect("Write locks should only fail if poisoned");
+        *lock = h;
     }
 }
 
