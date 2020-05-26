@@ -986,7 +986,7 @@ impl PublicKeyHash {
 }
 
 /// Input data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::Input")]
 pub struct Input {
     output_pointer: OutputPointer,
@@ -1562,6 +1562,7 @@ impl TransactionsPool {
     /// by the data request, and the value of all the fees obtained with those commits
     pub fn remove_commits(&mut self, dr_pool: &DataRequestPool) -> (Vec<CommitTransaction>, u64) {
         let mut total_fee = 0;
+        let mut spent_inputs = HashSet::new();
         let co_hash_index = &mut self.co_hash_index;
         let commits_vector = self
             .co_transactions
@@ -1574,14 +1575,41 @@ impl TransactionsPool {
                         let n_commits = dr_output.witnesses as usize;
 
                         if commits.len() >= n_commits {
-                            commits_vec.extend(
-                                commits
-                                    .drain()
-                                    .map(|(_h, c)| co_hash_index.remove(&c).unwrap())
-                                    .take(n_commits),
-                            );
+                            let filtered_commits: Vec<CommitTransaction> = commits
+                                .drain()
+                                .filter_map(|(_h, c)| {
+                                    co_hash_index.remove(&c).and_then(|commit_tx| {
+                                        let mut valid = true;
+                                        let mut current_spent_inputs = HashSet::new();
+                                        for input in commit_tx.body.collateral.iter() {
+                                            // Check that no Input from this or any other commitment is being spent twice
+                                            if spent_inputs.contains(input)
+                                                || current_spent_inputs.contains(input)
+                                            {
+                                                valid = false;
+                                                break;
+                                            } else {
+                                                current_spent_inputs.insert(input.clone());
+                                            }
+                                        }
+                                        // Only mark the inputs of this commitment as used if all of them
+                                        // are valid and they will be returned by this function
+                                        if valid {
+                                            spent_inputs.extend(current_spent_inputs);
+                                            Some(commit_tx)
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                })
+                                .take(n_commits)
+                                .collect();
 
-                            total_fee += dr_output.commit_fee * n_commits as u64;
+                            // Check once again that after filtering invalid commitments, we still have as many as requested
+                            if filtered_commits.len() == n_commits {
+                                commits_vec.extend(filtered_commits);
+                                total_fee += dr_output.commit_fee * n_commits as u64;
+                            }
                         }
                     }
                     commits_vec
@@ -3449,6 +3477,129 @@ mod tests {
         assert_eq!(transactions_pool.co_hash_index.len(), 1);
         let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
         assert_eq!(commits_vec.len(), 1);
+        assert_eq!(transactions_pool.co_transactions, HashMap::new());
+        assert_eq!(transactions_pool.co_hash_index, HashMap::new());
+    }
+
+    #[test]
+    fn transactions_pool_return_only_with_different_inputs() {
+        let public_key = PublicKey::default();
+
+        let dro1 = DataRequestOutput {
+            witnesses: 1,
+            commit_fee: 501,
+            ..Default::default()
+        };
+        let drb1 = DRTransactionBody::new(vec![], vec![], dro1);
+        let drt1 = DRTransaction::new(
+            drb1,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key: public_key.clone(),
+            }],
+        );
+        let dr_pointer1 = drt1.hash();
+
+        let dro2 = DataRequestOutput {
+            witnesses: 1,
+            commit_fee: 100,
+            ..Default::default()
+        };
+        let drb2 = DRTransactionBody::new(vec![], vec![], dro2);
+        let drt2 = DRTransaction::new(
+            drb2,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key: public_key.clone(),
+            }],
+        );
+        let dr_pointer2 = drt2.hash();
+
+        let dro3 = DataRequestOutput {
+            witnesses: 1,
+            commit_fee: 500,
+            ..Default::default()
+        };
+        let drb3 = DRTransactionBody::new(vec![], vec![], dro3);
+        let drt3 = DRTransaction::new(
+            drb3,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key,
+            }],
+        );
+        let dr_pointer3 = drt3.hash();
+
+        let mut dr_pool = DataRequestPool::default();
+        dr_pool
+            .add_data_request(0, drt1, &Default::default())
+            .unwrap();
+        dr_pool
+            .add_data_request(0, drt2, &Default::default())
+            .unwrap();
+        dr_pool
+            .add_data_request(0, drt3, &Default::default())
+            .unwrap();
+
+        let mut cb1 = CommitTransactionBody::without_collateral(
+            dr_pointer1,
+            Hash::SHA256([1; 32]),
+            Default::default(),
+        );
+        cb1.collateral = vec![Input::default()];
+        let c1 = CommitTransaction {
+            body: cb1,
+            signatures: vec![KeyedSignature::default()],
+        };
+        let t1 = Transaction::Commit(c1.clone());
+
+        let mut cb2 = CommitTransactionBody::without_collateral(
+            dr_pointer2,
+            Hash::SHA256([2; 32]),
+            Default::default(),
+        );
+        cb2.collateral = vec![Input {
+            output_pointer: OutputPointer {
+                transaction_id: Default::default(),
+                output_index: 2,
+            },
+        }];
+        let c2 = CommitTransaction {
+            body: cb2,
+            signatures: vec![KeyedSignature::default()],
+        };
+        let t2 = Transaction::Commit(c2.clone());
+
+        // Commitment with same Input
+        let mut cb3 = CommitTransactionBody::without_collateral(
+            dr_pointer3,
+            Hash::SHA256([3; 32]),
+            Default::default(),
+        );
+        cb3.collateral = vec![Input::default()];
+        let c3 = CommitTransaction {
+            body: cb3,
+            signatures: vec![KeyedSignature::default()],
+        };
+        let t3 = Transaction::Commit(c3.clone());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1);
+        assert_eq!(transactions_pool.co_transactions.len(), 1);
+        assert_eq!(transactions_pool.co_hash_index.len(), 1);
+        transactions_pool.insert(t2);
+        assert_eq!(transactions_pool.co_transactions.len(), 2);
+        assert_eq!(transactions_pool.co_hash_index.len(), 2);
+        transactions_pool.insert(t3);
+        assert_eq!(transactions_pool.co_transactions.len(), 3);
+        assert_eq!(transactions_pool.co_hash_index.len(), 3);
+
+        let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
+        assert_eq!(commits_vec.len(), 2);
+        // t2 does not conflict with anything so it must be present
+        assert!(commits_vec.contains(&c2));
+        // One of t1 or t3 must be present, but not both
+        assert!(commits_vec.contains(&c1) ^ commits_vec.contains(&c3));
         assert_eq!(transactions_pool.co_transactions, HashMap::new());
         assert_eq!(transactions_pool.co_hash_index, HashMap::new());
     }
