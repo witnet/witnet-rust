@@ -310,7 +310,6 @@ impl App {
                 slf.params.worker.do_send(worker::SyncRequest {
                     wallet_id,
                     wallet,
-                    since_beacon: data.last_sync,
                     sink,
                 });
 

@@ -1,5 +1,5 @@
 use super::*;
-use witnet_data_structures::chain::EpochConstants;
+use witnet_data_structures::chain::{Block, EpochConstants};
 
 pub struct State {
     pub name: Option<String>,
@@ -13,5 +13,9 @@ pub struct State {
     pub transaction_next_id: u32,
     pub utxo_set: model::UtxoSet,
     pub epoch_constants: EpochConstants,
+    /// Last received block to be indexed when next block is received
+    /// Note: the wallet always keeps a buffer of one block without indexing (in case of reorganizations)
+    pub last_block: Option<Block>,
+    /// Beacon of the last received block during synchronization
     pub last_sync: CheckpointBeacon,
 }

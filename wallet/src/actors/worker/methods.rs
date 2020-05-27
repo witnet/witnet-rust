@@ -1,13 +1,10 @@
 use std::convert::TryFrom;
-use std::str::FromStr;
 
 use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::json;
 
-use witnet_data_structures::chain::{CheckpointBeacon, Hash, Hashable};
-
-use crate::types::{ChainEntry, DynamicSink, GetBlockChainParams};
+use crate::types::{ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable};
 use crate::{account, constants, crypto, db::Database as _, model, params};
 
 use super::*;
@@ -256,10 +253,6 @@ impl Worker {
         // Extending transactions with metadata queried from the node
         let extended_txns = self.extend_transactions_data(filtered_txns)?;
         let balance_movements = wallet.index_transactions(block, &extended_txns)?;
-        wallet.update_last_sync(CheckpointBeacon {
-            checkpoint: block.epoch,
-            hash_prev_block: block.block_hash,
-        })?;
 
         Ok(balance_movements)
     }
@@ -558,17 +551,20 @@ impl Worker {
         &self,
         wallet_id: &str,
         wallet: types::SessionWallet,
-        since_beacon: CheckpointBeacon,
         sink: types::DynamicSink,
     ) -> Result<()> {
         let limit = i64::from(self.params.node_sync_batch_size);
-        let mut latest_beacon = since_beacon;
-        let mut since_beacon = since_beacon;
-        let first_beacon = since_beacon;
 
-        // If first initial synchronization (checkpoint == 0), genesis block should be indexed
-        if latest_beacon.checkpoint == 0 {
-            let gen_fut = self.get_block_chain(0, 1);
+        let wallet_data = wallet.public_data()?;
+
+        let first_beacon = wallet_data.last_sync;
+        let mut since_beacon = first_beacon;
+        let mut latest_beacon = first_beacon;
+
+        // Synchronization bootstrap process to query the last received `last_block`
+        // Note: if first sync, the queried block will be the genesis (epoch #0)
+        if wallet_data.last_block.is_none() {
+            let gen_fut = self.get_block_chain(i64::from(wallet_data.last_sync.checkpoint), 1);
             let gen_res: Vec<ChainEntry> = futures03::executor::block_on(gen_fut)?;
             let gen_entry = gen_res
                 .get(0)
@@ -576,7 +572,11 @@ impl Worker {
 
             let get_gen_future = self.get_block(gen_entry.1.clone());
             let block: types::ChainBlock = futures03::executor::block_on(get_gen_future)?;
-            log::debug!("[SU] Got genesis block: {:?}", block);
+            log::debug!(
+                "[SU] Got block #{}: {:?}",
+                block.block_header.beacon.checkpoint,
+                block
+            );
 
             // Process genesis block
             self.handle_block(block, wallet.clone(), DynamicSink::default())?;
@@ -598,7 +598,7 @@ impl Worker {
         // Notify wallet about initial synchronization status (the wallet most likely has an old
         // chain tip)
         let events = Some(vec![types::Event::SyncStart(
-            first_beacon.checkpoint,
+            since_beacon.checkpoint,
             tip.checkpoint,
         )]);
         self.notify_client(&wallet, sink.clone(), events).ok();
@@ -622,16 +622,17 @@ impl Worker {
             log::debug!("[SU] Received chain: {:?}", block_chain);
 
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
-            for ChainEntry(epoch, id) in block_chain {
+            for ChainEntry(_epoch, id) in block_chain {
                 let get_block_future = self.get_block(id.clone());
                 let block: types::ChainBlock = futures03::executor::block_on(get_block_future)?;
 
                 // Process each block
                 self.handle_block(block.clone(), wallet.clone(), DynamicSink::default())?;
-                latest_beacon = CheckpointBeacon {
-                    checkpoint: epoch,
-                    hash_prev_block: Hash::from_str(&id)?,
-                };
+                // latest_beacon = CheckpointBeacon {
+                //     checkpoint: epoch,
+                //     hash_prev_block: Hash::from_str(&id)?,
+                // };
+                latest_beacon = block.block_header.beacon;
             }
 
             let events = Some(vec![types::Event::SyncProgress(
@@ -746,24 +747,57 @@ impl Worker {
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
-        let block_previous_beacon = block.block_header.beacon;
-        let local_chain_tip = wallet.public_data()?.last_sync;
+        let block_beacon = block.block_header.beacon;
+        let wallet_chain_tip = wallet.public_data()?.last_sync;
 
+        // Check if new pushed block is valid given the wallet state:
+        // stop processing the block if it does not directly build on top of our tip of the chain
+        if block_beacon.hash_prev_block != wallet_chain_tip.hash_prev_block
+            && block_beacon.checkpoint <= wallet_chain_tip.checkpoint
+        {
+            log::warn!(
+                "Tried to process a block #{} that does not build directly on top of our tip of the chain #{}. ({:?} != {:?})",
+                block_beacon.checkpoint,
+                wallet_chain_tip.checkpoint,
+                block_beacon.hash_prev_block,
+                wallet_chain_tip.hash_prev_block
+            );
+            return Err(block_error(BlockError::NotConnectedToLocalChainTip {
+                block_previous_beacon: block_beacon.hash_prev_block,
+                local_chain_tip: wallet_chain_tip.hash_prev_block,
+            }));
+        }
+
+        // Consolidate last received block
+        // Note: if `last_block == None`, nothing is done until next block is received
+        let wallet_last_block = wallet.public_data()?.last_block;
+        let synced_beacon = if let Some(block) = wallet_last_block {
+            let next_beacon = block.block_header.beacon;
+            self.index_block(block, &wallet, sink)?;
+
+            next_beacon
+        } else {
+            wallet_chain_tip
+        };
+
+        // Update wallet state
+        wallet.update_sync_state(synced_beacon, block)?;
+
+        Ok(())
+    }
+
+    pub fn index_block(
+        &self,
+        block: types::ChainBlock,
+        wallet: &types::SessionWallet,
+        sink: types::DynamicSink,
+    ) -> Result<CheckpointBeacon> {
         // Immediately update the local reference to the node's last beacon
         let block_own_beacon = CheckpointBeacon {
             checkpoint: block.block_header.beacon.checkpoint,
             hash_prev_block: block.hash(),
         };
         self.node.update_last_beacon(block_own_beacon);
-
-        // Stop processing the block if it does not directly build on top of our tip of the chain
-        if block_previous_beacon.hash_prev_block != local_chain_tip.hash_prev_block {
-            log::warn!("Tried to process a block that does not build directly on top of our tip of the chain. ({:?} != {:?})", block_previous_beacon, local_chain_tip );
-            return Err(block_error(BlockError::NotConnectedToLocalChainTip {
-                block_previous_beacon: block_previous_beacon.hash_prev_block,
-                local_chain_tip: local_chain_tip.hash_prev_block,
-            }));
-        }
 
         // NOTE: Possible enhancement.
         // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
