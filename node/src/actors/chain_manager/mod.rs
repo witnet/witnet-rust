@@ -149,6 +149,8 @@ pub struct ChainManager {
     /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
     /// (block_hash, (block, block_vrf_hash))
     candidates: HashMap<Hash, (Block, Hash)>,
+    /// Set that stores all the received candidates
+    seen_candidates: HashSet<Hash>,
     /// Our public key hash, used to create the mint transaction
     own_pkh: Option<PublicKeyHash>,
     /// Our BLS public key, used to append in commit transactions
@@ -337,10 +339,10 @@ impl ChainManager {
             self.secp.as_ref(),
         ) {
             let hash_block = block.hash();
-            let total_identities =
-                u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
-
-            if !self.candidates.contains_key(&hash_block) {
+            // If this candidate has not been seen before, validate it
+            if self.seen_candidates.insert(hash_block) {
+                let total_identities =
+                    u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
                 let mining_bf = self
                     .chain_state
                     .chain_info
@@ -378,6 +380,8 @@ impl ChainManager {
                     },
                     Err(e) => log::warn!("{}", e),
                 }
+            } else {
+                log::trace!("Block candidate already seen: {}", hash_block);
             }
         } else {
             log::warn!("ChainManager doesn't have current epoch");

@@ -89,6 +89,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             self.sm_state = StateMachine::WaitingConsensus;
             // Clear candidates
             self.candidates.clear();
+            self.seen_candidates.clear();
         }
 
         if let Some(last_checked_epoch) = last_checked_epoch {
@@ -252,6 +253,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                         // Clear candidates
                         self.candidates.clear();
+                        self.seen_candidates.clear();
                     }
 
                     _ => {
@@ -659,6 +661,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         let candidate = self.candidates.remove(&consensus_block_hash);
                         // Clear candidates, as they are only valid for one epoch
                         self.candidates.clear();
+                        self.seen_candidates.clear();
                         // TODO: Be functional my friend
                         if let Some((consensus_block, _consensus_block_vrf_hash)) = candidate {
                             match self.process_requested_block(ctx, &consensus_block) {
