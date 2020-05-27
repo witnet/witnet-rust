@@ -716,6 +716,17 @@ mod tests {
     }
 
     #[test]
+    fn memohash_eq() {
+        let tx1 = VTTransaction::default();
+        let tx2 = VTTransaction::default();
+        assert_eq!(tx1, tx2);
+
+        // Check that after memoizing the hash, the transactions are still considered to be equal.
+        let _tx_hash = tx1.hash();
+        assert_eq!(tx1, tx2);
+    }
+
+    #[test]
     fn test_mint_with_external_address() {
         let epoch = 1;
         let own_pkh = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
