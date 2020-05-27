@@ -563,8 +563,8 @@ impl Worker {
 
         // Synchronization bootstrap process to query the last received `last_block`
         // Note: if first sync, the queried block will be the genesis (epoch #0)
-        if wallet_data.last_block.is_none() {
-            let gen_fut = self.get_block_chain(i64::from(wallet_data.last_sync.checkpoint), 1);
+        if wallet_data.last_sync.checkpoint == 0 {
+            let gen_fut = self.get_block_chain(0, 1);
             let gen_res: Vec<ChainEntry> = futures03::executor::block_on(gen_fut)?;
             let gen_entry = gen_res
                 .get(0)
@@ -628,10 +628,6 @@ impl Worker {
 
                 // Process each block
                 self.handle_block(block.clone(), wallet.clone(), DynamicSink::default())?;
-                // latest_beacon = CheckpointBeacon {
-                //     checkpoint: epoch,
-                //     hash_prev_block: Hash::from_str(&id)?,
-                // };
                 latest_beacon = block.block_header.beacon;
             }
 
@@ -748,40 +744,65 @@ impl Worker {
         sink: types::DynamicSink,
     ) -> Result<()> {
         let block_beacon = block.block_header.beacon;
-        let wallet_chain_tip = wallet.public_data()?.last_sync;
+        let current_last_sync = wallet.public_data()?.last_sync;
+
+        // If `last_block` buffer is empty, then valid block should be stored (but not yet indexed)
+        if wallet.public_data()?.last_block.is_none() {
+            return if block_beacon.hash_prev_block == current_last_sync.hash_prev_block {
+                wallet.update_sync_state(current_last_sync, block)?;
+                log::debug!(
+                    "Storing block #{} in `last_block` buffer to be indexed when next block arrives (prev_hash = {:?})",
+                    block_beacon.checkpoint,
+                    block_beacon.hash_prev_block,
+                );
+
+                Ok(())
+            } else {
+                log::warn!("Tried to store a block #{} in `last_block` buffer that does not build directly on top of our tip of the chain #{}. ({:?} != {:?})",
+                    block_beacon.checkpoint,
+                    current_last_sync.checkpoint,
+                    block_beacon.hash_prev_block,
+                    current_last_sync.hash_prev_block,
+                );
+
+                Err(block_error(BlockError::NotConnectedToLocalChainTip {
+                    block_previous_beacon: block_beacon.hash_prev_block,
+                    local_chain_tip: current_last_sync.hash_prev_block,
+                }))
+            };
+        }
+
+        let current_last_block = wallet
+            .public_data()?
+            .last_block
+            .expect("None case already considered");
+        let current_last_block_hash = current_last_block.hash();
 
         // Check if new pushed block is valid given the wallet state:
         // stop processing the block if it does not directly build on top of our tip of the chain
-        if block_beacon.hash_prev_block != wallet_chain_tip.hash_prev_block
-            && block_beacon.checkpoint <= wallet_chain_tip.checkpoint
+        if block_beacon.hash_prev_block != current_last_block_hash
+            || block_beacon.checkpoint <= current_last_sync.checkpoint
         {
             log::warn!(
                 "Tried to process a block #{} that does not build directly on top of our tip of the chain #{}. ({:?} != {:?})",
                 block_beacon.checkpoint,
-                wallet_chain_tip.checkpoint,
+                current_last_block.block_header.beacon.checkpoint,
                 block_beacon.hash_prev_block,
-                wallet_chain_tip.hash_prev_block
+                current_last_block.hash(),
             );
             return Err(block_error(BlockError::NotConnectedToLocalChainTip {
                 block_previous_beacon: block_beacon.hash_prev_block,
-                local_chain_tip: wallet_chain_tip.hash_prev_block,
+                local_chain_tip: current_last_sync.hash_prev_block,
             }));
         }
 
-        // Consolidate last received block
-        // Note: if `last_block == None`, nothing is done until next block is received
-        let wallet_last_block = wallet.public_data()?.last_block;
-        let synced_beacon = if let Some(block) = wallet_last_block {
-            let next_beacon = block.block_header.beacon;
-            self.index_block(block, &wallet, sink)?;
+        // Index the previous stored block in `last_block`
+        let new_last_sync = self.index_block(current_last_block, &wallet, sink)?;
 
-            next_beacon
-        } else {
-            wallet_chain_tip
-        };
-
-        // Update wallet state
-        wallet.update_sync_state(synced_beacon, block)?;
+        // Update wallet state with the last synchronization information:
+        // - last_sync: last indexed epoch and block hash
+        // - last_block: last received block but not yet indexed
+        wallet.update_sync_state(new_last_sync, block)?;
 
         Ok(())
     }
@@ -797,7 +818,7 @@ impl Worker {
             checkpoint: block.block_header.beacon.checkpoint,
             hash_prev_block: block.hash(),
         };
-        self.node.update_last_beacon(block_own_beacon);
+        self.node.update_last_beacon(block_own_beacon.clone());
 
         // NOTE: Possible enhancement.
         // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
@@ -850,6 +871,6 @@ impl Worker {
         }
         self.notify_client(&wallet, sink, Some(events)).ok();
 
-        Ok(())
+        Ok(block_own_beacon)
     }
 }
