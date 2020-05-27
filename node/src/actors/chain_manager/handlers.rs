@@ -201,7 +201,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                         utxo_diff,
                                     ))
                                 }
-                                Err(e) => log::warn!("{}", e),
+                                Err(e) => log::warn!(
+                                    "Error when processing a block candidate {}: {}",
+                                    block_candidate.hash(),
+                                    e
+                                ),
                             }
                         }
 
@@ -800,7 +804,7 @@ impl Handler<BuildVtt> for ChainManager {
             msg.utxo_strategy,
         ) {
             Err(e) => {
-                log::error!("{}", e);
+                log::error!("Error when building value transfer transaction: {}", e);
                 Box::new(actix::fut::err(e.into()))
             }
             Ok(vtt) => {
@@ -816,7 +820,7 @@ impl Handler<BuildVtt> for ChainManager {
                             actix::fut::ok(tx_hash)
                         }
                         Err(e) => {
-                            log::error!("{}", e);
+                            log::error!("Failed to sign value transfer transaction: {}", e);
 
                             actix::fut::err(e)
                         }
@@ -849,7 +853,7 @@ impl Handler<BuildDrt> for ChainManager {
             self.tx_pending_timeout,
         ) {
             Err(e) => {
-                log::error!("{}", e);
+                log::error!("Error when building data request transaction: {}", e);
                 Box::new(actix::fut::err(e.into()))
             }
             Ok(drt) => {
@@ -866,7 +870,7 @@ impl Handler<BuildDrt> for ChainManager {
                             actix::fut::ok(tx_hash)
                         }
                         Err(e) => {
-                            log::error!("{}", e);
+                            log::error!("Failed to sign data request transaction: {}", e);
 
                             actix::fut::err(e)
                         }

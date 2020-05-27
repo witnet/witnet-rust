@@ -365,20 +365,26 @@ impl ChainManager {
                     &mut signatures_to_verify,
                     total_identities,
                     mining_bf,
-                ) {
+                )
+                .map_err(Into::into)
+                .and_then(|()| {
                     // This only verifies the block VRF proof and returns the vrf_hash
                     // It is tested in
                     // calling_validate_candidate_and_then_verify_signatures_returns_block_vrf_hash
-                    Ok(_) => match verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx) {
-                        Ok(vrf_hash) => {
-                            self.candidates
-                                .insert(hash_block, (block.clone(), vrf_hash[0]));
-                            self.broadcast_item(InventoryItem::Block(block));
-                            log::debug!("Send Candidate");
-                        }
-                        Err(e) => log::warn!("{}", e),
-                    },
-                    Err(e) => log::warn!("{}", e),
+                    verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)
+                }) {
+                    Ok(vrf_hash) => {
+                        self.candidates
+                            .insert(hash_block, (block.clone(), vrf_hash[0]));
+                        self.broadcast_item(InventoryItem::Block(block));
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Error when trying to validate block candidate {}: {}",
+                            hash_block,
+                            e
+                        );
+                    }
                 }
             } else {
                 log::trace!("Block candidate already seen: {}", hash_block);
@@ -748,7 +754,11 @@ impl ChainManager {
                     actix::fut::ok(())
                 }
                 Err(e) => {
-                    log::warn!("{}", e);
+                    log::warn!(
+                        "Error when validating transaction {}: {}",
+                        msg.transaction.hash(),
+                        e
+                    );
 
                     actix::fut::err(e)
                 }
