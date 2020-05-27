@@ -782,7 +782,7 @@ where
     T::Result: Send,
     Session: Handler<T>,
 {
-    type Result = ();
+    type Result = Result<T::Result, ()>;
 }
 
 /// Message indicating a message is to be forwarded to all the consolidated outbound sessions

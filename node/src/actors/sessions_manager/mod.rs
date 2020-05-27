@@ -1,8 +1,8 @@
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
-    fut::FutureResult, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, Handler,
-    MailboxError, Message, SystemService, WrapFuture,
+    fut::FutureResult, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner,
+    MailboxError, SystemService, WrapFuture,
 };
 
 use ansi_term::Color::Cyan;
@@ -157,21 +157,6 @@ impl SessionsManager {
 
         // Convert to FutureResult<Vec<SocketAddr>, (), Self>
         actix::fut::ok(peers)
-    }
-
-    /// Method to process Session SendMessage response
-    fn process_command_response<T>(
-        &mut self,
-        response: &Result<T::Result, MailboxError>,
-    ) -> FutureResult<(), (), Self>
-    where
-        T: Message,
-        Session: Handler<T>,
-    {
-        match response {
-            Ok(_) => actix::fut::ok(()),
-            Err(_) => actix::fut::err(()),
-        }
     }
 
     /// Subscribe to all future epochs

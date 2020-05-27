@@ -849,14 +849,31 @@ impl ChainManager {
         Box::new(fut)
     }
 
-    fn request_blocks_batch(&mut self) {
+    fn request_blocks_batch(&mut self, ctx: &mut Context<Self>) {
         // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
-        SessionsManager::from_registry().do_send(Anycast {
-            command: SendLastBeacon {
-                beacon: self.get_chain_beacon(),
-            },
-            safu: true,
-        });
+        SessionsManager::from_registry()
+            .send(Anycast {
+                command: SendLastBeacon {
+                    beacon: self.get_chain_beacon(),
+                },
+                safu: true,
+            })
+            .into_actor(self)
+            .then(|res, act, _ctx| match res {
+                Ok(Ok(())) => actix::fut::ok(()),
+                _ => {
+                    // On error case go back to WaitingConsensus state
+                    log::warn!("Failed to send LastBeacon to random peer");
+                    if act.sm_state == StateMachine::Synchronizing {
+                        log::debug!("Moving to WaitingConsensus state");
+                        act.sm_state = StateMachine::WaitingConsensus;
+                        act.sync_waiting_for_add_blocks_since = None;
+                    }
+
+                    actix::fut::err(())
+                }
+            })
+            .spawn(ctx);
         let epoch = self.current_epoch.unwrap();
         self.sync_waiting_for_add_blocks_since = Some(epoch);
     }

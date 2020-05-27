@@ -4,10 +4,11 @@ use std::{
 };
 
 use actix::{
-    io::FramedWrite, Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler,
-    Message, StreamHandler, SystemService, WrapFuture,
+    io::FramedWrite, Actor, AsyncContext, Context, Handler, Message, ResponseFuture, StreamHandler,
+    SystemService,
 };
 use ansi_term::Color::Cyan;
+use futures::future::Future;
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::{NotSendingPeersBeaconsBecause, SessionsManager};
@@ -224,11 +225,11 @@ where
     T::Result: Send,
     Session: Handler<T>,
 {
-    type Result = ();
+    type Result = ResponseFuture<T::Result, ()>;
 
-    fn handle(&mut self, msg: Anycast<T>, ctx: &mut Context<Self>) {
-        log::trace!(
-            "An Anycast<{}> message is now being forwarded to a random session",
+    fn handle(&mut self, msg: Anycast<T>, _ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!(
+            "A {} message is now being forwarded to a random session",
             msg.command
         );
 
@@ -241,19 +242,18 @@ where
                     // Send SendMessage message to session actor
                     // This returns a Request Future, representing an asynchronous message sending process
                     .send(msg.command)
-                    // Convert a normal future into an ActorFuture
-                    .into_actor(self)
-                    // Process the response from the session
-                    // This returns a FutureResult containing the socket address if present
-                    .then(|res, act, _ctx| {
-                        // Process the response from session
-                        act.process_command_response(&res)
+                    .map_err(|e| {
+                        log::error!("Anycast error: {}", e);
                     })
-                    .wait(ctx);
+            })
+            .map(|fut| {
+                let b: Box<dyn Future<Item = T::Result, Error = ()>> = Box::new(fut);
+                b
             })
             .unwrap_or_else(|| {
                 log::warn!("No consolidated outbound session was found");
-            });
+                Box::new(futures::future::err(()))
+            })
     }
 }
 

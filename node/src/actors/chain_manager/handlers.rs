@@ -419,7 +419,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // Target achived, go back to state 1
                             self.sm_state = StateMachine::WaitingConsensus;
                         } else {
-                            self.request_blocks_batch();
+                            self.request_blocks_batch(ctx);
                         }
                     } else {
                         // This branch will happen if this node has forked, but the network has
@@ -693,13 +693,13 @@ impl Handler<PeersBeacons> for ChainManager {
                                 Err(e) => {
                                     log::debug!("Failed to consolidate consensus candidate: {}", e);
 
-                                    self.request_blocks_batch();
+                                    self.request_blocks_batch(ctx);
 
                                     StateMachine::Synchronizing
                                 }
                             }
                         } else {
-                            self.request_blocks_batch();
+                            self.request_blocks_batch(ctx);
 
                             StateMachine::Synchronizing
                         }
@@ -798,7 +798,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     >= how_many_epochs_are_we_willing_to_wait_for_one_block_batch
                 {
                     log::warn!("Timeout for waiting for blocks achieved. Requesting blocks again.");
-                    self.request_blocks_batch();
+                    self.request_blocks_batch(ctx);
                 }
             }
         }
