@@ -4808,6 +4808,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     validate_candidate(
         &b,
         current_epoch,
+        last_block_hash,
         vrf_input,
         &mut signatures_to_verify,
         u32::try_from(rep_eng.ars().active_identities_number())?,
@@ -5056,6 +5057,7 @@ fn block_difficult_proof() {
             validate_candidate(
                 &b,
                 current_epoch,
+                last_block_hash,
                 vrf_input,
                 &mut signatures_to_verify,
                 u32::try_from(rep_eng.ars().active_identities_number())?,
@@ -5625,6 +5627,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
         validate_candidate(
             &b,
             current_epoch,
+            last_block_hash,
             vrf_input,
             &mut signatures_to_verify,
             u32::try_from(rep_eng.ars().active_identities_number())?,

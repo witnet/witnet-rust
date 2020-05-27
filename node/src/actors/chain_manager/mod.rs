@@ -332,8 +332,15 @@ impl ChainManager {
     }
     #[allow(clippy::map_entry)]
     fn process_candidate(&mut self, block: Block) {
-        if let (Some(current_epoch), Some(rep_engine), Some(vrf_ctx), Some(secp_ctx)) = (
+        if let (
+            Some(current_epoch),
+            Some(chain_info),
+            Some(rep_engine),
+            Some(vrf_ctx),
+            Some(secp_ctx),
+        ) = (
             self.current_epoch,
+            self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_ref(),
             self.vrf_ctx.as_mut(),
             self.secp.as_ref(),
@@ -343,24 +350,15 @@ impl ChainManager {
             if self.seen_candidates.insert(hash_block) {
                 let total_identities =
                     u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
-                let mining_bf = self
-                    .chain_state
-                    .chain_info
-                    .as_ref()
-                    .unwrap()
-                    .consensus_constants
-                    .mining_backup_factor;
+                let mining_bf = chain_info.consensus_constants.mining_backup_factor;
                 let mut signatures_to_verify = vec![];
-                let mut vrf_input = self
-                    .chain_state
-                    .chain_info
-                    .as_ref()
-                    .unwrap()
-                    .highest_vrf_output;
+                let mut vrf_input = chain_info.highest_vrf_output;
                 vrf_input.checkpoint = current_epoch;
+                let prev_block_hash = chain_info.highest_block_checkpoint.hash_prev_block;
                 match validate_candidate(
                     &block,
                     current_epoch,
+                    prev_block_hash,
                     vrf_input,
                     &mut signatures_to_verify,
                     total_identities,

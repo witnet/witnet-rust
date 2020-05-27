@@ -1646,16 +1646,24 @@ pub fn validate_genesis_block(
 pub fn validate_candidate(
     block: &Block,
     current_epoch: Epoch,
+    chain_prev_block: Hash,
     vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     total_identities: u32,
     mining_bf: u32,
 ) -> Result<(), BlockError> {
     let block_epoch = block.block_header.beacon.checkpoint;
+    let candidate_prev_block = block.block_header.beacon.hash_prev_block;
     if block_epoch != current_epoch {
         return Err(BlockError::CandidateFromDifferentEpoch {
             block_epoch,
             current_epoch,
+        });
+    }
+    if candidate_prev_block != chain_prev_block {
+        return Err(BlockError::PreviousHashMismatch {
+            block_hash: candidate_prev_block,
+            our_hash: chain_prev_block,
         });
     }
 
@@ -3068,12 +3076,14 @@ mod tests {
         let vrf_hash = block.block_header.proof.verify(vrf, vrf_input).unwrap();
 
         let current_epoch = 0;
+        let prev_block_hash = Hash::default();
         let mut signatures_to_verify = vec![];
         let total_identities = 1;
         let mining_bf = 1;
         let res = validate_candidate(
             &block,
             current_epoch,
+            prev_block_hash,
             vrf_input,
             &mut signatures_to_verify,
             total_identities,
