@@ -52,8 +52,8 @@ use crate::{
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
-            AddItems, AddTransaction, Broadcast, NewBlock, SendInventoryItem, SendSuperBlockVote,
-            StoreInventoryItem,
+            AddItems, AddTransaction, Anycast, Broadcast, NewBlock, SendInventoryItem,
+            SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -843,6 +843,16 @@ impl ChainManager {
         });
 
         Box::new(fut)
+    }
+
+    fn request_blocks_batch(&mut self) {
+        // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
+        SessionsManager::from_registry().do_send(Anycast {
+            command: SendLastBeacon {
+                beacon: self.get_chain_beacon(),
+            },
+            safu: true,
+        });
     }
 }
 

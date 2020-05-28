@@ -21,7 +21,7 @@ use crate::{
     actors::{
         chain_manager::process_validations,
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction, Anycast,
+            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction,
             Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
             GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetNodeStats,
             GetReputation, GetReputationAll, GetReputationStatus, GetReputationStatusResult,
@@ -419,11 +419,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // Target achived, go back to state 1
                             self.sm_state = StateMachine::WaitingConsensus;
                         } else {
-                            // Try again, send Anycast<SendLastBeacon> to a "safu" peer, i.e. their last beacon matches our target beacon.
-                            SessionsManager::from_registry().do_send(Anycast {
-                                command: SendLastBeacon { beacon },
-                                safu: true,
-                            });
+                            self.request_blocks_batch();
                         }
                     } else {
                         // This branch will happen if this node has forked, but the network has
@@ -692,21 +688,13 @@ impl Handler<PeersBeacons> for ChainManager {
                                 Err(e) => {
                                     log::debug!("Failed to consolidate consensus candidate: {}", e);
 
-                                    // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
-                                    SessionsManager::from_registry().do_send(Anycast {
-                                        command: SendLastBeacon { beacon: our_beacon },
-                                        safu: true,
-                                    });
+                                    self.request_blocks_batch();
 
                                     StateMachine::Synchronizing
                                 }
                             }
                         } else {
-                            // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
-                            SessionsManager::from_registry().do_send(Anycast {
-                                command: SendLastBeacon { beacon: our_beacon },
-                                safu: true,
-                            });
+                            self.request_blocks_batch();
 
                             StateMachine::Synchronizing
                         }
