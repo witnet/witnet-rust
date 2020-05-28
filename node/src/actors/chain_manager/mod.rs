@@ -153,6 +153,10 @@ pub struct ChainManager {
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
     target_beacon: Option<CheckpointBeacon>,
+    /// The node asked for a batch of blocks on this epoch. This is used to implement a timeout
+    /// that will move the node back to WaitingConsensus state if it does not receive any AddBlocks
+    /// message after a certain number of epochs
+    sync_waiting_for_add_blocks_since: Option<Epoch>,
     /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
     /// (block_hash, (block, block_vrf_hash))
     candidates: HashMap<Hash, (Block, Hash)>,
@@ -853,6 +857,8 @@ impl ChainManager {
             },
             safu: true,
         });
+        let epoch = self.current_epoch.unwrap();
+        self.sync_waiting_for_add_blocks_since = Some(epoch);
     }
 }
 

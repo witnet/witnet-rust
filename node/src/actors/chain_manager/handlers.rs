@@ -443,6 +443,11 @@ impl Handler<AddBlocks> for ChainManager {
             }
             StateMachine::AlmostSynced | StateMachine::Synced => {}
         };
+
+        // If we are not synchronizing, forget about when we started synchronizing
+        if self.sm_state != StateMachine::Synchronizing {
+            self.sync_waiting_for_add_blocks_since = None;
+        }
     }
 }
 
@@ -635,7 +640,7 @@ impl Handler<PeersBeacons> for ChainManager {
             pb.into_iter().map(|(p, _b)| p).collect()
         };
 
-        match self.sm_state {
+        let peers_to_unregister = match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
@@ -783,7 +788,22 @@ impl Handler<PeersBeacons> for ChainManager {
                     }
                 }
             }
+        };
+
+        if self.sm_state == StateMachine::Synchronizing {
+            if let Some(sync_start_epoch) = self.sync_waiting_for_add_blocks_since {
+                let current_epoch = self.current_epoch.unwrap();
+                let how_many_epochs_are_we_willing_to_wait_for_one_block_batch = 10;
+                if current_epoch - sync_start_epoch
+                    >= how_many_epochs_are_we_willing_to_wait_for_one_block_batch
+                {
+                    log::warn!("Timeout for waiting for blocks achieved. Requesting blocks again.");
+                    self.request_blocks_batch();
+                }
+            }
         }
+
+        peers_to_unregister
     }
 }
 
