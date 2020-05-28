@@ -2620,16 +2620,20 @@ pub struct ChainState {
     pub reputation_engine: Option<ReputationEngine>,
     /// Node mining stats
     pub node_stats: NodeStats,
-    /// Alternative public key mapping
+    /// Last ARS members ordered by reputation
     pub alt_keys: AltKeys,
+    /// Last ARS alt keys
+    pub last_ars: AltKeys,
+    /// Last ARS keys vector ordered by reputation
+    pub last_ars_ordered_keys: Vec<Bn256PublicKey>
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to
 /// different public keys in other curves
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AltKeys {
     /// BN256 curve
-    bn256: HashMap<PublicKeyHash, Bn256PublicKey>,
+    pub bn256: HashMap<PublicKeyHash, Bn256PublicKey>,
 }
 
 impl AltKeys {
@@ -2664,6 +2668,19 @@ impl AltKeys {
             }
         }
     }
+
+    pub fn get_rep_ordered_bn256_list(&self, reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>) -> Vec<Bn256PublicKey> {
+        let mut pkhs: Vec<PublicKeyHash>= self.bn256.iter().map(|(pkh, _)| pkh.clone()).collect();
+        pkhs.sort();
+        let ars_rep: Vec<Reputation>= pkhs.iter().map(|pkh| reputation_set.get(pkh)).collect();
+
+        let ordered_pkhs: Vec<_> = pkhs.into_iter().enumerate().sorted_by_key(|(i, _x)| ars_rep[*i]).collect();
+
+        let ordered_alts: Vec<Bn256PublicKey> = ordered_pkhs.into_iter().filter_map(|(_, pkh)| self.get_bn256(&pkh).cloned()).collect();
+
+        ordered_alts
+    }
+    
 }
 
 impl ChainState {

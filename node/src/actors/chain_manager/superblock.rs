@@ -1,8 +1,7 @@
-use std::collections::HashSet;
-use witnet_data_structures::chain::{
-    BlockHeader, Hash, Hashable, PublicKeyHash, SuperBlock, SuperBlockVote,
-};
+use std::collections::{HashSet, HashMap};
+use witnet_data_structures::chain::{BlockHeader, Hash, Hashable, PublicKeyHash, SuperBlock, SuperBlockVote, AltKeys, Bn256PublicKey};
 use witnet_validations::validations::hash_merkle_tree_root;
+use witnet_crypto::hash::calculate_sha256;
 
 /// Possible result of SuperBlockState::add_vote
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -19,14 +18,14 @@ pub enum AddSuperBlockVote {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SuperBlockState {
     // Set of ARS identities that will be able to send superblock votes in the next superblock epoch
-    current_ars_identities: Option<HashSet<PublicKeyHash>>,
+    current_ars_identities: Option<AltKeys>,
     // Current superblock hash created by this node
     current_superblock_hash: Option<Hash>,
     // Current superblock index, used to limit the range of broadcasted votes to
     // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
     current_superblock_index: Option<u32>,
     // Set of ARS identities that can currently send superblock votes
-    previous_ars_identities: Option<HashSet<PublicKeyHash>>,
+    previous_ars_identities: Option<AltKeys>,
     // Set of received superblock votes
     // This is cleared when we try to create a new superblock
     received_superblocks: HashSet<SuperBlockVote>,
@@ -84,7 +83,7 @@ impl SuperBlockState {
             Some(x) if x == sbv.superblock_index => self
                 .previous_ars_identities
                 .as_ref()
-                .map(|x| x.contains(&sbv.secp256k1_signature.public_key.pkh())),
+                .map(|x| x.bn256.keys().any(|val| val == &sbv.secp256k1_signature.public_key.pkh())),
             // If the index is not the same as the current one, but it is within an acceptable range
             // of [x-1, x+1], broadcast the vote without checking if it is a member of the ARS, as
             // the ARS may have changed and we do not keep older copies of the ARS in memory
@@ -106,7 +105,8 @@ impl SuperBlockState {
     pub fn build_superblock(
         &mut self,
         block_headers: &[BlockHeader],
-        sorted_ars_identities: &[PublicKeyHash],
+        sorted_ars_identities: AltKeys,
+        ars_ordered_keys: Vec<Bn256PublicKey>,
         superblock_index: u32,
         last_block_in_previous_superblock: Hash,
     ) -> Option<SuperBlock> {
@@ -115,7 +115,7 @@ impl SuperBlockState {
 
         match mining_build_superblock(
             block_headers,
-            sorted_ars_identities,
+            ars_ordered_keys,
             superblock_index,
             last_block_in_previous_superblock,
         ) {
@@ -139,10 +139,9 @@ impl SuperBlockState {
                         &mut self.previous_ars_identities,
                         &mut self.current_ars_identities,
                     );
+
                     // Reuse allocated memory
-                    let hs = self.current_ars_identities.get_or_insert(HashSet::new());
-                    hs.clear();
-                    hs.extend(sorted_ars_identities.iter().cloned());
+                    self.current_ars_identities = Some(sorted_ars_identities);
                 }
 
                 let mut old_superblock_votes =
@@ -173,7 +172,7 @@ impl SuperBlockState {
 /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
 pub fn mining_build_superblock(
     block_headers: &[BlockHeader],
-    sorted_ars_identities: &[PublicKeyHash],
+    ars_ordered_keys: Vec<Bn256PublicKey>,
     index: u32,
     last_block_in_previous_superblock: Hash,
 ) -> Option<SuperBlock> {
@@ -187,12 +186,12 @@ pub fn mining_build_superblock(
         .map(|b| b.merkle_roots.tally_hash_merkle_root)
         .collect();
 
-    let pkh_hashes: Vec<Hash> = sorted_ars_identities.iter().map(|pkh| pkh.hash()).collect();
+    let key_hashes: Vec<Hash> = ars_ordered_keys.into_iter().map(|bn256| Hash::SHA256(calculate_sha256(&bn256.public_key).0)).collect();
 
     Some(SuperBlock {
         data_request_root: hash_merkle_tree_root(&merkle_drs),
         tally_root: hash_merkle_tree_root(&merkle_tallies),
-        ars_root: hash_merkle_tree_root(&pkh_hashes),
+        ars_root: hash_merkle_tree_root(&key_hashes),
         index,
         last_block,
         last_block_in_previous_superblock,

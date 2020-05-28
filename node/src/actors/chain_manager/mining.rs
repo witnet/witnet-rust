@@ -39,7 +39,7 @@ use crate::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
+        AltKeys, Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
         ReputationEngine, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
         ValueTransferOutput,
@@ -142,18 +142,20 @@ impl ChainManager {
             // FIXME: After Reputation Merkelitation, only the ARS Members from the previous consolidated
             // Superblock will be added, to avoid include addresses that could be wrong later by
             // block reorganization
-            let ars_members: Vec<PublicKeyHash> = rep_engine
+            let ars_members = self.chain_state.last_ars.clone();
+            let ars_ordered_keys = self.chain_state.last_ars_ordered_keys.clone();
+/*            let ars_members: Vec<PublicKeyHash> = rep_engine
                 .ars()
                 .active_identities()
                 .cloned()
                 .sorted()
-                .collect();
-
+                .collect();*/
             self.superblock_creating_and_broadcasting(
                 ctx,
                 current_epoch,
                 superblock_period,
                 ars_members,
+                ars_ordered_keys,
                 genesis_hash,
             );
         }
@@ -585,7 +587,8 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         current_epoch: u32,
         superblock_period: u32,
-        ars_members: Vec<PublicKeyHash>,
+        ars_members: AltKeys,
+        ars_ordered_keys: Vec<Bn256PublicKey>,
         genesis_hash: Hash,
     ) {
         let superblock_index = current_epoch / superblock_period;
@@ -656,7 +659,8 @@ impl ChainManager {
         .and_then(move |(block_headers, last_hash), act, _ctx| {
             let superblock = act.superblock_state.build_superblock(
                 &block_headers,
-                &ars_members,
+                ars_members,
+                ars_ordered_keys,
                 superblock_index,
                 last_hash,
             );
