@@ -4,18 +4,7 @@ The goal of the bridge nodes is to monitor the WitnetRequestBoard contract looki
 
 Before running the bridge node you will need to have the BlockRelay and the WintetRequestsBoard contracts deployed in an Ethereum enviroment. If you already have those contracts deployed, skip the *contract deployment* steps.
 
-Both the WitnetRequestBoard and the BlockRelay contracts have been deployed in Rinkeby and Goerli testnets. These are their addresses:
-
-    Network: rinkeby (id: 4)
-        BlockRelay:
-        0x70cc21A03ADbA2b53469e4254683774dfA9D9388
-        WitnetRequestsBoard:
-        0xfA723Fe91e99f03aDf368794f33612F337507619
-    Network: goerli (id: 5)
-        BlockRelay:
-        0x6c1FeEDCf0dBfA38e589784A20A0Dc16e9e64BF2
-        WitnetRequestsBoard:
-        0xE361333F6a4C441381c37dF3474fd9eb46a6e610
+Both the WitnetRequestBoard and the BlockRelay contracts have been deployed in Rinkeby and Goerli testnets. The addresses can be found [here](https://github.com/witnet/witnet-requests-js/blob/master/src/ethereum/addresses.js).
 
 ## Ethereum node
 
