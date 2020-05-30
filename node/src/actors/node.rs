@@ -61,8 +61,11 @@ pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
     let json_rpc_server_addr = JsonRpcServer::default().start();
     SystemRegistry::set(json_rpc_server_addr);
 
-    // Run system
-    system.run().or_else(|error| Err(error.into()))
+    // Run system inside a future
+    // This is believed to help with issue #1088
+    futures::future::lazy(|| system.run())
+        .wait()
+        .or_else(|error| Err(error.into()))
 }
 
 /// Function to close the main system
