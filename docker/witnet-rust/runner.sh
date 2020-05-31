@@ -2,8 +2,10 @@
 
 PUBLIC_ADDR_DISCOVERY=${PUBLIC_ADDR_DISCOVERY:-"true"}
 
+./migrator.sh
+
 if [[ "$PUBLIC_ADDR_DISCOVERY" == "true" ]]; then
     ./ip_detector.sh
 fi
 
-./witnet "$@"
+witnet "$@"

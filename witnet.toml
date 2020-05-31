@@ -45,7 +45,7 @@ outbound_limit = 8
 bootstrap_peers_period_seconds = 1
 
 [storage]
-db_path = ".witnet"
+db_path = ".witnet/storage"
 
 [jsonrpc]
 enabled = true
@@ -67,7 +67,7 @@ update_period_seconds = 8000000
 enabled = true
 data_request_max_retrievals_per_epoch = 30
 data_request_timeout_milliseconds = 2000
-genesis_path = "genesis_block.json"
+genesis_path = ".witnet/config/genesis_block.json"
 # `mint_external_address` and `mint_external_percentage` enable splitting the mint reward between the node's
 # own address and an "external" address, e.g. a the address of a wallet. `mint_external_percentage` indicates
 # the percentage of the block rewards that will be assigned to `mint_external_address` (50% by default)

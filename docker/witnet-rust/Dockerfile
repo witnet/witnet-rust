@@ -13,8 +13,8 @@ ENV RUST_BACKTRACE=1
 ARG WITNET_VERSION
 
 # Copy context and cd into it
-COPY / /
-WORKDIR /
+COPY / /tmp
+WORKDIR /tmp
 
 # Expose server ports
 EXPOSE 21337
@@ -22,11 +22,11 @@ EXPOSE 21338
 EXPOSE 11212
 
 # Run the install script
-RUN ["chmod", "+x", "./downloader.sh", "./ip_detector.sh", "./runner.sh"]
+RUN ["chmod", "+x", "./downloader.sh", "./ip_detector.sh", "./migrator.sh", "./runner.sh"]
 RUN ["./downloader.sh"]
 
 # Set compilation entry point (always gets executed)
 ENTRYPOINT ["./runner.sh"]
 
-# Set default command (can be overriden)
-CMD ["node", "server"]
+# Set default command (can be overridden)
+CMD ["-c", "/.witnet/config/witnet.toml", "node", "server"]
