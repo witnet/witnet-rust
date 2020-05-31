@@ -29,7 +29,8 @@ pub fn exec(
     }: Cli,
 ) -> Result<(), failure::Error> {
     let mut log_opts = LogOptions::default();
-    let config = get_config(config.or_else(config::dirs::find_config))?;
+    let config_path = config.or_else(config::dirs::find_config);
+    let config = get_config(&config_path)?;
 
     log_opts.level = config.log.level;
     log_opts.sentry_telemetry = config.log.sentry_telemetry;
@@ -55,12 +56,16 @@ pub fn exec(
     let _guard = init_logger(log_opts);
     witnet_data_structures::set_environment(config.environment);
 
-    exec_cmd(cmd, config)
+    exec_cmd(cmd, config_path, config)
 }
 
-fn exec_cmd(command: Command, config: config::config::Config) -> Result<(), failure::Error> {
+fn exec_cmd(
+    command: Command,
+    config_path: Option<PathBuf>,
+    config: config::config::Config,
+) -> Result<(), failure::Error> {
     match command {
-        Command::Node(cmd) => node::exec_cmd(cmd, config),
+        Command::Node(cmd) => node::exec_cmd(cmd, config_path, config),
         Command::Wallet(cmd) => wallet::exec_cmd(cmd, config),
     }
 }
@@ -146,7 +151,7 @@ fn init_logger(opts: LogOptions) {
     logger_builder.init();
 }
 
-fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::Error> {
+fn get_config(path: &Option<PathBuf>) -> Result<config::config::Config, failure::Error> {
     match path {
         Some(p) => {
             println!("Loading config from: {}", p.display());

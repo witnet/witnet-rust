@@ -1,4 +1,8 @@
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use structopt::StructOpt;
 
@@ -7,7 +11,11 @@ use witnet_node as node;
 
 use super::json_rpc_client as rpc;
 
-pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Error> {
+pub fn exec_cmd(
+    command: Command,
+    config_path: Option<PathBuf>,
+    mut config: Config,
+) -> Result<(), failure::Error> {
     match command {
         Command::GetBlock { node, hash } => {
             rpc::get_block(node.unwrap_or(config.jsonrpc.server_address), hash)
@@ -145,8 +153,8 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             let write_to_path = match (write, write_to) {
                 // Don't write
                 (false, None) => None,
-                // Write to default storage path
-                (true, None) => Some(config.storage.db_path),
+                // Write to the same folder where the config file is located
+                (true, None) => config_path.and_then(|path| path.parent().map(Path::to_path_buf)),
                 // Write to custom path
                 (_, Some(path)) => Some(path),
             };
