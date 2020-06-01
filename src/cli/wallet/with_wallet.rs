@@ -44,18 +44,18 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
 pub enum Command {
     #[structopt(
         name = "server",
-        about = "Run a wallet server exposing a websockets API.",
+        about = "Run a wallet server exposing a websockets API",
         alias = "run"
     )]
     Run(ConfigParams),
     #[structopt(
         name = "show-config",
-        about = "Dump the loaded config in Toml format to stdout."
+        about = "Dump the loaded config in Toml format to stdout"
     )]
     ShowConfig,
     #[structopt(
         name = "doc",
-        about = "Opens Wallet Wiki page with the default browser."
+        about = "Opens Wallet Wiki page with the default browser"
     )]
     Doc,
 }

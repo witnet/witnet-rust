@@ -178,7 +178,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
-    #[structopt(name = "server", about = "Run a Witnet node server.", alias = "run")]
+    #[structopt(name = "server", about = "Run a Witnet node server", alias = "run")]
     Run(ConfigParams),
     #[structopt(
         name = "raw",
@@ -255,7 +255,7 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Show all the information about utxos
+        /// Show all the information about utxos.
         #[structopt(long = "long")]
         long: bool,
         /// Public key hash for which to get UTXO information. If omitted, defaults to the node pkh.
@@ -277,7 +277,7 @@ pub enum Command {
         #[structopt(long = "all", conflicts_with = "address")]
         all: bool,
     },
-    #[structopt(name = "output", about = "Find an output of a transaction ")]
+    #[structopt(name = "output", about = "Find an output of a transaction")]
     Output {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
@@ -305,7 +305,7 @@ pub enum Command {
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
-        /// Print the request that would be sent to the node and exit without doing anything
+        /// Print the request that would be sent to the node and exit without doing anything.
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
@@ -332,7 +332,7 @@ pub enum Command {
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
-        /// Print the request that would be sent to the node and exit without doing anything
+        /// Print the request that would be sent to the node and exit without doing anything.
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
@@ -378,10 +378,10 @@ pub enum Command {
     },
     #[structopt(
         name = "show-config",
-        about = "Dump the loaded config in Toml format to stdout."
+        about = "Dump the loaded config in Toml format to stdout"
     )]
     ShowConfig,
-    #[structopt(name = "masterKeyExport", about = "Export the node master key.")]
+    #[structopt(name = "masterKeyExport", about = "Export the node master key")]
     MasterKeyExport {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
