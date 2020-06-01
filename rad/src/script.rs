@@ -1,8 +1,9 @@
+use std::convert::TryFrom;
+
 use serde_cbor::{
     self as cbor,
     value::{from_value, Value},
 };
-use std::convert::TryFrom;
 
 use witnet_data_structures::{
     chain::RADFilter,
@@ -181,9 +182,12 @@ pub fn create_radon_script_from_filters_and_reducer(
 
 #[test]
 fn test_execute_radon_script() {
-    use crate::types::{float::RadonFloat, string::RadonString};
+    use crate::types::{array::RadonArray, float::RadonFloat, map::RadonMap, string::RadonString};
+    use std::collections::HashMap;
 
-    let input = RadonString::from(r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#).into();
+    let input = RadonTypes::from(RadonString::from(
+        r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#,
+    ));
     let script = vec![
         (RadonOpCodes::StringParseJSONMap, None),
         (
@@ -195,11 +199,195 @@ fn test_execute_radon_script() {
             Some(vec![Value::Text(String::from("temp"))]),
         ),
     ];
-    let output = execute_contextfree_radon_script(input, &script).unwrap();
 
+    // Test context-free execution
+    let output = execute_contextfree_radon_script(input.clone(), &script).unwrap();
     let expected = RadonTypes::Float(RadonFloat::from(-4f64));
+    assert_eq!(output, expected);
 
-    assert_eq!(output, expected)
+    // Test contextful execution
+    let mut context = ReportContext::default();
+    let output = execute_radon_script(input, &script, &mut context).unwrap();
+    let partial_expected = vec![
+        RadonTypes::from(RadonString::from(
+            r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#,
+        )),
+        RadonTypes::from(RadonMap::from(
+            vec![
+                (
+                    String::from("base"),
+                    RadonTypes::from(RadonString::from("stations")),
+                ),
+                (
+                    String::from("clouds"),
+                    RadonTypes::from(RadonMap::from(
+                        vec![(String::from("all"), RadonTypes::from(RadonFloat::from(75)))]
+                            .iter()
+                            .cloned()
+                            .collect::<HashMap<String, RadonTypes>>(),
+                    )),
+                ),
+                (String::from("cod"), RadonTypes::from(RadonFloat::from(200))),
+                (
+                    String::from("coord"),
+                    RadonTypes::from(RadonMap::from(
+                        vec![
+                            (
+                                String::from("lon"),
+                                RadonTypes::from(RadonFloat::from(13.41)),
+                            ),
+                            (
+                                String::from("lat"),
+                                RadonTypes::from(RadonFloat::from(52.52)),
+                            ),
+                        ]
+                        .iter()
+                        .cloned()
+                        .collect::<HashMap<String, RadonTypes>>(),
+                    )),
+                ),
+                (
+                    String::from("dt"),
+                    RadonTypes::from(RadonFloat::from(1_548_346_800)),
+                ),
+                (
+                    String::from("id"),
+                    RadonTypes::from(RadonFloat::from(2_950_159)),
+                ),
+                (
+                    String::from("main"),
+                    RadonTypes::from(RadonMap::from(
+                        vec![
+                            (String::from("temp"), RadonTypes::from(RadonFloat::from(-4))),
+                            (
+                                String::from("pressure"),
+                                RadonTypes::from(RadonFloat::from(1013)),
+                            ),
+                            (
+                                String::from("humidity"),
+                                RadonTypes::from(RadonFloat::from(73)),
+                            ),
+                            (
+                                String::from("temp_min"),
+                                RadonTypes::from(RadonFloat::from(-4)),
+                            ),
+                            (
+                                String::from("temp_max"),
+                                RadonTypes::from(RadonFloat::from(-4)),
+                            ),
+                        ]
+                        .iter()
+                        .cloned()
+                        .collect::<HashMap<String, RadonTypes>>(),
+                    )),
+                ),
+                (
+                    String::from("name"),
+                    RadonTypes::from(RadonString::from("Berlin")),
+                ),
+                (
+                    String::from("sys"),
+                    RadonTypes::from(RadonMap::from(
+                        vec![
+                            (String::from("type"), RadonTypes::from(RadonFloat::from(1))),
+                            (String::from("id"), RadonTypes::from(RadonFloat::from(1275))),
+                            (
+                                String::from("message"),
+                                RadonTypes::from(RadonFloat::from(0.0038)),
+                            ),
+                            (
+                                String::from("country"),
+                                RadonTypes::from(RadonString::from("DE")),
+                            ),
+                            (
+                                String::from("sunrise"),
+                                RadonTypes::from(RadonFloat::from(1_548_313_160)),
+                            ),
+                            (
+                                String::from("sunset"),
+                                RadonTypes::from(RadonFloat::from(1_548_344_298)),
+                            ),
+                        ]
+                        .iter()
+                        .cloned()
+                        .collect::<HashMap<String, RadonTypes>>(),
+                    )),
+                ),
+                (
+                    String::from("visibility"),
+                    RadonTypes::from(RadonFloat::from(10000)),
+                ),
+                (
+                    String::from("weather"),
+                    RadonTypes::from(RadonArray::from(vec![RadonTypes::from(RadonMap::from(
+                        vec![
+                            (String::from("id"), RadonTypes::from(RadonFloat::from(600))),
+                            (
+                                String::from("main"),
+                                RadonTypes::from(RadonString::from("Snow")),
+                            ),
+                            (
+                                String::from("description"),
+                                RadonTypes::from(RadonString::from("light snow")),
+                            ),
+                            (
+                                String::from("icon"),
+                                RadonTypes::from(RadonString::from("13n")),
+                            ),
+                        ]
+                        .iter()
+                        .cloned()
+                        .collect::<HashMap<String, RadonTypes>>(),
+                    ))])),
+                ),
+                (
+                    String::from("wind"),
+                    RadonTypes::from(RadonMap::from(
+                        vec![
+                            (
+                                String::from("speed"),
+                                RadonTypes::from(RadonFloat::from(2.6)),
+                            ),
+                            (String::from("deg"), RadonTypes::from(RadonFloat::from(90))),
+                        ]
+                        .iter()
+                        .cloned()
+                        .collect::<HashMap<String, RadonTypes>>(),
+                    )),
+                ),
+            ]
+            .iter()
+            .cloned()
+            .collect::<HashMap<String, RadonTypes>>(),
+        )),
+        RadonTypes::from(RadonMap::from(
+            vec![
+                (String::from("temp"), RadonTypes::from(RadonFloat::from(-4))),
+                (
+                    String::from("pressure"),
+                    RadonTypes::from(RadonFloat::from(1013)),
+                ),
+                (
+                    String::from("humidity"),
+                    RadonTypes::from(RadonFloat::from(73)),
+                ),
+                (
+                    String::from("temp_min"),
+                    RadonTypes::from(RadonFloat::from(-4)),
+                ),
+                (
+                    String::from("temp_max"),
+                    RadonTypes::from(RadonFloat::from(-4)),
+                ),
+            ]
+            .iter()
+            .cloned()
+            .collect::<HashMap<String, RadonTypes>>(),
+        )),
+        RadonTypes::from(RadonFloat::from(-4)),
+    ];
+    assert_eq!(output.result, expected);
+    assert_eq!(output.partial_results, partial_expected);
 }
 
 #[test]
