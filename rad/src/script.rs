@@ -28,19 +28,25 @@ pub fn execute_radon_script(
 ) -> Result<RadonReport<RadonTypes>, RadError> {
     // Set the execution timestamp
     context.start();
+    // Initialize a vector for storing the partial results
+    let mut partial_results = vec![Ok(input.clone())];
     // Run the execution
-    let result = script
+    script
         .iter()
         .enumerate()
         .try_fold(input, |input, (i, call)| {
             context.call_index = Some(u8::try_from(i).unwrap());
-            operate_in_context(input, call, context)
-        });
+            let partial_result = operate_in_context(input, call, context);
+            partial_results.push(partial_result.clone());
+
+            partial_result
+        })
+        .ok();
     // Set the completion timestamp
     context.complete();
 
     // Return a report as constructed from the result and the context
-    Ok(RadonReport::from_result(result, context))
+    Ok(RadonReport::from_partial_results(partial_results, context))
 }
 
 /// Run any RADON script on given input data, and return `RadonTypes`.

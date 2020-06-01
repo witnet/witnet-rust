@@ -17,6 +17,8 @@ where
 {
     /// Stage-specific metadata.
     pub metadata: Stage,
+    /// Vector of partial results (the results in between each of the operators in a script)
+    pub partial_results: Vec<RT>,
     /// This the intercepted result of the script execution: any `IE` raised in runtime has already
     /// been mapped into a `RT` (e.g. `RadError` -> `RadonTypes::RadonError`.
     pub result: RT,
@@ -30,13 +32,27 @@ where
     RT: TypeLike,
 {
     /// Factory for constructing a `RadonReport` from the `Result` of something that could be
-    /// `ErrorLike` plus a `ReportContext`.
+    /// `TypeLike` or `ErrorLike` plus a `ReportContext`.
     pub fn from_result(result: Result<RT, RT::Error>, context: &ReportContext) -> Self {
-        let intercepted = RT::intercept(result);
+        Self::from_partial_results(vec![result], context)
+    }
+
+    /// Factory for constructing a `RadonReport` from a vector of partial results, which could be
+    /// `TypeLike` or `ErrorLike`, plus a `ReportContext`.
+    pub fn from_partial_results(
+        partial_results: Vec<Result<RT, RT::Error>>,
+        context: &ReportContext,
+    ) -> Self {
+        let intercepted: Vec<RT> = partial_results.into_iter().map(RT::intercept).collect();
+        let result = match intercepted.last() {
+            None => unreachable!("Partial result vectors always contain at least 1 item"),
+            Some(x) => (*x).clone(),
+        };
 
         RadonReport {
-            result: intercepted,
             metadata: context.stage.clone(),
+            partial_results: intercepted,
+            result,
             running_time: context.duration(),
         }
     }
@@ -62,7 +78,7 @@ where
 
 /// This trait identifies a RADON-compatible type system, i.e. most likely an `enum` with different
 /// cases for different data types.
-pub trait TypeLike: std::marker::Sized {
+pub trait TypeLike: std::clone::Clone + std::marker::Sized {
     type Error: ErrorLike;
 
     fn encode(&self) -> Result<Vec<u8>, Self::Error>;
@@ -77,8 +93,8 @@ pub struct ReportContext {
     pub call_argument_index: Option<u8>,
     pub call_index: Option<u8>,
     pub call_operator: Option<u8>,
-    pub stage: Stage,
     pub completion_time: Option<Instant>,
+    pub stage: Stage,
     pub start_time: Option<Instant>,
     pub script_index: Option<u8>,
 }
