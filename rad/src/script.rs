@@ -273,16 +273,14 @@ fn test_execute_radon_script() {
     // Test contextful execution
     let mut context = ReportContext::default();
     let output = execute_radon_script(
-        input,
+        input.clone(),
         &script,
         &mut context,
         RadonScriptExecutionSettings::enable_all(),
     )
     .unwrap();
     let partial_expected = vec![
-        RadonTypes::from(RadonString::from(
-            r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#,
-        )),
+        input,
         RadonTypes::from(RadonMap::from(
             vec![
                 (

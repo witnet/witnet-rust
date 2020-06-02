@@ -50,10 +50,10 @@ where
         context: &ReportContext,
     ) -> Self {
         let intercepted: Vec<RT> = partial_results.into_iter().map(RT::intercept).collect();
-        let result = match intercepted.last() {
-            None => unreachable!("Partial result vectors always contain at least 1 item"),
-            Some(x) => (*x).clone(),
-        };
+        let result = (*intercepted
+            .last()
+            .expect("Partial result vectors must always contain at least 1 item"))
+        .clone();
 
         RadonReport {
             metadata: context.stage.clone(),
@@ -84,7 +84,7 @@ where
 
 /// This trait identifies a RADON-compatible type system, i.e. most likely an `enum` with different
 /// cases for different data types.
-pub trait TypeLike: std::clone::Clone + std::marker::Sized {
+pub trait TypeLike: Clone + Sized {
     type Error: ErrorLike;
 
     fn encode(&self) -> Result<Vec<u8>, Self::Error>;
