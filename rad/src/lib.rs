@@ -12,6 +12,7 @@ use crate::{
     error::RadError,
     script::{
         create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
+        RadonScriptExecutionSettings,
     },
     types::{array::RadonArray, string::RadonString, RadonTypes},
 };
@@ -26,13 +27,16 @@ pub mod types;
 
 pub type Result<T> = std::result::Result<T, RadError>;
 
-pub async fn try_data_request(request: &RADRequest) -> RadonReport<RadonTypes> {
+pub async fn try_data_request(
+    request: &RADRequest,
+    settings: RadonScriptExecutionSettings,
+) -> RadonReport<RadonTypes> {
     let context = &mut ReportContext::default();
 
     let retrieve_responses_fut = request
         .retrieve
         .iter()
-        .map(|retrieve| run_retrieval_report(retrieve));
+        .map(|retrieve| run_retrieval_report(retrieve, settings));
 
     let retrieve_responses: Vec<RadonTypes> = futures::future::join_all(retrieve_responses_fut)
         .await
@@ -44,12 +48,19 @@ pub async fn try_data_request(request: &RADRequest) -> RadonReport<RadonTypes> {
         })
         .collect();
 
-    let aggregation_response = run_aggregation_report(retrieve_responses, &request.aggregate)
-        .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
-        .into_inner();
+    let aggregation_response =
+        run_aggregation_report(retrieve_responses, &request.aggregate, settings)
+            .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+            .into_inner();
 
-    run_tally_report(vec![aggregation_response], &request.tally, None, None)
-        .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+    run_tally_report(
+        vec![aggregation_response],
+        &request.tally,
+        None,
+        None,
+        settings,
+    )
+    .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
 }
 
 /// Run retrieval without performing any external network requests, return `RadonReport`.
@@ -57,25 +68,34 @@ pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
     response: String,
     context: &mut ReportContext,
+    settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
         RADType::HttpGet => {
             let input = RadonTypes::from(RadonString::from(response));
             let radon_script = unpack_radon_script(&retrieve.script)?;
 
-            execute_radon_script(input, &radon_script, context)
+            execute_radon_script(input, &radon_script, context, settings)
         }
     }
 }
 
 /// Run retrieval without performing any external network requests, return `RadonTypes`.
-pub fn run_retrieval_with_data(retrieve: &RADRetrieve, response: String) -> Result<RadonTypes> {
+pub fn run_retrieval_with_data(
+    retrieve: &RADRetrieve,
+    response: String,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonTypes> {
     let context = &mut ReportContext::default();
-    run_retrieval_with_data_report(retrieve, response, context).map(RadonReport::into_inner)
+    run_retrieval_with_data_report(retrieve, response, context, settings)
+        .map(RadonReport::into_inner)
 }
 
 /// Run retrieval stage of a data request, return `RadonReport`.
-pub async fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<RadonTypes>> {
+pub async fn run_retrieval_report(
+    retrieve: &RADRetrieve,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     context.stage = Stage::Retrieval;
 
@@ -109,7 +129,8 @@ pub async fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<
                     message: x.to_string(),
                 })?;
 
-            let result = run_retrieval_with_data_report(retrieve, response_string, context);
+            let result =
+                run_retrieval_with_data_report(retrieve, response_string, context, settings);
 
             log::debug!("Result for URL {}: {:?}", retrieve.url, result);
 
@@ -120,7 +141,8 @@ pub async fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<
 
 /// Run retrieval stage of a data request, return `RadonTypes`.
 pub async fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
-    run_retrieval_report(retrieve)
+    // Disable all execution tracing features, as this is the best-effort version of this method
+    run_retrieval_report(retrieve, RadonScriptExecutionSettings::disable_all())
         .await
         .map(RadonReport::into_inner)
 }
@@ -129,6 +151,7 @@ pub async fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
 pub fn run_aggregation_report(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
+    settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     context.stage = Stage::Aggregation;
@@ -139,7 +162,7 @@ pub fn run_aggregation_report(
 
     let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
 
-    execute_radon_script(items_to_aggregate, &radon_script, context)
+    execute_radon_script(items_to_aggregate, &radon_script, context, settings)
 }
 
 /// Run aggregate stage of a data request, return `RadonTypes`.
@@ -147,7 +170,13 @@ pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
 ) -> Result<RadonTypes> {
-    run_aggregation_report(radon_types_vec, aggregate).map(RadonReport::into_inner)
+    // Disable all execution tracing features, as this is the best-effort version of this method
+    run_aggregation_report(
+        radon_types_vec,
+        aggregate,
+        RadonScriptExecutionSettings::disable_all(),
+    )
+    .map(RadonReport::into_inner)
 }
 
 /// Run tally stage of a data request, return `RadonReport`.
@@ -156,6 +185,7 @@ pub fn run_tally_report(
     consensus: &RADTally,
     liars: Option<Vec<bool>>,
     errors: Option<Vec<bool>>,
+    settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     let mut metadata = TallyMetaData::default();
@@ -181,16 +211,24 @@ pub fn run_tally_report(
 
     let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));
 
-    execute_radon_script(items_to_tally, &radon_script, context)
+    execute_radon_script(items_to_tally, &radon_script, context, settings)
 }
 
 /// Run tally stage of a data request, return `RadonTypes`.
 pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
-    run_tally_report(radon_types_vec, consensus, None, None).map(RadonReport::into_inner)
+    // Disable all execution tracing features, as this is the best-effort version of this method
+    let settings = RadonScriptExecutionSettings {
+        partial_results: false,
+        timing: false,
+        breakpoints: false,
+    };
+    run_tally_report(radon_types_vec, consensus, None, None, settings).map(RadonReport::into_inner)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use serde_cbor::Value;
 
     use witnet_data_structures::{
@@ -206,7 +244,6 @@ mod tests {
     };
 
     use super::*;
-    use std::convert::TryFrom;
 
     #[test]
     fn test_run_retrieval() {
@@ -230,7 +267,12 @@ mod tests {
         };
         let response = r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":500,"main":"Rain","description":"light rain","icon":"10d"}],"base":"stations","main":{"temp":17.59,"pressure":1022,"humidity":67,"temp_min":15,"temp_max":20},"visibility":10000,"wind":{"speed":3.6,"deg":260},"rain":{"1h":0.51},"clouds":{"all":20},"dt":1567501321,"sys":{"type":1,"id":1275,"message":0.0089,"country":"DE","sunrise":1567484402,"sunset":1567533129},"timezone":7200,"id":2950159,"name":"Berlin","cod":200}"#;
 
-        let result = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
+        let result = run_retrieval_with_data(
+            &retrieve,
+            response.to_string(),
+            RadonScriptExecutionSettings::disable_all(),
+        )
+        .unwrap();
 
         match result {
             RadonTypes::Float(_) => {}
@@ -290,7 +332,12 @@ mod tests {
             reducer: RadonReducers::AverageMean as u32,
         };
 
-        let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
+        let retrieved = run_retrieval_with_data(
+            &retrieve,
+            response.to_string(),
+            RadonScriptExecutionSettings::disable_all(),
+        )
+        .unwrap();
         let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
         let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
@@ -318,7 +365,12 @@ mod tests {
             reducer: RadonReducers::AverageMean as u32,
         };
 
-        let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
+        let retrieved = run_retrieval_with_data(
+            &retrieve,
+            response.to_string(),
+            RadonScriptExecutionSettings::disable_all(),
+        )
+        .unwrap();
         let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
         let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
@@ -362,7 +414,12 @@ mod tests {
             reducer: RadonReducers::AverageMean as u32,
         };
 
-        let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
+        let retrieved = run_retrieval_with_data(
+            &retrieve,
+            response.to_string(),
+            RadonScriptExecutionSettings::disable_all(),
+        )
+        .unwrap();
         let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
         let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
@@ -397,7 +454,12 @@ mod tests {
             reducer: RadonReducers::AverageMean as u32,
         };
 
-        let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
+        let retrieved = run_retrieval_with_data(
+            &retrieve,
+            response.to_string(),
+            RadonScriptExecutionSettings::disable_all(),
+        )
+        .unwrap();
         let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
         let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
@@ -432,7 +494,12 @@ mod tests {
             script: packed_script_r,
         };
         let response = r#"{"event":{"homeTeam":{"name":"Ryazan-VDV","slug":"ryazan-vdv","gender":"F","national":false,"id":171120,"shortName":"Ryazan-VDV","subTeams":[]},"awayTeam":{"name":"Olympique Lyonnais","slug":"olympique-lyonnais","gender":"F","national":false,"id":26245,"shortName":"Lyon","subTeams":[]},"homeScore":{"current":0,"display":0,"period1":0,"normaltime":0},"awayScore":{"current":9,"display":9,"period1":5,"normaltime":9}}}"#;
-        let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
+        let retrieved = run_retrieval_with_data(
+            &retrieve,
+            response.to_string(),
+            RadonScriptExecutionSettings::disable_all(),
+        )
+        .unwrap();
         let expected = RadonTypes::Integer(RadonInteger::from(9));
         assert_eq!(retrieved, expected)
     }
@@ -451,6 +518,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
 
@@ -482,6 +550,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
 
@@ -514,6 +583,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
 
@@ -547,6 +617,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
 
@@ -592,6 +663,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
 
@@ -626,6 +698,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
 
@@ -666,6 +739,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap_err();
 
@@ -707,6 +781,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap_err();
 
@@ -748,6 +823,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap_err();
 
@@ -772,6 +848,7 @@ mod tests {
             },
             None,
             None,
+            RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap()
         .into_inner();

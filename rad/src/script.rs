@@ -21,33 +21,98 @@ use crate::{
 pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
 pub type RadonScript = Vec<RadonCall>;
 
+/// A set of flags for telling the RADON executor what execution features to enable and what
+/// metadata to collect.
+#[derive(Clone, Copy)]
+pub struct RadonScriptExecutionSettings {
+    pub partial_results: bool,
+    pub timing: bool,
+    pub breakpoints: bool,
+}
+
+/// Default to enabling all execution features except `partial_results`.
+impl Default for RadonScriptExecutionSettings {
+    fn default() -> Self {
+        Self::all_but_partial_results()
+    }
+}
+
+impl RadonScriptExecutionSettings {
+    /// Enable all execution features except `partial_results`. This is the default for
+    /// `witnet_node`.
+    pub fn all_but_partial_results() -> Self {
+        Self {
+            partial_results: false,
+            ..Self::enable_all()
+        }
+    }
+
+    /// Disable all execution features.
+    pub fn disable_all() -> Self {
+        Self {
+            partial_results: false,
+            timing: false,
+            breakpoints: false,
+        }
+    }
+
+    /// Enable all execution features. This is recommended for `witnet_wallet`.
+    pub fn enable_all() -> Self {
+        Self {
+            partial_results: true,
+            timing: true,
+            breakpoints: true,
+        }
+    }
+}
+
 /// Run any RADON script on given input data, and return `RadonReport`.
 pub fn execute_radon_script(
     input: RadonTypes,
     script: &[RadonCall],
     context: &mut ReportContext,
+    settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>, RadError> {
     // Set the execution timestamp
-    context.start();
+    if settings.timing {
+        context.start();
+    }
+
     // Initialize a vector for storing the partial results
     let mut partial_results = vec![Ok(input.clone())];
-    // Run the execution
-    script
+
+    // Run the execution by recursively applying calls into the result of the previous call
+    let result = script
         .iter()
         .enumerate()
         .try_fold(input, |input, (i, call)| {
-            context.call_index = Some(u8::try_from(i).unwrap());
+            // Update the index of the last executed call, if enabled in settings
+            if settings.breakpoints {
+                context.call_index = Some(u8::try_from(i).unwrap());
+            }
+
+            // Apply the call
             let partial_result = operate_in_context(input, call, context);
-            partial_results.push(partial_result.clone());
+
+            // Keep partial result, if enabled in settings
+            if settings.partial_results {
+                partial_results.push(partial_result.clone());
+            }
 
             partial_result
-        })
-        .ok();
-    // Set the completion timestamp
-    context.complete();
+        });
+
+    // Set the completion timestamp, if enabled in settings
+    if settings.timing {
+        context.complete();
+    }
 
     // Return a report as constructed from the result and the context
-    Ok(RadonReport::from_partial_results(partial_results, context))
+    Ok(if settings.partial_results {
+        RadonReport::from_partial_results(partial_results, context)
+    } else {
+        RadonReport::from_result(result, context)
+    })
 }
 
 /// Run any RADON script on given input data, and return `RadonTypes`.
@@ -207,7 +272,13 @@ fn test_execute_radon_script() {
 
     // Test contextful execution
     let mut context = ReportContext::default();
-    let output = execute_radon_script(input, &script, &mut context).unwrap();
+    let output = execute_radon_script(
+        input,
+        &script,
+        &mut context,
+        RadonScriptExecutionSettings::enable_all(),
+    )
+    .unwrap();
     let partial_expected = vec![
         RadonTypes::from(RadonString::from(
             r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#,
@@ -387,7 +458,7 @@ fn test_execute_radon_script() {
         RadonTypes::from(RadonFloat::from(-4)),
     ];
     assert_eq!(output.result, expected);
-    assert_eq!(output.partial_results, partial_expected);
+    assert_eq!(output.partial_results, Some(partial_expected));
 }
 
 #[test]

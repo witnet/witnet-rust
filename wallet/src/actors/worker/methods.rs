@@ -4,6 +4,8 @@ use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::json;
 
+use witnet_rad::script::RadonScriptExecutionSettings;
+
 use crate::types::{ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable};
 use crate::{account, constants, crypto, db::Database as _, model, params};
 
@@ -40,7 +42,10 @@ impl Worker {
     ) -> types::RadonReport<types::RadonTypes> {
         // Block on data request retrieval because the wallet was designed with a blocking run retrieval in mind.
         // This can be made non-blocking by returning a future here and updating.
-        futures03::executor::block_on(witnet_rad::try_data_request(&request))
+        futures03::executor::block_on(witnet_rad::try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+        ))
     }
 
     pub fn gen_mnemonic(&self, length: types::MnemonicLength) -> String {

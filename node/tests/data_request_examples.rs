@@ -6,6 +6,7 @@ use std::{
 };
 use witnet_data_structures::chain::DataRequestOutput;
 use witnet_node::actors::messages::BuildDrt;
+use witnet_rad::script::RadonScriptExecutionSettings;
 use witnet_rad::types::{
     float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes,
 };
@@ -44,7 +45,11 @@ fn run_dr_locally_with_data(
     let mut retrieval_results = vec![];
     for (r, d) in dr.data_request.retrieve.iter().zip(data.iter()) {
         log::info!("Running retrieval for {}", r.url);
-        retrieval_results.push(witnet_rad::run_retrieval_with_data(r, (*d).to_string())?);
+        retrieval_results.push(witnet_rad::run_retrieval_with_data(
+            r,
+            (*d).to_string(),
+            RadonScriptExecutionSettings::disable_all(),
+        )?);
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);

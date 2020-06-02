@@ -6,6 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
+
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::CryptoEngine,
@@ -35,7 +36,10 @@ use witnet_rad::{
     error::RadError,
     reducers::mode::mode,
     run_tally_report,
-    script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
+    script::{
+        create_radon_script_from_filters_and_reducer, unpack_radon_script,
+        RadonScriptExecutionSettings,
+    },
     types::{array::RadonArray, serial_iter_decode, RadonType, RadonTypes},
 };
 
@@ -529,11 +533,32 @@ pub fn construct_report_from_clause_result(
     match clause_result {
         // The reveals passed the precondition clause (a parametric majority of them were successful
         // values). Run the tally, which will add more liars if any.
+        Ok(TallyPreconditionClauseResult::MajorityOfValues { values, liars }) => {
+            let mut metadata = TallyMetaData::default();
+            metadata.update_liars(vec![false; reports_len]);
+
+            match run_tally_report(
+                values,
+                script,
+                Some(liars),
+                Some(errors),
+                RadonScriptExecutionSettings::all_but_partial_results(),
+            ) {
+                Ok(x) => x,
+                Err(e) => RadonReport::from_result(
+                    Err(RadError::TallyExecution {
+                        inner: Some(Box::new(e)),
+                        message: None,
+                    }),
+                    &ReportContext::from_stage(Stage::Tally(metadata)),
+                ),
+            }
+        }
         Ok(TallyPreconditionClauseResult::MajorityOfValues {
             values,
             liars,
             errors,
-        }) => match run_tally_report(values, script, Some(liars), Some(errors)) {
+        }) => match run_tally_report(values, script, Some(liars), Some(errors), settings) {
             Ok(x) => x,
             Err(e) => RadonReport::from_result(
                 Err(RadError::TallyExecution {
@@ -2267,14 +2292,14 @@ pub fn verify_signatures(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use witnet_data_structures::{
         chain::{Alpha, SecretKey},
         radon_error::RadonError,
     };
     use witnet_protected::Protected;
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
+
+    use super::*;
 
     #[test]
     fn test_compare_candidate_same_section() {

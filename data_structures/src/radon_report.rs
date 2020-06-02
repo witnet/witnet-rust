@@ -18,7 +18,7 @@ where
     /// Stage-specific metadata.
     pub metadata: Stage,
     /// Vector of partial results (the results in between each of the operators in a script)
-    pub partial_results: Vec<RT>,
+    pub partial_results: Option<Vec<RT>>,
     /// This the intercepted result of the script execution: any `IE` raised in runtime has already
     /// been mapped into a `RT` (e.g. `RadError` -> `RadonTypes::RadonError`.
     pub result: RT,
@@ -34,7 +34,13 @@ where
     /// Factory for constructing a `RadonReport` from the `Result` of something that could be
     /// `TypeLike` or `ErrorLike` plus a `ReportContext`.
     pub fn from_result(result: Result<RT, RT::Error>, context: &ReportContext) -> Self {
-        Self::from_partial_results(vec![result], context)
+        let intercepted = RT::intercept(result);
+        RadonReport {
+            metadata: context.stage.clone(),
+            partial_results: None,
+            result: intercepted,
+            running_time: context.duration(),
+        }
     }
 
     /// Factory for constructing a `RadonReport` from a vector of partial results, which could be
@@ -51,7 +57,7 @@ where
 
         RadonReport {
             metadata: context.stage.clone(),
-            partial_results: intercepted,
+            partial_results: Some(intercepted),
             result,
             running_time: context.duration(),
         }

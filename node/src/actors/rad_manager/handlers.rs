@@ -14,6 +14,7 @@ use witnet_validations::validations::{
 use crate::actors::messages::{ResolveRA, RunTally};
 
 use super::RadManager;
+use witnet_rad::script::RadonScriptExecutionSettings;
 
 impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<RadonReport<RadonTypes>, RadError>;
@@ -52,7 +53,11 @@ impl Handler<ResolveRA> for RadManager {
                     // Perform aggregation on the values that made it to the output vector after applying the
                     // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
                     // failures.
-                    witnet_rad::run_aggregation_report(values, &aggregator)
+                    witnet_rad::run_aggregation_report(
+                        values,
+                        &aggregator,
+                        RadonScriptExecutionSettings::all_but_partial_results(),
+                    )
                 }
                 Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
                     Ok(RadonReport::from_result(
