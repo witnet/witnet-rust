@@ -154,7 +154,11 @@ pub fn exec_cmd(
                 // Don't write
                 (false, None) => None,
                 // Write to the same folder where the config file is located
-                (true, None) => config_path.and_then(|path| path.parent().map(Path::to_path_buf)),
+                // Fail if using default configuration (not sourced from a file in the filesystem)
+                (true, None) => config_path
+                    .expect("Cannot guess a file system path for writing the master key file. Please specify a valid path right after the `--write` flag.")
+                    .parent()
+                    .map(Path::to_path_buf),
                 // Write to custom path
                 (_, Some(path)) => Some(path),
             };
