@@ -17,6 +17,7 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
+    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
@@ -3470,31 +3471,37 @@ fn create_commit_reveal(
 //   - A CommitTransaction vector
 //   - A RevealTransaction vector
 //   - A vector with the liar publicKeys
-#[allow(clippy::cast_possible_truncation)]
+//   - A vector with the error publicKeys
+#[allow(clippy::cast_possible_truncation, clippy::too_many_arguments)]
 fn create_commits_reveals(
     dr_pointer: Hash,
     commits_count: usize,
     liars_count: usize,
+    errors_count: usize,
     reveal_value: Vec<u8>,
     liar_value: Vec<u8>,
+    error_value: Vec<u8>,
     dr_mk: Option<[u8; 32]>,
     dr_liar: bool,
 ) -> (
     Vec<CommitTransaction>,
     Vec<RevealTransaction>,
     Vec<PublicKey>,
+    Vec<PublicKey>,
 ) {
     let mut commits = vec![];
     let mut reveals = vec![];
     let mut liars = vec![];
+    let mut errors = vec![];
     let mut commits_count = commits_count;
     let mut liars_count = liars_count;
+    let mut errors_count = errors_count;
 
     if dr_mk.is_some() && dr_liar && liars_count == 0 {
         panic!("Data requester can not lie if liars_count is equal to 0");
     }
-    if liars_count > commits_count {
-        panic!("Liars number can not be bigger than commits number");
+    if liars_count + errors_count > commits_count {
+        panic!("Liars number plus errors number can not be bigger than commits number");
     }
     if commits_count > u8::max_value() as usize {
         panic!("High commits number produces overflow in the test");
@@ -3525,6 +3532,8 @@ fn create_commits_reveals(
     for i in 0..commits_count {
         let reveal_value = if liars_count > 0 {
             liar_value.clone()
+        } else if errors_count > 0 {
+            error_value.clone()
         } else {
             reveal_value.clone()
         };
@@ -3536,10 +3545,13 @@ fn create_commits_reveals(
         if liars_count > 0 {
             liars_count -= 1;
             liars.push(public_key.clone())
+        } else if errors_count > 0 {
+            errors_count -= 1;
+            errors.push(public_key.clone())
         }
     }
 
-    (commits, reveals, liars)
+    (commits, reveals, liars, errors)
 }
 
 fn include_commits(
@@ -3573,10 +3585,12 @@ fn include_reveals(
 fn get_rewarded_and_slashed(
     reveals_count: usize,
     liars: Vec<PublicKey>,
+    errors: Vec<PublicKey>,
     commits: Vec<CommitTransaction>,
-) -> (Vec<PublicKeyHash>, Vec<PublicKeyHash>) {
+) -> (Vec<PublicKeyHash>, Vec<PublicKeyHash>, Vec<PublicKeyHash>) {
     let mut slashed_pkhs = vec![];
     let mut rewarded_pkhs = vec![];
+    let mut errors_pkhs = vec![];
 
     // Slash liars and reward honest
     for (i, commit) in commits.iter().enumerate() {
@@ -3587,22 +3601,27 @@ fn get_rewarded_and_slashed(
         // Liars are in the beginning of commits vector
         if i < liars.len() {
             slashed_pkhs.push(commit.signatures[0].public_key.pkh());
+        // Errors are in the second position of commits vector
+        } else if i < liars.len() + errors.len() {
+            errors_pkhs.push(commit.signatures[0].public_key.pkh());
         } else {
             rewarded_pkhs.push(commit.signatures[0].public_key.pkh());
         }
     }
 
-    (rewarded_pkhs, slashed_pkhs)
+    (rewarded_pkhs, slashed_pkhs, errors_pkhs)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn dr_pool_with_dr_in_tally_stage_generic(
     dr_output: DataRequestOutput,
     commits_count: usize,  // Commits number included in DataRequestPool
     reveals_count: usize,  // Reveals number included in DataRequestPool
     liars_count: usize,    // Liars number inside of the reveals
+    errors_count: usize,   // Errors number inside of the reveals
     reveal_value: Vec<u8>, // Honest reveal value
     liar_value: Vec<u8>,   // Dishonest reveal value
+    error_value: Vec<u8>,  // Error reveal value
     dr_committer: bool,    // Flag to indicate that the data requester is also a committer
     dr_liar: bool,         // Flag to indicate that the data requester lies
 ) -> (
@@ -3610,6 +3629,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     Hash,               // Data Request pointer
     Vec<PublicKeyHash>, // Rewarded witnesses
     Vec<PublicKeyHash>, // Slashed witnesses
+    Vec<PublicKeyHash>, // Error witnesses
     PublicKeyHash,      // Data Requester
     u64,                // Tally change value
     u64,                // Witnesses reward value
@@ -3620,8 +3640,8 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     if liars_count > reveals_count {
         panic!("Liars number can not be bigger than reveals number");
     }
-    if reveals_count - liars_count < liars_count {
-        panic!("Honest committers should be more than liars");
+    if reveals_count - liars_count - errors_count < liars_count + errors_count {
+        panic!("Honest committers should be more than liars and errors");
     }
 
     // Create DataRequestPool
@@ -3644,12 +3664,14 @@ fn dr_pool_with_dr_in_tally_stage_generic(
 
     // Create requested commits and reveals
     let dr_mk = if dr_committer { Some(dr_mk) } else { None };
-    let (commits, reveals, liars) = create_commits_reveals(
+    let (commits, reveals, liars, errors) = create_commits_reveals(
         dr_pointer,
         commits_count,
         liars_count,
+        errors_count,
         reveal_value,
         liar_value,
+        error_value,
         dr_mk,
         dr_liar,
     );
@@ -3670,22 +3692,26 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     include_reveals(&mut dr_pool, reveals_count, reveals);
 
     // Create vector of rewarded and slashed public key hashes
-    let (rewarded, slashed) = get_rewarded_and_slashed(reveals_count, liars, commits);
+    let (rewarded, slashed, error_witnesses) =
+        get_rewarded_and_slashed(reveals_count, liars, errors, commits);
 
     // Calculate tally change
     let change = calculate_tally_change(
         commits_count,
         reveals_count,
-        reveals_count - liars_count,
+        reveals_count - liars_count - errors_count,
         &dr_output,
     );
 
+    // To calculate witness reward we take into account than non-revealers are considered liars
+    let liars_count = liars_count + commits_count - reveals_count;
     // Calculate witness reward
     let (reward, _) = calculate_witness_reward(
         commits_count,
         reveals_count,
-        reveals_count - liars_count,
-        &dr_output,
+        liars_count,
+        errors_count,
+        dr_output.witness_reward,
         ONE_WIT,
     );
 
@@ -3694,12 +3720,13 @@ fn dr_pool_with_dr_in_tally_stage_generic(
         dr_pointer,
         rewarded,
         slashed,
+        error_witnesses,
         dr_public_key.pkh(),
         change,
         reward,
     )
 }
-
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn dr_pool_with_dr_in_tally_stage(
     dr_output: DataRequestOutput,
     commits_count: usize,
@@ -3712,6 +3739,7 @@ fn dr_pool_with_dr_in_tally_stage(
     Hash,
     Vec<PublicKeyHash>,
     Vec<PublicKeyHash>,
+    Vec<PublicKeyHash>,
     PublicKeyHash,
     u64,
     u64,
@@ -3721,13 +3749,59 @@ fn dr_pool_with_dr_in_tally_stage(
         commits_count,
         reveals_count,
         liars_count,
+        0,
         reveal_value,
         liar_value,
+        vec![],
         false,
         false,
     )
 }
 
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn dr_pool_with_dr_in_tally_stage_with_errors(
+    dr_output: DataRequestOutput,
+    commits_count: usize,
+    reveals_count: usize,
+    liars_count: usize,
+    errors_count: usize,
+    reveal_value: Vec<u8>,
+    liar_value: Vec<u8>,
+) -> (
+    DataRequestPool,
+    Hash,
+    Vec<PublicKeyHash>,
+    Vec<PublicKeyHash>,
+    Vec<PublicKeyHash>,
+    PublicKeyHash,
+    u64,
+    u64,
+) {
+    let error_value = RadonReport::from_result(
+        Ok(RadonTypes::from(
+            RadonError::try_from(RadError::RetrieveTimeout).unwrap(),
+        )),
+        &ReportContext::default(),
+    )
+    .result
+    .encode()
+    .unwrap();
+
+    dr_pool_with_dr_in_tally_stage_generic(
+        dr_output,
+        commits_count,
+        reveals_count,
+        liars_count,
+        errors_count,
+        reveal_value,
+        liar_value,
+        error_value,
+        false,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn dr_pool_with_dr_in_tally_stage_with_dr_liar(
     dr_output: DataRequestOutput,
     commits_count: usize,
@@ -3740,6 +3814,7 @@ fn dr_pool_with_dr_in_tally_stage_with_dr_liar(
     Hash,
     Vec<PublicKeyHash>,
     Vec<PublicKeyHash>,
+    Vec<PublicKeyHash>,
     PublicKeyHash,
     u64,
     u64,
@@ -3749,8 +3824,10 @@ fn dr_pool_with_dr_in_tally_stage_with_dr_liar(
         commits_count,
         reveals_count,
         liars_count,
+        0,
         reveal_value,
         liar_value,
+        vec![],
         true,
         true,
     )
@@ -3805,7 +3882,8 @@ fn tally_dr_not_tally_stage() {
         pkh: public_key.pkh(),
         value: dr_output.witness_reward + dr_output.collateral,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![]);
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![], vec![]);
 
     let mut dr_pool = DataRequestPool::default();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
@@ -3852,7 +3930,7 @@ fn tally_invalid_consensus() {
     let reveal_value = vec![0x00];
 
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
 
@@ -3877,6 +3955,7 @@ fn tally_invalid_consensus() {
         fake_tally_value.clone(),
         vec![vt0, vt_change],
         slashed,
+        error_witnesses,
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
     assert_eq!(
@@ -3893,7 +3972,7 @@ fn tally_valid() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
 
@@ -3909,8 +3988,13 @@ fn tally_valid() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt_change],
+        slashed,
+        error_witnesses,
+    );
 
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
@@ -3921,7 +4005,7 @@ fn tally_too_many_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
 
@@ -3957,6 +4041,7 @@ fn tally_too_many_outputs() {
         tally_value,
         vec![vt0, vt1, vt2, vt3, vt_change],
         slashed,
+        error_witnesses,
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
@@ -3973,7 +4058,7 @@ fn tally_too_less_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT);
 
@@ -3985,7 +4070,8 @@ fn tally_too_less_outputs() {
         value: reward,
     };
 
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed);
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4001,7 +4087,7 @@ fn tally_invalid_change() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
 
@@ -4018,8 +4104,13 @@ fn tally_invalid_change() {
         pkh: dr_pkh,
         value: invalid_change,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt_change],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4035,7 +4126,7 @@ fn tally_double_reward() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT);
 
@@ -4051,7 +4142,13 @@ fn tally_double_reward() {
         pkh: rewarded[0],
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4064,7 +4161,7 @@ fn tally_reveal_not_found() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT);
 
@@ -4080,7 +4177,13 @@ fn tally_reveal_not_found() {
         pkh: PublicKeyHash::default(),
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4093,7 +4196,7 @@ fn tally_invalid_reward() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT);
 
@@ -4110,7 +4213,13 @@ fn tally_invalid_reward() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4126,7 +4235,7 @@ fn tally_valid_2_reveals() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT);
 
@@ -4143,7 +4252,13 @@ fn tally_valid_2_reveals() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
@@ -4156,7 +4271,7 @@ fn tally_valid_3_reveals_dr_liar() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
 
@@ -4178,8 +4293,13 @@ fn tally_valid_3_reveals_dr_liar() {
         value: change,
     };
     assert_eq!(slashed, vec![dr_pkh]);
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
@@ -4192,7 +4312,7 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
 
@@ -4219,16 +4339,117 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         tally_value,
         vec![vt0, vt1, vt2],
         slashed_witnesses.clone(),
+        error_witnesses,
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchingSlashedWitnesses {
+        TransactionError::MismatchingOutOfConsensusCount {
             expected: slashed.into_iter().sorted().collect(),
             found: slashed_witnesses.into_iter().sorted().collect(),
         },
     );
+}
+
+#[test]
+fn tally_valid_5_reveals_1_liar_1_error() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+    let liar_value = vec![0x0a];
+
+    // Create a DataRequestPool with 5 reveals (one of them is a lie and another is an error)
+    let dr_output = example_data_request_output_with_mode_filter(5, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 5, 5, 1, 1, reveal_value, liar_value);
+    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 3);
+
+    // Tally value: integer(0)
+    let tally_value = vec![0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: error_witnesses[0],
+        value: ONE_WIT,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    assert_eq!(slashed.len(), 1);
+    assert_eq!(error_witnesses.len(), 1);
+
+    let mut out_of_consensus = slashed;
+    out_of_consensus.extend(error_witnesses.clone());
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        out_of_consensus,
+        error_witnesses,
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_3_reveals_1_error() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+
+    // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
+    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 1, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT);
+
+    // Tally value: integer(0)
+    let tally_value = vec![0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: error_witnesses[0],
+        value: ONE_WIT,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    assert_eq!(slashed, vec![]);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        error_witnesses.clone(),
+        error_witnesses,
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    x.unwrap();
 }
 
 #[test]
@@ -4239,7 +4460,7 @@ fn tally_dishonest_reward() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
 
@@ -4260,8 +4481,13 @@ fn tally_dishonest_reward() {
         pkh: dr_pkh,
         value: reward,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
 
     assert_eq!(
@@ -4283,7 +4509,7 @@ fn create_tally_validation_dr_liar() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, _slashed, dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(
             dr_output.clone(),
             3,
@@ -4329,9 +4555,143 @@ fn create_tally_validation_dr_liar() {
 }
 
 #[test]
+fn create_tally_validation_5_reveals_1_liar_1_error() {
+    let reveal_value = RadonReport::from_result(
+        Ok(RadonTypes::from(RadonInteger::from(1))),
+        &ReportContext::default(),
+    );
+    let liar_value = RadonReport::from_result(
+        Ok(RadonTypes::from(RadonInteger::from(5))),
+        &ReportContext::default(),
+    );
+    let error_value = RadonReport::from_result(
+        Ok(RadonTypes::from(
+            RadonError::try_from(RadError::RetrieveTimeout).unwrap(),
+        )),
+        &ReportContext::default(),
+    );
+
+    // Create a DataRequestPool with 5 reveals (one lie and one error)
+    let dr_output = example_data_request_output_with_mode_filter(5, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
+        dr_pool_with_dr_in_tally_stage_with_errors(
+            dr_output.clone(),
+            5,
+            5,
+            1,
+            1,
+            reveal_value.result.encode().unwrap(),
+            liar_value.result.encode().unwrap(),
+        );
+    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 3);
+
+    // Create the RadonReport using the reveals and the RADTally script
+    let clause_result = evaluate_tally_precondition_clause(
+        vec![
+            reveal_value.clone(),
+            reveal_value.clone(),
+            reveal_value,
+            liar_value,
+            error_value,
+        ],
+        0.51,
+        5,
+    );
+    let script = RADTally {
+        filters: vec![RADFilter {
+            op: RadonFilters::Mode as u32,
+            args: vec![],
+        }],
+        reducer: RadonReducers::Mode as u32,
+    };
+    let report = construct_report_from_clause_result(clause_result, &script, 5);
+
+    // Create a TallyTransaction using the create_tally function
+    let tally_transaction = create_tally(
+        dr_pointer,
+        &dr_output,
+        dr_pkh,
+        &report,
+        vec![
+            rewarded[0],
+            rewarded[1],
+            rewarded[2],
+            slashed[0],
+            error_witnesses[0],
+        ],
+        vec![
+            rewarded[0],
+            rewarded[1],
+            rewarded[2],
+            slashed[0],
+            error_witnesses[0],
+        ]
+        .iter()
+        .cloned()
+        .collect::<HashSet<PublicKeyHash>>(),
+        ONE_WIT,
+    )
+    .unwrap();
+
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn create_tally_validation_4_commits_2_reveals() {
+    let reveal_value = RadonReport::from_result(
+        Ok(RadonTypes::from(RadonInteger::from(1))),
+        &ReportContext::default(),
+    );
+
+    // Create a DataRequestPool with 4 commits and 2 reveals
+    let dr_output = example_data_request_output_with_mode_filter(4, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, _error_witnesses, dr_pkh, _change, reward) =
+        dr_pool_with_dr_in_tally_stage(
+            dr_output.clone(),
+            4,
+            2,
+            0,
+            reveal_value.result.encode().unwrap(),
+            vec![],
+        );
+    assert_eq!(reward, 200 + 2 * ONE_WIT);
+
+    // Create the RadonReport using the reveals and the RADTally script
+    let clause_result =
+        evaluate_tally_precondition_clause(vec![reveal_value.clone(), reveal_value], 0.51, 4);
+    let script = RADTally {
+        filters: vec![RADFilter {
+            op: RadonFilters::Mode as u32,
+            args: vec![],
+        }],
+        reducer: RadonReducers::Mode as u32,
+    };
+    let report = construct_report_from_clause_result(clause_result, &script, 2);
+
+    // Create a TallyTransaction using the create_tally function
+    let tally_transaction = create_tally(
+        dr_pointer,
+        &dr_output,
+        dr_pkh,
+        &report,
+        vec![rewarded[0], rewarded[1]],
+        vec![rewarded[0], rewarded[1], slashed[0], slashed[1]]
+            .iter()
+            .cloned()
+            .collect::<HashSet<PublicKeyHash>>(),
+        ONE_WIT,
+    )
+    .unwrap();
+
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
 fn tally_valid_zero_commits() {
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![]);
     assert_eq!(reward, 0);
 
@@ -4345,7 +4705,8 @@ fn tally_valid_zero_commits() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed);
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
@@ -4353,7 +4714,7 @@ fn tally_valid_zero_commits() {
 #[test]
 fn create_tally_validation_zero_commits() {
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, _rewarded, _slashed, dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, _rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 0, 0, 0, vec![], vec![]);
     assert_eq!(reward, 0);
 
@@ -4378,7 +4739,7 @@ fn create_tally_validation_zero_commits() {
 #[test]
 fn tally_invalid_zero_commits() {
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![]);
     assert_eq!(reward, 0);
 
@@ -4397,7 +4758,13 @@ fn tally_invalid_zero_commits() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4411,7 +4778,7 @@ fn tally_invalid_zero_commits() {
 #[test]
 fn tally_valid_zero_reveals() {
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, dr_pkh, change, reward) =
+    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
     assert_eq!(reward, ONE_WIT);
 
@@ -4457,6 +4824,7 @@ fn tally_valid_zero_reveals() {
         tally_value,
         vec![vt1, vt2, vt3, vt4, vt5, vt0],
         slashed,
+        error_witnesses,
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
@@ -4465,7 +4833,7 @@ fn tally_valid_zero_reveals() {
 #[test]
 fn create_tally_validation_zero_reveals() {
     let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
     assert_eq!(reward, ONE_WIT);
 
@@ -4476,6 +4844,7 @@ fn create_tally_validation_zero_reveals() {
 
     let mut committers = rewarded;
     committers.extend(slashed);
+    committers.extend(error_witnesses);
     let tally_transaction = create_tally(
         dr_pointer,
         &dr_output,
@@ -4497,7 +4866,7 @@ fn create_tally_validation_zero_reveals() {
 fn create_tally_validation_zero_reveals_zero_collateral() {
     let mut dr_output = example_data_request_output(5, 200, 20);
     dr_output.collateral = 0;
-    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
     assert_eq!(reward, ONE_WIT);
 
@@ -4508,6 +4877,7 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
 
     let mut committers = rewarded;
     committers.extend(slashed);
+    committers.extend(error_witnesses);
     let tally_transaction = create_tally(
         dr_pointer,
         &dr_output,
@@ -4580,7 +4950,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(0, 0, 0, &dr_output, ONE_WIT)
+        calculate_witness_reward(0, 0, 0, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 0 reveals
@@ -4588,7 +4958,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 0, 0, &dr_output, ONE_WIT)
+        calculate_witness_reward(5, 0, 0, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case all honests
@@ -4596,7 +4966,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 5, &dr_output, ONE_WIT)
+        calculate_witness_reward(5, 5, 0, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 2 liars
@@ -4604,7 +4974,7 @@ fn validate_calculate_witness_reward() {
     let rest = 5000 * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 5 - 2, &dr_output, ONE_WIT)
+        calculate_witness_reward(5, 5, 2, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 1 liar and 1 non-revealer
@@ -4612,7 +4982,23 @@ fn validate_calculate_witness_reward() {
     let rest = 5000 * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 4, 4 - 1, &dr_output, ONE_WIT)
+        calculate_witness_reward(5, 4, 2, 0, dr_output.witness_reward, dr_output.collateral)
+    );
+
+    // Case 1 error
+    let expected_reward = 1000 + 5000;
+    let rest = 0;
+    assert_eq!(
+        (expected_reward, rest),
+        calculate_witness_reward(5, 5, 0, 1, dr_output.witness_reward, dr_output.collateral)
+    );
+
+    // Case 1 liar and 1 error
+    let expected_reward = 1000 + 5000 + 5000 / 3;
+    let rest = 5000 % 3;
+    assert_eq!(
+        (expected_reward, rest),
+        calculate_witness_reward(5, 5, 1, 1, dr_output.witness_reward, dr_output.collateral)
     );
 }
 
@@ -5417,7 +5803,7 @@ fn block_duplicated_reveals() {
 fn block_duplicated_tallies() {
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, _change, reward) =
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
     assert_eq!(reward, 200 + ONE_WIT);
 
@@ -5437,9 +5823,15 @@ fn block_duplicated_tallies() {
         tally_value.clone(),
         vec![vt0.clone(), vt1.clone()],
         slashed.clone(),
+        error_witnesses.clone(),
     );
-    let tally_transaction2 =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt1, vt0], slashed);
+    let tally_transaction2 = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt1, vt0],
+        slashed,
+        error_witnesses,
+    );
 
     assert_ne!(tally_transaction.hash(), tally_transaction2.hash());
 

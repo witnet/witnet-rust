@@ -47,6 +47,7 @@ impl Handler<ResolveRA> for RadManager {
                 Ok(TallyPreconditionClauseResult::MajorityOfValues {
                     values,
                     liars: _liars,
+                    errors: _errors,
                 }) => {
                     // Perform aggregation on the values that made it to the output vector after applying the
                     // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out

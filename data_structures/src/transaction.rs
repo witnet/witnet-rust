@@ -426,12 +426,16 @@ impl RevealTransactionBody {
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::TallyTransaction")]
 pub struct TallyTransaction {
-    // Inputs
-    pub dr_pointer: Hash, // DTTransaction hash
-    // Outputs
+    /// DRTransaction hash
+    pub dr_pointer: Hash,
+    /// Tally result
     pub tally: Vec<u8>,
-    pub outputs: Vec<ValueTransferOutput>, // Witness rewards
-    pub slashed_witnesses: Vec<PublicKeyHash>,
+    /// Witness rewards
+    pub outputs: Vec<ValueTransferOutput>,
+    /// Addresses that are out of consensus (non revealers included)
+    pub out_of_consensus: Vec<PublicKeyHash>,
+    /// Addresses that commit a RadonError (or considered as an Error due to a RadonError consensus)
+    pub error_committers: Vec<PublicKeyHash>,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -444,13 +448,15 @@ impl TallyTransaction {
         dr_pointer: Hash,
         tally: Vec<u8>,
         outputs: Vec<ValueTransferOutput>,
-        slashed_witnesses: Vec<PublicKeyHash>,
+        out_of_consensus: Vec<PublicKeyHash>,
+        error_committers: Vec<PublicKeyHash>,
     ) -> Self {
         TallyTransaction {
             dr_pointer,
             tally,
             outputs,
-            slashed_witnesses,
+            out_of_consensus,
+            error_committers,
             hash: MemoHash::new(),
         }
     }

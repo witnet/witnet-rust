@@ -932,17 +932,23 @@ pub fn process_validations(
     Ok(utxo_dif)
 }
 
+// This struct count the number of truths, lies and errors committed by an identity
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+struct RequestResult {
+    pub truths: u32,
+    pub lies: u32,
+    pub errors: u32,
+}
+
 #[derive(Debug, Default)]
 struct ReputationInfo {
     // Counter of "witnessing acts".
     // For every data request with a tally in this block, increment alpha_diff
-    // by the number of witnesses specified in the data request.
+    // by the number of reveals present in the tally.
     alpha_diff: Alpha,
 
-    // Map used to count the number of lies of every identity that participated
-    // in data requests with a tally in this block.
-    // Honest identities are also inserted into this map, with lie count = 0.
-    lie_count: HashMap<PublicKeyHash, u32>,
+    // Map used to count the witnesses results in one epoch
+    result_count: HashMap<PublicKeyHash, RequestResult>,
 }
 
 impl ReputationInfo {
@@ -965,23 +971,25 @@ impl ReputationInfo {
         self.alpha_diff += Alpha(reveals_count);
 
         // Set of pkhs which were slashed in the tally transaction
-        let slashed_witnesses: HashSet<_> = tally_transaction.slashed_witnesses.iter().collect();
+        let out_of_consensus = &tally_transaction.out_of_consensus;
+        let error_committers = &tally_transaction.error_committers;
         for pkh in commits.keys() {
-            // If the identity was slashed, it must not receive a reward.
-            let liar = if slashed_witnesses.contains(pkh) {
-                1
+            let result = self.result_count.entry(*pkh).or_default();
+            if error_committers.contains(pkh) {
+                result.errors += 1;
+            } else if out_of_consensus.contains(pkh) {
+                result.lies += 1;
             } else {
-                0
-            };
-            // Insert all the committers, and increment their lie count by 1 if they fail to reveal or
-            // if they lied (withholding a reveal is treated the same as lying)
-            // lie_count can contain identities which never lied, with lie_count = 0
-            *self.lie_count.entry(*pkh).or_insert(0) += liar;
+                result.truths += 1;
+            }
         }
 
         // Update node stats
-        if own_pkh.is_some() && slashed_witnesses.contains(&own_pkh.unwrap()) {
-            node_stats.out_of_consensus_count += 1;
+        if own_pkh.is_some()
+            && out_of_consensus.contains(&own_pkh.unwrap())
+            && !error_committers.contains(&own_pkh.unwrap())
+        {
+            node_stats.slashed_count += 1;
         }
     }
 }
@@ -1071,22 +1079,25 @@ fn update_pools(
     rep_info
 }
 
-fn separate_honest_liars<K, V, I>(rep_info: I) -> (Vec<K>, Vec<(K, V)>)
+fn separate_honest_errors_and_liars<K, I>(rep_info: I) -> (Vec<K>, Vec<K>, Vec<(K, u32)>)
 where
-    V: Default + PartialEq,
-    I: IntoIterator<Item = (K, V)>,
+    I: IntoIterator<Item = (K, RequestResult)>,
 {
     let mut honests = vec![];
     let mut liars = vec![];
-    for (pkh, num_lies) in rep_info {
-        if num_lies == V::default() {
+    let mut errors = vec![];
+    for (pkh, result) in rep_info {
+        if result.lies > 0 {
+            liars.push((pkh, result.lies));
+        // TODO: Decide which percentage would be fair enough
+        } else if result.truths >= result.errors {
             honests.push(pkh);
         } else {
-            liars.push((pkh, num_lies));
+            errors.push(pkh);
         }
     }
 
-    (honests, liars)
+    (honests, errors, liars)
 }
 
 // FIXME(#676): Remove clippy skip error
@@ -1103,7 +1114,7 @@ fn update_reputation(
     miner_pkh: PublicKeyHash,
     ReputationInfo {
         alpha_diff,
-        lie_count,
+        result_count,
     }: ReputationInfo,
     log_level: log::Level,
     block_epoch: Epoch,
@@ -1119,15 +1130,22 @@ fn update_reputation(
         alpha_diff.0
     );
     log::log!(log_level, "Lie count: {{");
-    for (pkh, num_lies) in lie_count
+    for (pkh, result) in result_count
         .iter()
         .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
     {
-        log::log!(log_level, "    {}: {}", pkh, num_lies);
+        log::log!(
+            log_level,
+            "    {}: {} truths, {} errors, {} lies",
+            pkh,
+            result.truths,
+            result.errors,
+            result.lies
+        );
     }
     log::log!(log_level, "}}");
-    let (honest, liars) = separate_honest_liars(lie_count.clone());
-    let revealers = lie_count.into_iter().map(|(pkh, _num_lies)| pkh);
+    let (honests, _errors, liars) = separate_honest_errors_and_liars(result_count.clone());
+    let revealers = result_count.into_iter().map(|(pkh, _)| pkh);
     // Leftover reputation from the previous epoch
     let extra_rep_previous_epoch = rep_eng.extra_reputation;
     // Expire in old_alpha to maximize reputation lost in penalizations.
@@ -1175,7 +1193,7 @@ fn update_reputation(
     reputation_bounty += issued_rep;
     reputation_bounty += penalized_rep;
 
-    let num_honest = u32::try_from(honest.len()).unwrap();
+    let num_honest = u32::try_from(honests.len()).unwrap();
 
     log::log!(
         log_level,
@@ -1193,7 +1211,7 @@ fn update_reputation(
         // Expiration starts counting from new_alpha.
         // All the reputation earned in this block will expire at the same time.
         let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
-        let honest_gain = honest.into_iter().map(|pkh| {
+        let honest_gain = honests.into_iter().map(|pkh| {
             if own_pkh == pkh {
                 log::info!(
                     "Your reputation score has increased by {} points",
@@ -1347,6 +1365,10 @@ mod tests {
             compressed: 0,
             bytes: [2; 32],
         };
+        let pk3 = PublicKey {
+            compressed: 0,
+            bytes: [3; 32],
+        };
 
         let mut dr_tx = DRTransaction::default();
         dr_tx.signatures.push(KeyedSignature {
@@ -1367,10 +1389,22 @@ mod tests {
             public_key: pk2.clone(),
             ..KeyedSignature::default()
         });
-        let mut re_tx = RevealTransaction::default();
-        re_tx.body.dr_pointer = dr_pointer;
-        re_tx.signatures.push(KeyedSignature {
+        let mut co_tx3 = CommitTransaction::default();
+        co_tx3.body.dr_pointer = dr_pointer;
+        co_tx3.signatures.push(KeyedSignature {
+            public_key: pk3.clone(),
+            ..KeyedSignature::default()
+        });
+        let mut re_tx1 = RevealTransaction::default();
+        re_tx1.body.dr_pointer = dr_pointer;
+        re_tx1.signatures.push(KeyedSignature {
             public_key: pk1.clone(),
+            ..KeyedSignature::default()
+        });
+        let mut re_tx2 = RevealTransaction::default();
+        re_tx2.body.dr_pointer = dr_pointer;
+        re_tx2.signatures.push(KeyedSignature {
+            public_key: pk2.clone(),
             ..KeyedSignature::default()
         });
 
@@ -1380,19 +1414,44 @@ mod tests {
             pkh: pk1.pkh(),
             ..Default::default()
         }];
-        ta_tx.slashed_witnesses = vec![pk2.pkh()];
+        ta_tx.out_of_consensus = vec![pk3.pkh()];
+        ta_tx.error_committers = vec![pk2.pkh()];
 
         dr_pool
             .add_data_request(1, dr_tx, &Hash::default())
             .unwrap();
         dr_pool.process_commit(&co_tx, &Hash::default()).unwrap();
         dr_pool.process_commit(&co_tx2, &Hash::default()).unwrap();
+        dr_pool.process_commit(&co_tx3, &Hash::default()).unwrap();
         dr_pool.update_data_request_stages();
-        dr_pool.process_reveal(&re_tx, &Hash::default()).unwrap();
+        dr_pool.process_reveal(&re_tx1, &Hash::default()).unwrap();
+        dr_pool.process_reveal(&re_tx2, &Hash::default()).unwrap();
 
         rep_info.update(&ta_tx, &dr_pool, None, &mut NodeStats::default());
 
-        assert_eq!(rep_info.lie_count[&pk1.pkh()], 0);
-        assert_eq!(rep_info.lie_count[&pk2.pkh()], 1);
+        assert_eq!(
+            rep_info.result_count[&pk1.pkh()],
+            RequestResult {
+                truths: 1,
+                lies: 0,
+                errors: 0
+            }
+        );
+        assert_eq!(
+            rep_info.result_count[&pk2.pkh()],
+            RequestResult {
+                truths: 0,
+                lies: 0,
+                errors: 1
+            }
+        );
+        assert_eq!(
+            rep_info.result_count[&pk3.pkh()],
+            RequestResult {
+                truths: 0,
+                lies: 1,
+                errors: 0
+            }
+        );
     }
 }

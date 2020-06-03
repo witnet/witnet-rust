@@ -369,6 +369,7 @@ pub enum TallyPreconditionClauseResult {
     MajorityOfValues {
         values: Vec<RadonTypes>,
         liars: Vec<bool>,
+        errors: Vec<bool>,
     },
     MajorityOfErrors {
         errors_mode: RadonError<RadError>,
@@ -393,12 +394,21 @@ pub fn evaluate_tally_precondition_clause(
         return Err(RadError::NoReveals);
     }
 
+    let error_type_discriminant =
+        RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap()).discriminant();
+
     // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
     // separately as they need to be handled differently.
     let reveals_len = u32::try_from(reveals.len()).unwrap();
     let mut counter = Counter::new(RadonTypes::num_types());
+    let mut errors = vec![];
     for reveal in &reveals {
         counter.increment(reveal.result.discriminant());
+        if reveal.result.discriminant() == error_type_discriminant {
+            errors.push(true);
+        } else {
+            errors.push(false);
+        }
     }
 
     // Compute ratio of type consensus amongst reveals (percentage of reveals that have same type
@@ -408,10 +418,6 @@ pub fn evaluate_tally_precondition_clause(
     // If the achieved consensus is over the user-defined threshold, continue.
     // Otherwise, return `RadError::InsufficientConsensus`.
     if achieved_consensus >= minimum_consensus {
-        let error_type_discriminant =
-            RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap())
-                .discriminant();
-
         // Decide based on the most frequent type.
         match counter.max_pos {
             // Handle tie cases (there is the same amount of revealed values for multiple types).
@@ -497,6 +503,7 @@ pub fn evaluate_tally_precondition_clause(
                 Ok(TallyPreconditionClauseResult::MajorityOfValues {
                     values: results,
                     liars,
+                    errors,
                 })
             }
         }
@@ -514,31 +521,32 @@ pub fn construct_report_from_clause_result(
     script: &RADTally,
     reports_len: usize,
 ) -> RadonReport<RadonTypes> {
+    // This TallyMetadata would be included in case of Error Result, in that case,
+    // no one has to be classified as a lier, but everyone as an error
+    let mut metadata = TallyMetaData::default();
+    metadata.update_liars(vec![false; reports_len]);
+    metadata.errors = vec![true; reports_len];
     match clause_result {
         // The reveals passed the precondition clause (a parametric majority of them were successful
         // values). Run the tally, which will add more liars if any.
-        Ok(TallyPreconditionClauseResult::MajorityOfValues { values, liars }) => {
-            let mut metadata = TallyMetaData::default();
-            metadata.update_liars(vec![false; reports_len]);
-
-            match run_tally_report(values, script, Some(liars)) {
-                Ok(x) => x,
-                Err(e) => RadonReport::from_result(
-                    Err(RadError::TallyExecution {
-                        inner: Some(Box::new(e)),
-                        message: None,
-                    }),
-                    &ReportContext::from_stage(Stage::Tally(metadata)),
-                ),
-            }
-        }
+        Ok(TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars,
+            errors,
+        }) => match run_tally_report(values, script, Some(liars), Some(errors)) {
+            Ok(x) => x,
+            Err(e) => RadonReport::from_result(
+                Err(RadError::TallyExecution {
+                    inner: Some(Box::new(e)),
+                    message: None,
+                }),
+                &ReportContext::from_stage(Stage::Tally(metadata)),
+            ),
+        },
         // The reveals did not pass the precondition clause (a parametric majority of them were
         // errors). Tally will not be run, and the mode of the errors will be committed.
         Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
             // Do not impose penalties on any of the revealers.
-            let mut metadata = TallyMetaData::default();
-            metadata.update_liars(vec![false; reports_len]);
-
             RadonReport::from_result(
                 Ok(RadonTypes::RadonError(errors_mode)),
                 &ReportContext::from_stage(Stage::Tally(metadata)),
@@ -547,9 +555,6 @@ pub fn construct_report_from_clause_result(
         // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
         // chance for errors to be intercepted and used for consensus.
         Err(e) => {
-            let mut metadata = TallyMetaData::default();
-            metadata.update_liars(vec![false; reports_len]);
-
             RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))
         }
     }
@@ -943,6 +948,19 @@ fn create_expected_tally_transaction(
     Ok((ta_tx, dr_state.clone()))
 }
 
+pub fn calculate_liars_and_errors_count_from_tally(tally_tx: &TallyTransaction) -> (usize, usize) {
+    tally_tx
+        .out_of_consensus
+        .iter()
+        .fold((0, 0), |(l_count, e_count), x| {
+            if tally_tx.error_committers.contains(x) {
+                (l_count, e_count + 1)
+            } else {
+                (l_count + 1, e_count)
+            }
+        })
+}
+
 /// Function to validate a tally transaction
 pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
@@ -952,18 +970,34 @@ pub fn validate_tally_transaction<'a>(
     let (expected_ta_tx, dr_state) =
         create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum)?;
 
-    let sorted_slashed = ta_tx.slashed_witnesses.iter().cloned().sorted().collect();
-    let sorted_expected_slashed = expected_ta_tx
-        .slashed_witnesses
+    let sorted_out_of_consensus = ta_tx.out_of_consensus.iter().cloned().sorted().collect();
+    let sorted_expected_out_of_consensus = expected_ta_tx
+        .out_of_consensus
         .into_iter()
         .sorted()
         .collect();
 
     // Validation of slashed witnesses
-    if sorted_expected_slashed != sorted_slashed {
-        return Err(TransactionError::MismatchingSlashedWitnesses {
-            expected: sorted_expected_slashed,
-            found: sorted_slashed,
+    if sorted_expected_out_of_consensus != sorted_out_of_consensus {
+        return Err(TransactionError::MismatchingOutOfConsensusCount {
+            expected: sorted_expected_out_of_consensus,
+            found: sorted_out_of_consensus,
+        }
+        .into());
+    }
+
+    let sorted_error = ta_tx.error_committers.iter().cloned().sorted().collect();
+    let sorted_expected_error = expected_ta_tx
+        .error_committers
+        .into_iter()
+        .sorted()
+        .collect();
+
+    // Validation of error witnesses
+    if sorted_expected_error != sorted_error {
+        return Err(TransactionError::MismatchingErrorCount {
+            expected: sorted_expected_error,
+            found: sorted_error,
         }
         .into());
     }
@@ -986,13 +1020,11 @@ pub fn validate_tally_transaction<'a>(
         .into());
     }
 
-    let slashed_hs = sorted_expected_slashed
-        .into_iter()
-        .collect::<HashSet<PublicKeyHash>>();
-
     let commits_count = dr_state.info.commits.len();
     let reveals_count = dr_state.info.reveals.len();
-    let honests_count = commits_count - slashed_hs.len();
+    let honests_count = commits_count - ta_tx.out_of_consensus.len();
+
+    let (liars_count, errors_count) = calculate_liars_and_errors_count_from_tally(ta_tx);
 
     let expected_tally_change = calculate_tally_change(
         commits_count,
@@ -1001,14 +1033,21 @@ pub fn validate_tally_transaction<'a>(
         &dr_state.data_request,
     );
 
+    let collateral = if dr_state.data_request.collateral == 0 {
+        collateral_minimum
+    } else {
+        dr_state.data_request.collateral
+    };
+
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
     let mut total_tally_value = 0;
     let (reward, tally_extra_fee) = calculate_witness_reward(
         commits_count,
         reveals_count,
-        honests_count,
-        &dr_state.data_request,
-        collateral_minimum,
+        liars_count,
+        errors_count,
+        dr_state.data_request.witness_reward,
+        collateral,
     );
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         // Validation of tally change value
@@ -1027,13 +1066,26 @@ pub fn validate_tally_transaction<'a>(
                     return Err(TransactionError::RevealNotFound.into());
                 }
                 // Make sure every rewarded address passed the tally function, a.k.a. "is honest" / "is not a liar"
-                if slashed_hs.contains(&output.pkh) {
+                if sorted_out_of_consensus.contains(&output.pkh)
+                    && !sorted_error.contains(&output.pkh)
+                {
                     return Err(TransactionError::DishonestReward.into());
                 }
             }
 
+            // Validation out of consensus error
+            if sorted_out_of_consensus.contains(&output.pkh)
+                && sorted_error.contains(&output.pkh)
+                && output.value != collateral
+            {
+                return Err(TransactionError::InvalidReward {
+                    value: output.value,
+                    expected_value: collateral,
+                }
+                .into());
+            }
             // Validation of the reward is according to the DataRequestOutput
-            if output.value != reward {
+            if !sorted_out_of_consensus.contains(&output.pkh) && output.value != reward {
                 return Err(TransactionError::InvalidReward {
                     value: output.value,
                     expected_value: reward,
@@ -2725,15 +2777,18 @@ mod tests {
             rad_rep_int,
             rad_rep_float,
         ];
-
         let tally_precondition_clause_result =
             evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
 
-        if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
-            tally_precondition_clause_result
+        if let TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars,
+            errors,
+        } = tally_precondition_clause_result
         {
             assert_eq!(values, vec![rad_int.clone(), rad_int.clone(), rad_int]);
             assert_eq!(liars, vec![false, false, false, true]);
+            assert_eq!(errors, vec![false, false, false, false]);
         } else {
             panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
         }
@@ -2746,15 +2801,18 @@ mod tests {
         let rad_rep_int = RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default());
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
-
         let tally_precondition_clause_result =
             evaluate_tally_precondition_clause(v, 0.99, 2).unwrap();
 
-        if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
-            tally_precondition_clause_result
+        if let TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars,
+            errors,
+        } = tally_precondition_clause_result
         {
             assert_eq!(values, vec![rad_int.clone(), rad_int]);
             assert_eq!(liars, vec![false, false]);
+            assert_eq!(errors, vec![false, false]);
         } else {
             panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
         }
@@ -2767,15 +2825,18 @@ mod tests {
         let rad_rep_int = RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default());
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
-
         let tally_precondition_clause_result =
             evaluate_tally_precondition_clause(v, 1., 2).unwrap();
 
-        if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
-            tally_precondition_clause_result
+        if let TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars,
+            errors,
+        } = tally_precondition_clause_result
         {
             assert_eq!(values, vec![rad_int.clone(), rad_int]);
             assert_eq!(liars, vec![false, false]);
+            assert_eq!(errors, vec![false, false]);
         } else {
             panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
         }
@@ -2795,15 +2856,18 @@ mod tests {
             rad_rep_int.clone(),
             rad_rep_int,
         ];
-
         let tally_precondition_clause_result =
             evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
 
-        if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
-            tally_precondition_clause_result
+        if let TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars,
+            errors,
+        } = tally_precondition_clause_result
         {
             assert_eq!(values, vec![rad_int.clone(), rad_int.clone(), rad_int]);
             assert_eq!(liars, vec![false, true, false, false]);
+            assert_eq!(errors, vec![false, true, false, false]);
         } else {
             panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
         }
@@ -2826,7 +2890,6 @@ mod tests {
             rad_rep_err,
             rad_rep_int,
         ];
-
         let tally_precondition_clause_result =
             evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
 
@@ -2853,7 +2916,6 @@ mod tests {
             rad_rep_float,
             rad_rep_int,
         ];
-
         let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 4).unwrap_err();
 
         assert_eq!(
@@ -2891,7 +2953,6 @@ mod tests {
             rad_rep_float,
             rad_rep_int,
         ];
-
         let tally_precondition_clause_result =
             evaluate_tally_precondition_clause(v, 0.40, 7).unwrap();
 
@@ -2907,7 +2968,6 @@ mod tests {
     #[test]
     fn test_tally_precondition_clause_no_commits() {
         let v = vec![];
-
         let out = evaluate_tally_precondition_clause(v, 0.51, 0).unwrap_err();
 
         assert_eq!(out, RadError::InsufficientCommits);
@@ -2916,7 +2976,6 @@ mod tests {
     #[test]
     fn test_tally_precondition_clause_no_reveals() {
         let v = vec![];
-
         let out = evaluate_tally_precondition_clause(v, 0.51, 1).unwrap_err();
 
         assert_eq!(out, RadError::NoReveals);
@@ -2936,7 +2995,6 @@ mod tests {
             rad_rep_err.clone(),
             rad_rep_err,
         ];
-
         let tally_precondition_clause_result =
             evaluate_tally_precondition_clause(v, 0.51, 4).unwrap();
 
@@ -2963,7 +3021,6 @@ mod tests {
             rad_rep_float,
             rad_rep_int,
         ];
-
         let out = evaluate_tally_precondition_clause(v, 0.51, 4).unwrap_err();
 
         assert_eq!(
@@ -2991,7 +3048,6 @@ mod tests {
         );
 
         let v = vec![rad_rep_err1, rad_rep_err2];
-
         let out = evaluate_tally_precondition_clause(v, 0.51, 2).unwrap_err();
 
         assert_eq!(
@@ -3019,7 +3075,6 @@ mod tests {
         );
 
         let v = vec![rad_rep_err1, rad_rep_err2];
-
         let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 2).unwrap_err();
 
         assert_eq!(

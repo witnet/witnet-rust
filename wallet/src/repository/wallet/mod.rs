@@ -1086,9 +1086,9 @@ fn build_tally_report(
                 .collect::<Result<HashMap<PublicKeyHash, model::Reveal>>>()?;
 
             // Set not `in_consensus` reveals
-            for pkh in &tally.slashed_witnesses {
-                let liar = reveals.get_mut(&pkh).cloned();
-                if let Some(mut reveal) = liar {
+            for pkh in &tally.out_of_consensus {
+                let outlier = reveals.get_mut(&pkh).cloned();
+                if let Some(mut reveal) = outlier {
                     reveal.in_consensus = false;
                 } else {
                     reveals.insert(

@@ -48,7 +48,7 @@ pub async fn try_data_request(request: &RADRequest) -> RadonReport<RadonTypes> {
         .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
         .into_inner();
 
-    run_tally_report(vec![aggregation_response], &request.tally, None)
+    run_tally_report(vec![aggregation_response], &request.tally, None, None)
         .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
 }
 
@@ -155,6 +155,7 @@ pub fn run_tally_report(
     radon_types_vec: Vec<RadonTypes>,
     consensus: &RADTally,
     liars: Option<Vec<bool>>,
+    errors: Option<Vec<bool>>,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     let mut metadata = TallyMetaData::default();
@@ -162,6 +163,11 @@ pub fn run_tally_report(
         metadata.liars = liars;
     } else {
         metadata.liars = vec![false; radon_types_vec.len()];
+    }
+    if let Some(errors) = errors {
+        metadata.errors = errors;
+    } else {
+        metadata.errors = vec![false; radon_types_vec.len()];
     }
     context.stage = Stage::Tally(metadata);
 
@@ -180,7 +186,7 @@ pub fn run_tally_report(
 
 /// Run tally stage of a data request, return `RadonTypes`.
 pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
-    run_tally_report(radon_types_vec, consensus, None).map(RadonReport::into_inner)
+    run_tally_report(radon_types_vec, consensus, None, None).map(RadonReport::into_inner)
 }
 
 #[cfg(test)]
@@ -444,6 +450,7 @@ mod tests {
                 reducer: RadonReducers::Mode as u32,
             },
             None,
+            None,
         )
         .unwrap();
 
@@ -473,6 +480,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::Mode as u32,
             },
+            None,
             None,
         )
         .unwrap();
@@ -505,6 +513,7 @@ mod tests {
                 reducer: RadonReducers::Mode as u32,
             },
             None,
+            None,
         )
         .unwrap();
 
@@ -536,6 +545,7 @@ mod tests {
                 }],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
             None,
         )
         .unwrap();
@@ -581,6 +591,7 @@ mod tests {
                 reducer: RadonReducers::AverageMean as u32,
             },
             None,
+            None,
         )
         .unwrap();
 
@@ -613,6 +624,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::Mode as u32,
             },
+            None,
             None,
         )
         .unwrap();
@@ -652,6 +664,7 @@ mod tests {
                 ],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
             None,
         )
         .unwrap_err();
@@ -693,6 +706,7 @@ mod tests {
                 reducer: RadonReducers::AverageMean as u32,
             },
             None,
+            None,
         )
         .unwrap_err();
 
@@ -733,6 +747,7 @@ mod tests {
                 reducer: RadonReducers::AverageMean as u32,
             },
             None,
+            None,
         )
         .unwrap_err();
 
@@ -755,6 +770,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
             None,
         )
         .unwrap()

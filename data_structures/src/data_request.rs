@@ -370,31 +370,45 @@ pub fn calculate_tally_change(
 pub fn calculate_witness_reward(
     commits_count: usize,
     reveals_count: usize,
-    honests_count: usize,
-    dr_output: &DataRequestOutput,
-    collateral_minimum: u64,
+    // Number of values that are out of consensus plus non-revealers
+    liars_count: usize,
+    // To calculate the reward, we consider errors_count as the number of errors that are
+    // out of consensus, it means, that they do not deserve any reward
+    errors_count: usize,
+    reward: u64,
+    collateral: u64,
 ) -> (u64, u64) {
-    let collateral = if dr_output.collateral == 0 {
-        collateral_minimum
-    } else {
-        dr_output.collateral
-    };
     if commits_count == 0 {
         (0, 0)
     } else if reveals_count == 0 {
         (collateral, 0)
     } else {
-        let liars_count = reveals_count - honests_count;
-        let slashed_count = (commits_count - reveals_count + liars_count) as u64;
-        let honests_count = honests_count as u64;
-        let slashed_collateral_reward = collateral * slashed_count / honests_count;
-        let slashed_collateral_remainder = (collateral * slashed_count) % honests_count;
+        let honests_count = (commits_count - liars_count - errors_count) as u64;
+        let liars_count = liars_count as u64;
+        let slashed_collateral_reward = collateral * liars_count / honests_count;
+        let slashed_collateral_remainder = (collateral * liars_count) % honests_count;
 
         (
-            dr_output.witness_reward + collateral + slashed_collateral_reward,
+            reward + collateral + slashed_collateral_reward,
             slashed_collateral_remainder,
         )
     }
+}
+/// Count how many commitments will be considered "errors" and how many will
+/// be considered "lies". This tells apart the case in which the committed value was
+/// an error from any other type of out-of-consensus situation, like non-reveals.
+fn calculate_errors_and_liars_count(errors: &[bool], liars: &[bool]) -> (usize, usize) {
+    liars
+        .iter()
+        .zip(errors.iter())
+        .fold((0, 0), |(l_count, e_count), x| match x {
+            // If it is out of consensus and it is an error we consider as a error
+            (true, true) => (l_count, e_count + 1),
+            // If it is out of consensus and it is not an error we consider as a lie
+            (true, false) => (l_count + 1, e_count),
+            // Rest of cases is an honest node
+            _ => (l_count, e_count),
+        })
 }
 
 pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
@@ -412,69 +426,88 @@ where
     if let Stage::Tally(tally_metadata) = &report.metadata {
         let commits_count = committers.len();
         let reveals_count = revealers.len();
-        let mut slashed_witnesses = committers;
+        let mut out_of_consensus = committers;
+        let mut error_committers = vec![];
 
         let liars = &tally_metadata.liars;
+        let errors = &tally_metadata.errors;
 
-        if reveals_count != liars.len() {
-            return Err(TransactionError::MismatchingLiarsNumber {
-                reveals_n: reveals_count,
-                inputs_n: liars.len(),
-            }
-            .into());
-        }
+        assert_eq!(reveals_count, liars.len(), "Length of liars vector collected from tally ({}) does not match actual count of reveals ({})", reveals_count, liars.len());
+        assert_eq!(reveals_count, errors.len(), "Length of errors vector collected from tally ({}) does not match actual count of reveals ({})", reveals_count, errors.len());
 
-        let liars_count = liars.iter().fold(0, |count, liar| match liar {
-            true => count + 1,
-            false => count,
-        });
-        let honests_count = reveals_count - liars_count;
+        let (liars_count, errors_count) = calculate_errors_and_liars_count(errors, liars);
+
+        let collateral = if dr_output.collateral == 0 {
+            collateral_minimum
+        } else {
+            dr_output.collateral
+        };
+
         // Collateral division rest goes for the miner
+        let non_reveals_count = commits_count - reveals_count;
         let (reward, _rest) = calculate_witness_reward(
             commits_count,
             reveals_count,
-            honests_count,
-            &dr_output,
-            collateral_minimum,
+            liars_count + non_reveals_count,
+            errors_count,
+            dr_output.witness_reward,
+            collateral,
         );
 
         let mut outputs: Vec<ValueTransferOutput> = if reveals_count > 0 {
             revealers
                 .iter()
-                .zip(liars.iter())
-                .filter_map(|(&revealer, &liar)| {
-                    // Only reward reveals in consensus
-                    if liar {
-                        None
-                    } else {
+                .zip(liars.iter().zip(errors.iter()))
+                .filter_map(|(&revealer, (liar, error))| match (liar, error) {
+                    // If an out-of-consensus commitment was an error report, collateral is refunded
+                    (true, true) => {
+                        let vt_output = ValueTransferOutput {
+                            pkh: revealer,
+                            value: collateral,
+                            time_lock: 0,
+                        };
+                        error_committers.push(revealer);
+                        Some(vt_output)
+                    }
+                    // Case out-of-consensus value commitment
+                    (true, false) => None,
+                    // If the result of the tally is an error report,
+                    // commitments containing error reports are rewarded
+                    (false, true) => {
                         let vt_output = ValueTransferOutput {
                             pkh: revealer,
                             value: reward,
                             time_lock: 0,
                         };
-                        slashed_witnesses.remove(&revealer);
+                        out_of_consensus.remove(&revealer);
+                        error_committers.push(revealer);
+                        Some(vt_output)
+                    }
+                    // Case in consensus value
+                    (false, false) => {
+                        let vt_output = ValueTransferOutput {
+                            pkh: revealer,
+                            value: reward,
+                            time_lock: 0,
+                        };
+                        out_of_consensus.remove(&revealer);
                         Some(vt_output)
                     }
                 })
                 .collect()
         } else {
             // In case of no revealers, collateral returns to their owners
-            let reward = if dr_output.collateral == 0 {
-                collateral_minimum
-            } else {
-                dr_output.collateral
-            };
-
-            slashed_witnesses
+            out_of_consensus
                 .iter()
                 .map(|&committer| ValueTransferOutput {
                     pkh: committer,
-                    value: reward,
+                    value: collateral,
                     time_lock: 0,
                 })
                 .collect()
         };
 
+        let honests_count = reveals_count - liars_count - errors_count;
         let tally_change =
             calculate_tally_change(commits_count, reveals_count, honests_count, &dr_output);
         if tally_change > 0 {
@@ -487,13 +520,14 @@ where
         }
 
         let tally_bytes = Vec::try_from(report)?;
-        let slashed_witnesses = slashed_witnesses.into_iter().collect();
+        let out_of_consensus = out_of_consensus.into_iter().collect();
 
         Ok(TallyTransaction::new(
             dr_pointer,
             tally_bytes,
             outputs,
-            slashed_witnesses,
+            out_of_consensus,
+            error_committers,
         ))
     } else {
         Err(TransactionError::NoTallyStage.into())
@@ -718,7 +752,7 @@ mod tests {
     }
 
     fn from_tally_to_storage(fake_block_hash: Hash, mut p: DataRequestPool, dr_pointer: Hash) {
-        let tally_transaction = TallyTransaction::new(dr_pointer, vec![], vec![], vec![]);
+        let tally_transaction = TallyTransaction::new(dr_pointer, vec![], vec![], vec![], vec![]);
 
         // There is nothing to be stored yet
         assert_eq!(p.to_be_stored.len(), 0);

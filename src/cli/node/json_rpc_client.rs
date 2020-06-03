@@ -719,7 +719,10 @@ pub fn data_request_report(
                         let honest = match dr_info.tally.as_ref() {
                             None => format!(""),
                             Some(tally) => {
-                                if tally.slashed_witnesses.contains(&pkh) {
+                                // TODO: Need review by tmpolaczyk
+                                if tally.out_of_consensus.contains(&pkh)
+                                    && !tally.error_committers.contains(&pkh)
+                                {
                                     let reward = 0;
 
                                     format!("-{}", reward)
@@ -835,7 +838,7 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
         node_stats.dr_eligibility_count,
         node_stats.commits_proposed_count,
         node_stats.commits_count,
-        node_stats.out_of_consensus_count
+        node_stats.slashed_count
     );
 
     Ok(())

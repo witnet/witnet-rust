@@ -175,12 +175,6 @@ pub enum TransactionError {
     /// RadonReport not in Tally Stage
     #[fail(display = "RadonReport not in Tally Stage")]
     NoTallyStage,
-    /// Mismatching number of reveals and liars vector.
-    #[fail(
-        display = "Mismatching number of reveals ({}) and liars vector ({})",
-        reveals_n, inputs_n
-    )]
-    MismatchingLiarsNumber { reveals_n: usize, inputs_n: usize },
     /// Minimum consensus percentage is invalid
     #[fail(
         display = "Minimum consensus percentage {} is invalid. Must be >50 and <100",
@@ -201,12 +195,21 @@ pub enum TransactionError {
     /// Zero amount specified
     #[fail(display = "Cannot build transaction with zero value")]
     ZeroAmount,
-    /// Incorrect value of Rewarded witnesses in Tally
+    /// Incorrect count of out-of-consensus witnesses in Tally
     #[fail(
-        display = "Incorrect value of Slashed witnesses in Tally. Expected: {:?}, found: {:?}",
+        display = "Incorrect count of out-of-consensus witnesses in Tally. Expected: {:?}, found: {:?}",
         expected, found
     )]
-    MismatchingSlashedWitnesses {
+    MismatchingOutOfConsensusCount {
+        expected: Vec<PublicKeyHash>,
+        found: Vec<PublicKeyHash>,
+    },
+    /// Incorrect count of witnesses with errors in Tally
+    #[fail(
+        display = "Incorrect count of witnesses with errors in Tally. Expected: {:?}, found: {:?}",
+        expected, found
+    )]
+    MismatchingErrorCount {
         expected: Vec<PublicKeyHash>,
         found: Vec<PublicKeyHash>,
     },

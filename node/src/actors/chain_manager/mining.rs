@@ -33,8 +33,9 @@ use witnet_data_structures::{
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
-    block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    merkle_tree_root, update_utxo_diff, vt_transaction_fee, UtxoDiff,
+    block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
+    calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, update_utxo_diff,
+    vt_transaction_fee, UtxoDiff,
 };
 
 use crate::{
@@ -939,14 +940,23 @@ fn build_block(
             tally_txns.push(ta_tx.clone());
             let commits_count = dr_state.info.commits.len();
             let reveals_count = dr_state.info.reveals.len();
-            let honests_count = commits_count - ta_tx.slashed_witnesses.len();
+
+            let (liars_count, errors_count) = calculate_liars_and_errors_count_from_tally(&ta_tx);
+
+            let collateral = if dr_state.data_request.collateral == 0 {
+                collateral_minimum
+            } else {
+                dr_state.data_request.collateral
+            };
+
             // Remainder collateral goes to the miner
             let (_, extra_tally_fee) = calculate_witness_reward(
                 commits_count,
                 reveals_count,
-                honests_count,
-                &dr_state.data_request,
-                collateral_minimum,
+                liars_count,
+                errors_count,
+                dr_state.data_request.witness_reward,
+                collateral,
             );
             transaction_fees += dr_state.data_request.tally_fee + extra_tally_fee;
         } else {

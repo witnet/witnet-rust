@@ -148,6 +148,8 @@ pub struct TallyMetaData {
     /// This follows a reverse logic: `false` is truth and `true` is lie.
     /// A liar is an out-of-consensus value
     pub liars: Vec<bool>,
+    /// An error is a RadonError value (or considered as an error due to a RadonError consensus)
+    pub errors: Vec<bool>,
     /// Proportion between total reveals and "truthers" count:
     /// `liars.iter().filter(std::ops::Not).count() / reveals.len()`
     pub consensus: f32,

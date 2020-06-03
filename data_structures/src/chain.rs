@@ -2503,7 +2503,7 @@ pub struct NodeStats {
     /// Last block proposed
     pub last_block_proposed: Hash,
     /// Number of slashed commits
-    pub out_of_consensus_count: u32,
+    pub slashed_count: u32,
 }
 
 /// Blockchain state (valid at a certain epoch)
