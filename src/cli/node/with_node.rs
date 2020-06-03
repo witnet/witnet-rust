@@ -311,7 +311,7 @@ pub enum Command {
     },
     #[structopt(
         name = "splitTransaction",
-        about = "Create a value transfer transaction that split utxos"
+        about = "Create a value transfer transaction that splits UTXOs"
     )]
     Split {
         /// Socket address of the Witnet node to query
@@ -338,7 +338,7 @@ pub enum Command {
     },
     #[structopt(
         name = "joinTransaction",
-        about = "Create a value transfer transaction that join utxos"
+        about = "Create a value transfer transaction that joins UTXOs"
     )]
     Join {
         /// Socket address of the Witnet node to query
