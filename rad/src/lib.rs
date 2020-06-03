@@ -132,7 +132,16 @@ pub async fn run_retrieval_report(
             let result =
                 run_retrieval_with_data_report(retrieve, response_string, context, settings);
 
-            log::debug!("Result for URL {}: {:?}", retrieve.url, result);
+            match &result {
+                Ok(report) => {
+                    log::debug!(
+                        "Successful result for source {}: {:?}",
+                        retrieve.url,
+                        report.result
+                    );
+                }
+                Err(e) => log::debug!("Failed result for source {}: {:?}", retrieve.url, e),
+            }
 
             result
         }

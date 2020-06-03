@@ -72,19 +72,25 @@ impl RadonScriptExecutionSettings {
 }
 
 /// Run any RADON script on given input data, and return `RadonReport`.
+/// By enabling or disabling each of the specific flags in the settings argument, we can adjust how
+/// much execution metadata we want to track, e.g. execution time, partial results, etc.
 pub fn execute_radon_script(
     input: RadonTypes,
     script: &[RadonCall],
     context: &mut ReportContext,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>, RadError> {
-    // Set the execution timestamp
+    // Set the execution start timestamp, if enabled by `timing` setting
     if settings.timing {
         context.start();
     }
 
-    // Initialize a vector for storing the partial results
-    let mut partial_results = vec![Ok(input.clone())];
+    // Initialize a vector for storing the partial results, if enabled by `partial_results` setting
+    let mut partial_results = if settings.partial_results {
+        Some(vec![Ok(input.clone())])
+    } else {
+        None
+    };
 
     // Run the execution by recursively applying calls into the result of the previous call
     let result = script
@@ -99,21 +105,21 @@ pub fn execute_radon_script(
             // Apply the call
             let partial_result = operate_in_context(input, call, context);
 
-            // Keep partial result, if enabled in settings
-            if settings.partial_results {
+            // Keep partial result, if enabled by `partial_results` setting
+            if let Some(partial_results) = partial_results.as_mut() {
                 partial_results.push(partial_result.clone());
             }
 
             partial_result
         });
 
-    // Set the completion timestamp, if enabled in settings
+    // Set the completion timestamp, if enabled by `timing` settings
     if settings.timing {
         context.complete();
     }
 
     // Return a report as constructed from the result and the context
-    Ok(if settings.partial_results {
+    Ok(if let Some(partial_results) = partial_results {
         RadonReport::from_partial_results(partial_results, context)
     } else {
         RadonReport::from_result(result, context)
@@ -121,6 +127,8 @@ pub fn execute_radon_script(
 }
 
 /// Run any RADON script on given input data, and return `RadonTypes`.
+/// This the optimistic version of `execute_radon_script`, as it returns a value or an error, but
+/// gives no specific details on what happened during the execution
 pub fn execute_contextfree_radon_script(
     input: RadonTypes,
     script: &[RadonCall],

@@ -1,14 +1,16 @@
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     fs,
 };
+
+use serde::{Deserialize, Serialize};
+
 use witnet_data_structures::chain::DataRequestOutput;
 use witnet_node::actors::messages::BuildDrt;
-use witnet_rad::script::RadonScriptExecutionSettings;
-use witnet_rad::types::{
-    float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes,
+use witnet_rad::{
+    script::RadonScriptExecutionSettings,
+    types::{float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes},
 };
 
 /// Id. Can be null, a number, or a string
