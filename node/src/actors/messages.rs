@@ -203,7 +203,7 @@ impl Message for BuildDrt {
     type Result = Result<Hash, failure::Error>;
 }
 
-/// Get ChainManager State (WaitingConsensus, Synchronizing, Synced)
+/// Get ChainManager State (WaitingConsensus, Synchronizing, AlmostSynced, Synced)
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GetState;
 

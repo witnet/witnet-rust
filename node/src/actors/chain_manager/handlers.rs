@@ -39,7 +39,19 @@ pub const SYNCED_BANNER: &str = r"
 ███████╗ ╚████╔╝ ██╔██╗ ██║██║     █████╗  ██║  ██║██║
 ╚════██║  ╚██╔╝  ██║╚██╗██║██║     ██╔══╝  ██║  ██║╚═╝
 ███████║   ██║   ██║ ╚████║╚██████╗███████╗██████╔╝██╗
-╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═════╝ ╚═╝";
+╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═════╝ ╚═╝
+╔════════════════════════════════════════════════════╗
+║ This node has finished bootstrapping and is now    ║
+║ working at full steam in validating transactions,  ║
+║ proposing blocks and resolving data requests.      ║
+╟────────────────────────────────────────────────────╢
+║ You can now sit back and enjoy Witnet.             ║
+╟────────────────────────────────────────────────────╢
+║ Wait... Are you still there? You want more fun?    ║
+║ Go to https://docs.witnet.io/node-operators/cli/   ║
+║ to learn how to monitor the progress of your node  ║
+║ (balance, reputation, proposed blocks, etc.)       ║
+╚════════════════════════════════════════════════════╝";
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -116,11 +128,14 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {}
-            StateMachine::Synced | StateMachine::Live => {
-                if self.sm_state == StateMachine::Synced {
-                    // We only reach Live state after genesis event
-                    log::debug!("Moving from Synced to Live state");
-                    self.sm_state = StateMachine::Live;
+            StateMachine::AlmostSynced | StateMachine::Synced => {
+                if self.sm_state == StateMachine::AlmostSynced {
+                    // We only reach Synced state after genesis event
+                    // In other words, this is the only point in the whole base code for the state
+                    // machine to move into `Synced` state.
+                    log::debug!("Moving from AlmostSynced to Synced state");
+                    log::info!("{}", SYNCED_BANNER);
+                    self.sm_state = StateMachine::Synced;
                 }
                 match self.chain_state {
                     ChainState {
@@ -430,7 +445,7 @@ impl Handler<AddBlocks> for ChainManager {
                     log::warn!("Target Beacon is None");
                 }
             }
-            StateMachine::Synced | StateMachine::Live => {}
+            StateMachine::AlmostSynced | StateMachine::Synced => {}
         };
     }
 }
@@ -643,8 +658,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         StateMachine::WaitingConsensus
                     } else if our_beacon == consensus_beacon {
-                        log::info!("{}", SYNCED_BANNER);
-                        StateMachine::Synced
+                        StateMachine::AlmostSynced
                     } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                         && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
                     {
@@ -670,9 +684,10 @@ impl Handler<PeersBeacons> for ChainManager {
                         if let Some((consensus_block, _consensus_block_vrf_hash)) = candidate {
                             match self.process_requested_block(ctx, &consensus_block) {
                                 Ok(()) => {
-                                    log::info!("Consolidate consensus candidate. Synced state");
-                                    log::info!("{}", SYNCED_BANNER);
-                                    StateMachine::Synced
+                                    log::info!(
+                                        "Consolidate consensus candidate. AlmostSynced state"
+                                    );
+                                    StateMachine::AlmostSynced
                                 }
                                 Err(e) => {
                                     log::debug!("Failed to consolidate consensus candidate: {}", e);
@@ -710,8 +725,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                     // Check if we are already synchronized
                     self.sm_state = if our_beacon == consensus_beacon {
-                        log::info!("{}", SYNCED_BANNER);
-                        StateMachine::Synced
+                        StateMachine::AlmostSynced
                     } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                         && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
                     {
@@ -738,7 +752,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     Ok(peers_to_unregister)
                 }
             }
-            StateMachine::Synced | StateMachine::Live => {
+            StateMachine::AlmostSynced | StateMachine::Synced => {
                 // If we are synced and the consensus beacon is not the same as our beacon, then
                 // we need to rewind one epoch
                 if pb_len == 0 {
@@ -789,8 +803,13 @@ impl Handler<BuildVtt> for ChainManager {
     type Result = ResponseActFuture<Self, Hash, failure::Error>;
 
     fn handle(&mut self, msg: BuildVtt, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Live {
-            return Box::new(actix::fut::err(ChainManagerError::NotLive.into()));
+        if self.sm_state != StateMachine::Synced {
+            return Box::new(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         match transaction_factory::build_vtt(
@@ -836,8 +855,13 @@ impl Handler<BuildDrt> for ChainManager {
     type Result = ResponseActFuture<Self, Hash, failure::Error>;
 
     fn handle(&mut self, msg: BuildDrt, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Live {
-            return Box::new(actix::fut::err(ChainManagerError::NotLive.into()));
+        if self.sm_state != StateMachine::Synced {
+            return Box::new(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
         }
         if let Err(e) = validate_rad_request(&msg.dro.data_request) {
             return Box::new(actix::fut::err(e));
@@ -924,8 +948,11 @@ impl Handler<GetBalance> for ChainManager {
     type Result = Result<u64, failure::Error>;
 
     fn handle(&mut self, GetBalance { pkh }: GetBalance, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Live {
-            return Err(ChainManagerError::NotLive.into());
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
         }
 
         Ok(transaction_factory::get_total_balance(
@@ -943,8 +970,11 @@ impl Handler<GetUtxoInfo> for ChainManager {
         GetUtxoInfo { pkh }: GetUtxoInfo,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        if self.sm_state != StateMachine::Live {
-            return Err(ChainManagerError::NotLive.into());
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
         }
 
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
@@ -977,8 +1007,11 @@ impl Handler<GetReputation> for ChainManager {
         GetReputation { pkh }: GetReputation,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        if self.sm_state != StateMachine::Live {
-            return Err(ChainManagerError::NotLive.into());
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {
@@ -994,8 +1027,11 @@ impl Handler<GetReputationAll> for ChainManager {
     type Result = Result<HashMap<PublicKeyHash, (Reputation, bool)>, failure::Error>;
 
     fn handle(&mut self, _msg: GetReputationAll, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Live {
-            return Err(ChainManagerError::NotLive.into());
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {
@@ -1014,8 +1050,11 @@ impl Handler<GetReputationStatus> for ChainManager {
     type Result = Result<GetReputationStatusResult, failure::Error>;
 
     fn handle(&mut self, _msg: GetReputationStatus, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Live {
-            return Err(ChainManagerError::NotLive.into());
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {

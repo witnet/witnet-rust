@@ -97,9 +97,16 @@ pub enum ChainManagerError {
     #[fail(display = "ChainManager is not ready yet")]
     ChainNotReady,
     /// The node attempted to do an action that is only allowed while `ChainManager`
-    /// is in `Live` state.
-    #[fail(display = "The node is not yet in `Live` state")]
-    NotLive,
+    /// is in `Synced` state.
+    #[fail(
+        display = "The node is not yet in `Synced` state (current state is {:?})",
+        current_state
+    )]
+    NotSynced {
+        /// Tells what the current state is, so users can better get an idea of why an action is
+        /// not possible at this time.
+        current_state: StateMachine,
+    },
     /// The node is trying to mine a block so commits are not allowed
     #[fail(display = "Commit received while node is trying to mine a block")]
     TooLateToCommit,
@@ -112,12 +119,12 @@ pub enum StateMachine {
     WaitingConsensus,
     /// Second state, ChainManager synchronization process
     Synchronizing,
-    /// Third state, `ChainManager` is synced and ready to start consolidating block
-    /// candidates.
-    Synced,
+    /// Third state, `ChainManager` has all the blocks in the chain and is ready to start
+    /// consolidating block candidates in real time.
+    AlmostSynced,
     /// Fourth state, `ChainManager` can consolidate block candidates, propose its own
     /// candidates (mining) and participate in resolving data requests (witnessing).
-    Live,
+    Synced,
 }
 
 impl Default for StateMachine {
@@ -461,9 +468,9 @@ impl ChainManager {
                     }
                 };
 
-                // Print reputation logs on debug level on Live state,
+                // Print reputation logs on debug level on Synced state,
                 // but on trace level while synchronizing
-                let log_level = if let StateMachine::Live = self.sm_state {
+                let log_level = if let StateMachine::Synced = self.sm_state {
                     log::Level::Debug
                 } else {
                     log::Level::Trace
@@ -532,7 +539,7 @@ impl ChainManager {
                             .data_request_pool
                             .update_data_request_stages();
                     }
-                    StateMachine::Synced | StateMachine::Live => {
+                    StateMachine::AlmostSynced | StateMachine::Synced => {
                         // Persist finished data requests into storage
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
@@ -669,11 +676,16 @@ impl ChainManager {
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
         );
-        // Ignore AddTransaction when not in Live state
+        // Ignore AddTransaction when not in Synced state
         match self.sm_state {
-            StateMachine::Live => {}
+            StateMachine::Synced => {}
             _ => {
-                return Box::new(actix::fut::err(ChainManagerError::NotLive.into()));
+                return Box::new(actix::fut::err(
+                    ChainManagerError::NotSynced {
+                        current_state: self.sm_state,
+                    }
+                    .into(),
+                ));
             }
         };
 
