@@ -2620,12 +2620,12 @@ pub struct ChainState {
     pub reputation_engine: Option<ReputationEngine>,
     /// Node mining stats
     pub node_stats: NodeStats,
-    /// Last ARS members ordered by reputation
+    /// Alternative public key mapping
     pub alt_keys: AltKeys,
-    /// Last ARS alt keys
-    pub last_ars: AltKeys,
+    /// Last ARS pkhs
+    pub last_ars: Vec<PublicKeyHash>,
     /// Last ARS keys vector ordered by reputation
-    pub last_ars_ordered_keys: Vec<Bn256PublicKey>
+    pub last_ars_ordered_keys: Vec<Bn256PublicKey>,
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to
@@ -2633,7 +2633,7 @@ pub struct ChainState {
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AltKeys {
     /// BN256 curve
-    pub bn256: HashMap<PublicKeyHash, Bn256PublicKey>,
+    bn256: HashMap<PublicKeyHash, Bn256PublicKey>,
 }
 
 impl AltKeys {
@@ -2669,18 +2669,22 @@ impl AltKeys {
         }
     }
 
-    pub fn get_rep_ordered_bn256_list(&self, reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>) -> Vec<Bn256PublicKey> {
-        let mut pkhs: Vec<PublicKeyHash>= self.bn256.iter().map(|(pkh, _)| pkh.clone()).collect();
+    pub fn get_rep_ordered_bn256_list(
+        &self,
+        reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
+    ) -> Vec<Bn256PublicKey> {
+        let mut pkhs: Vec<PublicKeyHash> = self.bn256.iter().map(|(pkh, _)| pkh.clone()).collect();
         pkhs.sort();
-        let ars_rep: Vec<Reputation>= pkhs.iter().map(|pkh| reputation_set.get(pkh)).collect();
 
-        let ordered_pkhs: Vec<_> = pkhs.into_iter().enumerate().sorted_by_key(|(i, _x)| ars_rep[*i]).collect();
-
-        let ordered_alts: Vec<Bn256PublicKey> = ordered_pkhs.into_iter().filter_map(|(_, pkh)| self.get_bn256(&pkh).cloned()).collect();
+        let ordered_alts: Vec<_> = pkhs
+            .into_iter()
+            .enumerate()
+            .sorted_by_key(|(_, pkh)| reputation_set.get(pkh))
+            .filter_map(|(_, pkh)| self.get_bn256(&pkh).cloned())
+            .collect();
 
         ordered_alts
     }
-    
 }
 
 impl ChainState {
@@ -4149,5 +4153,79 @@ mod tests {
         assert_eq!(calculate_backup_witnesses(11, 2), 11);
         assert_eq!(calculate_backup_witnesses(11, 3), 22);
         assert_eq!(calculate_backup_witnesses(11, 4), 44);
+    }
+
+    #[test]
+    fn test_ordered_alts_no_tie() {
+        let mut trs = TotalReputationSet::new();
+        let mut alt_keys = AltKeys::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+
+        let p1_bls = Bn256PublicKey {
+            public_key: vec![1; 65],
+        };
+        let p2_bls = Bn256PublicKey {
+            public_key: vec![2; 65],
+        };
+        let p3_bls = Bn256PublicKey {
+            public_key: vec![3; 65],
+        };
+
+
+        alt_keys.insert_bn256(p1.pkh(), p1_bls.clone());
+        alt_keys.insert_bn256(p2.pkh(), p2_bls.clone());
+        alt_keys.insert_bn256(p3.pkh(), p3_bls.clone());
+
+        let v4 = vec![
+            (p1.pkh(), Reputation(3)),
+            (p2.pkh(), Reputation(2)),
+            (p3.pkh(), Reputation(1)),
+        ];
+
+        trs.gain(Alpha(4), v4).unwrap();
+        let expected_order = vec![p3_bls.clone(), p2_bls.clone(), p1_bls.clone()];
+        let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
+
+        assert_eq!(expected_order, ordered_keys);
+    }
+
+    #[test]
+    fn test_ordered_alts_with_tie() {
+        let mut trs = TotalReputationSet::new();
+        let mut alt_keys = AltKeys::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([3; 33]);
+        let p3 = PublicKey::from_bytes([2; 33]);
+
+        let p1_bls = Bn256PublicKey {
+            public_key: vec![1; 65],
+        };
+        let p2_bls = Bn256PublicKey {
+            public_key: vec![2; 65],
+        };
+        let p3_bls = Bn256PublicKey {
+            public_key: vec![3; 65],
+        };
+
+
+        alt_keys.insert_bn256(p1.pkh(), p1_bls.clone());
+        alt_keys.insert_bn256(p2.pkh(), p2_bls.clone());
+        alt_keys.insert_bn256(p3.pkh(), p3_bls.clone());
+        
+        let v4 = vec![
+            (p1.pkh(), Reputation(3)),
+            (p2.pkh(), Reputation(1)),
+            (p3.pkh(), Reputation(1)),
+        ];
+
+        trs.gain(Alpha(4), v4).unwrap();
+        let expected_order = vec![p3_bls.clone(), p2_bls.clone(), p1_bls.clone()];
+        let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
+
+        assert_eq!(expected_order, ordered_keys);
     }
 }

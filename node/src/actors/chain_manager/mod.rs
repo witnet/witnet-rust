@@ -490,11 +490,17 @@ impl ChainManager {
 
                 // Store the ARS and the order of the keys
                 let trs = reputation_engine.trs();
+                let current_ars = reputation_engine
+                    .ars()
+                    .active_identities()
+                    .cloned()
+                    .sorted()
+                    .collect();
                 let alt_keys = self.chain_state.alt_keys.clone();
 
                 let ordered_alts: Vec<Bn256PublicKey> = alt_keys.get_rep_ordered_bn256_list(trs);
                 // last ars with previous block ars info
-                self.chain_state.last_ars = alt_keys;
+                self.chain_state.last_ars = current_ars;
                 self.chain_state.last_ars_ordered_keys = ordered_alts;
 
                 let rep_info = update_pools(
@@ -524,7 +530,6 @@ impl ChainManager {
                         self.own_pkh.unwrap_or_default(),
                     );
                 }
-
 
                 // Update bn256 public keys with block information
                 self.chain_state.alt_keys.insert_keys_from_block(&block);

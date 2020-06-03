@@ -3,7 +3,6 @@ use actix::{
 };
 use ansi_term::Color::{White, Yellow};
 use futures::future::{join_all, Future};
-use itertools::Itertools;
 use std::{
     cmp::Ordering,
     collections::HashSet,
@@ -144,12 +143,6 @@ impl ChainManager {
             // block reorganization
             let ars_members = self.chain_state.last_ars.clone();
             let ars_ordered_keys = self.chain_state.last_ars_ordered_keys.clone();
-/*            let ars_members: Vec<PublicKeyHash> = rep_engine
-                .ars()
-                .active_identities()
-                .cloned()
-                .sorted()
-                .collect();*/
             self.superblock_creating_and_broadcasting(
                 ctx,
                 current_epoch,
@@ -587,7 +580,7 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         current_epoch: u32,
         superblock_period: u32,
-        ars_members: AltKeys,
+        ars_members: Vec<PublicKeyHash>,
         ars_ordered_keys: Vec<Bn256PublicKey>,
         genesis_hash: Hash,
     ) {
@@ -659,8 +652,8 @@ impl ChainManager {
         .and_then(move |(block_headers, last_hash), act, _ctx| {
             let superblock = act.superblock_state.build_superblock(
                 &block_headers,
-                ars_members,
-                ars_ordered_keys,
+                &ars_members,
+                &ars_ordered_keys,
                 superblock_index,
                 last_hash,
             );
