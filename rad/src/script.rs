@@ -25,9 +25,14 @@ pub type RadonScript = Vec<RadonCall>;
 /// metadata to collect.
 #[derive(Clone, Copy)]
 pub struct RadonScriptExecutionSettings {
-    pub partial_results: bool,
-    pub timing: bool,
+    /// Keep track of which call index is being executed in every moment, so that any error can be
+    /// pinpointed to a specific call in the script.
     pub breakpoints: bool,
+    /// Keep the result of each of the calls in the script, so that the full execution trace can be
+    /// reconstructed.
+    pub partial_results: bool,
+    /// Measure total execution time for the script.
+    pub timing: bool,
 }
 
 /// Default to enabling all execution features except `partial_results`.
