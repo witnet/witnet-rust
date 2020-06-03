@@ -65,18 +65,18 @@ pub struct ConfigParams {
     /// Socket address for the wallet server
     #[structopt(short = "l", long = "listen", default_value = "127.0.0.1:11212")]
     addr: SocketAddr,
-    /// Socket address of the Witnet node to query.
+    /// Socket address of the Witnet node to query
     #[structopt(short = "n", long = "node")]
     node: Option<String>,
     #[structopt(long = "db", help = WALLET_DB_HELP)]
     db: Option<std::path::PathBuf>,
-    /// Milliseconds after outgoing requests should time out.
+    /// Milliseconds after outgoing requests should time out
     #[structopt(long = "timeout")]
     timeout: Option<u64>,
-    /// Whether or not this wallet communicates a testnet node.
+    /// Whether or not this wallet communicates a testnet node
     #[structopt(long = "testnet")]
     testnet: bool,
-    /// Number of worker-threads used by the wallet. Defaults to number of logical cores.
+    /// Number of worker-threads used by the wallet. Defaults to number of logical cores
     #[structopt(short = "C", long = "concurrency")]
     concurrency: Option<usize>,
 }

@@ -185,22 +185,22 @@ pub enum Command {
         about = "Send raw JSON-RPC requests, read from stdin one line at a time"
     )]
     Raw {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
     #[structopt(name = "blockchain", about = "List block hashes")]
     BlockChain {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// First epoch for which to return block hashes.
-        /// If negative, return block hashes from the last n epochs.
+        /// First epoch for which to return block hashes
+        /// If negative, return block hashes from the last n epochs
         #[structopt(long = "epoch", allow_hyphen_values = true, default_value = "0")]
         epoch: i64,
         /// Number of block hashes to return.
         /// If negative, return the last n block hashes from this epoch range.
-        /// If zero, unlimited.
+        /// If zero, unlimited
         #[structopt(long = "limit", allow_hyphen_values = true, default_value = "-50")]
         limit: i64,
     },
@@ -210,7 +210,7 @@ pub enum Command {
         about = "Find a block by its hash "
     )]
     GetBlock {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         #[structopt(name = "hash", help = "SHA-256 block hash in hex format")]
@@ -222,7 +222,7 @@ pub enum Command {
         about = "Find a transaction by its hash "
     )]
     GetTransaction {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         #[structopt(name = "hash", help = "SHA-256 transaction hash in hex format")]
@@ -230,10 +230,10 @@ pub enum Command {
     },
     #[structopt(name = "getBalance", about = "Get total balance of the given account")]
     GetBalance {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Address for which to get balance. If omitted, defaults to the node address.
+        /// Address for which to get balance. If omitted, defaults to the node address
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
     },
@@ -243,7 +243,7 @@ pub enum Command {
         about = "Get the public address of the node"
     )]
     GetAddress {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
@@ -252,13 +252,13 @@ pub enum Command {
         about = "Get the unspent transaction outputs of the node"
     )]
     GetUtxoInfo {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Show all the information about utxos.
+        /// Show all the information about utxos
         #[structopt(long = "long")]
         long: bool,
-        /// Public key hash for which to get UTXO information. If omitted, defaults to the node pkh.
+        /// Public key hash for which to get UTXO information. If omitted, defaults to the node pkh
         #[structopt(long = "address", alias = "pkh")]
         pkh: Option<String>,
     },
@@ -267,10 +267,10 @@ pub enum Command {
         about = "Get the reputation of the given account"
     )]
     GetReputation {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Address for which to get reputation. If omitted, defaults to the node address.
+        /// Address for which to get reputation. If omitted, defaults to the node address
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
         /// Print all the reputation?
@@ -279,7 +279,7 @@ pub enum Command {
     },
     #[structopt(name = "output", about = "Find an output of a transaction")]
     Output {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         #[structopt(
@@ -290,7 +290,7 @@ pub enum Command {
     },
     #[structopt(name = "send", about = "Create a value transfer transaction")]
     Send {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Address of the destination
@@ -305,7 +305,7 @@ pub enum Command {
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
-        /// Print the request that would be sent to the node and exit without doing anything.
+        /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
@@ -314,10 +314,10 @@ pub enum Command {
         about = "Create a value transfer transaction that split utxos"
     )]
     Split {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public key hash of the destination. If omitted, defaults to the node pkh.
+        /// Public key hash of the destination. If omitted, defaults to the node pkh
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
         /// Value
@@ -332,7 +332,7 @@ pub enum Command {
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
-        /// Print the request that would be sent to the node and exit without doing anything.
+        /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
@@ -341,10 +341,10 @@ pub enum Command {
         about = "Create a value transfer transaction that join utxos"
     )]
     Join {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public key hash of the destination. If omitted, defaults to the node pkh.
+        /// Public key hash of the destination. If omitted, defaults to the node pkh
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
         /// Value
@@ -365,7 +365,7 @@ pub enum Command {
     },
     #[structopt(name = "send-request", about = "Send a serialized data request")]
     SendRequest {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         #[structopt(long = "hex")]
@@ -383,7 +383,7 @@ pub enum Command {
     ShowConfig,
     #[structopt(name = "masterKeyExport", about = "Export the node master key")]
     MasterKeyExport {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Write the private key to "storage_path/private_key_pkh.txt"
@@ -398,7 +398,7 @@ pub enum Command {
         about = "Show information about a data request"
     )]
     DataRequestReport {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         #[structopt(name = "dr-tx-hash", help = "Data request transaction hash")]
@@ -414,7 +414,7 @@ pub enum Command {
         about = "Get the list of peers connected to the node"
     )]
     GetPeers {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
@@ -424,7 +424,7 @@ pub enum Command {
         about = "Get the list of peers known by the node"
     )]
     GetKnownPeers {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
@@ -434,7 +434,7 @@ pub enum Command {
         about = "Get the node stats"
     )]
     GetNodeStats {
-        /// Socket address of the Witnet node to query.
+        /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
@@ -448,10 +448,10 @@ pub struct ConfigParams {
     /// Initially known peers for the node.
     #[structopt(long = "peer")]
     known_peers: Vec<SocketAddr>,
-    /// Max number of connections to other peers this node (as a client) maintains.
+    /// Max number of connections to other peers this node (as a client) maintains
     #[structopt(long = "out-limit")]
     outbound_limit: Option<u16>,
-    /// Period of the bootstrap peers task (in seconds).
+    /// Period of the bootstrap peers task (in seconds)
     #[structopt(long = "peers-period")]
     bootstrap_peers_period_seconds: Option<u64>,
     #[structopt(long = "db", help = NODE_DB_HELP)]
