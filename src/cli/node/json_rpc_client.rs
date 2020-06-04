@@ -623,8 +623,20 @@ impl fmt::Display for DataRequestTransactionInfo {
                             Yellow.bold().paint(reveal_str)
                         )?;
                     }
+                    // Neither positive or negative means that the collateral was returned to the
+                    // witness, but it has not been rewarded. This happens when the witness
+                    // committed an error but the consensus is not an error.
                     _ => {
-                        writeln!(f, "    {}: {}", pkh, Yellow.bold().paint(reveal_str))?;
+                        if data_request_state.stage == "FINISHED" {
+                            writeln!(
+                                f,
+                                "    [  Error  ] {}: {}",
+                                pkh,
+                                Yellow.bold().paint(reveal_str)
+                            )?;
+                        } else {
+                            writeln!(f, "    {}: {}", pkh, Yellow.bold().paint(reveal_str))?;
+                        }
                     }
                 }
             }
@@ -719,13 +731,17 @@ pub fn data_request_report(
                         let honest = match dr_info.tally.as_ref() {
                             None => format!(""),
                             Some(tally) => {
-                                // TODO: Need review by tmpolaczyk
                                 if tally.out_of_consensus.contains(&pkh)
                                     && !tally.error_committers.contains(&pkh)
                                 {
-                                    let reward = 0;
+                                    let collateral = if dr_output.collateral == 0 {
+                                        // TODO: handle case when collateral is 0 (default)
+                                        unimplemented!("Data request with default collateral")
+                                    } else {
+                                        dr_output.collateral
+                                    };
 
-                                    format!("-{}", reward)
+                                    format!("-{}", collateral)
                                 } else {
                                     let reward = tally
                                         .outputs
@@ -734,8 +750,20 @@ pub fn data_request_report(
                                         .map(|vto| vto.value)
                                         .unwrap();
 
-                                    // Note: the collateral is included in the reward
-                                    format!("+{}", reward)
+                                    let collateral = if dr_output.collateral == 0 {
+                                        // TODO: handle case when collateral is 0 (default)
+                                        unimplemented!("Data request with default collateral")
+                                    } else {
+                                        dr_output.collateral
+                                    };
+                                    let reward = reward - collateral;
+
+                                    // Note: the collateral is not included in the reward
+                                    if reward == 0 {
+                                        "0".to_string()
+                                    } else {
+                                        format!("+{}", reward)
+                                    }
                                 }
                             }
                         };
