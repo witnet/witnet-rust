@@ -14,8 +14,9 @@ edition = "2018"
 members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "bridges/ethereum"]
 
 [features]
-default = ["wallet", "node", "sentry"]
+default = ["wallet", "node", "telemetry"]
 node = ["witnet_node"]
+telemetry = ["sentry", "witnet_node/telemetry"]
 wallet = ["witnet_wallet"]
 
 [badges]

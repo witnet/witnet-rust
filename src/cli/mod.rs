@@ -5,9 +5,6 @@ use structopt::StructOpt;
 use terminal_size as term;
 
 use env_logger::TimestampPrecision;
-use std::borrow::Cow;
-use std::str::FromStr;
-use std::sync::Arc;
 use witnet_config as config;
 
 mod node;
@@ -17,6 +14,9 @@ pub fn from_args() -> Cli {
     Cli::from_args()
 }
 
+// This clippy allow is needed because `init_logger` is conditionally compiled and returns unit
+// in one of the implementations.
+#[allow(clippy::let_unit_value)]
 pub fn exec(
     Cli {
         config,
@@ -65,7 +65,7 @@ fn exec_cmd(command: Command, config: config::config::Config) -> Result<(), fail
     }
 }
 
-fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
+fn configure_logger(opts: &LogOptions) -> env_logger::Builder {
     println!(
         "Setting log level to: {}, source: {:?}",
         opts.level, opts.source
@@ -84,8 +84,22 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
         .filter_module("witnet_node", opts.level)
         .filter_module("witnet_wallet", opts.level);
 
+    logger_builder
+}
+
+/// Implementation of `init_logger` for non-debug environments with the `telemetry` feature being
+/// enabled. Note that telemetry is ultimately enabled through configuration.
+#[cfg(all(not(debug_assertions), feature = "telemetry"))]
+fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
+    use std::borrow::Cow;
+    use std::str::FromStr;
+    use std::sync::Arc;
+
+    // Configure the logger builder
+    let mut logger_builder = configure_logger(&opts);
+
     // Initialize Sentry (automated bug reporting) if explicitly enabled in configuration
-    if cfg!(not(debug_assertions)) && opts.sentry_telemetry {
+    if opts.sentry_telemetry {
         // Configure Sentry DSN
         let dsn = sentry::internals::Dsn::from_str(
             "https://def0c5d0fb354ef9ad6dddb576a21624@o394464.ingest.sentry.io/5244595",
@@ -121,6 +135,17 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
     }
 }
 
+/// Implementation of `init_logger` for debug environments or any other environment missing the
+/// `telemetry` feature. This conditional compile simply removes the need for `sentry` dependency
+/// derived from having to keep the sentry guard alive for the lifetime of the entire app.
+#[cfg(not(all(not(debug_assertions), feature = "telemetry")))]
+fn init_logger(opts: LogOptions) {
+    // Configure the logger builder
+    let mut logger_builder = configure_logger(&opts);
+    // If telemetry is not supported, initialize logger directly
+    logger_builder.init();
+}
+
 fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::Error> {
     match path {
         Some(p) => {
@@ -137,6 +162,7 @@ fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::
 }
 
 /// Prevents sending Sentry events containing private data
+#[cfg(all(not(debug_assertions), feature = "telemetry"))]
 fn filter_private_data(
     event: sentry::protocol::Event<'static>,
 ) -> Option<sentry::protocol::Event<'static>> {
@@ -232,6 +258,7 @@ If no configuration is found. The default configuration is used, see `config` su
 you want to know more about the default config."#;
 
 #[test]
+#[cfg(all(not(debug_assertions), feature = "telemetry"))]
 fn test_filter_private_data() {
     let chain_manager_event = sentry::protocol::Event {
         logger: Some(String::from("witnet_node::chain_manager")),
