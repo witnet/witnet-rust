@@ -156,18 +156,27 @@ impl Serialize for RadonTypes {
     where
         S: Serializer,
     {
+        use serde::ser::SerializeStruct;
+
+        let mut state = serializer.serialize_struct("RadonTypes", 2)?;
+        state.serialize_field("type", &self.radon_type_name())?;
         match &self {
-            RadonTypes::Array(radon_array) => serializer.collect_seq(radon_array.value().iter()),
-            RadonTypes::Boolean(radon_type) => serializer.serialize_bool(radon_type.value()),
-            RadonTypes::Bytes(radon_type) => {
-                serializer.serialize_bytes(radon_type.value().as_slice())
+            RadonTypes::Array(radon_type) => state.serialize_field("value", &radon_type.value())?,
+            RadonTypes::Boolean(radon_type) => {
+                state.serialize_field("value", &radon_type.value())?
             }
-            RadonTypes::RadonError(radon_error) => radon_error.serialize(serializer),
-            RadonTypes::Float(radon_type) => serializer.serialize_f64(radon_type.value()),
-            RadonTypes::Integer(radon_type) => serializer.serialize_i128(radon_type.value()),
-            RadonTypes::Map(radon_type) => serializer.collect_map(radon_type.value().iter()),
-            RadonTypes::String(radon_type) => serializer.serialize_str(&radon_type.value()),
+            RadonTypes::Bytes(radon_type) => state.serialize_field("value", &radon_type.value())?,
+            RadonTypes::RadonError(radon_error) => state.serialize_field("value", &radon_error)?,
+            RadonTypes::Float(radon_type) => state.serialize_field("value", &radon_type.value())?,
+            RadonTypes::Integer(radon_type) => {
+                state.serialize_field("value", &radon_type.value())?
+            }
+            RadonTypes::Map(radon_type) => state.serialize_field("value", &radon_type.value())?,
+            RadonTypes::String(radon_type) => {
+                state.serialize_field("value", &radon_type.value())?
+            }
         }
+        state.end()
     }
 }
 
