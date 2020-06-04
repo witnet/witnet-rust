@@ -1240,25 +1240,6 @@ fn update_reputation(
     // Retain identities that exist in the ARS
     secp_bls_mapping.retain(|k| rep_eng.is_ars_member(k));
 
-    if log::log_enabled!(log_level) {
-        log::log!(
-            log_level,
-            "Active users number: {}",
-            rep_eng.ars().active_identities_number()
-        );
-
-        log::log!(log_level, "Total Reputation: {{");
-        for (pkh, rep) in rep_eng
-            .trs()
-            .identities()
-            .sorted_by_key(|&(_, &r)| std::cmp::Reverse(r))
-        {
-            let active = if rep_eng.is_ars_member(pkh) { 'A' } else { ' ' };
-            log::log!(log_level, "    [{}] {}: {}", active, pkh, rep.0);
-        }
-        log::log!(log_level, "}}");
-    }
-
     rep_eng.current_alpha = new_alpha;
 }
 
