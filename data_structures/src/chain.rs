@@ -1177,6 +1177,13 @@ impl Bn256PublicKey {
         })
     }
 
+    pub fn to_uncompressed(self) -> Result<Vec<u8>, failure::Error> {
+        // Verify that this slice is a valid public key
+        let uncompressed =
+            bn256::PublicKey::from_compressed(&self.public_key.clone())?.to_uncompressed()?;
+        Ok(uncompressed)
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         self.public_key.clone()
     }
@@ -4174,7 +4181,6 @@ mod tests {
             public_key: vec![3; 65],
         };
 
-
         alt_keys.insert_bn256(p1.pkh(), p1_bls.clone());
         alt_keys.insert_bn256(p2.pkh(), p2_bls.clone());
         alt_keys.insert_bn256(p3.pkh(), p3_bls.clone());
@@ -4211,11 +4217,10 @@ mod tests {
             public_key: vec![3; 65],
         };
 
-
         alt_keys.insert_bn256(p1.pkh(), p1_bls.clone());
         alt_keys.insert_bn256(p2.pkh(), p2_bls.clone());
         alt_keys.insert_bn256(p3.pkh(), p3_bls.clone());
-        
+
         let v4 = vec![
             (p1.pkh(), Reputation(3)),
             (p2.pkh(), Reputation(1)),
