@@ -201,7 +201,11 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
-    #[structopt(name = "blockchain", about = "List block hashes")]
+    #[structopt(
+        name = "blockchain",
+        alias = "getBlockChain",
+        about = "List block hashes"
+    )]
     BlockChain {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
@@ -217,8 +221,8 @@ pub enum Command {
         limit: i64,
     },
     #[structopt(
-        name = "getBlock",
-        alias = "block",
+        name = "block",
+        alias = "getBlock",
         about = "Find a block by its hash "
     )]
     GetBlock {
@@ -229,8 +233,8 @@ pub enum Command {
         hash: String,
     },
     #[structopt(
-        name = "getTransaction",
-        alias = "transaction",
+        name = "transaction",
+        alias = "getTransaction",
         about = "Find a transaction by its hash "
     )]
     GetTransaction {
@@ -240,7 +244,11 @@ pub enum Command {
         #[structopt(name = "hash", help = "SHA-256 transaction hash in hex format")]
         hash: String,
     },
-    #[structopt(name = "getBalance", about = "Get total balance of the given account")]
+    #[structopt(
+        name = "balance",
+        alias = "getBalance",
+        about = "Get total balance of the given account"
+    )]
     GetBalance {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
@@ -250,7 +258,9 @@ pub enum Command {
         address: Option<String>,
     },
     #[structopt(
-        name = "getAddress",
+        name = "address",
+        alias = "getAddress",
+        alias = "pkh",
         alias = "getPkh",
         about = "Get the public address of the node"
     )]
@@ -260,7 +270,10 @@ pub enum Command {
         node: Option<SocketAddr>,
     },
     #[structopt(
-        name = "getUtxoInfo",
+        name = "utxos",
+        alias = "coins",
+        alias = "utxoInfo",
+        alias = "getUtxoInfo",
         about = "Get the unspent transaction outputs of the node"
     )]
     GetUtxoInfo {
@@ -275,7 +288,8 @@ pub enum Command {
         pkh: Option<String>,
     },
     #[structopt(
-        name = "getReputation",
+        name = "reputation",
+        alias = "getReputation",
         about = "Get the reputation of the given account"
     )]
     GetReputation {
@@ -375,7 +389,11 @@ pub enum Command {
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
-    #[structopt(name = "send-request", about = "Send a serialized data request")]
+    #[structopt(
+        name = "sendRequest",
+        alias = "send-request",
+        about = "Send a serialized data request"
+    )]
     SendRequest {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
@@ -389,7 +407,9 @@ pub enum Command {
         run: bool,
     },
     #[structopt(
-        name = "show-config",
+        name = "config",
+        alias = "show-config",
+        alias = "showConfig",
         about = "Dump the loaded config in Toml format to stdout"
     )]
     ShowConfig,

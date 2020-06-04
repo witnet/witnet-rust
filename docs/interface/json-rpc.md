@@ -70,7 +70,7 @@ Response:
 {"jsonrpc":"2.0","result":true,"id":1}
 ```
 
-#### getBalance
+#### balance
 Get the total balance of the given address.
 
 Returns a `u64`, representing balance. The unit is 10^-8 wits.
@@ -78,7 +78,7 @@ Returns a `u64`, representing balance. The unit is 10^-8 wits.
 Example:
 
 ```
-{"jsonrpc":"2.0","id":1,"method":"getBalance","params":["wit19kljem70vfkkvx5vk9uhh6fxyn9psd0h43ec8w"]}
+{"jsonrpc":"2.0","id":1,"method":"balance","params":["wit19kljem70vfkkvx5vk9uhh6fxyn9psd0h43ec8w"]}
 ```
 
 Response:
@@ -88,7 +88,7 @@ Response:
 ```
 
 
-#### getBlockChain
+#### blockchain
 
 Get the list of all the known block hashes.
 
@@ -117,7 +117,7 @@ For instance, to get the block for the last epoch:
 Example:
 
 ```
-{"jsonrpc": "2.0","method": "getBlockChain", "id": 1}
+{"jsonrpc": "2.0","method": "blockchain", "id": 1}
 ```
 
 Response:
@@ -127,7 +127,7 @@ Response:
 ```
 
 
-#### getBlock
+#### block
 Get the block with the provided hash.
 
 Returns a `Block`.
@@ -135,7 +135,7 @@ Returns a `Block`.
 Example:
 
 ```
-{"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb"]}
+{"jsonrpc":"2.0","id":1,"method":"block","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb"]}
 ```
 
 Response:
@@ -145,7 +145,7 @@ Response:
 ```
 
 
-#### getOutput
+#### output
 Get the outputPointer that matches with the input provided.
 
 Returns an `OutputPointer`.
@@ -153,7 +153,7 @@ Returns an `OutputPointer`.
 Example:
 
 ```
-{"jsonrpc": "2.0","method": "getOutput", "params": {"transaction_id":{"SHA256":[17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17]},"output_index":1}, "id": "1"}
+{"jsonrpc": "2.0","method": "output", "params": {"transaction_id":{"SHA256":[17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17]},"output_index":1}, "id": "1"}
 ```
 
 Response:
@@ -162,7 +162,7 @@ Response:
 {"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
 ```
 
-#### getPkh
+#### address
 Get the public key hash of the node. This pkh is used for mining blocks and resolving data requests.
 
 Returns a `PublicKeyHash`.
@@ -170,7 +170,7 @@ Returns a `PublicKeyHash`.
 Example:
 
 ```
-{"jsonrpc":"2.0","id":1,"method":"getPkh"}
+{"jsonrpc":"2.0","id":1,"method":"address"}
 ```
 
 Response:
@@ -179,7 +179,7 @@ Response:
 {"jsonrpc":"2.0","result":"wit1zgt506j2yypm8zmjzwkx6elffxkajm8m9z2cdu","id":1}
 ```
 
-#### getReputation
+#### reputation
 Get the reputation of the given identity by address.
 
 Returns a tuple of `(Reputation, bool)`, where `Reputation` is a `u32` and the boolean
@@ -188,7 +188,7 @@ indicates whether this identity is active.
 Example:
 
 ```
-{"jsonrpc":"2.0","id":1,"method":"getReputation","params":["wit1x23wtfjyh6l47lywazefjpr3vq25lyspjf0p8z"]}
+{"jsonrpc":"2.0","id":1,"method":"reputation","params":["wit1x23wtfjyh6l47lywazefjpr3vq25lyspjf0p8z"]}
 ```
 
 Response:
@@ -200,27 +200,8 @@ Response:
 In this case, the identity `wit1x23wtfjyh6l47lywazefjpr3vq25lyspjf0p8z` has 1 reputation
 point and is active.
 
-#### getReputationAll
-Get the reputation of all the identities in the system.
+### send-request
 
-Returns a map of `PublicKeyHash => (Reputation, bool)`, where `Reputation` is a `u32` and the boolean
-indicates whether this identity is active.
-
-Example:
-
-```
-{"jsonrpc":"2.0","id":1,"method":"getReputationAll"}
-```
-
-Response:
-
-```
-{"jsonrpc":"2.0","result":{"wit1x23wtfjyh6l47lywazefjpr3vq25lyspjf0p8z":[1,true],"wit1hzm7jutjazy2yh9n7fmaq30dxf5k6py39uwq0x":[1,true]},"id":1}
-```
-
-In this case, there are two identities with 1 reputation point each, and both are active.
-
-### sendRequest
 Create and broadcast a data request transaction with the given `DataRequestOutput` and fee.
 
 Returns the transaction `Hash`, or an error.
@@ -237,7 +218,7 @@ Response:
 {"jsonrpc":"2.0","result":"d0843d21f5b4185741c0bf1f9c05432079ea901f28516578dd2f5cc58f98b443","id":1}
 ```
 
-#### sendValue
+#### send
 Create and broadcast a value transfer transaction with the given list of `ValueTransferOutput`s and fee.
 
 A `ValueTransferOutput` is defined as
