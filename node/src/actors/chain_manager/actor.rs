@@ -284,8 +284,13 @@ impl ChainManager {
             })
             .and_then(|res, act, _ctx| {
                 act.own_pkh = Some(res);
-                log::debug!("Public key hash successfully loaded from signature manager");
-                log::info!("PublicKeyHash: {}", res);
+                log::debug!("Address successfully loaded from signature manager");
+                log::info!("Node identity / address: {}", res);
+
+                // Telemetry is configured here to avoid a race condition if configured directly
+                // upon actor start because of asynchronous nature of `get_key` function.
+                act.configure_telemetry_scope();
+
                 actix::fut::ok(())
             })
             .wait(ctx);
@@ -308,4 +313,18 @@ impl ChainManager {
             })
             .wait(ctx);
     }
+
+    /// Put some basic information into the scope of the telemetry service (Sentry)
+    #[cfg(feature = "telemetry")]
+    fn configure_telemetry_scope(&mut self) {
+        log::debug!("Configuring telemetry scope");
+        sentry::configure_scope(|scope| {
+            scope.set_user(self.own_pkh.map(|address| sentry::User {
+                id: Some(address.bech32(witnet_data_structures::get_environment())),
+                ..Default::default()
+            }))
+        });
+    }
+    #[cfg(not(feature = "telemetry"))]
+    fn configure_telemetry_scope(&mut self) {}
 }
