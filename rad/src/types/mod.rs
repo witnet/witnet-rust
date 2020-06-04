@@ -5,6 +5,7 @@ use std::{
 };
 
 use cbor::value::Value as CborValue;
+use serde::{Serialize, Serializer};
 use serde_cbor::{to_vec, Value};
 
 use witnet_crypto::hash::calculate_sha256;
@@ -146,6 +147,26 @@ impl TypeLike for RadonTypes {
                 }))
             }
             Ok(x) => x,
+        }
+    }
+}
+
+impl Serialize for RadonTypes {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        match &self {
+            RadonTypes::Array(radon_array) => serializer.collect_seq(radon_array.value().iter()),
+            RadonTypes::Boolean(radon_type) => serializer.serialize_bool(radon_type.value()),
+            RadonTypes::Bytes(radon_type) => {
+                serializer.serialize_bytes(radon_type.value().as_slice())
+            }
+            RadonTypes::RadonError(radon_error) => radon_error.serialize(serializer),
+            RadonTypes::Float(radon_type) => serializer.serialize_f64(radon_type.value()),
+            RadonTypes::Integer(radon_type) => serializer.serialize_i128(radon_type.value()),
+            RadonTypes::Map(radon_type) => serializer.collect_map(radon_type.value().iter()),
+            RadonTypes::String(radon_type) => serializer.serialize_str(&radon_type.value()),
         }
     }
 }

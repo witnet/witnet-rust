@@ -1,9 +1,13 @@
-use serde_cbor::value::{from_value, to_value, Value};
 use std::{
     collections::{btree_map::BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     fmt,
 };
+
+use serde::Serialize;
+use serde_cbor::value::{from_value, to_value, Value};
+
+use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
@@ -11,11 +15,10 @@ use crate::{
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };
-use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct RadonMap {
     value: HashMap<String, RadonTypes>,
 }
@@ -163,9 +166,11 @@ impl Operable for RadonMap {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::types::integer::RadonInteger;
     use witnet_data_structures::radon_report::TypeLike;
+
+    use crate::types::integer::RadonInteger;
+
+    use super::*;
 
     #[test]
     fn test_operate_identity() {

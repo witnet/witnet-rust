@@ -1,3 +1,4 @@
+use serde::Serialize;
 use serde_cbor::value::{from_value, Value};
 use std::{
     convert::{TryFrom, TryInto},
@@ -15,7 +16,7 @@ use crate::{
 
 pub const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RadonArray {
     value: Vec<RadonTypes>,
     is_homogeneous: bool,

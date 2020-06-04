@@ -1,6 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 
+use serde::Serialize;
 use serde_cbor::value::{from_value, Value};
 
 use crate::{
@@ -13,7 +14,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_BOOLEAN_TYPE_NAME: &str = "RadonBoolean";
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize)]
 pub struct RadonBoolean {
     value: bool,
 }

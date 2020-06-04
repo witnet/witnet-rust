@@ -4,6 +4,7 @@ use crate::{
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };
+use serde::Serialize;
 use serde_cbor::value::Value;
 use std::{
     convert::{TryFrom, TryInto},
@@ -13,7 +14,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct RadonBytes {
     value: Vec<u8>,
 }

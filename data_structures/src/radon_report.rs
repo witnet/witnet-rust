@@ -1,6 +1,8 @@
 use std::convert::TryFrom;
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
+
 use crate::radon_error::ErrorLike;
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
@@ -10,7 +12,7 @@ use crate::radon_error::ErrorLike;
 /// It contains a RAD result paired with metadata specific to the stage of the script being executed.
 ///
 /// `RT` is the generalization of `RadonTypes`, and `IE` is the generalization of `RadError`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RadonReport<RT>
 where
     RT: TypeLike,
@@ -82,6 +84,23 @@ where
     }
 }
 
+/*impl<RT> Serialize for RadonReport<RT>
+where
+    RT: TypeLike + Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("RadonReport", 4)?;
+        state.serialize_field("metadata", &self.metadata)?;
+        state.serialize_field("partial_results", &self.partial_results)?;
+        state.serialize_field("result", &self.result)?;
+        state.serialize_field("running_time", &self.running_time)?;
+        state.end()
+    }
+}*/
+
 /// This trait identifies a RADON-compatible type system, i.e. most likely an `enum` with different
 /// cases for different data types.
 pub trait TypeLike: Clone + Sized {
@@ -135,7 +154,7 @@ impl ReportContext {
 }
 
 /// Tell different stage-specific metadata structures from each other.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub enum Stage {
     /// Metadata for contextless execution of RADON scripts.
     Contextless,
@@ -163,7 +182,7 @@ impl Default for Stage {
 //pub struct AggregationMetaData {}
 
 /// Tally-specific metadata structure.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct TallyMetaData {
     /// A positional vector of "truthers" and "liars", i.e. reveals that passed all the filters vs.
     /// those which were filtered out.
@@ -209,11 +228,11 @@ mod tests {
     use std::fmt;
 
     use failure::Fail;
+    use serde_cbor::Value as SerdeCborValue;
 
     use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
 
     use super::*;
-    use serde_cbor::Value as SerdeCborValue;
 
     #[test]
     fn test_encode_not_cbor() {

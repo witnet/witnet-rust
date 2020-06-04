@@ -1,6 +1,7 @@
 use std::fmt;
 
 use num_enum::TryFromPrimitive;
+use serde::Serialize;
 
 use witnet_data_structures::radon_report::ReportContext;
 
@@ -17,7 +18,7 @@ pub mod string;
 /// List of RADON operators.
 /// **WARNING: these codes are consensus-critical.** They can be renamed but they cannot be
 /// re-assigned without causing a non-backwards-compatible protocol upgrade.
-#[derive(Copy, Clone, Debug, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, TryFromPrimitive)]
 #[repr(u8)]
 pub enum RadonOpCodes {
     /// Only for the sake of allowing catch-alls when matching
@@ -145,8 +146,9 @@ pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::types::string::RadonString;
+
+    use super::*;
 
     #[test]
     pub fn test_identity() {

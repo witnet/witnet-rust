@@ -3,6 +3,7 @@
 use std::convert::TryFrom;
 
 use failure::{self, Fail};
+use serde::{Serialize, Serializer};
 use serde_cbor::value::Value as SerdeCborValue;
 
 use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
@@ -11,7 +12,7 @@ use crate::types::RadonTypes;
 use crate::{operators::RadonOpCodes, types::array::RadonArray};
 
 /// RAD errors.
-#[derive(Clone, Debug, PartialEq, Fail)]
+#[derive(Clone, Debug, Fail, PartialEq)]
 pub enum RadError {
     /// An unknown error. Something went really bad!
     #[fail(display = "Unknown error")]
@@ -548,6 +549,15 @@ impl std::default::Default for RadError {
     }
 }
 
+impl Serialize for RadError {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
 impl From<reqwest::Error> for RadError {
     fn from(err: reqwest::Error) -> Self {
         match err.status() {
@@ -636,9 +646,10 @@ impl TryFrom<Result<RadonTypes, RadError>> for RadonTypes {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use num_enum::TryFromPrimitive;
     use serde_cbor::Value;
+
+    use super::*;
 
     fn rad_error_example(radon_errors: RadonErrors) -> RadError {
         match radon_errors {

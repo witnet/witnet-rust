@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 use crate::types;
@@ -11,17 +11,7 @@ pub struct RunRadReqRequest {
 
 #[derive(Debug, Serialize)]
 pub struct RunRadReqResponse {
-    #[serde(serialize_with = "debug_serialize")]
     pub result: types::RadonReport<types::RadonTypes>,
-}
-
-// Serialize a type as a string, using its debug representation
-fn debug_serialize<S, T>(x: &T, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-    T: std::fmt::Debug,
-{
-    s.serialize_str(&format!("{:?}", x))
 }
 
 impl Message for RunRadReqRequest {
