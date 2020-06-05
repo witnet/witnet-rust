@@ -158,22 +158,32 @@ impl Serialize for RadonTypes {
     {
         use serde::ser::SerializeStruct;
 
-        let mut state = serializer.serialize_struct("RadonTypes", 2)?;
-        state.serialize_field("type", &self.radon_type_name())?;
+        let mut state = serializer.serialize_struct("RadonTypes", 1)?;
+        let radon_type_name = self.radon_type_name();
         match &self {
-            RadonTypes::Array(radon_type) => state.serialize_field("value", &radon_type.value())?,
+            RadonTypes::Array(radon_type) => {
+                state.serialize_field(radon_type_name, &radon_type.value())?
+            }
             RadonTypes::Boolean(radon_type) => {
-                state.serialize_field("value", &radon_type.value())?
+                state.serialize_field(radon_type_name, &radon_type.value())?
             }
-            RadonTypes::Bytes(radon_type) => state.serialize_field("value", &radon_type.value())?,
-            RadonTypes::RadonError(radon_error) => state.serialize_field("value", &radon_error)?,
-            RadonTypes::Float(radon_type) => state.serialize_field("value", &radon_type.value())?,
+            RadonTypes::Bytes(radon_type) => {
+                state.serialize_field(radon_type_name, &radon_type.value())?
+            }
+            RadonTypes::RadonError(radon_error) => {
+                state.serialize_field(radon_type_name, &radon_error.inner())?
+            }
+            RadonTypes::Float(radon_type) => {
+                state.serialize_field(radon_type_name, &radon_type.value())?
+            }
             RadonTypes::Integer(radon_type) => {
-                state.serialize_field("value", &radon_type.value())?
+                state.serialize_field(radon_type_name, &radon_type.value())?
             }
-            RadonTypes::Map(radon_type) => state.serialize_field("value", &radon_type.value())?,
+            RadonTypes::Map(radon_type) => {
+                state.serialize_field(radon_type_name, &radon_type.value())?
+            }
             RadonTypes::String(radon_type) => {
-                state.serialize_field("value", &radon_type.value())?
+                state.serialize_field(radon_type_name, &radon_type.value())?
             }
         }
         state.end()
