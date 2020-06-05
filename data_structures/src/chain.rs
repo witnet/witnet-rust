@@ -1184,6 +1184,14 @@ impl Bn256PublicKey {
         Ok(uncompressed)
     }
 
+    pub fn is_valid(self) -> bool {
+        // Verify that the provided key is a valid public key
+        match bn256::PublicKey::from_compressed(&self.public_key.clone()){
+            Ok(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         self.public_key.clone()
     }
@@ -2666,12 +2674,30 @@ impl AltKeys {
     pub fn insert_keys_from_block(&mut self, block: &Block) {
         // Add miner bn256 public keys
         if let Some(value) = block.block_header.bn256_public_key.clone() {
-            self.insert_bn256(block.block_header.proof.proof.pkh(), value);
+            // If the provided key is valid, insert it in altkeys
+            if value.clone().is_valid(){
+                self.insert_bn256(block.block_header.proof.proof.pkh(), value);
+            }
+            else{
+                log::warn!(
+                    "Ignoring invalid bn256 public key {:02x?} inserted by PKH {:02x?} in the block",
+                    value, block.block_header.proof.proof.pkh()
+                 );
+            }
         }
         // Add bn256 public keys from commitment transactions
         for commit in &block.txns.commit_txns {
             if let Some(value) = commit.body.bn256_public_key.clone() {
-                self.insert_bn256(commit.body.proof.proof.pkh(), value);
+                // If the provided key is valid, insert it in altkeys
+                if value.clone().is_valid() {
+                    self.insert_bn256(commit.body.proof.proof.pkh(), value);
+                }
+                else{
+                    log::warn!(
+                        "Ignoring invalid bn256 public key {:02x?} inserted by PKH {:02x?} in the commit",
+                        value, block.block_header.proof.proof.pkh()
+                    );
+                }
             }
         }
     }
@@ -4232,5 +4258,32 @@ mod tests {
         let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
 
         assert_eq!(expected_order, ordered_keys);
+    }
+
+    #[test]
+    fn test_is_valid_true() {
+        let bls_pk =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
+        assert!(bls_pk.is_valid());
+    }
+
+    #[test]
+    fn test_is_valid_false_invalid_length() {
+        let bls_pk =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
+        let bls_pk_2 = Bn256PublicKey {
+            public_key: bls_pk.public_key[1..63].to_vec(),
+        };
+        assert_eq!(bls_pk_2.is_valid(), false);
+    }
+
+    #[test]
+    fn test_is_valid_false() {
+        let bls_pk = Bn256PublicKey {
+            public_key: vec![1; 65],
+        };
+        assert_eq!(bls_pk.is_valid(), false);
     }
 }
