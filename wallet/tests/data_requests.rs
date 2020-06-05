@@ -66,34 +66,87 @@ fn test_radon_error_json_serialization() {
     assert_eq!(serde_json::to_string(&radon_error).unwrap(), expected_json);
 }
 
-#[test]
 /// This is a rather end-2-end test that applies a script on some JSON input and checks whether the
 /// final `RadonReport` complies with the Witnet Wallet API.
-fn test_data_request_report_json_serialization() {
-    let input = RadonTypes::from(RadonString::from(
-        r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#,
-    ));
-    let script = vec![
-        (RadonOpCodes::StringParseJSONMap, None),
-        (
-            RadonOpCodes::MapGetMap,
-            Some(vec![Value::Text(String::from("main"))]),
-        ),
-        (
-            RadonOpCodes::MapGetFloat,
-            Some(vec![Value::Text(String::from("temp"))]),
-        ),
-    ];
-    let mut context = ReportContext::default();
-    let report = execute_radon_script(
-        input,
-        &script,
-        &mut context,
-        RadonScriptExecutionSettings::enable_all(),
-    )
-    .unwrap();
+#[actix_rt::test]
+#[cfg(feature = "side_effected")]
+async fn test_data_request_report_json_serialization() {
+    let request = RADRequest {
+        time_lock: 0,
+        retrieve: vec![
+            RADRetrieve {
+                kind: RADType::HttpGet,
+                url: String::from("https://www.bitstamp.net/api/ticker/"),
+                script: vec![130, 24, 119, 130, 24, 100, 100, 108, 97, 115, 116],
+            },
+            RADRetrieve {
+                kind: RADType::HttpGet,
+                url: String::from("https://api.coindesk.com/v1/bpi/currentprice.json"),
+                script: vec![
+                    132, 24, 119, 130, 24, 102, 99, 98, 112, 105, 130, 24, 102, 99, 85, 83, 68,
+                    130, 24, 100, 106, 114, 97, 116, 101, 95, 102, 108, 111, 97, 116,
+                ],
+            },
+        ],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: 3,
+        },
+        tally: RADTally {
+            filters: vec![],
+            reducer: 3,
+        },
+    };
 
-    let json = serde_json::ser::to_string(&report).unwrap();
+    let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all()).await;
+    let aggregate_report = report.aggregate.clone();
+    let tally_report = report.tally.clone();
 
-    assert_eq!(json, "");
+    // Number of retrieval reports should match number of sources
+    assert_eq!(&report.retrieve.len(), &request.retrieve.len());
+
+    for (index, retrieve_report) in report.retrieve.iter().enumerate() {
+        // Each retrieval result must match last item in each retrieval partial results
+        assert_eq!(
+            &retrieve_report.result,
+            retrieve_report
+                .partial_results
+                .clone()
+                .unwrap()
+                .last()
+                .unwrap()
+        );
+
+        // Number of partial results for each source should match source's script length + 1
+        assert_eq!(
+            retrieve_report.partial_results.clone().unwrap().len(),
+            unpack_radon_script(&request.retrieve.get(index).unwrap().script)
+                .unwrap()
+                .len()
+                + 1
+        );
+    }
+
+    // Number of aggregation partial results must equal number of filters + 2
+    assert_eq!(
+        report.aggregate.partial_results.unwrap().len(),
+        &request.aggregate.filters.len() + 2
+    );
+    // Number of tally partial results must equal number of filters + 2
+    assert_eq!(
+        report.tally.partial_results.unwrap().len(),
+        &request.tally.filters.len() + 2
+    );
+
+    // Aggregation result must match last item in aggregation partial results
+    assert_eq!(
+        &report.aggregate.result,
+        aggregate_report.partial_results.unwrap().last().unwrap()
+    );
+
+    // Tally result must match last item in tally partial results
+    assert_eq!(
+        &report.tally.result,
+        tally_report.partial_results.unwrap().last().unwrap()
+    );
 }
