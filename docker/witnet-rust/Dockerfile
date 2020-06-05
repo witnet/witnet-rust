@@ -22,11 +22,11 @@ EXPOSE 21338
 EXPOSE 11212
 
 # Run the install script
-RUN ["chmod", "+x", "./downloader.sh", "./ip_detector.sh", "./migrator.sh", "./runner.sh"]
+RUN ["chmod", "+x", "./downloader.sh", "./ip_detector.sh", "./migrator.sh", "./runner.sh", "./executer.sh"]
 RUN ["./downloader.sh"]
 
-# Set compilation entry point (always gets executed)
+# Set entry point (always gets executed)
 ENTRYPOINT ["./runner.sh"]
 
 # Set default command (can be overridden)
-CMD ["-c", "/.witnet/config/witnet.toml", "node", "server"]
+CMD ["node", "server"]

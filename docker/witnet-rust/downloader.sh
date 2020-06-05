@@ -19,13 +19,19 @@ fi
 URL="https://github.com/witnet/witnet-rust/releases/download/$VERSION/witnet-$VERSION-$TRIPLET.tar.gz"
 
 FILENAME="$VERSION.tar.gz"
-WITNET_FOLDER="/.witnet"
 
+# Download and extract release bundle
 log "Downloading 'witnet-$VERSION-$TRIPLET.tar.gz'. It may take a few seconds..."
 curl -L "$URL" -o "/tmp/$FILENAME" --cacert /etc/ssl/certs/ca-certificates.crt >/dev/null 2>&1 &&
 tar -zxf "/tmp/$FILENAME" --directory . >/dev/null 2>&1 &&
-chmod +x ./witnet &&
-cp ./witnet /usr/local/bin/ &&
+# Rename the actual binary to 'witnet-raw'
+mv witnet witnet-raw &&
+chmod +x ./witnet-raw &&
+# Make executer.sh hijack command './witnet'
+cp ./executer.sh ./witnet &&
+# Make executer.sh hijack command 'witnet'
+cp ./executer.sh /usr/local/bin/witnet &&
+# Delete release bundle
 rm -f "/tmp/$FILENAME" &&
 witnet --version ||
 log "Error downloading and installing witnet-rust on version $VERSION for $TRIPLET"

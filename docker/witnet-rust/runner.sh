@@ -8,4 +8,6 @@ if [[ "$PUBLIC_ADDR_DISCOVERY" == "true" ]]; then
     ./ip_detector.sh
 fi
 
-witnet "$@"
+cd /
+
+/tmp/witnet-raw -c /.witnet/config/witnet.toml  "$@"
