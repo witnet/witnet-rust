@@ -84,23 +84,6 @@ where
     }
 }
 
-/*impl<RT> Serialize for RadonReport<RT>
-where
-    RT: TypeLike + Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("RadonReport", 4)?;
-        state.serialize_field("metadata", &self.metadata)?;
-        state.serialize_field("partial_results", &self.partial_results)?;
-        state.serialize_field("result", &self.result)?;
-        state.serialize_field("running_time", &self.running_time)?;
-        state.end()
-    }
-}*/
-
 /// This trait identifies a RADON-compatible type system, i.e. most likely an `enum` with different
 /// cases for different data types.
 pub trait TypeLike: Clone + Sized {
