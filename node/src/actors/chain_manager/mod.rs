@@ -1366,7 +1366,7 @@ mod tests {
             pkh: pk1.pkh(),
             ..Default::default()
         }];
-        ta_tx.slashed_witnesses = vec![pk2.clone().pkh()];
+        ta_tx.slashed_witnesses = vec![pk2.pkh()];
 
         dr_pool
             .add_data_request(1, dr_tx, &Hash::default())

@@ -818,7 +818,7 @@ impl Worker {
             checkpoint: block.block_header.beacon.checkpoint,
             hash_prev_block: block.hash(),
         };
-        self.node.update_last_beacon(block_own_beacon.clone());
+        self.node.update_last_beacon(block_own_beacon);
 
         // NOTE: Possible enhancement.
         // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns

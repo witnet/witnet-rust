@@ -1092,7 +1092,7 @@ fn build_tally_report(
                     reveal.in_consensus = false;
                 } else {
                     reveals.insert(
-                        pkh.clone(),
+                        *pkh,
                         model::Reveal {
                             value: types::RadonTypes::from(
                                 RadonError::try_from(types::RadError::NoReveals).unwrap(),

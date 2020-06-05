@@ -45,7 +45,7 @@ impl Handler<SubscribeEpoch> for EpochManager {
         // Store subscription to target checkpoint
         self.subscriptions_epoch
             .entry(msg.checkpoint)
-            .or_insert_with(|| vec![])
+            .or_default()
             .push(msg.notification);
     }
 }

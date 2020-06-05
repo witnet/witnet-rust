@@ -1292,7 +1292,7 @@ fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
     k: &Hash,
     rf: u32,
 ) {
-    hm.entry(k.clone())
+    hm.entry(*k)
         .or_insert(WitnessesCount {
             current: 0,
             target: rf,

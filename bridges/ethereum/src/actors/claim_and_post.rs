@@ -211,7 +211,7 @@ fn try_to_claim_local_query(
 
             log::debug!(
                 "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
-                poe, witnet_pk.clone(), sign_addr
+                poe, witnet_pk, sign_addr
             );
             log::info!("[{}] Checking eligibility for claiming dr", dr_id);
 
