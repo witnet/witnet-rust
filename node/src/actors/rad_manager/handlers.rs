@@ -5,7 +5,7 @@ use futures::Future;
 use tokio::util::FutureExt;
 
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
-use witnet_rad::{error::RadError, types::RadonTypes};
+use witnet_rad::{error::RadError, script::RadonScriptExecutionSettings, types::RadonTypes};
 use witnet_validations::validations::{
     construct_report_from_clause_result, evaluate_tally_precondition_clause,
     TallyPreconditionClauseResult,
@@ -14,7 +14,6 @@ use witnet_validations::validations::{
 use crate::actors::messages::{ResolveRA, RunTally};
 
 use super::RadManager;
-use witnet_rad::script::RadonScriptExecutionSettings;
 
 impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<RadonReport<RadonTypes>, RadError>;

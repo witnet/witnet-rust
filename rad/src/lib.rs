@@ -44,7 +44,7 @@ pub struct RADRequestExecutionReport {
 /// The `inputs_injection` allows for disabling the actual retrieval of the data sources and
 /// the provided strings will be fed to the retrieval scripts instead. It is therefore expected that
 /// the length of `sources_injection` matches that of `request.retrieve`.
-pub async fn try_data_request(
+pub fn try_data_request(
     request: &RADRequest,
     settings: RadonScriptExecutionSettings,
     inputs_injection: Option<&[&str]>,
@@ -54,14 +54,14 @@ pub async fn try_data_request(
     let retrieve_responses = if let Some(inputs) = inputs_injection {
         assert_eq!(inputs.len(), request.retrieve.len(), "Tried to locally run a data request with a number of injected sources different than the number of retrieval paths ({} != {})", inputs.len(), request.retrieve.len());
 
-        let mut retrieve_responses = Vec::new();
-        for (retrieve, input) in request.retrieve.iter().zip(inputs.iter()) {
-            retrieve_responses.push(run_retrieval_with_data_report(
-                retrieve, input, context, settings,
-            ))
-        }
-
-        retrieve_responses
+        request
+            .retrieve
+            .iter()
+            .zip(inputs.iter())
+            .map(|(retrieve, input)| {
+                run_retrieval_with_data_report(retrieve, input, context, settings)
+            })
+            .collect()
     } else {
         block_on(join_all(
             request
@@ -80,8 +80,7 @@ pub async fn try_data_request(
         .collect();
     let retrieval_values: Vec<RadonTypes> = retrieval_reports
         .iter()
-        .cloned()
-        .map(|report| report.into_inner())
+        .map(|report| report.result.clone())
         .collect();
 
     let aggregation_report = run_aggregation_report(retrieval_values, &request.aggregate, settings)

@@ -1,15 +1,8 @@
 use std::collections::HashMap;
 
-use witnet_data_structures::chain::RADType;
-use witnet_data_structures::{
-    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally},
-    radon_error::RadonError,
-};
-use witnet_rad::script::unpack_radon_script;
+use witnet_data_structures::radon_error::RadonError;
 use witnet_rad::{
     error::RadError,
-    script::RadonScriptExecutionSettings,
-    try_data_request,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonTypes,
@@ -68,8 +61,14 @@ fn test_radon_error_json_serialization() {
 
 /// This is a rather end-2-end test that applies a script on some JSON input and checks whether the
 /// final `RadonReport` complies with the Witnet Wallet API.
-#[actix_rt::test]
-async fn test_data_request_report_json_serialization() {
+#[test]
+fn test_data_request_report_json_serialization() {
+    use witnet_data_structures::chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType};
+    use witnet_rad::{
+        script::{unpack_radon_script, RadonScriptExecutionSettings},
+        try_data_request,
+    };
+
     let request = RADRequest {
         time_lock: 0,
         retrieve: vec![
@@ -105,8 +104,7 @@ async fn test_data_request_report_json_serialization() {
         &request,
         RadonScriptExecutionSettings::enable_all(),
         Some(&inputs),
-    )
-    .await;
+    );
 
     // Number of retrieval reports should match number of sources
     assert_eq!(report.retrieve.len(), request.retrieve.len());
@@ -135,12 +133,12 @@ async fn test_data_request_report_json_serialization() {
 
     // Number of aggregation partial results must equal number of filters + 2
     assert_eq!(
-        (&report).aggregate.partial_results.as_ref().unwrap().len(),
+        report.aggregate.partial_results.as_ref().unwrap().len(),
         &request.aggregate.filters.len() + 2
     );
     // Number of tally partial results must equal number of filters + 2
     assert_eq!(
-        (&report).tally.partial_results.as_ref().unwrap().len(),
+        report.tally.partial_results.as_ref().unwrap().len(),
         &request.tally.filters.len() + 2
     );
 

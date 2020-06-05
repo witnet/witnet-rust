@@ -272,7 +272,7 @@ pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
             }
             _ => {
                 return Err(RadError::MismatchingTypes {
-                    method: "RadonArray::transpose".to_string(),
+                    method: "T of RadonArray<T>::transpose".to_string(),
                     expected: RadonArray::radon_type_name(),
                     found: item.radon_type_name(),
                 });
@@ -413,7 +413,7 @@ mod tests {
 
         assert_eq!(
             &result.unwrap_err().to_string(),
-            "Mismatching types in RadonArray::transpose. Expected: RadonArray<RadonArray>, found: RadonArray<RadonFloat>",
+            "Mismatching types in T of RadonArray<T>::transpose. Expected: RadonArray, found: RadonFloat",
         );
     }
 
@@ -439,7 +439,7 @@ mod tests {
 
         assert_eq!(
             &result.unwrap_err().to_string(),
-            "Mismatching types in RadonArray::transpose. Expected: RadonArray<RadonArray>, found: RadonArray<RadonFloat>",
+            "Mismatching types in T of RadonArray<T>::transpose. Expected: RadonArray, found: RadonFloat",
         );
     }
 

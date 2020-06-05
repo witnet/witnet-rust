@@ -37,13 +37,7 @@ impl Worker {
     }
 
     pub fn run_rad_request(&self, request: types::RADRequest) -> types::RADRequestExecutionReport {
-        // Block on data request retrieval because the wallet was designed with a blocking run retrieval in mind.
-        // This can be made non-blocking by returning a future here and updating.
-        futures03::executor::block_on(witnet_rad::try_data_request(
-            &request,
-            RadonScriptExecutionSettings::enable_all(),
-            None,
-        ))
+        witnet_rad::try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None)
     }
 
     pub fn gen_mnemonic(&self, length: types::MnemonicLength) -> String {

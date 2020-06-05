@@ -533,7 +533,11 @@ pub fn construct_report_from_clause_result(
     match clause_result {
         // The reveals passed the precondition clause (a parametric majority of them were successful
         // values). Run the tally, which will add more liars if any.
-        Ok(TallyPreconditionClauseResult::MajorityOfValues { values, liars }) => {
+        Ok(TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars,
+            errors,
+        }) => {
             let mut metadata = TallyMetaData::default();
             metadata.update_liars(vec![false; reports_len]);
 
@@ -554,20 +558,6 @@ pub fn construct_report_from_clause_result(
                 ),
             }
         }
-        Ok(TallyPreconditionClauseResult::MajorityOfValues {
-            values,
-            liars,
-            errors,
-        }) => match run_tally_report(values, script, Some(liars), Some(errors), settings) {
-            Ok(x) => x,
-            Err(e) => RadonReport::from_result(
-                Err(RadError::TallyExecution {
-                    inner: Some(Box::new(e)),
-                    message: None,
-                }),
-                &ReportContext::from_stage(Stage::Tally(metadata)),
-            ),
-        },
         // The reveals did not pass the precondition clause (a parametric majority of them were
         // errors). Tally will not be run, and the mode of the errors will be committed.
         Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
