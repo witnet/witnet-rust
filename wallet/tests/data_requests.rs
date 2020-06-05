@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
-use serde_cbor::Value;
-
-use witnet_data_structures::{radon_error::RadonError, radon_report::ReportContext};
+use witnet_data_structures::chain::RADType;
+use witnet_data_structures::{
+    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally},
+    radon_error::RadonError,
+};
+use witnet_rad::script::unpack_radon_script;
 use witnet_rad::{
     error::RadError,
-    operators::RadonOpCodes,
-    script::{execute_radon_script, RadonScriptExecutionSettings},
+    script::RadonScriptExecutionSettings,
+    try_data_request,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonTypes,

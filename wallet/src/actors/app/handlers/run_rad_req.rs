@@ -11,7 +11,7 @@ pub struct RunRadReqRequest {
 
 #[derive(Debug, Serialize)]
 pub struct RunRadReqResponse {
-    pub result: types::RadonReport<types::RadonTypes>,
+    pub result: types::RADRequestExecutionReport,
 }
 
 impl Message for RunRadReqRequest {

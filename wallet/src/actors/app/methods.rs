@@ -160,7 +160,7 @@ impl App {
     pub fn run_rad_request(
         &self,
         req: types::RADRequest,
-    ) -> ResponseFuture<types::RadonReport<types::RadonTypes>> {
+    ) -> ResponseFuture<types::RADRequestExecutionReport> {
         let f = self
             .params
             .worker

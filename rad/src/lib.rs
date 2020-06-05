@@ -1,5 +1,6 @@
 //! # RAD Engine
 
+use serde::Serialize;
 pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
 
@@ -27,10 +28,21 @@ pub mod types;
 
 pub type Result<T> = std::result::Result<T, RadError>;
 
+/// The return type of any method executing the entire life cycle of a data request.
+#[derive(Debug, Serialize)]
+pub struct RADRequestExecutionReport {
+    /// Vector of reports about retrieval of data sources.
+    pub retrieve: Vec<RadonReport<RadonTypes>>,
+    /// Report about aggregation of data sources.
+    pub aggregate: RadonReport<RadonTypes>,
+    /// Report about aggregation of reports (reveals, actually).
+    pub tally: RadonReport<RadonTypes>,
+}
+
 pub async fn try_data_request(
     request: &RADRequest,
     settings: RadonScriptExecutionSettings,
-) -> RadonReport<RadonTypes> {
+) -> RADRequestExecutionReport {
     let context = &mut ReportContext::default();
 
     let retrieve_responses_fut = request
@@ -38,29 +50,38 @@ pub async fn try_data_request(
         .iter()
         .map(|retrieve| run_retrieval_report(retrieve, settings));
 
-    let retrieve_responses: Vec<RadonTypes> = futures::future::join_all(retrieve_responses_fut)
-        .await
+    let retrieval_reports: Vec<RadonReport<RadonTypes>> =
+        futures::future::join_all(retrieve_responses_fut)
+            .await
+            .into_iter()
+            .map(|retrieve| {
+                retrieve.unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+            })
+            .collect();
+    let retrieval_values: Vec<RadonTypes> = retrieval_reports
+        .clone()
         .into_iter()
-        .map(|retrieve| {
-            retrieve
-                .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
-                .into_inner()
-        })
+        .map(|report| report.into_inner())
         .collect();
 
-    let aggregation_response =
-        run_aggregation_report(retrieve_responses, &request.aggregate, settings)
-            .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
-            .into_inner();
+    let aggregation_report = run_aggregation_report(retrieval_values, &request.aggregate, settings)
+        .unwrap_or_else(|error| RadonReport::from_result(Err(error), context));
+    let aggregation_value = aggregation_report.clone().into_inner();
 
-    run_tally_report(
-        vec![aggregation_response],
+    let tally_report = run_tally_report(
+        vec![aggregation_value],
         &request.tally,
         None,
         None,
         settings,
     )
-    .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+    .unwrap_or_else(|error| RadonReport::from_result(Err(error), context));
+
+    RADRequestExecutionReport {
+        retrieve: retrieval_reports,
+        aggregate: aggregation_report,
+        tally: tally_report,
+    }
 }
 
 /// Run retrieval without performing any external network requests, return `RadonReport`.

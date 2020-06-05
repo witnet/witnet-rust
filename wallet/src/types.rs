@@ -31,7 +31,7 @@ pub use witnet_data_structures::{
 };
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
-pub use witnet_rad::{error::RadError, types::RadonTypes};
+pub use witnet_rad::{error::RadError, types::RadonTypes, RADRequestExecutionReport};
 
 use crate::model;
 use crate::types::signature::Signature;
