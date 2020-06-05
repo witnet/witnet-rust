@@ -16,7 +16,7 @@ use crate::{
     types::{RadonType, RadonTypes},
 };
 
-pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
+const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct RadonMap {
@@ -28,8 +28,9 @@ impl RadonType<HashMap<String, RadonTypes>> for RadonMap {
         self.value.clone()
     }
 
-    fn radon_type_name() -> String {
-        RADON_MAP_TYPE_NAME.to_string()
+    #[inline]
+    fn radon_type_name() -> &'static str {
+        RADON_MAP_TYPE_NAME
     }
 }
 
@@ -52,8 +53,8 @@ impl TryFrom<Value> for RadonMap {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let error = |_| RadError::Decode {
-            from: "cbor::value::Value".to_string(),
-            to: RADON_MAP_TYPE_NAME.to_string(),
+            from: "cbor::value::Value",
+            to: RadonMap::radon_type_name(),
         };
 
         let hm = from_value::<HashMap<String, Value>>(value)
@@ -87,8 +88,8 @@ impl TryInto<Value> for RadonMap {
 
     fn try_into(self) -> Result<Value, Self::Error> {
         let error = || RadError::Encode {
-            from: RADON_MAP_TYPE_NAME.to_string(),
-            to: "cbor::value::Value".to_string(),
+            from: Self::radon_type_name(),
+            to: "cbor::value::Value",
         };
 
         let map = self

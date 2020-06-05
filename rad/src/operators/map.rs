@@ -352,7 +352,7 @@ mod tests {
         let (input, index, _item) = radon_map_of_floats();
         let output = get_array(&input, &[Value::Text(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonArray::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -370,7 +370,7 @@ mod tests {
         let (input, index, _item) = radon_map_of_floats();
         let output = get_boolean(&input, &[Value::Text(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonBoolean::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -388,7 +388,7 @@ mod tests {
         let (input, index, _item) = radon_map_of_floats();
         let output = get_bytes(&input, &[Value::Text(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonBytes::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -406,7 +406,7 @@ mod tests {
         let (input, index, _item) = radon_map_of_booleans();
         let output = get_integer(&input, &[Value::Text(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonInteger::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -424,7 +424,7 @@ mod tests {
         let (input, index, _item) = radon_map_of_booleans();
         let output = get_float(&input, &[Value::Text(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonFloat::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -442,7 +442,7 @@ mod tests {
         let (input, index, _item) = radon_map_of_booleans();
         let output = get_map(&input, &[Value::Text(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonMap::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -460,7 +460,7 @@ mod tests {
         let (input, index, _item) = radon_map_of_booleans();
         let output = get_string(&input, &[Value::Text(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "serde_cbor::value::Value".to_string(),
+            from: "serde_cbor::value::Value",
             to: RadonString::radon_type_name(),
         };
         assert_eq!(output, expected_err);

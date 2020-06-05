@@ -14,7 +14,7 @@ use crate::{
     types::{RadonType, RadonTypes},
 };
 
-pub const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
+const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RadonArray {
@@ -33,8 +33,9 @@ impl RadonType<Vec<RadonTypes>> for RadonArray {
         self.value.clone()
     }
 
-    fn radon_type_name() -> String {
-        RADON_ARRAY_TYPE_NAME.to_string()
+    #[inline]
+    fn radon_type_name() -> &'static str {
+        RADON_ARRAY_TYPE_NAME
     }
 }
 
@@ -78,8 +79,8 @@ impl TryFrom<Value> for RadonArray {
                     .collect::<Vec<RadonTypes>>()
             })
             .map_err(|_| RadError::Decode {
-                from: "cbor::value::Value".to_string(),
-                to: RADON_ARRAY_TYPE_NAME.to_string(),
+                from: "cbor::value::Value",
+                to: RadonArray::radon_type_name(),
             })
             .map(Self::from)
     }

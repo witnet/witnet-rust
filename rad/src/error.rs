@@ -19,10 +19,16 @@ pub enum RadError {
     Unknown,
     /// Failed to decode a type from other
     #[fail(display = "Failed to decode {} from {}", to, from)]
-    Decode { from: String, to: String },
+    Decode {
+        from: &'static str,
+        to: &'static str,
+    },
     /// Failed to encode a type into other
     #[fail(display = "Failed to encode {} into {}", from, to)]
-    Encode { from: String, to: String },
+    Encode {
+        from: &'static str,
+        to: &'static str,
+    },
     /// Failed to calculate the hash of a RADON value or structure
     #[fail(display = "Failed to calculate the hash of a RADON value or structure")]
     Hash,
@@ -138,7 +144,7 @@ pub enum RadError {
         input_type, operator, args
     )]
     WrongArguments {
-        input_type: String,
+        input_type: &'static str,
         operator: String,
         args: Vec<SerdeCborValue>,
     },
@@ -179,8 +185,8 @@ pub enum RadError {
     )]
     MismatchingTypes {
         method: String,
-        expected: String,
-        found: String,
+        expected: &'static str,
+        found: &'static str,
     },
     /// Arrays to be reduced have different sizes
     #[fail(
@@ -598,8 +604,8 @@ impl From<std::str::ParseBoolError> for RadError {
 impl From<cbor::encoder::EncodeError> for RadError {
     fn from(_err: cbor::encoder::EncodeError) -> Self {
         RadError::Encode {
-            from: String::from("RadonTypes"),
-            to: String::from("CBOR"),
+            from: "RadonTypes",
+            to: "CBOR",
         }
     }
 }
@@ -607,8 +613,8 @@ impl From<cbor::encoder::EncodeError> for RadError {
 impl From<cbor::decoder::DecodeError> for RadError {
     fn from(_err: cbor::decoder::DecodeError) -> Self {
         RadError::Decode {
-            from: String::from("CBOR"),
-            to: String::from("RadonTypes"),
+            from: "CBOR",
+            to: "RadonTypes",
         }
     }
 }

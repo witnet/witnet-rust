@@ -15,7 +15,7 @@ use crate::{
 };
 use witnet_data_structures::radon_report::ReportContext;
 
-pub const RADON_INTEGER_TYPE_NAME: &str = "RadonInteger";
+const RADON_INTEGER_TYPE_NAME: &str = "RadonInteger";
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct RadonInteger {
@@ -27,8 +27,9 @@ impl RadonType<i128> for RadonInteger {
         self.value
     }
 
-    fn radon_type_name() -> String {
-        RADON_INTEGER_TYPE_NAME.to_string()
+    #[inline]
+    fn radon_type_name() -> &'static str {
+        RADON_INTEGER_TYPE_NAME
     }
 }
 
@@ -37,8 +38,8 @@ impl TryFrom<Value> for RadonInteger {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let error = || RadError::Decode {
-            from: "cbor::value::Value".to_string(),
-            to: RADON_INTEGER_TYPE_NAME.to_string(),
+            from: "cbor::value::Value",
+            to: RadonInteger::radon_type_name(),
         };
 
         match value {

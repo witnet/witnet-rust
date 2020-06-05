@@ -12,7 +12,7 @@ use crate::{
 };
 use witnet_data_structures::radon_report::ReportContext;
 
-pub const RADON_BOOLEAN_TYPE_NAME: &str = "RadonBoolean";
+const RADON_BOOLEAN_TYPE_NAME: &str = "RadonBoolean";
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
 pub struct RadonBoolean {
@@ -30,8 +30,9 @@ impl RadonType<bool> for RadonBoolean {
         self.value
     }
 
-    fn radon_type_name() -> String {
-        RADON_BOOLEAN_TYPE_NAME.to_string()
+    #[inline]
+    fn radon_type_name() -> &'static str {
+        RADON_BOOLEAN_TYPE_NAME
     }
 }
 
@@ -41,8 +42,8 @@ impl TryFrom<Value> for RadonBoolean {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         from_value::<bool>(value)
             .map_err(|_| RadError::Decode {
-                from: "cbor::value::Value".to_string(),
-                to: RADON_BOOLEAN_TYPE_NAME.to_string(),
+                from: "cbor::value::Value",
+                to: RadonBoolean::radon_type_name(),
             })
             .map(Self::from)
     }

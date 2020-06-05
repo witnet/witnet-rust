@@ -22,7 +22,7 @@ pub fn count(input: &RadonArray) -> RadonInteger {
 
 pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
-        input_type: "RadonArray".to_string(),
+        input_type: RadonArray::radon_type_name(),
         operator: "Reduce".to_string(),
         args: args.to_vec(),
     };
@@ -40,7 +40,7 @@ pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
 
 pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
-        input_type: "RadonArray".to_string(),
+        input_type: RadonArray::radon_type_name(),
         operator: "Get".to_string(),
         args: args.to_vec(),
     };
@@ -95,7 +95,7 @@ pub fn get_string(input: &RadonArray, args: &[Value]) -> Result<RadonString, Rad
 
 pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
-        input_type: "RadonArray".to_string(),
+        input_type: RadonArray::radon_type_name(),
         operator: "Map".to_string(),
         args: args.to_vec(),
     };
@@ -130,7 +130,7 @@ pub fn filter(
     context: &mut ReportContext,
 ) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
-        input_type: "RadonArray".to_string(),
+        input_type: RadonArray::radon_type_name(),
         operator: "Filter".to_string(),
         args: args.to_vec(),
     };
@@ -179,7 +179,7 @@ pub fn filter(
 
 pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> {
     let wrong_args = || RadError::WrongArguments {
-        input_type: "RadonArray".to_string(),
+        input_type: RadonArray::radon_type_name(),
         operator: "Sort".to_string(),
         args: args.to_vec(),
     };
@@ -271,11 +271,10 @@ pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
                 }
             }
             _ => {
-                let radon_array_type_name = RadonArray::radon_type_name();
                 return Err(RadError::MismatchingTypes {
                     method: "RadonArray::transpose".to_string(),
-                    expected: format!("{}<{}>", radon_array_type_name, radon_array_type_name),
-                    found: format!("{}<{}>", radon_array_type_name, item.radon_type_name()),
+                    expected: RadonArray::radon_type_name(),
+                    found: item.radon_type_name(),
                 });
             }
         }
@@ -615,7 +614,7 @@ mod tests {
         let result = map(&input, &script);
 
         let expected_err = RadError::WrongArguments {
-            input_type: "RadonArray".to_string(),
+            input_type: "RadonArray",
             operator: "Map".to_string(),
             args: vec![],
         };
@@ -637,7 +636,7 @@ mod tests {
         let result = map(&input, &args);
 
         let expected_err = RadError::WrongArguments {
-            input_type: "RadonArray".to_string(),
+            input_type: "RadonArray",
             operator: "Map".to_string(),
             args,
         };
@@ -1180,7 +1179,7 @@ mod tests {
         let (input, index, _item) = radon_array_of_floats();
         let output = get_array(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonArray::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1198,7 +1197,7 @@ mod tests {
         let (input, index, _item) = radon_array_of_floats();
         let output = get_boolean(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonBoolean::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1216,7 +1215,7 @@ mod tests {
         let (input, index, _item) = radon_array_of_floats();
         let output = get_bytes(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonBytes::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1234,7 +1233,7 @@ mod tests {
         let (input, index, _item) = radon_array_of_floats();
         let output = get_integer(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonInteger::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1252,7 +1251,7 @@ mod tests {
         let (input, index, _item) = radon_array_of_arrays();
         let output = get_float(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonFloat::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1270,7 +1269,7 @@ mod tests {
         let (input, index, _item) = radon_array_of_floats();
         let output = get_map(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonMap::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1288,7 +1287,7 @@ mod tests {
         let (input, index, _item) = radon_array_of_floats();
         let output = get_string(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "serde_cbor::value::Value".to_string(),
+            from: "serde_cbor::value::Value",
             to: RadonString::radon_type_name(),
         };
         assert_eq!(output, expected_err);

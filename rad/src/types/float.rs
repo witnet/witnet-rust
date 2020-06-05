@@ -15,7 +15,7 @@ use crate::{
 };
 use witnet_data_structures::radon_report::ReportContext;
 
-pub const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";
+const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct RadonFloat {
@@ -27,8 +27,9 @@ impl RadonType<f64> for RadonFloat {
         self.value
     }
 
-    fn radon_type_name() -> String {
-        RADON_FLOAT_TYPE_NAME.to_string()
+    #[inline]
+    fn radon_type_name() -> &'static str {
+        RADON_FLOAT_TYPE_NAME
     }
 }
 
@@ -39,8 +40,8 @@ impl TryFrom<Value> for RadonFloat {
     #[allow(clippy::cast_precision_loss)]
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let error = || RadError::Decode {
-            from: "cbor::value::Value".to_string(),
-            to: RADON_FLOAT_TYPE_NAME.to_string(),
+            from: "cbor::value::Value",
+            to: RadonFloat::radon_type_name(),
         };
 
         match value {

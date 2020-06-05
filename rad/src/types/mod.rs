@@ -38,7 +38,7 @@ where
     T: fmt::Debug,
 {
     fn value(&self) -> T;
-    fn radon_type_name() -> String;
+    fn radon_type_name() -> &'static str;
 }
 
 #[derive(Clone, Debug)]
@@ -62,7 +62,7 @@ impl RadonTypes {
     }
 
     /// Returns the name of the internal type of a `RadonTypes` item.
-    pub fn radon_type_name(&self) -> String {
+    pub fn radon_type_name(&self) -> &'static str {
         match self {
             RadonTypes::Array(_) => RadonArray::radon_type_name(),
             RadonTypes::Boolean(_) => RadonBoolean::radon_type_name(),
@@ -73,7 +73,7 @@ impl RadonTypes {
             // `RadonError` does not implement `RadonType` nor `Operable` (it is not a type per se),
             // but exists inside `RadonTypes` for the sake of dealing with error encoding / decoding
             // in a more convenient way.
-            RadonTypes::RadonError(_) => String::from("RadonError"),
+            RadonTypes::RadonError(_) => "RadonError",
             RadonTypes::String(_) => RadonString::radon_type_name(),
         }
     }
@@ -282,12 +282,12 @@ impl TryFrom<Value> for RadonTypes {
             Value::Integer(_) => RadonInteger::try_from(value).map(Into::into),
             Value::Bytes(_) => RadonBytes::try_from(value).map(Into::into),
             Value::Null => Err(RadError::Decode {
-                from: String::from("serde_cbor::Value::Null"),
-                to: String::from("RadonTypes"),
+                from: "serde_cbor::Value::Null",
+                to: "RadonTypes",
             }),
             _ => Err(RadError::Decode {
-                from: String::from("serde_cbor::Value"),
-                to: String::from("RadonTypes"),
+                from: "serde_cbor::Value",
+                to: "RadonTypes",
             }),
         }
     }
@@ -345,14 +345,14 @@ impl TryFrom<RadonTypes> for Vec<u8> {
                     .encode_tagged_bytes()
                     .map_err(|_| RadError::Encode {
                         from: type_name,
-                        to: "Vec<u8>".to_string(),
+                        to: "Vec<u8>",
                     })
             }
             _ => {
                 let value: Value = radon_types.try_into()?;
                 to_vec(&value).map_err(|_| RadError::Encode {
                     from: type_name,
-                    to: "Vec<u8>".to_string(),
+                    to: "Vec<u8>",
                 })
             }
         }

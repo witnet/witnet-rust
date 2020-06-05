@@ -12,7 +12,7 @@ use std::{
 };
 use witnet_data_structures::radon_report::ReportContext;
 
-pub const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
+const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct RadonBytes {
@@ -30,8 +30,9 @@ impl RadonType<Vec<u8>> for RadonBytes {
         self.value.clone()
     }
 
-    fn radon_type_name() -> String {
-        RADON_BYTES_TYPE_NAME.to_string()
+    #[inline]
+    fn radon_type_name() -> &'static str {
+        RADON_BYTES_TYPE_NAME
     }
 }
 
@@ -40,8 +41,8 @@ impl TryFrom<Value> for RadonBytes {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let error = || RadError::Decode {
-            from: "cbor::value::Value".to_string(),
-            to: RADON_BYTES_TYPE_NAME.to_string(),
+            from: "cbor::value::Value",
+            to: RadonBytes::radon_type_name(),
         };
 
         match value {

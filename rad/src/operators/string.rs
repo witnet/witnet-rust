@@ -67,7 +67,7 @@ pub fn to_uppercase(input: &RadonString) -> RadonString {
 
 pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
     let wrong_args = || RadError::WrongArguments {
-        input_type: "RadonString".to_string(),
+        input_type: RadonString::radon_type_name(),
         operator: "Hash".to_string(),
         args: args.to_vec(),
     };
@@ -88,7 +88,7 @@ pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError
 
 pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
-        input_type: "RadonString".to_string(),
+        input_type: RadonString::radon_type_name(),
         operator: "String match".to_string(),
         args: args.to_vec(),
     };
@@ -165,7 +165,7 @@ mod tests {
         let json_array = RadonString::from(r#"[1,2,3]"#);
         let output = parse_json_map(&json_array).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonMap::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -198,7 +198,7 @@ mod tests {
         let json_map = RadonString::from(r#"{ "Hello": "world" }"#);
         let output = parse_json_array(&json_map).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value".to_string(),
+            from: "cbor::value::Value",
             to: RadonArray::radon_type_name(),
         };
         assert_eq!(output, expected_err);

@@ -15,7 +15,7 @@ use crate::{
     types::{RadonType, RadonTypes},
 };
 
-pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
+const RADON_STRING_TYPE_NAME: &str = "RadonString";
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct RadonString {
@@ -27,8 +27,9 @@ impl RadonType<String> for RadonString {
         self.value.clone()
     }
 
-    fn radon_type_name() -> String {
-        RADON_STRING_TYPE_NAME.to_string()
+    #[inline]
+    fn radon_type_name() -> &'static str {
+        RADON_STRING_TYPE_NAME
     }
 }
 
@@ -39,8 +40,8 @@ impl TryFrom<Value> for RadonString {
         from_value::<String>(value)
             .map(Self::from)
             .map_err(|_| RadError::Decode {
-                from: "serde_cbor::value::Value".to_string(),
-                to: RADON_STRING_TYPE_NAME.to_string(),
+                from: "serde_cbor::value::Value",
+                to: RadonString::radon_type_name(),
             })
     }
 }
