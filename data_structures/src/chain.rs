@@ -555,6 +555,8 @@ pub struct BlockMerkleRoots {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::SuperBlock")]
 pub struct SuperBlock {
+    /// Number of ars members,
+    pub ars_length: u64,
     /// Merkle root of the Active Reputation Set members included into the previous SuperBlock
     pub ars_root: Hash,
     /// Merkle root of the data requests in the blocks created since the last SuperBlock
@@ -1177,16 +1179,16 @@ impl Bn256PublicKey {
         })
     }
 
-    pub fn to_uncompressed(self) -> Result<Vec<u8>, failure::Error> {
+    pub fn to_uncompressed(&self) -> Result<Vec<u8>, failure::Error> {
         // Verify that this slice is a valid public key
         let uncompressed =
-            bn256::PublicKey::from_compressed(&self.public_key.clone())?.to_uncompressed()?;
+            bn256::PublicKey::from_compressed(&self.public_key)?.to_uncompressed()?;
         Ok(uncompressed)
     }
 
-    pub fn is_valid(self) -> bool {
+    pub fn is_valid(&self) -> bool {
         // Verify that the provided key is a valid public key
-        match bn256::PublicKey::from_compressed(&self.public_key.clone()){
+        match bn256::PublicKey::from_compressed(&self.public_key) {
             Ok(_) => true,
             _ => false,
         }
@@ -1194,6 +1196,12 @@ impl Bn256PublicKey {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         self.public_key.clone()
+    }
+}
+
+impl Hashable for Bn256PublicKey {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.to_uncompressed().unwrap()).into()
     }
 }
 
@@ -2675,10 +2683,9 @@ impl AltKeys {
         // Add miner bn256 public keys
         if let Some(value) = block.block_header.bn256_public_key.clone() {
             // If the provided key is valid, insert it in altkeys
-            if value.clone().is_valid(){
+            if value.is_valid() {
                 self.insert_bn256(block.block_header.proof.proof.pkh(), value);
-            }
-            else{
+            } else {
                 log::warn!(
                     "Ignoring invalid bn256 public key {:02x?} inserted by PKH {:02x?} in the block",
                     value, block.block_header.proof.proof.pkh()
@@ -2689,10 +2696,9 @@ impl AltKeys {
         for commit in &block.txns.commit_txns {
             if let Some(value) = commit.body.bn256_public_key.clone() {
                 // If the provided key is valid, insert it in altkeys
-                if value.clone().is_valid() {
+                if value.is_valid() {
                     self.insert_bn256(commit.body.proof.proof.pkh(), value);
-                }
-                else{
+                } else {
                     log::warn!(
                         "Ignoring invalid bn256 public key {:02x?} inserted by PKH {:02x?} in the commit",
                         value, block.block_header.proof.proof.pkh()
@@ -2706,7 +2712,7 @@ impl AltKeys {
         &self,
         reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
     ) -> Vec<Bn256PublicKey> {
-        let mut pkhs: Vec<PublicKeyHash> = self.bn256.iter().map(|(pkh, _)| pkh.clone()).collect();
+        let mut pkhs: Vec<PublicKeyHash> = self.bn256.iter().map(|(pkh, _)| *pkh).collect();
         pkhs.sort();
 
         let ordered_alts: Vec<_> = pkhs
@@ -3237,6 +3243,7 @@ mod tests {
     #[test]
     fn test_superblock_hashable_trait() {
         let superblock = SuperBlock {
+            ars_length: 1,
             ars_root: Hash::SHA256([1; 32]),
             data_request_root: Hash::SHA256([2; 32]),
             index: 1,
@@ -3244,7 +3251,7 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256([4; 32]),
             tally_root: Hash::SHA256([5; 32]),
         };
-        let expected = "4ee0395751a5b8d94217ba71623414721ab8dc8c1634a5c79769d5196a1b3993";
+        let expected = "204df26a617974b21c0ac5ce40e38ceef4dd895c1efe1a33b464eb842a62f785";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
@@ -4193,9 +4200,9 @@ mod tests {
         let mut trs = TotalReputationSet::new();
         let mut alt_keys = AltKeys::default();
 
-        let p1 = PublicKey::from_bytes([1; 33]);
-        let p2 = PublicKey::from_bytes([2; 33]);
-        let p3 = PublicKey::from_bytes([3; 33]);
+        let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
 
         let p1_bls = Bn256PublicKey {
             public_key: vec![1; 65],
@@ -4207,18 +4214,18 @@ mod tests {
             public_key: vec![3; 65],
         };
 
-        alt_keys.insert_bn256(p1.pkh(), p1_bls.clone());
-        alt_keys.insert_bn256(p2.pkh(), p2_bls.clone());
-        alt_keys.insert_bn256(p3.pkh(), p3_bls.clone());
+        alt_keys.insert_bn256(p1, p1_bls.clone());
+        alt_keys.insert_bn256(p2, p2_bls.clone());
+        alt_keys.insert_bn256(p3, p3_bls.clone());
 
         let v4 = vec![
-            (p1.pkh(), Reputation(3)),
-            (p2.pkh(), Reputation(2)),
-            (p3.pkh(), Reputation(1)),
+            (p1, Reputation(3)),
+            (p2, Reputation(2)),
+            (p3, Reputation(1)),
         ];
 
         trs.gain(Alpha(4), v4).unwrap();
-        let expected_order = vec![p3_bls.clone(), p2_bls.clone(), p1_bls.clone()];
+        let expected_order = vec![p3_bls, p2_bls, p1_bls];
         let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
 
         assert_eq!(expected_order, ordered_keys);
@@ -4229,9 +4236,9 @@ mod tests {
         let mut trs = TotalReputationSet::new();
         let mut alt_keys = AltKeys::default();
 
-        let p1 = PublicKey::from_bytes([1; 33]);
-        let p2 = PublicKey::from_bytes([3; 33]);
-        let p3 = PublicKey::from_bytes([2; 33]);
+        let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
 
         let p1_bls = Bn256PublicKey {
             public_key: vec![1; 65],
@@ -4243,18 +4250,68 @@ mod tests {
             public_key: vec![3; 65],
         };
 
-        alt_keys.insert_bn256(p1.pkh(), p1_bls.clone());
-        alt_keys.insert_bn256(p2.pkh(), p2_bls.clone());
-        alt_keys.insert_bn256(p3.pkh(), p3_bls.clone());
+        alt_keys.insert_bn256(p1, p1_bls.clone());
+        alt_keys.insert_bn256(p2, p2_bls.clone());
+        alt_keys.insert_bn256(p3, p3_bls.clone());
 
         let v4 = vec![
-            (p1.pkh(), Reputation(3)),
-            (p2.pkh(), Reputation(1)),
-            (p3.pkh(), Reputation(1)),
+            (p1, Reputation(3)),
+            (p2, Reputation(1)),
+            (p3, Reputation(1)),
         ];
 
         trs.gain(Alpha(4), v4).unwrap();
-        let expected_order = vec![p3_bls.clone(), p2_bls.clone(), p1_bls.clone()];
+        let expected_order = vec![p3_bls, p2_bls, p1_bls];
+        let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
+
+        assert_eq!(expected_order, ordered_keys);
+    }
+
+    #[test]
+    fn test_ordered_alts_with_tie_2() {
+        let mut trs = TotalReputationSet::new();
+        let mut alt_keys = AltKeys::default();
+
+        let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
+        let p4 = PublicKeyHash::from_bytes(&[0x05 as u8; 20]).unwrap();
+        let p5 = PublicKeyHash::from_bytes(&[0x04 as u8; 20]).unwrap();
+
+        let p1_bls = Bn256PublicKey {
+            public_key: vec![1; 65],
+        };
+        let p2_bls = Bn256PublicKey {
+            public_key: vec![2; 65],
+        };
+        let p3_bls = Bn256PublicKey {
+            public_key: vec![3; 65],
+        };
+
+        let p4_bls = Bn256PublicKey {
+            public_key: vec![4; 65],
+        };
+
+        let p5_bls = Bn256PublicKey {
+            public_key: vec![5; 65],
+        };
+
+        alt_keys.insert_bn256(p1, p1_bls.clone());
+        alt_keys.insert_bn256(p2, p2_bls.clone());
+        alt_keys.insert_bn256(p3, p3_bls.clone());
+        alt_keys.insert_bn256(p4, p4_bls.clone());
+        alt_keys.insert_bn256(p5, p5_bls.clone());
+
+        let v4 = vec![
+            (p1, Reputation(3)),
+            (p2, Reputation(1)),
+            (p3, Reputation(1)),
+            (p4, Reputation(1)),
+            (p5, Reputation(1)),
+        ];
+
+        trs.gain(Alpha(4), v4).unwrap();
+        let expected_order = vec![p3_bls, p2_bls, p5_bls, p4_bls, p1_bls];
         let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
 
         assert_eq!(expected_order, ordered_keys);

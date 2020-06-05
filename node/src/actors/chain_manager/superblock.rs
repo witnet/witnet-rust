@@ -1,6 +1,4 @@
-
 use std::collections::HashSet;
-use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
     BlockHeader, Bn256PublicKey, Hash, Hashable, PublicKeyHash, SuperBlock, SuperBlockVote,
 };
@@ -35,6 +33,8 @@ pub struct SuperBlockState {
     // Set of votes that agree with current_superblock_hash
     // This is cleared when we try to create a new superblock
     votes_on_local_superlock: HashSet<SuperBlockVote>,
+    // The last ARS ordered keys
+    previous_ars_ordered_keys: Vec<Bn256PublicKey>,
 }
 
 impl SuperBlockState {
@@ -86,7 +86,8 @@ impl SuperBlockState {
             Some(x) if x == sbv.superblock_index => self
                 .previous_ars_identities
                 .as_ref()
-                .map(|x| x.contains(&sbv.secp256k1_signature.public_key.pkh())), // If the index is not the same as the current one, but it is within an acceptable range
+                .map(|x| x.contains(&sbv.secp256k1_signature.public_key.pkh())),
+            // If the index is not the same as the current one, but it is within an acceptable range
             // of [x-1, x+1], broadcast the vote without checking if it is a member of the ARS, as
             // the ARS may have changed and we do not keep older copies of the ARS in memory
             Some(x) => {
@@ -146,6 +147,7 @@ impl SuperBlockState {
                     let hs = self.current_ars_identities.get_or_insert(HashSet::new());
                     hs.clear();
                     hs.extend(sorted_ars_identities.iter().cloned());
+                    self.previous_ars_ordered_keys = ars_ordered_keys.to_vec();
                 }
 
                 let mut old_superblock_votes =
@@ -191,6 +193,7 @@ pub fn mining_build_superblock(
         .collect();
 
     Some(SuperBlock {
+        ars_length: ars_ordered_hash_leaves.len() as u64,
         data_request_root: hash_merkle_tree_root(&merkle_drs),
         tally_root: hash_merkle_tree_root(&merkle_tallies),
         ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
@@ -200,17 +203,15 @@ pub fn mining_build_superblock(
     })
 }
 
-/// Produces a set of keys and calculate their hashes (their leaves in this case).
+/// Takes a set of keys and calculates their hashes roots to be used as leaves.
 pub fn hash_key_leaves(ars_ordered_keys: &[Bn256PublicKey]) -> Vec<Hash> {
-    return ars_ordered_keys
-        .into_iter()
-        .map(|bn256| Hash::SHA256(calculate_sha256(&bn256.clone().to_uncompressed().unwrap()).0))
-        .collect();
+    ars_ordered_keys.iter().map(|bn256| bn256.hash()).collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use witnet_crypto::hash::calculate_sha256;
     use witnet_data_structures::{
         chain::{BlockMerkleRoots, Bn256SecretKey, CheckpointBeacon, PublicKey},
         vrf::BlockEligibilityClaim,
@@ -255,6 +256,7 @@ mod tests {
         };
 
         let expected_superblock = SuperBlock {
+            ars_length: 1,
             data_request_root: dr_merkle_root_1,
             tally_root: tally_merkle_root_1,
             ars_root: Hash::default(),
@@ -319,6 +321,7 @@ mod tests {
         };
 
         let expected_superblock = SuperBlock {
+            ars_length: 1,
             data_request_root: expected_superblock_dr_root,
             tally_root: expected_superblock_tally_root,
             ars_root: Hash::default(),
@@ -427,13 +430,7 @@ mod tests {
 
         let mut expected_sbs = sbs.clone();
         assert_eq!(
-            sbs.build_superblock(
-                &[],
-                &sorted_ars_identities,
-                &[bls_pk.clone()],
-                1,
-                genesis_hash
-            ),
+            sbs.build_superblock(&[], &sorted_ars_identities, &[bls_pk], 1, genesis_hash),
             None
         );
 
@@ -478,7 +475,7 @@ mod tests {
             .build_superblock(
                 &block_headers,
                 &sorted_ars_identities,
-                &[bls_pk.clone()],
+                &[bls_pk],
                 1,
                 genesis_hash,
             )
@@ -699,11 +696,7 @@ mod tests {
 
         let hashes = hash_key_leaves(&ordered_ars);
 
-        let expected_hashes = [
-            Hash::SHA256(calculate_sha256(&(bls_pk1.clone().to_uncompressed().unwrap())).0),
-            Hash::SHA256(calculate_sha256(&(bls_pk2.clone().to_uncompressed().unwrap())).0),
-            Hash::SHA256(calculate_sha256(&(bls_pk3.clone().to_uncompressed().unwrap())).0),
-        ];
+        let expected_hashes = [bls_pk1.hash(), bls_pk2.hash(), bls_pk3.hash()];
 
         let compressed_hashes = [
             Hash::SHA256(calculate_sha256(&bls_pk1.public_key).0),

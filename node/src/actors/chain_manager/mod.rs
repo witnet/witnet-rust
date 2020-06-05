@@ -496,7 +496,7 @@ impl ChainManager {
                     .cloned()
                     .sorted()
                     .collect();
-                let alt_keys = self.chain_state.alt_keys.clone();
+                let alt_keys = &self.chain_state.alt_keys;
 
                 let ordered_alts: Vec<Bn256PublicKey> = alt_keys.get_rep_ordered_bn256_list(trs);
                 // last ars with previous block ars info
