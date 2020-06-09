@@ -87,7 +87,7 @@ pub async fn try_data_request(
 /// Run retrieval without performing any external network requests, return `RadonReport`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
-    response: String,
+    response: &str,
     context: &mut ReportContext,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
@@ -104,7 +104,7 @@ pub fn run_retrieval_with_data_report(
 /// Run retrieval without performing any external network requests, return `RadonTypes`.
 pub fn run_retrieval_with_data(
     retrieve: &RADRetrieve,
-    response: String,
+    response: &str,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonTypes> {
     let context = &mut ReportContext::default();
@@ -151,7 +151,7 @@ pub async fn run_retrieval_report(
                 })?;
 
             let result =
-                run_retrieval_with_data_report(retrieve, response_string, context, settings);
+                run_retrieval_with_data_report(retrieve, &response_string, context, settings);
 
             match &result {
                 Ok(report) => {
@@ -299,7 +299,7 @@ mod tests {
 
         let result = run_retrieval_with_data(
             &retrieve,
-            response.to_string(),
+            response,
             RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
@@ -364,7 +364,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response.to_string(),
+            response,
             RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
@@ -397,7 +397,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response.to_string(),
+            response,
             RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
@@ -446,7 +446,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response.to_string(),
+            response,
             RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
@@ -486,7 +486,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response.to_string(),
+            response,
             RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
@@ -526,7 +526,7 @@ mod tests {
         let response = r#"{"event":{"homeTeam":{"name":"Ryazan-VDV","slug":"ryazan-vdv","gender":"F","national":false,"id":171120,"shortName":"Ryazan-VDV","subTeams":[]},"awayTeam":{"name":"Olympique Lyonnais","slug":"olympique-lyonnais","gender":"F","national":false,"id":26245,"shortName":"Lyon","subTeams":[]},"homeScore":{"current":0,"display":0,"period1":0,"normaltime":0},"awayScore":{"current":9,"display":9,"period1":5,"normaltime":9}}}"#;
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response.to_string(),
+            response,
             RadonScriptExecutionSettings::disable_all(),
         )
         .unwrap();
