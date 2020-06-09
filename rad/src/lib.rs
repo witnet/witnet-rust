@@ -42,17 +42,22 @@ pub struct RADRequestExecutionReport {
 pub async fn try_data_request(
     request: &RADRequest,
     settings: RadonScriptExecutionSettings,
-    input_injection: Option<&str>,
+    inputs_injection: Option<&[&str]>,
 ) -> RADRequestExecutionReport {
     let context = &mut ReportContext::default();
 
     let mut retrieve_responses = Vec::new();
-    for retrieve in &request.retrieve {
-        retrieve_responses.push(if let Some(input) = &input_injection {
-            run_retrieval_with_data_report(retrieve, input, context, settings)
-        } else {
-            run_retrieval_report(retrieve, settings).await
-        })
+
+    if let Some(inputs) = inputs_injection {
+        for (retrieve, input) in request.retrieve.iter().zip(inputs.iter()) {
+            retrieve_responses.push(run_retrieval_with_data_report(
+                retrieve, input, context, settings,
+            ))
+        }
+    } else {
+        for retrieve in &request.retrieve {
+            retrieve_responses.push(run_retrieval_report(retrieve, settings).await)
+        }
     }
 
     let retrieval_reports: Vec<RadonReport<RadonTypes>> = retrieve_responses

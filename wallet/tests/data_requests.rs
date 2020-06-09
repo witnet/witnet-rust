@@ -69,7 +69,6 @@ fn test_radon_error_json_serialization() {
 /// This is a rather end-2-end test that applies a script on some JSON input and checks whether the
 /// final `RadonReport` complies with the Witnet Wallet API.
 #[actix_rt::test]
-#[cfg(feature = "side_effected")]
 async fn test_data_request_report_json_serialization() {
     let request = RADRequest {
         time_lock: 0,
@@ -98,7 +97,16 @@ async fn test_data_request_report_json_serialization() {
         },
     };
 
-    let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all()).await;
+    let inputs = [
+        r#"{"high": "9897.46000000", "last": "9723.56", "timestamp": "1591720963", "bid": "9717.67", "vwap": "9711.68", "volume": "6279.09256801", "low": "9566.81000000", "ask": "9723.56", "open": 9786.64}"#,
+        r#"{"time":{"updated":"Jun 9, 2020 16:42:00 UTC","updatedISO":"2020-06-09T16:42:00+00:00","updateduk":"Jun 9, 2020 at 17:42 BST"},"disclaimer":"This data was produced from the CoinDesk Bitcoin Price Index (USD). Non-USD currency data converted using hourly conversion rate from openexchangerates.org","chartName":"Bitcoin","bpi":{"USD":{"code":"USD","symbol":"&#36;","rate":"9,724.8354","description":"United States Dollar","rate_float":9724.8354},"GBP":{"code":"GBP","symbol":"&pound;","rate":"7,692.6949","description":"British Pound Sterling","rate_float":7692.6949},"EUR":{"code":"EUR","symbol":"&euro;","rate":"8,635.1092","description":"Euro","rate_float":8635.1092}}}"#,
+    ];
+    let report = try_data_request(
+        &request,
+        RadonScriptExecutionSettings::enable_all(),
+        Some(&inputs),
+    )
+    .await;
     let aggregate_report = report.aggregate.clone();
     let tally_report = report.tally.clone();
 
