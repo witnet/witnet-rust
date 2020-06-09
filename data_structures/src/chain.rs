@@ -552,8 +552,7 @@ pub struct BlockMerkleRoots {
 /// as of the last block in that period.
 /// This is needed to ensure that the security and trustlessness properties of Witnet will
 /// be relayed to bridges with other block chains.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::SuperBlock")]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Default)]
 pub struct SuperBlock {
     /// Number of ars members,
     pub ars_length: u64,
@@ -572,8 +571,27 @@ pub struct SuperBlock {
 }
 
 impl Hashable for SuperBlock {
+    /// Hash the superblock bytes
     fn hash(&self) -> Hash {
-        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+        calculate_sha256(&self.serialize_as_bytes()).into()
+    }
+}
+
+impl SuperBlock {
+    /// Serialize the SuperBlock structure
+    /// We do not use protocolBuffers as we would need a protocol buffer decoder in Ethereum
+    /// Note that both the node and Ethereum smart contracts need to hash identical superblocks
+    fn serialize_as_bytes(&self) -> Vec<u8> {
+        [
+            &self.ars_length.to_be_bytes()[..],
+            self.ars_root.as_ref(),
+            self.data_request_root.as_ref(),
+            &self.index.to_be_bytes()[..],
+            self.last_block.as_ref(),
+            self.last_block_in_previous_superblock.as_ref(),
+            self.tally_root.as_ref(),
+        ]
+        .concat()
     }
 }
 
@@ -1188,10 +1206,7 @@ impl Bn256PublicKey {
 
     pub fn is_valid(&self) -> bool {
         // Verify that the provided key is a valid public key
-        match bn256::PublicKey::from_compressed(&self.public_key) {
-            Ok(_) => true,
-            _ => false,
-        }
+        bn256::PublicKey::from_compressed(&self.public_key).is_ok()
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -2653,7 +2668,7 @@ pub struct ChainState {
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to
 /// different public keys in other curves
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AltKeys {
     /// BN256 curve
     bn256: HashMap<PublicKeyHash, Bn256PublicKey>,
@@ -2664,11 +2679,20 @@ impl AltKeys {
     pub fn get_bn256(&self, k: &PublicKeyHash) -> Option<&Bn256PublicKey> {
         self.bn256.get(k)
     }
-    /// Insert a new BN256 public key for a given identity. If the identity already had an
-    /// associated BN256 public key, it will be overwritten.
+    /// Insert a new BN256 public key, if valid,  for a given identity. If the identity
+    /// already had an associated BN256 public key, it will be overwritten.
     /// Returns the old BN256 public key for this identity, if any
     pub fn insert_bn256(&mut self, k: PublicKeyHash, v: Bn256PublicKey) -> Option<Bn256PublicKey> {
-        self.bn256.insert(k, v)
+        if v.is_valid() {
+            self.bn256.insert(k, v)
+        } else {
+            log::warn!(
+                "Ignoring invalid bn256 public key {:02x?} specified by PKH {:02x?}",
+                v,
+                k
+            );
+            None
+        }
     }
     /// Retain only the identities that return true when applied the input function.
     /// Used to remove multiple identities at once
@@ -2681,48 +2705,29 @@ impl AltKeys {
     /// Insert all bn256 public keys that appeared in the block (from miner and/or committers)
     pub fn insert_keys_from_block(&mut self, block: &Block) {
         // Add miner bn256 public keys
-        if let Some(value) = block.block_header.bn256_public_key.clone() {
-            // If the provided key is valid, insert it in altkeys
-            if value.is_valid() {
-                self.insert_bn256(block.block_header.proof.proof.pkh(), value);
-            } else {
-                log::warn!(
-                    "Ignoring invalid bn256 public key {:02x?} inserted by PKH {:02x?} in the block",
-                    value, block.block_header.proof.proof.pkh()
-                 );
-            }
+        if let Some(value) = block.block_header.bn256_public_key.as_ref() {
+            self.insert_bn256(block.block_header.proof.proof.pkh(), value.clone());
         }
         // Add bn256 public keys from commitment transactions
         for commit in &block.txns.commit_txns {
-            if let Some(value) = commit.body.bn256_public_key.clone() {
-                // If the provided key is valid, insert it in altkeys
-                if value.is_valid() {
-                    self.insert_bn256(commit.body.proof.proof.pkh(), value);
-                } else {
-                    log::warn!(
-                        "Ignoring invalid bn256 public key {:02x?} inserted by PKH {:02x?} in the commit",
-                        value, block.block_header.proof.proof.pkh()
-                    );
-                }
+            if let Some(value) = commit.body.bn256_public_key.as_ref() {
+                self.insert_bn256(commit.body.proof.proof.pkh(), value.clone());
             }
         }
     }
 
+    /// Get bn256 keys ordered by reputation. If tie, order by pkh.
+    /// These keys will be used to form the superblock
     pub fn get_rep_ordered_bn256_list(
         &self,
         reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
     ) -> Vec<Bn256PublicKey> {
-        let mut pkhs: Vec<PublicKeyHash> = self.bn256.iter().map(|(pkh, _)| *pkh).collect();
-        pkhs.sort();
-
-        let ordered_alts: Vec<_> = pkhs
-            .into_iter()
-            .enumerate()
-            .sorted_by_key(|(_, pkh)| reputation_set.get(pkh))
-            .filter_map(|(_, pkh)| self.get_bn256(&pkh).cloned())
-            .collect();
-
-        ordered_alts
+        self.bn256
+            .iter()
+            .map(|(pkh, _)| *pkh)
+            .sorted_by_key(|&pkh| (reputation_set.get(&pkh), pkh))
+            .filter_map(|pkh| self.get_bn256(&pkh).cloned())
+            .collect()
     }
 }
 
@@ -3243,7 +3248,7 @@ mod tests {
     #[test]
     fn test_superblock_hashable_trait() {
         let superblock = SuperBlock {
-            ars_length: 1,
+            ars_length: 3,
             ars_root: Hash::SHA256([1; 32]),
             data_request_root: Hash::SHA256([2; 32]),
             index: 1,
@@ -3251,7 +3256,175 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256([4; 32]),
             tally_root: Hash::SHA256([5; 32]),
         };
-        let expected = "204df26a617974b21c0ac5ce40e38ceef4dd895c1efe1a33b464eb842a62f785";
+        let expected = "abbe7475bbf814e266d295473928ab30f9c2c97da092a5d3162704fc19403925";
+        assert_eq!(superblock.hash().to_string(), expected);
+    }
+
+    #[test]
+    fn test_superblock_hashable_trait_2() {
+        let superblock = SuperBlock {
+            ars_length: 0x0fff_ffff_ffff,
+            ars_root: Hash::SHA256([1; 32]),
+            data_request_root: Hash::SHA256([2; 32]),
+            index: 0x0020_2020,
+            last_block: Hash::SHA256([3; 32]),
+            last_block_in_previous_superblock: Hash::SHA256([4; 32]),
+            tally_root: Hash::SHA256([5; 32]),
+        };
+        let expected = "15ac1620ee1a0743e99d9a415c7c77de6935f778189597c699c2126b1d52229b";
+        assert_eq!(superblock.hash().to_string(), expected);
+    }
+
+    #[test]
+    fn test_superblock_hashable_trait_3() {
+        let superblock = SuperBlock {
+            ars_length: 0x000a_456b_32c7,
+            ars_root: Hash::SHA256([1; 32]),
+            data_request_root: Hash::SHA256([2; 32]),
+            index: 0x20a6_b256,
+            last_block: Hash::SHA256([3; 32]),
+            last_block_in_previous_superblock: Hash::SHA256([4; 32]),
+            tally_root: Hash::SHA256([5; 32]),
+        };
+        let expected = "7a2426b925203c9e8b514fadf3b689ce3f01a98698e992b70aec4dd286590b62";
+        assert_eq!(superblock.hash().to_string(), expected);
+    }
+
+    #[test]
+    fn test_superblock_hashable_trait_4() {
+        let dr_root =
+            hex::decode("000000000000000000000000000000000000000000000000000876564fd345ea")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let tally_root =
+            hex::decode("0000000000000000000000000000000000000000000000000000543feab6575c")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let last_block_hash =
+            hex::decode("0000000000000000000000000000000000000000000000000000023986aecd34")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let prev_last_block_hash =
+            hex::decode("0000000000000000000000000000000000000000000000000000098fe34ad3c5")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let ars_root =
+            hex::decode("00000000000000000000000000000000000000000000000000000034742d5a7c")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+
+        let superblock = SuperBlock {
+            ars_length: 0x000a_456b_32c7,
+            ars_root: Hash::SHA256(ars_root),
+            data_request_root: Hash::SHA256(dr_root),
+            index: 0x0020_a6b2,
+            last_block: Hash::SHA256(last_block_hash),
+            last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
+            tally_root: Hash::SHA256(tally_root),
+        };
+        let expected = "0a76ac7744694ebec75b56674056b8b8e08903d02f0b467e0f5ea5770718188b";
+        assert_eq!(superblock.hash().to_string(), expected);
+    }
+
+    #[test]
+    fn test_superblock_hashable_trait_5() {
+        let dr_root =
+            hex::decode("000000000000000000000000000000000000000000000000000000000000ffff")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let tally_root =
+            hex::decode("0000000000000000000000000000000000000000000000000000000020a6b256")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let last_block_hash =
+            hex::decode("0000000000000000000000000000000000000000000000000000023986aecd34")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let prev_last_block_hash =
+            hex::decode("000000000000000000000000000000000000000000000000000000034ba23cc5")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let ars_root =
+            hex::decode("00000000000000000000000000000000000000000000000000000034742d5a7c")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+
+        let superblock = SuperBlock {
+            ars_length: 0x0012_34ad_3e5f,
+            ars_root: Hash::SHA256(ars_root),
+            data_request_root: Hash::SHA256(dr_root),
+            index: 0x0765_64fd,
+            last_block: Hash::SHA256(last_block_hash),
+            last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
+            tally_root: Hash::SHA256(tally_root),
+        };
+        let expected = "c4c70a789723ce620241ccbb2cac5c533195df32f7182e34e4a02fd5e92d8a23";
+        assert_eq!(superblock.hash().to_string(), expected);
+    }
+
+    #[test]
+    fn test_superblock_hashable_trait_6() {
+        let dr_root =
+            hex::decode("00000000000000000000000000000000000000000000000000000fffffffffff")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let tally_root =
+            hex::decode("00000000000000000000000000000000000000000000000000000fffffffffff")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let last_block_hash =
+            hex::decode("00000000000000000000000000000000000000000000000000000fffffffffff")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let prev_last_block_hash =
+            hex::decode("00000000000000000000000000000000000000000000000000000fffffffffff")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        let ars_root =
+            hex::decode("00000000000000000000000000000000000000000000000000000fffffffffff")
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+
+        let superblock = SuperBlock {
+            ars_length: 0x0fff_ffff_ffff,
+            ars_root: Hash::SHA256(ars_root),
+            data_request_root: Hash::SHA256(dr_root),
+            index: 0x00ff_ffff,
+            last_block: Hash::SHA256(last_block_hash),
+            last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
+            tally_root: Hash::SHA256(tally_root),
+        };
+        let expected = "493837a41d3c53be420213398f9d42c949ad5cc7f8680cf40a691fd85fa552d6";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
@@ -4204,15 +4377,17 @@ mod tests {
         let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
         let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
 
-        let p1_bls = Bn256PublicKey {
-            public_key: vec![1; 65],
-        };
-        let p2_bls = Bn256PublicKey {
-            public_key: vec![2; 65],
-        };
-        let p3_bls = Bn256PublicKey {
-            public_key: vec![3; 65],
-        };
+        let p1_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+
+        let p2_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[2; 32]).unwrap())
+                .unwrap();
+
+        let p3_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
 
         alt_keys.insert_bn256(p1, p1_bls.clone());
         alt_keys.insert_bn256(p2, p2_bls.clone());
@@ -4240,15 +4415,15 @@ mod tests {
         let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
         let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
 
-        let p1_bls = Bn256PublicKey {
-            public_key: vec![1; 65],
-        };
-        let p2_bls = Bn256PublicKey {
-            public_key: vec![2; 65],
-        };
-        let p3_bls = Bn256PublicKey {
-            public_key: vec![3; 65],
-        };
+        let p1_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+        let p2_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[2; 32]).unwrap())
+                .unwrap();
+        let p3_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
 
         alt_keys.insert_bn256(p1, p1_bls.clone());
         alt_keys.insert_bn256(p2, p2_bls.clone());
@@ -4278,23 +4453,25 @@ mod tests {
         let p4 = PublicKeyHash::from_bytes(&[0x05 as u8; 20]).unwrap();
         let p5 = PublicKeyHash::from_bytes(&[0x04 as u8; 20]).unwrap();
 
-        let p1_bls = Bn256PublicKey {
-            public_key: vec![1; 65],
-        };
-        let p2_bls = Bn256PublicKey {
-            public_key: vec![2; 65],
-        };
-        let p3_bls = Bn256PublicKey {
-            public_key: vec![3; 65],
-        };
+        let p1_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
 
-        let p4_bls = Bn256PublicKey {
-            public_key: vec![4; 65],
-        };
+        let p2_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[2; 32]).unwrap())
+                .unwrap();
 
-        let p5_bls = Bn256PublicKey {
-            public_key: vec![5; 65],
-        };
+        let p3_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
+
+        let p4_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[4; 32]).unwrap())
+                .unwrap();
+
+        let p5_bls =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[5; 32]).unwrap())
+                .unwrap();
 
         alt_keys.insert_bn256(p1, p1_bls.clone());
         alt_keys.insert_bn256(p2, p2_bls.clone());

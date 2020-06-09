@@ -102,20 +102,20 @@ impl SuperBlockState {
     }
 
     /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
-    /// `sorted_ars_identities` will be used to validate all the superblock votes received for the
+    /// `ars_pkh_keys` will be used to validate all the superblock votes received for the
     /// next superblock. The votes for the current superblock must be validated using
-    /// `previous_ars_identities`.
+    /// `previous_ars_identities`. The ordered bn256 keys will be merkelized and appended to the superblock
     pub fn build_superblock(
         &mut self,
         block_headers: &[BlockHeader],
-        sorted_ars_identities: &[PublicKeyHash],
-        ars_ordered_keys: &[Bn256PublicKey],
+        ars_pkh_keys: &[PublicKeyHash],
+        ars_ordered_bn256_keys: &[Bn256PublicKey],
         superblock_index: u32,
         last_block_in_previous_superblock: Hash,
     ) -> Option<SuperBlock> {
         self.current_superblock_index = Some(superblock_index);
         self.votes_on_local_superlock.clear();
-        let key_leaves = hash_key_leaves(ars_ordered_keys);
+        let key_leaves = hash_key_leaves(ars_ordered_bn256_keys);
 
         match mining_build_superblock(
             block_headers,
@@ -137,7 +137,7 @@ impl SuperBlockState {
 
                 // Save ARS identities:
                 // previous = current
-                // current = sorted_ars_identities
+                // current = ars_pkh_keys
                 {
                     std::mem::swap(
                         &mut self.previous_ars_identities,
@@ -146,8 +146,8 @@ impl SuperBlockState {
                     // Reuse allocated memory
                     let hs = self.current_ars_identities.get_or_insert(HashSet::new());
                     hs.clear();
-                    hs.extend(sorted_ars_identities.iter().cloned());
-                    self.previous_ars_ordered_keys = ars_ordered_keys.to_vec();
+                    hs.extend(ars_pkh_keys.iter().cloned());
+                    self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
                 }
 
                 let mut old_superblock_votes =
@@ -259,14 +259,14 @@ mod tests {
             ars_length: 1,
             data_request_root: dr_merkle_root_1,
             tally_root: tally_merkle_root_1,
-            ars_root: Hash::default(),
+            ars_root: default_hash,
             index: 0,
             last_block: block.hash(),
             last_block_in_previous_superblock: default_hash,
         };
 
         let superblock =
-            mining_build_superblock(&[block], &[Hash::default()], 0, default_hash).unwrap();
+            mining_build_superblock(&[block], &[default_hash], 0, default_hash).unwrap();
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -324,15 +324,14 @@ mod tests {
             ars_length: 1,
             data_request_root: expected_superblock_dr_root,
             tally_root: expected_superblock_tally_root,
-            ars_root: Hash::default(),
+            ars_root: default_hash,
             index: 0,
             last_block: block_2.hash(),
             last_block_in_previous_superblock: default_hash,
         };
 
         let superblock =
-            mining_build_superblock(&[block_1, block_2], &[Hash::default()], 0, default_hash)
-                .unwrap();
+            mining_build_superblock(&[block_1, block_2], &[default_hash], 0, default_hash).unwrap();
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -361,19 +360,13 @@ mod tests {
         let mut sbs = SuperBlockState::default();
 
         let block_headers = vec![BlockHeader::default()];
-        let sorted_ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
+        let ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
         let genesis_hash = Hash::default();
         let bls_pk =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
                 .unwrap();
         let sb1 = sbs
-            .build_superblock(
-                &block_headers,
-                &sorted_ars_identities,
-                &[bls_pk],
-                0,
-                genesis_hash,
-            )
+            .build_superblock(&block_headers, &ars_identities, &[bls_pk], 0, genesis_hash)
             .unwrap();
         let v1 = SuperBlockVote::new_unsigned(sb1.hash(), 0);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::MaybeValid);
@@ -386,20 +379,14 @@ mod tests {
 
         // If there were no blocks, there will be no superblock
         let block_headers = vec![];
-        let sorted_ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
+        let ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
         let bls_pk =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
                 .unwrap();
 
         let genesis_hash = Hash::default();
         assert_eq!(
-            sbs.build_superblock(
-                &block_headers,
-                &sorted_ars_identities,
-                &[bls_pk],
-                0,
-                genesis_hash
-            ),
+            sbs.build_superblock(&block_headers, &ars_identities, &[bls_pk], 0, genesis_hash),
             None
         );
 
@@ -413,7 +400,7 @@ mod tests {
         let mut sbs = SuperBlockState::default();
 
         let block_headers = vec![BlockHeader::default()];
-        let sorted_ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
+        let ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
         let bls_pk =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
                 .unwrap();
@@ -421,7 +408,7 @@ mod tests {
         let _sb1 = sbs
             .build_superblock(
                 &block_headers,
-                &sorted_ars_identities,
+                &ars_identities,
                 &[bls_pk.clone()],
                 0,
                 genesis_hash,
@@ -430,7 +417,7 @@ mod tests {
 
         let mut expected_sbs = sbs.clone();
         assert_eq!(
-            sbs.build_superblock(&[], &sorted_ars_identities, &[bls_pk], 1, genesis_hash),
+            sbs.build_superblock(&[], &ars_identities, &[bls_pk], 1, genesis_hash),
             None
         );
 
@@ -452,7 +439,7 @@ mod tests {
         assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::AlreadySeen);
 
         let block_headers = vec![BlockHeader::default()];
-        let sorted_ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
+        let ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
 
         let bls_pk =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
@@ -461,7 +448,7 @@ mod tests {
         let _sb1 = sbs
             .build_superblock(
                 &block_headers,
-                &sorted_ars_identities,
+                &ars_identities,
                 &[bls_pk.clone()],
                 0,
                 genesis_hash,
@@ -472,13 +459,7 @@ mod tests {
         assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::AlreadySeen);
 
         let _sb2 = sbs
-            .build_superblock(
-                &block_headers,
-                &sorted_ars_identities,
-                &[bls_pk],
-                1,
-                genesis_hash,
-            )
+            .build_superblock(&block_headers, &ars_identities, &[bls_pk], 1, genesis_hash)
             .unwrap();
         let v1 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 1);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
@@ -610,13 +591,13 @@ mod tests {
                 .unwrap();
 
         let block_headers = vec![BlockHeader::default()];
-        let sorted_ars_identities = vec![p1.pkh(), p2.pkh(), p3.pkh()];
+        let ars_identities = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         let ordered_ars = vec![bls_pk1, bls_pk2, bls_pk3];
         let genesis_hash = Hash::default();
         let _sb1 = sbs
             .build_superblock(
                 &block_headers,
-                &sorted_ars_identities,
+                &ars_identities,
                 &ordered_ars,
                 0,
                 genesis_hash,
@@ -643,7 +624,7 @@ mod tests {
         let sb2 = sbs
             .build_superblock(
                 &block_headers,
-                &sorted_ars_identities,
+                &ars_identities,
                 &ordered_ars,
                 1,
                 genesis_hash,
@@ -667,7 +648,7 @@ mod tests {
         let _sb3 = sbs
             .build_superblock(
                 &block_headers,
-                &sorted_ars_identities,
+                &ars_identities,
                 &ordered_ars,
                 2,
                 genesis_hash,
@@ -682,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    fn hash_uncompressed_leaves_() {
+    fn test_hash_uncompressed_bn256key_leaves() {
         let bls_pk1 =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
                 .unwrap();
