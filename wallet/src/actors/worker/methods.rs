@@ -42,6 +42,7 @@ impl Worker {
         futures03::executor::block_on(witnet_rad::try_data_request(
             &request,
             RadonScriptExecutionSettings::enable_all(),
+            None,
         ))
     }
 

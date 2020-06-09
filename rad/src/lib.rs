@@ -42,22 +42,25 @@ pub struct RADRequestExecutionReport {
 pub async fn try_data_request(
     request: &RADRequest,
     settings: RadonScriptExecutionSettings,
+    input_injection: Option<&str>,
 ) -> RADRequestExecutionReport {
     let context = &mut ReportContext::default();
 
-    let retrieve_responses_fut = request
-        .retrieve
-        .iter()
-        .map(|retrieve| run_retrieval_report(retrieve, settings));
+    let mut retrieve_responses = Vec::new();
+    for retrieve in &request.retrieve {
+        retrieve_responses.push(if let Some(input) = &input_injection {
+            run_retrieval_with_data_report(retrieve, input, context, settings)
+        } else {
+            run_retrieval_report(retrieve, settings).await
+        })
+    }
 
-    let retrieval_reports: Vec<RadonReport<RadonTypes>> =
-        futures::future::join_all(retrieve_responses_fut)
-            .await
-            .into_iter()
-            .map(|retrieve| {
-                retrieve.unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
-            })
-            .collect();
+    let retrieval_reports: Vec<RadonReport<RadonTypes>> = retrieve_responses
+        .into_iter()
+        .map(|retrieve| {
+            retrieve.unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+        })
+        .collect();
     let retrieval_values: Vec<RadonTypes> = retrieval_reports
         .clone()
         .into_iter()
