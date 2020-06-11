@@ -29,10 +29,10 @@ serde_json = "1.0.47"
 tokio = "0.1.22"
 
 witnet_config = { path = "../config" }
-witnet_crypto = { path = "../crypto" }
+witnet_crypto = { path = "../crypto", features = ["with-serde"] }
 witnet_data_structures = { path = "../data_structures" }
 witnet_p2p = { path = "../p2p" }
-witnet_protected = { path = "../protected" }
+witnet_protected = { path = "../protected", features = ["with-serde"]  }
 witnet_rad = { path = "../rad" }
 witnet_storage = { path = "../storage", features = ["rocksdb-backend", "crypto-backend"] }
 witnet_util = { path = "../util" }
