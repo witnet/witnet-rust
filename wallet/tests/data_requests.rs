@@ -107,11 +107,9 @@ async fn test_data_request_report_json_serialization() {
         Some(&inputs),
     )
     .await;
-    let aggregate_report = report.aggregate.clone();
-    let tally_report = report.tally.clone();
 
     // Number of retrieval reports should match number of sources
-    assert_eq!(&report.retrieve.len(), &request.retrieve.len());
+    assert_eq!(report.retrieve.len(), request.retrieve.len());
 
     for (index, retrieve_report) in report.retrieve.iter().enumerate() {
         // Each retrieval result must match last item in each retrieval partial results
@@ -119,7 +117,7 @@ async fn test_data_request_report_json_serialization() {
             &retrieve_report.result,
             retrieve_report
                 .partial_results
-                .clone()
+                .as_ref()
                 .unwrap()
                 .last()
                 .unwrap()
@@ -127,7 +125,7 @@ async fn test_data_request_report_json_serialization() {
 
         // Number of partial results for each source should match source's script length + 1
         assert_eq!(
-            retrieve_report.partial_results.clone().unwrap().len(),
+            retrieve_report.partial_results.as_ref().unwrap().len(),
             unpack_radon_script(&request.retrieve.get(index).unwrap().script)
                 .unwrap()
                 .len()
@@ -137,24 +135,24 @@ async fn test_data_request_report_json_serialization() {
 
     // Number of aggregation partial results must equal number of filters + 2
     assert_eq!(
-        report.aggregate.partial_results.unwrap().len(),
+        (&report).aggregate.partial_results.as_ref().unwrap().len(),
         &request.aggregate.filters.len() + 2
     );
     // Number of tally partial results must equal number of filters + 2
     assert_eq!(
-        report.tally.partial_results.unwrap().len(),
+        (&report).tally.partial_results.as_ref().unwrap().len(),
         &request.tally.filters.len() + 2
     );
 
     // Aggregation result must match last item in aggregation partial results
     assert_eq!(
         &report.aggregate.result,
-        aggregate_report.partial_results.unwrap().last().unwrap()
+        report.aggregate.partial_results.unwrap().last().unwrap()
     );
 
     // Tally result must match last item in tally partial results
     assert_eq!(
         &report.tally.result,
-        tally_report.partial_results.unwrap().last().unwrap()
+        report.tally.partial_results.unwrap().last().unwrap()
     );
 }
