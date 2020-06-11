@@ -4,7 +4,6 @@ use std::{
     str::FromStr,
 };
 
-use serde::Serialize;
 use serde_cbor::value::Value;
 
 use crate::{
@@ -17,7 +16,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 const RADON_INTEGER_TYPE_NAME: &str = "RadonInteger";
 
-#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RadonInteger {
     value: i128,
 }
