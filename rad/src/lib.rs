@@ -1,5 +1,6 @@
 //! # RAD Engine
 
+use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
@@ -39,6 +40,10 @@ pub struct RADRequestExecutionReport {
     pub tally: RadonReport<RadonTypes>,
 }
 
+/// Executes a data request locally.
+/// The `inputs_injection` allows for disabling the actual retrieval of the data sources and
+/// the provided strings will be fed to the retrieval scripts instead. It is therefore expected that
+/// the length of `sources_injection` matches that of `request.retrieve`.
 pub async fn try_data_request(
     request: &RADRequest,
     settings: RadonScriptExecutionSettings,
@@ -46,19 +51,26 @@ pub async fn try_data_request(
 ) -> RADRequestExecutionReport {
     let context = &mut ReportContext::default();
 
-    let mut retrieve_responses = Vec::new();
+    let retrieve_responses = if let Some(inputs) = inputs_injection {
+        assert_eq!(inputs.len(), request.retrieve.len(), "Tried to locally run a data request with a number of injected sources different than the number of retrieval paths ({} != {})", inputs.len(), request.retrieve.len());
 
-    if let Some(inputs) = inputs_injection {
+        let mut retrieve_responses = Vec::new();
         for (retrieve, input) in request.retrieve.iter().zip(inputs.iter()) {
             retrieve_responses.push(run_retrieval_with_data_report(
                 retrieve, input, context, settings,
             ))
         }
+
+        retrieve_responses
     } else {
-        for retrieve in &request.retrieve {
-            retrieve_responses.push(run_retrieval_report(retrieve, settings).await)
-        }
-    }
+        block_on(join_all(
+            request
+                .retrieve
+                .iter()
+                .map(|retrieve| run_retrieval_report(retrieve, settings))
+                .collect::<Vec<_>>(),
+        ))
+    };
 
     let retrieval_reports: Vec<RadonReport<RadonTypes>> = retrieve_responses
         .into_iter()
@@ -67,14 +79,14 @@ pub async fn try_data_request(
         })
         .collect();
     let retrieval_values: Vec<RadonTypes> = retrieval_reports
-        .clone()
-        .into_iter()
+        .iter()
+        .cloned()
         .map(|report| report.into_inner())
         .collect();
 
     let aggregation_report = run_aggregation_report(retrieval_values, &request.aggregate, settings)
         .unwrap_or_else(|error| RadonReport::from_result(Err(error), context));
-    let aggregation_value = aggregation_report.clone().into_inner();
+    let aggregation_value = aggregation_report.result.clone();
 
     let tally_report = run_tally_report(
         vec![aggregation_value],
