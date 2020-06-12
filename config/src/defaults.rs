@@ -206,13 +206,6 @@ pub trait Defaults {
         1_000_000_000
     }
 
-    /// Minimum input age of an UTXO for being a valid collateral
-    fn consensus_constants_collateral_age(&self) -> u32 {
-        // FIXME(#1114): Choose a properly value
-        // 2000 blocks
-        2000
-    }
-
     /// Number of extra rounds for commitments and reveals
     fn consensus_constants_extra_rounds(&self) -> u16 {
         3

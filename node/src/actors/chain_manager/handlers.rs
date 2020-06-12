@@ -79,7 +79,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         let last_checked_epoch = self.current_epoch;
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
-        let block_number = self.chain_state.block_number();
 
         log::debug!(
             "EpochNotification received while StateMachine is in state {:?}",
@@ -201,9 +200,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 chain_info.consensus_constants.mining_backup_factor,
                                 chain_info.consensus_constants.bootstrap_hash,
                                 chain_info.consensus_constants.genesis_hash,
-                                block_number,
                                 chain_info.consensus_constants.collateral_minimum,
-                                chain_info.consensus_constants.collateral_age,
                             ) {
                                 Ok(utxo_diff) => {
                                     let block_pkh = &block_candidate.block_sig.public_key.pkh();
@@ -829,6 +826,7 @@ impl Handler<BuildVtt> for ChainManager {
             timestamp,
             self.tx_pending_timeout,
             msg.utxo_strategy,
+            msg.only_collateral,
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
@@ -986,11 +984,6 @@ impl Handler<GetUtxoInfo> for ChainManager {
         }
 
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
-        let block_number_limit = self
-            .chain_state
-            .block_number()
-            .saturating_sub(chain_info.consensus_constants.collateral_age);
-
         let pkh = if self.own_pkh == Some(pkh) {
             None
         } else {
@@ -1002,7 +995,6 @@ impl Handler<GetUtxoInfo> for ChainManager {
             &self.chain_state.own_utxos,
             &self.chain_state.unspent_outputs_pool,
             chain_info.consensus_constants.collateral_minimum,
-            block_number_limit,
         ))
     }
 }

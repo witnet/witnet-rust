@@ -151,7 +151,7 @@ pub fn get_utxo_info(
             "OutputPointer",
             "Value (in wits)",
             "Time lock",
-            "Ready for collateral"
+            "Able to collateralize"
         ]);
         for utxo_metadata in utxo_info
             .utxos
@@ -169,7 +169,7 @@ pub fn get_utxo_info(
                 utxo_metadata.output_pointer.to_string(),
                 value,
                 time_lock,
-                utxo_metadata.ready_for_collateral.to_string()
+                utxo_metadata.able_to_collateralize.to_string()
             ]);
         }
         table.printstd();
@@ -177,12 +177,16 @@ pub fn get_utxo_info(
     }
     println!("Total number of utxos: {}", utxos_len);
     println!(
-        "Total number of utxos bigger than collateral minimum: {}",
-        utxo_info.bigger_than_min_counter
+        "Total number of utxos available for collateral: {}",
+        utxo_info.collateral_utxos_counter
     );
     println!(
-        "Total number of utxos older than collateral coinage: {}",
-        utxo_info.old_utxos_counter
+        "Total number of wits: {}",
+        Wit::from_nanowits(utxo_info.total_wits_counter)
+    );
+    println!(
+        "Total number of wits available for collateral: {}",
+        Wit::from_nanowits(utxo_info.collateral_wits_counter)
     );
 
     Ok(())
@@ -294,6 +298,7 @@ pub fn send_vtt(
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
+    only_collateral: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
@@ -342,6 +347,7 @@ pub fn send_vtt(
         vto: vt_outputs,
         fee,
         utxo_strategy,
+        only_collateral,
     };
 
     let request = format!(

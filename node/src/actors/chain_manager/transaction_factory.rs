@@ -20,9 +20,8 @@ pub fn take_enough_utxos(
     amount: u64,
     timestamp: u64,
     tx_pending_timeout: u64,
-    // The block number must be lower than this limit
-    block_number_limit: Option<u32>,
     utxo_strategy: UtxoSelectionStrategy,
+    collateral_required: bool,
 ) -> Result<(Vec<OutputPointer>, u64), TransactionError> {
     // FIXME: this is a very naive utxo selection algorithm
     if amount == 0 {
@@ -35,9 +34,18 @@ pub fn take_enough_utxos(
     let mut list = vec![];
 
     let utxo_iter: Vec<OutputPointer> = match utxo_strategy {
-        UtxoSelectionStrategy::BigFirst => own_utxos.sort(&all_utxos, true),
-        UtxoSelectionStrategy::SmallFirst => own_utxos.sort(&all_utxos, false),
-        UtxoSelectionStrategy::Random => own_utxos.iter().map(|(o, _ts)| o.clone()).collect(),
+        UtxoSelectionStrategy::BigFirst => own_utxos.sort(&all_utxos, true, collateral_required),
+        UtxoSelectionStrategy::SmallFirst => own_utxos.sort(&all_utxos, false, collateral_required),
+        UtxoSelectionStrategy::Random => {
+            if collateral_required {
+                own_utxos.iter().map(|(o, _ts)| o.clone()).collect()
+            } else {
+                own_utxos
+                    .collateral_iter()
+                    .map(|(o, _ts)| o.clone())
+                    .collect()
+            }
+        }
     };
 
     for op in utxo_iter.iter() {
@@ -52,11 +60,9 @@ pub fn take_enough_utxos(
             continue;
         }
 
-        if let Some(block_number_limit) = block_number_limit {
-            // Ignore all outputs created after `block_number_limit`.
-            // Outputs from the genesis block will never be ignored because `block_number_limit`
-            // can't go lower than `0`.
-            if all_utxos.included_in_block_number(op).unwrap() > block_number_limit {
+        if collateral_required {
+            // Ignore all outputs not valid for collateralize
+            if !all_utxos.is_able_to_collateral(op).unwrap() {
                 continue;
             }
         }
@@ -77,6 +83,11 @@ pub fn take_enough_utxos(
             *ts = timestamp + tx_pending_timeout;
         }
         Ok((list, acc))
+    } else if collateral_required {
+        Err(TransactionError::NoCollateralMoney {
+            available_balance: acc,
+            transaction_value: amount,
+        })
     } else {
         Err(TransactionError::NoMoney {
             total_balance: total,
@@ -128,6 +139,7 @@ pub fn build_vtt(
     timestamp: u64,
     tx_pending_timeout: u64,
     utxo_strategy: UtxoSelectionStrategy,
+    only_collateral: bool,
 ) -> Result<VTTransactionBody, TransactionError> {
     let (inputs, outputs) = build_inputs_outputs_inner(
         outputs,
@@ -138,8 +150,8 @@ pub fn build_vtt(
         all_utxos,
         timestamp,
         tx_pending_timeout,
-        None,
         utxo_strategy,
+        only_collateral,
     )?;
 
     Ok(VTTransactionBody::new(inputs, outputs))
@@ -164,8 +176,8 @@ pub fn build_drt(
         all_utxos,
         timestamp,
         tx_pending_timeout,
-        None,
         UtxoSelectionStrategy::Random,
+        false,
     )?;
 
     Ok(DRTransactionBody::new(inputs, outputs, dr_output))
@@ -179,8 +191,6 @@ pub fn build_commit_collateral(
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
     tx_pending_timeout: u64,
-    // The block number must be lower than this limit
-    block_number_limit: u32,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), TransactionError> {
     // The fee is the difference between input value and output value
     // In a CommitTransaction, the collateral is also the difference between the input value
@@ -195,8 +205,8 @@ pub fn build_commit_collateral(
         all_utxos,
         timestamp,
         tx_pending_timeout,
-        Some(block_number_limit),
         UtxoSelectionStrategy::SmallFirst,
+        true,
     )
 }
 
@@ -212,9 +222,8 @@ fn build_inputs_outputs_inner(
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
     tx_pending_timeout: u64,
-    // The block number must be lower than this limit
-    block_number_limit: Option<u32>,
     utxo_strategy: UtxoSelectionStrategy,
+    collateral_required: bool,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), TransactionError> {
     // On error just assume the value is u64::max_value(), hoping that it is
     // impossible to pay for this transaction
@@ -232,8 +241,8 @@ fn build_inputs_outputs_inner(
         output_value + fee,
         timestamp,
         tx_pending_timeout,
-        block_number_limit,
         utxo_strategy,
+        collateral_required,
     )?;
     let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
     let mut outputs = outputs;
@@ -309,6 +318,7 @@ mod tests {
             timestamp,
             tx_pending_timeout,
             UtxoSelectionStrategy::Random,
+            false,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -335,6 +345,7 @@ mod tests {
             timestamp,
             tx_pending_timeout,
             UtxoSelectionStrategy::Random,
+            false,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -370,16 +381,16 @@ mod tests {
         own_utxos_all_utxos: T,
         txns: Vec<Transaction>,
     ) -> (OwnUnspentOutputsPool, UnspentOutputsPool) {
-        build_utxo_set_with_block_number(outputs, own_utxos_all_utxos, txns, 0)
+        build_utxo_set_specifyng_collateral(outputs, own_utxos_all_utxos, txns, true)
     }
 
-    fn build_utxo_set_with_block_number<
+    fn build_utxo_set_specifyng_collateral<
         T: Into<Option<(OwnUnspentOutputsPool, UnspentOutputsPool)>>,
     >(
         outputs: Vec<ValueTransferOutput>,
         own_utxos_all_utxos: T,
         txns: Vec<Transaction>,
-        block_number: u32,
+        able_to_collateralize: bool,
     ) -> (OwnUnspentOutputsPool, UnspentOutputsPool) {
         let own_pkh = my_pkh();
         // Add a fake input to avoid hash collisions
@@ -394,8 +405,8 @@ mod tests {
         )));
 
         let (mut own_utxos, all_utxos) = own_utxos_all_utxos.into().unwrap_or_default();
-        let all_utxos = generate_unspent_outputs_pool(&all_utxos, &txns, block_number);
-        update_own_utxos(&mut own_utxos, own_pkh, &txns);
+        let all_utxos = generate_unspent_outputs_pool(&all_utxos, &txns, able_to_collateralize);
+        update_own_utxos(&mut own_utxos, own_pkh, &txns, able_to_collateralize);
 
         (own_utxos, all_utxos)
     }
@@ -404,13 +415,14 @@ mod tests {
         own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         txns: &[Transaction],
+        able_to_collateralize: bool,
     ) {
         for transaction in txns {
             match transaction {
                 Transaction::ValueTransfer(vt_tx) => {
                     // Remove spent inputs
                     for input in &vt_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer(), 0);
+                        own_utxos.remove(&input.output_pointer());
                     }
                     // Insert new outputs
                     for (i, output) in vt_tx.body.outputs.iter().enumerate() {
@@ -421,7 +433,7 @@ mod tests {
                                     output_index: u32::try_from(i).unwrap(),
                                 },
                                 0,
-                                0,
+                                able_to_collateralize,
                             );
                         }
                     }
@@ -430,7 +442,7 @@ mod tests {
                 Transaction::DataRequest(dr_tx) => {
                     // Remove spent inputs
                     for input in &dr_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer(), 0);
+                        own_utxos.remove(&input.output_pointer());
                     }
                     // Insert new outputs
                     for (i, output) in dr_tx.body.outputs.iter().enumerate() {
@@ -441,7 +453,7 @@ mod tests {
                                     output_index: u32::try_from(i).unwrap(),
                                 },
                                 0,
-                                0,
+                                able_to_collateralize,
                             );
                         }
                     }
@@ -1071,18 +1083,16 @@ mod tests {
     }
 
     #[test]
-    fn collateral_from_utxos_in_block_0() {
+    fn collateral_from_valid_utxos() {
         let timestamp = 777;
         let tx_pending_timeout = 100;
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(1000)];
-        // This UTXOs are created in block number 0
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) =
+            build_utxo_set_specifyng_collateral(outputs, None, vec![], true);
         assert_eq!(own_utxos.len(), 1);
 
         let collateral = 1000;
-        // A limit of block number 0 means that only UTXOs from block 0 can be valid
-        let block_number_limit = 0;
         let (inputs, outputs) = build_commit_collateral(
             collateral,
             &mut own_utxos,
@@ -1090,121 +1100,40 @@ mod tests {
             &all_utxos,
             timestamp,
             tx_pending_timeout,
-            block_number_limit,
         )
         .unwrap();
+
         assert_eq!(inputs.len(), 1);
         assert_eq!(outputs.len(), 0);
     }
 
     #[test]
-    fn collateral_from_utxos_split_in_different_blocks() {
+    fn collateral_from_invalid_utxos() {
         let timestamp = 777;
         let tx_pending_timeout = 100;
         let own_pkh = my_pkh();
-        let outputs = vec![pay_me(500)];
-        // This UTXOs are created in block number 1
-        let (own_utxos, all_utxos) = build_utxo_set_with_block_number(outputs, None, vec![], 1);
+        let outputs = vec![pay_me(1000)];
+        let (mut own_utxos, all_utxos) =
+            build_utxo_set_specifyng_collateral(outputs, None, vec![], false);
         assert_eq!(own_utxos.len(), 1);
 
-        let outputs = vec![pay_me(400)];
-        // This UTXOs are created in block number 2
-        let (own_utxos, all_utxos) =
-            build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 2);
-        assert_eq!(own_utxos.len(), 2);
-
-        let outputs = vec![pay_me(200)];
-        // This UTXOs are created in block number 3
-        let (own_utxos, all_utxos) =
-            build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 3);
-        assert_eq!(own_utxos.len(), 3);
-
-        let outputs = vec![pay_me(1000)];
-        // This UTXOs are created in block number 4
-        let (mut own_utxos, all_utxos) =
-            build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 4);
-        assert_eq!(own_utxos.len(), 4);
-
         let collateral = 1000;
-        // A limit of block number 0 means that only UTXOs from block 0 can be valid
-        let block_number_limit = 0;
-        let t1 = build_commit_collateral(
+        let error = build_commit_collateral(
             collateral,
             &mut own_utxos,
             own_pkh,
             &all_utxos,
             timestamp,
             tx_pending_timeout,
-            block_number_limit,
         )
         .unwrap_err();
         assert_eq!(
-            t1,
-            TransactionError::NoMoney {
-                total_balance: 2100,
+            error,
+            TransactionError::NoCollateralMoney {
                 available_balance: 0,
                 transaction_value: 1000,
             }
         );
-
-        let collateral = 1000;
-        // Only allow using UTXOs from block number <= 1
-        let block_number_limit = 1;
-        let t2 = build_commit_collateral(
-            collateral,
-            &mut own_utxos,
-            own_pkh,
-            &all_utxos,
-            timestamp,
-            tx_pending_timeout,
-            block_number_limit,
-        )
-        .unwrap_err();
-        assert_eq!(
-            t2,
-            TransactionError::NoMoney {
-                total_balance: 2100,
-                available_balance: 500,
-                transaction_value: 1000,
-            }
-        );
-
-        let collateral = 1000;
-        let block_number_limit = 2;
-        let t3 = build_commit_collateral(
-            collateral,
-            &mut own_utxos,
-            own_pkh,
-            &all_utxos,
-            timestamp,
-            tx_pending_timeout,
-            block_number_limit,
-        )
-        .unwrap_err();
-        assert_eq!(
-            t3,
-            TransactionError::NoMoney {
-                total_balance: 2100,
-                available_balance: 900,
-                transaction_value: 1000,
-            }
-        );
-
-        let collateral = 1000;
-        let block_number_limit = 3;
-        let (inputs, outputs) = build_commit_collateral(
-            collateral,
-            &mut own_utxos,
-            own_pkh,
-            &all_utxos,
-            timestamp,
-            tx_pending_timeout,
-            block_number_limit,
-        )
-        .unwrap();
-        assert_eq!(inputs.len(), 3);
-        assert_eq!(outputs.len(), 1);
-        assert_eq!(transaction_outputs_sum(&outputs).unwrap(), 100);
     }
 
     #[test]
@@ -1218,8 +1147,6 @@ mod tests {
         assert_eq!(own_utxos.len(), 1);
 
         let collateral = 1000;
-        // A limit of block number 0 means that only UTXOs from block 0 can be valid
-        let block_number_limit = 0;
         let (inputs, outputs) = build_commit_collateral(
             collateral,
             &mut own_utxos,
@@ -1227,7 +1154,6 @@ mod tests {
             &all_utxos,
             timestamp,
             tx_pending_timeout,
-            block_number_limit,
         )
         .unwrap();
         assert_eq!(inputs.len(), 1);
@@ -1241,13 +1167,11 @@ mod tests {
             &all_utxos,
             timestamp,
             tx_pending_timeout,
-            block_number_limit,
         )
         .unwrap_err();
         assert_eq!(
             res,
-            TransactionError::NoMoney {
-                total_balance: 1000,
+            TransactionError::NoCollateralMoney {
                 available_balance: 0,
                 transaction_value: 1000,
             }
@@ -1261,7 +1185,6 @@ mod tests {
             &all_utxos,
             timestamp,
             tx_pending_timeout,
-            block_number_limit,
         )
         .unwrap();
         assert_eq!(inputs.len(), 1);

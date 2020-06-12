@@ -159,10 +159,7 @@ pub fn validate_commit_collateral(
     epoch: Epoch,
     epoch_constants: EpochConstants,
     required_collateral: u64,
-    block_number: u32,
-    collateral_age: u32,
 ) -> Result<(), failure::Error> {
-    let block_number_limit = block_number.saturating_sub(collateral_age);
     let commit_pkh = co_tx.body.proof.proof.pkh();
     let mut in_value: u64 = 0;
     let mut seen_output_pointers = HashSet::with_capacity(co_tx.body.collateral.len());
@@ -197,17 +194,14 @@ pub fn validate_commit_collateral(
             .into());
         }
 
-        // Outputs to be spent in commitment inputs need to be older than `block_number_limit`.
-        // All outputs from the genesis block are fulfill this requirement because
-        // `block_number_limit` can't go lower than `0`.
-        let included_in_block_number = utxo_diff
-            .included_in_block_number(input.output_pointer())
+        // Outputs to be spent in commitment inputs need to be able to collateralize,
+        // that means it was minted and never send to another address
+        let able_to_collateral = utxo_diff
+            .is_able_to_collateral(input.output_pointer())
             .unwrap();
-        if included_in_block_number > block_number_limit {
-            return Err(TransactionError::CollateralNotMature {
+        if !able_to_collateral {
+            return Err(TransactionError::CollateralNotValid {
                 output: input.output_pointer().clone(),
-                must_be_older_than: collateral_age,
-                found: block_number - included_in_block_number,
             }
             .into());
         }
@@ -250,7 +244,8 @@ pub fn validate_mint_transaction(
     mint_tx: &MintTransaction,
     total_fees: u64,
     block_epoch: Epoch,
-) -> Result<(), failure::Error> {
+    mint_pkh: PublicKeyHash,
+) -> Result<Vec<bool>, failure::Error> {
     // Mint epoch must be equal to block epoch
     if mint_tx.epoch != block_epoch {
         return Err(BlockError::InvalidMintEpoch {
@@ -276,6 +271,7 @@ pub fn validate_mint_transaction(
         return Err(BlockError::TooSplitMint.into());
     }
 
+    let mut output_collateral = vec![];
     for (idx, output) in mint_tx.outputs.iter().enumerate() {
         if output.value == 0 {
             return Err(TransactionError::ZeroValueOutput {
@@ -284,9 +280,10 @@ pub fn validate_mint_transaction(
             }
             .into());
         }
+        output_collateral.push(output.pkh == mint_pkh);
     }
 
-    Ok(())
+    Ok(output_collateral)
 }
 
 /// Function to validate a rad request
@@ -749,8 +746,6 @@ pub fn validate_commit_transaction(
     epoch_constants: EpochConstants,
     utxo_diff: &UtxoDiff,
     collateral_minimum: u64,
-    collateral_age: u32,
-    block_number: u32,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -797,8 +792,6 @@ pub fn validate_commit_transaction(
         epoch,
         epoch_constants,
         required_collateral,
-        block_number,
-        collateral_age,
     )?;
 
     // Verify that commits are only accepted after the time lock expired
@@ -981,7 +974,7 @@ pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
-) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+) -> Result<(Vec<&'a ValueTransferOutput>, Vec<bool>, u64), failure::Error> {
     let (expected_ta_tx, dr_state) =
         create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum)?;
 
@@ -1064,6 +1057,7 @@ pub fn validate_tally_transaction<'a>(
         dr_state.data_request.witness_reward,
         collateral,
     );
+    let mut output_able_to_collateral = vec![];
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         // Validation of tally change value
         if expected_tally_change > 0 && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
@@ -1074,6 +1068,7 @@ pub fn validate_tally_transaction<'a>(
                 }
                 .into());
             }
+            output_able_to_collateral.push(false);
         } else {
             if reveals_count > 0 {
                 // Make sure every rewarded address is a revealer
@@ -1113,6 +1108,8 @@ pub fn validate_tally_transaction<'a>(
                 return Err(TransactionError::MultipleRewards { pkh: output.pkh }.into());
             }
             pkh_rewarded.insert(output.pkh);
+
+            output_able_to_collateral.push(true);
         }
         total_tally_value += output.value;
     }
@@ -1145,6 +1142,7 @@ pub fn validate_tally_transaction<'a>(
 
     Ok((
         ta_tx.outputs.iter().collect(),
+        output_able_to_collateral,
         dr_state.data_request.tally_fee + tally_extra_fee,
     ))
 }
@@ -1371,13 +1369,14 @@ pub fn update_utxo_diff(
     utxo_diff: &mut UtxoDiff,
     inputs: Vec<&Input>,
     outputs: Vec<&ValueTransferOutput>,
+    collateral_outputs: Option<Vec<bool>>,
     tx_hash: Hash,
 ) {
     let mut input_pkh = inputs
         .first()
         .and_then(|first| utxo_diff.get(first.output_pointer()).map(|vt| vt.pkh));
 
-    let mut block_number_input = 0;
+    let mut able_to_collaterize_input = true;
     for input in inputs {
         // Obtain the OuputPointer of each input and remove it from the utxo_diff
         let output_pointer = input.output_pointer();
@@ -1387,10 +1386,10 @@ pub fn update_utxo_diff(
             input_pkh = None;
         }
 
-        let block_number = utxo_diff
-            .included_in_block_number(output_pointer)
-            .unwrap_or(0);
-        block_number_input = std::cmp::max(block_number, block_number_input);
+        let able_to_collateralize = utxo_diff
+            .is_able_to_collateral(output_pointer)
+            .unwrap_or(false);
+        able_to_collaterize_input = able_to_collaterize_input && able_to_collateralize;
 
         utxo_diff.remove_utxo(output_pointer.clone());
     }
@@ -1402,13 +1401,15 @@ pub fn update_utxo_diff(
             output_index: u32::try_from(index).unwrap(),
         };
 
-        let block_number = if input_pkh == Some(output.pkh) {
-            Some(block_number_input)
+        let able_to_collateralize = if collateral_outputs.is_some() {
+            collateral_outputs.clone().unwrap()[index]
+        } else if input_pkh == Some(output.pkh) {
+            able_to_collaterize_input
         } else {
-            None
+            false
         };
 
-        utxo_diff.insert_utxo(output_pointer, output.clone(), block_number);
+        utxo_diff.insert_utxo(output_pointer, output.clone(), able_to_collateralize);
     }
 }
 
@@ -1423,13 +1424,11 @@ pub fn validate_block_transactions(
     rep_eng: &ReputationEngine,
     genesis_hash: Hash,
     epoch_constants: EpochConstants,
-    block_number: u32,
     collateral_minimum: u64,
-    collateral_age: u32,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == genesis_hash;
-    let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
+    let mut utxo_diff = UtxoDiff::new(utxo_set);
 
     // Init total fee
     let mut total_fee = 0;
@@ -1443,7 +1442,7 @@ pub fn validate_block_transactions(
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.value_transfer_txns {
-        let (inputs, outputs, fee) = if is_genesis {
+        let (inputs, outputs, collateral_outputs, fee) = if is_genesis {
             let (outputs, value_created) = validate_genesis_vt_transaction(transaction)?;
             // Update value available, and return error on overflow
             genesis_value_available = genesis_value_available.checked_sub(value_created).ok_or(
@@ -1451,20 +1450,28 @@ pub fn validate_block_transactions(
                     max_total_value: max_total_value_genesis,
                 },
             )?;
-
-            (vec![], outputs, 0)
+            let outputs_len = outputs.len();
+            (vec![], outputs, Some(vec![true; outputs_len]), 0)
         } else {
-            validate_vt_transaction(
+            let (inputs, outputs, fee) = validate_vt_transaction(
                 transaction,
                 &utxo_diff,
                 epoch,
                 epoch_constants,
                 signatures_to_verify,
-            )?
+            )?;
+
+            (inputs, outputs, None, fee)
         };
         total_fee += fee;
 
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        update_utxo_diff(
+            &mut utxo_diff,
+            inputs,
+            outputs,
+            collateral_outputs,
+            transaction.hash(),
+        );
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
@@ -1486,7 +1493,7 @@ pub fn validate_block_transactions(
         )?;
         total_fee += fee;
 
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        update_utxo_diff(&mut utxo_diff, inputs, outputs, None, transaction.hash());
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
@@ -1511,8 +1518,6 @@ pub fn validate_block_transactions(
             epoch_constants,
             &utxo_diff,
             collateral_minimum,
-            collateral_age,
-            block_number,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -1529,7 +1534,7 @@ pub fn validate_block_transactions(
             transaction.body.collateral.iter().collect(),
             transaction.body.outputs.iter().collect(),
         );
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        update_utxo_diff(&mut utxo_diff, inputs, outputs, None, transaction.hash());
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
@@ -1575,7 +1580,8 @@ pub fn validate_block_transactions(
     let mut ta_mt = ProgressiveMerkleTree::sha256();
     let mut tally_hs = HashSet::with_capacity(block.txns.tally_txns.len());
     for transaction in &block.txns.tally_txns {
-        let (outputs, fee) = validate_tally_transaction(transaction, dr_pool, collateral_minimum)?;
+        let (outputs, able_to_collateral, fee) =
+            validate_tally_transaction(transaction, dr_pool, collateral_minimum)?;
 
         // Validation for only one tally for data request in a block
         let dr_pointer = transaction.dr_pointer;
@@ -1585,7 +1591,13 @@ pub fn validate_block_transactions(
 
         total_fee += fee;
 
-        update_utxo_diff(&mut utxo_diff, vec![], outputs, transaction.hash());
+        update_utxo_diff(
+            &mut utxo_diff,
+            vec![],
+            outputs,
+            Some(able_to_collateral),
+            transaction.hash(),
+        );
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
@@ -1596,13 +1608,19 @@ pub fn validate_block_transactions(
 
     if !is_genesis {
         // Validate mint
-        validate_mint_transaction(&block.txns.mint, total_fee, block_beacon.checkpoint)?;
+        let collateral_outputs = validate_mint_transaction(
+            &block.txns.mint,
+            total_fee,
+            block_beacon.checkpoint,
+            block.block_sig.public_key.pkh(),
+        )?;
 
         // Insert mint in utxo
         update_utxo_diff(
             &mut utxo_diff,
             vec![],
             block.txns.mint.outputs.iter().collect(),
+            Some(collateral_outputs),
             block.txns.mint.hash(),
         );
     }
@@ -1757,12 +1775,10 @@ pub fn validate_new_transaction(
     vrf_input: CheckpointVRF,
     current_epoch: Epoch,
     epoch_constants: EpochConstants,
-    block_number: u32,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     collateral_minimum: u64,
-    collateral_age: u32,
 ) -> Result<(), failure::Error> {
-    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool);
 
     match transaction {
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
@@ -1793,8 +1809,6 @@ pub fn validate_new_transaction(
             epoch_constants,
             &utxo_diff,
             collateral_minimum,
-            collateral_age,
-            block_number,
         )
         .map(|_| ()),
         Transaction::Reveal(tx) => {
@@ -2002,27 +2016,17 @@ pub fn total_block_reward() -> u64 {
 
 /// Diffs to apply to an utxo set. This type does not contains a
 /// reference to the original utxo set.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Diff {
     utxos_to_add: UnspentOutputsPool,
     utxos_to_remove: HashSet<OutputPointer>,
     utxos_to_remove_dr: Vec<OutputPointer>,
-    block_number: u32,
 }
 
 impl Diff {
-    pub fn new(block_number: u32) -> Self {
-        Self {
-            utxos_to_add: Default::default(),
-            utxos_to_remove: Default::default(),
-            utxos_to_remove_dr: vec![],
-            block_number,
-        }
-    }
-
     pub fn apply(mut self, utxo_set: &mut UnspentOutputsPool) {
-        for (output_pointer, (output, block_number)) in self.utxos_to_add.drain() {
-            utxo_set.insert(output_pointer, output, block_number);
+        for (output_pointer, (output, able_to_collateralize)) in self.utxos_to_add.drain() {
+            utxo_set.insert(output_pointer, output, able_to_collateralize);
         }
 
         for output_pointer in self.utxos_to_remove.iter() {
@@ -2041,10 +2045,9 @@ impl Diff {
     /// use std::collections::HashMap;
     /// use witnet_validations::validations::Diff;
     ///
-    /// let block_number = 0;
-    /// let diff = Diff::new(block_number);
+    /// let diff = Diff::default();
     /// let mut hashmap = HashMap::new();
-    /// diff.visit(&mut hashmap, |hashmap, output_pointer, output| {
+    /// diff.visit(&mut hashmap, |hashmap, output_pointer, output, _able_to_collateralize| {
     ///     hashmap.insert(output_pointer.clone(), output.clone());
     /// }, |hashmap, output_pointer| {
     ///     hashmap.remove(output_pointer);
@@ -2052,11 +2055,11 @@ impl Diff {
     /// ```
     pub fn visit<A, F1, F2>(&self, args: &mut A, fn_add: F1, fn_remove: F2)
     where
-        F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput) -> (),
+        F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput, &bool) -> (),
         F2: Fn(&mut A, &OutputPointer) -> (),
     {
-        for (output_pointer, (output, _)) in self.utxos_to_add.iter() {
-            fn_add(args, output_pointer, output);
+        for (output_pointer, (output, able_to_collateralize)) in self.utxos_to_add.iter() {
+            fn_add(args, output_pointer, output, able_to_collateralize);
         }
 
         for output_pointer in self.utxos_to_remove.iter() {
@@ -2075,10 +2078,10 @@ pub struct UtxoDiff<'a> {
 
 impl<'a> UtxoDiff<'a> {
     /// Create a new UtxoDiff without additional insertions or deletions
-    pub fn new(utxo_set: &'a UnspentOutputsPool, block_number: u32) -> Self {
+    pub fn new(utxo_set: &'a UnspentOutputsPool) -> Self {
         UtxoDiff {
             utxo_set,
-            diff: Diff::new(block_number),
+            diff: Diff::default(),
         }
     }
 
@@ -2087,13 +2090,11 @@ impl<'a> UtxoDiff<'a> {
         &mut self,
         output_pointer: OutputPointer,
         output: ValueTransferOutput,
-        block_number: Option<u32>,
+        able_to_collateralize: bool,
     ) {
-        self.diff.utxos_to_add.insert(
-            output_pointer,
-            output,
-            block_number.unwrap_or(self.diff.block_number),
-        );
+        self.diff
+            .utxos_to_add
+            .insert(output_pointer, output, able_to_collateralize);
     }
 
     /// Record a deletion to perform on the utxo set
@@ -2131,17 +2132,15 @@ impl<'a> UtxoDiff<'a> {
         self.diff
     }
 
-    /// Returns the number of the block that included the transaction referenced
-    /// by this OutputPointer. The difference between that number and the
-    /// current number of consolidated blocks is the "collateral age".
-    pub fn included_in_block_number(&self, output_pointer: &OutputPointer) -> Option<Epoch> {
+    /// Returns a boolean that indicate if is able to use in collaterals or no
+    pub fn is_able_to_collateral(&self, output_pointer: &OutputPointer) -> Option<bool> {
         self.utxo_set
-            .included_in_block_number(output_pointer)
-            .and_then(|output| {
+            .is_able_to_collateral(output_pointer)
+            .and_then(|b| {
                 if self.diff.utxos_to_remove.contains(output_pointer) {
                     None
                 } else {
-                    Some(output)
+                    Some(b)
                 }
             })
     }

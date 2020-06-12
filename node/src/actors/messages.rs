@@ -184,6 +184,8 @@ pub struct BuildVtt {
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
+    /// Flag to indicate that only want to use available to collateralize utxos
+    pub only_collateral: bool,
 }
 
 impl Message for BuildVtt {

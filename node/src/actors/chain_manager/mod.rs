@@ -310,7 +310,6 @@ impl ChainManager {
             if self.current_epoch.is_none() {
                 log::trace!("Called process_requested_block when current_epoch is None");
             }
-            let block_number = self.chain_state.block_number();
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = block.block_header.beacon.checkpoint;
 
@@ -328,9 +327,7 @@ impl ChainManager {
                 chain_info.consensus_constants.mining_backup_factor,
                 chain_info.consensus_constants.bootstrap_hash,
                 chain_info.consensus_constants.genesis_hash,
-                block_number,
                 chain_info.consensus_constants.collateral_minimum,
-                chain_info.consensus_constants.collateral_age,
             )?;
 
             // Persist block and update ChainState
@@ -747,10 +744,8 @@ impl ChainManager {
                 vrf_input,
                 current_epoch,
                 epoch_constants,
-                self.chain_state.block_number(),
                 &mut signatures_to_verify,
                 chain_info.consensus_constants.collateral_minimum,
-                chain_info.consensus_constants.collateral_age,
             ))
             .into_actor(self)
             .and_then(|_, act, _ctx| {
@@ -804,7 +799,6 @@ impl ChainManager {
         epoch_constants: EpochConstants,
         mining_bf: u32,
     ) -> ResponseActFuture<Self, Diff, failure::Error> {
-        let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
         let consensus_constants = self
             .chain_state
@@ -838,9 +832,7 @@ impl ChainManager {
                 act.chain_state.reputation_engine.as_ref().unwrap(),
                 consensus_constants.genesis_hash,
                 epoch_constants,
-                block_number,
                 consensus_constants.collateral_minimum,
-                consensus_constants.collateral_age,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
             .into_actor(act)
@@ -895,9 +887,7 @@ pub fn process_validations(
     mining_bf: u32,
     bootstrap_hash: Hash,
     genesis_hash: Hash,
-    block_number: u32,
     collateral_minimum: u64,
-    collateral_age: u32,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -923,9 +913,7 @@ pub fn process_validations(
         rep_eng,
         genesis_hash,
         epoch_constants,
-        block_number,
         collateral_minimum,
-        collateral_age,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 
@@ -1057,19 +1045,15 @@ fn update_pools(
     if let Some(own_pkh) = own_pkh {
         utxo_diff.visit(
             own_utxos,
-            |own_utxos, output_pointer, output| {
+            |own_utxos, output_pointer, output, &able_to_collateralize| {
                 // Insert new outputs
                 if output.pkh == own_pkh {
-                    own_utxos.insert(output_pointer.clone(), 0, output.value);
+                    own_utxos.insert(output_pointer.clone(), 0, able_to_collateralize);
                 }
             },
             |own_utxos, output_pointer| {
                 // Remove spent inputs
-                let value = unspent_outputs_pool
-                    .get(output_pointer)
-                    .map(|vto| vto.value)
-                    .unwrap_or(0);
-                own_utxos.remove(&output_pointer, value);
+                own_utxos.remove(&output_pointer);
             },
         );
     }

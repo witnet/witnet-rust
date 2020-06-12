@@ -151,9 +151,6 @@ pub struct ConsensusConstants {
     /// Minimum value in nanowits for a collateral value
     pub collateral_minimum: u64,
 
-    /// Minimum input age of an UTXO for being a valid collateral
-    pub collateral_age: u32,
-
     /// Build a superblock every `superblock_period` epochs
     pub superblock_period: u16,
 
@@ -2200,9 +2197,8 @@ pub enum DataRequestStage {
 pub struct UnspentOutputsPool {
     /// Map of output pointer to a tuple of:
     /// * Value transfer output
-    /// * The number of the block that included the transaction
-    ///   (how many blocks were consolidated before this one).
-    map: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
+    /// * Able to collateral?
+    map: HashMap<OutputPointer, (ValueTransferOutput, bool)>,
 }
 
 impl UnspentOutputsPool {
@@ -2226,53 +2222,50 @@ impl UnspentOutputsPool {
         &mut self,
         k: OutputPointer,
         v: ValueTransferOutput,
-        block_number: u32,
-    ) -> Option<(ValueTransferOutput, u32)> {
-        self.map.insert(k, (v, block_number))
+        able_to_collateralize: bool,
+    ) -> Option<(ValueTransferOutput, bool)> {
+        self.map.insert(k, (v, able_to_collateralize))
     }
 
-    pub fn remove(&mut self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+    pub fn remove(&mut self, k: &OutputPointer) -> Option<(ValueTransferOutput, bool)> {
         self.map.remove(k)
     }
 
     pub fn drain(
         &mut self,
-    ) -> std::collections::hash_map::Drain<OutputPointer, (ValueTransferOutput, u32)> {
+    ) -> std::collections::hash_map::Drain<OutputPointer, (ValueTransferOutput, bool)> {
         self.map.drain()
     }
 
     pub fn iter(
         &self,
-    ) -> std::collections::hash_map::Iter<OutputPointer, (ValueTransferOutput, u32)> {
+    ) -> std::collections::hash_map::Iter<OutputPointer, (ValueTransferOutput, bool)> {
         self.map.iter()
     }
 
-    /// Returns the number of the block that included the transaction referenced
-    /// by this OutputPointer. The difference between that number and the
-    /// current number of consolidated blocks is the "collateral age".
-    pub fn included_in_block_number(&self, k: &OutputPointer) -> Option<Epoch> {
-        self.map.get(k).map(|(_vt, n)| *n)
+    pub fn is_able_to_collateral(&self, k: &OutputPointer) -> Option<bool> {
+        self.map.get(k).map(|(_vt, b)| *b)
     }
 }
 
 /// List of unspent outputs that can be spent by this node
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct OwnUnspentOutputsPool {
-    /// Map of output pointer to timestamp
+    /// Maps of output pointer to timestamp
     /// Those UTXOs have a timestamp value to avoid double spending
-    map: HashMap<OutputPointer, u64>,
-    /// Counter of UTXOs bigger than the minimum collateral
-    bigger_than_min_counter: usize,
-    /// Collateral minimum
-    collateral_min: u64,
+
+    /// UTXOs ables to collateralize
+    collateral_map: HashMap<OutputPointer, u64>,
+
+    /// UTXOs not ables to collateralize
+    not_collateral_map: HashMap<OutputPointer, u64>,
 }
 
 impl OwnUnspentOutputsPool {
-    pub fn new(collateral_min: u64) -> Self {
+    pub fn new() -> Self {
         Self {
-            map: HashMap::default(),
-            bigger_than_min_counter: 0,
-            collateral_min,
+            collateral_map: Default::default(),
+            not_collateral_map: Default::default(),
         }
     }
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&u64>
@@ -2280,7 +2273,12 @@ impl OwnUnspentOutputsPool {
         OutputPointer: std::borrow::Borrow<Q>,
         Q: std::hash::Hash + Eq,
     {
-        self.map.get(k)
+        let get = self.not_collateral_map.get(k);
+        if get.is_none() {
+            self.collateral_map.get(k)
+        } else {
+            get
+        }
     }
 
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut u64>
@@ -2288,64 +2286,89 @@ impl OwnUnspentOutputsPool {
         OutputPointer: std::borrow::Borrow<Q>,
         Q: std::hash::Hash + Eq,
     {
-        self.map.get_mut(k)
-    }
-
-    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
-    where
-        OutputPointer: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + Eq,
-    {
-        self.map.contains_key(k)
-    }
-
-    pub fn insert(&mut self, k: OutputPointer, v: u64, value: u64) -> Option<u64> {
-        let old_ts = self.map.insert(k, v);
-        if old_ts.is_none() && value >= self.collateral_min {
-            self.bigger_than_min_counter += 1;
+        let get_mut = self.not_collateral_map.get_mut(k);
+        if get_mut.is_none() {
+            self.collateral_map.get_mut(k)
+        } else {
+            get_mut
         }
-
-        old_ts
     }
 
-    pub fn remove(&mut self, k: &OutputPointer, value: u64) -> Option<u64> {
-        let ts = self.map.remove(k);
-
-        if ts.is_some() && value >= self.collateral_min {
-            self.bigger_than_min_counter -= 1;
+    pub fn insert(&mut self, k: OutputPointer, v: u64, able_to_collateralize: bool) -> Option<u64> {
+        if able_to_collateralize {
+            self.collateral_map.insert(k, v)
+        } else {
+            self.not_collateral_map.insert(k, v)
         }
-
-        ts
     }
 
-    pub fn drain(&mut self) -> std::collections::hash_map::Drain<OutputPointer, u64> {
-        self.bigger_than_min_counter = 0;
-        self.map.drain()
+    pub fn remove(&mut self, k: &OutputPointer) -> Option<u64> {
+        let remove = self.not_collateral_map.remove(k);
+        if remove.is_none() {
+            self.collateral_map.remove(k)
+        } else {
+            remove
+        }
     }
 
-    pub fn iter(&self) -> std::collections::hash_map::Iter<OutputPointer, u64> {
-        self.map.iter()
+    pub fn iter(&self) -> impl Iterator<Item = (&OutputPointer, &u64)> {
+        self.not_collateral_map
+            .iter()
+            .chain(self.collateral_map.iter())
     }
 
-    pub fn keys(&self) -> std::collections::hash_map::Keys<OutputPointer, u64> {
-        self.map.keys()
-    }
-
-    pub fn bigger_than_min_counter(&self) -> usize {
-        self.bigger_than_min_counter
+    pub fn collateral_iter(&self) -> impl Iterator<Item = (&OutputPointer, &u64)> {
+        self.collateral_map.iter()
     }
 
     pub fn len(&self) -> usize {
-        self.map.len()
+        self.not_collateral_map.len() + self.collateral_map.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.not_collateral_map.is_empty() && self.collateral_map.is_empty()
     }
 
     /// Method to sort own_utxos by value
-    pub fn sort(&self, all_utxos: &UnspentOutputsPool, bigger_first: bool) -> Vec<OutputPointer> {
-        self.keys()
+    pub fn sort(
+        &self,
+        all_utxos: &UnspentOutputsPool,
+        bigger_first: bool,
+        only_collateral: bool,
+    ) -> Vec<OutputPointer> {
+        let mut sort: Vec<OutputPointer> = if only_collateral {
+            vec![]
+        } else {
+            self.not_collateral_map
+                .keys()
+                .sorted_by_key(|o| {
+                    let value = all_utxos.get(o).map(|vt| i128::from(vt.value)).unwrap_or(0);
+
+                    if bigger_first {
+                        -value
+                    } else {
+                        value
+                    }
+                })
+                .cloned()
+                .collect()
+        };
+
+        // The utxos used for collateral are always the last ones to use
+        let collateral_sort = self.collateral_sort(all_utxos, bigger_first);
+        sort.extend(collateral_sort);
+
+        sort
+    }
+
+    /// Method to sort own_utxos ables to collateralize by value
+    pub fn collateral_sort(
+        &self,
+        all_utxos: &UnspentOutputsPool,
+        bigger_first: bool,
+    ) -> Vec<OutputPointer> {
+        self.collateral_map
+            .keys()
             .sorted_by_key(|o| {
                 let value = all_utxos.get(o).map(|vt| i128::from(vt.value)).unwrap_or(0);
 
@@ -2379,7 +2402,7 @@ pub struct UtxoMetadata {
     pub output_pointer: OutputPointer,
     pub value: u64,
     pub timelock: u64,
-    pub ready_for_collateral: bool,
+    pub able_to_collateralize: bool,
 }
 
 /// Information about our own UTXOs
@@ -2387,10 +2410,12 @@ pub struct UtxoMetadata {
 pub struct UtxoInfo {
     /// Vector of OutputPointer with their values, time_locks and if it is ready for collateral
     pub utxos: Vec<UtxoMetadata>,
-    /// Counter of UTXOs bigger than the minimum collateral
-    pub bigger_than_min_counter: usize,
-    /// Counter of UTXOs bigger than the minimum collateral and older than collateral coinage
-    pub old_utxos_counter: usize,
+    /// Total wits counter
+    pub total_wits_counter: u64,
+    /// Collateral wits counter
+    pub collateral_wits_counter: u64,
+    /// Collateral utxos with at least minimum collateral
+    pub collateral_utxos_counter: usize,
 }
 
 #[allow(clippy::cast_sign_loss)]
@@ -2399,9 +2424,7 @@ fn create_utxo_metadata(
     o: &OutputPointer,
     all_utxos: &UnspentOutputsPool,
     collateral_min: u64,
-    block_number_limit: u32,
-    bigger_than_min_counter: &mut usize,
-    old_utxos_counter: &mut usize,
+    collateral_utxos_counter: &mut usize,
 ) -> UtxoMetadata {
     let now = get_timestamp() as u64;
     let timelock = if vto.time_lock >= now {
@@ -2409,21 +2432,19 @@ fn create_utxo_metadata(
     } else {
         0
     };
-    if vto.value >= collateral_min {
-        *bigger_than_min_counter += 1;
-    }
-    let ready_for_collateral = (vto.value >= collateral_min)
-        && (all_utxos.included_in_block_number(o).unwrap() <= block_number_limit)
-        && timelock == 0;
+
+    let able_to_collateralize = all_utxos.is_able_to_collateral(o).unwrap();
+    let ready_for_collateral =
+        (vto.value >= collateral_min) && able_to_collateralize && timelock == 0;
     if ready_for_collateral {
-        *old_utxos_counter += 1;
+        *collateral_utxos_counter += 1;
     }
 
     UtxoMetadata {
         output_pointer: o.clone(),
         value: vto.value,
         timelock,
-        ready_for_collateral,
+        able_to_collateralize,
     }
 }
 
@@ -2434,25 +2455,30 @@ pub fn get_utxo_info(
     own_utxos: &OwnUnspentOutputsPool,
     all_utxos: &UnspentOutputsPool,
     collateral_min: u64,
-    block_number_limit: u32,
 ) -> UtxoInfo {
-    let mut bigger_than_min_counter = 0;
-    let mut old_utxos_counter = 0;
+    let mut collateral_utxos_counter = 0;
+    let mut total_wits_counter = 0;
+    let mut collateral_wits_counter = 0;
 
     let utxos = if let Some(pkh) = pkh {
         all_utxos
             .iter()
             .filter_map(|(o, (vto, _))| {
                 if vto.pkh == pkh {
-                    Some(create_utxo_metadata(
+                    let metadata = create_utxo_metadata(
                         vto,
                         o,
                         all_utxos,
                         collateral_min,
-                        block_number_limit,
-                        &mut bigger_than_min_counter,
-                        &mut old_utxos_counter,
-                    ))
+                        &mut collateral_utxos_counter,
+                    );
+
+                    // Update wit counters
+                    total_wits_counter += metadata.value;
+                    if metadata.able_to_collateralize {
+                        collateral_wits_counter += metadata.value;
+                    }
+                    Some(metadata)
                 } else {
                     None
                 }
@@ -2464,15 +2490,21 @@ pub fn get_utxo_info(
             .iter()
             .filter_map(|(o, _)| {
                 all_utxos.get(o).map(|vto| {
-                    create_utxo_metadata(
+                    let metadata = create_utxo_metadata(
                         vto,
                         o,
                         all_utxos,
                         collateral_min,
-                        block_number_limit,
-                        &mut bigger_than_min_counter,
-                        &mut old_utxos_counter,
-                    )
+                        &mut collateral_utxos_counter,
+                    );
+
+                    // Update wit counters
+                    total_wits_counter += metadata.value;
+                    if metadata.able_to_collateralize {
+                        collateral_wits_counter += metadata.value;
+                    }
+
+                    metadata
                 })
             })
             .collect()
@@ -2480,8 +2512,9 @@ pub fn get_utxo_info(
 
     UtxoInfo {
         utxos,
-        bigger_than_min_counter,
-        old_utxos_counter,
+        collateral_wits_counter,
+        total_wits_counter,
+        collateral_utxos_counter,
     }
 }
 
@@ -2599,11 +2632,6 @@ impl ChainState {
             .collect();
 
         Ok(v)
-    }
-
-    /// Return the number of consolidated blocks
-    pub fn block_number(&self) -> u32 {
-        u32::try_from(self.block_chain.len()).unwrap()
     }
 }
 
@@ -2855,7 +2883,7 @@ fn update_utxo_outputs(
     utxo: &mut UnspentOutputsPool,
     outputs: &[ValueTransferOutput],
     txn_hash: Hash,
-    block_number: u32,
+    able_to_collateralize: bool,
 ) {
     for (index, output) in outputs.iter().enumerate() {
         // Add the new outputs to the utxo_set
@@ -2864,7 +2892,7 @@ fn update_utxo_outputs(
             output_index: u32::try_from(index).unwrap(),
         };
 
-        utxo.insert(output_pointer, output.clone(), block_number);
+        utxo.insert(output_pointer, output.clone(), able_to_collateralize);
     }
 }
 
@@ -2872,7 +2900,7 @@ fn update_utxo_outputs(
 pub fn generate_unspent_outputs_pool(
     unspent_outputs_pool: &UnspentOutputsPool,
     transactions: &[Transaction],
-    block_number: u32,
+    able_to_collateralize: bool,
 ) -> UnspentOutputsPool {
     // Create a copy of the state "unspent_outputs_pool"
     let mut unspent_outputs = unspent_outputs_pool.clone();
@@ -2886,7 +2914,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &vt_transaction.body.outputs,
                     txn_hash,
-                    block_number,
+                    able_to_collateralize,
                 );
             }
             Transaction::DataRequest(dr_transaction) => {
@@ -2895,7 +2923,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &dr_transaction.body.outputs,
                     txn_hash,
-                    block_number,
+                    able_to_collateralize,
                 );
             }
             Transaction::Tally(tally_transaction) => {
@@ -2903,7 +2931,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &tally_transaction.outputs,
                     txn_hash,
-                    block_number,
+                    able_to_collateralize,
                 );
             }
             Transaction::Mint(mint_transaction) => {
@@ -2911,7 +2939,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &mint_transaction.outputs,
                     txn_hash,
-                    block_number,
+                    able_to_collateralize,
                 );
             }
             _ => {}
@@ -3900,50 +3928,6 @@ mod tests {
     }
 
     #[test]
-    fn utxo_set_coin_age() {
-        let mut p = UnspentOutputsPool::default();
-        let v = || ValueTransferOutput::default();
-
-        let k0: OutputPointer =
-            "0222222222222222222222222222222222222222222222222222222222222222:0"
-                .parse()
-                .unwrap();
-        p.insert(k0.clone(), v(), 0);
-        assert_eq!(p.included_in_block_number(&k0), Some(0));
-
-        let k1: OutputPointer =
-            "1222222222222222222222222222222222222222222222222222222222222222:0"
-                .parse()
-                .unwrap();
-        p.insert(k1.clone(), v(), 1);
-        assert_eq!(p.included_in_block_number(&k1), Some(1));
-
-        // k2 points to the same transaction as k1, so they must have the same coin age
-        let k2: OutputPointer =
-            "1222222222222222222222222222222222222222222222222222222222222222:1"
-                .parse()
-                .unwrap();
-        p.insert(k2.clone(), v(), 1);
-        assert_eq!(p.included_in_block_number(&k2), Some(1));
-
-        // Removing k2 should not affect k1
-        p.remove(&k2);
-        assert_eq!(p.included_in_block_number(&k2), None);
-        assert_eq!(p.included_in_block_number(&k1), Some(1));
-        assert_eq!(p.included_in_block_number(&k0), Some(0));
-
-        p.remove(&k1);
-        assert_eq!(p.included_in_block_number(&k2), None);
-        assert_eq!(p.included_in_block_number(&k1), None);
-        assert_eq!(p.included_in_block_number(&k0), Some(0));
-
-        p.remove(&k0);
-        assert_eq!(p.included_in_block_number(&k0), None);
-
-        assert_eq!(p, UnspentOutputsPool::default());
-    }
-
-    #[test]
     fn utxo_set_insert_twice() {
         // Inserting the same input twice into the UTXO set overwrites the transaction
         let mut p = UnspentOutputsPool::default();
@@ -3953,18 +3937,18 @@ mod tests {
             "0222222222222222222222222222222222222222222222222222222222222222:0"
                 .parse()
                 .unwrap();
-        p.insert(k0.clone(), v(), 0);
-        p.insert(k0.clone(), v(), 0);
-        assert_eq!(p.included_in_block_number(&k0), Some(0));
+        p.insert(k0.clone(), v(), true);
+        p.insert(k0.clone(), v(), true);
+        assert_eq!(p.is_able_to_collateral(&k0), Some(true));
         // Removing once is enough
         p.remove(&k0);
-        assert_eq!(p.included_in_block_number(&k0), None);
+        assert_eq!(p.is_able_to_collateral(&k0), None);
     }
 
     #[test]
     fn utxo_set_insert_same_transaction_different_epoch() {
         // Inserting the same transaction twice with different indexes means a different UTXO
-        // so, each UTXO keeps their own block number
+        // so, each UTXO keeps their own availability for collateralize
         let mut p = UnspentOutputsPool::default();
         let v = || ValueTransferOutput::default();
 
@@ -3972,15 +3956,15 @@ mod tests {
             "0222222222222222222222222222222222222222222222222222222222222222:0"
                 .parse()
                 .unwrap();
-        p.insert(k0.clone(), v(), 0);
-        assert_eq!(p.included_in_block_number(&k0), Some(0));
+        p.insert(k0.clone(), v(), false);
+        assert_eq!(p.is_able_to_collateral(&k0), Some(false));
         let k1: OutputPointer =
             "0222222222222222222222222222222222222222222222222222222222222222:1"
                 .parse()
                 .unwrap();
 
-        p.insert(k1.clone(), v(), 1);
-        assert_eq!(p.included_in_block_number(&k1), Some(1));
+        p.insert(k1.clone(), v(), true);
+        assert_eq!(p.is_able_to_collateral(&k1), Some(true));
     }
 
     #[test]
@@ -3999,16 +3983,16 @@ mod tests {
             vec![],
         ));
 
-        let utxo_pool = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &[vt], 0);
+        let utxo_pool = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &[vt], true);
         assert_eq!(utxo_pool.iter().len(), 4);
 
         let mut own_utxos = OwnUnspentOutputsPool::default();
         for (o, _) in utxo_pool.iter() {
-            own_utxos.insert(o.clone(), 0, 0);
+            own_utxos.insert(o.clone(), 0, true);
         }
         assert_eq!(own_utxos.len(), 4);
 
-        let sorted_bigger = own_utxos.sort(&utxo_pool, true);
+        let sorted_bigger = own_utxos.sort(&utxo_pool, true, false);
         let mut aux = 1000;
         for o in sorted_bigger.iter() {
             let value = utxo_pool.get(o).unwrap().value;
@@ -4016,7 +4000,7 @@ mod tests {
             aux = value;
         }
 
-        let sorted_lower = own_utxos.sort(&utxo_pool, false);
+        let sorted_lower = own_utxos.sort(&utxo_pool, false, false);
         let mut aux = 0;
         for o in sorted_lower.iter() {
             let value = utxo_pool.get(o).unwrap().value;

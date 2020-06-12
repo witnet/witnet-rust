@@ -192,6 +192,17 @@ pub enum TransactionError {
         available_balance: u64,
         transaction_value: u64,
     },
+    /// Error when there is not enough available for collateralize balance to create a transaction
+    #[fail(
+        display = "Cannot build a transaction with only available for collateralize UTXOs.\
+     Transaction value is greater than available balance: \
+                   (Available Balance:{}, Transaction value:{})",
+        available_balance, transaction_value
+    )]
+    NoCollateralMoney {
+        available_balance: u64,
+        transaction_value: u64,
+    },
     /// Zero amount specified
     #[fail(display = "Cannot build transaction with zero value")]
     ZeroAmount,
@@ -231,16 +242,12 @@ pub enum TransactionError {
         expected, found
     )]
     IncorrectCollateral { expected: u64, found: u64 },
-    /// Collateral in commit transaction is not mature enough
+    /// Collateral used is not valid to collateralize
     #[fail(
-        display = "Output {} used as input for collateralized commitment is not mature enough. Inputs of commitment transactions must be older than {} blocks, but this one was only {} blocks old",
-        output, must_be_older_than, found
+        display = "Output {} used as input for collateralized commitment is not valid to collateralize",
+        output
     )]
-    CollateralNotMature {
-        must_be_older_than: u32,
-        found: u32,
-        output: OutputPointer,
-    },
+    CollateralNotValid { output: OutputPointer },
     /// Collateral in commit transaction uses a different PKH than the commit VRF Proof
     #[fail(
         display = "Output {} used as input for collateralized commitment has pkh {} when the commit proof has pkh {}",

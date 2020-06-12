@@ -221,7 +221,6 @@ impl ChainManager {
                     &tally_transactions,
                     own_pkh,
                     epoch_constants,
-                    act.chain_state.block_number(),
                     collateral_minimum,
                     bn256_public_key,
                     act.external_address,
@@ -444,15 +443,14 @@ impl ChainManager {
                 // Collect outputs to be used as input for collateralized commitment,
                 // as well as outputs for change.
                 .and_then(move |vrf_proof, act, _| {
-                    let (collateral_age, checkpoint_period) = match &act.chain_state.chain_info {
-                        Some(x) => (x.consensus_constants.collateral_age, x.consensus_constants.checkpoints_period),
+                    let checkpoint_period = match &act.chain_state.chain_info {
+                        Some(x) =>x.consensus_constants.checkpoints_period,
                         None => {
                             log::error!("ChainInfo is None");
                             return actix::fut::err(());
                         },
                     };
 
-                    let block_number_limit = act.chain_state.block_number().saturating_sub(collateral_age);
                     // Check if we have enough collateralizable unspent outputs before starting
                     // retrieval
                     match build_commit_collateral(
@@ -465,8 +463,6 @@ impl ChainManager {
                         // that if your commit has not been accepted you can use your utxo in
                         // the next epoch or at least in two epochs
                         u64::from(checkpoint_period),
-                        // The block number must be lower than this limit
-                        block_number_limit
                     ) {
                         Ok(collateral) => actix::fut::ok((vrf_proof, collateral)),
                         Err(TransactionError::NoMoney {
@@ -861,7 +857,6 @@ fn build_block(
     tally_transactions: &[TallyTransaction],
     own_pkh: PublicKeyHash,
     epoch_constants: EpochConstants,
-    block_number: u32,
     collateral_minimum: u64,
     bn256_public_key: Option<Bn256PublicKey>,
     external_address: Option<PublicKeyHash>,
@@ -869,7 +864,7 @@ fn build_block(
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
-    let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
+    let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool);
 
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
@@ -902,6 +897,7 @@ fn build_block(
                 &mut utxo_diff,
                 vt_tx.body.inputs.iter().collect(),
                 vt_tx.body.outputs.iter().collect(),
+                None,
                 vt_tx.hash(),
             );
             transaction_fees += transaction_fee;
@@ -929,6 +925,7 @@ fn build_block(
             &mut utxo_diff,
             dr_tx.body.inputs.iter().collect(),
             dr_tx.body.outputs.iter().collect(),
+            None,
             dr_tx.hash(),
         );
         data_request_txns.push(dr_tx.clone());
@@ -1137,7 +1134,6 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
         let block_proof = BlockEligibilityClaim::default();
-        let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
         // Build empty block (because max weight is zero)
@@ -1149,7 +1145,6 @@ mod tests {
             &[],
             PublicKeyHash::default(),
             EpochConstants::default(),
-            block_number,
             collateral_minimum,
             None,
             None,
@@ -1199,7 +1194,6 @@ mod tests {
             bytes: Protected::from(vec![0xcd; 32]),
         };
         let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-        let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
         // Build empty block (because max weight is zero)
@@ -1212,7 +1206,6 @@ mod tests {
             &[],
             PublicKeyHash::default(),
             EpochConstants::default(),
-            block_number,
             collateral_minimum,
             None,
             None,
@@ -1349,7 +1342,6 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
         let block_proof = BlockEligibilityClaim::default();
-        let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
         // Build block with
@@ -1362,7 +1354,6 @@ mod tests {
             &[],
             PublicKeyHash::default(),
             EpochConstants::default(),
-            block_number,
             collateral_minimum,
             None,
             None,

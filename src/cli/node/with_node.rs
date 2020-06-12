@@ -49,6 +49,7 @@ pub fn exec_cmd(
             fee,
             time_lock,
             dry_run,
+            only_collateral,
         } => rpc::send_vtt(
             node.unwrap_or(config.jsonrpc.server_address),
             Some(address.parse()?),
@@ -58,6 +59,7 @@ pub fn exec_cmd(
             time_lock.unwrap_or(0),
             None,
             dry_run,
+            only_collateral,
         ),
         Command::Split {
             node,
@@ -67,6 +69,7 @@ pub fn exec_cmd(
             fee,
             time_lock,
             dry_run,
+            only_collateral,
         } => {
             let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == 0 { None } else { Some(size) };
@@ -79,6 +82,7 @@ pub fn exec_cmd(
                 time_lock.unwrap_or(0),
                 Some(true),
                 dry_run,
+                only_collateral,
             )
         }
         Command::Join {
@@ -89,6 +93,7 @@ pub fn exec_cmd(
             fee,
             time_lock,
             dry_run,
+            only_collateral,
         } => {
             let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == Some(0) { None } else { size };
@@ -101,6 +106,7 @@ pub fn exec_cmd(
                 time_lock.unwrap_or(0),
                 Some(false),
                 dry_run,
+                only_collateral,
             )
         }
         Command::SendRequest {
@@ -334,6 +340,9 @@ pub enum Command {
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+        /// Use only utxos available for collateralize
+        #[structopt(long = "only_collateral")]
+        only_collateral: bool,
     },
     #[structopt(
         name = "splitTransaction",
@@ -361,6 +370,9 @@ pub enum Command {
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+        /// Use only utxos available for collateralize
+        #[structopt(long = "only_collateral")]
+        only_collateral: bool,
     },
     #[structopt(
         name = "joinTransaction",
@@ -388,6 +400,9 @@ pub enum Command {
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+        /// Use only utxos available for collateralize
+        #[structopt(long = "only_collateral")]
+        only_collateral: bool,
     },
     #[structopt(
         name = "sendRequest",
