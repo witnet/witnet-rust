@@ -19,7 +19,7 @@ function migrate {
   mkdir -p "$WITNET_CONFIG_FOLDER" &&
   log "Ensuring that storage folder '$WITNET_STORAGE_FOLDER' does exist" &&
   mkdir -p "$WITNET_STORAGE_FOLDER" &&
-  log "Moving configuration files into configuration folder '$WITNET_FOLDER/config'" &&
+  log "Moving configuration files into configuration folder '$WITNET_CONFIG_FOLDER'" &&
   mv -n "$CONFIG_FILE" "$WITNET_CONFIG_FOLDER" &&
   cp "genesis_block.json" "$WITNET_CONFIG_FOLDER" &&
   chmod -R 777 "$WITNET_FOLDER/config" &&

@@ -22,8 +22,8 @@ FILENAME="$VERSION.tar.gz"
 
 # Download and extract release bundle
 log "Downloading 'witnet-$VERSION-$TRIPLET.tar.gz'. It may take a few seconds..."
-curl -L "$URL" -o "/tmp/$FILENAME" --cacert /etc/ssl/certs/ca-certificates.crt >/dev/null 2>&1 &&
-tar -zxf "/tmp/$FILENAME" --directory . >/dev/null 2>&1 &&
+curl -L "$URL" -o "/tmp/$FILENAME" --cacert /etc/ssl/certs/ca-certificates.crt &&
+tar -zxf "/tmp/$FILENAME" --directory "/tmp/" &&
 # Rename the actual binary to 'witnet-raw'
 mv witnet witnet-raw &&
 chmod +x ./witnet-raw &&
