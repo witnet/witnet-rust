@@ -145,8 +145,11 @@ pub trait Defaults {
         50
     }
 
-    fn consensus_constants_max_block_weight(&self) -> u32 {
-        153_600
+    fn consensus_constants_max_vt_weight(&self) -> u32 {
+        20_000
+    }
+    fn consensus_constants_max_dr_weight(&self) -> u32 {
+        80_000
     }
 
     /// Default number of seconds before giving up waiting for requested blocks: `400`.

@@ -121,10 +121,10 @@ pub struct ConsensusConstants {
     /// transactions as the sum of _their_ weights is less than, or
     /// equal to, this maximum block weight parameter.
     ///
-    /// Currently, a weight of 1 is equivalent to 1 byte.
-    /// This is only configurable in testnet, in mainnet the default
-    /// will be used.
-    pub max_block_weight: u32,
+    /// Maximum aggregated weight of all the value transfer transactions in one block
+    pub max_vt_weight: u32,
+    /// Maximum aggregated weight of all the data requests transactions in one block
+    pub max_dr_weight: u32,
 
     /// An identity is considered active if it participated in the witnessing protocol at least once in the last `activity_period` epochs
     pub activity_period: u32,
@@ -1052,6 +1052,21 @@ impl DataRequestOutput {
             .and_then(|res| res.checked_add(self.tally_fee))
             .ok_or_else(|| TransactionError::FeeOverflow)
     }
+
+    /// Returns the DataRequestOutput weight
+    pub fn weight(&self) -> u32 {
+        // Witness reward: 8 bytes
+        // Witnesses: 2 bytes
+        // commit_fee: 8 bytes
+        // reveal_fee: 8 bytes
+        // tally_fee: 8 bytes
+        // min_consensus_percentage: 4 bytes
+        // collateral: 8 bytes
+
+        self.data_request
+            .weight()
+            .saturating_add(8 + 2 + 8 + 8 + 8 + 4 + 8)
+    }
 }
 
 /// Keyed signature data structure
@@ -1215,6 +1230,22 @@ pub struct RADRequest {
     pub tally: RADTally,
 }
 
+impl RADRequest {
+    pub fn weight(&self) -> u32 {
+        // Time lock: 8 bytes
+
+        let mut retrievals_weight: u32 = 0;
+        for i in self.retrieve.iter() {
+            retrievals_weight = retrievals_weight.saturating_add(i.weight());
+        }
+
+        retrievals_weight
+            .saturating_add(self.aggregate.weight())
+            .saturating_add(self.tally.weight())
+            .saturating_add(8)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::DataRequestOutput_RADRequest_RADRetrieve",
@@ -1226,6 +1257,16 @@ pub struct RADRetrieve {
     pub script: Vec<u8>,
 }
 
+impl RADRetrieve {
+    pub fn weight(&self) -> u32 {
+        // RADType: 1 byte
+        let script_weight = u32::try_from(self.script.len()).unwrap_or(u32::MAX);
+        let url_weight = u32::try_from(self.url.len()).unwrap_or(u32::MAX);
+
+        script_weight.saturating_add(url_weight).saturating_add(1)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADFilter", crate = "crate")]
 pub struct RADFilter {
@@ -1233,6 +1274,14 @@ pub struct RADFilter {
     pub args: Vec<u8>,
 }
 
+impl RADFilter {
+    pub fn weight(&self) -> u32 {
+        // op: 4 bytes
+        let args_weight = u32::try_from(self.args.len()).unwrap_or(u32::MAX);
+
+        args_weight.saturating_add(4)
+    }
+}
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::DataRequestOutput_RADRequest_RADAggregate",
@@ -1243,11 +1292,37 @@ pub struct RADAggregate {
     pub reducer: u32,
 }
 
+impl RADAggregate {
+    pub fn weight(&self) -> u32 {
+        // reducer: 4 bytes
+
+        let mut filters_weight: u32 = 0;
+        for i in self.filters.iter() {
+            filters_weight = filters_weight.saturating_add(i.weight());
+        }
+
+        filters_weight.saturating_add(4)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADTally", crate = "crate")]
 pub struct RADTally {
     pub filters: Vec<RADFilter>,
     pub reducer: u32,
+}
+
+impl RADTally {
+    pub fn weight(&self) -> u32 {
+        // reducer: 4 bytes
+
+        let mut filters_weight: u32 = 0;
+        for i in self.filters.iter() {
+            filters_weight = filters_weight.saturating_add(i.weight());
+        }
+
+        filters_weight.saturating_add(4)
+    }
 }
 
 type WeightedHash = (u64, Hash);

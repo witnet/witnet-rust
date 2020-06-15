@@ -428,10 +428,14 @@ pub fn consensus_constants_from_partial(
             .genesis_hash
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_genesis_hash()),
-        max_block_weight: config
-            .max_block_weight
+        max_vt_weight: config
+            .max_vt_weight
             .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_max_block_weight()),
+            .unwrap_or_else(|| defaults.consensus_constants_max_vt_weight()),
+        max_dr_weight: config
+            .max_dr_weight
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_max_dr_weight()),
         activity_period: config
             .activity_period
             .to_owned()

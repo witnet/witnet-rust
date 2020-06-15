@@ -204,6 +204,8 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 block_number,
                                 chain_info.consensus_constants.collateral_minimum,
                                 chain_info.consensus_constants.collateral_age,
+                                chain_info.consensus_constants.max_vt_weight,
+                                chain_info.consensus_constants.max_dr_weight,
                             ) {
                                 Ok(utxo_diff) => {
                                     let block_pkh = &block_candidate.block_sig.public_key.pkh();

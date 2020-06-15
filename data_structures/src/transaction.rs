@@ -17,6 +17,16 @@ pub trait MemoizedHashable {
     fn hashable_bytes(&self) -> Vec<u8>;
     fn memoized_hash(&self) -> &MemoHash;
 }
+// These constants were calculated in:
+// TODO: add link to WIP about transaction weights
+const INPUT_SIZE: u32 = 133;
+const OUTPUT_SIZE: u32 = 36;
+const COMMIT_WEIGHT: u32 = 400;
+const REVEAL_WEIGHT: u32 = 200;
+const TALLY_WEIGHT: u32 = 100;
+const ALPHA: u32 = 1;
+const BETA: u32 = 1;
+const GAMMA: u32 = 10;
 
 /// A shareable wrapper for hash that may or may not be already computed.
 /// This low level structure does not include the implementation for compute-on-read, as that is up
@@ -161,9 +171,11 @@ impl VTTransaction {
         VTTransaction { body, signatures }
     }
 
-    /// Returns the byte size that a transaction will have on the wire
-    pub fn size(&self) -> u32 {
-        u32::try_from(self.to_pb().write_to_bytes().unwrap().len()).unwrap()
+    /// Returns the weight of a value transfer transaction.
+    /// This is the weight that will be used to calculate
+    /// how many transactions can fit inside one block
+    pub fn weight(&self) -> u32 {
+        self.body.weight()
     }
 
     /// Create a special value transfer transaction that is only valid inside the genesis block,
@@ -196,6 +208,20 @@ impl VTTransactionBody {
             outputs,
             hash: MemoHash::new(),
         }
+    }
+
+    /// Value Transfer transaction weight
+    pub fn weight(&self) -> u32 {
+        // VT_weight = N*INPUT_SIZE + M*OUTPUT_SIZE*gamma
+        let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
+        let outputs_len = u32::try_from(self.outputs.len()).unwrap_or(u32::MAX);
+
+        let inputs_weight = inputs_len.saturating_mul(INPUT_SIZE);
+        let outputs_weight = outputs_len
+            .saturating_mul(OUTPUT_SIZE)
+            .saturating_mul(GAMMA);
+
+        inputs_weight.saturating_add(outputs_weight)
     }
 }
 
@@ -259,6 +285,13 @@ impl DRTransaction {
             .map(|tx_idx| TxInclusionProof::new(tx_idx, txs))
     }
 
+    /// Returns the weight of a data request transaction.
+    /// This is the weight that will be used to calculate
+    /// how many transactions can fit inside one block
+    pub fn weight(&self) -> u32 {
+        self.body.weight()
+    }
+
     /// Modify the proof of inclusion adding a new level that divide a specified data
     /// from the rest of transaction
     pub fn data_proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
@@ -294,6 +327,34 @@ impl DRTransactionBody {
             dr_output,
             hash: MemoHash::new(),
         }
+    }
+
+    /// Data Request Transaction weight
+    pub fn weight(&self) -> u32 {
+        // DR_weight = DR_size*alpha + W*COMMIT + W*REVEAL*beta + TALLY*beta + W*OUTPUT_SIZE
+
+        let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
+        let outputs_len = u32::try_from(self.outputs.len()).unwrap_or(u32::MAX);
+        let inputs_weight = inputs_len.saturating_mul(INPUT_SIZE);
+        let outputs_weight = outputs_len.saturating_mul(OUTPUT_SIZE);
+
+        let dr_weight = inputs_weight
+            .saturating_add(outputs_weight)
+            .saturating_add(self.dr_output.weight());
+        let witnesses = u32::from(self.dr_output.witnesses);
+
+        let total_dr_weight = dr_weight.saturating_mul(ALPHA);
+        let commits_weight = witnesses.saturating_mul(COMMIT_WEIGHT);
+        let reveals_weight = witnesses.saturating_mul(REVEAL_WEIGHT).saturating_mul(BETA);
+        let tally_outputs_weight = witnesses.saturating_mul(OUTPUT_SIZE);
+        let tally_weight = TALLY_WEIGHT
+            .saturating_mul(BETA)
+            .saturating_add(tally_outputs_weight);
+
+        total_dr_weight
+            .saturating_add(commits_weight)
+            .saturating_add(reveals_weight)
+            .saturating_add(tally_weight)
     }
 
     /// Specified data to be divided in a new level in the proof of inclusion
@@ -684,7 +745,9 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        chain::{Hashable, PublicKeyHash, ValueTransferOutput},
+        chain::{
+            DataRequestOutput, Hashable, Input, KeyedSignature, PublicKeyHash, ValueTransferOutput,
+        },
         transaction::*,
     };
 
@@ -823,5 +886,76 @@ mod tests {
         let mint =
             MintTransaction::with_external_address(epoch, reward, own_pkh, Some(external_pkh), 100);
         assert_eq!(expected_mint, mint);
+    }
+
+    // VT_weight = N*INPUT_SIZE + M*OUTPUT_SIZE*gamma
+    #[test]
+    fn test_vt_weight() {
+        let vt_body =
+            VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]);
+        let vt_tx = VTTransaction::new(vt_body, vec![KeyedSignature::default()]);
+        assert_eq!(INPUT_SIZE + OUTPUT_SIZE * GAMMA, vt_tx.weight());
+        assert_eq!(493, vt_tx.weight());
+
+        let vt_body = VTTransactionBody::new(
+            vec![Input::default(); 2],
+            vec![ValueTransferOutput::default()],
+        );
+        let vt_tx = VTTransaction::new(vt_body, vec![KeyedSignature::default()]);
+        assert_eq!(2 * INPUT_SIZE + OUTPUT_SIZE * GAMMA, vt_tx.weight());
+        assert_eq!(626, vt_tx.weight());
+
+        let vt_body = VTTransactionBody::new(
+            vec![Input::default()],
+            vec![ValueTransferOutput::default(); 2],
+        );
+        let vt_tx = VTTransaction::new(vt_body, vec![KeyedSignature::default()]);
+        assert_eq!(INPUT_SIZE + 2 * OUTPUT_SIZE * GAMMA, vt_tx.weight());
+        assert_eq!(853, vt_tx.weight());
+    }
+
+    #[test]
+    fn test_dr_weight() {
+        let dro = DataRequestOutput {
+            witnesses: 2,
+            ..Default::default()
+        };
+        let dr_body = DRTransactionBody::new(
+            vec![Input::default()],
+            vec![ValueTransferOutput::default()],
+            dro.clone(),
+        );
+        let dr_tx = DRTransaction::new(dr_body, vec![KeyedSignature::default()]);
+        let dr_weight = INPUT_SIZE + OUTPUT_SIZE + dro.weight();
+        assert_eq!(
+            dr_weight * ALPHA
+                + 2 * COMMIT_WEIGHT
+                + 2 * REVEAL_WEIGHT * BETA
+                + TALLY_WEIGHT * BETA
+                + 2 * OUTPUT_SIZE,
+            dr_tx.weight()
+        );
+        assert_eq!(1603, dr_tx.weight());
+
+        let dro = DataRequestOutput {
+            witnesses: 5,
+            ..Default::default()
+        };
+        let dr_body = DRTransactionBody::new(
+            vec![Input::default()],
+            vec![ValueTransferOutput::default()],
+            dro.clone(),
+        );
+        let dr_tx = DRTransaction::new(dr_body, vec![KeyedSignature::default()]);
+        let dr_weight = INPUT_SIZE + OUTPUT_SIZE + dro.weight();
+        assert_eq!(
+            dr_weight * ALPHA
+                + 5 * COMMIT_WEIGHT
+                + 5 * REVEAL_WEIGHT * BETA
+                + TALLY_WEIGHT * BETA
+                + 5 * OUTPUT_SIZE,
+            dr_tx.weight()
+        );
+        assert_eq!(3511, dr_tx.weight());
     }
 }

@@ -1426,6 +1426,8 @@ pub fn validate_block_transactions(
     block_number: u32,
     collateral_minimum: u64,
     collateral_age: u32,
+    max_vt_weight: u32,
+    max_dr_weight: u32,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == genesis_hash;
@@ -1442,8 +1444,9 @@ pub fn validate_block_transactions(
     // TODO: replace for loop with a try_fold
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
+    let mut vt_weight: u32 = 0;
     for transaction in &block.txns.value_transfer_txns {
-        let (inputs, outputs, fee) = if is_genesis {
+        let (inputs, outputs, fee, weight) = if is_genesis {
             let (outputs, value_created) = validate_genesis_vt_transaction(transaction)?;
             // Update value available, and return error on overflow
             genesis_value_available = genesis_value_available.checked_sub(value_created).ok_or(
@@ -1452,17 +1455,30 @@ pub fn validate_block_transactions(
                 },
             )?;
 
-            (vec![], outputs, 0)
+            (vec![], outputs, 0, 0)
         } else {
-            validate_vt_transaction(
+            let (inputs, outputs, fee) = validate_vt_transaction(
                 transaction,
                 &utxo_diff,
                 epoch,
                 epoch_constants,
                 signatures_to_verify,
-            )?
+            )?;
+
+            (inputs, outputs, fee, transaction.weight())
         };
         total_fee += fee;
+
+        // Update vt weight
+        let acc_weight = vt_weight.saturating_add(weight);
+        if acc_weight > max_vt_weight {
+            return Err(BlockError::ValueTransferWeightLimitExceeded {
+                weight: acc_weight,
+                max_weight: max_vt_weight,
+            }
+            .into());
+        }
+        vt_weight = acc_weight;
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
@@ -1475,6 +1491,7 @@ pub fn validate_block_transactions(
 
     // Validate data request transactions in a block
     let mut dr_mt = ProgressiveMerkleTree::sha256();
+    let mut dr_weight: u32 = 0;
     for transaction in &block.txns.data_request_txns {
         let (inputs, outputs, fee) = validate_dr_transaction(
             transaction,
@@ -1492,6 +1509,17 @@ pub fn validate_block_transactions(
         let txn_hash = transaction.hash();
         let Hash::SHA256(sha) = txn_hash;
         dr_mt.push(Sha256(sha));
+
+        // Update dr weight
+        let acc_weight = dr_weight.saturating_add(transaction.weight());
+        if acc_weight > max_dr_weight {
+            return Err(BlockError::DataRequestWeightLimitExceeded {
+                weight: acc_weight,
+                max_weight: max_dr_weight,
+            }
+            .into());
+        }
+        dr_weight = acc_weight;
     }
     let dr_hash_merkle_root = dr_mt.root();
 

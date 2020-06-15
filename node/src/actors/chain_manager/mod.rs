@@ -331,6 +331,8 @@ impl ChainManager {
                 block_number,
                 chain_info.consensus_constants.collateral_minimum,
                 chain_info.consensus_constants.collateral_age,
+                chain_info.consensus_constants.max_vt_weight,
+                chain_info.consensus_constants.max_dr_weight,
             )?;
 
             // Persist block and update ChainState
@@ -841,6 +843,8 @@ impl ChainManager {
                 block_number,
                 consensus_constants.collateral_minimum,
                 consensus_constants.collateral_age,
+                consensus_constants.max_vt_weight,
+                consensus_constants.max_dr_weight,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
             .into_actor(act)
@@ -898,6 +902,8 @@ pub fn process_validations(
     block_number: u32,
     collateral_minimum: u64,
     collateral_age: u32,
+    max_vt_weight: u32,
+    max_dr_weight: u32,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -926,6 +932,8 @@ pub fn process_validations(
         block_number,
         collateral_minimum,
         collateral_age,
+        max_vt_weight,
+        max_dr_weight,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 

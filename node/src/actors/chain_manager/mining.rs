@@ -15,21 +15,6 @@ use std::{
 };
 
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::{
-    chain::{
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, EpochConstants, Hash, Hashable, PublicKeyHash, ReputationEngine,
-        SuperBlockVote, TransactionsPool, UnspentOutputsPool,
-    },
-    data_request::{calculate_witness_reward, create_tally, DataRequestPool},
-    error::TransactionError,
-    radon_report::{RadonReport, ReportContext},
-    transaction::{
-        CommitTransaction, CommitTransactionBody, MintTransaction, RevealTransaction,
-        RevealTransactionBody, TallyTransaction,
-    },
-    vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
-};
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
@@ -51,6 +36,22 @@ use crate::{
         rad_manager::RadManager,
     },
     signature_mngr,
+};
+use witnet_data_structures::{
+    chain::{
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
+        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
+        ReputationEngine, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
+        ValueTransferOutput,
+    },
+    data_request::{calculate_witness_reward, create_tally, DataRequestPool},
+    error::TransactionError,
+    radon_report::{RadonReport, ReportContext},
+    transaction::{
+        CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
+        RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
+    },
+    vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
 
 impl ChainManager {
@@ -102,7 +103,8 @@ impl ChainManager {
 
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
         let genesis_hash = chain_info.consensus_constants.genesis_hash;
-        let max_block_weight = chain_info.consensus_constants.max_block_weight;
+        let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
+        let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
 
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
 
@@ -215,7 +217,8 @@ impl ChainManager {
                         &act.chain_state.unspent_outputs_pool,
                         &act.chain_state.data_request_pool,
                     ),
-                    max_block_weight,
+                    max_vt_weight,
+                    max_dr_weight,
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
@@ -855,7 +858,8 @@ impl ChainManager {
 #[allow(clippy::too_many_arguments)]
 fn build_block(
     pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
-    max_block_weight: u32,
+    max_vt_weight: u32,
+    max_dr_weight: u32,
     beacon: CheckpointBeacon,
     proof: BlockEligibilityClaim,
     tally_transactions: &[TallyTransaction],
@@ -873,15 +877,18 @@ fn build_block(
 
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
-    let mut block_weight = 0;
+    let mut vt_weight: u32 = 0;
+    let mut dr_weight: u32 = 0;
     let mut value_transfer_txns = Vec::new();
     let mut data_request_txns = Vec::new();
     let mut tally_txns = Vec::new();
 
+    let min_vt_weight =
+        VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()])
+            .weight();
     // Currently only value transfer transactions weight is taking into account
     for vt_tx in transactions_pool.vt_iter() {
-        // Currently, 1 weight unit is equivalent to 1 byte
-        let transaction_weight = vt_tx.size();
+        let transaction_weight = vt_tx.weight();
         let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
@@ -893,27 +900,31 @@ fn build_block(
             }
         };
 
-        let new_block_weight = block_weight + transaction_weight;
-
-        if new_block_weight <= max_block_weight {
-            value_transfer_txns.push(vt_tx.clone());
-
+        let new_vt_weight = vt_weight.saturating_add(transaction_weight);
+        if new_vt_weight <= max_vt_weight {
             update_utxo_diff(
                 &mut utxo_diff,
                 vt_tx.body.inputs.iter().collect(),
                 vt_tx.body.outputs.iter().collect(),
                 vt_tx.hash(),
             );
+            value_transfer_txns.push(vt_tx.clone());
             transaction_fees += transaction_fee;
-            block_weight += transaction_weight;
+            vt_weight += transaction_weight;
         }
 
-        if new_block_weight == max_block_weight {
+        if new_vt_weight > max_vt_weight - min_vt_weight {
             break;
         }
     }
 
+    let dro = DataRequestOutput {
+        witnesses: 1,
+        ..DataRequestOutput::default()
+    };
+    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
     for dr_tx in transactions_pool.dr_iter() {
+        let transaction_weight = dr_tx.weight();
         let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
@@ -925,14 +936,22 @@ fn build_block(
             }
         };
 
-        update_utxo_diff(
-            &mut utxo_diff,
-            dr_tx.body.inputs.iter().collect(),
-            dr_tx.body.outputs.iter().collect(),
-            dr_tx.hash(),
-        );
-        data_request_txns.push(dr_tx.clone());
-        transaction_fees += transaction_fee;
+        let new_dr_weight = dr_weight.saturating_add(transaction_weight);
+        if new_dr_weight <= max_dr_weight {
+            update_utxo_diff(
+                &mut utxo_diff,
+                dr_tx.body.inputs.iter().collect(),
+                dr_tx.body.outputs.iter().collect(),
+                dr_tx.hash(),
+            );
+            data_request_txns.push(dr_tx.clone());
+            transaction_fees += transaction_fee;
+            dr_weight += transaction_weight;
+        }
+
+        if new_dr_weight > max_dr_weight - min_dr_weight {
+            break;
+        }
     }
 
     for ta_tx in tally_transactions {
@@ -1122,17 +1141,18 @@ mod tests {
     fn build_empty_block() {
         // Initialize transaction_pool with 1 transaction
         let mut transaction_pool = TransactionsPool::default();
-        // In protocol buffers, when version is 0 and all the other fields are empty vectors, the
-        // transaction size is 0 bytes (since missing fields are initialized with the default
-        // values). Therefore version cannot be 0.
-        let transaction = Transaction::ValueTransfer(VTTransaction::default());
+        let transaction = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
         transaction_pool.insert(transaction.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
 
-        // Set `max_block_weight` to zero (no transaction should be included)
-        let max_block_weight = 0;
+        // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
+        let max_vt_weight = 0;
+        let max_dr_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1143,7 +1163,8 @@ mod tests {
         // Build empty block (because max weight is zero)
         let (block_header, txns) = build_block(
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
-            max_block_weight,
+            max_vt_weight,
+            max_dr_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1178,14 +1199,18 @@ mod tests {
     fn build_signed_empty_block() {
         // Initialize transaction_pool with 1 transaction
         let mut transaction_pool = TransactionsPool::default();
-        let transaction = Transaction::ValueTransfer(VTTransaction::default());
+        let transaction = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
         transaction_pool.insert(transaction);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
 
-        // Set `max_block_weight` to zero (no transaction should be included)
-        let max_block_weight = 0;
+        // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
+        let max_vt_weight = 0;
+        let max_dr_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1206,7 +1231,8 @@ mod tests {
 
         let (block_header, txns) = build_block(
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
-            max_block_weight,
+            max_vt_weight,
+            max_dr_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1333,8 +1359,9 @@ mod tests {
         let transaction_2 = Transaction::ValueTransfer(vt_tx2);
         let transaction_3 = Transaction::ValueTransfer(vt_tx3);
 
-        // Set `max_block_weight` to fit only `transaction_1` size
-        let max_block_weight = transaction_1.size();
+        // Set `max_vt_weight` to fit only `transaction_1` weight
+        let max_vt_weight = vt_tx1.weight();
+        let max_dr_weight = 0;
 
         // Insert transactions into `transactions_pool`
         // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
@@ -1356,7 +1383,8 @@ mod tests {
 
         let (block_header, txns) = build_block(
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
-            max_block_weight,
+            max_vt_weight,
+            max_dr_weight,
             block_beacon,
             block_proof,
             &[],

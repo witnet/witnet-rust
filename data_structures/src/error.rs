@@ -357,6 +357,18 @@ pub enum BlockError {
         proof_pkh: PublicKeyHash,
         signature_pkh: PublicKeyHash,
     },
+    /// Value Transfer weight limit exceeded
+    #[fail(
+        display = "Total weight of Value Transfer Transactions in a block ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    ValueTransferWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Data Request weight limit exceeded
+    #[fail(
+        display = "Total weight of Data Request Transactions in a block ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    DataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
 }
 
 #[derive(Debug, Fail)]

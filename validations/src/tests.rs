@@ -31,6 +31,8 @@ use witnet_rad::{
 };
 
 static ONE_WIT: u64 = 1_000_000_000;
+const MAX_VT_WEIGHT: u32 = 20_000;
+const MAX_DR_WEIGHT: u32 = 80_000;
 
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
@@ -5229,6 +5231,8 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         block_number,
         collateral_minimum,
         collateral_age,
+        MAX_VT_WEIGHT,
+        MAX_DR_WEIGHT,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -5478,6 +5482,8 @@ fn block_difficult_proof() {
                 block_number,
                 collateral_minimum,
                 collateral_age,
+                MAX_VT_WEIGHT,
+                MAX_DR_WEIGHT,
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -5940,8 +5946,21 @@ fn block_change_merkle_tree() {
 ///////////////////////////////////////////////////////////////////////////////
 // Block transaction tests: multiple blocks in sequence
 ///////////////////////////////////////////////////////////////////////////////
-
 fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error> {
+    test_blocks_with_limits(
+        txns,
+        MAX_VT_WEIGHT,
+        MAX_DR_WEIGHT,
+        GENESIS_BLOCK_HASH.parse().unwrap(),
+    )
+}
+
+fn test_blocks_with_limits(
+    txns: Vec<(BlockTransactions, u64)>,
+    max_vt_weight: u32,
+    max_dr_weight: u32,
+    genesis_block_hash: Hash,
+) -> Result<(), failure::Error> {
     if txns.len() > 1 {
         // FIXME(#685): add sequence validations
         unimplemented!();
@@ -6013,7 +6032,6 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
 
         let mining_bf = 1;
         let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
-        let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
         // First, validate candidate block (can return false positives)
         let mut signatures_to_verify = vec![];
         validate_candidate(
@@ -6056,6 +6074,8 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             block_number,
             collateral_minimum,
             collateral_age,
+            max_vt_weight,
+            max_dr_weight,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -6603,6 +6623,8 @@ fn genesis_block_value_overflow() {
         block_number,
         collateral_minimum,
         collateral_age,
+        MAX_VT_WEIGHT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -6667,6 +6689,8 @@ fn genesis_block_full_validate() {
         block_number,
         collateral_minimum,
         collateral_age,
+        MAX_VT_WEIGHT,
+        MAX_DR_WEIGHT,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -6733,6 +6757,8 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             block_number,
             collateral_minimum,
             collateral_age,
+            MAX_VT_WEIGHT,
+            MAX_DR_WEIGHT,
         )
         .unwrap()
     };
@@ -6882,6 +6908,8 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             block_number,
             collateral_minimum,
             collateral_age,
+            MAX_VT_WEIGHT,
+            MAX_DR_WEIGHT,
         )
         .unwrap()
     };
@@ -6911,4 +6939,184 @@ fn validate_commit_transactions_included_in_utxo_diff() {
     assert_eq!(expected_utxo_set.iter().len(), 2);
 
     assert_eq!(utxo_set, expected_utxo_set);
+}
+
+#[test]
+fn validate_vt_weight_overflow() {
+    let t0 = {
+        let vto0 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: Default::default(),
+            value: 10,
+        };
+        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vt_tx = VTTransaction::new(vt_body, vec![vts]);
+
+        assert_eq!(vt_tx.weight(), 493);
+
+        (
+            BlockTransactions {
+                value_transfer_txns: vec![vt_tx],
+                ..BlockTransactions::default()
+            },
+            1_000_000 - 10,
+        )
+    };
+    let x = test_blocks_with_limits(vec![t0], 492, 0, GENESIS_BLOCK_HASH.parse().unwrap());
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::ValueTransferWeightLimitExceeded {
+            weight: 493,
+            max_weight: 492,
+        },
+    );
+}
+
+#[test]
+fn validate_vt_weight_valid() {
+    let t0 = {
+        let vto0 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: Default::default(),
+            value: 10,
+        };
+        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vt_tx = VTTransaction::new(vt_body, vec![vts]);
+
+        assert_eq!(vt_tx.weight(), 493);
+
+        (
+            BlockTransactions {
+                value_transfer_txns: vec![vt_tx],
+                ..BlockTransactions::default()
+            },
+            1_000_000 - 10,
+        )
+    };
+    let x = test_blocks_with_limits(vec![t0], 493, 0, GENESIS_BLOCK_HASH.parse().unwrap());
+    x.unwrap();
+}
+
+#[test]
+fn validate_vt_weight_genesis_valid() {
+    let new_genesis = "f88bea89cbcd2bea2f1019a73d9599034e08f5793f4d4d7eb6390df663d4c907";
+    let t0 = {
+        let vto0 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: Default::default(),
+            value: 10,
+        };
+
+        let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
+        let vt_tx = VTTransaction::new(vt_body, vec![]);
+
+        assert_eq!(vt_tx.weight(), 360);
+
+        (
+            BlockTransactions {
+                value_transfer_txns: vec![vt_tx],
+                ..BlockTransactions::default()
+            },
+            1_000_000 - 10,
+        )
+    };
+    let x = test_blocks_with_limits(vec![t0], 0, 0, new_genesis.parse().unwrap());
+    x.unwrap();
+}
+
+#[test]
+fn validate_dr_weight_overflow() {
+    let t0 = {
+        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let dro = example_data_request_output(2, 1, 0);
+        let dr_value = dro.checked_total_value().unwrap();
+
+        let dr_body = DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let dr_tx = DRTransaction::new(dr_body, vec![drs]);
+
+        assert_eq!(dr_tx.weight(), 1569);
+
+        (
+            BlockTransactions {
+                data_request_txns: vec![dr_tx],
+                ..BlockTransactions::default()
+            },
+            1_000_000 - dr_value,
+        )
+    };
+    let x = test_blocks_with_limits(vec![t0], 0, 1569 - 1, GENESIS_BLOCK_HASH.parse().unwrap());
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::DataRequestWeightLimitExceeded {
+            weight: 1569,
+            max_weight: 1569 - 1,
+        },
+    );
+}
+
+// This test evaluates the theoretical limit of witnesses for a MAX_DR_WEIGHT of 80_000
+#[test]
+fn validate_dr_weight_overflow_126_witnesses() {
+    let t0 = {
+        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let dro = example_data_request_output(126, 1, 0);
+        let dr_value = dro.checked_total_value().unwrap();
+
+        let dr_body = DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let dr_tx = DRTransaction::new(dr_body, vec![drs]);
+
+        assert_eq!(dr_tx.weight(), 80433);
+
+        (
+            BlockTransactions {
+                data_request_txns: vec![dr_tx],
+                ..BlockTransactions::default()
+            },
+            1_000_000 - dr_value,
+        )
+    };
+    let x = test_blocks_with_limits(
+        vec![t0],
+        0,
+        MAX_DR_WEIGHT,
+        GENESIS_BLOCK_HASH.parse().unwrap(),
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::DataRequestWeightLimitExceeded {
+            weight: 80433,
+            max_weight: MAX_DR_WEIGHT,
+        },
+    );
+}
+
+#[test]
+fn validate_dr_weight_valid() {
+    let t0 = {
+        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let dro = example_data_request_output(2, 1, 0);
+        let dr_value = dro.checked_total_value().unwrap();
+
+        let dr_body = DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let dr_tx = DRTransaction::new(dr_body, vec![drs]);
+
+        assert_eq!(dr_tx.weight(), 1569);
+
+        (
+            BlockTransactions {
+                data_request_txns: vec![dr_tx],
+                ..BlockTransactions::default()
+            },
+            1_000_000 - dr_value,
+        )
+    };
+    let x = test_blocks_with_limits(vec![t0], 0, 1569, GENESIS_BLOCK_HASH.parse().unwrap());
+    x.unwrap();
 }
