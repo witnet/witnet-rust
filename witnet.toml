@@ -98,8 +98,8 @@ server_address = "127.0.0.1:21338"
 # Period for block proposing and consolidation.
 checkpoints_period = 45
 # Earliest date in which nodes can start proposing and consolidating blocks into the chain.
-# Tuesday, 28-Apr-2020, 9:00 UTC
-checkpoint_zero_timestamp = 1590055200
+# Tuesday, 18-Jun-2020, 14:00 UTC
+checkpoint_zero_timestamp = 1592488800
 # Bytes that will be used by the genesis block as a placeholder for the "previous block hash".
 bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e392e30"
 # Hash of the genesis block, as reconstructed from the allocations in the file located at `genesis_path`.
