@@ -706,16 +706,18 @@ pub fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResul
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     chain_beacon: CheckpointBeacon,
-    synchronized: bool,
+    current_epoch: u32,
+    num_active_identities: u32,
     num_peers_inbound: u32,
     num_peers_outbound: u32,
-    num_active_identities: u32,
+    synchronized: bool,
     total_active_reputation: u64,
 }
 
 /// Get node status
 pub fn status() -> JsonRpcResultAsync {
     let chain_manager = ChainManager::from_registry();
+    let epoch_manager = EpochManager::from_registry();
     let sessions_manager = SessionsManager::from_registry();
 
     let synchronized_fut = chain_manager
@@ -748,19 +750,27 @@ pub fn status() -> JsonRpcResultAsync {
             Err(e) => Err(internal_error_s(e)),
         });
 
-    let j = Future::join4(
+    let current_epoch_fut = epoch_manager.send(GetEpoch).then(|res| match res {
+        Ok(Ok(x)) => Ok(x),
+        Ok(Err(e)) => Err(internal_error(e)),
+        Err(e) => Err(internal_error_s(e)),
+    });
+
+    let j = Future::join5(
         synchronized_fut,
         num_peers_fut,
         chain_beacon_fut,
         reputation_fut,
+        current_epoch_fut,
     )
     .map(
-        |(synchronized, num_peers, chain_beacon, reputation_status)| Status {
-            synchronized,
+        |(synchronized, num_peers, chain_beacon, reputation_status, current_epoch)| Status {
+            chain_beacon,
+            current_epoch,
+            num_active_identities: reputation_status.num_active_identities,
             num_peers_inbound: u32::try_from(num_peers.inbound).unwrap(),
             num_peers_outbound: u32::try_from(num_peers.outbound).unwrap(),
-            chain_beacon,
-            num_active_identities: reputation_status.num_active_identities,
+            synchronized,
             total_active_reputation: reputation_status.total_active_reputation,
         },
     )
