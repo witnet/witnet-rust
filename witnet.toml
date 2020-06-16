@@ -86,8 +86,8 @@ server_address = "127.0.0.1:21338"
 checkpoints_period = 45
 # Tuesday, 28-Apr-2020, 9:00 UTC
 checkpoint_zero_timestamp = 1590055200
-bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e382e31"
-genesis_hash = "5569132f8c5a9db05cbb50adaf6d840fbe39a07d86bbef5fc3d2867562f0de9d"
+bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e392e30"
+genesis_hash = "649d8f7b3316bd33482ddbc6b1a8d89a3c81e1d9eebdb0247c907df7d20c26f9"
 activity_period = 1000
 collateral_age = 1000
 
