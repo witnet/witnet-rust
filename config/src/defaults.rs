@@ -200,7 +200,7 @@ pub trait Defaults {
 
     /// Replication factor for mining: valid VRFs under this factor will have priority
     fn consensus_constants_mining_replication_factor(&self) -> u32 {
-        4
+        3
     }
 
     /// Minimum value in nanowits for a collateral value
