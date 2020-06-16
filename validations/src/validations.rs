@@ -582,7 +582,16 @@ pub fn validate_vt_transaction<'a>(
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    max_vt_weight: u32,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    if vt_tx.weight() > max_vt_weight {
+        return Err(TransactionError::ValueTransferWeightLimitExceeded {
+            weight: vt_tx.weight(),
+            max_weight: max_vt_weight,
+        }
+        .into());
+    }
+
     validate_transaction_signature(
         &vt_tx.signatures,
         &vt_tx.body.inputs,
@@ -667,7 +676,16 @@ pub fn validate_dr_transaction<'a>(
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     collateral_minimum: u64,
+    max_dr_weight: u32,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    if dr_tx.weight() > max_dr_weight {
+        return Err(TransactionError::DataRequestWeightLimitExceeded {
+            weight: dr_tx.weight(),
+            max_weight: max_dr_weight,
+        }
+        .into());
+    }
+
     validate_transaction_signature(
         &dr_tx.signatures,
         &dr_tx.body.inputs,
@@ -1463,6 +1481,7 @@ pub fn validate_block_transactions(
                 epoch,
                 epoch_constants,
                 signatures_to_verify,
+                max_vt_weight,
             )?;
 
             (inputs, outputs, fee, transaction.weight())
@@ -1472,7 +1491,7 @@ pub fn validate_block_transactions(
         // Update vt weight
         let acc_weight = vt_weight.saturating_add(weight);
         if acc_weight > max_vt_weight {
-            return Err(BlockError::ValueTransferWeightLimitExceeded {
+            return Err(BlockError::TotalValueTransferWeightLimitExceeded {
                 weight: acc_weight,
                 max_weight: max_vt_weight,
             }
@@ -1500,6 +1519,7 @@ pub fn validate_block_transactions(
             epoch_constants,
             signatures_to_verify,
             collateral_minimum,
+            max_dr_weight,
         )?;
         total_fee += fee;
 
@@ -1513,7 +1533,7 @@ pub fn validate_block_transactions(
         // Update dr weight
         let acc_weight = dr_weight.saturating_add(transaction.weight());
         if acc_weight > max_dr_weight {
-            return Err(BlockError::DataRequestWeightLimitExceeded {
+            return Err(BlockError::TotalDataRequestWeightLimitExceeded {
                 weight: acc_weight,
                 max_weight: max_dr_weight,
             }
@@ -1789,6 +1809,8 @@ pub fn validate_new_transaction(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     collateral_minimum: u64,
     collateral_age: u32,
+    max_vt_weight: u32,
+    max_dr_weight: u32,
 ) -> Result<(), failure::Error> {
     let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
 
@@ -1799,6 +1821,7 @@ pub fn validate_new_transaction(
             current_epoch,
             epoch_constants,
             signatures_to_verify,
+            max_vt_weight,
         )
         .map(|_| ()),
 
@@ -1809,6 +1832,7 @@ pub fn validate_new_transaction(
             epoch_constants,
             signatures_to_verify,
             collateral_minimum,
+            max_dr_weight,
         )
         .map(|_| ()),
         Transaction::Commit(tx) => validate_commit_transaction(

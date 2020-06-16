@@ -254,6 +254,18 @@ pub enum TransactionError {
     /// More than one output for the collateral change
     #[fail(display = "More than one output for the collateral change")]
     SeveralCommitOutputs,
+    /// Value Transfer weight limit exceeded
+    #[fail(
+        display = "Value Transfer Transaction weight ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    ValueTransferWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Data Request weight limit exceeded
+    #[fail(
+        display = "Data Request Transaction weight ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    DataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
 }
 
 /// The error type for operations on a [`Block`](Block)
@@ -362,13 +374,13 @@ pub enum BlockError {
         display = "Total weight of Value Transfer Transactions in a block ({}) exceeds the limit ({})",
         weight, max_weight
     )]
-    ValueTransferWeightLimitExceeded { weight: u32, max_weight: u32 },
+    TotalValueTransferWeightLimitExceeded { weight: u32, max_weight: u32 },
     /// Data Request weight limit exceeded
     #[fail(
         display = "Total weight of Data Request Transactions in a block ({}) exceeds the limit ({})",
         weight, max_weight
     )]
-    DataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
+    TotalDataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
 }
 
 #[derive(Debug, Fail)]

@@ -753,6 +753,8 @@ impl ChainManager {
                 &mut signatures_to_verify,
                 chain_info.consensus_constants.collateral_minimum,
                 chain_info.consensus_constants.collateral_age,
+                chain_info.consensus_constants.max_vt_weight,
+                chain_info.consensus_constants.max_dr_weight,
             ))
             .into_actor(self)
             .and_then(|_, act, _ctx| {

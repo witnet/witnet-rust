@@ -227,6 +227,7 @@ fn vtt_no_inputs_no_outputs() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -259,6 +260,7 @@ fn vtt_no_inputs_zero_output() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -291,6 +293,7 @@ fn vtt_no_inputs() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -324,6 +327,7 @@ fn vtt_no_inputs_but_one_signature() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -362,6 +366,7 @@ fn vtt_one_input_but_no_signature() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -490,6 +495,7 @@ fn vtt_one_input_signatures() {
             Epoch::default(),
             EpochConstants::default(),
             &mut signatures_to_verify,
+            MAX_VT_WEIGHT,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -525,6 +531,7 @@ fn vtt_input_not_in_utxo() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -565,6 +572,7 @@ fn vtt_input_not_enough_value() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -600,6 +608,7 @@ fn vtt_one_input_zero_value_output() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -643,6 +652,7 @@ fn vtt_one_input_two_outputs_negative_fee() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -683,6 +693,7 @@ fn vtt_one_input_two_outputs() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     )
     .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 - 13 - 7,);
@@ -722,6 +733,7 @@ fn vtt_two_inputs_one_signature() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -767,6 +779,7 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -815,6 +828,7 @@ fn vtt_two_inputs_three_signatures() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -864,6 +878,7 @@ fn vtt_two_inputs_two_outputs() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     )
     .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 + 13 - 10 - 20,);
@@ -909,6 +924,7 @@ fn vtt_input_value_overflow() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
 
     assert_eq!(
@@ -957,6 +973,7 @@ fn vtt_output_value_overflow() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     );
 
     assert_eq!(
@@ -1001,6 +1018,7 @@ fn vtt_timelock() {
             epoch,
             epoch_constants,
             &mut signatures_to_verify,
+            MAX_VT_WEIGHT,
         )?;
         verify_signatures_test(signatures_to_verify)
     };
@@ -1023,6 +1041,36 @@ fn vtt_timelock() {
         let x = test_vtt_epoch(epoch, time_lock);
         assert_eq!(x.is_ok(), is_ok, "{:?}: {:?}", (epoch, time_lock, is_ok), x);
     }
+}
+
+#[test]
+fn vtt_validation_weight_limit_exceeded() {
+    let mut signatures_to_verify = vec![];
+    let utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
+    let utxo_diff = UtxoDiff::new(&utxo_set, 1000);
+
+    let vt_body =
+        VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]);
+    let vt_tx = VTTransaction::new(vt_body, vec![]);
+    let vt_weight = vt_tx.weight();
+    assert_eq!(vt_weight, 493);
+
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        493 - 1,
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::ValueTransferWeightLimitExceeded {
+            weight: 493,
+            max_weight: 493 - 1
+        }
+    );
 }
 
 #[test]
@@ -1054,6 +1102,7 @@ fn vtt_valid() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        MAX_VT_WEIGHT,
     )
     .map(|(_, _, fee)| fee);
     // The fee is 1000 - 1000 = 0
@@ -1217,6 +1266,7 @@ fn data_request_no_inputs() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1251,6 +1301,7 @@ fn data_request_no_inputs_but_one_signature() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1294,6 +1345,7 @@ fn data_request_one_input_but_no_signature() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1338,6 +1390,7 @@ fn data_request_one_input_signatures() {
             EpochConstants::default(),
             &mut signatures_to_verify,
             ONE_WIT,
+            MAX_DR_WEIGHT,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -1378,6 +1431,7 @@ fn data_request_input_double_spend() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1415,6 +1469,7 @@ fn data_request_input_not_in_utxo() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1457,6 +1512,7 @@ fn data_request_input_not_enough_value() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1519,6 +1575,7 @@ fn data_request_output_value_overflow() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1550,6 +1607,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        u32::max_value(),
     )
     .map(|_| ())
 }
@@ -1773,6 +1831,40 @@ fn data_request_no_reward() {
 }
 
 #[test]
+fn dr_validation_weight_limit_exceeded() {
+    let mut signatures_to_verify = vec![];
+    let utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
+    let utxo_diff = UtxoDiff::new(&utxo_set, 1000);
+
+    let dr_body = DRTransactionBody::new(
+        vec![Input::default()],
+        vec![ValueTransferOutput::default()],
+        example_data_request_output(2, 1, 0),
+    );
+    let dr_tx = DRTransaction::new(dr_body, vec![]);
+    let dr_weight = dr_tx.weight();
+    assert_eq!(dr_weight, 1605);
+
+    let x = validate_dr_transaction(
+        &dr_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+        1605 - 1,
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DataRequestWeightLimitExceeded {
+            weight: 1605,
+            max_weight: 1605 - 1
+        }
+    );
+}
+
+#[test]
 fn data_request_value_overflow() {
     let data_request = example_data_request();
     let dro = DataRequestOutput {
@@ -1863,6 +1955,7 @@ fn data_request_miner_fee() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -1908,6 +2001,7 @@ fn data_request_miner_fee_with_change() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -1953,6 +2047,7 @@ fn data_request_miner_fee_with_too_much_change() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1999,6 +2094,7 @@ fn data_request_zero_value_output() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
+        MAX_DR_WEIGHT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -5101,6 +5197,8 @@ fn block_signatures() {
 
 static MILLION_TX_OUTPUT: &str =
     "0f0f000000000000000000000000000000000000000000000000000000000000:0";
+static MILLION_TX_OUTPUT2: &str =
+    "0f0f000000000000000000000000000000000000000000000000000000000001:0";
 
 static BOOTSTRAP_HASH: &str = "4404291750b0cff95068e9894040e84e27cfdab1cb14f8c59928c3480a155b68";
 static GENESIS_BLOCK_HASH: &str =
@@ -5982,7 +6080,9 @@ fn test_blocks_with_limits(
     //let tx_output1 = VTTransactionBody::new(vec![], vec![output1.clone()]);
     //let output1_pointer = OutputPointer { transaction_id: tx_output1.hash(), output_index: 0 };
     let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
-    utxo_set.insert(output1_pointer, output1, block_number);
+    utxo_set.insert(output1_pointer, output1.clone(), block_number);
+    let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
+    utxo_set.insert(output2_pointer, output1, block_number);
 
     let secret_key = SecretKey {
         bytes: Protected::from(PRIV_KEY_1.to_vec()),
@@ -6950,26 +7050,36 @@ fn validate_vt_weight_overflow() {
             value: 10,
         };
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
-        let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
+        let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0.clone()]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-
         assert_eq!(vt_tx.weight(), 493);
+
+        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
+        let vt_body2 = VTTransactionBody::new(vec![Input::new(output2_pointer)], vec![vto0]);
+        let vts2 = sign_tx(PRIV_KEY_1, &vt_body2);
+        let vt_tx2 = VTTransaction::new(vt_body2, vec![vts2]);
+        assert_eq!(vt_tx2.weight(), 493);
 
         (
             BlockTransactions {
-                value_transfer_txns: vec![vt_tx],
+                value_transfer_txns: vec![vt_tx, vt_tx2],
                 ..BlockTransactions::default()
             },
-            1_000_000 - 10,
+            2_000_000 - 2 * 10,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 492, 0, GENESIS_BLOCK_HASH.parse().unwrap());
+    let x = test_blocks_with_limits(
+        vec![t0],
+        2 * 493 - 1,
+        0,
+        GENESIS_BLOCK_HASH.parse().unwrap(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::ValueTransferWeightLimitExceeded {
-            weight: 493,
-            max_weight: 492,
+        BlockError::TotalValueTransferWeightLimitExceeded {
+            weight: 2 * 493,
+            max_weight: 2 * 493 - 1,
         },
     );
 }
@@ -6983,21 +7093,26 @@ fn validate_vt_weight_valid() {
             value: 10,
         };
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
-        let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
+        let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0.clone()]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-
         assert_eq!(vt_tx.weight(), 493);
+
+        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
+        let vt_body2 = VTTransactionBody::new(vec![Input::new(output2_pointer)], vec![vto0]);
+        let vts2 = sign_tx(PRIV_KEY_1, &vt_body2);
+        let vt_tx2 = VTTransaction::new(vt_body2, vec![vts2]);
+        assert_eq!(vt_tx2.weight(), 493);
 
         (
             BlockTransactions {
-                value_transfer_txns: vec![vt_tx],
+                value_transfer_txns: vec![vt_tx, vt_tx2],
                 ..BlockTransactions::default()
             },
-            1_000_000 - 10,
+            2_000_000 - 2 * 10,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 493, 0, GENESIS_BLOCK_HASH.parse().unwrap());
+    let x = test_blocks_with_limits(vec![t0], 2 * 493, 0, GENESIS_BLOCK_HASH.parse().unwrap());
     x.unwrap();
 }
 
@@ -7032,29 +7147,40 @@ fn validate_vt_weight_genesis_valid() {
 fn validate_dr_weight_overflow() {
     let t0 = {
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
         let dro = example_data_request_output(2, 1, 0);
         let dr_value = dro.checked_total_value().unwrap();
 
-        let dr_body = DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro);
+        let dr_body =
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-
         assert_eq!(dr_tx.weight(), 1569);
+
+        let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
+        let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
+        let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
+        assert_eq!(dr_tx2.weight(), 1569);
 
         (
             BlockTransactions {
-                data_request_txns: vec![dr_tx],
+                data_request_txns: vec![dr_tx, dr_tx2],
                 ..BlockTransactions::default()
             },
-            1_000_000 - dr_value,
+            2_000_000 - 2 * dr_value,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 0, 1569 - 1, GENESIS_BLOCK_HASH.parse().unwrap());
+    let x = test_blocks_with_limits(
+        vec![t0],
+        0,
+        2 * 1569 - 1,
+        GENESIS_BLOCK_HASH.parse().unwrap(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::DataRequestWeightLimitExceeded {
-            weight: 1569,
-            max_weight: 1569 - 1,
+        BlockError::TotalDataRequestWeightLimitExceeded {
+            weight: 2 * 1569,
+            max_weight: 2 * 1569 - 1,
         },
     );
 }
@@ -7088,8 +7214,8 @@ fn validate_dr_weight_overflow_126_witnesses() {
         GENESIS_BLOCK_HASH.parse().unwrap(),
     );
     assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::DataRequestWeightLimitExceeded {
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DataRequestWeightLimitExceeded {
             weight: 80433,
             max_weight: MAX_DR_WEIGHT,
         },
@@ -7100,23 +7226,29 @@ fn validate_dr_weight_overflow_126_witnesses() {
 fn validate_dr_weight_valid() {
     let t0 = {
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
         let dro = example_data_request_output(2, 1, 0);
         let dr_value = dro.checked_total_value().unwrap();
 
-        let dr_body = DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro);
+        let dr_body =
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-
         assert_eq!(dr_tx.weight(), 1569);
+
+        let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
+        let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
+        let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
+        assert_eq!(dr_tx2.weight(), 1569);
 
         (
             BlockTransactions {
-                data_request_txns: vec![dr_tx],
+                data_request_txns: vec![dr_tx, dr_tx2],
                 ..BlockTransactions::default()
             },
-            1_000_000 - dr_value,
+            2_000_000 - 2 * dr_value,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 0, 1569, GENESIS_BLOCK_HASH.parse().unwrap());
+    let x = test_blocks_with_limits(vec![t0], 0, 2 * 1569, GENESIS_BLOCK_HASH.parse().unwrap());
     x.unwrap();
 }
