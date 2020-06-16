@@ -2025,7 +2025,7 @@ impl fmt::Display for Wit {
     }
 }
 
-const INITIAL_BLOCK_REWARD: u64 = 500 * NANOWITS_PER_WIT;
+const INITIAL_BLOCK_REWARD: u64 = 250 * NANOWITS_PER_WIT;
 const HALVING_PERIOD: Epoch = 1_750_000;
 
 /// Calculate the block mining reward.
@@ -2496,20 +2496,23 @@ mod tests {
         );
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_sign_loss)]
     #[test]
     fn test_block_reward() {
         // 1 wit = 10^9 nanowits, block_reward returns nanowits
         let wit = 1_000_000_000;
 
-        assert_eq!(block_reward(0), 500 * wit);
-        assert_eq!(block_reward(1), 500 * wit);
-        assert_eq!(block_reward(1_749_999), 500 * wit);
-        assert_eq!(block_reward(1_750_000), 250 * wit);
-        assert_eq!(block_reward(3_499_999), 250 * wit);
-        assert_eq!(block_reward(3_500_000), 125 * wit);
-        assert_eq!(block_reward(1_750_000 * 37), 3);
-        assert_eq!(block_reward(1_750_000 * 38), 1);
-        assert_eq!(block_reward(1_750_000 * 39), 0);
+        assert_eq!(block_reward(0), 250 * wit);
+        assert_eq!(block_reward(1), 250 * wit);
+        assert_eq!(block_reward(1_749_999), 250 * wit);
+        assert_eq!(block_reward(1_750_000), 125 * wit);
+        assert_eq!(block_reward(3_499_999), 125 * wit);
+        assert_eq!(block_reward(3_500_000), (62.5 * wit as f64).floor() as u64);
+        assert_eq!(block_reward(1_750_000 * 36), 3);
+        assert_eq!(block_reward(1_750_000 * 37), 1);
+        assert_eq!(block_reward(1_750_000 * 38), 0);
         assert_eq!(block_reward(1_750_000 * 63), 0);
         assert_eq!(block_reward(1_750_000 * 64), 0);
         assert_eq!(block_reward(1_750_000 * 65), 0);
