@@ -49,13 +49,23 @@ impl Handler<Create> for SessionsManager {
         // Get maximum timestamp difference for handshaking
         let handshake_max_ts_diff = self.sessions.handshake_max_ts_diff;
 
+        // Get remote peer address
+        let remote_addr = match msg.stream.peer_addr() {
+            Ok(x) => x,
+            Err(e) => {
+                log::debug!(
+                    "Cannot create session of type {:?}: {}",
+                    msg.session_type,
+                    e
+                );
+                return;
+            }
+        };
+
         // Create a Session actor
         Session::create(move |ctx| {
             // Get server address (if not present, send local address instead)
             let public_addr = public_address;
-
-            // Get remote peer address
-            let remote_addr = msg.stream.peer_addr().unwrap();
 
             // Split TCP stream into read and write parts
             let (r, w) = msg.stream.split();
