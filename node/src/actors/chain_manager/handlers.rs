@@ -23,9 +23,10 @@ use crate::{
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction,
             Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
-            GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetNodeStats,
-            GetReputation, GetReputationAll, GetReputationStatus, GetReputationStatusResult,
-            GetState, GetUtxoInfo, PeersBeacons, SendLastBeacon, SessionUnitResult, TryMineBlock,
+            GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
+            GetMempoolResult, GetNodeStats, GetReputation, GetReputationAll, GetReputationStatus,
+            GetReputationStatusResult, GetState, GetUtxoInfo, PeersBeacons, SendLastBeacon,
+            SessionUnitResult, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1145,6 +1146,19 @@ impl Handler<GetMemoryTransaction> for ChainManager {
 
     fn handle(&mut self, msg: GetMemoryTransaction, _ctx: &mut Self::Context) -> Self::Result {
         self.transactions_pool.get(&msg.hash).ok_or(())
+    }
+}
+
+impl Handler<GetMempool> for ChainManager {
+    type Result = Result<GetMempoolResult, failure::Error>;
+
+    fn handle(&mut self, _msg: GetMempool, _ctx: &mut Self::Context) -> Self::Result {
+        let res = GetMempoolResult {
+            value_transfer: self.transactions_pool.vt_iter().map(|t| t.hash()).collect(),
+            data_request: self.transactions_pool.dr_iter().map(|t| t.hash()).collect(),
+        };
+
+        Ok(res)
     }
 }
 

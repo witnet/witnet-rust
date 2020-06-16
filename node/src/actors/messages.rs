@@ -279,6 +279,23 @@ impl Message for GetReputationStatus {
     type Result = Result<GetReputationStatusResult, failure::Error>;
 }
 
+/// Get all the pending transactions
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetMempool;
+
+impl Message for GetMempool {
+    type Result = Result<GetMempoolResult, failure::Error>;
+}
+
+/// Result of GetMempool message: list of pending transactions categorized by type
+#[derive(Serialize)]
+pub struct GetMempoolResult {
+    /// Pending value transfer transactions
+    pub value_transfer: Vec<Hash>,
+    /// Pending data request transactions
+    pub data_request: Vec<Hash>,
+}
+
 /// Try to mine a block: signal the ChainManager to check if it can produce a new block
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TryMineBlock;

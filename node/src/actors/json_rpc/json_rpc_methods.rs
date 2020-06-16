@@ -33,9 +33,9 @@ use crate::{
         messages::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
             GetConsolidatedPeers, GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon,
-            GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetNodeStats,
-            GetReputation, GetReputationAll, GetReputationStatus, GetState, GetUtxoInfo,
-            NumSessions,
+            GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
+            GetNodeStats, GetReputation, GetReputationAll, GetReputationStatus, GetState,
+            GetUtxoInfo, NumSessions,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -75,6 +75,7 @@ pub fn jsonrpc_io_handler(
     io.add_method("peers", |_params: Params| peers());
     io.add_method("knownPeers", |_params: Params| known_peers());
     io.add_method("nodeStats", |_params: Params| node_stats());
+    io.add_method("getMempool", |params: Params| get_mempool(params.parse()));
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
     // A method is sensitive if it touches in some way the master key of the node.
@@ -1101,6 +1102,32 @@ pub fn node_stats() -> JsonRpcResultAsync {
     Box::new(fut)
 }
 
+/// Get all the pending transactions
+pub fn get_mempool(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    match params {
+        Ok(()) => (),
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let chain_manager_addr = ChainManager::from_registry();
+
+    let fut = chain_manager_addr
+        .send(GetMempool)
+        .map_err(internal_error)
+        .and_then(|dr_info| match dr_info {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -1392,6 +1419,7 @@ mod tests {
                 "getBalance",
                 "getBlock",
                 "getBlockChain",
+                "getMempool",
                 "getPkh",
                 "getPublicKey",
                 "getReputation",
