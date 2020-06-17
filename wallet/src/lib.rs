@@ -136,6 +136,11 @@ pub fn run(conf: Config) -> Result<(), Error> {
         requests_timeout,
     });
 
+    // Intercept SIGTERM signal to gracefully close the wallet
+    signal::ctrl_c(move || {
+        app.do_send(actors::app::Shutdown);
+    });
+
     system.run()?;
 
     log::info!("Waiting for db to shut down...");
