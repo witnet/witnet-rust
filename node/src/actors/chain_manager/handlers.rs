@@ -839,19 +839,27 @@ impl Handler<BuildVtt> for ChainManager {
             Ok(vtt) => {
                 let fut = transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
                     .into_actor(self)
-                    .then(|s, _act, ctx| match s {
+                    .then(|s, act, ctx| match s {
                         Ok(signatures) => {
                             let transaction =
                                 Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
                             let tx_hash = transaction.hash();
-                            ctx.notify(AddTransaction { transaction });
-
-                            actix::fut::ok(tx_hash)
+                            Box::new(
+                                act.handle(AddTransaction { transaction }, ctx)
+                                    .map(move |_, _, _| tx_hash),
+                            )
                         }
                         Err(e) => {
                             log::error!("Failed to sign value transfer transaction: {}", e);
 
-                            actix::fut::err(e)
+                            let res: Box<
+                                dyn ActorFuture<
+                                    Item = Hash,
+                                    Error = failure::Error,
+                                    Actor = ChainManager,
+                                >,
+                            > = Box::new(actix::fut::err(e));
+                            res
                         }
                     });
 
@@ -894,19 +902,27 @@ impl Handler<BuildDrt> for ChainManager {
                 log::debug!("Created drt:\n{:?}", drt);
                 let fut = transaction_factory::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
-                    .then(|s, _act, ctx| match s {
+                    .then(|s, act, ctx| match s {
                         Ok(signatures) => {
                             let transaction =
                                 Transaction::DataRequest(DRTransaction::new(drt, signatures));
                             let tx_hash = transaction.hash();
-                            ctx.notify(AddTransaction { transaction });
-
-                            actix::fut::ok(tx_hash)
+                            Box::new(
+                                act.handle(AddTransaction { transaction }, ctx)
+                                    .map(move |_, _, _| tx_hash),
+                            )
                         }
                         Err(e) => {
                             log::error!("Failed to sign data request transaction: {}", e);
 
-                            actix::fut::err(e)
+                            let res: Box<
+                                dyn ActorFuture<
+                                    Item = Hash,
+                                    Error = failure::Error,
+                                    Actor = ChainManager,
+                                >,
+                            > = Box::new(actix::fut::err(e));
+                            res
                         }
                     });
 
