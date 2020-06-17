@@ -25,7 +25,7 @@ use witnet_data_structures::{
 };
 use witnet_node::actors::{
     json_rpc::json_rpc_methods::{
-        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult,
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, SyncStatus,
     },
     messages::BuildVtt,
 };
@@ -868,6 +868,35 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
         node_stats.commits_count,
         node_stats.slashed_count
     );
+
+    let request = r#"{"jsonrpc": "2.0","method": "syncStatus", "id": "1"}"#;
+    let response = send_request(&mut stream, &request)?;
+    let sync_status: SyncStatus = parse_response(&response)?;
+
+    if sync_status.synchronized {
+        println!(
+            "The node is synchronized and the current epoch is {}",
+            sync_status.current_epoch
+        );
+    } else {
+        // Show progress log
+        let mut percent_done_float = f64::from(sync_status.chain_beacon.checkpoint)
+            / f64::from(sync_status.current_epoch)
+            * 100.0;
+
+        // Never show 100% unless it's actually done
+        if sync_status.chain_beacon.checkpoint != sync_status.current_epoch
+            && percent_done_float > 99.99
+        {
+            percent_done_float = 99.99;
+        }
+        let percent_done_string = format!("{:.2}%", percent_done_float);
+
+        println!(
+            "Synchronization progress: {} ({:>6}/{:>6})",
+            percent_done_string, sync_status.chain_beacon.checkpoint, sync_status.current_epoch,
+        );
+    }
 
     Ok(())
 }

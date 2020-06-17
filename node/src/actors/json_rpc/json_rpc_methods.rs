@@ -34,8 +34,7 @@ use crate::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
             GetConsolidatedPeers, GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon,
             GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
-            GetNodeStats, GetReputation, GetReputationAll, GetReputationStatus, GetState,
-            GetUtxoInfo, NumSessions,
+            GetNodeStats, GetReputation, GetReputationAll, GetState, GetUtxoInfo,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -63,7 +62,7 @@ pub fn jsonrpc_io_handler(
         get_transaction(params.parse())
     });
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
-    io.add_method("status", |_params: Params| status());
+    io.add_method("syncStatus", |_params: Params| status());
     io.add_method("dataRequestReport", |params: Params| {
         data_request_report(params.parse())
     });
@@ -701,24 +700,21 @@ pub fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResul
     }
 }
 
-/// Node status
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Status {
-    chain_beacon: CheckpointBeacon,
-    current_epoch: u32,
-    num_active_identities: u32,
-    num_peers_inbound: u32,
-    num_peers_outbound: u32,
-    synchronized: bool,
-    total_active_reputation: u64,
+/// Node synchronization status
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct SyncStatus {
+    /// The hash of the top consolidated block and the epoch of that block
+    pub chain_beacon: CheckpointBeacon,
+    /// The current epoch
+    pub current_epoch: u32,
+    /// Is the node synchronized?
+    pub synchronized: bool,
 }
 
 /// Get node status
 pub fn status() -> JsonRpcResultAsync {
     let chain_manager = ChainManager::from_registry();
     let epoch_manager = EpochManager::from_registry();
-    let sessions_manager = SessionsManager::from_registry();
 
     let synchronized_fut = chain_manager
         .send(GetState)
@@ -729,21 +725,8 @@ pub fn status() -> JsonRpcResultAsync {
             Ok(Err(())) => Err(internal_error(())),
             Err(e) => Err(internal_error(e)),
         });
-    let num_peers_fut = sessions_manager.send(NumSessions).then(|res| match res {
-        Ok(Ok(res)) => Ok(res),
-        Ok(Err(())) => Err(internal_error(())),
-        Err(e) => Err(internal_error_s(e)),
-    });
     let chain_beacon_fut = chain_manager
         .send(GetHighestCheckpointBeacon)
-        .then(|res| match res {
-            Ok(Ok(x)) => Ok(x),
-            Ok(Err(e)) => Err(internal_error_s(e)),
-            Err(e) => Err(internal_error_s(e)),
-        });
-
-    let reputation_fut = chain_manager
-        .send(GetReputationStatus)
         .then(|res| match res {
             Ok(Ok(x)) => Ok(x),
             Ok(Err(e)) => Err(internal_error_s(e)),
@@ -756,31 +739,19 @@ pub fn status() -> JsonRpcResultAsync {
         Err(e) => Err(internal_error_s(e)),
     });
 
-    let j = Future::join5(
-        synchronized_fut,
-        num_peers_fut,
-        chain_beacon_fut,
-        reputation_fut,
-        current_epoch_fut,
-    )
-    .map(
-        |(synchronized, num_peers, chain_beacon, reputation_status, current_epoch)| Status {
+    let j = Future::join3(synchronized_fut, chain_beacon_fut, current_epoch_fut)
+        .map(|(synchronized, chain_beacon, current_epoch)| SyncStatus {
             chain_beacon,
             current_epoch,
-            num_active_identities: reputation_status.num_active_identities,
-            num_peers_inbound: u32::try_from(num_peers.inbound).unwrap(),
-            num_peers_outbound: u32::try_from(num_peers.outbound).unwrap(),
             synchronized,
-            total_active_reputation: reputation_status.total_active_reputation,
-        },
-    )
-    .and_then(|res| match serde_json::to_value(res) {
-        Ok(x) => futures::finished(x),
-        Err(e) => {
-            let err = internal_error_s(e);
-            futures::failed(err)
-        }
-    });
+        })
+        .and_then(|res| match serde_json::to_value(res) {
+            Ok(x) => futures::finished(x),
+            Err(e) => {
+                let err = internal_error_s(e);
+                futures::failed(err)
+            }
+        });
 
     Box::new(j)
 }
@@ -1444,7 +1415,7 @@ mod tests {
                 "sendRequest",
                 "sendValue",
                 "sign",
-                "status",
+                "syncStatus",
                 "witnet_subscribe",
                 "witnet_unsubscribe",
             ]
