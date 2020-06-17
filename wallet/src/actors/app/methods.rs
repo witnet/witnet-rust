@@ -11,6 +11,7 @@ use super::*;
 use crate::types::SubscriptionId;
 
 impl App {
+    /// Start the actor App with the provided parameters
     pub fn start(params: Params) -> Addr<Self> {
         let actor = Self {
             server: None,
@@ -19,6 +20,23 @@ impl App {
         };
 
         actor.start()
+    }
+
+    /// Stop the wallet application completely
+    /// FIXME(#1251): Closing the WS server does not work properly
+    /// Note: if `rpc.on` subscriptions are closed before shutting down, stop() works correctly.
+    pub fn stop(&mut self, ctx: &mut <Self as Actor>::Context) {
+        log::debug!("Stopping application...");
+        drop(self.server.take());
+        self.stop_worker()
+            .map_err(|_| log::error!("Couldn't stop application!"))
+            .and_then(|_| {
+                log::info!("Application stopped. Shutting down system!");
+                System::current().stop();
+                Ok(())
+            })
+            .into_actor(self)
+            .spawn(ctx);
     }
 
     /// Return a new subscription id for a session.
@@ -381,7 +399,7 @@ impl App {
     }
 
     /// Perform all the tasks needed to properly stop the application.
-    pub fn stop(&self) -> ResponseFuture<()> {
+    pub fn stop_worker(&self) -> ResponseFuture<()> {
         let fut = self
             .params
             .worker
