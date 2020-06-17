@@ -13,7 +13,7 @@ impl Handler<AddPeers> for PeersManager {
 
     fn handle(&mut self, msg: AddPeers, _: &mut Context<Self>) -> Self::Result {
         // Insert address
-        log::debug!("Adding the following peer addresses: {:?}", msg.addresses);
+        log::trace!("Adding the following peer addresses: {:?}", msg.addresses);
         self.peers.add_to_new(msg.addresses, msg.src_address)
     }
 }
