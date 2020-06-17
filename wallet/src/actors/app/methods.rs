@@ -13,6 +13,7 @@ use crate::types::SubscriptionId;
 impl App {
     pub fn start(params: Params) -> Addr<Self> {
         let actor = Self {
+            server: None,
             params,
             state: Default::default(),
         };

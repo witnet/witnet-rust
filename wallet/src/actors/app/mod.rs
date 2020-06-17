@@ -4,6 +4,7 @@ use actix::prelude::*;
 use serde_json::json;
 
 use witnet_net::client::tcp::jsonrpc;
+use witnet_net::server::ws::Server;
 
 use crate::types;
 
@@ -26,6 +27,7 @@ pub type ResponseFuture<T> = actix::ResponseFuture<T, Error>;
 pub type ResponseActFuture<T> = actix::ResponseActFuture<App, T, Error>;
 
 pub struct App {
+    server: Option<Server>,
     params: Params,
     state: state::State,
 }
@@ -43,5 +45,17 @@ impl Actor for App {
         self.params
             .client
             .do_send(jsonrpc::SetSubscriber(recipient, request));
+
+        let mut handler =
+            jsonrpc_pubsub::PubSubHandler::new(jsonrpc_core::MetaIoHandler::default());
+        connect_routes(&mut handler, ctx.address(), Arbiter::current());
+
+        if let Ok(server) = Server::build()
+            .handler(handler)
+            .addr(self.params.server_addr)
+            .start()
+        {
+            self.server = Some(server);
+        }
     }
 }

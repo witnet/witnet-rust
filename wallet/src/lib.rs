@@ -19,12 +19,10 @@ use std::time::Duration;
 
 use actix::prelude::*;
 use failure::Error;
-use jsonrpc_core as rpc;
-use jsonrpc_pubsub as pubsub;
 
 use witnet_config::config::Config;
 use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
-use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
+use witnet_net::client::tcp::JsonRpcClient;
 
 use crate::actors::app;
 
@@ -127,24 +125,15 @@ pub fn run(conf: Config) -> Result<(), Error> {
         requests_timeout,
     };
 
+    // Start wallet actors
     let worker = actors::Worker::start(concurrency, db.clone(), node_params, params);
-
     let app = actors::App::start(actors::app::Params {
         testnet,
         worker,
         client,
+        server_addr,
         session_expires_in,
         requests_timeout,
-    });
-    let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
-
-    actors::app::connect_routes(&mut handler, app.clone(), Arbiter::current());
-
-    let server = Server::build().handler(handler).addr(server_addr).start()?;
-    let controller = actors::Controller::start(server, app);
-
-    signal::ctrl_c(move || {
-        controller.do_send(actors::controller::Shutdown);
     });
 
     system.run()?;
