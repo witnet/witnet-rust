@@ -480,12 +480,27 @@ pub fn get_block_chain(
     }
 }
 
+fn merge_json(a: &mut Value, b: &Value) {
+    match (a, b) {
+        (&mut Value::Object(ref mut a), &Value::Object(ref b)) => {
+            for (k, v) in b {
+                merge_json(a.entry(k.clone()).or_insert(Value::Null), v);
+            }
+        }
+        (a, b) => {
+            *a = b.clone();
+        }
+    }
+}
+
 /// Get block by hash
 /* test
 {"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb"]}
 {"jsonrpc":"2.0","id":1,"method":"getBlock","params":[{"SHA256":[255,198,135,145,253,40,66,175,226,220,119,243,233,210,25,119,171,217,215,188,185,190,93,116,164,234,217,67,30,102,205,46]}]}
 */
 pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    use witnet_data_structures::chain::Hashable;
+
     let hash = match hash {
         Ok(x) => x.0,
         Err(e) => return Box::new(futures::failed(e)),
@@ -497,13 +512,29 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
             .send(GetItemBlock { hash })
             .then(move |res| match res {
                 Ok(Ok(output)) => {
-                    let value = match serde_json::to_value(output) {
+                    let vtt_hashes: Vec<_> = output.txns.value_transfer_txns.iter().map(|txn| txn.hash()).collect();
+                    let drt_hashes: Vec<_> = output.txns.data_request_txns.iter().map(|txn| txn.hash()).collect();
+                    let ct_hashes: Vec<_> = output.txns.commit_txns.iter().map(|txn| txn.hash()).collect();
+                    let rt_hashes: Vec<_> = output.txns.reveal_txns.iter().map(|txn| txn.hash()).collect();
+                    let tt_hashes: Vec<_> = output.txns.tally_txns.iter().map(|txn| txn.hash()).collect();
+                    let txns_hashes = serde_json::json!({
+                        "txns_hashes" : {
+                            "mint" : output.txns.mint.hash(),
+                            "value_transfer" : vtt_hashes,
+                            "data_request" : drt_hashes,
+                            "commit" : ct_hashes,
+                            "reveal" : rt_hashes,
+                            "tally" : tt_hashes
+                        }
+                    });
+                    let mut value = match serde_json::to_value(output) {
                         Ok(x) => x,
                         Err(e) => {
                             let err = internal_error(e);
                             return futures::failed(err);
                         }
                     };
+                    merge_json(&mut value, &txns_hashes);
                     futures::finished(value)
                 }
                 Ok(Err(e)) => {
