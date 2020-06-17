@@ -28,7 +28,7 @@ use self::mock_actix::SystemService;
 use crate::{
     actors::{
         chain_manager::{ChainManager, ChainManagerError, StateMachine},
-        epoch_manager::EpochManager,
+        epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
@@ -705,8 +705,8 @@ pub fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResul
 pub struct SyncStatus {
     /// The hash of the top consolidated block and the epoch of that block
     pub chain_beacon: CheckpointBeacon,
-    /// The current epoch
-    pub current_epoch: u32,
+    /// The current epoch, or None if the epoch 0 is in the future
+    pub current_epoch: Option<u32>,
     /// Is the node synchronized?
     pub synchronized: bool,
 }
@@ -734,7 +734,8 @@ pub fn status() -> JsonRpcResultAsync {
         });
 
     let current_epoch_fut = epoch_manager.send(GetEpoch).then(|res| match res {
-        Ok(Ok(x)) => Ok(x),
+        Ok(Ok(x)) => Ok(Some(x)),
+        Ok(Err(EpochManagerError::CheckpointZeroInTheFuture(_))) => Ok(None),
         Ok(Err(e)) => Err(internal_error(e)),
         Err(e) => Err(internal_error_s(e)),
     });

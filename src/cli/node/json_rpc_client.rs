@@ -873,29 +873,30 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
     let response = send_request(&mut stream, &request)?;
     let sync_status: SyncStatus = parse_response(&response)?;
 
-    if sync_status.synchronized {
-        println!(
-            "The node is synchronized and the current epoch is {}",
-            sync_status.current_epoch
-        );
-    } else {
-        // Show progress log
-        let mut percent_done_float = f64::from(sync_status.chain_beacon.checkpoint)
-            / f64::from(sync_status.current_epoch)
-            * 100.0;
+    if let Some(current_epoch) = sync_status.current_epoch {
+        if sync_status.synchronized {
+            println!(
+                "The node is synchronized and the current epoch is {}",
+                current_epoch
+            );
+        } else {
+            // Show progress log
+            let mut percent_done_float =
+                f64::from(sync_status.chain_beacon.checkpoint) / f64::from(current_epoch) * 100.0;
 
-        // Never show 100% unless it's actually done
-        if sync_status.chain_beacon.checkpoint != sync_status.current_epoch
-            && percent_done_float > 99.99
-        {
-            percent_done_float = 99.99;
+            // Never show 100% unless it's actually done
+            if sync_status.chain_beacon.checkpoint != current_epoch && percent_done_float > 99.99 {
+                percent_done_float = 99.99;
+            }
+            let percent_done_string = format!("{:.2}%", percent_done_float);
+
+            println!(
+                "Synchronization progress: {} ({:>6}/{:>6})",
+                percent_done_string, sync_status.chain_beacon.checkpoint, current_epoch,
+            );
         }
-        let percent_done_string = format!("{:.2}%", percent_done_float);
-
-        println!(
-            "Synchronization progress: {} ({:>6}/{:>6})",
-            percent_done_string, sync_status.chain_beacon.checkpoint, sync_status.current_epoch,
-        );
+    } else {
+        println!("The node is waiting for epoch 0");
     }
 
     Ok(())
