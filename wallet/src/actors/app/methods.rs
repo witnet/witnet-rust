@@ -597,4 +597,16 @@ impl App {
 
         Box::new(f)
     }
+
+    /// Shutdown system if session id is valid
+    pub fn shutdown_request(
+        &mut self,
+        session_id: &types::SessionId,
+        ctx: &mut <Self as Actor>::Context,
+    ) -> Result<()> {
+        self.state.get_wallets_by_session(&session_id)?;
+        self.stop(ctx);
+
+        Ok(())
+    }
 }

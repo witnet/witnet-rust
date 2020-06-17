@@ -18,3 +18,19 @@ impl Handler<Shutdown> for app::App {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShutdownRequest {
+    session_id: types::SessionId,
+}
+
+impl Message for ShutdownRequest {
+    type Result = app::Result<()>;
+}
+
+impl Handler<ShutdownRequest> for app::App {
+    type Result = <ShutdownRequest as Message>::Result;
+
+    fn handle(&mut self, msg: ShutdownRequest, ctx: &mut Self::Context) -> Self::Result {
+        self.shutdown_request(&msg.session_id, ctx)
+    }
+}
