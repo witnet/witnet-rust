@@ -205,9 +205,6 @@ impl Worker {
         let balance = wallet.balance()?;
 
         Ok(model::Balance {
-            available: 0.to_string(),
-            confirmed: 0.to_string(),
-            unconfirmed: 0.to_string(),
             total: balance.amount.to_string(),
         })
     }
