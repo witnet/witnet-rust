@@ -164,7 +164,7 @@ impl ChainManager {
             .map(move |(vrf_proof, vrf_proof_hash)| {
                 // invalid: vrf_hash > target_hash
                 let (target_hash, probability) =
-                    calculate_randpoe_threshold(total_identities, mining_bf);
+                    calculate_randpoe_threshold(total_identities, mining_bf, current_epoch);
                 let proof_invalid = vrf_proof_hash > target_hash;
 
                 log::info!(

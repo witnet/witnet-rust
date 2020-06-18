@@ -156,6 +156,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
                             chain_info.consensus_constants.mining_replication_factor,
                             chain_info.consensus_constants.mining_backup_factor,
+                            current_epoch,
                         );
                         // TODO: replace for loop with a try_fold
                         let mut chosen_candidate = None;
