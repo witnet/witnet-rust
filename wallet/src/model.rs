@@ -51,9 +51,6 @@ pub struct AddressInfo {
 
 #[derive(Debug, Serialize)]
 pub struct Balance {
-    pub available: String,
-    pub confirmed: String,
-    pub unconfirmed: String,
     pub total: String,
 }
 
