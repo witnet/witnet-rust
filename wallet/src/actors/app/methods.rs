@@ -23,11 +23,14 @@ impl App {
     }
 
     /// Stop the wallet application completely
-    /// FIXME(#1251): Closing the WS server does not work properly
     /// Note: if `rpc.on` subscriptions are closed before shutting down, stop() works correctly.
     pub fn stop(&mut self, ctx: &mut <Self as Actor>::Context) {
         log::debug!("Stopping application...");
-        drop(self.server.take());
+        let s = self.server.take();
+        // Potentially leak memory because we never join the thread, but that's fine because we are stopping the application
+        std::thread::spawn(move || {
+            drop(s);
+        });
         self.stop_worker()
             .map_err(|_| log::error!("Couldn't stop application!"))
             .and_then(|_| {
