@@ -39,6 +39,17 @@ pub fn exec_cmd(
             let address = address.map(|x| x.parse()).transpose()?;
             rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), address, all)
         }
+        Command::GetMiners {
+            node,
+            start,
+            end,
+            csv,
+        } => rpc::get_miners(
+            node.unwrap_or(config.jsonrpc.server_address),
+            start,
+            end,
+            csv,
+        ),
         Command::Output { node, pointer } => {
             rpc::get_output(node.unwrap_or(config.jsonrpc.server_address), pointer)
         }
@@ -219,6 +230,39 @@ pub enum Command {
         /// If zero, unlimited
         #[structopt(long = "limit", allow_hyphen_values = true, default_value = "-50")]
         limit: i64,
+    },
+    #[structopt(
+        name = "minerList",
+        alias = "getMiners",
+        about = "List block hashes with their miners and the total number of mined block by each address"
+    )]
+    GetMiners {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// init
+        /// First epoch for which to return block hashes
+        /// If negative, return block hashes from the last n epochs
+        #[structopt(
+            long = "start",
+            alias = "s",
+            allow_hyphen_values = true,
+            default_value = "0"
+        )]
+        start: i64,
+        /// end
+        /// If negative, return the last n block hashes from this epoch range.
+        /// If zero, unlimited
+        #[structopt(
+            long = "end",
+            alias = "e",
+            allow_hyphen_values = true,
+            default_value = "4294967294"
+        )]
+        end: i64,
+        /// Use csv format
+        #[structopt(long = "csv")]
+        csv: bool,
     },
     #[structopt(
         name = "block",

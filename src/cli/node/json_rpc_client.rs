@@ -17,8 +17,8 @@ use std::{
 use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
 use witnet_data_structures::{
     chain::{
-        DataRequestInfo, DataRequestOutput, Environment, NodeStats, OutputPointer, PublicKey,
-        PublicKeyHash, Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
+        Block, DataRequestInfo, DataRequestOutput, Environment, NodeStats, OutputPointer,
+        PublicKey, PublicKeyHash, Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -238,6 +238,67 @@ pub fn get_reputation(
         amount.0,
         if active { "active" } else { "not active" }
     );
+
+    Ok(())
+}
+
+pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let params = GetBlockChainParams {
+        epoch: start,
+        limit: end,
+    };
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "getBlockChain", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&params).unwrap()
+        ),
+    )?;
+    log::info!("{}", response);
+    let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
+    let mut hm = HashMap::new();
+
+    if csv {
+        println!("Block number;Block hash;Miner hash")
+    } else {
+        println!("Blockchain:");
+    }
+    for (epoch, hash) in block_chain {
+        let request = format!(
+            r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
+            hash,
+        );
+        let response = send_request(&mut stream, &request)?;
+        let block: Block = parse_response(&response)?;
+        let miner_hash = block.block_sig.public_key.pkh().to_string();
+
+        if csv {
+            println!("{};{};{}", epoch, hash, miner_hash);
+        } else {
+            println!(
+                "Block for epoch #{} had digest {} ans was mined by {}",
+                epoch, hash, miner_hash
+            );
+        }
+
+        *hm.entry(miner_hash).or_insert(0) += 1;
+    }
+
+    let mut scoreboard: Vec<(String, i32)> = hm.into_iter().collect();
+    scoreboard.sort_by_key(|(m, _n)| m.clone());
+    if csv {
+        println!("\nMiner address;Mined blocks count");
+    } else {
+        println!("\nScoreboard:");
+    }
+    for (miner, n) in scoreboard.iter() {
+        if csv {
+            println!("{};{}", miner, n);
+        } else {
+            println!("{} has mined {} blocks", miner, n);
+        }
+    }
 
     Ok(())
 }
