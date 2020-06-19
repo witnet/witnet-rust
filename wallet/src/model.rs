@@ -31,6 +31,7 @@ pub struct Address {
     pub account: u32,
     pub path: String,
     pub info: AddressInfo,
+    #[serde(skip)]
     pub pkh: types::PublicKeyHash,
 }
 
