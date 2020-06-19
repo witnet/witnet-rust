@@ -38,7 +38,8 @@ export CLIPPY_LINTS := '-D warnings
 # run clippy
 clippy +flags="":
     cargo clippy --all --all-features -- $CLIPPY_LINTS {{flags}}
-    cargo clippy --all --all-targets --all-features -- $CLIPPY_LINTS {{flags}}
+    cargo clippy --all --all-targets --all-features -- $CLIPPY_LINTS -A clippy::many-single-char-names {{flags}}
+
 
 # run formatter
 fmt +flags="":
