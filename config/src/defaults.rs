@@ -86,7 +86,7 @@ pub trait Defaults {
 
     /// Default period between epochs
     fn consensus_constants_checkpoints_period(&self) -> u16 {
-        90
+        45
     }
 
     /// Default period between superblocks
@@ -97,13 +97,23 @@ pub trait Defaults {
     /// Default Hash value for the auxiliary bootstrap block
     // TODO Decide an appropriate default value
     fn consensus_constants_bootstrap_hash(&self) -> Hash {
-        Hash::SHA256([0; 32])
+        // Hash::SHA256([0; 32])
+
+        // Testnet configuration
+        "00000000000000000000000000000000000000007769746e65742d302e392e30"
+            .parse()
+            .unwrap()
     }
 
     /// Default Hash value for the genesis block
     // TODO Decide an appropriate default value
     fn consensus_constants_genesis_hash(&self) -> Hash {
-        Hash::SHA256([1; 32])
+        // Hash::SHA256([1; 32])
+
+        // Testnet configuration
+        "649d8f7b3316bd33482ddbc6b1a8d89a3c81e1d9eebdb0247c907df7d20c26f9"
+            .parse()
+            .unwrap()
     }
 
     /// JSON-RPC server enabled by default
@@ -166,7 +176,10 @@ pub trait Defaults {
     /// An identity is considered active if it participated in the witnessing protocol at least once in the last `activity_period` epochs
     fn consensus_constants_activity_period(&self) -> u32 {
         // 2000 epochs = 50 hours with an epoch of 90 secs
-        2000
+        // 2000
+
+        // Testnet configuration
+        1000
     }
 
     /// Reputation will expire after N witnessing acts
@@ -213,7 +226,9 @@ pub trait Defaults {
     fn consensus_constants_collateral_age(&self) -> u32 {
         // FIXME(#1114): Choose a properly value
         // 2000 blocks
-        2000
+
+        // Testnet configuration
+        1000
     }
 
     /// Number of extra rounds for commitments and reveals
@@ -341,7 +356,7 @@ impl Defaults for Testnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // June 1st, 2019
-        1_559_347_200
+        // Friday, 19-Jun-2020, 09:00 UTC
+        1_592_557_200
     }
 }

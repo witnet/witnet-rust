@@ -90,28 +90,6 @@ enabled = true
 # (and potentially, the internet) from messing with your JSON-RPC server.
 server_address = "127.0.0.1:21338"
 
-# Consensus constants are the Witnet protocol's most critical parameters. Changing any of these would cause your node to
-# fork out almost immediately.
-# Nodes that announce incompatible consensus constants cannot peer with each other so as to prevent accidental replay
-# attacks in the event of a severe network fork.
-[consensus_constants]
-# Period for block proposing and consolidation.
-checkpoints_period = 45
-# Earliest date in which nodes can start proposing and consolidating blocks into the chain.
-# Tuesday, 18-Jun-2020, 14:00 UTC
-checkpoint_zero_timestamp = 1592557200
-# Bytes that will be used by the genesis block as a placeholder for the "previous block hash".
-bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e392e30"
-# Hash of the genesis block, as reconstructed from the allocations in the file located at `genesis_path`.
-genesis_hash = "649d8f7b3316bd33482ddbc6b1a8d89a3c81e1d9eebdb0247c907df7d20c26f9"
-# Period for considering that a node is "active" with regards to reputation. Any node that minted a block OR solved a
-# data request in the last number of epochs is considered active. Otherwise, it is considered not active.
-activity_period = 1000
-# Minimum age of an unspent transaction output (UTXOs) to be acceptable as collateral in a commitment transaction when
-# resolving a data request. This age is measured in blocks: the block chain needs to contain at least this amount of
-# blocks between the block in which the UTXO was created and the block in which it is being spent as collateral.
-collateral_age = 1000
-
 [ntp]
 # Period for checking the local system clock drift against a public NTP server.
 update_period_seconds = 8000000
