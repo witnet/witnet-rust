@@ -190,6 +190,8 @@ pub struct ChainManager {
     external_percentage: u8,
     /// State related to SuperBlocks
     superblock_state: SuperBlockState,
+    /// Enable superblock creation
+    create_superblocks: bool,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
