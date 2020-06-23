@@ -37,6 +37,7 @@ use actix::{
 };
 use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
+use futures::future::{join_all, Future};
 use itertools::Itertools;
 use witnet_crypto::key::CryptoEngine;
 use witnet_rad::types::RadonTypes;
@@ -46,6 +47,7 @@ use witnet_validations::validations::{
     verify_signatures, Diff,
 };
 
+use crate::actors::messages::{GetBlocksEpochRange, GetItemBlock};
 use crate::{
     actors::{
         chain_manager::superblock::{AddSuperBlockVote, SuperBlockState},
@@ -60,6 +62,7 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
+use witnet_data_structures::chain::{BlockHeader, SuperBlock};
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, Bn256PublicKey, ChainState,
@@ -809,6 +812,104 @@ impl ChainManager {
     /// Get Magic number
     pub fn get_magic(&self) -> u16 {
         self.magic
+    }
+
+    /// Construct superblock process which uses futures
+    pub fn construct_superblock(
+        &mut self,
+        ctx: &mut Context<Self>,
+        block_epoch: u32,
+    ) -> ResponseActFuture<Self, Option<SuperBlock>, ()> {
+        let consensus_constants = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .consensus_constants
+            .clone();
+
+        let superblock_period = u32::from(consensus_constants.superblock_period);
+
+        let superblock_index = block_epoch / superblock_period;
+        let inventory_manager = InventoryManager::from_registry();
+
+        let init_epoch = block_epoch - superblock_period;
+        let init_epoch = init_epoch.saturating_sub(1);
+        let final_epoch = block_epoch.saturating_sub(2);
+        let genesis_hash = consensus_constants.genesis_hash;
+
+        let fut = futures::future::ok(self.handle(
+            GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
+            ctx,
+        ))
+        .and_then(move |res| match res {
+            Ok(v) => {
+                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
+                futures::future::ok(block_hashes)
+            }
+            Err(e) => {
+                log::error!("Error in GetBlocksEpochRange: {}", e);
+                futures::future::err(())
+            }
+        })
+        .and_then(move |block_hashes| {
+            let aux = block_hashes.into_iter().map(move |hash| {
+                inventory_manager
+                    .send(GetItemBlock { hash })
+                    .then(move |res| match res {
+                        Ok(Ok(block)) => futures::future::ok(block.block_header),
+                        Ok(Err(e)) => {
+                            log::error!("Error in GetItemBlock: {}", e);
+                            futures::future::err(())
+                        }
+                        Err(e) => {
+                            log::error!("Error in GetItemBlock: {}", e);
+                            futures::future::err(())
+                        }
+                    })
+                    .then(|x| futures::future::ok(x.ok()))
+            });
+
+            join_all(aux)
+                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+        })
+        .into_actor(self)
+        .and_then(move |block_headers, act, ctx| {
+            let last_hash = act
+                .handle(
+                    GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
+                    ctx,
+                )
+                .map(move |v| {
+                    v.first()
+                        .map(|(_epoch, hash)| *hash)
+                        .unwrap_or(genesis_hash)
+                });
+            match last_hash {
+                Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
+                Err(e) => {
+                    log::error!("Error in GetBlocksEpochRange: {}", e);
+                    actix::fut::err(())
+                }
+            }
+        })
+        .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
+        .and_then(move |(block_headers, last_hash), act, _ctx| {
+            let ars_members = &act.chain_state.last_ars;
+            let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
+
+            let superblock = act.superblock_state.build_superblock(
+                &block_headers,
+                ars_members,
+                ars_ordered_keys,
+                superblock_index,
+                last_hash,
+            );
+            actix::fut::ok(superblock)
+        });
+
+        Box::new(fut)
     }
 
     /// Block validation process which uses futures

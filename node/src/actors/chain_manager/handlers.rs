@@ -1,5 +1,5 @@
 use actix::{fut::WrapFuture, prelude::*};
-use futures::Future;
+use futures::future::Future;
 use itertools::Itertools;
 use std::{cmp::Ordering, collections::BTreeMap, collections::HashMap, convert::TryFrom};
 
@@ -33,6 +33,7 @@ use crate::{
     storage_mngr,
     utils::mode_consensus,
 };
+use witnet_data_structures::chain::Bn256PublicKey;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -354,6 +355,7 @@ impl Handler<AddBlocks> for ChainManager {
                 if let Some(target_beacon) = self.target_beacon {
                     let mut batch_succeeded = true;
                     let chain_beacon = self.get_chain_beacon();
+                    let superblock_period = u32::from(consensus_constants.superblock_period);
                     if msg.blocks.is_empty() {
                         batch_succeeded = false;
                         log::debug!("Received an empty AddBlocks message");
@@ -383,10 +385,27 @@ impl Handler<AddBlocks> for ChainManager {
                             // Update reputation before checking Proof-of-Eligibility
                             let block_epoch = block.block_header.beacon.checkpoint;
 
+                            if self.create_superblocks && block_epoch % superblock_period == 0 {
+                                self.construct_superblock(ctx, block_epoch)
+                                    .and_then(move |_, _act, _ctx| actix::fut::ok(()))
+                                    .wait(ctx);
+                            }
                             // Do not update reputation when consolidating genesis block
                             if block.hash() != consensus_constants.genesis_hash {
                                 if let Some(ref mut rep_engine) = self.chain_state.reputation_engine
                                 {
+                                    // Store the ARS and the order of the keys
+                                    let trs = rep_engine.trs();
+                                    let current_ars =
+                                        rep_engine.ars().active_identities().cloned().collect();
+                                    let alt_keys = &self.chain_state.alt_keys;
+
+                                    let ordered_alts: Vec<Bn256PublicKey> =
+                                        alt_keys.get_rep_ordered_bn256_list(trs);
+                                    // last ars with previous block ars info
+                                    self.chain_state.last_ars = current_ars;
+                                    self.chain_state.last_ars_ordered_keys = ordered_alts;
+
                                     if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
                                         log::error!(
                                             "Error updating reputation before processing block: {}",

@@ -28,10 +28,7 @@ use crate::{
             transaction_factory::{build_commit_collateral, sign_transaction},
             ChainManager, StateMachine,
         },
-        inventory_manager::InventoryManager,
-        messages::{
-            AddCandidates, AddCommitReveal, GetBlocksEpochRange, GetItemBlock, ResolveRA, RunTally,
-        },
+        messages::{AddCandidates, AddCommitReveal, ResolveRA, RunTally},
         rad_manager::RadManager,
     },
     signature_mngr,
@@ -39,7 +36,7 @@ use crate::{
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
+        CheckpointVRF, DataRequestOutput, EpochConstants, Hashable, Input, PublicKeyHash,
         ReputationEngine, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
         ValueTransferOutput,
     },
@@ -101,7 +98,6 @@ impl ChainManager {
         let current_epoch = self.current_epoch.unwrap();
 
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
-        let genesis_hash = chain_info.consensus_constants.genesis_hash;
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
 
@@ -136,13 +132,8 @@ impl ChainManager {
 
         let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
         // Everyone creates superblocks, but only ARS members sign and broadcast them
-        if current_epoch % superblock_period == 0 {
-            self.superblock_creating_and_broadcasting(
-                ctx,
-                current_epoch,
-                superblock_period,
-                genesis_hash,
-            );
+        if self.create_superblocks && current_epoch % superblock_period == 0 {
+            self.superblock_creating_and_broadcasting(ctx, current_epoch);
         }
 
         // Create a VRF proof and if eligible build block
@@ -571,144 +562,70 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<Self>,
         current_epoch: u32,
-        superblock_period: u32,
-        genesis_hash: Hash,
     ) {
-        let superblock_index = current_epoch / superblock_period;
+        self.construct_superblock(ctx, current_epoch)
+            .and_then(move |superblock, act, _ctx| {
+                match superblock {
+                    Some(superblock) => {
+                        let superblock_hash = superblock.hash();
+                        log::debug!(
+                            "SUPERBLOCK #{} {}: {:?}",
+                            superblock.index,
+                            superblock_hash,
+                            superblock
+                        );
 
-        let inventory_manager = InventoryManager::from_registry();
+                        let mut superblock_vote =
+                            SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
+                        let bn256_message = superblock_vote.bn256_signature_message();
+                        let fut = signature_mngr::bn256_sign(bn256_message)
+                            .map_err(|e| {
+                                log::error!("Failed to sign superblock with bn256 key: {}", e);
+                            })
+                            .and_then(move |bn256_keyed_signature| {
+                                // Actually, we don't need to include the BN256 public key because
+                                // it is stored in the `alt_keys` mapping, indexed by the
+                                // secp256k1 public key hash
+                                let bn256_signature = bn256_keyed_signature.signature;
+                                superblock_vote.set_bn256_signature(bn256_signature);
+                                let secp256k1_message =
+                                    superblock_vote.secp256k1_signature_message();
+                                let sign_bytes = calculate_sha256(&secp256k1_message).0;
+                                signature_mngr::sign_data(sign_bytes)
+                                    .map(move |secp256k1_signature| {
+                                        superblock_vote
+                                            .set_secp256k1_signature(secp256k1_signature);
 
-        let init_epoch = current_epoch - superblock_period;
-        let init_epoch = init_epoch.saturating_sub(1);
-        let final_epoch = current_epoch.saturating_sub(2);
-
-        futures::future::ok(self.handle(
-            GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
-            ctx,
-        ))
-        .and_then(move |res| match res {
-            Ok(v) => {
-                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
-                futures::future::ok(block_hashes)
-            }
-            Err(e) => {
-                log::error!("Error in GetBlocksEpochRange: {}", e);
-                futures::future::err(())
-            }
-        })
-        .and_then(move |block_hashes| {
-            let aux = block_hashes.into_iter().map(move |hash| {
-                inventory_manager
-                    .send(GetItemBlock { hash })
-                    .then(move |res| match res {
-                        Ok(Ok(block)) => futures::future::ok(block.block_header),
-                        Ok(Err(e)) => {
-                            log::error!("Error in GetItemBlock: {}", e);
-                            futures::future::err(())
-                        }
-                        Err(e) => {
-                            log::error!("Error in GetItemBlock: {}", e);
-                            futures::future::err(())
-                        }
-                    })
-                    .then(|x| futures::future::ok(x.ok()))
-            });
-
-            join_all(aux)
-                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
-                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
-        })
-        .into_actor(self)
-        .and_then(move |block_headers, act, ctx| {
-            let last_hash = act
-                .handle(
-                    GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
-                    ctx,
-                )
-                .map(move |v| {
-                    v.first()
-                        .map(|(_epoch, hash)| *hash)
-                        .unwrap_or(genesis_hash)
-                });
-            match last_hash {
-                Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
-                Err(e) => {
-                    log::error!("Error in GetBlocksEpochRange: {}", e);
-                    actix::fut::err(())
-                }
-            }
-        })
-        .map_err(|e, _, _| log::error!("Superblock forwarding failed: {:?}", e))
-        .and_then(move |(block_headers, last_hash), act, _ctx| {
-            let ars_members = &act.chain_state.last_ars;
-            let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
-            let superblock = act.superblock_state.build_superblock(
-                &block_headers,
-                ars_members,
-                ars_ordered_keys,
-                superblock_index,
-                last_hash,
-            );
-
-            match superblock {
-                Some(superblock) => {
-                    let superblock_hash = superblock.hash();
-                    log::debug!(
-                        "SUPERBLOCK #{} {}: {:?}",
-                        superblock.index,
-                        superblock_hash,
-                        superblock
-                    );
-
-                    let mut superblock_vote =
-                        SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
-                    let bn256_message = superblock_vote.bn256_signature_message();
-                    let fut = signature_mngr::bn256_sign(bn256_message)
-                        .map_err(|e| {
-                            log::error!("Failed to sign superblock with bn256 key: {}", e);
-                        })
-                        .and_then(move |bn256_keyed_signature| {
-                            // Actually, we don't need to include the BN256 public key because
-                            // it is stored in the `alt_keys` mapping, indexed by the
-                            // secp256k1 public key hash
-                            let bn256_signature = bn256_keyed_signature.signature;
-                            superblock_vote.set_bn256_signature(bn256_signature);
-                            let secp256k1_message = superblock_vote.secp256k1_signature_message();
-                            let sign_bytes = calculate_sha256(&secp256k1_message).0;
-                            signature_mngr::sign_data(sign_bytes)
-                                .map(move |secp256k1_signature| {
-                                    superblock_vote.set_secp256k1_signature(secp256k1_signature);
-
-                                    superblock_vote
-                                })
-                                .map_err(|e| {
+                                        superblock_vote
+                                    })
+                                    .map_err(|e| {
+                                        log::error!(
+                                            "Failed to sign superblock with secp256k1 key: {}",
+                                            e
+                                        );
+                                    })
+                            })
+                            .into_actor(act)
+                            .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
+                                Ok(()) => actix::fut::ok(()),
+                                Err(e) => {
                                     log::error!(
-                                        "Failed to sign superblock with secp256k1 key: {}",
+                                        "Error when broadcasting recently created superblock: {}",
                                         e
                                     );
-                                })
-                        })
-                        .into_actor(act)
-                        .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
-                            Ok(()) => actix::fut::ok(()),
-                            Err(e) => {
-                                log::error!(
-                                    "Error when broadcasting recently created superblock: {}",
-                                    e
-                                );
 
-                                actix::fut::err(())
-                            }
-                        });
-                    actix::fut::Either::A(fut)
+                                    actix::fut::err(())
+                                }
+                            });
+                        actix::fut::Either::A(fut)
+                    }
+                    None => {
+                        log::warn!("No blocks to build a superblock");
+                        actix::fut::Either::B(actix::fut::ok(()))
+                    }
                 }
-                None => {
-                    log::warn!("No blocks to build a superblock");
-                    actix::fut::Either::B(actix::fut::ok(()))
-                }
-            }
-        })
-        .wait(ctx)
+            })
+            .wait(ctx)
     }
 
     fn create_tally_transactions(
