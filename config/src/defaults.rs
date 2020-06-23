@@ -73,7 +73,7 @@ pub trait Defaults {
 
     /// Constant to specify when consensus is achieved (in %)
     fn connections_consensus_c(&self) -> u32 {
-        70
+        60
     }
 
     /// Period that indicate the validity of a checked peer
@@ -356,7 +356,7 @@ impl Defaults for Testnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Friday, 19-Jun-2020, 09:00 UTC
-        1_592_557_200
+        // Wednesday, 24-Jun-2020, 11:00 UTC
+        1_592_996_400
     }
 }

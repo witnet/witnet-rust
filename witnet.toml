@@ -74,7 +74,7 @@ known_peers = [
 ]
 # How many peer connections to stablish before considering that is safe to decide what the best chain tip is, based on
 # the beacons that those peers are announcing.
-outbound_limit = 8
+outbound_limit = 16
 # Period for opening new peer connections while the current number of peers is lower than `outbound_limit`.
 bootstrap_peers_period_seconds = 1
 
