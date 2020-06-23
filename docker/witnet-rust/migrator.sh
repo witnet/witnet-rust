@@ -19,8 +19,9 @@ function migrate {
   mkdir -p "$WITNET_CONFIG_FOLDER" &&
   log "Ensuring that storage folder '$WITNET_STORAGE_FOLDER' does exist" &&
   mkdir -p "$WITNET_STORAGE_FOLDER" &&
-  log "Moving configuration files into configuration folder '$WITNET_CONFIG_FOLDER'" &&
-  mv "$CONFIG_FILE" "$WITNET_CONFIG_FOLDER/witnet.toml" &&
+  log "Moving configuration files into configuration folder '$WITNET_CONFIG_FOLDER' (witnet.toml will not be overwritten)" &&
+  # Config file will not be overwritten if it already exists
+  cp -n "$CONFIG_FILE" "$WITNET_CONFIG_FOLDER/witnet.toml" &&
   cp "genesis_block.json" "$WITNET_CONFIG_FOLDER" &&
   chmod -R 777 "$WITNET_FOLDER/config" &&
   log "Copying old storage (if any) into new storage path" &&
