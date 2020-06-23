@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hash, PublicKeyHash},
+    chain::{Block, CheckpointBeacon, Hash, Hashable, PublicKeyHash},
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -516,13 +516,59 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
             .send(GetItemBlock { hash })
             .then(move |res| match res {
                 Ok(Ok(output)) => {
-                    let value = match serde_json::to_value(output) {
+                    let vtt_hashes: Vec<_> = output
+                        .txns
+                        .value_transfer_txns
+                        .iter()
+                        .map(|txn| txn.hash())
+                        .collect();
+                    let drt_hashes: Vec<_> = output
+                        .txns
+                        .data_request_txns
+                        .iter()
+                        .map(|txn| txn.hash())
+                        .collect();
+                    let ct_hashes: Vec<_> = output
+                        .txns
+                        .commit_txns
+                        .iter()
+                        .map(|txn| txn.hash())
+                        .collect();
+                    let rt_hashes: Vec<_> = output
+                        .txns
+                        .reveal_txns
+                        .iter()
+                        .map(|txn| txn.hash())
+                        .collect();
+                    let tt_hashes: Vec<_> = output
+                        .txns
+                        .tally_txns
+                        .iter()
+                        .map(|txn| txn.hash())
+                        .collect();
+
+                    let txns_hashes = serde_json::json!({
+                        "mint" : output.txns.mint.hash(),
+                        "value_transfer" : vtt_hashes,
+                        "data_request" : drt_hashes,
+                        "commit" : ct_hashes,
+                        "reveal" : rt_hashes,
+                        "tally" : tt_hashes
+                    });
+
+                    let mut value = match serde_json::to_value(output) {
                         Ok(x) => x,
                         Err(e) => {
                             let err = internal_error(e);
                             return futures::failed(err);
                         }
                     };
+
+                    value
+                        .as_object_mut()
+                        .expect("The result of getBlock should be an object")
+                        .insert("txns_hashes".to_string(), txns_hashes);
+
                     futures::finished(value)
                 }
                 Ok(Err(e)) => {
