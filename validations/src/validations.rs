@@ -1797,7 +1797,7 @@ pub fn validate_candidate(
 /// Validate a standalone transaction received from the network
 #[allow(clippy::too_many_arguments)]
 pub fn validate_new_transaction(
-    transaction: Transaction,
+    transaction: &Transaction,
     (reputation_engine, unspent_outputs_pool, data_request_pool): (
         &ReputationEngine,
         &UnspentOutputsPool,

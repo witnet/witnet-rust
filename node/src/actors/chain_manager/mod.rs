@@ -294,7 +294,7 @@ impl ChainManager {
     fn process_requested_block(
         &mut self,
         ctx: &mut Context<Self>,
-        block: &Block,
+        block: Block,
     ) -> Result<(), failure::Error> {
         if let (
             Some(epoch_constants),
@@ -317,7 +317,7 @@ impl ChainManager {
             vrf_input.checkpoint = block.block_header.beacon.checkpoint;
 
             let utxo_diff = process_validations(
-                block,
+                &block,
                 self.current_epoch.unwrap_or_default(),
                 vrf_input,
                 chain_info.highest_block_checkpoint,
@@ -426,7 +426,7 @@ impl ChainManager {
         self.persist_items(ctx, to_persist);
     }
 
-    fn consolidate_block(&mut self, ctx: &mut Context<Self>, block: &Block, utxo_diff: Diff) {
+    fn consolidate_block(&mut self, ctx: &mut Context<Self>, block: Block, utxo_diff: Diff) {
         // Update chain_info and reputation_engine
         let epoch_constants = match self.epoch_constants {
             Some(x) => x,
@@ -534,10 +534,7 @@ impl ChainManager {
                             .data_request_pool
                             .update_data_request_stages();
 
-                        self.persist_items(
-                            ctx,
-                            vec![StoreInventoryItem::Block(Box::new(block.clone()))],
-                        );
+                        self.persist_items(ctx, vec![StoreInventoryItem::Block(Box::new(block))]);
                     }
                     StateMachine::Synchronizing => {
                         // In Synchronizing stage, blocks and data requests are persisted
@@ -584,9 +581,7 @@ impl ChainManager {
                         self.persist_chain_state(ctx);
 
                         // Send notification to JsonRpcServer
-                        JsonRpcServer::from_registry().do_send(NewBlock {
-                            block: block.clone(),
-                        })
+                        JsonRpcServer::from_registry().do_send(NewBlock { block })
                     }
                 }
             }
@@ -742,7 +737,7 @@ impl ChainManager {
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = current_epoch;
             let fut = futures::future::result(validate_new_transaction(
-                msg.transaction.clone(),
+                &msg.transaction,
                 (
                     reputation_engine,
                     &self.chain_state.unspent_outputs_pool,

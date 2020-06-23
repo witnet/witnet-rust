@@ -231,7 +231,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         // Consolidate the best candidate
                         if let Some((_, _, _, block, utxo_diff)) = chosen_candidate {
                             // Persist block and update ChainState
-                            self.consolidate_block(ctx, &block, utxo_diff);
+                            self.consolidate_block(ctx, block, utxo_diff);
                         } else if msg.checkpoint > 0 {
                             let previous_epoch = msg.checkpoint - 1;
                             log::warn!(
@@ -337,7 +337,8 @@ impl Handler<AddBlocks> for ChainManager {
                 // the genesis block
                 if msg.blocks.len() == 1 && msg.blocks[0].hash() == consensus_constants.genesis_hash
                 {
-                    match self.process_requested_block(ctx, &msg.blocks[0]) {
+                    let block = msg.blocks.into_iter().next().unwrap();
+                    match self.process_requested_block(ctx, block) {
                         Ok(()) => log::debug!("Successfully consolidated genesis block"),
                         Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
                     }
@@ -389,7 +390,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 }
                             }
 
-                            if let Err(e) = self.process_requested_block(ctx, block) {
+                            if let Err(e) = self.process_requested_block(ctx, block.clone()) {
                                 log::error!("Error processing block: {}", e);
                                 self.initialize_from_storage(ctx);
                                 log::info!("Restored chain state from storage");
@@ -687,7 +688,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         self.seen_candidates.clear();
                         // TODO: Be functional my friend
                         if let Some((consensus_block, _consensus_block_vrf_hash)) = candidate {
-                            match self.process_requested_block(ctx, &consensus_block) {
+                            match self.process_requested_block(ctx, consensus_block) {
                                 Ok(()) => {
                                     log::info!(
                                         "Consolidate consensus candidate. AlmostSynced state"

@@ -36,7 +36,7 @@ pub fn mode(input: &RadonArray) -> Result<RadonTypes, RadError> {
             max_count: u16::try_from(*max_count).unwrap(),
         })
     } else {
-        Ok(mode_vector[0].clone())
+        Ok(mode_vector.into_iter().next().unwrap())
     }
 }
 

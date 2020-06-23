@@ -153,8 +153,30 @@ pub fn jsonrpc_io_handler(
             "witnet_subscribe",
             move |params: Params, _meta: Arc<Session>, subscriber: Subscriber| {
                 log::debug!("Called witnet_subscribe");
-                let params_vec: Vec<serde_json::Value> = match params {
-                    Params::Array(v) => v,
+                let (method_name, method_params) = match params {
+                    Params::Array(v) => {
+                        // [method_name, method_params] = v
+                        // Use an iterator because pattern matching on vectors is not possible
+                        let mut iter = v.into_iter();
+                        match (iter.next(), iter.next(), iter.next()) {
+                            // Only one element in vector: set params to Value::Null
+                            (Some(method_name), None, None) => (method_name, Value::Null),
+                            // Two elements in vector: method_name and params
+                            (Some(method_name), Some(method_params), None) => {
+                                (method_name, method_params)
+                            }
+                            // Otherwise, return an error
+                            _ => {
+                                // Ignore errors with `.ok()` because an error here means the connection was closed
+                                subscriber
+                                    .reject(jsonrpc_core::Error::invalid_params(
+                                        "Expected array with 1 or 2 elements",
+                                    ))
+                                    .ok();
+                                return;
+                            }
+                        }
+                    }
                     _ => {
                         // Ignore errors with `.ok()` because an error here means the connection was closed
                         subscriber
@@ -164,7 +186,7 @@ pub fn jsonrpc_io_handler(
                     }
                 };
 
-                let method_name: String = match serde_json::from_value(params_vec[0].clone()) {
+                let method_name: String = match serde_json::from_value(method_name) {
                     Ok(s) => s,
                     Err(e) => {
                         // Ignore errors with `.ok()` because an error here means the connection was closed
@@ -174,9 +196,6 @@ pub fn jsonrpc_io_handler(
                         return;
                     }
                 };
-
-                // Get params, or set to Value::Null if the "params" key does not exist
-                let method_params = params_vec.get(1).cloned().unwrap_or_default();
 
                 let add_subscription = |method_name, subscriber: Subscriber| {
                     if let Ok(mut s) = ss.lock() {
