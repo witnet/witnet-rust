@@ -369,23 +369,8 @@ impl Config {
             Environment::Testnet => &Testnet,
         };
 
-        let consensus_constants = match config.environment {
-            // When in mainnet, ignore the [consensus_constants] section of the configuration
-            Environment::Mainnet => {
-                let consensus_constants_no_changes = PartialConsensusConstants::default();
-                // Warn the user if the config file contains a non-empty [consensus_constant] section
-                if config.consensus_constants != consensus_constants_no_changes {
-                    log::warn!(
-                        "Consensus constants in the configuration are ignored when running mainnet"
-                    );
-                }
-                consensus_constants_from_partial(&consensus_constants_no_changes, defaults)
-            }
-            // In testnet, allow to override the consensus constants
-            Environment::Testnet => {
-                consensus_constants_from_partial(&config.consensus_constants, defaults)
-            }
-        };
+        let consensus_constants =
+            consensus_constants_from_partial(&PartialConsensusConstants::default(), defaults);
 
         Config {
             environment: config.environment,
