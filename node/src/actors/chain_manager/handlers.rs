@@ -277,6 +277,12 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         // Clear candidates
                         self.candidates.clear();
                         self.seen_candidates.clear();
+
+                        log::debug!(
+                            "Transactions pool size: {} value transfer, {} data request",
+                            self.transactions_pool.vt_len(),
+                            self.transactions_pool.dr_len()
+                        );
                     }
 
                     _ => {

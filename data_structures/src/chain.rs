@@ -1420,7 +1420,7 @@ impl TransactionsPool {
             && self.re_transactions.is_empty()
     }
 
-    /// Returns the number of transactions in the pool.
+    /// Returns the number of value transfer transactions in the pool.
     ///
     /// # Examples:
     ///
@@ -1439,6 +1439,27 @@ impl TransactionsPool {
     /// ```
     pub fn vt_len(&self) -> usize {
         self.vt_transactions.len()
+    }
+
+    /// Returns the number of data request transactions in the pool.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, DRTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::DataRequest(DRTransaction::default());
+    ///
+    /// assert_eq!(pool.dr_len(), 0);
+    ///
+    /// pool.insert(transaction);
+    ///
+    /// assert_eq!(pool.dr_len(), 1);
+    /// ```
+    pub fn dr_len(&self) -> usize {
+        self.dr_transactions.len()
     }
 
     /// Clear commit transactions in TransactionsPool
