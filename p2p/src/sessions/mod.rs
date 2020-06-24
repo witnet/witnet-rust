@@ -137,24 +137,35 @@ where
     }
     /// Method to check if a socket address is eligible as outbound peer
     pub fn is_outbound_address_eligible(&self, candidate_addr: SocketAddr) -> bool {
-        // Check if address is already used as outbound session (consolidated or unconsolidated)
-        let is_outbound_consolidated = self
+        // Check if address is already used as consolidated outbound session
+        if self
             .outbound_consolidated
             .collection
-            .contains_key(&candidate_addr);
-        let is_outbound_unconsolidated = self
+            .contains_key(&candidate_addr)
+        {
+            return false;
+        }
+
+        // Check if address is already used as unconsolidated outbound session
+        if self
             .outbound_unconsolidated
             .collection
-            .contains_key(&candidate_addr);
+            .contains_key(&candidate_addr)
+        {
+            return false;
+        }
 
         // Check if address is the server address
-        let is_server = self
+        if self
             .public_address
             .map(|address| address == candidate_addr)
-            .unwrap_or(false);
+            .unwrap_or(false)
+        {
+            return false;
+        }
 
         // Return true if the address has not been used as outbound session or server address
-        !is_outbound_consolidated && !is_outbound_unconsolidated && !is_server
+        true
     }
     /// Method to get total number of outbound peers
     pub fn get_num_outbound_sessions(&self) -> usize {
