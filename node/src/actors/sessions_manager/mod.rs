@@ -1,8 +1,8 @@
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
-    fut::FutureResult, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner,
-    MailboxError, SystemService, WrapFuture,
+    ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, MailboxError, SystemService,
+    WrapFuture,
 };
 
 use ansi_term::Color::Cyan;
@@ -85,7 +85,7 @@ impl SessionsManager {
                     // Send GetPeer message to peers manager actor
                     // This returns a Request Future, representing an asynchronous message sending process
                     .send(GetRandomPeers {
-                        n: act.sessions.num_missing_outbound(),
+                        n: usize::from(act.sessions.outbound_consolidated.limit.unwrap_or(1)),
                     })
                     // Convert a normal future into an ActorFuture
                     .into_actor(act)
@@ -93,7 +93,7 @@ impl SessionsManager {
                     // This returns a FutureResult containing the socket address if present
                     .then(|res, act, _ctx| {
                         // Process the response from peers manager
-                        act.process_get_peer_response(res)
+                        actix::fut::ok(act.process_get_peer_response(res))
                     })
                     // Process the socket address received
                     // This returns a FutureResult containing a success or error
@@ -138,25 +138,27 @@ impl SessionsManager {
     fn process_get_peer_response(
         &mut self,
         response: Result<PeersSocketAddrsResult, MailboxError>,
-    ) -> FutureResult<Vec<SocketAddr>, (), Self> {
-        let peers: Vec<SocketAddr> = response
+    ) -> Vec<SocketAddr> {
+        response
             // Unwrap the Result<PeersSocketAddrResult, MailboxError>
-            .unwrap_or_else(|_| {
-                log::error!("Failed to communicate with PeersManager");
+            .unwrap_or_else(|e| {
+                log::error!("Failed to communicate with PeersManager: {}", e);
                 Ok(vec![])
             })
             // Unwrap the PeersSocketAddrResult
-            .unwrap_or_else(|_| {
-                log::error!("Error when trying to get a peer address from PeersManager");
+            .unwrap_or_else(|e| {
+                log::error!(
+                    "Error when trying to get a peer address from PeersManager: {}",
+                    e
+                );
                 vec![]
             })
             // Filter the result checking if outbound address is eligible as new peer
             .into_iter()
             .filter(|address| self.sessions.is_outbound_address_eligible(*address))
-            .collect();
-
-        // Convert to FutureResult<Vec<SocketAddr>, (), Self>
-        actix::fut::ok(peers)
+            // Take at most as many peers as missing outbounds
+            .take(self.sessions.num_missing_outbound())
+            .collect()
     }
 
     /// Subscribe to all future epochs
