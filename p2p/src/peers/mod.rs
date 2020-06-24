@@ -234,7 +234,7 @@ impl Peers {
 
         // Run n experiments with probability of success 50% to obtain
         // the peers number required from the new bucket
-        let index_new_peers = (0..n_peers).fold(0, |acc, _| acc + rng.gen_range(0, 1));
+        let index_new_peers = (0..n_peers).fold(0, |acc, _| acc + rng.gen_range(0, 2));
         // Apply upper and lower limits to index_new_peers
         let index_new_peers = match index_new_peers {
             x if x < min_new_required => min_new_required,
