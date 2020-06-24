@@ -768,16 +768,18 @@ impl ChainManager {
                 chain_info.consensus_constants.max_dr_weight,
             ))
             .into_actor(self)
-            .and_then(|_, act, _ctx| {
-                signature_mngr::verify_signatures(signatures_to_verify).into_actor(act)
+            .and_then(|fee, act, _ctx| {
+                signature_mngr::verify_signatures(signatures_to_verify)
+                    .map(move |_| fee)
+                    .into_actor(act)
             })
             .then(|res, act, _ctx| match res {
-                Ok(()) => {
+                Ok(fee) => {
                     // Broadcast valid transaction
                     act.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
 
                     // Add valid transaction to transactions_pool
-                    act.transactions_pool.insert(msg.transaction);
+                    act.transactions_pool.insert(msg.transaction, fee);
                     log::trace!("Transaction added successfully");
 
                     actix::fut::ok(())

@@ -876,6 +876,7 @@ fn build_block(
         VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()])
             .weight();
     // Currently only value transfer transactions weight is taking into account
+
     for vt_tx in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();
         let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff, epoch, epoch_constants) {
@@ -1134,7 +1135,7 @@ mod tests {
             VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
             vec![],
         ));
-        transaction_pool.insert(transaction.clone());
+        transaction_pool.insert(transaction.clone(), 0);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -1192,7 +1193,7 @@ mod tests {
             VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
             vec![],
         ));
-        transaction_pool.insert(transaction);
+        transaction_pool.insert(transaction, 0);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -1270,16 +1271,22 @@ mod tests {
         assert!(verify_signatures(signatures_to_verify, vrf, secp).is_ok());
     }
 
+    static MILLION_TX_OUTPUT: &str =
+        "0f0f000000000000000000000000000000000000000000000000000000000000:0";
+    static MILLION_TX_OUTPUT2: &str =
+        "0f0f000000000000000000000000000000000000000000000000000000000001:0";
+
+    static MY_PKH_1: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
+
     #[test]
-    #[ignore]
     fn build_block_with_transactions() {
+
+        let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output2_pointer: OutputPointer = MILLION_TX_OUTPUT2.parse().unwrap();
         // Build sample transactions
         let vt_tx1 = VTTransaction::new(
             VTTransactionBody::new(
-                vec![Input::new(OutputPointer {
-                    transaction_id: Hash::SHA256([1; 32]),
-                    output_index: 0,
-                })],
+                vec![Input::new(output1_pointer.clone())],
                 vec![ValueTransferOutput {
                     time_lock: 0,
                     pkh: PublicKeyHash::default(),
@@ -1292,14 +1299,8 @@ mod tests {
         let vt_tx2 = VTTransaction::new(
             VTTransactionBody::new(
                 vec![
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([2; 32]),
-                        output_index: 0,
-                    }),
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([3; 32]),
-                        output_index: 0,
-                    }),
+                    Input::new(output1_pointer.clone()),
+                    Input::new(output2_pointer.clone()),
                 ],
                 vec![
                     ValueTransferOutput {
@@ -1319,14 +1320,8 @@ mod tests {
         let vt_tx3 = VTTransaction::new(
             VTTransactionBody::new(
                 vec![
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([4; 32]),
-                        output_index: 0,
-                    }),
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([5; 32]),
-                        output_index: 0,
-                    }),
+                    Input::new(output1_pointer.clone()),
+                    Input::new(output2_pointer.clone()),
                 ],
                 vec![
                     ValueTransferOutput {
@@ -1353,13 +1348,26 @@ mod tests {
         let max_dr_weight = 0;
 
         // Insert transactions into `transactions_pool`
-        // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
         let mut transaction_pool = TransactionsPool::default();
-        transaction_pool.insert(transaction_1);
-        transaction_pool.insert(transaction_2);
-        transaction_pool.insert(transaction_3);
+        transaction_pool.insert(transaction_1, 0);
+        transaction_pool.insert(transaction_2, 0);
+        transaction_pool.insert(transaction_3, 0);
 
-        let unspent_outputs_pool = UnspentOutputsPool::default();
+        assert_eq!(transaction_pool.vt_len(), 3);
+
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
+        let output1 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1_000_000,
+        };
+        //let tx_output1 = VTTransactionBody::new(vec![], vec![output1.clone()]);
+        //let output1_pointer = OutputPointer { transaction_id: tx_output1.hash(), output_index: 0 };
+        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        unspent_outputs_pool.insert(output1_pointer, output1.clone(), 0);
+        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
+        unspent_outputs_pool.insert(output2_pointer, output1, 0);
+
         let dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block

@@ -1363,8 +1363,8 @@ impl RADTally {
     }
 }
 
-type WeightedHash = (u64, Hash);
-type WeightedVTTransaction = (u64, VTTransaction);
+type PrioritizedHash = (u64, Hash);
+type PrioritizedVTTransaction = (u64, VTTransaction);
 
 /// A pool of validated transactions that supports constant access by
 /// [`Hash`](Hash) and iteration over the
@@ -1372,8 +1372,8 @@ type WeightedVTTransaction = (u64, VTTransaction);
 /// transactions with smaller fees.
 #[derive(Debug, Default, Clone)]
 pub struct TransactionsPool {
-    vt_transactions: HashMap<Hash, WeightedVTTransaction>,
-    sorted_index: BTreeSet<WeightedHash>,
+    vt_transactions: HashMap<Hash, PrioritizedVTTransaction>,
+    sorted_vt_index: BTreeSet<PrioritizedHash>,
     // Currently transactions related with data requests don't use weight
     dr_transactions: HashMap<Hash, DRTransaction>,
     // Index commits by transaction hash
@@ -1418,7 +1418,7 @@ impl TransactionsPool {
             co_transactions: HashMap::with_capacity(capacity),
             re_hash_index: HashMap::with_capacity(capacity),
             re_transactions: HashMap::with_capacity(capacity),
-            sorted_index: BTreeSet::new(),
+            sorted_vt_index: BTreeSet::new(),
             pending_transactions: HashSet::new(),
         }
     }
@@ -1471,7 +1471,7 @@ impl TransactionsPool {
     ///
     /// assert_eq!(pool.vt_len(), 0);
     ///
-    /// pool.insert(transaction);
+    /// pool.insert(transaction,0);
     ///
     /// assert_eq!(pool.vt_len(), 1);
     /// ```
@@ -1564,7 +1564,7 @@ impl TransactionsPool {
     /// let hash = transaction.hash();
     /// assert!(!pool.vt_contains(&hash));
     ///
-    /// pool.insert(transaction);
+    /// pool.insert(transaction,0);
     ///
     /// assert!(pool.vt_contains(&hash));
     /// ```
@@ -1649,7 +1649,7 @@ impl TransactionsPool {
     /// let mut pool = TransactionsPool::new();
     /// let vt_transaction = VTTransaction::default();
     /// let transaction = Transaction::ValueTransfer(vt_transaction.clone());
-    /// pool.insert(transaction.clone());
+    /// pool.insert(transaction.clone(),0);
     ///
     /// assert!(pool.vt_contains(&transaction.hash()));
     ///
@@ -1662,7 +1662,7 @@ impl TransactionsPool {
         self.vt_transactions
             .remove(key)
             .map(|(weight, transaction)| {
-                self.sorted_index.remove(&(weight, *key));
+                self.sorted_vt_index.remove(&(weight, *key));
                 transaction
             })
     }
@@ -1679,7 +1679,7 @@ impl TransactionsPool {
     /// let mut pool = TransactionsPool::new();
     /// let dr_transaction = DRTransaction::default();
     /// let transaction = Transaction::DataRequest(dr_transaction.clone());
-    /// pool.insert(transaction.clone());
+    /// pool.insert(transaction.clone(),0);
     ///
     /// assert!(pool.dr_contains(&transaction.hash()));
     ///
@@ -1798,18 +1798,20 @@ impl TransactionsPool {
     /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
-    /// pool.insert(transaction);
+    /// pool.insert(transaction,0);
     ///
     /// assert!(!pool.is_empty());
     /// ```
-    pub fn insert(&mut self, transaction: Transaction) {
-        let weight = 0; // TODO: weight = transaction-fee / transaction-weight
+    pub fn insert(&mut self, transaction: Transaction, fee: u64) {
         let key = transaction.hash();
 
         match transaction {
             Transaction::ValueTransfer(vt_tx) => {
-                self.vt_transactions.insert(key, (weight, vt_tx));
-                self.sorted_index.insert((weight, key));
+                let weight = u64::from(vt_tx.weight());
+                let priority = fee / weight;
+
+                self.vt_transactions.insert(key, (priority, vt_tx));
+                self.sorted_vt_index.insert((priority, key));
             }
             Transaction::DataRequest(dr_tx) => {
                 self.dr_transactions.insert(key, dr_tx);
@@ -1863,8 +1865,8 @@ impl TransactionsPool {
     ///
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
-    /// pool.insert(transaction.clone());
-    /// pool.insert(transaction);
+    /// pool.insert(transaction.clone(),0);
+    /// pool.insert(transaction,0);
     ///
     /// let mut iter = pool.vt_iter();
     /// let tx1 = iter.next();
@@ -1873,7 +1875,7 @@ impl TransactionsPool {
     /// // TODO: assert!(tx1.weight() >= tx2.weight());
     /// ```
     pub fn vt_iter(&self) -> impl Iterator<Item = &VTTransaction> {
-        self.sorted_index
+        self.sorted_vt_index
             .iter()
             .rev()
             .filter_map(move |(_, h)| self.vt_transactions.get(h).map(|(_, t)| t))
@@ -1899,7 +1901,7 @@ impl TransactionsPool {
     ///
     /// assert!(pool.vt_get(&hash).is_none());
     ///
-    /// pool.insert(transaction);
+    /// pool.insert(transaction,0);
     ///
     /// assert!(pool.vt_get(&hash).is_some());
     /// ```
@@ -1930,8 +1932,8 @@ impl TransactionsPool {
     /// }]),
     /// vec![]));
     ///
-    /// pool.insert(transaction1);
-    /// pool.insert(transaction2);
+    /// pool.insert(transaction1,0);
+    /// pool.insert(transaction2,0);
     /// assert_eq!(pool.vt_len(), 2);
     /// pool.vt_retain(|tx| tx.body.outputs.len()>0);
     /// assert_eq!(pool.vt_len(), 1);
@@ -1942,7 +1944,7 @@ impl TransactionsPool {
     {
         let TransactionsPool {
             ref mut vt_transactions,
-            ref mut sorted_index,
+            sorted_vt_index: ref mut sorted_index,
             ..
         } = *self;
 
@@ -3681,7 +3683,7 @@ mod tests {
         });
         let mut transactions_pool = TransactionsPool::default();
         assert_eq!(transactions_pool.contains(&t1), Ok(false));
-        transactions_pool.insert(t1.clone());
+        transactions_pool.insert(t1.clone(), 0);
         assert_eq!(transactions_pool.contains(&t1), Ok(true));
         assert_eq!(
             transactions_pool.contains(&t2),
@@ -3690,11 +3692,11 @@ mod tests {
                 dr_pointer: Hash::default(),
             })
         );
-        transactions_pool.insert(t2.clone());
+        transactions_pool.insert(t2.clone(), 0);
         assert_eq!(transactions_pool.contains(&t2), Ok(true));
         // Check that insert overwrites
         let mut expected = TransactionsPool::default();
-        expected.insert(t2);
+        expected.insert(t2, 0);
         assert_eq!(transactions_pool.co_transactions, expected.co_transactions);
     }
 
@@ -3712,7 +3714,7 @@ mod tests {
         });
         let mut transactions_pool = TransactionsPool::default();
         assert_eq!(transactions_pool.contains(&t1), Ok(false));
-        transactions_pool.insert(t1.clone());
+        transactions_pool.insert(t1.clone(), 0);
         assert_eq!(transactions_pool.contains(&t1), Ok(true));
         assert_eq!(
             transactions_pool.contains(&t2),
@@ -3721,7 +3723,7 @@ mod tests {
                 dr_pointer: Hash::default(),
             })
         );
-        transactions_pool.insert(t2.clone());
+        transactions_pool.insert(t2.clone(), 0);
         assert_eq!(transactions_pool.contains(&t2), Ok(true));
     }
 
@@ -3746,10 +3748,10 @@ mod tests {
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.insert(t1);
-        transactions_pool.insert(t2.clone());
+        transactions_pool.insert(t1, 0);
+        transactions_pool.insert(t2.clone(), 0);
         let mut expected = TransactionsPool::default();
-        expected.insert(t2);
+        expected.insert(t2, 0);
         assert_eq!(transactions_pool.co_transactions, expected.co_transactions);
     }
 
@@ -3767,10 +3769,10 @@ mod tests {
         });
 
         let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.insert(t1);
-        transactions_pool.insert(t2.clone());
+        transactions_pool.insert(t1, 0);
+        transactions_pool.insert(t2.clone(), 0);
         let mut expected = TransactionsPool::default();
-        expected.insert(t2);
+        expected.insert(t2, 0);
         assert_eq!(transactions_pool.re_transactions, expected.re_transactions);
     }
 
@@ -3802,7 +3804,7 @@ mod tests {
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.insert(t1);
+        transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.co_transactions.len(), 1);
         assert_eq!(transactions_pool.co_hash_index.len(), 1);
         let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
@@ -3914,13 +3916,13 @@ mod tests {
         let t3 = Transaction::Commit(c3.clone());
 
         let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.insert(t1);
+        transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.co_transactions.len(), 1);
         assert_eq!(transactions_pool.co_hash_index.len(), 1);
-        transactions_pool.insert(t2);
+        transactions_pool.insert(t2, 0);
         assert_eq!(transactions_pool.co_transactions.len(), 2);
         assert_eq!(transactions_pool.co_hash_index.len(), 2);
-        transactions_pool.insert(t3);
+        transactions_pool.insert(t3, 0);
         assert_eq!(transactions_pool.co_transactions.len(), 3);
         assert_eq!(transactions_pool.co_hash_index.len(), 3);
 
@@ -3962,7 +3964,7 @@ mod tests {
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.insert(t1);
+        transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.co_transactions.len(), 1);
         assert_eq!(transactions_pool.co_hash_index.len(), 1);
         let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
@@ -4002,7 +4004,7 @@ mod tests {
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.insert(t1);
+        transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.re_transactions.len(), 1);
         assert_eq!(transactions_pool.re_hash_index.len(), 1);
         let (reveals_vec, _reveal_fees) = transactions_pool.remove_reveals(&dr_pool);
@@ -4039,7 +4041,7 @@ mod tests {
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.insert(t1);
+        transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.re_transactions.len(), 1);
         assert_eq!(transactions_pool.re_hash_index.len(), 1);
         let (reveals_vec, _reveal_fees) = transactions_pool.remove_reveals(&dr_pool);

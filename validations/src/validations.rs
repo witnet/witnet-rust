@@ -1812,7 +1812,7 @@ pub fn validate_new_transaction(
     collateral_age: u32,
     max_vt_weight: u32,
     max_dr_weight: u32,
-) -> Result<(), failure::Error> {
+) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
 
     match transaction {
@@ -1824,7 +1824,7 @@ pub fn validate_new_transaction(
             signatures_to_verify,
             max_vt_weight,
         )
-        .map(|_| ()),
+        .map(|(_, _, fee)| fee),
 
         Transaction::DataRequest(tx) => validate_dr_transaction(
             &tx,
@@ -1835,7 +1835,7 @@ pub fn validate_new_transaction(
             collateral_minimum,
             max_dr_weight,
         )
-        .map(|_| ()),
+        .map(|(_, _, fee)| fee),
         Transaction::Commit(tx) => validate_commit_transaction(
             &tx,
             &data_request_pool,
@@ -1849,9 +1849,9 @@ pub fn validate_new_transaction(
             collateral_age,
             block_number,
         )
-        .map(|_| ()),
+        .map(|(_, _, fee)| fee),
         Transaction::Reveal(tx) => {
-            validate_reveal_transaction(&tx, &data_request_pool, signatures_to_verify).map(|_| ())
+            validate_reveal_transaction(&tx, &data_request_pool, signatures_to_verify)
         }
         _ => Err(TransactionError::NotValidTransaction.into()),
     }
