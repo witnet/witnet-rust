@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     convert::TryFrom,
+    net::SocketAddr,
     sync::atomic::{AtomicUsize, Ordering},
     sync::Arc,
 };
@@ -31,10 +32,11 @@ use crate::{
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
-            AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
-            GetConsolidatedPeers, GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon,
-            GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
-            GetNodeStats, GetReputation, GetReputationAll, GetState, GetUtxoInfo,
+            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, GetBalance,
+            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestReport, GetEpoch,
+            GetHighestCheckpointBeacon, GetItemBlock, GetItemTransaction, GetKnownPeers,
+            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetReputationAll,
+            GetState, GetUtxoInfo,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -139,6 +141,13 @@ pub fn jsonrpc_io_handler(
             master_key_export()
         } else {
             unauthorized_method("masterKeyExport")
+        }
+    });
+    io.add_method("addPeers", move |params: Params| {
+        if enable_sensitive_methods {
+            add_peers(params.parse())
+        } else {
+            unauthorized_method("addPeers")
         }
     });
 
@@ -1093,7 +1102,7 @@ pub fn known_peers() -> JsonRpcResultAsync {
     let fut = peers_manager_addr
         .send(GetKnownPeers)
         .map_err(internal_error)
-        .and_then(|knwon_peers| match knwon_peers {
+        .and_then(|known_peers| match known_peers {
             Ok(x) => {
                 let peers: Vec<_> = x
                     .new
@@ -1169,6 +1178,37 @@ pub fn get_mempool(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResultAsyn
                     futures::failed(err)
                 }
             },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
+/// Add peers
+pub fn add_peers(params: Result<Vec<SocketAddr>, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let addresses = match params {
+        Ok(x) => x,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+    // Bucketing implementation needs to know the source address that sent us the peers
+    // Use localhost:21337, this way all the peers added using JSON-RPC will go to the same range
+    // of buckets
+    // TODO: do we want that all the peers added using JSON-RPC will go to the same range of buckets?
+    // Currently this means that it is impossible to add two ips with same address but different port, but that may be a bug
+    let src_address = "127.0.0.1:21337".parse().unwrap();
+    let peers_manager_addr = PeersManager::from_registry();
+
+    let fut = peers_manager_addr
+        .send(AddPeers {
+            addresses,
+            src_address,
+        })
+        .map_err(internal_error)
+        .and_then(|res| match res {
+            Ok(_overwritten_peers) => {
+                // Ignore overwritten peers, just return true on success
+                futures::finished(Value::Bool(true))
+            }
             Err(e) => futures::failed(internal_error_s(e)),
         });
 
@@ -1461,6 +1501,7 @@ mod tests {
         assert_eq!(
             all_methods_vec,
             vec![
+                "addPeers",
                 "createVRF",
                 "dataRequestReport",
                 "getBalance",
@@ -1501,6 +1542,7 @@ mod tests {
         assert_eq!(all_methods.difference(&non_sensitive_methods).count(), 0);
 
         let expected_sensitive_methods = vec![
+            "addPeers",
             "createVRF",
             "getPkh",
             "getPublicKey",
