@@ -34,6 +34,9 @@ ERROR_BANNER="
 # Read from environment whether the public address discovery feature is enabled (defaults to true)
 PUBLIC_ADDR_DISCOVERY=${PUBLIC_ADDR_DISCOVERY:-"true"}
 
+# Read log level from environment, or default to info if not explicitly specified
+LOG_LEVEL=${LOG_LEVEL:-"info"}
+
 # Run the migrator (e.g. move RocksDB data from "./witnet" into "./witnet/storage")
 ./migrator.sh
 
@@ -49,6 +52,6 @@ while true; do
 
     # Run the node itself, using configuration from the default directory and passing down any arguments that may be
     # appended when running "docker run"
-    /tmp/witnet-raw -c /.witnet/config/witnet.toml "$@" || echo "$ERROR_BANNER"
+    RUST_LOG=witnet=$LOG_LEVEL /tmp/witnet-raw -c /.witnet/config/witnet.toml "$@" || echo "$ERROR_BANNER"
     sleep 30
 done

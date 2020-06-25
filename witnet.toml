@@ -121,7 +121,7 @@ genesis_path = ".witnet/config/genesis_block.json"
 
 [log]
 # Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"
-level = "debug"
+level = "info"
 # Automated bug reporting (helps the community improve the software)
 sentry_telemetry = true
 
