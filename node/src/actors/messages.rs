@@ -775,7 +775,7 @@ pub struct Consolidate {
     /// Potential peer to be added
     /// In their `Version` messages the nodes communicate the address of their server and that
     /// is a potential peer that should try to be added
-    pub potential_new_peer: SocketAddr,
+    pub potential_new_peer: Option<SocketAddr>,
 
     /// Session type
     pub session_type: SessionType,

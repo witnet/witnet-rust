@@ -358,20 +358,6 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
 
 // Function to notify the SessionsManager that the session has been consolidated
 fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
-    // This address is a potential peer to be added to the tried bucket
-    let potential_new_peer = session
-        .remote_sender_addr
-        .filter(|address| {
-            // Replace with remote_addr in case of unspecified addresses
-            // if session is not Inbound
-            !(session.session_type != SessionType::Inbound && address.ip().is_unspecified())
-        })
-        .unwrap_or({
-            // If there is no valid remote_sender_addr, use remote_addr:
-            // the address we connected to
-            session.remote_addr
-        });
-
     // First evaluate Feeler case
     if session.session_type == SessionType::Feeler {
         // Get peer manager address
@@ -380,12 +366,22 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
         // Send AddConsolidatedPeer message to the peers manager
         // Try to add this potential peer in the tried addresses bucket
         peers_manager_addr.do_send(AddConsolidatedPeer {
-            address: potential_new_peer,
+            // Use the address to which we connected to, not the public address reported by the peer
+            address: session.remote_addr,
         });
 
         // After add peer to tried bucket, this session is not longer useful
         ctx.stop();
     } else {
+        // This address is a potential peer to be added to the new bucket
+        let potential_new_peer = if session.session_type == SessionType::Inbound {
+            session.remote_sender_addr
+        } else {
+            // In the case of Outbound peers we already know the address of the peer, no need to
+            // check their reported public address again
+            None
+        };
+
         // Get session manager address
         let session_manager_addr = SessionsManager::from_registry();
 

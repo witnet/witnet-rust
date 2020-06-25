@@ -186,13 +186,15 @@ impl Handler<Consolidate> for SessionsManager {
             // Send AddConsolidatedPeer message to the peers manager
             // Try to add this potential peer in the tried addresses bucket
             peers_manager_addr.do_send(AddConsolidatedPeer {
-                address: msg.potential_new_peer,
+                address: msg.address,
             });
-        } else if msg.session_type == SessionType::Inbound {
-            // Send AddPeers message to the peers manager
-            // Try to add this potential peer in the new addresses bucket
+        }
+
+        // Send AddPeers message to the peers manager
+        // Try to add this potential peer in the new addresses bucket
+        if let Some(potential_new_peer) = msg.potential_new_peer {
             peers_manager_addr.do_send(AddPeers {
-                addresses: vec![msg.potential_new_peer],
+                addresses: vec![potential_new_peer],
                 src_address: msg.address,
             });
         }
