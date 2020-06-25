@@ -547,12 +547,12 @@ impl Message for AddConsolidatedPeer {
 }
 
 /// Message to remove one or more peer addresses from the list
-pub struct RemovePeers {
+pub struct RemoveAddressesFromTried {
     /// Address of the peer
     pub addresses: Vec<SocketAddr>,
 }
 
-impl Message for RemovePeers {
+impl Message for RemoveAddressesFromTried {
     type Result = PeersSocketAddrsResult;
 }
 

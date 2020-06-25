@@ -3,7 +3,7 @@ use actix::{Context, Handler};
 use super::PeersManager;
 use crate::actors::messages::{
     AddConsolidatedPeer, AddPeers, GetKnownPeers, GetRandomPeers, PeersNewTried,
-    PeersSocketAddrResult, PeersSocketAddrsResult, RemovePeers, RequestPeers,
+    PeersSocketAddrResult, PeersSocketAddrsResult, RemoveAddressesFromTried, RequestPeers,
 };
 use witnet_util::timestamp::get_timestamp;
 
@@ -42,12 +42,14 @@ impl Handler<AddConsolidatedPeer> for PeersManager {
 }
 
 /// Handler for RemovePeers message
-impl Handler<RemovePeers> for PeersManager {
+impl Handler<RemoveAddressesFromTried> for PeersManager {
     type Result = PeersSocketAddrsResult;
 
-    fn handle(&mut self, msg: RemovePeers, _: &mut Context<Self>) -> Self::Result {
-        // Find index of element with address
-        log::debug!("Removing the following addresses: {:?}", msg.addresses);
+    fn handle(&mut self, msg: RemoveAddressesFromTried, _: &mut Context<Self>) -> Self::Result {
+        log::debug!(
+            "Removing the following addresses from `tried` buckets (if present): {:?}",
+            msg.addresses
+        );
         Ok(self.peers.remove_from_tried(&msg.addresses))
     }
 }

@@ -9,6 +9,8 @@ use crate::actors::{
 
 use crate::config_mngr;
 
+use crate::actors::peers_manager::PeersManager;
+use std::net::SocketAddr;
 use witnet_p2p::sessions::SessionType;
 
 mod actor;
@@ -70,6 +72,7 @@ impl ConnectionsManager {
     fn process_connect_addr_response(
         response: Result<ResolverResult, MailboxError>,
         session_type: SessionType,
+        address: &SocketAddr,
     ) -> actix::fut::FutureResult<(), (), Self> {
         // Process the Result<ResolverResult, MailboxError>
         match response {
@@ -81,7 +84,14 @@ impl ConnectionsManager {
                 // Process the ResolverResult
                 match res {
                     Err(error) => {
-                        log::debug!("Failed to connect to a peer with error: {:?}", error);
+                        log::debug!(
+                            "Failed to connect to peer address {} with error: {:?}",
+                            address,
+                            error
+                        );
+                        // Try to evict this address from `tried` buckets
+                        PeersManager::remove_address_from_tried(address);
+
                         actix::fut::err(())
                     }
                     Ok(stream) => {

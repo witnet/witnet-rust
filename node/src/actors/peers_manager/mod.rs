@@ -5,6 +5,7 @@ use actix::{
     SystemService, WrapFuture,
 };
 
+use crate::actors::messages::RemoveAddressesFromTried;
 use crate::{
     actors::{connections_manager::ConnectionsManager, messages::OutboundTcpConnect, storage_keys},
     storage_mngr,
@@ -108,6 +109,15 @@ impl PeersManager {
             // Case peer updated recently ( do nothing )
             _ => {}
         }
+    }
+
+    /// Remove a peer address from the `tried` buckets if present.
+    pub fn remove_address_from_tried(address: &SocketAddr) {
+        let peers_manager_addr = PeersManager::from_registry();
+
+        peers_manager_addr.do_send(RemoveAddressesFromTried {
+            addresses: vec![*address],
+        });
     }
 
     /// Method to try peers periodically to move peers from new to tried

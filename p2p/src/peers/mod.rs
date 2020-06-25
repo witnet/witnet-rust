@@ -178,7 +178,7 @@ impl Peers {
     /// Remove a peer given an address from tried addresses bucket
     /// Returns the removed addresses
     pub fn remove_from_tried(&mut self, addrs: &[SocketAddr]) -> Vec<SocketAddr> {
-        let v = addrs
+        addrs
             .iter()
             .filter_map(|address| {
                 let bucket_index = self.tried_bucket_index(&address);
@@ -188,17 +188,15 @@ impl Peers {
                     .filter(|entry| entry.address == *address)
                     .is_some()
                 {
+                    log::trace!("Removed a tried peer address: \n{}", self);
+
                     self.tried_bucket.remove(&bucket_index)
                 } else {
                     None
                 }
             })
             .map(|info| info.address)
-            .collect();
-
-        log::trace!("Removed a tried peer: \n{}", self);
-
-        v
+            .collect()
     }
 
     /// Remove a peer given an index from new addresses bucket
