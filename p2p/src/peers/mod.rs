@@ -118,7 +118,7 @@ impl Peers {
                     let index = self.tried_bucket_index(&address);
                     let elem = self.tried_bucket.get(&index);
 
-                    // If the index point to the same address that it is already
+                    // If the index points to the same address that it is already
                     // in tried, we don't include in new bucket
                     if elem.is_none() || (elem.unwrap().address != address) {
                         let index = self.new_bucket_index(&address, &src_address);
@@ -181,11 +181,14 @@ impl Peers {
         let v = addrs
             .iter()
             .filter_map(|address| {
-                let index = self.tried_bucket_index(&address);
-                let elem = self.tried_bucket.get(&index);
+                let bucket_index = self.tried_bucket_index(&address);
+                let bucket_entry = self.tried_bucket.get(&bucket_index);
 
-                if elem.is_some() && (elem.unwrap().address == *address) {
-                    self.tried_bucket.remove(&index)
+                if bucket_entry
+                    .filter(|entry| entry.address == *address)
+                    .is_some()
+                {
+                    self.tried_bucket.remove(&bucket_index)
                 } else {
                     None
                 }
