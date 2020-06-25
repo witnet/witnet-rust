@@ -1,3 +1,6 @@
+/// Buckets tests
+pub mod buckets;
+
 /// Peers library tests
 pub mod peers;
 

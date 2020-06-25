@@ -316,7 +316,7 @@ impl fmt::Display for Peers {
 }
 
 /// Returns the ip and ip split
-fn split_socket_addresses(socket_addr: &SocketAddr) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+pub fn split_socket_addresses(socket_addr: &SocketAddr) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     match socket_addr {
         SocketAddr::V4(addr) => {
             let ip = addr.ip().octets();
@@ -346,7 +346,7 @@ fn split_socket_addresses(socket_addr: &SocketAddr) -> (Vec<u8>, Vec<u8>, Vec<u8
 /// Slot = Hash( SK, Host_ID, i ) % 64
 ///
 /// Index = Bucket * Slot
-fn calculate_index_for_tried(sk: u64, ip: &[u8], group: &[u8], host_id: &[u8]) -> u16 {
+pub fn calculate_index_for_tried(sk: u64, ip: &[u8], group: &[u8], host_id: &[u8]) -> u16 {
     let sk = sk.to_be_bytes();
 
     let data = [&sk, ip].concat();
@@ -375,7 +375,7 @@ fn calculate_index_for_tried(sk: u64, ip: &[u8], group: &[u8], host_id: &[u8]) -
 /// Slot = Hash( SK, Host_ID, i ) % 64
 ///
 /// Index = Bucket * Slot
-fn calculate_index_for_new(sk: u64, src_group: &[u8], group: &[u8], host_id: &[u8]) -> u16 {
+pub fn calculate_index_for_new(sk: u64, src_group: &[u8], group: &[u8], host_id: &[u8]) -> u16 {
     let sk = sk.to_be_bytes();
 
     let data = [&sk, src_group, group].concat();
