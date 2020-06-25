@@ -865,7 +865,7 @@ fn build_block(
     let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
 
     // Get all the unspent transactions and calculate the sum of their fees
-    let mut transaction_fees = 0;
+    let mut transaction_fees: u64 = 0;
     let mut vt_weight: u32 = 0;
     let mut dr_weight: u32 = 0;
     let mut value_transfer_txns = Vec::new();
@@ -876,6 +876,7 @@ fn build_block(
         VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()])
             .weight();
     // Currently only value transfer transactions weight is taking into account
+
     for vt_tx in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();
         let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff, epoch, epoch_constants) {
@@ -898,11 +899,13 @@ fn build_block(
                 vt_tx.hash(),
             );
             value_transfer_txns.push(vt_tx.clone());
-            transaction_fees += transaction_fee;
-            vt_weight += transaction_weight;
+            transaction_fees = transaction_fees.saturating_add(transaction_fee);
+            vt_weight = new_vt_weight;
         }
 
-        if new_vt_weight > max_vt_weight - min_vt_weight {
+        // The condition to stop is if the free space in the block for VTTransactions
+        // is less than the minimum value transfer transaction weight
+        if vt_weight > max_vt_weight.saturating_sub(min_vt_weight) {
             break;
         }
     }
@@ -933,12 +936,15 @@ fn build_block(
                 dr_tx.body.outputs.iter().collect(),
                 dr_tx.hash(),
             );
+
             data_request_txns.push(dr_tx.clone());
-            transaction_fees += transaction_fee;
-            dr_weight += transaction_weight;
+            transaction_fees = transaction_fees.saturating_add(transaction_fee);
+            dr_weight = new_dr_weight;
         }
 
-        if new_dr_weight > max_dr_weight - min_dr_weight {
+        // The condition to stop is if the free space in the block for DRTransactions
+        // is less than the minimum data request transaction weight
+        if dr_weight > max_dr_weight.saturating_sub(min_dr_weight) {
             break;
         }
     }
@@ -1134,7 +1140,7 @@ mod tests {
             VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
             vec![],
         ));
-        transaction_pool.insert(transaction.clone());
+        transaction_pool.insert(transaction.clone(), 0);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -1192,7 +1198,7 @@ mod tests {
             VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
             vec![],
         ));
-        transaction_pool.insert(transaction);
+        transaction_pool.insert(transaction, 0);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -1270,79 +1276,39 @@ mod tests {
         assert!(verify_signatures(signatures_to_verify, vrf, secp).is_ok());
     }
 
-    #[test]
-    #[ignore]
-    fn build_block_with_transactions() {
-        // Build sample transactions
-        let vt_tx1 = VTTransaction::new(
-            VTTransactionBody::new(
-                vec![Input::new(OutputPointer {
-                    transaction_id: Hash::SHA256([1; 32]),
-                    output_index: 0,
-                })],
-                vec![ValueTransferOutput {
-                    time_lock: 0,
-                    pkh: PublicKeyHash::default(),
-                    value: 1,
-                }],
-            ),
-            vec![],
-        );
+    static MILLION_TX_OUTPUT: &str =
+        "0f0f000000000000000000000000000000000000000000000000000000000000:0";
 
-        let vt_tx2 = VTTransaction::new(
-            VTTransactionBody::new(
-                vec![
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([2; 32]),
-                        output_index: 0,
-                    }),
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([3; 32]),
-                        output_index: 0,
-                    }),
-                ],
-                vec![
-                    ValueTransferOutput {
-                        time_lock: 0,
-                        pkh: PublicKeyHash::default(),
-                        value: 2,
-                    },
-                    ValueTransferOutput {
-                        time_lock: 0,
-                        pkh: PublicKeyHash::default(),
-                        value: 3,
-                    },
-                ],
-            ),
-            vec![],
-        );
-        let vt_tx3 = VTTransaction::new(
-            VTTransactionBody::new(
-                vec![
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([4; 32]),
-                        output_index: 0,
-                    }),
-                    Input::new(OutputPointer {
-                        transaction_id: Hash::SHA256([5; 32]),
-                        output_index: 0,
-                    }),
-                ],
-                vec![
-                    ValueTransferOutput {
-                        time_lock: 0,
-                        pkh: PublicKeyHash::default(),
-                        value: 4,
-                    },
-                    ValueTransferOutput {
-                        time_lock: 0,
-                        pkh: PublicKeyHash::default(),
-                        value: 5,
-                    },
-                ],
-            ),
-            vec![],
-        );
+    static MY_PKH_1: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
+
+    #[test]
+    fn build_block_with_vt_transactions() {
+        let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let input = vec![Input::new(output1_pointer.clone())];
+        let vto1 = ValueTransferOutput {
+            value: 1,
+            ..Default::default()
+        };
+        let vto2 = ValueTransferOutput {
+            value: 2,
+            ..Default::default()
+        };
+        let vto3 = ValueTransferOutput {
+            value: 3,
+            ..Default::default()
+        };
+        let one_output = vec![vto1.clone()];
+        let two_outputs = vec![vto1.clone(), vto2];
+        let two_outputs2 = vec![vto1, vto3];
+
+        let vt_body_one_output = VTTransactionBody::new(input.clone(), one_output);
+        let vt_body_two_outputs1 = VTTransactionBody::new(input.clone(), two_outputs);
+        let vt_body_two_outputs2 = VTTransactionBody::new(input, two_outputs2);
+
+        // Build sample transactions
+        let vt_tx1 = VTTransaction::new(vt_body_one_output, vec![]);
+        let vt_tx2 = VTTransaction::new(vt_body_two_outputs1, vec![]);
+        let vt_tx3 = VTTransaction::new(vt_body_two_outputs2, vec![]);
 
         let transaction_1 = Transaction::ValueTransfer(vt_tx1.clone());
         let transaction_2 = Transaction::ValueTransfer(vt_tx2);
@@ -1353,13 +1319,21 @@ mod tests {
         let max_dr_weight = 0;
 
         // Insert transactions into `transactions_pool`
-        // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
         let mut transaction_pool = TransactionsPool::default();
-        transaction_pool.insert(transaction_1);
-        transaction_pool.insert(transaction_2);
-        transaction_pool.insert(transaction_3);
+        transaction_pool.insert(transaction_1, 1);
+        transaction_pool.insert(transaction_2, 10);
+        transaction_pool.insert(transaction_3, 10);
+        assert_eq!(transaction_pool.vt_len(), 3);
 
-        let unspent_outputs_pool = UnspentOutputsPool::default();
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
+        let output1 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1_000_000,
+        };
+        unspent_outputs_pool.insert(output1_pointer.clone(), output1, 0);
+        assert!(unspent_outputs_pool.contains_key(&output1_pointer));
+
         let dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block
@@ -1399,6 +1373,290 @@ mod tests {
 
         // Check that the included transaction is the only one that fits the `max_block_weight`
         assert_eq!(block.txns.value_transfer_txns[0], vt_tx1);
+    }
+
+    #[test]
+    fn build_block_with_vt_transactions_prioritizied() {
+        let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let input = vec![Input::new(output1_pointer.clone())];
+        let vto1 = ValueTransferOutput {
+            value: 1,
+            ..Default::default()
+        };
+        let vto2 = ValueTransferOutput {
+            value: 2,
+            ..Default::default()
+        };
+        let vto3 = ValueTransferOutput {
+            value: 3,
+            ..Default::default()
+        };
+        let two_outputs1 = vec![vto1.clone(), vto2.clone()];
+        let two_outputs2 = vec![vto1, vto3.clone()];
+        let two_outputs3 = vec![vto2, vto3];
+
+        let vt_body1 = VTTransactionBody::new(input.clone(), two_outputs1);
+        let vt_body2 = VTTransactionBody::new(input.clone(), two_outputs2);
+        let vt_body3 = VTTransactionBody::new(input, two_outputs3);
+
+        // Build sample transactions
+        let vt_tx1 = VTTransaction::new(vt_body1, vec![]);
+        let vt_tx2 = VTTransaction::new(vt_body2, vec![]);
+        let vt_tx3 = VTTransaction::new(vt_body3, vec![]);
+        assert_eq!(vt_tx1.weight(), vt_tx2.weight());
+        assert_eq!(vt_tx1.weight(), vt_tx3.weight());
+
+        let transaction_1 = Transaction::ValueTransfer(vt_tx1);
+        let transaction_2 = Transaction::ValueTransfer(vt_tx2.clone());
+        let transaction_3 = Transaction::ValueTransfer(vt_tx3);
+
+        // Set `max_vt_weight` to fit only 1 transaction weight
+        let max_vt_weight = vt_tx2.weight();
+        let max_dr_weight = 0;
+
+        // Insert transactions into `transactions_pool`
+        let mut transaction_pool = TransactionsPool::default();
+        transaction_pool.insert(transaction_1, 1);
+        transaction_pool.insert(transaction_2, 25);
+        transaction_pool.insert(transaction_3, 10);
+        assert_eq!(transaction_pool.vt_len(), 3);
+
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
+        let output1 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1_000_000,
+        };
+        unspent_outputs_pool.insert(output1_pointer.clone(), output1, 0);
+        assert!(unspent_outputs_pool.contains_key(&output1_pointer));
+
+        let dr_pool = DataRequestPool::default();
+
+        // Fields required to mine a block
+        let block_beacon = CheckpointBeacon::default();
+        let block_proof = BlockEligibilityClaim::default();
+        let block_number = 1;
+        let collateral_minimum = 1_000_000_000;
+
+        // Build block with
+
+        let (block_header, txns) = build_block(
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            max_vt_weight,
+            max_dr_weight,
+            block_beacon,
+            block_proof,
+            &[],
+            PublicKeyHash::default(),
+            EpochConstants::default(),
+            block_number,
+            collateral_minimum,
+            None,
+            None,
+            0,
+        );
+        let block = Block {
+            block_header,
+            block_sig: KeyedSignature::default(),
+            txns,
+        };
+
+        // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
+        assert_eq!(block.txns.len(), 2);
+
+        // Check that exist Mint Transaction
+        assert_eq!(block.txns.mint.is_empty(), false);
+
+        // Check that the included transaction is the only one that fits the `max_block_weight`
+        assert_eq!(block.txns.value_transfer_txns[0], vt_tx2);
+    }
+
+    #[test]
+    fn build_block_with_dr_transactions() {
+        let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let input = vec![Input::new(output1_pointer.clone())];
+        let dr1 = DataRequestOutput {
+            witnesses: 1,
+            commit_fee: 1,
+            reveal_fee: 1,
+            tally_fee: 1,
+            witness_reward: 1,
+            min_consensus_percentage: 51,
+            data_request: RADRequest::default(),
+            collateral: 1_000_000_000,
+        };
+        let mut dr2 = dr1.clone();
+        dr2.witnesses = 2;
+        let mut dr3 = dr1.clone();
+        dr3.witnesses = 3;
+
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
+        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+
+        // Build sample transactions
+        let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
+        let dr_tx2 = DRTransaction::new(dr_body_one_output2, vec![]);
+        let dr_tx3 = DRTransaction::new(dr_body_one_output3, vec![]);
+
+        let transaction_1 = Transaction::DataRequest(dr_tx1.clone());
+        let transaction_2 = Transaction::DataRequest(dr_tx2);
+        let transaction_3 = Transaction::DataRequest(dr_tx3);
+
+        // Set `max_vt_weight` to fit only `transaction_1` weight
+        let max_vt_weight = 0;
+        let max_dr_weight = dr_tx1.weight();
+
+        // Insert transactions into `transactions_pool`
+        let mut transaction_pool = TransactionsPool::default();
+        transaction_pool.insert(transaction_1, 2);
+        transaction_pool.insert(transaction_2, 25);
+        transaction_pool.insert(transaction_3, 10);
+        assert_eq!(transaction_pool.dr_len(), 3);
+
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
+        let output1 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1_000_000,
+        };
+        unspent_outputs_pool.insert(output1_pointer.clone(), output1, 0);
+        assert!(unspent_outputs_pool.contains_key(&output1_pointer));
+
+        let dr_pool = DataRequestPool::default();
+
+        // Fields required to mine a block
+        let block_beacon = CheckpointBeacon::default();
+        let block_proof = BlockEligibilityClaim::default();
+        let block_number = 1;
+        let collateral_minimum = 1_000_000_000;
+
+        // Build block with
+
+        let (block_header, txns) = build_block(
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            max_vt_weight,
+            max_dr_weight,
+            block_beacon,
+            block_proof,
+            &[],
+            PublicKeyHash::default(),
+            EpochConstants::default(),
+            block_number,
+            collateral_minimum,
+            None,
+            None,
+            0,
+        );
+        let block = Block {
+            block_header,
+            block_sig: KeyedSignature::default(),
+            txns,
+        };
+
+        // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
+        assert_eq!(block.txns.len(), 2);
+
+        // Check that exist Mint Transaction
+        assert_eq!(block.txns.mint.is_empty(), false);
+
+        // Check that the included transaction is the only one that fits the `max_block_weight`
+        assert_eq!(block.txns.data_request_txns[0], dr_tx1);
+    }
+
+    #[test]
+    fn build_block_with_dr_transactions_prioritizied() {
+        let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let input = vec![Input::new(output1_pointer.clone())];
+        let dr1 = DataRequestOutput {
+            witnesses: 1,
+            commit_fee: 1,
+            reveal_fee: 1,
+            tally_fee: 1,
+            witness_reward: 1,
+            min_consensus_percentage: 51,
+            data_request: RADRequest::default(),
+            collateral: 1_000_000_000,
+        };
+        let mut dr2 = dr1.clone();
+        dr2.commit_fee = 2;
+        let mut dr3 = dr1.clone();
+        dr3.commit_fee = 3;
+
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
+        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+
+        // Build sample transactions
+        let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
+        let dr_tx2 = DRTransaction::new(dr_body_one_output2, vec![]);
+        let dr_tx3 = DRTransaction::new(dr_body_one_output3, vec![]);
+        assert_eq!(dr_tx1.weight(), dr_tx2.weight());
+        assert_eq!(dr_tx1.weight(), dr_tx3.weight());
+
+        let transaction_1 = Transaction::DataRequest(dr_tx1);
+        let transaction_2 = Transaction::DataRequest(dr_tx2.clone());
+        let transaction_3 = Transaction::DataRequest(dr_tx3);
+
+        // Set `max_vt_weight` to fit only `transaction_1` weight
+        let max_vt_weight = 0;
+        let max_dr_weight = dr_tx2.weight();
+
+        // Insert transactions into `transactions_pool`
+        let mut transaction_pool = TransactionsPool::default();
+        transaction_pool.insert(transaction_1, 2);
+        transaction_pool.insert(transaction_2, 25);
+        transaction_pool.insert(transaction_3, 10);
+        assert_eq!(transaction_pool.dr_len(), 3);
+
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
+        let output1 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1_000_000,
+        };
+        unspent_outputs_pool.insert(output1_pointer.clone(), output1, 0);
+        assert!(unspent_outputs_pool.contains_key(&output1_pointer));
+
+        let dr_pool = DataRequestPool::default();
+
+        // Fields required to mine a block
+        let block_beacon = CheckpointBeacon::default();
+        let block_proof = BlockEligibilityClaim::default();
+        let block_number = 1;
+        let collateral_minimum = 1_000_000_000;
+
+        // Build block with
+
+        let (block_header, txns) = build_block(
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            max_vt_weight,
+            max_dr_weight,
+            block_beacon,
+            block_proof,
+            &[],
+            PublicKeyHash::default(),
+            EpochConstants::default(),
+            block_number,
+            collateral_minimum,
+            None,
+            None,
+            0,
+        );
+        let block = Block {
+            block_header,
+            block_sig: KeyedSignature::default(),
+            txns,
+        };
+
+        // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
+        assert_eq!(block.txns.len(), 2);
+
+        // Check that exist Mint Transaction
+        assert_eq!(block.txns.mint.is_empty(), false);
+
+        // Check that the included transaction is the only one that fits the `max_block_weight`
+        assert_eq!(block.txns.data_request_txns[0], dr_tx2);
     }
 
     #[test]
