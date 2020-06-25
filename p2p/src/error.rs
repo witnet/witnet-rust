@@ -11,6 +11,15 @@ pub enum SessionsError {
     /// Errors when registering sessions. Address already registered in sessions
     #[fail(display = "Register failed. Address already registered in sessions")]
     AddressAlreadyRegistered,
+    /// Errors when registering sessions. Address in same IP range already registered in sessions
+    #[fail(
+        display = "Register failed. Address in same IP range ({}) already registered in sessions",
+        range
+    )]
+    AddressInSameRangeAlreadyRegistered {
+        /// A string representing the IP range for which a session already existed
+        range: String,
+    },
     /// Errors when unregistering sessions.
     #[fail(display = "Address could not be unregistered (not found in sessions)")]
     AddressNotFound,

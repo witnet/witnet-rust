@@ -568,3 +568,88 @@ fn p2p_sessions_register_more_than_limit() {
     assert_eq!(sessions.get_num_outbound_sessions(), 3);
     assert_eq!(sessions.num_missing_outbound(), 0);
 }
+
+#[test]
+/// Check that peer addresses are considered "similar" if the first two octets of the IP are
+/// matching.
+fn p2p_peer_address_is_similar_to_inbound_session() {
+    // Create sessions struct
+    let mut sessions = Sessions::<String>::default();
+
+    let inbound_address_1 = "127.0.0.1:8002".parse().unwrap();
+    let inbound_address_2 = "127.0.0.1:8003".parse().unwrap();
+    let inbound_address_3 = "127.0.0.2:8002".parse().unwrap();
+    let inbound_address_4 = "127.0.1.1:8002".parse().unwrap();
+    let inbound_address_5 = "127.1.0.1:8002".parse().unwrap();
+    let inbound_address_6 = "128.0.0.1:8002".parse().unwrap();
+
+    // Register the session
+    assert!(sessions
+        .register_session(
+            SessionType::Inbound,
+            inbound_address_1,
+            "reference2".to_string()
+        )
+        .is_ok());
+
+    // Same IP and port should collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_1),
+        Some(&[127, 0])
+    );
+    // Same IP, different port should collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_2),
+        Some(&[127, 0])
+    );
+    // Same first 3 octets in IP should collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_3),
+        Some(&[127, 0])
+    );
+    // Same first 2 octets in IP should collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_4),
+        Some(&[127, 0])
+    );
+    // Same first octet in IP should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_5),
+        None
+    );
+    // Totally different IP should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_6),
+        None
+    );
+
+    // Unregister session
+    assert!(sessions
+        .unregister_session(
+            SessionType::Inbound,
+            SessionStatus::Unconsolidated,
+            inbound_address_1
+        )
+        .is_ok());
+
+    // Now same IP and port should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_1),
+        None
+    );
+    // Now same IP, different port should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_2),
+        None
+    );
+    // Now same first 3 octets in IP should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_3),
+        None
+    );
+    // Now same first 2 octets in IP should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_4),
+        None
+    );
+}

@@ -23,7 +23,10 @@ use crate::actors::{
     peers_manager::PeersManager,
     session::Session,
 };
-use witnet_p2p::{error::SessionsError, sessions::SessionType};
+use witnet_p2p::{
+    error::SessionsError,
+    sessions::{ip_range_string, SessionType},
+};
 use witnet_util::timestamp::{duration_until_timestamp, get_timestamp};
 
 /// Handler for Create message.
@@ -58,6 +61,16 @@ impl Handler<Create> for SessionsManager {
                     msg.session_type,
                     e
                 );
+                return;
+            }
+        };
+
+        // Refuse creating multiple inbound sessions for similar IP ranges
+        // This is guarded once here and again when consolidating, just to mitigate a possible race
+        // condition
+        if msg.session_type == SessionType::Inbound {
+            if let Some(range) = self.sessions.is_similar_to_inbound_session(&remote_addr) {
+                log::debug!("Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}", remote_addr, ip_range_string(range));
                 return;
             }
         };
@@ -212,6 +225,7 @@ impl Handler<Consolidate> for SessionsManager {
                 }
             }
             Err(error @ SessionsError::AddressAlreadyRegistered)
+            | Err(error @ SessionsError::AddressInSameRangeAlreadyRegistered { .. })
             | Err(error @ SessionsError::MaxPeersReached) => log::debug!(
                 "Error while consolidating {:?} session with the peer at {}: {:?}",
                 msg.session_type,
@@ -286,7 +300,7 @@ where
 
         if msg.only_inbound {
             self.sessions
-                .get_all_consolidated_inbound_sessions()
+                .get_consolidated_inbound_sessions()
                 .for_each(|session_addr| {
                     // Send message to session and ignore errors
                     session_addr.do_send(msg.command.clone());

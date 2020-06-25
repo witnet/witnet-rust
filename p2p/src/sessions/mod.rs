@@ -8,6 +8,8 @@ use std::{net::SocketAddr, time::Duration};
 use rand::{thread_rng, Rng};
 
 use super::{error::SessionsError, sessions::bounded_sessions::BoundedSessions};
+use crate::peers::split_socket_addresses;
+use std::collections::HashSet;
 
 /// Session type
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -38,12 +40,21 @@ pub struct Sessions<T>
 where
     T: Clone,
 {
-    /// Server public address listening to incoming connections
-    pub public_address: Option<SocketAddr>,
+    /// Timeout for requested blocks
+    pub blocks_timeout: i64,
+    /// Handshake maximum timestamp difference
+    pub handshake_max_ts_diff: i64,
+    /// Handshake timeout
+    pub handshake_timeout: Duration,
     /// Inbound consolidated sessions: __known__ peers sessions that connect to the server
     pub inbound_consolidated: BoundedSessions<T>,
+    /// Keeps track of network ranges for inbound connections so as to prevent sybils from
+    /// monopolizing our inbound capacity
+    pub inbound_network_ranges: NetworkRangesCollection,
     /// Inbound sessions: __untrusted__ peers that connect to the server
     pub inbound_unconsolidated: BoundedSessions<T>,
+    /// Magic number
+    pub magic_number: u16,
     /// Outbound consolidated sessions: __known__ peer sessions that the node is connected to (in
     /// consolidated status)
     pub outbound_consolidated: BoundedSessions<T>,
@@ -54,14 +65,8 @@ where
     /// Outbound unconsolidated sessions: __known__ peer sessions that the node is connected to
     /// (in unconsolidated status)
     pub outbound_unconsolidated: BoundedSessions<T>,
-    /// Handshake timeout
-    pub handshake_timeout: Duration,
-    /// Handshake maximum timestamp difference
-    pub handshake_max_ts_diff: i64,
-    /// Magic number
-    pub magic_number: u16,
-    /// Timeout for requested blocks
-    pub blocks_timeout: i64,
+    /// Server public address listening to incoming connections
+    pub public_address: Option<SocketAddr>,
 }
 
 /// Default trait implementation
@@ -71,16 +76,17 @@ where
 {
     fn default() -> Self {
         Self {
-            public_address: None,
+            blocks_timeout: 0 as i64,
+            handshake_max_ts_diff: 0 as i64,
+            handshake_timeout: Duration::default(),
             inbound_consolidated: BoundedSessions::default(),
+            inbound_network_ranges: Default::default(),
             inbound_unconsolidated: BoundedSessions::default(),
+            magic_number: 0 as u16,
             outbound_consolidated: BoundedSessions::default(),
             outbound_consolidated_consensus: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),
-            handshake_timeout: Duration::default(),
-            handshake_max_ts_diff: 0 as i64,
-            magic_number: 0 as u16,
-            blocks_timeout: 0 as i64,
+            public_address: None,
         }
     }
 }
@@ -229,11 +235,16 @@ where
     }
 
     /// Method to get all the consolidated sessions (inbound and outbound)
-    pub fn get_all_consolidated_inbound_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn get_consolidated_inbound_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.inbound_consolidated
             .collection
             .values()
             .map(|info| &info.reference)
+    }
+
+    /// Check whether a socket address is similar to that of any of the existing inbound sessions.
+    pub fn is_similar_to_inbound_session(&self, addr: &SocketAddr) -> Option<&[u8; 2]> {
+        self.inbound_network_ranges.contains_address(addr)
     }
 
     /// Method to insert a new session
@@ -247,7 +258,14 @@ where
         let sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated)?;
 
         // Register session and return result
-        sessions.register_session(address, reference)
+        sessions.register_session(address, reference)?;
+
+        // Register network range to prevent sybils from monopolizing our inbound capacity
+        if session_type == SessionType::Inbound {
+            self.inbound_network_ranges.insert_address(&address);
+        }
+
+        Ok(())
     }
     /// Method to remove a session
     /// Note: this does not close the socket, the connection will still be alive unless the actor
@@ -269,7 +287,15 @@ where
         let sessions = self.get_sessions(session_type, status)?;
 
         // Remove session and return result
-        sessions.unregister_session(address).map(|_| ())
+        sessions.unregister_session(address)?;
+
+        // Unegister network range to allow other peers in same network range as the one we are
+        // removing to take its place
+        if session_type == SessionType::Inbound {
+            self.inbound_network_ranges.remove_address(&address);
+        }
+
+        Ok(())
     }
     /// Method to consolidate a session
     pub fn consolidate_session(
@@ -287,7 +313,9 @@ where
         let cons_sessions = self.get_sessions(session_type, SessionStatus::Consolidated)?;
 
         // Register session into consolidated collection
-        cons_sessions.register_session(address, session_info.reference)
+        cons_sessions.register_session(address, session_info.reference)?;
+
+        Ok(())
     }
     /// Method to mark a session as consensus safe
     pub fn consensus_session(&mut self, address: SocketAddr) -> Result<(), SessionsError> {
@@ -382,4 +410,66 @@ pub struct GetConsolidatedPeersResult {
     /// List of outbound peers: we opened the connection to these ones.
     /// The address shown here can be used to connect to this peers in the future.
     pub outbound: Vec<SocketAddr>,
+}
+
+/// A convenient wrapper around a collection of network ranges.
+/// This enables efficient tracking of the inbound connections we have so as to prevent sybil
+/// machines from monopolizing our inbound peers table.
+#[derive(Default)]
+pub struct NetworkRangesCollection {
+    inner: HashSet<[u8; 2]>,
+}
+
+impl NetworkRangesCollection {
+    /// Checks whether a range is present in the collection as derived from a socket address.
+    pub fn contains_address(&self, address: &SocketAddr) -> Option<&[u8; 2]> {
+        let (_, range_vec, _) = split_socket_addresses(address);
+        let mut range = [0, 0];
+        range[..2].copy_from_slice(&range_vec);
+
+        self.contains_range(range)
+    }
+
+    /// Checks whether a explicit range is present in the collection.
+    pub fn contains_range(&self, range: [u8; 2]) -> Option<&[u8; 2]> {
+        self.inner.get(&range)
+    }
+
+    /// Insert a range into the collection as derived from a socket address.
+    pub fn insert_address(&mut self, address: &SocketAddr) -> bool {
+        let (_, range_vec, _) = split_socket_addresses(address);
+        let mut range = [0, 0];
+        range[..2].copy_from_slice(&range_vec);
+
+        self.insert_range(range)
+    }
+
+    /// Insert a explicit range into the collection.
+    pub fn insert_range(&mut self, range: [u8; 2]) -> bool {
+        self.inner.insert(range)
+    }
+
+    /// Remove a range from the collection as derived from a socket address.
+    pub fn remove_address(&mut self, address: &SocketAddr) -> bool {
+        let (_, range_vec, _) = split_socket_addresses(address);
+        let mut range = [0, 0];
+        range[..2].copy_from_slice(&range_vec);
+
+        self.remove_range(range)
+    }
+
+    /// Remove a explicit range from the collection.
+    pub fn remove_range(&mut self, range: [u8; 2]) -> bool {
+        self.inner.remove(&range)
+    }
+}
+
+/// Compose a string for representing an IPV4 range
+pub fn ip_range_string(range: &[u8]) -> String {
+    format!(
+        "{}0.0/16",
+        range.iter().fold(String::new(), |acc, &octet| acc
+            + octet.to_string().as_str()
+            + ".")
+    )
 }
