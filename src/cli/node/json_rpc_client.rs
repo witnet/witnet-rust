@@ -963,6 +963,71 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
+pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    if peers.is_empty() {
+        // If there were no peers as CLI arguments, read the addresses from stdin
+        println!("No peer addresses specified in command line. Please enter the addresses:");
+        let mut buf = String::new();
+        let stdin = io::stdin();
+        let mut stdin = stdin.lock();
+        // Process stdin line by line, it's slower but this way we can keep adding peers one at a time
+        loop {
+            buf.clear();
+            let count = stdin.read_line(&mut buf)?;
+            // Exit on Ctrl-D
+            if count == 0 {
+                return Ok(());
+            }
+
+            let params: Vec<String> = buf
+                .split(|c: char| {
+                    // Split line by anything that is not an address: "[0-9]|\.|:"
+                    // This allows us to accept any possible format, JSON, TOML, anything
+                    !(c.is_numeric() || c == '.' || c == ':')
+                })
+                .filter_map(|addr| {
+                    let addr: Option<SocketAddr> = addr.parse().ok();
+
+                    addr
+                })
+                .map(|addr| addr.to_string())
+                .collect();
+
+            if params.is_empty() {
+                continue;
+            }
+
+            let request = format!(
+                r#"{{"jsonrpc": "2.0","method": "addPeers", "params": {:?}, "id": "1"}}"#,
+                params
+            );
+            let response = send_request(&mut stream, &request)?;
+            let response: bool = parse_response(&response)?;
+            if response {
+                println!("Successfully added peer addresses: {:?}", params);
+            } else {
+                bail!("Failed to add peer addresses: {:?}", params);
+            }
+        }
+    } else {
+        let params: Vec<String> = peers.into_iter().map(|addr| addr.to_string()).collect();
+        let request = format!(
+            r#"{{"jsonrpc": "2.0","method": "addPeers", "params": {:?}, "id": "1"}}"#,
+            params
+        );
+        let response = send_request(&mut stream, &request)?;
+        let response: bool = parse_response(&response)?;
+        if response {
+            println!("Successfully added peer addresses: {:?}", params);
+        } else {
+            bail!("Failed to add peer addresses: {:?}", params);
+        }
+    }
+
+    Ok(())
+}
+
 // Response of the getBlockChain JSON-RPC method
 type ResponseBlockChain<'a> = Vec<(u32, &'a str)>;
 

@@ -196,6 +196,9 @@ pub fn exec_cmd(
         Command::GetNodeStats { node } => {
             rpc::get_node_stats(node.unwrap_or(config.jsonrpc.server_address))
         }
+        Command::AddPeers { node, peers } => {
+            rpc::add_peers(node.unwrap_or(config.jsonrpc.server_address), peers)
+        }
     }
 }
 
@@ -513,6 +516,24 @@ pub enum Command {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "addPeers",
+        about = "Add new peer addresses for the node to try to connect to"
+    )]
+    AddPeers {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// List of peer addresses for the node to try to connect to.
+        ///
+        /// Expected format: list of "address:port" separated by spaces:
+        ///
+        /// addPeers 52.166.178.145:21337 52.166.178.145:22337
+        ///
+        /// If no addresses are provided, read the addresses from stdin.
+        #[structopt(name = "peers")]
+        peers: Vec<SocketAddr>,
     },
 }
 
