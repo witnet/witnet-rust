@@ -22,7 +22,7 @@ impl Actor for SessionsManager {
                 let discovery_peers_period = config.connections.discovery_peers_period;
                 let consensus_constants = config.consensus_constants.clone();
 
-                // Set server address, connections limits and handshake timeout
+                // Set server address, connections limits, handshake timeout and optional features
                 act.sessions
                     .set_public_address(config.connections.public_addr);
                 act.sessions.set_limits(
@@ -35,6 +35,7 @@ impl Actor for SessionsManager {
                     .set_handshake_max_ts_diff(config.connections.handshake_max_ts_diff);
                 act.sessions
                     .set_blocks_timeout(config.connections.blocks_timeout);
+                act.sessions.reject_sybil_inbounds = config.connections.reject_sybil_inbounds;
 
                 // Initialized epoch from config
                 let mut checkpoints_period = config.consensus_constants.checkpoints_period;

@@ -222,6 +222,10 @@ pub struct Connections {
 
     /// Period that indicate the validity of a checked peer
     pub bucketing_update_period: i64,
+
+    /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
+    /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
+    pub reject_sybil_inbounds: bool,
 }
 
 fn from_millis<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
@@ -538,6 +542,10 @@ impl Connections {
                 .bucketing_update_period
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_bucketing_update_period()),
+            reject_sybil_inbounds: config
+                .reject_sybil_inbounds
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_reject_sybil_inbounds()),
         }
     }
 }
@@ -855,6 +863,7 @@ mod tests {
             blocks_timeout: Some(5),
             consensus_c: Some(51),
             bucketing_update_period: Some(200),
+            reject_sybil_inbounds: Some(false),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
 
@@ -872,6 +881,7 @@ mod tests {
         assert_eq!(config.handshake_max_ts_diff, 17);
         assert_eq!(config.consensus_c, 51);
         assert_eq!(config.bucketing_update_period, 200);
+        assert_eq!(config.reject_sybil_inbounds, false);
     }
 
     #[test]

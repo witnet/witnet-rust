@@ -67,6 +67,9 @@ where
     pub outbound_unconsolidated: BoundedSessions<T>,
     /// Server public address listening to incoming connections
     pub public_address: Option<SocketAddr>,
+    /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
+    /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
+    pub reject_sybil_inbounds: bool,
 }
 
 /// Default trait implementation
@@ -87,6 +90,7 @@ where
             outbound_consolidated_consensus: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),
             public_address: None,
+            reject_sybil_inbounds: true,
         }
     }
 }
