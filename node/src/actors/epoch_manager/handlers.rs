@@ -20,7 +20,7 @@ impl Handler<GetEpoch> for EpochManager {
         let checkpoint = self.current_epoch();
         checkpoint
             .as_ref()
-            .map(|checkpoint| log::debug!("Asked for current epoch (#{})", checkpoint))
+            .map(|checkpoint| log::trace!("Asked for current epoch (#{})", checkpoint))
             .unwrap_or_else(|error| match error {
                 EpochManagerError::CheckpointZeroInTheFuture(_) => log::debug!(
                     "Failed to retrieve epoch when asked to. Error was: {:?}",
@@ -40,7 +40,7 @@ impl Handler<SubscribeEpoch> for EpochManager {
 
     /// Method to handle SubscribeEpoch messages
     fn handle(&mut self, msg: SubscribeEpoch, _ctx: &mut Self::Context) {
-        log::debug!("New subscription to checkpoint #{:?}", msg.checkpoint);
+        log::trace!("New subscription to checkpoint #{:?}", msg.checkpoint);
 
         // Store subscription to target checkpoint
         self.subscriptions_epoch
@@ -55,7 +55,7 @@ impl Handler<SubscribeAll> for EpochManager {
 
     /// Method to handle SubscribeAll messages
     fn handle(&mut self, msg: SubscribeAll, _ctx: &mut Self::Context) {
-        log::debug!("New subscription to every checkpoint");
+        log::trace!("New subscription to every checkpoint");
 
         // Store subscription to all checkpoints
         self.subscriptions_all.push(msg.notification);

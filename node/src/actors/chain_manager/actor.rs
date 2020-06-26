@@ -256,7 +256,7 @@ impl ChainManager {
                     }
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);
-                        log::warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
+                        log::warn!("Network bootstrapping is scheduled for {:?}. The node will remain idle and delay chain bootstrapping until then. Wait for it!", date);
 
                         // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr

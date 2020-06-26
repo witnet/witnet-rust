@@ -63,7 +63,7 @@ impl Actor for Session {
                 .into_actor(self)
                 .then(|res, act, ctx| match res {
                     Ok(Ok(_)) => {
-                        log::debug!(
+                        log::trace!(
                             "Successfully registered session {:?} into SessionManager",
                             act.remote_addr
                         );
@@ -153,7 +153,7 @@ impl Session {
                     }
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);
-                        log::warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
+                        log::warn!("Network bootstrapping is scheduled for {:?}. The node will remain idle and delay chain bootstrapping until then. Wait for it!", date);
                         // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
                             .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
