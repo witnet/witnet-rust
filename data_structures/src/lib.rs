@@ -26,6 +26,10 @@ pub mod error;
 /// Module containing data_request structures
 pub mod data_request;
 
+// Module containing superblock
+
+pub mod superblock;
+
 /// Module containing transaction structures
 pub mod transaction;
 

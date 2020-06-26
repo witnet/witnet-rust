@@ -386,6 +386,8 @@ impl Handler<AddBlocks> for ChainManager {
                             let block_epoch = block.block_header.beacon.checkpoint;
 
                             if self.create_superblocks && block_epoch % superblock_period == 0 {
+                                // Create superblocks while synchronizing but do not broadcast them
+                                // This is needed to ensure that we can validate the received superblocks later on
                                 self.construct_superblock(ctx, block_epoch)
                                     .and_then(move |_, _act, _ctx| actix::fut::ok(()))
                                     .wait(ctx);

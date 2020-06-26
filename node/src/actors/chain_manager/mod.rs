@@ -47,32 +47,30 @@ use witnet_validations::validations::{
     verify_signatures, Diff,
 };
 
-use crate::actors::messages::{GetBlocksEpochRange, GetItemBlock};
 use crate::{
     actors::{
-        chain_manager::superblock::{AddSuperBlockVote, SuperBlockState},
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
-            AddItems, AddTransaction, Anycast, Broadcast, NewBlock, SendInventoryItem,
-            SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
+            AddItems, AddTransaction, Anycast, Broadcast, GetBlocksEpochRange, GetItemBlock,
+            NewBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
         },
         sessions_manager::SessionsManager,
         storage_keys,
     },
     signature_mngr, storage_mngr,
 };
-use witnet_data_structures::chain::{BlockHeader, SuperBlock};
 use witnet_data_structures::{
     chain::{
-        penalize_factor, reputation_issuance, Alpha, AltKeys, Block, Bn256PublicKey, ChainState,
-        CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
+        penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
+        ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
         EpochConstants, Hash, Hashable, InventoryItem, NodeStats, OwnUnspentOutputsPool,
-        PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlockVote,
-        TransactionsPool, UnspentOutputsPool,
+        PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlock,
+        SuperBlockVote, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
+    superblock::AddSuperBlockVote,
     transaction::{TallyTransaction, Transaction},
     vrf::VrfCtx,
 };
@@ -80,7 +78,6 @@ use witnet_data_structures::{
 mod actor;
 mod handlers;
 mod mining;
-mod superblock;
 /// High level transaction factory
 pub mod transaction_factory;
 
@@ -191,8 +188,6 @@ pub struct ChainManager {
     external_address: Option<PublicKeyHash>,
     /// Mint Percentage to share with the external address
     external_percentage: u8,
-    /// State related to SuperBlocks
-    superblock_state: SuperBlockState,
     /// Enable superblock creation
     create_superblocks: bool,
 }
@@ -639,7 +634,7 @@ impl ChainManager {
         // of the ARS, even if the superblock hash is different from our local superblock hash.
         // If the superblock index is different from the current one we cannot check ARS membership,
         // so we broadcast it if the index is within an acceptable range (not too old).
-        let should_broadcast = match self.superblock_state.add_vote(&superblock_vote) {
+        let should_broadcast = match self.chain_state.superblock_state.add_vote(&superblock_vote) {
             AddSuperBlockVote::AlreadySeen => false,
             AddSuperBlockVote::InvalidIndex => {
                 log::debug!(
@@ -820,13 +815,7 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block_epoch: u32,
     ) -> ResponseActFuture<Self, Option<SuperBlock>, ()> {
-        let consensus_constants = self
-            .chain_state
-            .chain_info
-            .as_ref()
-            .unwrap()
-            .consensus_constants
-            .clone();
+        let consensus_constants = self.consensus_constants();
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
@@ -899,7 +888,7 @@ impl ChainManager {
             let ars_members = &act.chain_state.last_ars;
             let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
 
-            let superblock = act.superblock_state.build_superblock(
+            let superblock = act.chain_state.superblock_state.build_superblock(
                 &block_headers,
                 ars_members,
                 ars_ordered_keys,

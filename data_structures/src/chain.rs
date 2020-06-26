@@ -36,6 +36,7 @@ use crate::{
     },
     get_environment,
     proto::{schema::witnet, ProtobufConvert},
+    superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
         TallyTransaction, Transaction, VTTransaction,
@@ -596,7 +597,7 @@ impl SuperBlock {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert, Serialize, Deserialize)]
 #[protobuf_convert(pb = "witnet::SuperBlockVote")]
 pub struct SuperBlockVote {
     pub bn256_signature: Bn256Signature,
@@ -2681,6 +2682,8 @@ pub struct ChainState {
     pub last_ars: Vec<PublicKeyHash>,
     /// Last ARS keys vector ordered by reputation
     pub last_ars_ordered_keys: Vec<Bn256PublicKey>,
+    /// Current superblock state
+    pub superblock_state: SuperBlockState,
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to

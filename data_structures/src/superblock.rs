@@ -1,22 +1,31 @@
-use std::collections::HashSet;
-use witnet_data_structures::chain::{
+use crate::chain::{
     BlockHeader, Bn256PublicKey, Hash, Hashable, PublicKeyHash, SuperBlock, SuperBlockVote,
 };
-use witnet_validations::validations::hash_merkle_tree_root;
+use std::collections::HashSet;
+
+use serde::{Deserialize, Serialize};
+
+use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root};
 
 /// Possible result of SuperBlockState::add_vote
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum AddSuperBlockVote {
+    /// vote already counted
     AlreadySeen,
+    /// invalid superblock index
     InvalidIndex,
+    /// unverifiable vote because we do not have the required ARS state
     MaybeValid,
+    /// vote from a peer not in the ARS
     NotInArs,
+    /// valid vote but with different hash
     ValidButDifferentHash,
+    /// valid vote with identical hash
     ValidWithSameHash,
 }
 
 /// State related to superblocks
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SuperBlockState {
     // Set of ARS identities that will be able to send superblock votes in the next superblock epoch
     current_ars_identities: Option<HashSet<PublicKeyHash>>,
@@ -208,14 +217,26 @@ pub fn hash_key_leaves(ars_ordered_keys: &[Bn256PublicKey]) -> Vec<Hash> {
     ars_ordered_keys.iter().map(|bn256| bn256.hash()).collect()
 }
 
+/// Function to calculate a merkle tree from a transaction vector
+pub fn hash_merkle_tree_root(hashes: &[Hash]) -> Hash {
+    let hashes: Vec<Sha256> = hashes
+        .iter()
+        .map(|x| match x {
+            Hash::SHA256(x) => Sha256(*x),
+        })
+        .collect();
+
+    Hash::from(crypto_merkle_tree_root(&hashes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use witnet_crypto::hash::calculate_sha256;
-    use witnet_data_structures::{
+    use crate::{
         chain::{BlockMerkleRoots, Bn256SecretKey, CheckpointBeacon, PublicKey},
         vrf::BlockEligibilityClaim,
     };
+    use witnet_crypto::hash::calculate_sha256;
 
     #[test]
     fn test_superblock_creation_no_blocks() {
@@ -232,6 +253,7 @@ mod tests {
         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
     static TALLY_MERKLE_ROOT_2: &str =
         "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+
     #[test]
     fn test_superblock_creation_one_block() {
         let default_hash = Hash::default();
