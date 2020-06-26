@@ -1,17 +1,19 @@
+use std::net::SocketAddr;
+
 use actix::prelude::*;
 use futures::Stream;
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::actors::{
-    messages::{Create, InboundTcpConnect, ResolverResult},
-    sessions_manager::SessionsManager,
-};
-
-use crate::config_mngr;
-
-use crate::actors::peers_manager::PeersManager;
-use std::net::SocketAddr;
 use witnet_p2p::sessions::SessionType;
+
+use crate::{
+    actors::{
+        messages::{Create, InboundTcpConnect, ResolverResult},
+        sessions_manager::SessionsManager,
+    },
+    config_mngr,
+    peers_manager::PeersManager,
+};
 
 mod actor;
 mod handlers;

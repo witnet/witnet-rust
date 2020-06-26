@@ -5,13 +5,17 @@ use actix::{
     SystemService, WrapFuture,
 };
 
-use crate::actors::messages::RemoveAddressesFromTried;
-use crate::{
-    actors::{connections_manager::ConnectionsManager, messages::OutboundTcpConnect, storage_keys},
-    storage_mngr,
-};
 use witnet_p2p::{peers::Peers, sessions::SessionType};
 use witnet_util::timestamp::get_timestamp;
+
+use crate::{
+    actors::{
+        connections_manager::ConnectionsManager,
+        messages::{OutboundTcpConnect, RemoveAddressesFromTried},
+        storage_keys,
+    },
+    storage_mngr,
+};
 
 // Internal Actor implementation for PeersManager
 mod actor;
