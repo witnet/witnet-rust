@@ -26,7 +26,8 @@ impl Actor for PeersManager {
                 let server_addr = config.connections.server_addr;
                 act.peers.set_server(server_addr);
 
-                // Get bucketing update period
+                // Get bucketing "ice" and update period
+                act.bucketing_ice_period = config.connections.bucketing_ice_period;
                 act.bucketing_update_period = config.connections.bucketing_update_period;
 
                 // Get handshake time_out

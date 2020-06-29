@@ -223,6 +223,10 @@ pub struct Connections {
     /// Period that indicate the validity of a checked peer
     pub bucketing_update_period: i64,
 
+    /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
+    /// again before that amount of time.
+    pub bucketing_ice_period: i64,
+
     /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
     /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
     pub reject_sybil_inbounds: bool,
@@ -546,6 +550,10 @@ impl Connections {
                 .consensus_c
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_consensus_c()),
+            bucketing_ice_period: config
+                .bucketing_ice_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_bucketing_ice_period()),
             bucketing_update_period: config
                 .bucketing_update_period
                 .to_owned()
@@ -870,6 +878,7 @@ mod tests {
             handshake_max_ts_diff: Some(17),
             blocks_timeout: Some(5),
             consensus_c: Some(51),
+            bucketing_ice_period: Some(13200),
             bucketing_update_period: Some(200),
             reject_sybil_inbounds: Some(false),
         };
@@ -888,6 +897,7 @@ mod tests {
         assert_eq!(config.blocks_timeout, 5);
         assert_eq!(config.handshake_max_ts_diff, 17);
         assert_eq!(config.consensus_c, 51);
+        assert_eq!(config.bucketing_ice_period, 13200);
         assert_eq!(config.bucketing_update_period, 200);
         assert_eq!(config.reject_sybil_inbounds, false);
     }

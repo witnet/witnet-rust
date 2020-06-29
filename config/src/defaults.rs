@@ -76,6 +76,12 @@ pub trait Defaults {
         60
     }
 
+    /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
+    /// again before that amount of time.
+    fn connections_bucketing_ice_period(&self) -> i64 {
+        86400 // 24 hours
+    }
+
     /// Period that indicate the validity of a checked peer
     fn connections_bucketing_update_period(&self) -> i64 {
         300
