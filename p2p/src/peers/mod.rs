@@ -267,7 +267,7 @@ impl Peers {
         Ok(result)
     }
 
-    /// Remove a peer given an address from tried addresses bucket
+    /// Remove a peer given an address from tried addresses bucket, and put it into the `ice` bucket
     /// Returns the removed addresses
     pub fn remove_from_tried(&mut self, addrs: &[SocketAddr]) -> Vec<SocketAddr> {
         addrs
@@ -282,7 +282,10 @@ impl Peers {
                 {
                     log::trace!("Removed a tried peer address: \n{}", self);
 
-                    self.tried_bucket.remove(&bucket_index)
+                    self.tried_bucket.remove(&bucket_index).map(|entry| {
+                        self.ice_peer_address(&entry.address);
+                        entry
+                    })
                 } else {
                     None
                 }
@@ -383,6 +386,15 @@ impl Peers {
         self.new_bucket.clear();
 
         log::trace!("Cleared new bucket: \n{}", self);
+    }
+
+    /// Put a peer address into the ice bucket
+    pub fn ice_peer_address(&mut self, addr: &SocketAddr) -> bool {
+        let lumped = LumpedPeerInfo::from((addr, get_timestamp()));
+
+        log::trace!("Putting peer address {} into the ice bucket", lumped);
+
+        self.ice_bucket.insert(lumped)
     }
 }
 
