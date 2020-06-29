@@ -98,6 +98,9 @@ impl From<&SocketAddr> for LumpedPeerInfo {
 pub struct Peers {
     /// Bucket for "iced" addresses (will not be tried in a while)
     ice_bucket: HashSet<LumpedPeerInfo>,
+    /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
+    /// again before that amount of time.
+    ice_period: i64,
     /// Bucket for new addresses
     new_bucket: HashMap<u16, PeerInfo>,
     /// Server SocketAddress
@@ -122,6 +125,12 @@ impl Peers {
         self.server_address = Some(server);
     }
 
+    /// Set period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
+    /// again before that amount of time.
+    pub fn set_ice_period(&mut self, period: i64) {
+        self.ice_period = period;
+    }
+
     /// Algorithm to calculate index for the new addresses buckets
     pub fn new_bucket_index(&self, socket_addr: &SocketAddr, src_socket_addr: &SocketAddr) -> u16 {
         let (_, group, host_id) = split_socket_addresses(socket_addr);
@@ -138,11 +147,26 @@ impl Peers {
     }
 
     /// Contains for ice bucket
-    pub fn ice_bucket_contains(&self, addr: &SocketAddr) -> bool {
-        self.ice_bucket.contains(&LumpedPeerInfo(PeerInfo {
-            address: *addr,
-            timestamp: 0,
-        }))
+    pub fn ice_bucket_contains(&mut self, addr: &SocketAddr) -> bool {
+        let ice_period = self.ice_period;
+        let lumped = LumpedPeerInfo::from(addr);
+        let (contains, needs_removal) = self
+            .ice_bucket
+            .get(&lumped)
+            .map(|entry| {
+                // If the address was iced more than `ice_period` seconds ago, we can remove it from
+                // the ice bucket and pretend it was not even there in the first place.
+                let needs_removal = entry.0.timestamp < get_timestamp().saturating_sub(ice_period);
+
+                (!needs_removal, needs_removal)
+            })
+            .unwrap_or((false, false));
+
+        if needs_removal {
+            self.ice_bucket.remove(&lumped);
+        }
+
+        contains
     }
 
     /// Contains for new bucket

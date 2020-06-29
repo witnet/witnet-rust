@@ -38,9 +38,6 @@ mod handlers;
 pub struct PeersManager {
     /// Known peers
     peers: Peers,
-    /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
-    /// again before that amount of time.
-    pub bucketing_ice_period: i64,
     /// Period to consider if a peer is updated
     pub bucketing_update_period: i64,
     /// Timeout for handshake
