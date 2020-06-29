@@ -4,8 +4,9 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt,
+    hash::{Hash, Hasher},
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
 
@@ -14,23 +15,97 @@ use witnet_crypto::hash::calculate_sha256;
 use witnet_util::timestamp::get_timestamp;
 
 /// Peer information being used while listing available Witnet peers
-#[derive(Serialize, Deserialize)]
-struct PeerInfo {
-    address: SocketAddr,
-    timestamp: i64,
+#[derive(Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
+pub struct PeerInfo {
+    /// The socket address for a potential peer
+    pub address: SocketAddr,
+    /// Last time that the peer address was tried
+    pub timestamp: i64,
+}
+
+/// "Lumped" peer information used for keeping track of peers without regard for particular
+/// addresses but rather close / far addresses in terms of IP ranges.
+/// In this case, this is "lumping" together addresses with the same IP but different port by simply
+/// using a fuzzy ìmplementation of `PartialEq`.
+#[derive(Debug, Deserialize, Eq, Serialize)]
+pub struct LumpedPeerInfo(PeerInfo);
+
+/// This fuzzy implementation of `PartialEq` does the magic of comparing addresses while "lumping"
+/// the ports together.
+///
+/// # Examples
+/// ```rust
+/// use witnet_p2p::peers::{LumpedPeerInfo, PeerInfo};
+/// use std::{hash::Hash, net::SocketAddr, str::FromStr};
+///
+/// let peer_1 = LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap());
+/// let peer_2 = LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap());
+///
+/// assert_eq!(peer_1, peer_2);
+/// ```
+impl PartialEq for LumpedPeerInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.address.ip() == other.0.address.ip()
+    }
+}
+
+/// Forced implementation of `Hash` for `LumpedPeerInfo` so that the famous hash comparison property
+/// does actually hold:
+///
+/// `k1 == k2 ⇒ hash(k1) == hash(k2)`
+///
+/// # Examples
+/// ```rust
+/// use witnet_p2p::peers::{LumpedPeerInfo, PeerInfo};
+/// use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, net::SocketAddr, str::FromStr};
+///
+/// let mut hash_1 = DefaultHasher::new();
+/// LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap()).hash(&mut hash_1);
+/// let mut hash_2 = DefaultHasher::new();
+/// LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap()).hash(&mut hash_2);
+///
+/// assert_eq!(hash_1.finish(), hash_2.finish());
+/// ```
+impl Hash for LumpedPeerInfo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.address.ip().hash(state)
+    }
+}
+
+impl fmt::Display for LumpedPeerInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:*", self.0.address.ip())
+    }
+}
+
+impl From<(&SocketAddr, i64)> for LumpedPeerInfo {
+    fn from((addr, timestamp): (&SocketAddr, i64)) -> Self {
+        LumpedPeerInfo(PeerInfo {
+            address: *addr,
+            timestamp,
+        })
+    }
+}
+
+impl From<&SocketAddr> for LumpedPeerInfo {
+    fn from(addr: &SocketAddr) -> Self {
+        LumpedPeerInfo::from((addr, Default::default()))
+    }
 }
 
 /// Peers TBD
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct Peers {
-    /// Bucket for tried addresses
-    tried_bucket: HashMap<u16, PeerInfo>,
+    /// Bucket for "iced" addresses (will not be tried in a while)
+    ice_bucket: HashSet<LumpedPeerInfo>,
     /// Bucket for new addresses
     new_bucket: HashMap<u16, PeerInfo>,
-    /// Nonce value
-    sk: u64,
     /// Server SocketAddress
     server_address: Option<SocketAddr>,
+    /// Nonce value
+    sk: u64,
+    /// Bucket for tried addresses
+    tried_bucket: HashMap<u16, PeerInfo>,
 }
 
 impl Peers {
@@ -38,9 +113,7 @@ impl Peers {
     pub fn new() -> Self {
         Peers {
             sk: thread_rng().gen(),
-            tried_bucket: HashMap::new(),
-            new_bucket: HashMap::new(),
-            server_address: None,
+            ..Default::default()
         }
     }
 
@@ -62,6 +135,14 @@ impl Peers {
         let (ip, group, host_id) = split_socket_addresses(socket_addr);
 
         calculate_index_for_tried(self.sk, &ip, &group, &host_id)
+    }
+
+    /// Contains for ice bucket
+    pub fn ice_bucket_contains(&self, addr: &SocketAddr) -> bool {
+        self.ice_bucket.contains(&LumpedPeerInfo(PeerInfo {
+            address: *addr,
+            timestamp: 0,
+        }))
     }
 
     /// Contains for new bucket
@@ -322,6 +403,15 @@ impl fmt::Display for Peers {
 
         for p in self.tried_bucket.values() {
             writeln!(f, "> {}", p.address)?;
+        }
+        writeln!(f)?;
+
+        writeln!(f, "----------------")?;
+        writeln!(f, "Iced Peers List")?;
+        writeln!(f, "----------------")?;
+
+        for p in &self.ice_bucket {
+            writeln!(f, "> {}", p)?;
         }
         writeln!(f)
     }
