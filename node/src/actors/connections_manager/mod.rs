@@ -9,10 +9,10 @@ use witnet_p2p::sessions::SessionType;
 use crate::{
     actors::{
         messages::{Create, InboundTcpConnect, ResolverResult},
+        peers_manager::PeersManager,
         sessions_manager::SessionsManager,
     },
     config_mngr,
-    peers_manager::PeersManager,
 };
 
 mod actor;
