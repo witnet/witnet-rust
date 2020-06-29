@@ -468,7 +468,7 @@ fn peer_discovery_peers(peers: &[Address], src_address: SocketAddr) {
     // Send AddPeers message to the peers manager
     peers_manager_addr.do_send(AddPeers {
         addresses,
-        src_address,
+        src_address: Some(src_address),
     });
 }
 

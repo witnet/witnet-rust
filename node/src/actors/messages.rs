@@ -528,8 +528,9 @@ pub struct AddPeers {
     /// Addresses of the peer
     pub addresses: Vec<SocketAddr>,
 
-    /// Source address of the peer
-    pub src_address: SocketAddr,
+    /// Address of the peer that sent us this peers using the Peers protocol message, or None if
+    /// the peers were added from config or from command line
+    pub src_address: Option<SocketAddr>,
 }
 
 impl Message for AddPeers {

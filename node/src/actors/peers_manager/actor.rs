@@ -40,7 +40,7 @@ impl Actor for PeersManager {
                     "Adding the following peer addresses from config: {:?}",
                     known_peers
                 );
-                match act.peers.add_to_new(known_peers.clone(), server_addr) {
+                match act.peers.add_to_new(known_peers.clone(), None) {
                     Ok(_duplicated_peers) => {}
                     Err(e) => log::error!("Error when adding peer addresses from config: {}", e),
                 }
@@ -57,7 +57,7 @@ impl Actor for PeersManager {
                         if let Some(peers_from_storage) = peers_from_storage {
                             // Add all the peers from storage
                             // The add method handles duplicates by overwriting the old values
-                            act.import_peers(peers_from_storage, known_peers, server_addr);
+                            act.import_peers(peers_from_storage, known_peers);
                         }
 
                         fut::ok(())

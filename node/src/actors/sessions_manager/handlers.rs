@@ -208,7 +208,7 @@ impl Handler<Consolidate> for SessionsManager {
         if let Some(potential_new_peer) = msg.potential_new_peer {
             peers_manager_addr.do_send(AddPeers {
                 addresses: vec![potential_new_peer],
-                src_address: msg.address,
+                src_address: Some(msg.address),
             });
         }
 

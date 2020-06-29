@@ -1190,12 +1190,9 @@ pub fn add_peers(params: Result<Vec<SocketAddr>, jsonrpc_core::Error>) -> JsonRp
         Ok(x) => x,
         Err(e) => return Box::new(futures::failed(e)),
     };
-    // Bucketing implementation needs to know the source address that sent us the peers
-    // Use localhost:21337, this way all the peers added using JSON-RPC will go to the same range
-    // of buckets
-    // TODO: do we want that all the peers added using JSON-RPC will go to the same range of buckets?
-    // Currently this means that it is impossible to add two ips with same address but different port, but that may be a bug
-    let src_address = "127.0.0.1:21337".parse().unwrap();
+    // Use None as the source address: this will make adding peers using this method be exactly the
+    // same as adding peers using the configuration file
+    let src_address = None;
     let peers_manager_addr = PeersManager::from_registry();
 
     let fut = peers_manager_addr

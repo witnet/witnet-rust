@@ -2,7 +2,12 @@
 
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use std::{cmp, collections::HashMap, fmt, net::SocketAddr};
+use std::{
+    cmp,
+    collections::HashMap,
+    fmt,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
 
 use rand::seq::IteratorRandom;
 use witnet_crypto::hash::calculate_sha256;
@@ -104,8 +109,14 @@ impl Peers {
     pub fn add_to_new(
         &mut self,
         addrs: Vec<SocketAddr>,
-        src_address: SocketAddr,
+        src_address: Option<SocketAddr>,
     ) -> Result<Vec<SocketAddr>, failure::Error> {
+        // If the source address that sent us this peer addresses is None, use the invalid address
+        // "0.0.0.0:0". This will make all the peer addresses that were added using manual methods
+        // go to the same buckets.
+        let src_address = src_address
+            .unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
+
         // Insert address
         // Note: if the peer address exists, the peer info will be overwritten
         let result = addrs
