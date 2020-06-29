@@ -210,6 +210,7 @@ impl Peers {
 
     /// Add multiple peer addresses and save timestamp in the new addresses bucket
     /// If an address did already exist, it gets overwritten
+    /// If an address is in the ice bucket, it gets ignored
     /// Returns all the overwritten addresses
     pub fn add_to_new(
         &mut self,
@@ -230,6 +231,8 @@ impl Peers {
                 // Filter out unspecified addresses (aka 0.0.0.0), and the server address
                 if !address.ip().is_unspecified()
                     && !self.is_server_address(&address).unwrap_or(true)
+                    // Ignore "iced" addresses silently
+                    && !self.ice_bucket_contains(&address)
                 {
                     let index = self.tried_bucket_index(&address);
                     let elem = self.tried_bucket.get(&index);
@@ -264,14 +267,17 @@ impl Peers {
 
     /// Add multiple peer addresses and save timestamp in the tried addresses bucket
     /// If an address did already exist, it gets overwritten
+    /// If an address is in the ice bucket, it gets ignored
     /// Returns all the overwritten or rejected addresses
     pub fn add_to_tried(
         &mut self,
         address: SocketAddr,
     ) -> Result<Option<SocketAddr>, failure::Error> {
-        // Insert address
-        let result = if !address.ip().is_unspecified() {
+        // Insert address, silently ignoring unspecified addresses and "iced" addresses
+        let result = if !address.ip().is_unspecified() && !self.ice_bucket_contains(&address) {
             let index = self.tried_bucket_index(&address);
+
+            log::trace!("Added a tried peer: \n{}", self);
 
             self.tried_bucket
                 .insert(
@@ -285,8 +291,6 @@ impl Peers {
         } else {
             None
         };
-
-        log::trace!("Added a tried peer: \n{}", self);
 
         Ok(result)
     }
