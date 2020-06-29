@@ -23,7 +23,10 @@ use crate::actors::{
 };
 use failure::Fail;
 use std::collections::HashSet;
-use witnet_data_structures::chain::{Epoch, EpochConstants};
+use witnet_data_structures::{
+    chain::{Epoch, EpochConstants},
+    types::LastBeacon,
+};
 
 mod actor;
 mod beacons;
@@ -40,6 +43,9 @@ pub struct SessionsManager {
     epoch_constants: Option<EpochConstants>,
     // Current epoch
     current_epoch: Epoch,
+    // Current tip of the chain, used to check if outbound peers are in consensus when connecting
+    // Note that the sessions manager will not be able to create any sessions if this field is None
+    last_beacon: Option<LastBeacon>,
     // Logging message hashset
     logging_messages: HashSet<String>,
 }

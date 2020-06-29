@@ -40,7 +40,7 @@ impl Actor for Session {
                 self.magic_number,
                 self.public_addr,
                 self.remote_addr,
-                self.current_epoch,
+                self.last_beacon.clone(),
             );
             self.send_message(version_msg);
             // Set HandshakeFlag of sent version message
@@ -84,7 +84,7 @@ impl Actor for Session {
                             act.magic_number,
                             act.public_addr,
                             act.remote_addr,
-                            act.current_epoch,
+                            act.last_beacon.clone(),
                         );
                         act.send_message(version_msg);
                         // Set HandshakeFlag of sent version message

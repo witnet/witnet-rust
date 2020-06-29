@@ -59,7 +59,7 @@ impl Message {
         magic: u16,
         sender_addr: Option<SocketAddr>,
         receiver_addr: SocketAddr,
-        last_epoch: u32,
+        beacon: LastBeacon,
     ) -> Message {
         let addr = sender_addr.map(to_address);
         Message::build_message(
@@ -71,8 +71,8 @@ impl Message {
                 sender_address: addr.unwrap_or_default(),
                 receiver_address: to_address(receiver_addr),
                 user_agent: USER_AGENT.to_string(),
-                last_epoch,
                 nonce: random_nonce(),
+                beacon,
             }),
         )
     }

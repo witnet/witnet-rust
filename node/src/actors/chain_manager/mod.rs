@@ -53,7 +53,8 @@ use crate::{
         json_rpc::JsonRpcServer,
         messages::{
             AddItems, AddTransaction, Anycast, Broadcast, GetBlocksEpochRange, GetItemBlock,
-            NewBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
+            NewBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote, SetLastBeacon,
+            StoreInventoryItem,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -72,6 +73,7 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext},
     superblock::AddSuperBlockVote,
     transaction::{TallyTransaction, Transaction},
+    types::LastBeacon,
     vrf::VrfCtx,
 };
 
@@ -493,6 +495,12 @@ impl ChainManager {
                 // Update beacon and vrf output
                 chain_info.highest_block_checkpoint = beacon;
                 chain_info.highest_vrf_output = vrf_input;
+
+                SessionsManager::from_registry().do_send(SetLastBeacon {
+                    beacon: LastBeacon {
+                        highest_block_checkpoint: chain_info.highest_block_checkpoint,
+                    },
+                });
 
                 // Store the ARS and the order of the keys
                 let trs = reputation_engine.trs();

@@ -5,7 +5,8 @@ use super::{handlers::EveryEpochPayload, ChainManager};
 use crate::{
     actors::{
         epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
-        messages::{AddBlocks, GetEpoch, GetEpochConstants, Subscribe},
+        messages::{AddBlocks, GetEpoch, GetEpochConstants, SetLastBeacon, Subscribe},
+        sessions_manager::SessionsManager,
         storage_keys,
     },
     config_mngr, signature_mngr, storage_mngr,
@@ -17,6 +18,7 @@ use witnet_data_structures::{
         OwnUnspentOutputsPool, PublicKeyHash, ReputationEngine,
     },
     data_request::DataRequestPool,
+    types::LastBeacon,
     vrf::VrfCtx,
 };
 use witnet_util::timestamp::pretty_print;
@@ -210,6 +212,12 @@ impl ChainManager {
                         });
                     }
                 }
+
+                SessionsManager::from_registry().do_send(SetLastBeacon {
+                    beacon: LastBeacon {
+                        highest_block_checkpoint: chain_info.highest_block_checkpoint,
+                    },
+                });
 
                 act.chain_state = chain_state;
                 act.last_chain_state = act.chain_state.clone();

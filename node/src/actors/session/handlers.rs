@@ -601,7 +601,7 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
             session.magic_number,
             session.public_addr,
             session.remote_addr,
-            session.current_epoch,
+            session.last_beacon.clone(),
         );
         responses.push(version);
     }

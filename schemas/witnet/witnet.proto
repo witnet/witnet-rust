@@ -30,8 +30,8 @@ message Version {
     Address sender_address = 4;
     Address receiver_address = 5;
     string user_agent = 6;
-    fixed32 last_epoch = 7;
-    fixed64 nonce = 8;
+    fixed64 nonce = 7;
+    LastBeacon beacon = 8;
 }
 
 message Verack {

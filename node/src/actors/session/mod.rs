@@ -9,7 +9,7 @@ use tokio::{io::WriteHalf, net::TcpStream};
 use witnet_data_structures::{
     chain::{Block, Epoch, Hash},
     proto::ProtobufConvert,
-    types::{Command, Message as WitnetMessage},
+    types::{Command, LastBeacon, Message as WitnetMessage},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
@@ -72,6 +72,9 @@ pub struct Session {
     /// Current epoch
     current_epoch: Epoch,
 
+    /// Current top of the chain
+    last_beacon: LastBeacon,
+
     /// Requested block hashes vector
     requested_block_hashes: Vec<Hash>,
 
@@ -102,6 +105,7 @@ impl Session {
         blocks_timeout: i64,
         handshake_max_ts_diff: i64,
         current_epoch: Epoch,
+        last_beacon: LastBeacon,
     ) -> Session {
         Session {
             public_addr,
@@ -114,6 +118,7 @@ impl Session {
             remote_sender_addr: None,
             magic_number,
             current_epoch,
+            last_beacon,
             requested_block_hashes: vec![],
             requested_blocks: HashMap::new(),
             blocks_timeout,

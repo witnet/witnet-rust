@@ -18,7 +18,7 @@ use crate::actors::{
     messages::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification,
         GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult, PeerBeacon, Register,
-        SessionsUnitResult, TryMineBlock, Unregister,
+        SessionsUnitResult, SetLastBeacon, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -48,6 +48,15 @@ impl Handler<Create> for SessionsManager {
 
         // Get current epoch
         let current_epoch = self.current_epoch;
+
+        // Get last beacon
+        let last_beacon = match self.last_beacon.as_ref() {
+            Some(x) => x.clone(),
+            None => {
+                log::debug!("Cannot create session because last beacon is not set");
+                return;
+            }
+        };
 
         // Get maximum timestamp difference for handshaking
         let handshake_max_ts_diff = self.sessions.handshake_max_ts_diff;
@@ -97,6 +106,7 @@ impl Handler<Create> for SessionsManager {
                 blocks_timeout,
                 handshake_max_ts_diff,
                 current_epoch,
+                last_beacon,
             )
         });
     }
@@ -435,7 +445,6 @@ impl Handler<GetConsolidatedPeers> for SessionsManager {
     }
 }
 
-/// Handler for Consolidate message.
 impl Handler<LogMessage> for SessionsManager {
     type Result = SessionsUnitResult;
 
@@ -446,5 +455,13 @@ impl Handler<LogMessage> for SessionsManager {
         }
 
         Ok(())
+    }
+}
+
+impl Handler<SetLastBeacon> for SessionsManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetLastBeacon, _ctx: &mut Context<Self>) -> Self::Result {
+        self.last_beacon = Some(msg.beacon);
     }
 }

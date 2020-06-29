@@ -105,7 +105,12 @@ fn builders_build_peers() {
 #[test]
 fn builders_build_version() {
     // Expected message (except nonce which is random and timestamp which is the current one)
-    let hardcoded_last_epoch = 1234;
+    let hardcoded_beacon = LastBeacon {
+        highest_block_checkpoint: CheckpointBeacon {
+            hash_prev_block: Hash::SHA256([4; 32]),
+            checkpoint: 7,
+        },
+    };
     let sender_addr = Address {
         ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
@@ -121,8 +126,8 @@ fn builders_build_version() {
         sender_address: sender_addr,
         receiver_address: receiver_addr,
         user_agent: USER_AGENT.to_string(),
-        last_epoch: hardcoded_last_epoch,
         nonce: 1234,
+        beacon: hardcoded_beacon.clone(),
     });
     let msg = Message {
         kind: version_cmd,
@@ -136,7 +141,7 @@ fn builders_build_version() {
         0xABCD,
         Some(sender_sock_addr),
         receiver_sock_addr,
-        hardcoded_last_epoch,
+        hardcoded_beacon.clone(),
     );
 
     // Check that the build_version function builds the expected message
@@ -148,7 +153,7 @@ fn builders_build_version() {
             sender_address,
             receiver_address,
             user_agent,
-            last_epoch,
+            beacon,
             ..
         }) => assert!(
             *version == PROTOCOL_VERSION
@@ -156,7 +161,7 @@ fn builders_build_version() {
                 && *sender_address == sender_addr
                 && *receiver_address == receiver_addr
                 && user_agent == USER_AGENT
-                && *last_epoch == hardcoded_last_epoch
+                && *beacon == hardcoded_beacon
         ),
         _ => panic!("Some field/s do not match the expected value"),
     };

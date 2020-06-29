@@ -23,6 +23,7 @@ use witnet_data_structures::{
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
+    types::LastBeacon,
 };
 use witnet_p2p::{
     error::SessionsError,
@@ -865,6 +866,17 @@ pub struct LogMessage {
 
 impl Message for LogMessage {
     type Result = SessionsUnitResult;
+}
+
+/// Set the LastBeacon
+#[derive(Clone, Debug)]
+pub struct SetLastBeacon {
+    /// Current tip of the chain
+    pub beacon: LastBeacon,
+}
+
+impl Message for SetLastBeacon {
+    type Result = ();
 }
 
 // JsonRpcServer messages (notifications)

@@ -112,9 +112,8 @@ pub struct Version {
     pub sender_address: Address,
     pub receiver_address: Address,
     pub user_agent: String,
-    // TODO(#888): last_epoch assessment
-    pub last_epoch: u32,
     pub nonce: u64,
+    pub beacon: LastBeacon,
 }
 
 ///////////////////////////////////////////////////////////
