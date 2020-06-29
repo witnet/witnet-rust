@@ -790,7 +790,7 @@ impl Handler<PeersBeacons> for ChainManager {
                 // we need to rewind one epoch
                 if pb_len == 0 {
                     log::warn!("[CONSENSUS]: We have not received any beacons for this epoch");
-                    self.sm_state = StateMachine::WaitingConsensus;
+                    self.sm_state = StateMachine::AlmostSynced;
                 }
 
                 let our_beacon = self.get_chain_beacon();
@@ -809,7 +809,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         self.initialize_from_storage(ctx);
                         log::info!("Restored chain state from storage");
 
-                        self.sm_state = StateMachine::WaitingConsensus;
+                        self.sm_state = StateMachine::AlmostSynced;
 
                         Ok(peers_to_unregister)
                     }
@@ -821,7 +821,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             our_beacon
                         );
 
-                        self.sm_state = StateMachine::WaitingConsensus;
+                        self.sm_state = StateMachine::AlmostSynced;
 
                         // Unregister all peers to try to obtain a new set of trustworthy peers
                         Ok(peers_to_unregister)
