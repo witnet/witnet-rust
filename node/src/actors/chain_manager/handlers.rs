@@ -158,6 +158,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             chain_info.consensus_constants.mining_replication_factor,
                             chain_info.consensus_constants.mining_backup_factor,
                             current_epoch,
+                            chain_info.consensus_constants.initial_difficulty,
+                            chain_info
+                                .consensus_constants
+                                .epochs_with_initial_difficulty,
                         );
                         // TODO: replace for loop with a try_fold
                         let mut chosen_candidate = None;
@@ -209,6 +213,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 chain_info.consensus_constants.collateral_age,
                                 chain_info.consensus_constants.max_vt_weight,
                                 chain_info.consensus_constants.max_dr_weight,
+                                chain_info.consensus_constants.initial_difficulty,
+                                chain_info
+                                    .consensus_constants
+                                    .epochs_with_initial_difficulty,
                             ) {
                                 Ok(utxo_diff) => {
                                     let block_pkh = &block_candidate.block_sig.public_key.pkh();

@@ -333,6 +333,10 @@ impl ChainManager {
                 chain_info.consensus_constants.collateral_age,
                 chain_info.consensus_constants.max_vt_weight,
                 chain_info.consensus_constants.max_dr_weight,
+                chain_info.consensus_constants.initial_difficulty,
+                chain_info
+                    .consensus_constants
+                    .epochs_with_initial_difficulty,
             )?;
 
             // Persist block and update ChainState
@@ -376,6 +380,10 @@ impl ChainManager {
                     &mut signatures_to_verify,
                     total_identities,
                     mining_bf,
+                    chain_info.consensus_constants.initial_difficulty,
+                    chain_info
+                        .consensus_constants
+                        .epochs_with_initial_difficulty,
                 )
                 .map_err(Into::into)
                 .and_then(|()| {
@@ -931,6 +939,8 @@ impl ChainManager {
             mining_bf,
             consensus_constants.bootstrap_hash,
             consensus_constants.genesis_hash,
+            consensus_constants.initial_difficulty,
+            consensus_constants.epochs_with_initial_difficulty,
         ))
         .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
         .into_actor(self)
@@ -1009,6 +1019,8 @@ pub fn process_validations(
     collateral_age: u32,
     max_vt_weight: u32,
     max_dr_weight: u32,
+    initial_difficulty: u32,
+    epochs_with_initial_difficulty: u32,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -1021,6 +1033,8 @@ pub fn process_validations(
         mining_bf,
         bootstrap_hash,
         genesis_hash,
+        initial_difficulty,
+        epochs_with_initial_difficulty,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 

@@ -161,6 +161,14 @@ pub struct ConsensusConstants {
 
     /// Extra rounds for commitments and reveals
     pub extra_rounds: u16,
+
+    /// Initial difficulty
+    /// (That difficulty is enforced by code so it means that it also ignore the backup factor)
+    pub initial_difficulty: u32,
+
+    /// Number of epochs with the initial difficulty active
+    /// (This number represent the last epoch where the initial difficulty is active)
+    pub epochs_with_initial_difficulty: u32,
 }
 
 impl ConsensusConstants {

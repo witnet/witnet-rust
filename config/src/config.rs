@@ -437,6 +437,14 @@ pub fn consensus_constants_from_partial(
             .reputation_issuance
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_reputation_issuance()),
+        initial_difficulty: config
+            .initial_difficulty
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_initial_difficulty()),
+        epochs_with_initial_difficulty: config
+            .epochs_with_initial_difficulty
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_epochs_with_initial_difficulty()),
         reputation_issuance_stop: config
             .reputation_issuance_stop
             .to_owned()

@@ -100,12 +100,13 @@ impl ChainManager {
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
-
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
-
         let mining_rf = chain_info.consensus_constants.mining_replication_factor;
-
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
+        let initial_difficulty = chain_info.consensus_constants.initial_difficulty;
+        let epochs_with_initial_difficulty = chain_info
+            .consensus_constants
+            .epochs_with_initial_difficulty;
 
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
@@ -141,8 +142,13 @@ impl ChainManager {
             .map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
             .map(move |(vrf_proof, vrf_proof_hash)| {
                 // invalid: vrf_hash > target_hash
-                let (target_hash, probability) =
-                    calculate_randpoe_threshold(total_identities, mining_bf, current_epoch);
+                let (target_hash, probability) = calculate_randpoe_threshold(
+                    total_identities,
+                    mining_bf,
+                    current_epoch,
+                    initial_difficulty,
+                    epochs_with_initial_difficulty,
+                );
                 let proof_invalid = vrf_proof_hash > target_hash;
 
                 log::info!(

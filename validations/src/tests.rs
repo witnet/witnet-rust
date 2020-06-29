@@ -5299,6 +5299,8 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &mut signatures_to_verify,
         u32::try_from(rep_eng.ars().active_identities_number())?,
         mining_bf,
+        0,
+        0,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -5313,6 +5315,8 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         mining_bf,
         bootstrap_hash,
         genesis_block_hash,
+        0,
+        0,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -5550,6 +5554,8 @@ fn block_difficult_proof() {
                 &mut signatures_to_verify,
                 u32::try_from(rep_eng.ars().active_identities_number())?,
                 mining_bf,
+                0,
+                0,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -5564,6 +5570,8 @@ fn block_difficult_proof() {
                 mining_bf,
                 bootstrap_hash,
                 genesis_block_hash,
+                0,
+                0,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -6142,6 +6150,8 @@ fn test_blocks_with_limits(
             &mut signatures_to_verify,
             u32::try_from(rep_eng.ars().active_identities_number())?,
             mining_bf,
+            0,
+            0,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -6157,6 +6167,8 @@ fn test_blocks_with_limits(
             mining_bf,
             bootstrap_hash,
             genesis_block_hash,
+            0,
+            0,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -6646,6 +6658,8 @@ fn genesis_block_after_not_bootstrap_hash() {
         mining_bf,
         bootstrap_hash,
         genesis_block_hash,
+        0,
+        0,
     );
     assert_eq!(signatures_to_verify, vec![]);
 
@@ -6705,6 +6719,8 @@ fn genesis_block_value_overflow() {
         mining_bf,
         bootstrap_hash,
         genesis_block_hash,
+        0,
+        0,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -6771,6 +6787,8 @@ fn genesis_block_full_validate() {
         mining_bf,
         bootstrap_hash,
         genesis_block_hash,
+        0,
+        0,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);

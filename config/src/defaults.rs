@@ -200,6 +200,16 @@ pub trait Defaults {
         1
     }
 
+    /// Reputation issuance
+    fn consensus_constants_initial_difficulty(&self) -> u32 {
+        1000
+    }
+
+    /// Reputation issuance
+    fn consensus_constants_epochs_with_initial_difficulty(&self) -> u32 {
+        1000
+    }
+
     /// When to stop issuing new reputation
     fn consensus_constants_reputation_issuance_stop(&self) -> u32 {
         // Issue reputation points for the first 2^20 witnessing acts

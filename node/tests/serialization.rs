@@ -36,6 +36,8 @@ fn chain_state() {
             collateral_age: 0,
             superblock_period: 0,
             extra_rounds: 0,
+            initial_difficulty: 0,
+            epochs_with_initial_difficulty: 0,
         },
         highest_block_checkpoint: CheckpointBeacon {
             checkpoint: 0,
