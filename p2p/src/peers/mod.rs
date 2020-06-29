@@ -5,9 +5,11 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp,
     collections::{HashMap, HashSet},
+    convert::TryFrom,
     fmt,
     hash::{Hash, Hasher},
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::Duration,
 };
 
 use rand::seq::IteratorRandom;
@@ -100,7 +102,7 @@ pub struct Peers {
     ice_bucket: HashSet<LumpedPeerInfo>,
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
-    ice_period: i64,
+    ice_period: Duration,
     /// Bucket for new addresses
     new_bucket: HashMap<u16, PeerInfo>,
     /// Server SocketAddress
@@ -127,7 +129,7 @@ impl Peers {
 
     /// Set period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
-    pub fn set_ice_period(&mut self, period: i64) {
+    pub fn set_ice_period(&mut self, period: Duration) {
         self.ice_period = period;
     }
 
@@ -148,7 +150,8 @@ impl Peers {
 
     /// Contains for ice bucket
     pub fn ice_bucket_contains(&mut self, addr: &SocketAddr) -> bool {
-        let ice_period = self.ice_period;
+        let ice_period = i64::try_from(self.ice_period.as_secs())
+            .expect("Ice period should fit in the range of u64");
         let lumped = LumpedPeerInfo::from(addr);
         let (contains, needs_removal) = self
             .ice_bucket

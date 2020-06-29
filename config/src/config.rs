@@ -225,7 +225,12 @@ pub struct Connections {
 
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
-    pub bucketing_ice_period: i64,
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "bucketing_ice_period_seconds"
+    ))]
+    pub bucketing_ice_period: Duration,
 
     /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
     /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
@@ -878,7 +883,7 @@ mod tests {
             handshake_max_ts_diff: Some(17),
             blocks_timeout: Some(5),
             consensus_c: Some(51),
-            bucketing_ice_period: Some(13200),
+            bucketing_ice_period: Some(Duration::from_secs(13200)),
             bucketing_update_period: Some(200),
             reject_sybil_inbounds: Some(false),
         };
@@ -897,7 +902,7 @@ mod tests {
         assert_eq!(config.blocks_timeout, 5);
         assert_eq!(config.handshake_max_ts_diff, 17);
         assert_eq!(config.consensus_c, 51);
-        assert_eq!(config.bucketing_ice_period, 13200);
+        assert_eq!(config.bucketing_ice_period, Duration::from_secs(13200));
         assert_eq!(config.bucketing_update_period, 200);
         assert_eq!(config.reject_sybil_inbounds, false);
     }
