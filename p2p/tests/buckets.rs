@@ -4,6 +4,71 @@ use witnet_p2p::peers::{
     calculate_index_for_new, calculate_index_for_tried, split_socket_addresses,
 };
 
+/// Tests for the business logic of inserting and removing peer addresses into the `ice` bucket.
+mod ice {
+    use super::ip;
+    use std::time::Duration;
+    use witnet_p2p::peers::Peers;
+
+    #[test]
+    fn test_can_ice_an_address() {
+        let mut peers = Peers::new();
+        peers.set_ice_period(Duration::from_secs(1000));
+        let address = ip("192.168.1.1:21337");
+        let can_ice = peers.ice_peer_address(&address);
+
+        assert!(can_ice);
+
+        let is_iced = peers.ice_bucket_contains(&address);
+
+        assert!(is_iced)
+    }
+
+    #[test]
+    fn test_icing_blocks_the_entire_ip() {
+        let mut peers = Peers::new();
+        let address_21337 = ip("192.168.1.1:21337");
+        let address_21338 = ip("192.168.1.1:21338");
+
+        peers.ice_peer_address(&address_21337);
+        let is_iced = peers.ice_bucket_contains(&address_21338);
+
+        assert!(is_iced)
+    }
+
+    #[test]
+    fn test_icing_does_not_block_different_ip() {
+        let mut peers = Peers::new();
+        let address_1 = ip("192.168.1.1:21337");
+        let address_2 = ip("192.168.1.2:21337");
+
+        peers.ice_peer_address(&address_1);
+        let is_iced = peers.ice_bucket_contains(&address_2);
+
+        assert!(!is_iced)
+    }
+
+    #[test]
+    fn test_ice_melts_ater_some_time() {
+        let mut peers = Peers::new();
+        peers.set_ice_period(Duration::from_secs(1000));
+        let address = ip("192.168.1.1:21337");
+        peers.ice_peer_address_pure(&address, 0);
+        let is_iced_right_after = peers.ice_bucket_contains_pure(&address, 1);
+        let is_still_iced_right_before_ice_period_is_over =
+            peers.ice_bucket_contains_pure(&address, 999);
+        let is_still_iced_just_when_ice_period_is_over =
+            peers.ice_bucket_contains_pure(&address, 1000);
+        let is_not_iced_right_after_ice_period_is_over =
+            peers.ice_bucket_contains_pure(&address, 1001);
+
+        assert!(is_iced_right_after);
+        assert!(is_still_iced_right_before_ice_period_is_over);
+        assert!(is_still_iced_just_when_ice_period_is_over);
+        assert!(!is_not_iced_right_after_ice_period_is_over);
+    }
+}
+
 /// Tests for the business logic of inserting peer addresses into the `new` buckets.
 mod new {
     use super::{ip, new_bucket_index};

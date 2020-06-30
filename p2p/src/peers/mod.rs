@@ -148,8 +148,15 @@ impl Peers {
         calculate_index_for_tried(self.sk, &ip, &group, &host_id)
     }
 
-    /// Contains for ice bucket
+    /// Check whether a peer address is iced using the current timestamp as a reference for
+    /// calculating whether the address has been in the bucket long enough for "the ice to melt".
     pub fn ice_bucket_contains(&mut self, addr: &SocketAddr) -> bool {
+        self.ice_bucket_contains_pure(addr, get_timestamp())
+    }
+
+    /// Check whether a peer address is iced using the provided timestamp as a reference for
+    /// calculating whether the address has been in the bucket long enough for "the ice to melt".
+    pub fn ice_bucket_contains_pure(&mut self, addr: &SocketAddr, timestamp: i64) -> bool {
         let ice_period = i64::try_from(self.ice_period.as_secs())
             .expect("Ice period should fit in the range of u64");
         let lumped = LumpedPeerInfo::from(addr);
@@ -159,7 +166,7 @@ impl Peers {
             .map(|entry| {
                 // If the address was iced more than `ice_period` seconds ago, we can remove it from
                 // the ice bucket and pretend it was not even there in the first place.
-                let needs_removal = entry.0.timestamp < get_timestamp().saturating_sub(ice_period);
+                let needs_removal = entry.0.timestamp < timestamp.saturating_sub(ice_period);
 
                 (!needs_removal, needs_removal)
             })
@@ -419,9 +426,16 @@ impl Peers {
         log::trace!("Cleared new bucket: \n{}", self);
     }
 
-    /// Put a peer address into the ice bucket
+    /// Put a peer address into the ice bucket using the current timestamp as the tag for tracking
+    /// when the address became iced.
     pub fn ice_peer_address(&mut self, addr: &SocketAddr) -> bool {
-        let lumped = LumpedPeerInfo::from((addr, get_timestamp()));
+        self.ice_peer_address_pure(addr, get_timestamp())
+    }
+
+    /// Put a peer address into the ice bucket using the provided timestamp as the tag for tracking
+    /// when the address became iced.
+    pub fn ice_peer_address_pure(&mut self, addr: &SocketAddr, timestamp: i64) -> bool {
+        let lumped = LumpedPeerInfo::from((addr, timestamp));
 
         log::trace!("Putting peer address {} into the ice bucket", lumped);
 
