@@ -26,6 +26,7 @@
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     convert::TryFrom,
     time::Duration,
@@ -40,11 +41,25 @@ use failure::Fail;
 use futures::future::{join_all, Future};
 use itertools::Itertools;
 use witnet_crypto::key::CryptoEngine;
+use witnet_data_structures::{
+    chain::{
+        penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
+        ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
+        EpochConstants, Hash, Hashable, InventoryItem, NodeStats, OwnUnspentOutputsPool,
+        PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlock,
+        SuperBlockVote, TransactionsPool, UnspentOutputsPool,
+    },
+    data_request::DataRequestPool,
+    radon_report::{RadonReport, ReportContext},
+    superblock::AddSuperBlockVote,
+    transaction::{TallyTransaction, Transaction},
+    vrf::VrfCtx,
+};
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
-    validate_block, validate_block_transactions, validate_candidate, validate_new_transaction,
-    verify_signatures, Diff,
+    compare_block_candidates, validate_block, validate_block_transactions,
+    validate_new_transaction, verify_signatures, Diff, VrfSlots,
 };
 
 use crate::{
@@ -59,20 +74,6 @@ use crate::{
         storage_keys,
     },
     signature_mngr, storage_mngr,
-};
-use witnet_data_structures::{
-    chain::{
-        penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
-        ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
-        EpochConstants, Hash, Hashable, InventoryItem, NodeStats, OwnUnspentOutputsPool,
-        PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlock,
-        SuperBlockVote, TransactionsPool, UnspentOutputsPool,
-    },
-    data_request::DataRequestPool,
-    radon_report::{RadonReport, ReportContext},
-    superblock::AddSuperBlockVote,
-    transaction::{TallyTransaction, Transaction},
-    vrf::VrfCtx,
 };
 
 mod actor;
@@ -158,8 +159,10 @@ pub struct ChainManager {
     /// message after a certain number of epochs
     sync_waiting_for_add_blocks_since: Option<Epoch>,
     /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
-    /// (block_hash, (block, block_vrf_hash))
-    candidates: HashMap<Hash, (Block, Hash)>,
+    /// (block_hash, block))
+    candidates: HashMap<Hash, Block>,
+    /// Best candidate
+    best_candidate: Option<BlockCandidate>,
     /// Set that stores all the received candidates
     seen_candidates: HashSet<Hash>,
     /// Our public key hash, used to create the mint transaction
@@ -190,6 +193,19 @@ pub struct ChainManager {
     external_percentage: u8,
     /// Enable superblock creation
     create_superblocks: bool,
+}
+/// Wrapper around a block candidate that contains additional metadata regarding
+/// needed chain state mutations in case the candidate gets consolidated.
+#[derive(Debug)]
+pub struct BlockCandidate {
+    /// Block
+    pub block: Block,
+    /// Utxo diff
+    pub utxo_diff: Diff,
+    /// Reputation
+    pub reputation: Reputation,
+    /// Vrf proof
+    pub vrf_proof: Hash,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -325,18 +341,8 @@ impl ChainManager {
                 &self.chain_state.data_request_pool,
                 vrf_ctx,
                 secp_ctx,
-                chain_info.consensus_constants.mining_backup_factor,
-                chain_info.consensus_constants.bootstrap_hash,
-                chain_info.consensus_constants.genesis_hash,
                 block_number,
-                chain_info.consensus_constants.collateral_minimum,
-                chain_info.consensus_constants.collateral_age,
-                chain_info.consensus_constants.max_vt_weight,
-                chain_info.consensus_constants.max_dr_weight,
-                chain_info.consensus_constants.initial_difficulty,
-                chain_info
-                    .consensus_constants
-                    .epochs_with_initial_difficulty,
+                &chain_info.consensus_constants,
             )?;
 
             // Persist block and update ChainState
@@ -349,61 +355,97 @@ impl ChainManager {
     }
     #[allow(clippy::map_entry)]
     fn process_candidate(&mut self, block: Block) {
-        if let (
-            Some(current_epoch),
-            Some(chain_info),
-            Some(rep_engine),
-            Some(vrf_ctx),
-            Some(secp_ctx),
-        ) = (
+        if let (Some(current_epoch), Some(chain_info), Some(rep_engine), Some(vrf_ctx)) = (
             self.current_epoch,
             self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_ref(),
             self.vrf_ctx.as_mut(),
-            self.secp.as_ref(),
         ) {
             let hash_block = block.hash();
             // If this candidate has not been seen before, validate it
             if self.seen_candidates.insert(hash_block) {
-                let total_identities =
-                    u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
-                let mining_bf = chain_info.consensus_constants.mining_backup_factor;
-                let mut signatures_to_verify = vec![];
+                if self.sm_state == StateMachine::WaitingConsensus
+                    || self.sm_state == StateMachine::Synchronizing
+                {
+                    self.candidates.insert(hash_block, block);
+
+                    return;
+                }
+
                 let mut vrf_input = chain_info.highest_vrf_output;
                 vrf_input.checkpoint = current_epoch;
-                let prev_block_hash = chain_info.highest_block_checkpoint.hash_prev_block;
-                match validate_candidate(
-                    &block,
+                let target_vrf_slots = VrfSlots::from_rf(
+                    u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
+                    chain_info.consensus_constants.mining_replication_factor,
+                    chain_info.consensus_constants.mining_backup_factor,
                     current_epoch,
-                    prev_block_hash,
-                    vrf_input,
-                    &mut signatures_to_verify,
-                    total_identities,
-                    mining_bf,
                     chain_info.consensus_constants.initial_difficulty,
                     chain_info
                         .consensus_constants
                         .epochs_with_initial_difficulty,
-                )
-                .map_err(Into::into)
-                .and_then(|()| {
-                    // This only verifies the block VRF proof and returns the vrf_hash
-                    // It is tested in
-                    // calling_validate_candidate_and_then_verify_signatures_returns_block_vrf_hash
-                    verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)
-                }) {
-                    Ok(vrf_hash) => {
-                        self.candidates
-                            .insert(hash_block, (block.clone(), vrf_hash[0]));
-                        self.broadcast_item(InventoryItem::Block(block));
-                    }
+                );
+                let block_pkh = &block.block_sig.public_key.pkh();
+                let reputation = rep_engine.trs().get(block_pkh);
+                let vrf_proof = match block.block_header.proof.proof.proof_to_hash(vrf_ctx) {
+                    Ok(vrf) => vrf,
                     Err(e) => {
                         log::warn!(
-                            "Error when trying to validate block candidate {}: {}",
-                            hash_block,
+                            "Block candidate has an invalid mining eligibility proof: {}",
                             e
                         );
+                        return;
                     }
+                };
+
+                if let Some(best_candidate) = &self.best_candidate {
+                    let best_hash = best_candidate.block.hash();
+                    if compare_block_candidates(
+                        hash_block,
+                        reputation,
+                        vrf_proof,
+                        best_hash,
+                        best_candidate.reputation,
+                        best_candidate.vrf_proof,
+                        &target_vrf_slots,
+                    ) != Ordering::Greater
+                    {
+                        log::debug!("Ignoring new block candidate ({}) because a better one ({}) has been already validated", hash_block, best_hash);
+                        return;
+                    }
+                }
+                match process_validations(
+                    &block,
+                    current_epoch,
+                    vrf_input,
+                    chain_info.highest_block_checkpoint,
+                    rep_engine,
+                    self.epoch_constants.unwrap(),
+                    &self.chain_state.unspent_outputs_pool,
+                    &self.chain_state.data_request_pool,
+                    // The unwrap is safe because if there is no VRF context,
+                    // the actor should have stopped execution
+                    self.vrf_ctx.as_mut().expect("No initialized VRF context"),
+                    self.secp
+                        .as_ref()
+                        .expect("No initialized SECP256K1 context"),
+                    self.chain_state.block_number(),
+                    &chain_info.consensus_constants,
+                ) {
+                    Ok(utxo_diff) => {
+                        self.best_candidate = Some(BlockCandidate {
+                            block: block.clone(),
+                            utxo_diff,
+                            reputation,
+                            vrf_proof,
+                        });
+
+                        self.broadcast_item(InventoryItem::Block(block));
+                    }
+                    Err(e) => log::warn!(
+                        "Error when processing a block candidate {}: {}",
+                        hash_block,
+                        e
+                    ),
                 }
             } else {
                 log::trace!("Block candidate already seen: {}", hash_block);
@@ -917,17 +959,10 @@ impl ChainManager {
         vrf_input: CheckpointVRF,
         chain_beacon: CheckpointBeacon,
         epoch_constants: EpochConstants,
-        mining_bf: u32,
     ) -> ResponseActFuture<Self, Diff, failure::Error> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
-        let consensus_constants = self
-            .chain_state
-            .chain_info
-            .as_ref()
-            .unwrap()
-            .consensus_constants
-            .clone();
+        let consensus_constants = self.consensus_constants();
 
         let fut = futures::future::result(validate_block(
             &block,
@@ -936,11 +971,7 @@ impl ChainManager {
             chain_beacon,
             &mut signatures_to_verify,
             self.chain_state.reputation_engine.as_ref().unwrap(),
-            mining_bf,
-            consensus_constants.bootstrap_hash,
-            consensus_constants.genesis_hash,
-            consensus_constants.initial_difficulty,
-            consensus_constants.epochs_with_initial_difficulty,
+            &consensus_constants,
         ))
         .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
         .into_actor(self)
@@ -953,13 +984,9 @@ impl ChainManager {
                 vrf_input,
                 &mut signatures_to_verify,
                 act.chain_state.reputation_engine.as_ref().unwrap(),
-                consensus_constants.genesis_hash,
                 epoch_constants,
                 block_number,
-                consensus_constants.collateral_minimum,
-                consensus_constants.collateral_age,
-                consensus_constants.max_vt_weight,
-                consensus_constants.max_dr_weight,
+                &consensus_constants,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
             .into_actor(act)
@@ -1011,16 +1038,8 @@ pub fn process_validations(
     dr_pool: &DataRequestPool,
     vrf_ctx: &mut VrfCtx,
     secp_ctx: &CryptoEngine,
-    mining_bf: u32,
-    bootstrap_hash: Hash,
-    genesis_hash: Hash,
     block_number: u32,
-    collateral_minimum: u64,
-    collateral_age: u32,
-    max_vt_weight: u32,
-    max_dr_weight: u32,
-    initial_difficulty: u32,
-    epochs_with_initial_difficulty: u32,
+    consensus_constants: &ConsensusConstants,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -1030,11 +1049,7 @@ pub fn process_validations(
         chain_beacon,
         &mut signatures_to_verify,
         rep_eng,
-        mining_bf,
-        bootstrap_hash,
-        genesis_hash,
-        initial_difficulty,
-        epochs_with_initial_difficulty,
+        &consensus_constants,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 
@@ -1046,13 +1061,9 @@ pub fn process_validations(
         vrf_input,
         &mut signatures_to_verify,
         rep_eng,
-        genesis_hash,
         epoch_constants,
         block_number,
-        collateral_minimum,
-        collateral_age,
-        max_vt_weight,
-        max_dr_weight,
+        consensus_constants,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 

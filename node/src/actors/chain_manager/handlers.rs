@@ -1,9 +1,6 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::future::Future;
-use itertools::Itertools;
-use std::{
-    cmp::Ordering, collections::BTreeMap, collections::HashMap, convert::TryFrom, net::SocketAddr,
-};
+use std::{collections::BTreeMap, collections::HashMap, convert::TryFrom, net::SocketAddr};
 
 use witnet_data_structures::{
     chain::{
@@ -15,14 +12,14 @@ use witnet_data_structures::{
     types::LastBeacon,
 };
 use witnet_util::timestamp::get_timestamp;
-use witnet_validations::validations::{compare_block_candidates, validate_rad_request, VrfSlots};
+use witnet_validations::validations::validate_rad_request;
 
 use super::{
     show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
 };
 use crate::{
     actors::{
-        chain_manager::process_validations,
+        chain_manager::BlockCandidate,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction,
             Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
@@ -83,7 +80,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         let last_checked_epoch = self.current_epoch;
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
-        let block_number = self.chain_state.block_number();
 
         log::debug!(
             "EpochNotification received while StateMachine is in state {:?}",
@@ -149,7 +145,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 }
                 match self.chain_state {
                     ChainState {
-                        chain_info: Some(ref mut chain_info),
                         reputation_engine: Some(ref mut rep_engine),
                         ..
                     } => {
@@ -160,93 +155,15 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             log::error!("{}", ChainManagerError::ChainNotReady);
                             return;
                         }
-                        // Decide the best candidate
-                        let target_vrf_slots = VrfSlots::from_rf(
-                            u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
-                            chain_info.consensus_constants.mining_replication_factor,
-                            chain_info.consensus_constants.mining_backup_factor,
-                            current_epoch,
-                            chain_info.consensus_constants.initial_difficulty,
-                            chain_info
-                                .consensus_constants
-                                .epochs_with_initial_difficulty,
-                        );
-                        // TODO: replace for loop with a try_fold
-                        let mut chosen_candidate = None;
-                        for (key, (block_candidate, vrf_proof)) in self
-                            .candidates
-                            .drain()
-                            .sorted_by_key(|(_key, (_block_candidate, vrf_proof))| *vrf_proof)
-                        {
-                            let block_pkh = &block_candidate.block_sig.public_key.pkh();
-                            let reputation = rep_engine.trs().get(block_pkh);
-                            let mut vrf_input = chain_info.highest_vrf_output;
-                            vrf_input.checkpoint = block_candidate.block_header.beacon.checkpoint;
-
-                            if let Some((chosen_key, chosen_reputation, chosen_vrf_proof, _, _)) =
-                                chosen_candidate
-                            {
-                                if compare_block_candidates(
-                                    key,
-                                    reputation,
-                                    vrf_proof,
-                                    chosen_key,
-                                    chosen_reputation,
-                                    chosen_vrf_proof,
-                                    &target_vrf_slots,
-                                ) != Ordering::Greater
-                                {
-                                    // Ignore candidates that are worse than the current best candidate
-                                    continue;
-                                }
-                            }
-                            match process_validations(
-                                &block_candidate,
-                                current_epoch,
-                                vrf_input,
-                                chain_info.highest_block_checkpoint,
-                                rep_engine,
-                                self.epoch_constants.unwrap(),
-                                &self.chain_state.unspent_outputs_pool,
-                                &self.chain_state.data_request_pool,
-                                // The unwrap is safe because if there is no VRF context,
-                                // the actor should have stopped execution
-                                self.vrf_ctx.as_mut().unwrap(),
-                                self.secp.as_ref().unwrap(),
-                                chain_info.consensus_constants.mining_backup_factor,
-                                chain_info.consensus_constants.bootstrap_hash,
-                                chain_info.consensus_constants.genesis_hash,
-                                block_number,
-                                chain_info.consensus_constants.collateral_minimum,
-                                chain_info.consensus_constants.collateral_age,
-                                chain_info.consensus_constants.max_vt_weight,
-                                chain_info.consensus_constants.max_dr_weight,
-                                chain_info.consensus_constants.initial_difficulty,
-                                chain_info
-                                    .consensus_constants
-                                    .epochs_with_initial_difficulty,
-                            ) {
-                                Ok(utxo_diff) => {
-                                    let block_pkh = &block_candidate.block_sig.public_key.pkh();
-                                    let reputation = rep_engine.trs().get(block_pkh);
-                                    chosen_candidate = Some((
-                                        key,
-                                        reputation,
-                                        vrf_proof,
-                                        block_candidate,
-                                        utxo_diff,
-                                    ))
-                                }
-                                Err(e) => log::warn!(
-                                    "Error when processing a block candidate {}: {}",
-                                    block_candidate.hash(),
-                                    e
-                                ),
-                            }
-                        }
 
                         // Consolidate the best candidate
-                        if let Some((_, _, _, block, utxo_diff)) = chosen_candidate {
+                        if let Some(BlockCandidate {
+                            block,
+                            utxo_diff,
+                            reputation: _,
+                            vrf_proof: _,
+                        }) = self.best_candidate.take()
+                        {
                             // Persist block and update ChainState
                             self.consolidate_block(ctx, block, utxo_diff);
                         } else if msg.checkpoint > 0 {
@@ -741,7 +658,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         self.candidates.clear();
                         self.seen_candidates.clear();
                         // TODO: Be functional my friend
-                        if let Some((consensus_block, _consensus_block_vrf_hash)) = candidate {
+                        if let Some(consensus_block) = candidate {
                             match self.process_requested_block(ctx, consensus_block) {
                                 Ok(()) => {
                                     log::info!(
