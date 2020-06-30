@@ -1,7 +1,9 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::future::Future;
 use itertools::Itertools;
-use std::{cmp::Ordering, collections::BTreeMap, collections::HashMap, convert::TryFrom};
+use std::{
+    cmp::Ordering, collections::BTreeMap, collections::HashMap, convert::TryFrom, net::SocketAddr,
+};
 
 use witnet_data_structures::{
     chain::{
@@ -625,6 +627,15 @@ impl PeersBeacons {
         // Some(None) (most of the peers did not send a beacon)
         .and_then(|x| *x)
     }
+
+    /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
+    pub fn decide_peers_to_unregister(&self, beacon: CheckpointBeacon) -> Vec<SocketAddr> {
+        // Unregister peers which have a different beacon
+        (&self.pb)
+            .iter()
+            .filter_map(|(p, b)| if *b != Some(beacon) { Some(*p) } else { None })
+            .collect()
+    }
 }
 
 impl Handler<PeersBeacons> for ChainManager {
@@ -646,9 +657,8 @@ impl Handler<PeersBeacons> for ChainManager {
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
         let consensus = peers_beacons.consensus(consensus_threshold);
-        let pb = peers_beacons.pb;
         let outbound_limit = peers_beacons.outbound_limit;
-        let pb_len = pb.len();
+        let pb_len = peers_beacons.pb.len();
         let peers_needed_for_consensus = outbound_limit
             .map(|x| {
                 // ceil(x * consensus_threshold / 100)
@@ -656,16 +666,7 @@ impl Handler<PeersBeacons> for ChainManager {
             })
             .unwrap_or(1);
         let peers_to_unregister = if let Some(consensus_beacon) = consensus {
-            // Consensus: unregister peers which have a different beacon
-            pb.into_iter()
-                .filter_map(|(p, b)| {
-                    if b != Some(consensus_beacon) {
-                        Some(p)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
+            peers_beacons.decide_peers_to_unregister(consensus_beacon)
         } else if pb_len < peers_needed_for_consensus {
             // Not enough outbound peers, do not unregister any peers
             log::debug!(
@@ -675,9 +676,16 @@ impl Handler<PeersBeacons> for ChainManager {
             );
             vec![]
         } else {
-            // No consensus: unregister all peers
-            log::warn!("No consensus: unregister all peers");
-            pb.into_iter().map(|(p, _b)| p).collect()
+            // No consensus: if state is AlmostSynced unregister those that are not coincident with ours.
+            // Else, unregister all peers
+            if self.sm_state == StateMachine::AlmostSynced || self.sm_state == StateMachine::Synced
+            {
+                log::warn ! ("Lack of peer consensus while state is `AlmostSynced`: peers that do not coincide with our last beacon will be unregistered");
+                peers_beacons.decide_peers_to_unregister(self.get_chain_beacon())
+            } else {
+                log::warn!("Lack of peer consensus: all peers will be unregistered");
+                peers_beacons.pb.into_iter().map(|(p, _b)| p).collect()
+            }
         };
 
         let peers_to_unregister = match self.sm_state {
@@ -786,13 +794,6 @@ impl Handler<PeersBeacons> for ChainManager {
                 }
             }
             StateMachine::AlmostSynced | StateMachine::Synced => {
-                // If we are synced and the consensus beacon is not the same as our beacon, then
-                // we need to rewind one epoch
-                if pb_len == 0 {
-                    log::warn!("[CONSENSUS]: We have not received any beacons for this epoch");
-                    self.sm_state = StateMachine::AlmostSynced;
-                }
-
                 let our_beacon = self.get_chain_beacon();
                 match consensus {
                     Some(consensus_beacon) if consensus_beacon == our_beacon => {
@@ -809,21 +810,27 @@ impl Handler<PeersBeacons> for ChainManager {
                         self.initialize_from_storage(ctx);
                         log::info!("Restored chain state from storage");
 
-                        self.sm_state = StateMachine::AlmostSynced;
+                        self.sm_state = StateMachine::WaitingConsensus;
 
                         Ok(peers_to_unregister)
                     }
                     None => {
-                        // There is no consensus because of a tie, do not rewind?
-                        // For example this could happen when each peer reports a different beacon...
-                        log::warn!(
-                            "[CONSENSUS]: We are on {:?} but the network has no consensus",
-                            our_beacon
-                        );
-
+                        // If we are synced and the consensus beacon is not the same as our beacon, then
+                        // we need to rewind one epoch
+                        if pb_len == 0 {
+                            log::warn!(
+                                "[CONSENSUS]: We have not received any beacons for this epoch"
+                            );
+                        } else {
+                            // There is no consensus because of a tie, do not rewind?
+                            // For example this could happen when each peer reports a different beacon...
+                            log::warn!(
+                                "[CONSENSUS]: We are on {:?} but the network has no consensus",
+                                our_beacon
+                            );
+                        }
                         self.sm_state = StateMachine::AlmostSynced;
 
-                        // Unregister all peers to try to obtain a new set of trustworthy peers
                         Ok(peers_to_unregister)
                     }
                 }
@@ -1301,5 +1308,97 @@ mod tests {
             outbound_limit: Some(4),
         };
         assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+    }
+    #[test]
+    fn test_unregister_peers() {
+        let beacon1 = CheckpointBeacon {
+            checkpoint: 1,
+            hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                .parse()
+                .unwrap(),
+        };
+        let beacon2 = CheckpointBeacon {
+            checkpoint: 1,
+            hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+                .parse()
+                .unwrap(),
+        };
+
+        // 0 peers
+        let mut peers_beacons = PeersBeacons {
+            pb: vec![],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.decide_peers_to_unregister(beacon1), []);
+
+        // 1 peer in consensus
+        peers_beacons = PeersBeacons {
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.decide_peers_to_unregister(beacon1), []);
+
+        // 1 peer out of consensus
+        peers_beacons = PeersBeacons {
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon2),
+            ["127.0.0.1:10001".parse().unwrap()]
+        );
+
+        peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon2),
+            [
+                "127.0.0.1:10001".parse().unwrap(),
+                "127.0.0.1:10002".parse().unwrap()
+            ]
+        );
+
+        peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10003".parse().unwrap(), None),
+                ("127.0.0.1:10004".parse().unwrap(), None),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon1),
+            [
+                "127.0.0.1:10003".parse().unwrap(),
+                "127.0.0.1:10004".parse().unwrap()
+            ]
+        );
+
+        peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), None),
+                ("127.0.0.1:10002".parse().unwrap(), None),
+                ("127.0.0.1:10003".parse().unwrap(), None),
+                ("127.0.0.1:10004".parse().unwrap(), None),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon1),
+            [
+                "127.0.0.1:10001".parse().unwrap(),
+                "127.0.0.1:10002".parse().unwrap(),
+                "127.0.0.1:10003".parse().unwrap(),
+                "127.0.0.1:10004".parse().unwrap()
+            ]
+        );
     }
 }
