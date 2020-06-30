@@ -5224,8 +5224,29 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
     let block_number = 100_000;
-    let collateral_minimum = 1;
-    let collateral_age = 1;
+
+    let consensus_constants = ConsensusConstants {
+        checkpoint_zero_timestamp: 0,
+        collateral_minimum: 1,
+        collateral_age: 1,
+        superblock_period: 0,
+        mining_backup_factor: 8,
+        bootstrap_hash: BOOTSTRAP_HASH.parse().unwrap(),
+        genesis_hash: GENESIS_BLOCK_HASH.parse().unwrap(),
+        max_dr_weight: MAX_DR_WEIGHT,
+        activity_period: 0,
+        reputation_expire_alpha_diff: 0,
+        reputation_issuance: 0,
+        reputation_issuance_stop: 0,
+        max_vt_weight: MAX_VT_WEIGHT,
+        checkpoints_period: 0,
+        reputation_penalization_factor: 0.0,
+        mining_replication_factor: 0,
+        extra_rounds: 0,
+        initial_difficulty: 0,
+        epochs_with_initial_difficulty: 0,
+    };
+
     // Insert output to utxo
     let output1 = ValueTransferOutput {
         time_lock: 0,
@@ -5258,9 +5279,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     };
 
     let my_pkh = PublicKeyHash::default();
-    let mining_bf = 8;
-    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
-    let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -5290,21 +5308,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header);
     }
     let mut signatures_to_verify = vec![];
-
-    validate_candidate(
-        &b,
-        current_epoch,
-        last_block_hash,
-        vrf_input,
-        &mut signatures_to_verify,
-        u32::try_from(rep_eng.ars().active_identities_number())?,
-        mining_bf,
-        0,
-        0,
-    )?;
-    verify_signatures_test(signatures_to_verify)?;
-    let mut signatures_to_verify = vec![];
-
     validate_block(
         &b,
         current_epoch,
@@ -5312,11 +5315,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         chain_beacon,
         &mut signatures_to_verify,
         &rep_eng,
-        mining_bf,
-        bootstrap_hash,
-        genesis_block_hash,
-        0,
-        0,
+        &consensus_constants,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -5328,13 +5327,9 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
-        genesis_block_hash,
         EpochConstants::default(),
         block_number,
-        collateral_minimum,
-        collateral_age,
-        MAX_VT_WEIGHT,
-        MAX_DR_WEIGHT,
+        &consensus_constants,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -5370,7 +5365,7 @@ fn block_from_the_future() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::CandidateFromDifferentEpoch {
+        BlockError::BlockFromFuture {
             current_epoch,
             block_epoch
         }
@@ -5390,8 +5385,8 @@ fn block_from_the_past() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::CandidateFromDifferentEpoch {
-            current_epoch,
+        BlockError::BlockOlderThanTip {
+            chain_epoch: current_epoch,
             block_epoch
         },
     );
@@ -5459,8 +5454,14 @@ fn block_hash_prev_block_genesis_hash() {
 
 #[test]
 fn block_invalid_poe() {
+    let vrf = &mut VrfCtx::secp256k1().unwrap();
+    let secret_key = SecretKey {
+        bytes: Protected::from(PRIV_KEY_1.to_vec()),
+    };
+    let block_elegibility_claim =
+        BlockEligibilityClaim::create(vrf, &secret_key, CheckpointVRF::default()).unwrap();
     let x = test_block(|b| {
-        b.block_header.proof = BlockEligibilityClaim::default();
+        b.block_header.proof = block_elegibility_claim.clone();
 
         true
     });
@@ -5472,7 +5473,6 @@ fn block_invalid_poe() {
 
 #[test]
 fn block_difficult_proof() {
-    let mut signatures_to_verify = vec![];
     let dr_pool = DataRequestPool::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
@@ -5483,8 +5483,29 @@ fn block_difficult_proof() {
         .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let collateral_minimum = 1;
-    let collateral_age = 1;
+
+    let consensus_constants = ConsensusConstants {
+        checkpoint_zero_timestamp: 0,
+        collateral_minimum: 1,
+        collateral_age: 1,
+        superblock_period: 0,
+        mining_backup_factor: 8,
+        bootstrap_hash: BOOTSTRAP_HASH.parse().unwrap(),
+        genesis_hash: GENESIS_BLOCK_HASH.parse().unwrap(),
+        max_dr_weight: MAX_DR_WEIGHT,
+        activity_period: 0,
+        reputation_expire_alpha_diff: 0,
+        reputation_issuance: 0,
+        reputation_issuance_stop: 0,
+        max_vt_weight: MAX_VT_WEIGHT,
+        checkpoints_period: 0,
+        reputation_penalization_factor: 0.0,
+        mining_replication_factor: 0,
+        extra_rounds: 0,
+        initial_difficulty: 0,
+        epochs_with_initial_difficulty: 0,
+    };
+
     // Insert output to utxo
     let output1 = ValueTransferOutput {
         time_lock: 0,
@@ -5518,9 +5539,6 @@ fn block_difficult_proof() {
         hash_prev_block: last_block_hash,
     };
     let my_pkh = PublicKeyHash::default();
-    let mining_bf = 8;
-    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
-    let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -5546,18 +5564,6 @@ fn block_difficult_proof() {
 
     let x = {
         let x = || -> Result<_, failure::Error> {
-            validate_candidate(
-                &b,
-                current_epoch,
-                last_block_hash,
-                vrf_input,
-                &mut signatures_to_verify,
-                u32::try_from(rep_eng.ars().active_identities_number())?,
-                mining_bf,
-                0,
-                0,
-            )?;
-            verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
 
             validate_block(
@@ -5567,11 +5573,7 @@ fn block_difficult_proof() {
                 chain_beacon,
                 &mut signatures_to_verify,
                 &rep_eng,
-                mining_bf,
-                bootstrap_hash,
-                genesis_block_hash,
-                0,
-                0,
+                &consensus_constants,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -5583,13 +5585,9 @@ fn block_difficult_proof() {
                 vrf_input,
                 &mut signatures_to_verify,
                 &rep_eng,
-                genesis_block_hash,
                 EpochConstants::default(),
                 block_number,
-                collateral_minimum,
-                collateral_age,
-                MAX_VT_WEIGHT,
-                MAX_DR_WEIGHT,
+                &consensus_constants,
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -6077,8 +6075,29 @@ fn test_blocks_with_limits(
     let rep_eng = ReputationEngine::new(100);
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let collateral_minimum = 1;
-    let collateral_age = 1;
+
+    let consensus_constants = ConsensusConstants {
+        checkpoint_zero_timestamp: 0,
+        collateral_minimum: 1,
+        collateral_age: 1,
+        superblock_period: 0,
+        mining_backup_factor: 8,
+        bootstrap_hash: BOOTSTRAP_HASH.parse().unwrap(),
+        genesis_hash: genesis_block_hash,
+        max_dr_weight,
+        activity_period: 0,
+        reputation_expire_alpha_diff: 0,
+        reputation_issuance: 0,
+        reputation_issuance_stop: 0,
+        max_vt_weight,
+        checkpoints_period: 0,
+        reputation_penalization_factor: 0.0,
+        mining_replication_factor: 0,
+        extra_rounds: 0,
+        initial_difficulty: 0,
+        epochs_with_initial_difficulty: 0,
+    };
+
     // Insert output to utxo
     let output1 = ValueTransferOutput {
         time_lock: 0,
@@ -6138,22 +6157,6 @@ fn test_blocks_with_limits(
 
         b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header);
 
-        let mining_bf = 1;
-        let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
-        // First, validate candidate block (can return false positives)
-        let mut signatures_to_verify = vec![];
-        validate_candidate(
-            &b,
-            current_epoch,
-            last_block_hash,
-            vrf_input,
-            &mut signatures_to_verify,
-            u32::try_from(rep_eng.ars().active_identities_number())?,
-            mining_bf,
-            0,
-            0,
-        )?;
-        verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
 
         // Validate block VRF
@@ -6164,11 +6167,7 @@ fn test_blocks_with_limits(
             chain_beacon,
             &mut signatures_to_verify,
             &rep_eng,
-            mining_bf,
-            bootstrap_hash,
-            genesis_block_hash,
-            0,
-            0,
+            &consensus_constants,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -6181,13 +6180,9 @@ fn test_blocks_with_limits(
             vrf_input,
             &mut signatures_to_verify,
             &rep_eng,
-            genesis_block_hash,
             EpochConstants::default(),
             block_number,
-            collateral_minimum,
-            collateral_age,
-            max_vt_weight,
-            max_dr_weight,
+            &consensus_constants,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -6642,9 +6637,27 @@ fn genesis_block_after_not_bootstrap_hash() {
         hash_prev_block: last_block_hash,
     };
 
-    let mining_bf = 1;
-    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
-    let genesis_block_hash = b.hash();
+    let consensus_constants = ConsensusConstants {
+        checkpoint_zero_timestamp: 0,
+        collateral_minimum: 1,
+        collateral_age: 1,
+        superblock_period: 0,
+        mining_backup_factor: 1,
+        bootstrap_hash,
+        genesis_hash: b.hash(),
+        max_dr_weight: MAX_DR_WEIGHT,
+        activity_period: 0,
+        reputation_expire_alpha_diff: 0,
+        reputation_issuance: 0,
+        reputation_issuance_stop: 0,
+        max_vt_weight: MAX_VT_WEIGHT,
+        checkpoints_period: 0,
+        reputation_penalization_factor: 0.0,
+        mining_replication_factor: 0,
+        extra_rounds: 0,
+        initial_difficulty: 0,
+        epochs_with_initial_difficulty: 0,
+    };
     let mut signatures_to_verify = vec![];
 
     // Validate block
@@ -6655,11 +6668,7 @@ fn genesis_block_after_not_bootstrap_hash() {
         chain_beacon,
         &mut signatures_to_verify,
         &rep_eng,
-        mining_bf,
-        bootstrap_hash,
-        genesis_block_hash,
-        0,
-        0,
+        &consensus_constants,
     );
     assert_eq!(signatures_to_verify, vec![]);
 
@@ -6674,12 +6683,13 @@ fn genesis_block_after_not_bootstrap_hash() {
 
 #[test]
 fn genesis_block_value_overflow() {
-    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
     let outputs = vec![ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
         value: u64::max_value(),
         time_lock: 0,
     }];
+
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
     let b = Block::genesis(
         bootstrap_hash,
         vec![
@@ -6694,17 +6704,32 @@ fn genesis_block_value_overflow() {
 
     let current_epoch = 0;
     let block_number = 0;
-    let collateral_minimum = 1;
-    let collateral_age = 1;
-    let last_block_hash = bootstrap_hash;
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
-        hash_prev_block: last_block_hash,
+        hash_prev_block: bootstrap_hash,
     };
 
-    let mining_bf = 1;
-    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
-    let genesis_block_hash = b.hash();
+    let consensus_constants = ConsensusConstants {
+        checkpoint_zero_timestamp: 0,
+        collateral_minimum: 1,
+        collateral_age: 1,
+        superblock_period: 0,
+        mining_backup_factor: 1,
+        bootstrap_hash,
+        genesis_hash: b.hash(),
+        max_dr_weight: MAX_DR_WEIGHT,
+        activity_period: 0,
+        reputation_expire_alpha_diff: 0,
+        reputation_issuance: 0,
+        reputation_issuance_stop: 0,
+        max_vt_weight: MAX_VT_WEIGHT,
+        checkpoints_period: 0,
+        reputation_penalization_factor: 0.0,
+        mining_replication_factor: 0,
+        extra_rounds: 0,
+        initial_difficulty: 0,
+        epochs_with_initial_difficulty: 0,
+    };
     let vrf_input = CheckpointVRF::default();
     let mut signatures_to_verify = vec![];
 
@@ -6716,11 +6741,7 @@ fn genesis_block_value_overflow() {
         chain_beacon,
         &mut signatures_to_verify,
         &rep_eng,
-        mining_bf,
-        bootstrap_hash,
-        genesis_block_hash,
-        0,
-        0,
+        &consensus_constants,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -6734,13 +6755,9 @@ fn genesis_block_value_overflow() {
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
-        genesis_block_hash,
         EpochConstants::default(),
         block_number,
-        collateral_minimum,
-        collateral_age,
-        MAX_VT_WEIGHT,
-        MAX_DR_WEIGHT,
+        &consensus_constants,
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -6763,18 +6780,33 @@ fn genesis_block_full_validate() {
 
     let current_epoch = 0;
     let block_number = 0;
-    let collateral_minimum = 1;
-    let collateral_age = 1;
-    let last_block_hash = bootstrap_hash;
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
-        hash_prev_block: last_block_hash,
+        hash_prev_block: bootstrap_hash,
     };
-
-    let mining_bf = 1;
-    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
-    let genesis_block_hash = b.hash();
     let mut signatures_to_verify = vec![];
+
+    let consensus_constants = ConsensusConstants {
+        checkpoint_zero_timestamp: 0,
+        collateral_minimum: 1,
+        collateral_age: 1,
+        superblock_period: 0,
+        mining_backup_factor: 1,
+        bootstrap_hash,
+        genesis_hash: b.hash(),
+        max_dr_weight: MAX_DR_WEIGHT,
+        activity_period: 0,
+        reputation_expire_alpha_diff: 0,
+        reputation_issuance: 0,
+        reputation_issuance_stop: 0,
+        max_vt_weight: MAX_VT_WEIGHT,
+        checkpoints_period: 0,
+        reputation_penalization_factor: 0.0,
+        mining_replication_factor: 0,
+        extra_rounds: 0,
+        initial_difficulty: 0,
+        epochs_with_initial_difficulty: 0,
+    };
 
     // Validate block
     validate_block(
@@ -6784,11 +6816,7 @@ fn genesis_block_full_validate() {
         chain_beacon,
         &mut signatures_to_verify,
         &rep_eng,
-        mining_bf,
-        bootstrap_hash,
-        genesis_block_hash,
-        0,
-        0,
+        &consensus_constants,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -6802,13 +6830,9 @@ fn genesis_block_full_validate() {
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
-        genesis_block_hash,
         EpochConstants::default(),
         block_number,
-        collateral_minimum,
-        collateral_age,
-        MAX_VT_WEIGHT,
-        MAX_DR_WEIGHT,
+        &consensus_constants,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -6820,8 +6844,27 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
     let block_number = 1234;
 
     let utxo_diff = {
-        let collateral_minimum = 1;
-        let collateral_age = 1;
+        let consensus_constants = ConsensusConstants {
+            checkpoint_zero_timestamp: 0,
+            checkpoints_period: 0,
+            collateral_minimum: 1,
+            collateral_age: 1,
+            superblock_period: 0,
+            genesis_hash: GENESIS_BLOCK_HASH.parse().unwrap(),
+            max_dr_weight: MAX_DR_WEIGHT,
+            activity_period: 0,
+            reputation_expire_alpha_diff: 0,
+            reputation_issuance: 0,
+            reputation_issuance_stop: 0,
+            reputation_penalization_factor: 0.0,
+            mining_backup_factor: 0,
+            max_vt_weight: MAX_VT_WEIGHT,
+            bootstrap_hash: Default::default(),
+            mining_replication_factor: 0,
+            extra_rounds: 0,
+            initial_difficulty: 0,
+            epochs_with_initial_difficulty: 0,
+        };
         let dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
@@ -6838,7 +6881,6 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             hash_prev_block: last_block_hash,
         };
         let my_pkh = PublicKeyHash::default();
-        let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
 
         let mut txns = BlockTransactions::default();
         txns.mint = MintTransaction::new(
@@ -6870,13 +6912,9 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             vrf_input,
             &mut signatures_to_verify,
             &rep_eng,
-            genesis_block_hash,
             EpochConstants::default(),
             block_number,
-            collateral_minimum,
-            collateral_age,
-            MAX_VT_WEIGHT,
-            MAX_DR_WEIGHT,
+            &consensus_constants,
         )
         .unwrap()
     };
@@ -6970,7 +7008,6 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         };
 
         let my_pkh = PublicKeyHash::default();
-        let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
 
         let mut txns = BlockTransactions::default();
         mint_vto = ValueTransferOutput {
@@ -6987,8 +7024,27 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         cb.proof =
             DataRequestEligibilityClaim::create(vrf, &secret_key, vrf_input, dr_hash).unwrap();
 
-        let collateral_minimum = 1;
-        let collateral_age = 1;
+        let consensus_constants = ConsensusConstants {
+            checkpoint_zero_timestamp: 0,
+            checkpoints_period: 0,
+            collateral_minimum: 1,
+            collateral_age: 1,
+            superblock_period: 0,
+            genesis_hash: GENESIS_BLOCK_HASH.parse().unwrap(),
+            max_dr_weight: MAX_DR_WEIGHT,
+            activity_period: 0,
+            reputation_expire_alpha_diff: 0,
+            reputation_issuance: 0,
+            reputation_issuance_stop: 0,
+            reputation_penalization_factor: 0.0,
+            mining_backup_factor: 0,
+            max_vt_weight: MAX_VT_WEIGHT,
+            bootstrap_hash: Default::default(),
+            mining_replication_factor: 0,
+            extra_rounds: 0,
+            initial_difficulty: 0,
+            epochs_with_initial_difficulty: 0,
+        };
 
         let (inputs, outputs) = (vec![vti], vec![change_vto.clone()]);
         cb.collateral = inputs;
@@ -7021,13 +7077,9 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             vrf_input,
             &mut signatures_to_verify,
             &rep_eng,
-            genesis_block_hash,
             EpochConstants::default(),
             block_number,
-            collateral_minimum,
-            collateral_age,
-            MAX_VT_WEIGHT,
-            MAX_DR_WEIGHT,
+            &consensus_constants,
         )
         .unwrap()
     };

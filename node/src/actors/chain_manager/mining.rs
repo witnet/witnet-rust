@@ -232,7 +232,6 @@ impl ChainManager {
                     vrf_input,
                     beacon,
                     epoch_constants,
-                    mining_bf,
                 )
                 .map(|_diff, act, ctx| {
                     // Send AddCandidates message to self

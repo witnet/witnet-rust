@@ -13,6 +13,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
+use witnet_data_structures::chain::ConsensusConstants;
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, DataRequestOutput,
@@ -1439,16 +1440,12 @@ pub fn validate_block_transactions(
     vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
-    genesis_hash: Hash,
     epoch_constants: EpochConstants,
     block_number: u32,
-    collateral_minimum: u64,
-    collateral_age: u32,
-    max_vt_weight: u32,
-    max_dr_weight: u32,
+    consensus_constants: &ConsensusConstants,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
-    let is_genesis = block.hash() == genesis_hash;
+    let is_genesis = block.hash() == consensus_constants.genesis_hash;
     let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
 
     // Init total fee
@@ -1481,7 +1478,7 @@ pub fn validate_block_transactions(
                 epoch,
                 epoch_constants,
                 signatures_to_verify,
-                max_vt_weight,
+                consensus_constants.max_vt_weight,
             )?;
 
             (inputs, outputs, fee, transaction.weight())
@@ -1490,10 +1487,10 @@ pub fn validate_block_transactions(
 
         // Update vt weight
         let acc_weight = vt_weight.saturating_add(weight);
-        if acc_weight > max_vt_weight {
+        if acc_weight > consensus_constants.max_vt_weight {
             return Err(BlockError::TotalValueTransferWeightLimitExceeded {
                 weight: acc_weight,
-                max_weight: max_vt_weight,
+                max_weight: consensus_constants.max_vt_weight,
             }
             .into());
         }
@@ -1518,8 +1515,8 @@ pub fn validate_block_transactions(
             epoch,
             epoch_constants,
             signatures_to_verify,
-            collateral_minimum,
-            max_dr_weight,
+            consensus_constants.collateral_minimum,
+            consensus_constants.max_dr_weight,
         )?;
         total_fee += fee;
 
@@ -1532,10 +1529,10 @@ pub fn validate_block_transactions(
 
         // Update dr weight
         let acc_weight = dr_weight.saturating_add(transaction.weight());
-        if acc_weight > max_dr_weight {
+        if acc_weight > consensus_constants.max_dr_weight {
             return Err(BlockError::TotalDataRequestWeightLimitExceeded {
                 weight: acc_weight,
-                max_weight: max_dr_weight,
+                max_weight: consensus_constants.max_dr_weight,
             }
             .into());
         }
@@ -1558,8 +1555,8 @@ pub fn validate_block_transactions(
             epoch,
             epoch_constants,
             &utxo_diff,
-            collateral_minimum,
-            collateral_age,
+            consensus_constants.collateral_minimum,
+            consensus_constants.collateral_age,
             block_number,
         )?;
 
@@ -1623,7 +1620,11 @@ pub fn validate_block_transactions(
     let mut ta_mt = ProgressiveMerkleTree::sha256();
     let mut tally_hs = HashSet::with_capacity(block.txns.tally_txns.len());
     for transaction in &block.txns.tally_txns {
-        let (outputs, fee) = validate_tally_transaction(transaction, dr_pool, collateral_minimum)?;
+        let (outputs, fee) = validate_tally_transaction(
+            transaction,
+            dr_pool,
+            consensus_constants.collateral_minimum,
+        )?;
 
         // Validation for only one tally for data request in a block
         let dr_pointer = transaction.dr_pointer;
@@ -1681,11 +1682,7 @@ pub fn validate_block(
     chain_beacon: CheckpointBeacon,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
-    mining_bf: u32,
-    bootstrap_hash: Hash,
-    genesis_hash: Hash,
-    initial_difficulty: u32,
-    epochs_with_initial_difficulty: u32,
+    consensus_constants: &ConsensusConstants,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -1708,18 +1705,18 @@ pub fn validate_block(
             our_hash: chain_beacon.hash_prev_block,
         }
         .into())
-    } else if chain_beacon.hash_prev_block == bootstrap_hash {
+    } else if chain_beacon.hash_prev_block == consensus_constants.bootstrap_hash {
         // If the chain_beacon hash_prev_block is the bootstrap hash, only accept blocks
         // with the genesis_block_hash
-        validate_genesis_block(block, genesis_hash).map_err(Into::into)
+        validate_genesis_block(block, consensus_constants.genesis_hash).map_err(Into::into)
     } else {
         let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
         let (target_hash, _) = calculate_randpoe_threshold(
             total_identities,
-            mining_bf,
+            consensus_constants.mining_backup_factor,
             current_epoch,
-            initial_difficulty,
-            epochs_with_initial_difficulty,
+            consensus_constants.initial_difficulty,
+            consensus_constants.epochs_with_initial_difficulty,
         );
 
         add_block_vrf_signature_to_verify(
@@ -1763,51 +1760,6 @@ pub fn validate_genesis_block(
             expected: format!("{:?}", new_genesis),
         })
     }
-}
-
-/// Function to validate a block candidate
-#[allow(clippy::too_many_arguments)]
-pub fn validate_candidate(
-    block: &Block,
-    current_epoch: Epoch,
-    chain_prev_block: Hash,
-    vrf_input: CheckpointVRF,
-    signatures_to_verify: &mut Vec<SignaturesToVerify>,
-    total_identities: u32,
-    mining_bf: u32,
-    initial_difficulty: u32,
-    epochs_with_initial_difficulty: u32,
-) -> Result<(), BlockError> {
-    let block_epoch = block.block_header.beacon.checkpoint;
-    let candidate_prev_block = block.block_header.beacon.hash_prev_block;
-    if block_epoch != current_epoch {
-        return Err(BlockError::CandidateFromDifferentEpoch {
-            block_epoch,
-            current_epoch,
-        });
-    }
-    if candidate_prev_block != chain_prev_block {
-        return Err(BlockError::PreviousHashMismatch {
-            block_hash: candidate_prev_block,
-            our_hash: chain_prev_block,
-        });
-    }
-
-    let (target_hash, _) = calculate_randpoe_threshold(
-        total_identities,
-        mining_bf,
-        current_epoch,
-        initial_difficulty,
-        epochs_with_initial_difficulty,
-    );
-    add_block_vrf_signature_to_verify(
-        signatures_to_verify,
-        &block.block_header.proof,
-        vrf_input,
-        target_hash,
-    );
-
-    Ok(())
 }
 
 /// Validate a standalone transaction received from the network
@@ -2376,11 +2328,7 @@ pub fn verify_signatures(
 
 #[cfg(test)]
 mod tests {
-    use witnet_data_structures::{
-        chain::{Alpha, SecretKey},
-        radon_error::RadonError,
-    };
-    use witnet_protected::Protected;
+    use witnet_data_structures::{chain::Alpha, radon_error::RadonError};
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
     use super::*;
@@ -3232,49 +3180,5 @@ mod tests {
         assert_eq!(a.slot(&h1), 1);
         assert_eq!(a.slot(&h2), 1);
         assert_eq!(a.slot(&h3), 2);
-    }
-
-    #[test]
-    fn calling_validate_candidate_and_then_verify_signatures_returns_block_vrf_hash() {
-        let vrf = &mut VrfCtx::secp256k1().unwrap();
-        let secp = &CryptoEngine::new();
-        let mut block = Block {
-            block_header: Default::default(),
-            block_sig: Default::default(),
-            txns: Default::default(),
-        };
-        let secret_key = SecretKey {
-            bytes: Protected::from(vec![0x44; 32]),
-        };
-        let vrf_input = CheckpointVRF {
-            checkpoint: block.block_header.beacon.checkpoint,
-            hash_prev_vrf: block.block_header.beacon.hash_prev_block,
-        };
-        block.block_header.proof =
-            BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-        let vrf_hash = block.block_header.proof.verify(vrf, vrf_input).unwrap();
-
-        let current_epoch = 0;
-        let prev_block_hash = Hash::default();
-        let mut signatures_to_verify = vec![];
-        let total_identities = 1;
-        let mining_bf = 1;
-        let res = validate_candidate(
-            &block,
-            current_epoch,
-            prev_block_hash,
-            vrf_input,
-            &mut signatures_to_verify,
-            total_identities,
-            mining_bf,
-            0,
-            0,
-        );
-        assert_eq!(res, Ok(()));
-        assert_eq!(signatures_to_verify.len(), 1);
-
-        let vrf_hashes = verify_signatures(signatures_to_verify, vrf, secp).unwrap();
-        assert_eq!(vrf_hashes.len(), 1);
-        assert_eq!(vrf_hashes[0], vrf_hash);
     }
 }
