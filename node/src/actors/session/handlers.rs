@@ -4,6 +4,7 @@ use actix::{
     io::WriteHandler, ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler,
     StreamHandler, SystemService, WrapFuture,
 };
+use failure::Fail;
 use futures::future;
 
 use witnet_data_structures::{
@@ -34,6 +35,34 @@ use crate::actors::{
     sessions_manager::SessionsManager,
 };
 use witnet_util::timestamp::get_timestamp;
+
+#[derive(Debug, Fail)]
+enum HandshakeError {
+    #[fail(
+        display = "Received beacon is behind our beacon. Current beacon: {:?}, received beacon: {:?}",
+        current_beacon, received_beacon
+    )]
+    PeerBeaconOld {
+        current_beacon: LastBeacon,
+        received_beacon: LastBeacon,
+    },
+    #[fail(
+        display = "Received beacon is on the same epoch but different block hash. Current beacon: {:?}, received beacon: {:?}",
+        current_beacon, received_beacon
+    )]
+    PeerBeaconDifferentBlockHash {
+        current_beacon: LastBeacon,
+        received_beacon: LastBeacon,
+    },
+    #[fail(
+        display = "Their timestamp is different from ours ({:+} seconds), current timestamp: {}",
+        timestamp_diff, current_ts
+    )]
+    DifferentTimestamp {
+        current_ts: i64,
+        timestamp_diff: i64,
+    },
+}
 
 /// Implement WriteHandler for Session
 impl WriteHandler<Error> for Session {}
@@ -104,37 +133,22 @@ impl StreamHandler<BytesMut, Error> for Session {
                     //   HANDSHAKE    //
                     ////////////////////
                     // Handle Version message
-                    (
-                        _,
-                        SessionStatus::Unconsolidated,
-                        Command::Version(Version {
-                            sender_address,
-                            timestamp,
-                            ..
-                        }),
-                    ) => {
-                        let received_ts = timestamp;
+                    (_, SessionStatus::Unconsolidated, Command::Version(command_version)) => {
                         let current_ts = get_timestamp();
+                        match handshake_version(self, &command_version, current_ts) {
+                            Ok(msgs) => {
+                                for msg in msgs {
+                                    self.send_message(msg);
+                                }
 
-                        if self.handshake_max_ts_diff != 0
-                            && (current_ts - received_ts).abs() > self.handshake_max_ts_diff
-                        {
-                            log::warn!(
-                                "Dropping peer because their timestamp is different from ours\
-                                 ({:+} seconds), current timestamp: {}",
-                                (received_ts - current_ts),
-                                current_ts,
-                            );
-
-                            // Stop this session
-                            ctx.stop();
-                        } else {
-                            let msgs = handshake_version(self, &sender_address);
-                            for msg in msgs {
-                                self.send_message(msg);
+                                try_consolidate_session(self, ctx);
                             }
+                            Err(err) => {
+                                log::warn!("Dropping peer {}: {}", self.remote_addr, err);
 
-                            try_consolidate_session(self, ctx);
+                                // Stop this session
+                                ctx.stop();
+                            }
                         }
                     }
                     (_, SessionStatus::Unconsolidated, Command::Verack(_)) => {
@@ -575,16 +589,75 @@ fn handshake_verack(session: &mut Session) {
     flags.verack_rx = true;
 }
 
+fn check_beacon_compatibility(
+    current_beacon: &LastBeacon,
+    received_beacon: &LastBeacon,
+) -> Result<(), HandshakeError> {
+    match current_beacon
+        .highest_block_checkpoint
+        .checkpoint
+        .cmp(&received_beacon.highest_block_checkpoint.checkpoint)
+    {
+        // current_checkpoint < received_checkpoint: received beacon is ahead of us
+        Ordering::Less => Ok(()),
+        // current_checkpoint > received_checkpoint: received beacon is behind us
+        Ordering::Greater => Err(HandshakeError::PeerBeaconOld {
+            current_beacon: current_beacon.clone(),
+            received_beacon: received_beacon.clone(),
+        }),
+        // current_checkpoint == received_checkpoint
+        Ordering::Equal => {
+            if current_beacon.highest_block_checkpoint.hash_prev_block
+                == received_beacon.highest_block_checkpoint.hash_prev_block
+            {
+                // Beacons are equal
+                Ok(())
+            } else {
+                Err(HandshakeError::PeerBeaconDifferentBlockHash {
+                    current_beacon: current_beacon.clone(),
+                    received_beacon: received_beacon.clone(),
+                })
+            }
+        }
+    }
+}
+
 /// Function called when Version message is received
-fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<WitnetMessage> {
+fn handshake_version(
+    session: &mut Session,
+    command_version: &Version,
+    current_ts: i64,
+) -> Result<Vec<WitnetMessage>, HandshakeError> {
+    // Check timestamp drift
+    let received_ts = command_version.timestamp;
+    if session.handshake_max_ts_diff != 0
+        && (current_ts - received_ts).abs() > session.handshake_max_ts_diff
+    {
+        return Err(HandshakeError::DifferentTimestamp {
+            current_ts,
+            timestamp_diff: received_ts - current_ts,
+        });
+    }
+
+    // Check beacon compatibility
+    let current_beacon = &session.last_beacon;
+    let received_beacon = &command_version.beacon;
+
+    match session.session_type {
+        SessionType::Outbound | SessionType::Feeler => {
+            check_beacon_compatibility(current_beacon, received_beacon)?;
+        }
+        // Do not check beacon for inbound peers
+        SessionType::Inbound => {}
+    }
+
     let flags = &mut session.handshake_flags;
 
     if flags.version_rx {
         log::debug!("Version message already received");
     }
 
-    // Placeholder for version fields verification
-    session.remote_sender_addr = Some(from_address(sender_address));
+    session.remote_sender_addr = Some(from_address(&command_version.sender_address));
 
     // Set version_rx flag, indicating reception of a version message from the peer
     flags.version_rx = true;
@@ -606,7 +679,7 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
         responses.push(version);
     }
 
-    responses
+    Ok(responses)
 }
 
 fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
