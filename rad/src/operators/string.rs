@@ -115,6 +115,10 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
         .unwrap_or(Ok(temp_def))
 }
 
+/// Converts a JSON value (`json::JsonValue`) into a CBOR value (`serde_cbor::value::Value`).
+/// Some conversions are totally straightforward, but some others  need some more logic (e.g.
+/// telling apart integers from floats).
+#[allow(clippy::cast_possible_truncation)]
 fn json_to_cbor(value: &json::JsonValue) -> Value {
     match value {
         json::JsonValue::Array(value) => Value::Array(value.iter().map(json_to_cbor).collect()),
@@ -126,8 +130,19 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
             Value::Map(entries)
         }
         json::JsonValue::Short(value) => Value::Text(String::from(value.as_str())),
+        json::JsonValue::Number(value) => {
+            let (_, _, exponent) = value.as_parts();
+            let floating = f64::from(*value);
+            // Cast the float into an integer if it has no fractional part and its value will fit
+            // into the range of `i128` (38 is the biggest power of 10 that `i128` can safely hold)
+            if floating.fract() == 0.0 && exponent.abs() < 38 {
+                // This cast is assumed to be safe as per the previous guard
+                Value::Integer(floating as i128)
+            } else {
+                Value::Float(floating)
+            }
+        }
         json::JsonValue::String(value) => Value::Text(String::from(value.as_str())),
-        json::JsonValue::Number(value) => Value::Float((*value).into()),
         _ => Value::Null,
     }
 }
@@ -177,9 +192,9 @@ mod tests {
         let output = parse_json_array(&json_array).unwrap();
 
         let expected_output = RadonArray::from(vec![
-            RadonTypes::Float(RadonFloat::from(1)),
-            RadonTypes::Float(RadonFloat::from(2)),
-            RadonTypes::Float(RadonFloat::from(3)),
+            RadonTypes::Integer(RadonInteger::from(1)),
+            RadonTypes::Integer(RadonInteger::from(2)),
+            RadonTypes::Integer(RadonInteger::from(3)),
         ]);
 
         assert_eq!(output, expected_output);
@@ -573,5 +588,50 @@ mod tests {
             result.unwrap(),
             RadonTypes::from(RadonString::from("default".to_string()))
         );
+    }
+
+    #[test]
+    fn test_json_numbers_to_cbor_numbers() {
+        use json::{number::Number, JsonValue};
+
+        let json = JsonValue::Number(Number::from(2.0));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Integer(2);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Number(Number::from(20.0));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Integer(20);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Number(Number::from(2_000.0));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Integer(2_000);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Number(Number::from(2_000_000.0));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Integer(2_000_000);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Number(Number::from(std::f64::consts::PI));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Float(std::f64::consts::PI);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Number(Number::from(1e100));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Float(1e100);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Number(Number::from(4.0));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Integer(4);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Number(Number::from(4.1));
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Float(4.1);
+        assert_eq!(resulting_cbor, expected_cbor);
     }
 }
