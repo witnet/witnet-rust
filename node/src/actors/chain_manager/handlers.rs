@@ -7,11 +7,12 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
-        Hash, Hashable, NodeStats, PublicKeyHash, Reputation, UtxoInfo,
+        get_utxo_info, Bn256PublicKey, ChainState, CheckpointBeacon, DataRequestInfo,
+        DataRequestReport, Epoch, Hash, Hashable, NodeStats, PublicKeyHash, Reputation, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
+    types::LastBeacon,
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{compare_block_candidates, validate_rad_request, VrfSlots};
@@ -28,14 +29,13 @@ use crate::{
             GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
             GetMempoolResult, GetNodeStats, GetReputation, GetReputationAll, GetReputationStatus,
             GetReputationStatusResult, GetState, GetUtxoInfo, PeersBeacons, SendLastBeacon,
-            SessionUnitResult, TryMineBlock,
+            SessionUnitResult, SetLastBeacon, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
     storage_mngr,
     utils::mode_consensus,
 };
-use witnet_data_structures::chain::Bn256PublicKey;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -123,7 +123,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             StateMachine::WaitingConsensus => {
                 if let Some(chain_info) = &self.chain_state.chain_info {
                     // Send last beacon because otherwise the network cannot bootstrap
-                    SessionsManager::from_registry().do_send(Broadcast {
+                    let sessions_manager = SessionsManager::from_registry();
+                    sessions_manager.do_send(SetLastBeacon {
+                        beacon: LastBeacon {
+                            highest_block_checkpoint: chain_info.highest_block_checkpoint,
+                        },
+                    });
+                    sessions_manager.do_send(Broadcast {
                         command: SendLastBeacon {
                             beacon: chain_info.highest_block_checkpoint,
                         },
@@ -259,16 +265,21 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             }
                         }
 
-                        // Send last beacon in state 3 on block consolidation
-                        SessionsManager::from_registry().do_send(Broadcast {
-                            command: SendLastBeacon {
-                                beacon: self
-                                    .chain_state
-                                    .chain_info
-                                    .as_ref()
-                                    .unwrap()
-                                    .highest_block_checkpoint,
+                        // Send last beacon on block consolidation
+                        let sessions_manager = SessionsManager::from_registry();
+                        let beacon = self
+                            .chain_state
+                            .chain_info
+                            .as_ref()
+                            .unwrap()
+                            .highest_block_checkpoint;
+                        sessions_manager.do_send(SetLastBeacon {
+                            beacon: LastBeacon {
+                                highest_block_checkpoint: beacon,
                             },
+                        });
+                        sessions_manager.do_send(Broadcast {
+                            command: SendLastBeacon { beacon },
                             only_inbound: true,
                         });
 
