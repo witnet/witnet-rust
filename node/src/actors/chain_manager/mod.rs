@@ -1215,8 +1215,11 @@ fn update_pools(
     for co_tx in &block.txns.commit_txns {
         if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
             log::error!("Error processing commit transaction:\n{}", e);
-        } else if Some(co_tx.body.proof.proof.pkh()) == own_pkh {
-            node_stats.commits_count += 1;
+        } else {
+            if Some(co_tx.body.proof.proof.pkh()) == own_pkh {
+                node_stats.commits_count += 1;
+            }
+            transactions_pool.remove_inputs(&co_tx.body.collateral);
         }
     }
 

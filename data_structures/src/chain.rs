@@ -1413,6 +1413,8 @@ pub struct TransactionsPool {
     // A hashset of recently received transactions hashes
     // Used to avoid validating the same transaction more than once
     pending_transactions: HashSet<Hash>,
+    // Map to avoid double spending issues
+    output_pointer_map: HashMap<OutputPointer, Vec<Hash>>,
 }
 
 impl TransactionsPool {
@@ -1447,6 +1449,7 @@ impl TransactionsPool {
             sorted_vt_index: BTreeSet::new(),
             sorted_dr_index: BTreeSet::new(),
             pending_transactions: HashSet::new(),
+            output_pointer_map: HashMap::with_capacity(capacity),
         }
     }
 
@@ -1664,6 +1667,9 @@ impl TransactionsPool {
             .unwrap_or(Ok(false))
     }
 
+    /// Remove a value transfer transaction from the pool and make sure that other transactions
+    /// that may try to spend the same UTXOs are also removed.
+    ///
     /// Returns an `Option` with the value transfer transaction for the specified hash or `None` if not exist.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
@@ -1686,6 +1692,18 @@ impl TransactionsPool {
     /// assert!(!pool.vt_contains(&transaction.hash()));
     /// ```
     pub fn vt_remove(&mut self, key: &Hash) -> Option<VTTransaction> {
+        let transaction = self.vt_remove_inner(key);
+
+        if let Some(transaction) = &transaction {
+            self.remove_inputs(&transaction.body.inputs);
+        }
+
+        transaction
+    }
+
+    /// Remove a value transfer transaction from the pool without any further guarantee
+    /// about removing other transactions that may try to spend the same UTXOs.
+    fn vt_remove_inner(&mut self, key: &Hash) -> Option<VTTransaction> {
         self.vt_transactions
             .remove(key)
             .map(|(weight, transaction)| {
@@ -1694,6 +1712,9 @@ impl TransactionsPool {
             })
     }
 
+    /// Remove a data request transaction from the pool and make sure that other transactions
+    /// that may try to spend the same UTXOs are also removed.
+    ///
     /// Returns an `Option` with the data request transaction for the specified hash or `None` if not exist.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
@@ -1716,12 +1737,36 @@ impl TransactionsPool {
     /// assert!(!pool.dr_contains(&transaction.hash()));
     /// ```
     pub fn dr_remove(&mut self, key: &Hash) -> Option<DRTransaction> {
+        let transaction = self.dr_remove_inner(key);
+
+        if let Some(transaction) = &transaction {
+            self.remove_inputs(&transaction.body.inputs);
+        }
+
+        transaction
+    }
+
+    /// Remove a data request transaction from the pool without any further guarantee
+    /// about removing other transactions that may try to spend the same UTXOs.
+    fn dr_remove_inner(&mut self, key: &Hash) -> Option<DRTransaction> {
         self.dr_transactions
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_dr_index.remove(&(weight, *key));
                 transaction
             })
+    }
+
+    /// Remove all the transactions with the specified inputs
+    pub fn remove_inputs(&mut self, inputs: &[Input]) {
+        for input in inputs.iter() {
+            if let Some(hashes) = self.output_pointer_map.remove(&input.output_pointer) {
+                for hash in hashes.iter() {
+                    self.vt_remove_inner(hash);
+                    self.dr_remove_inner(hash);
+                }
+            }
+        }
     }
 
     /// Returns a tuple with a vector of commit transactions that achieve the minimum specify
@@ -1843,12 +1888,26 @@ impl TransactionsPool {
                 let weight = f64::from(vt_tx.weight());
                 let priority = OrderedFloat(fee as f64 / weight);
 
+                for input in &vt_tx.body.inputs {
+                    self.output_pointer_map
+                        .entry(input.output_pointer.clone())
+                        .or_insert_with(Vec::new)
+                        .push(vt_tx.hash());
+                }
+
                 self.vt_transactions.insert(key, (priority, vt_tx));
                 self.sorted_vt_index.insert((priority, key));
             }
             Transaction::DataRequest(dr_tx) => {
                 let weight = f64::from(dr_tx.weight());
                 let priority = OrderedFloat(fee as f64 / weight);
+
+                for input in &dr_tx.body.inputs {
+                    self.output_pointer_map
+                        .entry(input.output_pointer.clone())
+                        .or_insert_with(Vec::new)
+                        .push(dr_tx.hash());
+                }
 
                 self.dr_transactions.insert(key, (priority, dr_tx));
                 self.sorted_dr_index.insert((priority, key));
@@ -3700,6 +3759,130 @@ mod tests {
         });
 
         assert_eq!(transactions_pool.contains(&transaction), Ok(false));
+    }
+
+    #[test]
+    fn transactions_pool_remove_all_transactions_with_same_output_pointer() {
+        let input = Input::default();
+        let vt1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input.clone()], vec![]),
+            vec![],
+        ));
+        let vt2 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input.clone()], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
+        assert_ne!(vt1.hash(), vt2.hash());
+
+        let dr1 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(vec![input.clone()], vec![], DataRequestOutput::default()),
+            vec![],
+        ));
+        let dr2 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(
+                vec![input],
+                vec![ValueTransferOutput::default()],
+                DataRequestOutput::default(),
+            ),
+            vec![],
+        ));
+        assert_ne!(dr1.hash(), dr2.hash());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(vt1.clone(), 1);
+        transactions_pool.insert(vt2.clone(), 1);
+        let t = transactions_pool.vt_remove(&vt1.hash()).unwrap();
+        assert_eq!(Transaction::ValueTransfer(t), vt1);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(!transactions_pool.contains(&vt2).unwrap());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(vt1.clone(), 1);
+        transactions_pool.insert(dr2.clone(), 1);
+        let t = transactions_pool.vt_remove(&vt1.hash()).unwrap();
+        assert_eq!(Transaction::ValueTransfer(t), vt1);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(!transactions_pool.contains(&dr2).unwrap());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(dr1.clone(), 1);
+        transactions_pool.insert(dr2.clone(), 1);
+        let t = transactions_pool.dr_remove(&dr1.hash()).unwrap();
+        assert_eq!(Transaction::DataRequest(t), dr1);
+        assert!(!transactions_pool.contains(&dr1).unwrap());
+        assert!(!transactions_pool.contains(&dr2).unwrap());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(dr1.clone(), 1);
+        transactions_pool.insert(vt2.clone(), 1);
+        let t = transactions_pool.dr_remove(&dr1.hash()).unwrap();
+        assert_eq!(Transaction::DataRequest(t), dr1);
+        assert!(!transactions_pool.contains(&dr1).unwrap());
+        assert!(!transactions_pool.contains(&vt2).unwrap());
+    }
+
+    #[test]
+    fn transactions_pool_not_remove_transaction_with_different_output_pointer() {
+        let input = Input::default();
+        let input2 = Input::new(OutputPointer {
+            output_index: 1,
+            transaction_id: Hash::default(),
+        });
+        let vt1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input.clone()], vec![]),
+            vec![],
+        ));
+        let vt2 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input2.clone()], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
+        assert_ne!(vt1.hash(), vt2.hash());
+
+        let dr1 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            vec![],
+        ));
+        let dr2 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(
+                vec![input2],
+                vec![ValueTransferOutput::default()],
+                DataRequestOutput::default(),
+            ),
+            vec![],
+        ));
+        assert_ne!(dr1.hash(), dr2.hash());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(vt1.clone(), 1);
+        transactions_pool.insert(vt2.clone(), 1);
+        let t = transactions_pool.vt_remove(&vt1.hash()).unwrap();
+        assert_eq!(Transaction::ValueTransfer(t), vt1);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(transactions_pool.contains(&vt2).unwrap());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(vt1.clone(), 1);
+        transactions_pool.insert(dr2.clone(), 1);
+        let t = transactions_pool.vt_remove(&vt1.hash()).unwrap();
+        assert_eq!(Transaction::ValueTransfer(t), vt1);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(transactions_pool.contains(&dr2).unwrap());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(dr1.clone(), 1);
+        transactions_pool.insert(dr2.clone(), 1);
+        let t = transactions_pool.dr_remove(&dr1.hash()).unwrap();
+        assert_eq!(Transaction::DataRequest(t), dr1);
+        assert!(!transactions_pool.contains(&dr1).unwrap());
+        assert!(transactions_pool.contains(&dr2).unwrap());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(dr1.clone(), 1);
+        transactions_pool.insert(vt2.clone(), 1);
+        let t = transactions_pool.dr_remove(&dr1.hash()).unwrap();
+        assert_eq!(Transaction::DataRequest(t), dr1);
+        assert!(!transactions_pool.contains(&dr1).unwrap());
+        assert!(transactions_pool.contains(&vt2).unwrap());
     }
 
     #[test]
