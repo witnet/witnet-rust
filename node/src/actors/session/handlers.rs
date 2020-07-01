@@ -9,7 +9,9 @@ use futures::future;
 
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem, SuperBlockVote},
+    chain::{
+        Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, SuperBlockVote,
+    },
     proto::ProtobufConvert,
     transaction::Transaction,
     types::{
@@ -52,6 +54,14 @@ enum HandshakeError {
     )]
     PeerBeaconDifferentBlockHash {
         current_beacon: LastBeacon,
+        received_beacon: LastBeacon,
+    },
+    #[fail(
+        display = "Their epoch is different from ours. Current epoch: {}, received beacon: {:?}",
+        current_epoch, received_beacon
+    )]
+    DifferentEpoch {
+        current_epoch: Epoch,
         received_beacon: LastBeacon,
     },
     #[fail(
@@ -135,7 +145,12 @@ impl StreamHandler<BytesMut, Error> for Session {
                     // Handle Version message
                     (_, SessionStatus::Unconsolidated, Command::Version(command_version)) => {
                         let current_ts = get_timestamp();
-                        match handshake_version(self, &command_version, current_ts) {
+                        match handshake_version(
+                            self,
+                            &command_version,
+                            current_ts,
+                            self.current_epoch,
+                        ) {
                             Ok(msgs) => {
                                 for msg in msgs {
                                     self.send_message(msg);
@@ -592,7 +607,15 @@ fn handshake_verack(session: &mut Session) {
 fn check_beacon_compatibility(
     current_beacon: &LastBeacon,
     received_beacon: &LastBeacon,
+    current_epoch: Epoch,
 ) -> Result<(), HandshakeError> {
+    if received_beacon.highest_block_checkpoint.checkpoint != current_epoch {
+        return Err(HandshakeError::DifferentEpoch {
+            current_epoch,
+            received_beacon: received_beacon.clone(),
+        });
+    }
+
     match current_beacon
         .highest_block_checkpoint
         .checkpoint
@@ -627,6 +650,7 @@ fn handshake_version(
     session: &mut Session,
     command_version: &Version,
     current_ts: i64,
+    current_epoch: Epoch,
 ) -> Result<Vec<WitnetMessage>, HandshakeError> {
     // Check timestamp drift
     let received_ts = command_version.timestamp;
@@ -645,7 +669,7 @@ fn handshake_version(
 
     match session.session_type {
         SessionType::Outbound | SessionType::Feeler => {
-            check_beacon_compatibility(current_beacon, received_beacon)?;
+            check_beacon_compatibility(current_beacon, received_beacon, current_epoch)?;
         }
         // Do not check beacon for inbound peers
         SessionType::Inbound => {}
