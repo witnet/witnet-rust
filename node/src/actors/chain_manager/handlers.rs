@@ -123,11 +123,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     sessions_manager.do_send(SetLastBeacon {
                         beacon: LastBeacon {
                             highest_block_checkpoint: chain_info.highest_block_checkpoint,
+                            highest_superblock_checkpoint: self.get_superblock_beacon(),
                         },
                     });
                     sessions_manager.do_send(Broadcast {
                         command: SendLastBeacon {
                             beacon: chain_info.highest_block_checkpoint,
+                            superblock_beacon: self.get_superblock_beacon(),
                         },
                         only_inbound: true,
                     });
@@ -190,13 +192,18 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             .as_ref()
                             .unwrap()
                             .highest_block_checkpoint;
+                        let superblock_beacon = self.get_superblock_beacon();
                         sessions_manager.do_send(SetLastBeacon {
                             beacon: LastBeacon {
                                 highest_block_checkpoint: beacon,
+                                highest_superblock_checkpoint: superblock_beacon,
                             },
                         });
                         sessions_manager.do_send(Broadcast {
-                            command: SendLastBeacon { beacon },
+                            command: SendLastBeacon {
+                                beacon,
+                                superblock_beacon: self.get_superblock_beacon(),
+                            },
                             only_inbound: true,
                         });
 

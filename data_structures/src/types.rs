@@ -56,7 +56,12 @@ impl fmt::Display for Command {
             Command::InventoryRequest(_) => f.write_str(&"INVENTORY_REQUEST".to_string()),
             Command::LastBeacon(LastBeacon {
                 highest_block_checkpoint: h,
-            }) => write!(f, "LAST_BEACON: #{}: {}", h.checkpoint, h.hash_prev_block),
+                highest_superblock_checkpoint: s,
+            }) => write!(
+                f,
+                "LAST_BEACON: Block: #{}: {} Superblock: #{}: {}",
+                h.checkpoint, h.hash_prev_block, s.checkpoint, s.hash_prev_block
+            ),
             Command::Transaction(tx) => {
                 match tx {
                     Transaction::Commit(_) => f.write_str(&"COMMIT_TRANSACTION".to_string())?,
@@ -135,6 +140,7 @@ pub struct InventoryRequest {
 #[protobuf_convert(pb = "witnet::LastBeacon")]
 pub struct LastBeacon {
     pub highest_block_checkpoint: CheckpointBeacon,
+    pub highest_superblock_checkpoint: CheckpointBeacon,
 }
 
 ///////////////////////////////////////////////////////////

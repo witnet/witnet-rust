@@ -143,11 +143,16 @@ impl Message {
     }
 
     /// Function to build LastBeacon messages
-    pub fn build_last_beacon(magic: u16, highest_block_checkpoint: CheckpointBeacon) -> Message {
+    pub fn build_last_beacon(
+        magic: u16,
+        highest_block_checkpoint: CheckpointBeacon,
+        highest_superblock_checkpoint: CheckpointBeacon,
+    ) -> Message {
         Message::build_message(
             magic,
             Command::LastBeacon(LastBeacon {
                 highest_block_checkpoint,
+                highest_superblock_checkpoint,
             }),
         )
     }

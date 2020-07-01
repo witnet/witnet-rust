@@ -216,6 +216,7 @@ impl ChainManager {
                 SessionsManager::from_registry().do_send(SetLastBeacon {
                     beacon: LastBeacon {
                         highest_block_checkpoint: chain_info.highest_block_checkpoint,
+                        highest_superblock_checkpoint: act.get_superblock_beacon(),
                     },
                 });
 

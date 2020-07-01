@@ -89,6 +89,7 @@ message InventoryRequest {
 
 message LastBeacon {
     CheckpointBeacon highest_block_checkpoint = 1;
+    CheckpointBeacon highest_superblock_checkpoint = 2;
 }
 
 message OutputPointer {

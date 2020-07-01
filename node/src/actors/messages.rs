@@ -694,6 +694,8 @@ impl fmt::Display for SendInventoryItem {
 pub struct SendLastBeacon {
     /// The highest block checkpoint
     pub beacon: CheckpointBeacon,
+    /// The highest superblock checkpoint
+    pub superblock_beacon: CheckpointBeacon,
 }
 
 impl fmt::Display for SendLastBeacon {

@@ -1,5 +1,6 @@
 use crate::chain::{
-    BlockHeader, Bn256PublicKey, Hash, Hashable, PublicKeyHash, SuperBlock, SuperBlockVote,
+    BlockHeader, Bn256PublicKey, CheckpointBeacon, Hash, Hashable, PublicKeyHash, SuperBlock,
+    SuperBlockVote,
 };
 use std::collections::HashSet;
 
@@ -181,6 +182,15 @@ impl SuperBlockState {
                 Some(superblock)
             }
         }
+    }
+
+    /// Returns an option with the last superblock hash and index if none of these fields is None.
+    /// else, returns None
+    pub fn get_beacon(&self) -> Option<CheckpointBeacon> {
+        Some(CheckpointBeacon {
+            checkpoint: self.current_superblock_index?,
+            hash_prev_block: self.current_superblock_hash?,
+        })
     }
 }
 
@@ -709,5 +719,56 @@ mod tests {
 
         assert_ne!(hashes, compressed_hashes);
         assert_eq!(hashes, expected_hashes);
+    }
+    #[test]
+    fn test_get_beacon_1() {
+        let superblock_state = SuperBlockState::default();
+        let beacon = superblock_state.get_beacon();
+
+        assert!(beacon.is_none());
+    }
+
+    #[test]
+    fn test_get_beacon_2() {
+        let superblock_state = SuperBlockState {
+            current_ars_identities: Some(HashSet::default()),
+            current_superblock_hash: Some(Hash::default()),
+            current_superblock_index: None,
+            // Set of ARS identities that can currently send superblock votes
+            previous_ars_identities: Some(HashSet::default()),
+            // Set of received superblock votes
+            // This is cleared when we try to create a new superblock
+            received_superblocks: HashSet::default(),
+            // Set of votes that agree with current_superblock_hash
+            // This is cleared when we try to create a new superblock
+            votes_on_local_superlock: HashSet::default(),
+            // The last ARS ordered keys
+            previous_ars_ordered_keys: vec![],
+        };
+        let beacon = superblock_state.get_beacon();
+
+        assert!(beacon.is_none());
+    }
+
+    #[test]
+    fn test_get_beacon_3() {
+        let superblock_state = SuperBlockState {
+            current_ars_identities: Some(HashSet::default()),
+            current_superblock_hash: Some(Hash::default()),
+            current_superblock_index: Some(1),
+            // Set of ARS identities that can currently send superblock votes
+            previous_ars_identities: Some(HashSet::default()),
+            // Set of received superblock votes
+            // This is cleared when we try to create a new superblock
+            received_superblocks: HashSet::default(),
+            // Set of votes that agree with current_superblock_hash
+            // This is cleared when we try to create a new superblock
+            votes_on_local_superlock: HashSet::default(),
+            // The last ARS ordered keys
+            previous_ars_ordered_keys: vec![],
+        };
+        let beacon = superblock_state.get_beacon();
+
+        assert!(beacon.is_some());
     }
 }

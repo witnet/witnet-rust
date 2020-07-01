@@ -254,18 +254,30 @@ impl StreamHandler<BytesMut, Error> for Session {
                         SessionStatus::Consolidated,
                         Command::LastBeacon(LastBeacon {
                             highest_block_checkpoint,
+                            highest_superblock_checkpoint,
                         }),
                     ) => {
-                        session_last_beacon_inbound(self, ctx, highest_block_checkpoint);
+                        session_last_beacon_inbound(
+                            self,
+                            ctx,
+                            highest_block_checkpoint,
+                            highest_superblock_checkpoint,
+                        );
                     }
                     (
                         SessionType::Outbound,
                         SessionStatus::Consolidated,
                         Command::LastBeacon(LastBeacon {
                             highest_block_checkpoint,
+                            highest_superblock_checkpoint,
                         }),
                     ) => {
-                        session_last_beacon_outbound(self, ctx, highest_block_checkpoint);
+                        session_last_beacon_outbound(
+                            self,
+                            ctx,
+                            highest_block_checkpoint,
+                            highest_superblock_checkpoint,
+                        );
                     }
 
                     ////////////////////////////
@@ -349,9 +361,16 @@ impl Handler<SendInventoryItem> for Session {
 impl Handler<SendLastBeacon> for Session {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, SendLastBeacon { beacon }: SendLastBeacon, _ctx: &mut Context<Self>) {
+    fn handle(
+        &mut self,
+        SendLastBeacon {
+            beacon,
+            superblock_beacon,
+        }: SendLastBeacon,
+        _ctx: &mut Context<Self>,
+    ) {
         log::trace!("Sending LastBeacon to peer at {:?}", self.remote_addr);
-        send_last_beacon(self, beacon);
+        send_last_beacon(self, beacon, superblock_beacon);
     }
 }
 
@@ -729,6 +748,7 @@ fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
     }
 }
 
+// TODO: handle superblock_beacon
 fn session_last_beacon_inbound(
     session: &Session,
     ctx: &mut Context<Session>,
@@ -736,6 +756,7 @@ fn session_last_beacon_inbound(
         checkpoint: received_checkpoint,
         ..
     }: CheckpointBeacon,
+    _superblock_beacon: CheckpointBeacon,
 ) {
     // TODO: LastBeacon on inbound peers?
     // Get ChainManager address from registry
@@ -808,10 +829,12 @@ fn session_last_beacon_inbound(
         .wait(ctx);
 }
 
+// FIXME(#1366): handle superblock_beacon.
 fn session_last_beacon_outbound(
     session: &Session,
     _ctx: &mut Context<Session>,
     beacon: CheckpointBeacon,
+    _superblock_beacon: CheckpointBeacon,
 ) {
     SessionsManager::from_registry().do_send(PeerBeacon {
         address: session.remote_addr,
@@ -819,8 +842,14 @@ fn session_last_beacon_outbound(
     })
 }
 
-fn send_last_beacon(session: &mut Session, beacon: CheckpointBeacon) {
-    let beacon_msg = WitnetMessage::build_last_beacon(session.magic_number, beacon);
+// FIXME(#1366): handle superblock_beacon.
+fn send_last_beacon(
+    session: &mut Session,
+    beacon: CheckpointBeacon,
+    superblock_beacon: CheckpointBeacon,
+) {
+    let beacon_msg =
+        WitnetMessage::build_last_beacon(session.magic_number, beacon, superblock_beacon);
     // Send LastBeacon msg
     session.send_message(beacon_msg);
 }
@@ -859,6 +888,10 @@ mod tests {
                 hash_prev_block: genesis_hash,
                 checkpoint: 0,
             },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
+            },
         };
         let received_beacon = current_beacon.clone();
         // Before epoch 0, the epoch is set to 0
@@ -879,6 +912,10 @@ mod tests {
             .unwrap();
         let current_beacon = LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
                 hash_prev_block: genesis_hash,
                 checkpoint: 0,
             },
@@ -908,9 +945,17 @@ mod tests {
                 hash_prev_block: hash_block_1,
                 checkpoint: 1,
             },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
+            },
         };
         let received_beacon = LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
                 hash_prev_block: genesis_hash,
                 checkpoint: 0,
             },
@@ -940,16 +985,27 @@ mod tests {
         let hash_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
             .parse()
             .unwrap();
+        let genesis_hash = "1111111111111111111111111111111111111111111111111111111111111111"
+            .parse()
+            .unwrap();
         let current_beacon = LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
                 hash_prev_block: hash_a,
                 checkpoint: 1,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
             },
         };
         let received_beacon = LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
                 hash_prev_block: hash_b,
                 checkpoint: 1,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
             },
         };
         let current_epoch = 1;
