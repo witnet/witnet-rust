@@ -115,7 +115,7 @@ fn p2p_peers_remove_from_tried() {
     peers.add_to_tried(address).unwrap();
 
     // Remove address
-    assert_eq!(peers.remove_from_tried(&[address]), vec![address]);
+    assert_eq!(peers.remove_from_tried(&[address], false), vec![address]);
 
     // Get a random address
     let result = peers.get_random_peers(1);
@@ -124,7 +124,7 @@ fn p2p_peers_remove_from_tried() {
     assert_eq!(result.unwrap(), vec![]);
 
     // Remove the same address twice doesn't panic
-    assert_eq!(peers.remove_from_tried(&[address, address]), vec![]);
+    assert_eq!(peers.remove_from_tried(&[address, address], false), vec![]);
 }
 
 #[test]

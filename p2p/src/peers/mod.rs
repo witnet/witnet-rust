@@ -33,8 +33,14 @@ pub struct PeerInfo {
 /// use witnet_p2p::peers::PeerInfo;
 /// use std::{hash::Hash, net::SocketAddr, str::FromStr};
 ///
-/// let peer_1 = PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap());
-/// let peer_2 = PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap());
+/// let peer_1 = PeerInfo {
+///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
+///     timestamp: 0,
+/// };
+/// let peer_2 = PeerInfo {
+///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
+///     timestamp: 1,
+/// };
 ///
 /// assert_eq!(peer_1, peer_2);
 /// ```
@@ -55,10 +61,15 @@ impl PartialEq for PeerInfo {
 /// use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, net::SocketAddr, str::FromStr};
 ///
 /// let mut hash_1 = DefaultHasher::new();
-/// PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap()).hash(&mut hash_1);
+/// PeerInfo {
+///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
+///     timestamp: 0,
+/// }.hash(&mut hash_1);
 /// let mut hash_2 = DefaultHasher::new();
-/// PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap()).hash(&mut hash_2);
-///
+/// PeerInfo {
+///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
+///     timestamp: 1,
+/// }.hash(&mut hash_2);
 /// assert_eq!(hash_1.finish(), hash_2.finish());
 /// ```
 impl Hash for PeerInfo {
@@ -286,9 +297,10 @@ impl Peers {
         Ok(result)
     }
 
-    /// Remove a peer given an address from tried addresses bucket, and put it into the `ice` bucket
+    /// Remove a peer given an address from tried addresses bucket, and optionally put it into the
+    /// `ice` bucket
     /// Returns the removed addresses
-    pub fn remove_from_tried(&mut self, addrs: &[SocketAddr]) -> Vec<SocketAddr> {
+    pub fn remove_from_tried(&mut self, addrs: &[SocketAddr], ice: bool) -> Vec<SocketAddr> {
         addrs
             .iter()
             .filter_map(|address| {
@@ -302,7 +314,10 @@ impl Peers {
                     log::trace!("Removed a tried peer address: \n{}", self);
 
                     self.tried_bucket.remove(&bucket_index).map(|entry| {
-                        self.ice_peer_address(&entry.address);
+                        if ice {
+                            self.ice_peer_address(&entry.address);
+                        }
+
                         entry
                     })
                 } else {

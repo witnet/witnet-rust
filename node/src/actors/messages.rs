@@ -552,6 +552,8 @@ impl Message for AddConsolidatedPeer {
 pub struct RemoveAddressesFromTried {
     /// Address of the peer
     pub addresses: Vec<SocketAddr>,
+    /// Request the removed peer addresses to be iced
+    pub ice: bool,
 }
 
 impl Message for RemoveAddressesFromTried {

@@ -91,8 +91,9 @@ impl ConnectionsManager {
                             address,
                             error
                         );
-                        // Try to evict this address from `tried` buckets
-                        PeersManager::remove_address_from_tried(address);
+                        // Try to evict this address from `tried` buckets, and put them into the
+                        // `ice` bucket instead
+                        PeersManager::remove_address_from_tried(address, true);
 
                         actix::fut::err(())
                     }

@@ -50,7 +50,7 @@ impl Handler<RemoveAddressesFromTried> for PeersManager {
             "Removing the following addresses from `tried` buckets (if present): {:?}",
             msg.addresses
         );
-        Ok(self.peers.remove_from_tried(&msg.addresses))
+        Ok(self.peers.remove_from_tried(&msg.addresses, msg.ice))
     }
 }
 

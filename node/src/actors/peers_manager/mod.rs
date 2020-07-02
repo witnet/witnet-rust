@@ -103,19 +103,21 @@ impl PeersManager {
 
                 // Remove from tried bucket (in case of old address is ok, it will be
                 // added again, in the other case the slot will be free to accept the new one)
-                self.peers.remove_from_tried(&[old_address]);
+                self.peers.remove_from_tried(&[old_address], false);
             }
             // Case peer updated recently ( do nothing )
             _ => {}
         }
     }
 
-    /// Remove a peer address from the `tried` buckets if present.
-    pub fn remove_address_from_tried(address: &SocketAddr) {
+    /// Remove a peer address from the `tried` buckets if present, and optionally ice the removed
+    /// addresses
+    pub fn remove_address_from_tried(address: &SocketAddr, ice: bool) {
         let peers_manager_addr = PeersManager::from_registry();
 
         peers_manager_addr.do_send(RemoveAddressesFromTried {
             addresses: vec![*address],
+            ice,
         });
     }
 
