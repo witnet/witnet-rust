@@ -120,6 +120,10 @@ fn builders_build_version() {
             hash_prev_block: Hash::SHA256([4; 32]),
             checkpoint: 7,
         },
+        highest_superblock_checkpoint: CheckpointBeacon {
+            hash_prev_block: Hash::SHA256([5; 32]),
+            checkpoint: 1,
+        },
     };
     let sender_addr = Address {
         ip: IpAddress::Ipv4 { ip: 3_232_235_777 },

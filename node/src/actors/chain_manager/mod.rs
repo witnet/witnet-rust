@@ -1496,11 +1496,16 @@ fn show_sync_progress(
 #[cfg(test)]
 mod tests {
     use witnet_data_structures::{
-        chain::{KeyedSignature, PublicKey, ValueTransferOutput},
+        chain::{
+            ChainInfo, Environment, KeyedSignature, PartialConsensusConstants, PublicKey,
+            ValueTransferOutput,
+        },
+        superblock::mining_build_superblock,
         transaction::{CommitTransaction, DRTransaction, RevealTransaction},
     };
 
     pub use super::*;
+    use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
 
     #[test]
     fn test_rep_info_update() {
@@ -1601,6 +1606,51 @@ mod tests {
                 truths: 0,
                 lies: 1,
                 errors: 0
+            }
+        );
+    }
+
+    #[test]
+    fn get_superblock_beacon() {
+        let mut chain_manager = ChainManager::default();
+        chain_manager.chain_state.chain_info = Some(ChainInfo {
+            environment: Environment::default(),
+            consensus_constants: consensus_constants_from_partial(
+                &PartialConsensusConstants::default(),
+                &Testnet,
+            ),
+            highest_block_checkpoint: CheckpointBeacon::default(),
+            highest_vrf_output: CheckpointVRF::default(),
+        });
+        let genesis_hash = chain_manager.consensus_constants().genesis_hash;
+
+        assert_eq!(
+            chain_manager.get_superblock_beacon(),
+            CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: genesis_hash,
+            }
+        );
+
+        // build a superblock
+        chain_manager.chain_state.superblock_state.build_superblock(
+            &[BlockHeader::default()],
+            &[],
+            &[],
+            1,
+            genesis_hash,
+        );
+
+        let superblock_hash =
+            mining_build_superblock(&[BlockHeader::default()], &[], 1, genesis_hash)
+                .unwrap()
+                .hash();
+
+        assert_eq!(
+            chain_manager.get_superblock_beacon(),
+            CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: superblock_hash,
             }
         );
     }

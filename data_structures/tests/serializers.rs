@@ -225,6 +225,10 @@ fn message_version_to_bytes() {
             hash_prev_block: Hash::SHA256([4; 32]),
             checkpoint: 7,
         },
+        highest_superblock_checkpoint: CheckpointBeacon {
+            hash_prev_block: Hash::SHA256([5; 32]),
+            checkpoint: 1,
+        },
     };
     let sender_address = Address {
         ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
@@ -248,10 +252,12 @@ fn message_version_to_bytes() {
         magic: 1,
     };
     let expected_buf: Vec<u8> = [
-        8, 1, 18, 95, 10, 93, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192, 168, 1,
-        1, 31, 64, 42, 8, 10, 6, 192, 168, 1, 2, 31, 65, 50, 4, 97, 115, 100, 102, 57, 1, 0, 0, 0,
-        0, 0, 0, 0, 66, 43, 10, 41, 13, 7, 0, 0, 0, 18, 34, 10, 32, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+        8, 1, 18, 139, 1, 10, 136, 1, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192,
+        168, 1, 1, 31, 64, 42, 8, 10, 6, 192, 168, 1, 2, 31, 65, 50, 4, 97, 115, 100, 102, 57, 1,
+        0, 0, 0, 0, 0, 0, 0, 66, 86, 10, 41, 13, 7, 0, 0, 0, 18, 34, 10, 32, 4, 4, 4, 4, 4, 4, 4,
+        4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 18, 41, 13, 1,
+        0, 0, 0, 18, 34, 10, 32, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
     ]
     .to_vec();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
@@ -265,6 +271,10 @@ fn message_version_from_bytes() {
         highest_block_checkpoint: CheckpointBeacon {
             hash_prev_block: Hash::SHA256([4; 32]),
             checkpoint: 7,
+        },
+        highest_superblock_checkpoint: CheckpointBeacon {
+            hash_prev_block: Hash::SHA256([5; 32]),
+            checkpoint: 1,
         },
     };
     let sender_address = Address {
@@ -290,10 +300,12 @@ fn message_version_from_bytes() {
     };
 
     let buf: Vec<u8> = [
-        8, 1, 18, 95, 10, 93, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192, 168, 1,
-        1, 31, 64, 42, 8, 10, 6, 192, 168, 1, 2, 31, 65, 50, 4, 97, 115, 100, 102, 57, 1, 0, 0, 0,
-        0, 0, 0, 0, 66, 43, 10, 41, 13, 7, 0, 0, 0, 18, 34, 10, 32, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+        8, 1, 18, 139, 1, 10, 136, 1, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192,
+        168, 1, 1, 31, 64, 42, 8, 10, 6, 192, 168, 1, 2, 31, 65, 50, 4, 97, 115, 100, 102, 57, 1,
+        0, 0, 0, 0, 0, 0, 0, 66, 86, 10, 41, 13, 7, 0, 0, 0, 18, 34, 10, 32, 4, 4, 4, 4, 4, 4, 4,
+        4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 18, 41, 13, 1,
+        0, 0, 0, 18, 34, 10, 32, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
     ]
     .to_vec();
 
@@ -306,6 +318,10 @@ fn message_version_encode_decode() {
         highest_block_checkpoint: CheckpointBeacon {
             hash_prev_block: Hash::SHA256([4; 32]),
             checkpoint: 7,
+        },
+        highest_superblock_checkpoint: CheckpointBeacon {
+            hash_prev_block: Hash::SHA256([5; 32]),
+            checkpoint: 1,
         },
     };
     let sender_address = Address {
