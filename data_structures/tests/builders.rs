@@ -5,15 +5,25 @@ use witnet_data_structures::{builders::*, chain::*, transaction::Transaction, ty
 #[test]
 fn builders_build_last_beacon() {
     let highest_block_checkpoint = CheckpointBeacon::default();
+    let highest_superblock_checkpoint = CheckpointBeacon {
+        checkpoint: 1,
+        hash_prev_block: Hash::SHA256([1; 32]),
+    };
+
     let msg = Message {
         kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint,
+            highest_superblock_checkpoint,
         }),
         magic: 0xABCD,
     };
     assert_eq!(
         msg,
-        Message::build_last_beacon(0xABCD, highest_block_checkpoint)
+        Message::build_last_beacon(
+            0xABCD,
+            highest_block_checkpoint,
+            highest_superblock_checkpoint
+        )
     );
 }
 

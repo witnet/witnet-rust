@@ -34,15 +34,21 @@ const EXAMPLE_BLOCK_VECTOR: &[u8] = &[
 
 #[test]
 fn message_last_beacon_from_bytes() {
+    let highest_superblock_checkpoint = CheckpointBeacon {
+        checkpoint: 1,
+        hash_prev_block: Hash::SHA256([1; 32]),
+    };
     let buff: Vec<u8> = [
-        18, 40, 66, 38, 10, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        18, 83, 66, 81, 10, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 41, 13, 1, 0, 0, 0, 18, 34, 10, 32, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     ]
     .to_vec();
 
     let expected_msg = Message {
         kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint: CheckpointBeacon::default(),
+            highest_superblock_checkpoint,
         }),
         magic: 0,
     };
@@ -52,15 +58,22 @@ fn message_last_beacon_from_bytes() {
 
 #[test]
 fn message_last_beacon_to_bytes() {
+    let highest_superblock_checkpoint = CheckpointBeacon {
+        checkpoint: 1,
+        hash_prev_block: Hash::SHA256([1; 32]),
+    };
+
     let msg = Message {
         kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint: CheckpointBeacon::default(),
+            highest_superblock_checkpoint,
         }),
         magic: 0,
     };
     let expected_buf: Vec<u8> = [
-        18, 40, 66, 38, 10, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        18, 83, 66, 81, 10, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 41, 13, 1, 0, 0, 0, 18, 34, 10, 32, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     ]
     .to_vec();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
