@@ -25,7 +25,7 @@ mod ice {
     }
 
     #[test]
-    fn test_icing_blocks_the_entire_ip() {
+    fn test_icing_does_not_block_the_entire_ip() {
         let mut peers = Peers::new();
         let address_21337 = ip("192.168.1.1:21337");
         let address_21338 = ip("192.168.1.1:21338");
@@ -33,7 +33,7 @@ mod ice {
         peers.ice_peer_address(&address_21337);
         let is_iced = peers.ice_bucket_contains(&address_21338);
 
-        assert!(is_iced)
+        assert!(!is_iced)
     }
 
     #[test]

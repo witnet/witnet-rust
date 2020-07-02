@@ -17,7 +17,7 @@ use witnet_crypto::hash::calculate_sha256;
 use witnet_util::timestamp::get_timestamp;
 
 /// Peer information being used while listing available Witnet peers
-#[derive(Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Eq, Serialize)]
 pub struct PeerInfo {
     /// The socket address for a potential peer
     pub address: SocketAddr,
@@ -25,73 +25,54 @@ pub struct PeerInfo {
     pub timestamp: i64,
 }
 
-/// "Lumped" peer information used for keeping track of peers without regard for particular
-/// addresses but rather close / far addresses in terms of IP ranges.
-/// In this case, this is "lumping" together addresses with the same IP but different port by simply
-/// using a fuzzy ìmplementation of `PartialEq`.
-#[derive(Debug, Deserialize, Eq, Serialize)]
-pub struct LumpedPeerInfo(PeerInfo);
-
-/// This fuzzy implementation of `PartialEq` does the magic of comparing addresses while "lumping"
-/// the ports together.
+/// This fuzzy implementation of `PartialEq` does the magic of comparing `PeerInfo` by only the
+/// address and not any other field.
 ///
 /// # Examples
 /// ```rust
-/// use witnet_p2p::peers::{LumpedPeerInfo, PeerInfo};
+/// use witnet_p2p::peers::PeerInfo;
 /// use std::{hash::Hash, net::SocketAddr, str::FromStr};
 ///
-/// let peer_1 = LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap());
-/// let peer_2 = LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap());
+/// let peer_1 = PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap());
+/// let peer_2 = PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap());
 ///
 /// assert_eq!(peer_1, peer_2);
 /// ```
-impl PartialEq for LumpedPeerInfo {
+impl PartialEq for PeerInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.0.address.ip() == other.0.address.ip()
+        self.address == other.address
     }
 }
 
-/// Forced implementation of `Hash` for `LumpedPeerInfo` so that the famous hash comparison property
+/// Forced implementation of `Hash` for `PeerInfo` so that the famous hash comparison property
 /// does actually hold:
 ///
 /// `k1 == k2 ⇒ hash(k1) == hash(k2)`
 ///
 /// # Examples
 /// ```rust
-/// use witnet_p2p::peers::{LumpedPeerInfo, PeerInfo};
+/// use witnet_p2p::peers::PeerInfo;
 /// use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, net::SocketAddr, str::FromStr};
 ///
 /// let mut hash_1 = DefaultHasher::new();
-/// LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap()).hash(&mut hash_1);
+/// PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21337").unwrap()).hash(&mut hash_1);
 /// let mut hash_2 = DefaultHasher::new();
-/// LumpedPeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap()).hash(&mut hash_2);
+/// PeerInfo::from(&SocketAddr::from_str("127.0.0.1:21338").unwrap()).hash(&mut hash_2);
 ///
 /// assert_eq!(hash_1.finish(), hash_2.finish());
 /// ```
-impl Hash for LumpedPeerInfo {
+impl Hash for PeerInfo {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.address.ip().hash(state)
+        self.address.hash(state)
     }
 }
 
-impl fmt::Display for LumpedPeerInfo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:*", self.0.address.ip())
-    }
-}
-
-impl From<(&SocketAddr, i64)> for LumpedPeerInfo {
-    fn from((addr, timestamp): (&SocketAddr, i64)) -> Self {
-        LumpedPeerInfo(PeerInfo {
-            address: *addr,
-            timestamp,
-        })
-    }
-}
-
-impl From<&SocketAddr> for LumpedPeerInfo {
+impl From<&SocketAddr> for PeerInfo {
     fn from(addr: &SocketAddr) -> Self {
-        LumpedPeerInfo::from((addr, Default::default()))
+        PeerInfo {
+            address: *addr,
+            timestamp: Default::default(),
+        }
     }
 }
 
@@ -99,7 +80,7 @@ impl From<&SocketAddr> for LumpedPeerInfo {
 #[derive(Default, Deserialize, Serialize)]
 pub struct Peers {
     /// Bucket for "iced" addresses (will not be tried in a while)
-    ice_bucket: HashSet<LumpedPeerInfo>,
+    ice_bucket: HashSet<PeerInfo>,
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
     ice_period: Duration,
@@ -159,21 +140,21 @@ impl Peers {
     pub fn ice_bucket_contains_pure(&mut self, addr: &SocketAddr, timestamp: i64) -> bool {
         let ice_period = i64::try_from(self.ice_period.as_secs())
             .expect("Ice period should fit in the range of u64");
-        let lumped = LumpedPeerInfo::from(addr);
+        let peer = PeerInfo::from(addr);
         let (contains, needs_removal) = self
             .ice_bucket
-            .get(&lumped)
+            .get(&peer)
             .map(|entry| {
                 // If the address was iced more than `ice_period` seconds ago, we can remove it from
                 // the ice bucket and pretend it was not even there in the first place.
-                let needs_removal = entry.0.timestamp < timestamp.saturating_sub(ice_period);
+                let needs_removal = entry.timestamp < timestamp.saturating_sub(ice_period);
 
                 (!needs_removal, needs_removal)
             })
             .unwrap_or((false, false));
 
         if needs_removal {
-            self.ice_bucket.remove(&lumped);
+            self.ice_bucket.remove(&peer);
         }
 
         contains
@@ -435,11 +416,14 @@ impl Peers {
     /// Put a peer address into the ice bucket using the provided timestamp as the tag for tracking
     /// when the address became iced.
     pub fn ice_peer_address_pure(&mut self, addr: &SocketAddr, timestamp: i64) -> bool {
-        let lumped = LumpedPeerInfo::from((addr, timestamp));
+        let peer = PeerInfo {
+            address: *addr,
+            timestamp,
+        };
 
-        log::trace!("Putting peer address {} into the ice bucket", lumped);
+        log::trace!("Putting peer address {} into the ice bucket", peer.address);
 
-        self.ice_bucket.insert(lumped)
+        self.ice_bucket.insert(peer)
     }
 }
 
@@ -468,7 +452,7 @@ impl fmt::Display for Peers {
         writeln!(f, "----------------")?;
 
         for p in &self.ice_bucket {
-            writeln!(f, "> {}", p)?;
+            writeln!(f, "> {}", p.address)?;
         }
         writeln!(f)
     }
