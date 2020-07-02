@@ -32,7 +32,7 @@ fn test_radon_types_json_serialization() {
     assert_eq!(serde_json::to_string(&radon_type).unwrap(), expected_json);
 
     let radon_type = RadonTypes::from(RadonInteger::from(42));
-    let expected_json = r#"{"RadonInteger":42}"#;
+    let expected_json = r#"{"RadonInteger":"42"}"#;
     assert_eq!(serde_json::to_string(&radon_type).unwrap(), expected_json);
 
     let radon_type = RadonTypes::from(RadonMap::from(

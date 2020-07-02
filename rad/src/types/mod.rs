@@ -177,7 +177,8 @@ impl Serialize for RadonTypes {
                 state.serialize_field(radon_type_name, &radon_type.value())?
             }
             RadonTypes::Integer(radon_type) => {
-                state.serialize_field(radon_type_name, &radon_type.value())?
+                // Serialize integers as strings, as a workaround to issue #1302
+                state.serialize_field(radon_type_name, &radon_type.value().to_string())?
             }
             RadonTypes::Map(radon_type) => {
                 state.serialize_field(radon_type_name, &radon_type.value())?
