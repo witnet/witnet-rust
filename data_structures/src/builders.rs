@@ -6,8 +6,7 @@ use witnet_util::timestamp::get_timestamp;
 
 use crate::{
     chain::{
-        Block, BlockHeader, BlockTransactions, CheckpointBeacon, InventoryEntry, KeyedSignature,
-        SuperBlockVote,
+        Block, BlockHeader, BlockTransactions, InventoryEntry, KeyedSignature, SuperBlockVote,
     },
     error::BuildersError,
     transaction::Transaction,
@@ -143,18 +142,8 @@ impl Message {
     }
 
     /// Function to build LastBeacon messages
-    pub fn build_last_beacon(
-        magic: u16,
-        highest_block_checkpoint: CheckpointBeacon,
-        highest_superblock_checkpoint: CheckpointBeacon,
-    ) -> Message {
-        Message::build_message(
-            magic,
-            Command::LastBeacon(LastBeacon {
-                highest_block_checkpoint,
-                highest_superblock_checkpoint,
-            }),
-        )
+    pub fn build_last_beacon(magic: u16, last_beacon: LastBeacon) -> Message {
+        Message::build_message(magic, Command::LastBeacon(last_beacon))
     }
 
     /// Function to build SuperBlockVote messages

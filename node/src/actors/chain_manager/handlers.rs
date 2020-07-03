@@ -120,17 +120,15 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 if let Some(chain_info) = &self.chain_state.chain_info {
                     // Send last beacon because otherwise the network cannot bootstrap
                     let sessions_manager = SessionsManager::from_registry();
+                    let last_beacon = LastBeacon {
+                        highest_block_checkpoint: chain_info.highest_block_checkpoint,
+                        highest_superblock_checkpoint: self.get_superblock_beacon(),
+                    };
                     sessions_manager.do_send(SetLastBeacon {
-                        beacon: LastBeacon {
-                            highest_block_checkpoint: chain_info.highest_block_checkpoint,
-                            highest_superblock_checkpoint: self.get_superblock_beacon(),
-                        },
+                        beacon: last_beacon.clone(),
                     });
                     sessions_manager.do_send(Broadcast {
-                        command: SendLastBeacon {
-                            beacon: chain_info.highest_block_checkpoint,
-                            superblock_beacon: self.get_superblock_beacon(),
-                        },
+                        command: SendLastBeacon { last_beacon },
                         only_inbound: true,
                     });
                 }
@@ -193,17 +191,15 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             .unwrap()
                             .highest_block_checkpoint;
                         let superblock_beacon = self.get_superblock_beacon();
+                        let last_beacon = LastBeacon {
+                            highest_block_checkpoint: beacon,
+                            highest_superblock_checkpoint: superblock_beacon,
+                        };
                         sessions_manager.do_send(SetLastBeacon {
-                            beacon: LastBeacon {
-                                highest_block_checkpoint: beacon,
-                                highest_superblock_checkpoint: superblock_beacon,
-                            },
+                            beacon: last_beacon.clone(),
                         });
                         sessions_manager.do_send(Broadcast {
-                            command: SendLastBeacon {
-                                beacon,
-                                superblock_beacon: self.get_superblock_beacon(),
-                            },
+                            command: SendLastBeacon { last_beacon },
                             only_inbound: true,
                         });
 

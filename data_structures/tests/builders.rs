@@ -9,22 +9,16 @@ fn builders_build_last_beacon() {
         checkpoint: 1,
         hash_prev_block: Hash::SHA256([1; 32]),
     };
+    let last_beacon = LastBeacon {
+        highest_block_checkpoint,
+        highest_superblock_checkpoint,
+    };
 
     let msg = Message {
-        kind: Command::LastBeacon(LastBeacon {
-            highest_block_checkpoint,
-            highest_superblock_checkpoint,
-        }),
+        kind: Command::LastBeacon(last_beacon.clone()),
         magic: 0xABCD,
     };
-    assert_eq!(
-        msg,
-        Message::build_last_beacon(
-            0xABCD,
-            highest_block_checkpoint,
-            highest_superblock_checkpoint
-        )
-    );
+    assert_eq!(msg, Message::build_last_beacon(0xABCD, last_beacon,));
 }
 
 #[test]

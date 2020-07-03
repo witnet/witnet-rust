@@ -734,15 +734,9 @@ mod tests {
             current_ars_identities: Some(HashSet::default()),
             current_superblock_hash: Some(Hash::default()),
             current_superblock_index: None,
-            // Set of ARS identities that can currently send superblock votes
             previous_ars_identities: Some(HashSet::default()),
-            // Set of received superblock votes
-            // This is cleared when we try to create a new superblock
             received_superblocks: HashSet::default(),
-            // Set of votes that agree with current_superblock_hash
-            // This is cleared when we try to create a new superblock
             votes_on_local_superlock: HashSet::default(),
-            // The last ARS ordered keys
             previous_ars_ordered_keys: vec![],
         };
         let beacon = superblock_state.get_beacon();
@@ -756,15 +750,9 @@ mod tests {
             current_ars_identities: Some(HashSet::default()),
             current_superblock_hash: Some(Hash::default()),
             current_superblock_index: Some(1),
-            // Set of ARS identities that can currently send superblock votes
             previous_ars_identities: Some(HashSet::default()),
-            // Set of received superblock votes
-            // This is cleared when we try to create a new superblock
             received_superblocks: HashSet::default(),
-            // Set of votes that agree with current_superblock_hash
-            // This is cleared when we try to create a new superblock
             votes_on_local_superlock: HashSet::default(),
-            // The last ARS ordered keys
             previous_ars_ordered_keys: vec![],
         };
         let beacon = superblock_state.get_beacon();

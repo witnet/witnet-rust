@@ -53,6 +53,7 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext},
     superblock::AddSuperBlockVote,
     transaction::{TallyTransaction, Transaction},
+    types::LastBeacon,
     vrf::VrfCtx,
 };
 use witnet_rad::types::RadonTypes;
@@ -661,6 +662,7 @@ impl ChainManager {
             .highest_block_checkpoint
     }
 
+    /// Retrieves the latest superblock hash an index, if it exists. Else, returns the genesis beacon.
     fn get_superblock_beacon(&self) -> CheckpointBeacon {
         match self.chain_state.superblock_state.get_beacon() {
             Some(superblock_beacon) => superblock_beacon,
@@ -1011,8 +1013,10 @@ impl ChainManager {
         SessionsManager::from_registry()
             .send(Anycast {
                 command: SendLastBeacon {
-                    beacon: self.get_chain_beacon(),
-                    superblock_beacon: self.get_superblock_beacon(),
+                    last_beacon: LastBeacon {
+                        highest_block_checkpoint: self.get_chain_beacon(),
+                        highest_superblock_checkpoint: self.get_superblock_beacon(),
+                    },
                 },
                 safu: true,
             })

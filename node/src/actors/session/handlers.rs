@@ -252,32 +252,16 @@ impl StreamHandler<BytesMut, Error> for Session {
                     (
                         SessionType::Inbound,
                         SessionStatus::Consolidated,
-                        Command::LastBeacon(LastBeacon {
-                            highest_block_checkpoint,
-                            highest_superblock_checkpoint,
-                        }),
+                        Command::LastBeacon(last_beacon),
                     ) => {
-                        session_last_beacon_inbound(
-                            self,
-                            ctx,
-                            highest_block_checkpoint,
-                            highest_superblock_checkpoint,
-                        );
+                        session_last_beacon_inbound(self, ctx, last_beacon);
                     }
                     (
                         SessionType::Outbound,
                         SessionStatus::Consolidated,
-                        Command::LastBeacon(LastBeacon {
-                            highest_block_checkpoint,
-                            highest_superblock_checkpoint,
-                        }),
+                        Command::LastBeacon(last_beacon),
                     ) => {
-                        session_last_beacon_outbound(
-                            self,
-                            ctx,
-                            highest_block_checkpoint,
-                            highest_superblock_checkpoint,
-                        );
+                        session_last_beacon_outbound(self, ctx, last_beacon);
                     }
 
                     ////////////////////////////
@@ -361,16 +345,9 @@ impl Handler<SendInventoryItem> for Session {
 impl Handler<SendLastBeacon> for Session {
     type Result = SessionUnitResult;
 
-    fn handle(
-        &mut self,
-        SendLastBeacon {
-            beacon,
-            superblock_beacon,
-        }: SendLastBeacon,
-        _ctx: &mut Context<Self>,
-    ) {
+    fn handle(&mut self, SendLastBeacon { last_beacon }: SendLastBeacon, _ctx: &mut Context<Self>) {
         log::trace!("Sending LastBeacon to peer at {:?}", self.remote_addr);
-        send_last_beacon(self, beacon, superblock_beacon);
+        send_last_beacon(self, last_beacon);
     }
 }
 
@@ -748,15 +725,18 @@ fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
     }
 }
 
-// TODO: handle superblock_beacon
+// FIXME(#1366): handle superblock_beacon.
 fn session_last_beacon_inbound(
     session: &Session,
     ctx: &mut Context<Session>,
-    CheckpointBeacon {
-        checkpoint: received_checkpoint,
+    LastBeacon {
+        highest_block_checkpoint:
+            CheckpointBeacon {
+                checkpoint: received_checkpoint,
+                ..
+            },
         ..
-    }: CheckpointBeacon,
-    _superblock_beacon: CheckpointBeacon,
+    }: LastBeacon,
 ) {
     // TODO: LastBeacon on inbound peers?
     // Get ChainManager address from registry
@@ -833,8 +813,10 @@ fn session_last_beacon_inbound(
 fn session_last_beacon_outbound(
     session: &Session,
     _ctx: &mut Context<Session>,
-    beacon: CheckpointBeacon,
-    _superblock_beacon: CheckpointBeacon,
+    LastBeacon {
+        highest_block_checkpoint: beacon,
+        ..
+    }: LastBeacon,
 ) {
     SessionsManager::from_registry().do_send(PeerBeacon {
         address: session.remote_addr,
@@ -842,14 +824,8 @@ fn session_last_beacon_outbound(
     })
 }
 
-// FIXME(#1366): handle superblock_beacon.
-fn send_last_beacon(
-    session: &mut Session,
-    beacon: CheckpointBeacon,
-    superblock_beacon: CheckpointBeacon,
-) {
-    let beacon_msg =
-        WitnetMessage::build_last_beacon(session.magic_number, beacon, superblock_beacon);
+fn send_last_beacon(session: &mut Session, last_beacon: LastBeacon) {
+    let beacon_msg = WitnetMessage::build_last_beacon(session.magic_number, last_beacon);
     // Send LastBeacon msg
     session.send_message(beacon_msg);
 }
