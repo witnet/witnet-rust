@@ -213,15 +213,15 @@ impl ChainManager {
                     }
                 }
 
+                act.chain_state = chain_state;
+                act.last_chain_state = act.chain_state.clone();
+
                 SessionsManager::from_registry().do_send(SetLastBeacon {
                     beacon: LastBeacon {
-                        highest_block_checkpoint: chain_info.highest_block_checkpoint,
+                        highest_block_checkpoint: act.get_chain_beacon(),
                         highest_superblock_checkpoint: act.get_superblock_beacon(),
                     },
                 });
-
-                act.chain_state = chain_state;
-                act.last_chain_state = act.chain_state.clone();
 
                 act.persist_chain_state(ctx);
             }).wait(ctx);
