@@ -4,10 +4,9 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     convert::TryFrom,
     fmt,
-    hash::{Hash, Hasher},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     time::Duration,
 };
@@ -17,7 +16,7 @@ use witnet_crypto::hash::calculate_sha256;
 use witnet_util::timestamp::get_timestamp;
 
 /// Peer information being used while listing available Witnet peers
-#[derive(Debug, Deserialize, Eq, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct PeerInfo {
     /// The socket address for a potential peer
     pub address: SocketAddr,
@@ -25,73 +24,11 @@ pub struct PeerInfo {
     pub timestamp: i64,
 }
 
-/// This fuzzy implementation of `PartialEq` does the magic of comparing `PeerInfo` by only the
-/// address and not any other field.
-///
-/// # Examples
-/// ```rust
-/// use witnet_p2p::peers::PeerInfo;
-/// use std::{hash::Hash, net::SocketAddr, str::FromStr};
-///
-/// let peer_1 = PeerInfo {
-///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
-///     timestamp: 0,
-/// };
-/// let peer_2 = PeerInfo {
-///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
-///     timestamp: 1,
-/// };
-///
-/// assert_eq!(peer_1, peer_2);
-/// ```
-impl PartialEq for PeerInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.address == other.address
-    }
-}
-
-/// Forced implementation of `Hash` for `PeerInfo` so that the famous hash comparison property
-/// does actually hold:
-///
-/// `k1 == k2 ⇒ hash(k1) == hash(k2)`
-///
-/// # Examples
-/// ```rust
-/// use witnet_p2p::peers::PeerInfo;
-/// use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, net::SocketAddr, str::FromStr};
-///
-/// let mut hash_1 = DefaultHasher::new();
-/// PeerInfo {
-///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
-///     timestamp: 0,
-/// }.hash(&mut hash_1);
-/// let mut hash_2 = DefaultHasher::new();
-/// PeerInfo {
-///     address: SocketAddr::from_str("127.0.0.1:21337").unwrap(),
-///     timestamp: 1,
-/// }.hash(&mut hash_2);
-/// assert_eq!(hash_1.finish(), hash_2.finish());
-/// ```
-impl Hash for PeerInfo {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.address.hash(state)
-    }
-}
-
-impl From<&SocketAddr> for PeerInfo {
-    fn from(addr: &SocketAddr) -> Self {
-        PeerInfo {
-            address: *addr,
-            timestamp: Default::default(),
-        }
-    }
-}
-
 /// Peers TBD
 #[derive(Default, Deserialize, Serialize)]
 pub struct Peers {
     /// Bucket for "iced" addresses (will not be tried in a while)
-    ice_bucket: HashSet<PeerInfo>,
+    ice_bucket: HashMap<SocketAddr, i64>,
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
     ice_period: Duration,
@@ -148,24 +85,23 @@ impl Peers {
 
     /// Check whether a peer address is iced using the provided timestamp as a reference for
     /// calculating whether the address has been in the bucket long enough for "the ice to melt".
-    pub fn ice_bucket_contains_pure(&mut self, addr: &SocketAddr, timestamp: i64) -> bool {
+    pub fn ice_bucket_contains_pure(&mut self, addr: &SocketAddr, current_timestamp: i64) -> bool {
         let ice_period = i64::try_from(self.ice_period.as_secs())
             .expect("Ice period should fit in the range of u64");
-        let peer = PeerInfo::from(addr);
         let (contains, needs_removal) = self
             .ice_bucket
-            .get(&peer)
-            .map(|entry| {
+            .get(&addr)
+            .map(|entry_timestamp| {
                 // If the address was iced more than `ice_period` seconds ago, we can remove it from
                 // the ice bucket and pretend it was not even there in the first place.
-                let needs_removal = entry.timestamp < timestamp.saturating_sub(ice_period);
+                let needs_removal = entry_timestamp < &current_timestamp.saturating_sub(ice_period);
 
                 (!needs_removal, needs_removal)
             })
             .unwrap_or((false, false));
 
         if needs_removal {
-            self.ice_bucket.remove(&peer);
+            self.ice_bucket.remove(&addr);
         }
 
         contains
@@ -430,15 +366,12 @@ impl Peers {
 
     /// Put a peer address into the ice bucket using the provided timestamp as the tag for tracking
     /// when the address became iced.
-    pub fn ice_peer_address_pure(&mut self, addr: &SocketAddr, timestamp: i64) -> bool {
-        let peer = PeerInfo {
-            address: *addr,
-            timestamp,
-        };
+    pub fn ice_peer_address_pure(&mut self, address: &SocketAddr, timestamp: i64) -> bool {
+        log::trace!("Putting peer address {} into the ice bucket", address);
 
-        log::trace!("Putting peer address {} into the ice bucket", peer.address);
+        self.ice_bucket.insert(*address, timestamp);
 
-        self.ice_bucket.insert(peer)
+        true
     }
 }
 
@@ -467,7 +400,7 @@ impl fmt::Display for Peers {
         writeln!(f, "----------------")?;
 
         for p in &self.ice_bucket {
-            writeln!(f, "> {}", p.address)?;
+            writeln!(f, "> {}", p.0)?;
         }
         writeln!(f)
     }
