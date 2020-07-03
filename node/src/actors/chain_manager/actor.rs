@@ -89,6 +89,9 @@ impl ChainManager {
                 // Get consensus parameter from config
                 act.consensus_c = config.connections.consensus_c;
 
+                // Enable superblock creation
+                act.create_superblocks = true;
+
                 storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
                     .into_actor(act)
                     .then(|chain_state_from_storage, _, _| {
