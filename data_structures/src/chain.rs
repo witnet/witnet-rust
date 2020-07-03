@@ -65,14 +65,18 @@ pub struct ChainInfo {
 }
 
 /// Possible values for the "environment" configuration param.
+// The variants are explicitly tagged so that bincode serialization does not break
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 pub enum Environment {
     /// "mainnet" environment
     #[serde(rename = "mainnet")]
-    Mainnet,
+    Mainnet = 0,
     /// "testnet" environment
     #[serde(rename = "testnet")]
-    Testnet,
+    Testnet = 1,
+    /// "development" environment
+    #[serde(rename = "development")]
+    Development = 2,
 }
 
 impl Default for Environment {
@@ -84,6 +88,7 @@ impl Default for Environment {
 impl fmt::Display for Environment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {
+            Environment::Development => "development",
             Environment::Mainnet => "mainnet",
             Environment::Testnet => "testnet",
         };
@@ -93,10 +98,20 @@ impl fmt::Display for Environment {
 }
 
 impl Environment {
+    /// Returns the Bech32 prefix used in this environment: "wit" in mainnet and "twit" elsewhere
     pub fn bech32_prefix(&self) -> &str {
         match self {
             Environment::Mainnet => "wit",
             _ => "twit",
+        }
+    }
+
+    /// Returns true if the consensus constants can be overriden in this environment.
+    /// This is only allowed in a development environment.
+    pub fn can_override_consensus_constants(&self) -> bool {
+        match self {
+            Environment::Development => true,
+            _ => false,
         }
     }
 }

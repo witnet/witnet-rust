@@ -334,11 +334,41 @@ pub trait Defaults {
     }
 }
 
+/// Struct that will implement all the development defaults
+pub struct Development;
+
 /// Struct that will implement all the mainnet defaults
 pub struct Mainnet;
 
 /// Struct that will implement all the testnet defaults
 pub struct Testnet;
+
+impl Defaults for Development {
+    fn connections_server_addr(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
+    }
+
+    fn jsonrpc_server_address(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21338)
+    }
+
+    fn storage_db_path(&self) -> PathBuf {
+        PathBuf::from(".witnet")
+    }
+
+    fn connections_bootstrap_peers_period(&self) -> Duration {
+        Duration::from_secs(15)
+    }
+
+    fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
+        // Wednesday, 24-Jun-2020, 11:00 UTC
+        1_592_996_400
+    }
+
+    fn connections_reject_sybil_inbounds(&self) -> bool {
+        false
+    }
+}
 
 impl Defaults for Mainnet {
     fn connections_server_addr(&self) -> SocketAddr {

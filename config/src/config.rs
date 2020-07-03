@@ -43,7 +43,7 @@ use std::{collections::HashSet, net::SocketAddr, path::PathBuf, time::Duration};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    defaults::{Defaults, Testnet},
+    defaults::{Defaults, Development, Testnet},
     dirs,
 };
 use partial_struct::PartialStruct;
@@ -376,14 +376,18 @@ pub struct Mempool {
 impl Config {
     pub fn from_partial(config: &PartialConfig) -> Self {
         let defaults: &dyn Defaults = match config.environment {
+            Environment::Development => &Development,
             Environment::Mainnet => {
                 panic!("Config with mainnet environment is currently not allowed");
             }
             Environment::Testnet => &Testnet,
         };
 
-        let consensus_constants =
-            consensus_constants_from_partial(&PartialConsensusConstants::default(), defaults);
+        let consensus_constants = if config.environment.can_override_consensus_constants() {
+            consensus_constants_from_partial(&config.consensus_constants, defaults)
+        } else {
+            consensus_constants_from_partial(&PartialConsensusConstants::default(), defaults)
+        };
 
         Config {
             environment: config.environment,
