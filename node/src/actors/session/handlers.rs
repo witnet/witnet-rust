@@ -605,7 +605,7 @@ fn check_beacon_compatibility(
     received_beacon: &LastBeacon,
     current_epoch: Epoch,
 ) -> Result<(), HandshakeError> {
-    if received_beacon.highest_block_checkpoint.checkpoint != current_epoch {
+    if received_beacon.highest_block_checkpoint.checkpoint > current_epoch {
         return Err(HandshakeError::DifferentEpoch {
             current_epoch,
             received_beacon: received_beacon.clone(),
@@ -882,7 +882,7 @@ mod tests {
     #[test]
     fn handshake_bootstrap_after_epoch_zero() {
         // Check that when the last beacon has epoch 0 but the current epoch is not 0,
-        // the two nodes cannot peer
+        // the two nodes can peer
         let genesis_hash = "1111111111111111111111111111111111111111111111111111111111111111"
             .parse()
             .unwrap();
@@ -901,10 +901,7 @@ mod tests {
 
         assert_eq!(
             check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch),
-            Err(HandshakeError::DifferentEpoch {
-                current_epoch,
-                received_beacon
-            })
+            Ok(()),
         );
     }
 
@@ -941,9 +938,9 @@ mod tests {
         // We cannot peer with the other node
         assert_eq!(
             check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch),
-            Err(HandshakeError::DifferentEpoch {
-                current_epoch,
-                received_beacon: received_beacon.clone()
+            Err(HandshakeError::PeerBeaconOld {
+                current_beacon: current_beacon.clone(),
+                received_beacon: received_beacon.clone(),
             })
         );
         // But the other node can peer with us and start syncing
