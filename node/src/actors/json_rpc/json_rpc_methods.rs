@@ -40,7 +40,7 @@ use crate::{
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
     },
-    signature_mngr,
+    config_mngr, signature_mngr,
 };
 
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -77,6 +77,9 @@ pub fn jsonrpc_io_handler(
     io.add_method("knownPeers", |_params: Params| known_peers());
     io.add_method("nodeStats", |_params: Params| node_stats());
     io.add_method("getMempool", |params: Params| get_mempool(params.parse()));
+    io.add_method("getConsensusConstants", |params: Params| {
+        get_consensus_constants(params.parse())
+    });
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
     // A method is sensitive if it touches in some way the master key of the node.
@@ -1190,6 +1193,28 @@ pub fn add_peers(params: Result<Vec<SocketAddr>, jsonrpc_core::Error>) -> JsonRp
     Box::new(fut)
 }
 
+/// Get consensus constants used by the node
+pub fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    match params {
+        Ok(()) => (),
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let fut = config_mngr::get()
+        .map_err(internal_error)
+        .and_then(
+            |config| match serde_json::to_value(&config.consensus_constants) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+        );
+
+    Box::new(fut)
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -1482,6 +1507,7 @@ mod tests {
                 "getBalance",
                 "getBlock",
                 "getBlockChain",
+                "getConsensusConstants",
                 "getMempool",
                 "getPkh",
                 "getPublicKey",
