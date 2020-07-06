@@ -5,8 +5,17 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use witnet_config::{config::Config, loaders::toml};
 
-/// Start the configuration manager
-pub fn start() {
+/// Start the configuration manager with an initial configuration
+pub fn start(config: Config) {
+    let addr = ConfigManager::create(|_ctx| ConfigManager {
+        config: Arc::new(config),
+        config_source: Source::Default,
+    });
+    actix::SystemRegistry::set(addr);
+}
+
+/// Start the configuration manager with the default configuration
+pub fn start_default() {
     let addr = ConfigManager::start_default();
     actix::SystemRegistry::set(addr);
 }
@@ -15,12 +24,6 @@ pub fn start() {
 pub fn get() -> impl Future<Item = Arc<Config>, Error = failure::Error> {
     let addr = ConfigManager::from_registry();
     addr.send(Get).flatten()
-}
-
-/// Set the value for the configuration
-pub fn set(config: Config) -> impl Future<Item = (), Error = failure::Error> {
-    let addr = ConfigManager::from_registry();
-    addr.send(Set(config)).flatten()
 }
 
 /// Substitute configuration in the manager with the one loaded from the

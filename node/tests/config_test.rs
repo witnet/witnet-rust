@@ -7,7 +7,7 @@ fn ignore<T>(_: T) {}
 #[test]
 fn test_get_config() {
     actix::System::run(|| {
-        config_mngr::start();
+        config_mngr::start_default();
 
         let fut = config_mngr::get()
             .and_then(|config| {
@@ -28,7 +28,7 @@ fn test_get_config() {
 #[test]
 fn test_load_config_from_file() {
     actix::System::run(|| {
-        config_mngr::start();
+        config_mngr::start_default();
 
         let fut = config_mngr::load_from_file("tests/fixtures/config.toml".into())
             .and_then(|_| config_mngr::get())
