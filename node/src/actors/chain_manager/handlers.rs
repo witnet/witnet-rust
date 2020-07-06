@@ -595,7 +595,9 @@ impl Handler<PeersBeacons> for ChainManager {
         log::debug!("Received beacons: {}", peers_beacons.pretty_format());
 
         // Activate peers beacons index to continue synced
-        self.peers_beacons_received = true;
+        if !peers_beacons.pb.is_empty() {
+            self.peers_beacons_received = true;
+        }
 
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
