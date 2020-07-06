@@ -287,7 +287,19 @@ impl Handler<AddBlocks> for ChainManager {
                 {
                     let block = msg.blocks.into_iter().next().unwrap();
                     match self.process_requested_block(ctx, block) {
-                        Ok(()) => log::debug!("Successfully consolidated genesis block"),
+                        Ok(()) => {
+                            log::debug!("Successfully consolidated genesis block");
+
+                            // Set last beacon because otherwise the network cannot bootstrap
+                            let sessions_manager = SessionsManager::from_registry();
+                            let last_beacon = LastBeacon {
+                                highest_block_checkpoint: self.get_chain_beacon(),
+                                highest_superblock_checkpoint: self.get_superblock_beacon(),
+                            };
+                            sessions_manager.do_send(SetLastBeacon {
+                                beacon: last_beacon,
+                            });
+                        }
                         Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
                     }
                 }
