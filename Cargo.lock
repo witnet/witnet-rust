@@ -4095,7 +4095,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "0.9.0-c"
+version = "0.9.1"
 dependencies = [
  "ansi_term 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytecount 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",

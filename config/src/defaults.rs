@@ -34,7 +34,7 @@ pub trait Defaults {
 
     /// Default outbound limit for connections: `8`
     fn connections_outbound_limit(&self) -> u16 {
-        8
+        12
     }
 
     /// Default known peers: none
@@ -117,7 +117,7 @@ pub trait Defaults {
         // Hash::SHA256([0; 32])
 
         // Testnet configuration
-        "00000000000000000000000000000000000000007769746e65742d302e392e30"
+        "00000000000000000000000000000000000000007769746e65742d302e392e31"
             .parse()
             .unwrap()
     }
@@ -128,7 +128,7 @@ pub trait Defaults {
         // Hash::SHA256([1; 32])
 
         // Testnet configuration
-        "649d8f7b3316bd33482ddbc6b1a8d89a3c81e1d9eebdb0247c907df7d20c26f9"
+        "2766fb20482b7fc5833b94b4b98596fbde9d7e253ca8628a1cfe070ce733600e"
             .parse()
             .unwrap()
     }
@@ -413,7 +413,7 @@ impl Defaults for Testnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Wednesday, 24-Jun-2020, 11:00 UTC
-        1_592_996_400
+        // Tuesday, 14-Jul-2020, 09:00 UTC
+        1_594_717_200
     }
 }
