@@ -72,7 +72,7 @@ impl SessionsManager {
         // Schedule the bootstrap with a given period
         ctx.run_later(bootstrap_peers_period, move |act, ctx| {
             // Check if bootstrap is needed
-            if act.sessions.is_outbound_bootstrap_needed() {
+            if act.last_beacon.is_some() && act.sessions.is_outbound_bootstrap_needed() {
                 log::info!(
                     "{} Inbound: {} | Outbound: {}",
                     Cyan.bold().paint("[Sessions]"),
