@@ -32,6 +32,7 @@ pub struct Peers {
     pub ice_bucket: HashMap<SocketAddr, i64>,
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
+    #[serde(skip_serializing)]
     pub ice_period: Duration,
     /// Bucket for new addresses
     pub new_bucket: HashMap<u16, PeerInfo>,
