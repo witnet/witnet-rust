@@ -73,6 +73,61 @@ mod ice {
         assert!(is_still_iced_just_when_ice_period_is_over);
         assert!(!is_iced_right_after_ice_period_is_over);
     }
+
+    #[test]
+    fn test_remove_iced_address() {
+        let ice_period = Duration::from_secs(1000);
+        let mut peers = Peers {
+            ice_period,
+            ..Default::default()
+        };
+        let address = ip("192.168.1.1:21337");
+        let can_ice = peers.ice_peer_address(&address);
+
+        assert!(can_ice);
+
+        let mut is_iced = peers.ice_bucket_contains(&address);
+
+        assert!(is_iced);
+
+        peers.remove_from_ice(&address);
+
+        is_iced = peers.ice_bucket_contains(&address);
+
+        assert!(!is_iced);
+    }
+
+    #[test]
+    fn test_remove_iced_addresses() {
+        let ice_period = Duration::from_secs(1000);
+        let mut peers = Peers {
+            ice_period,
+            ..Default::default()
+        };
+        let address_1 = ip("192.168.1.1:21337");
+        let address_2 = ip("192.168.2.2:21337");
+
+        peers.ice_peer_address(&address_1);
+        peers.ice_peer_address(&address_2);
+
+        let mut is_iced = peers.ice_bucket_contains(&address_1);
+
+        assert!(is_iced);
+
+        is_iced = peers.ice_bucket_contains(&address_2);
+
+        assert!(is_iced);
+
+        peers.remove_many_from_ice(&[address_1, address_2]);
+
+        is_iced = peers.ice_bucket_contains(&address_1);
+
+        assert!(!is_iced);
+
+        is_iced = peers.ice_bucket_contains(&address_2);
+
+        assert!(!is_iced);
+    }
 }
 
 /// Tests for the business logic of inserting peer addresses into the `new` buckets.

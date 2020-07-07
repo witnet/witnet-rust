@@ -256,6 +256,11 @@ impl Peers {
         addrs
             .iter()
             .filter_map(|address| {
+                // Remove from iced
+                if ice {
+                    self.ice_peer_address(address);
+                }
+
                 let bucket_index = self.tried_bucket_index(&address);
                 let bucket_entry = self.tried_bucket.get(&bucket_index);
 
@@ -265,13 +270,7 @@ impl Peers {
                 {
                     log::trace!("Removed a tried peer address: \n{}", self);
 
-                    self.tried_bucket.remove(&bucket_index).map(|entry| {
-                        if ice {
-                            self.ice_peer_address(&entry.address);
-                        }
-
-                        entry
-                    })
+                    self.tried_b    ucket.remove(&bucket_index)
                 } else {
                     None
                 }
@@ -388,6 +387,21 @@ impl Peers {
         self.ice_bucket.insert(*address, timestamp);
 
         true
+    }
+
+    /// Remove address from the ice bucket, ignoring the ice period
+    pub fn remove_from_ice(&mut self, address: &SocketAddr) {
+        log::trace!("Removing peer address {} from the ice bucket", address);
+
+        self.ice_bucket.remove(address);
+    }
+
+    /// Remove a list of addresses from the ice bucket, ignoring the ice_period
+    pub fn remove_many_from_ice(&mut self, addresses: &[SocketAddr]) {
+        log::trace!("Removing peer address {:?} from the ice bucket", addresses);
+        for address in addresses {
+            self.remove_from_ice(address)
+        }
     }
 }
 
