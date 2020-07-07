@@ -1,4 +1,4 @@
-use std::{process::exit, result::Result};
+use std::{process::exit, result::Result, sync::Arc};
 
 use actix::{Actor, System, SystemRegistry};
 use futures::future::Future;
@@ -14,7 +14,7 @@ use crate::storage_mngr;
 use witnet_config::config::Config;
 
 /// Function to run the main system
-pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
+pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
     // Init system
     let system = System::new("node");
 
@@ -22,14 +22,14 @@ pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
     callback();
 
     // Start ConfigManager actor
-    config_mngr::start(config);
+    config_mngr::start(config.clone());
 
     // Start StorageManager actor & SignatureManager
     storage_mngr::start();
     signature_mngr::start();
 
     // Start PeersManager actor
-    let peers_manager_addr = PeersManager::default().start();
+    let peers_manager_addr = PeersManager::from_config(&config).start();
     SystemRegistry::set(peers_manager_addr);
 
     // Start ConnectionsManager actor

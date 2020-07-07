@@ -12,6 +12,7 @@ use std::{
 };
 
 use rand::seq::IteratorRandom;
+use witnet_config::config::Config;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_util::timestamp::get_timestamp;
 
@@ -25,41 +26,44 @@ pub struct PeerInfo {
 }
 
 /// Peers TBD
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Peers {
     /// Bucket for "iced" addresses (will not be tried in a while)
-    ice_bucket: HashMap<SocketAddr, i64>,
+    pub ice_bucket: HashMap<SocketAddr, i64>,
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
-    ice_period: Duration,
+    pub ice_period: Duration,
     /// Bucket for new addresses
-    new_bucket: HashMap<u16, PeerInfo>,
+    pub new_bucket: HashMap<u16, PeerInfo>,
     /// Server SocketAddress
-    server_address: Option<SocketAddr>,
+    pub server_address: SocketAddr,
     /// Nonce value
-    sk: u64,
+    pub sk: u64,
     /// Bucket for tried addresses
-    tried_bucket: HashMap<u16, PeerInfo>,
+    pub tried_bucket: HashMap<u16, PeerInfo>,
+}
+
+impl Default for Peers {
+    fn default() -> Self {
+        Peers {
+            ice_bucket: Default::default(),
+            ice_period: Default::default(),
+            new_bucket: Default::default(),
+            server_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
+            sk: thread_rng().gen(),
+            tried_bucket: Default::default(),
+        }
+    }
 }
 
 impl Peers {
-    /// Create a new instance of Peers
-    pub fn new() -> Self {
+    /// Create a new instance of `Peers`, obtaining the settings from a `Config` structure
+    pub fn from_config(config: &Config) -> Self {
         Peers {
-            sk: thread_rng().gen(),
+            ice_period: config.connections.bucketing_ice_period,
+            server_address: config.connections.server_addr,
             ..Default::default()
         }
-    }
-
-    /// Set server address
-    pub fn set_server(&mut self, server: SocketAddr) {
-        self.server_address = Some(server);
-    }
-
-    /// Set period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
-    /// again before that amount of time.
-    pub fn set_ice_period(&mut self, period: Duration) {
-        self.ice_period = period;
     }
 
     /// Algorithm to calculate index for the new addresses buckets
@@ -138,12 +142,8 @@ impl Peers {
     }
 
     /// Returns true if the address is the server address
-    pub fn is_server_address(&self, addr: &SocketAddr) -> Option<bool> {
-        if let Some(server) = self.server_address {
-            Some(server == *addr)
-        } else {
-            None
-        }
+    pub fn is_server_address(&self, addr: &SocketAddr) -> bool {
+        *addr == self.server_address
     }
 
     /// Add multiple peer addresses and save timestamp in the new addresses bucket
@@ -168,7 +168,7 @@ impl Peers {
             .filter_map(|address| {
                 // Filter out unspecified addresses (aka 0.0.0.0), and the server address
                 if !address.ip().is_unspecified()
-                    && !self.is_server_address(&address).unwrap_or(true)
+                    && !self.is_server_address(&address)
                     // Ignore "iced" addresses silently
                     && !self.ice_bucket_contains(&address)
                 {

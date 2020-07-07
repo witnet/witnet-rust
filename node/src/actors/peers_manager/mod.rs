@@ -16,6 +16,7 @@ use crate::{
     },
     storage_mngr,
 };
+use witnet_config::config::Config;
 
 // Internal Actor implementation for PeersManager
 mod actor;
@@ -40,13 +41,20 @@ pub struct PeersManager {
     peers: Peers,
     /// Period to consider if a peer is updated
     pub bucketing_update_period: i64,
-    /// Timeout for handshake
-    pub handshake_timeout: Duration,
     /// Magic number from ConsensusConstants
     magic: u16,
 }
 
 impl PeersManager {
+    /// Initialize `PeersManager` taking the configuration from a `Config` structure
+    pub fn from_config(config: &Config) -> Self {
+        PeersManager {
+            peers: Peers::from_config(config),
+            bucketing_update_period: config.connections.bucketing_update_period,
+            magic: config.consensus_constants.get_magic(),
+        }
+    }
+
     /// Method to periodically persist peers into storage
     fn persist_peers(&self, ctx: &mut Context<Self>, storage_peers_period: Duration) {
         // Schedule the discovery_peers with a given period

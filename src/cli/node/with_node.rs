@@ -1,6 +1,7 @@
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
@@ -148,7 +149,7 @@ pub fn exec_cmd(
 
             config.connections.known_peers.extend(params.known_peers);
 
-            node::actors::node::run(config, || {
+            node::actors::node::run(Arc::new(config), || {
                 // FIXME(#72): decide what to do when interrupt signals are received
                 ctrlc::set_handler(move || {
                     node::actors::node::close();

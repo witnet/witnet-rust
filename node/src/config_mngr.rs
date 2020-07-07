@@ -6,9 +6,9 @@ use std::sync::Arc;
 use witnet_config::{config::Config, loaders::toml};
 
 /// Start the configuration manager with an initial configuration
-pub fn start(config: Config) {
+pub fn start(config: Arc<Config>) {
     let addr = ConfigManager::create(|_ctx| ConfigManager {
-        config: Arc::new(config),
+        config,
         config_source: Source::Default,
     });
     actix::SystemRegistry::set(addr);

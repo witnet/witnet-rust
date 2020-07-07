@@ -12,5 +12,6 @@ log = "0.4.8"
 rand = "0.7.3"
 serde = { version = "1.0.104", features = ["derive"] }
 
+witnet_config = { path = "../config" }
 witnet_crypto = { path = "../crypto" }
 witnet_util = { path = "../util" }

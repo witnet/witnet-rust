@@ -22,17 +22,8 @@ impl Actor for PeersManager {
                 // Get storage peers period
                 let storage_peers_period = config.connections.storage_peers_period;
 
-                // Get server address
-                let server_addr = config.connections.server_addr;
-                act.peers.set_server(server_addr);
-
-                // Get bucketing "ice" and update period
-                act.peers
-                    .set_ice_period(config.connections.bucketing_ice_period);
+                // Set bucketing update period
                 act.bucketing_update_period = config.connections.bucketing_update_period;
-
-                // Get handshake time_out
-                act.handshake_timeout = config.connections.handshake_timeout;
 
                 // Get feeler period
                 let feeler_peers_period = config.connections.feeler_peers_period;

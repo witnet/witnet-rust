@@ -12,8 +12,11 @@ mod ice {
 
     #[test]
     fn test_can_ice_an_address() {
-        let mut peers = Peers::new();
-        peers.set_ice_period(Duration::from_secs(1000));
+        let ice_period = Duration::from_secs(1000);
+        let mut peers = Peers {
+            ice_period,
+            ..Default::default()
+        };
         let address = ip("192.168.1.1:21337");
         let can_ice = peers.ice_peer_address(&address);
 
@@ -26,7 +29,7 @@ mod ice {
 
     #[test]
     fn test_icing_does_not_block_the_entire_ip() {
-        let mut peers = Peers::new();
+        let mut peers = Peers::default();
         let address_21337 = ip("192.168.1.1:21337");
         let address_21338 = ip("192.168.1.1:21338");
 
@@ -38,7 +41,7 @@ mod ice {
 
     #[test]
     fn test_icing_does_not_block_different_ip() {
-        let mut peers = Peers::new();
+        let mut peers = Peers::default();
         let address_1 = ip("192.168.1.1:21337");
         let address_2 = ip("192.168.1.2:21337");
 
@@ -50,8 +53,11 @@ mod ice {
 
     #[test]
     fn test_ice_melts_ater_some_time() {
-        let mut peers = Peers::new();
-        peers.set_ice_period(Duration::from_secs(1000));
+        let ice_period = Duration::from_secs(1000);
+        let mut peers = Peers {
+            ice_period,
+            ..Default::default()
+        };
         let address = ip("192.168.1.1:21337");
         peers.ice_peer_address_pure(&address, 0);
         let is_iced_right_after = peers.ice_bucket_contains_pure(&address, 1);
