@@ -1,7 +1,14 @@
 use actix::prelude::*;
 
 use super::PeersManager;
-use crate::{actors::storage_keys, config_mngr, storage_mngr};
+use crate::{
+    actors::{
+        epoch_manager::EpochManager,
+        messages::{GetEpoch, Subscribe},
+        storage_keys,
+    },
+    config_mngr, storage_mngr,
+};
 use witnet_p2p::peers::Peers;
 
 /// Make actor from PeersManager
@@ -51,6 +58,28 @@ impl Actor for PeersManager {
                             // Add all the peers from storage
                             // The add method handles duplicates by overwriting the old values
                             act.import_peers(peers_from_storage, known_peers);
+                        }
+
+                        fut::ok(())
+                    })
+                    .spawn(ctx);
+
+                // Ask EpochManager for current epoch so that `Peers` knows about the bootstrapping
+                // status. If there is no current epoch, subscribe to first epoch so that the
+                // `bootstrapped` flag can be later set to `true` once actually bootstrapped.
+                let epoch_manager = EpochManager::from_registry();
+                epoch_manager
+                    .send(GetEpoch)
+                    .into_actor(act)
+                    .then(move |epoch, act, ctx| {
+                        if epoch.is_ok() {
+                            act.peers.bootstrapped = true
+                        } else {
+                            epoch_manager
+                                .send(Subscribe::to_epoch(0, ctx.address(), ()))
+                                .into_actor(act)
+                                .then(|_, _, _| fut::ok(()))
+                                .spawn(ctx);
                         }
 
                         fut::ok(())

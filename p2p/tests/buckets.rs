@@ -55,6 +55,7 @@ mod ice {
     fn test_ice_melts_ater_some_time() {
         let ice_period = Duration::from_secs(1000);
         let mut peers = Peers {
+            bootstrapped: true,
             ice_period,
             ..Default::default()
         };
@@ -65,13 +66,12 @@ mod ice {
             peers.ice_bucket_contains_pure(&address, 999);
         let is_still_iced_just_when_ice_period_is_over =
             peers.ice_bucket_contains_pure(&address, 1000);
-        let is_not_iced_right_after_ice_period_is_over =
-            peers.ice_bucket_contains_pure(&address, 1001);
+        let is_iced_right_after_ice_period_is_over = peers.ice_bucket_contains_pure(&address, 1001);
 
         assert!(is_iced_right_after);
         assert!(is_still_iced_right_before_ice_period_is_over);
         assert!(is_still_iced_just_when_ice_period_is_over);
-        assert!(!is_not_iced_right_after_ice_period_is_over);
+        assert!(!is_iced_right_after_ice_period_is_over);
     }
 }
 

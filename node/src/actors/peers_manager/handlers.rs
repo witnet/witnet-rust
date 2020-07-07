@@ -2,7 +2,7 @@ use actix::{Context, Handler};
 
 use super::PeersManager;
 use crate::actors::messages::{
-    AddConsolidatedPeer, AddPeers, GetKnownPeers, GetRandomPeers, PeersNewTried,
+    AddConsolidatedPeer, AddPeers, EpochNotification, GetKnownPeers, GetRandomPeers, PeersNewTried,
     PeersSocketAddrResult, PeersSocketAddrsResult, RemoveAddressesFromTried, RequestPeers,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -93,5 +93,16 @@ impl Handler<GetKnownPeers> for PeersManager {
             new: self.peers.get_all_from_new()?,
             tried: self.peers.get_all_from_tried()?,
         })
+    }
+}
+
+/// Handler for EpochNotification message
+impl Handler<EpochNotification<()>> for PeersManager {
+    type Result = ();
+
+    fn handle(&mut self, _msg: EpochNotification<()>, _: &mut Context<Self>) -> Self::Result {
+        // Simply set the `bootstrapped` flag to `true`, because epoch notifications are not sent
+        // anyway before the network is bootstrapped
+        self.peers.bootstrapped = true
     }
 }

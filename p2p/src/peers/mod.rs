@@ -28,6 +28,8 @@ pub struct PeerInfo {
 /// Peers TBD
 #[derive(Deserialize, Serialize)]
 pub struct Peers {
+    /// Flag whether the chain is bootstrapped, specially with regards to ice period
+    pub bootstrapped: bool,
     /// Bucket for "iced" addresses (will not be tried in a while)
     pub ice_bucket: HashMap<SocketAddr, i64>,
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
@@ -47,6 +49,7 @@ pub struct Peers {
 impl Default for Peers {
     fn default() -> Self {
         Peers {
+            bootstrapped: false,
             ice_bucket: Default::default(),
             ice_period: Default::default(),
             new_bucket: Default::default(),
@@ -82,6 +85,19 @@ impl Peers {
         calculate_index_for_tried(self.sk, &ip, &group, &host_id)
     }
 
+    /// Retrieve current ice period, i.e. how long will peer addresses be kept in the ice bucket.
+    /// If the chain is not considered bootstrapped (epoch < 0), use a hardcoded, really short ice
+    /// period that is more permissive and allows for more agile peers discovery during
+    /// the process of bootstrapping the network.
+    pub fn current_ice_period(&self) -> i64 {
+        if self.bootstrapped {
+            i64::try_from(self.ice_period.as_secs())
+                .expect("Ice period should fit in the range of u64")
+        } else {
+            60
+        }
+    }
+
     /// Check whether a peer address is iced using the current timestamp as a reference for
     /// calculating whether the address has been in the bucket long enough for "the ice to melt".
     pub fn ice_bucket_contains(&mut self, addr: &SocketAddr) -> bool {
@@ -91,8 +107,7 @@ impl Peers {
     /// Check whether a peer address is iced using the provided timestamp as a reference for
     /// calculating whether the address has been in the bucket long enough for "the ice to melt".
     pub fn ice_bucket_contains_pure(&mut self, addr: &SocketAddr, current_timestamp: i64) -> bool {
-        let ice_period = i64::try_from(self.ice_period.as_secs())
-            .expect("Ice period should fit in the range of u64");
+        let ice_period = self.current_ice_period();
         let (contains, needs_removal) = self
             .ice_bucket
             .get(&addr)
