@@ -21,8 +21,8 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature, NodeStats,
-        OutputPointer, PublicKey, PublicKeyHash, UtxoInfo, UtxoSelectionStrategy,
+        Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature,
+        NodeStats, OutputPointer, PublicKey, PublicKeyHash, UtxoInfo, UtxoSelectionStrategy,
         ValueTransferOutput,
     },
     proto::ProtobufConvert,
@@ -797,8 +797,17 @@ pub fn data_request_report(
         bail!("This is not a data request transaction");
     };
 
-    let dr_output = dr_tx.body.dr_output;
+    let mut dr_output = dr_tx.body.dr_output;
     let dr_creator_pkh = dr_tx.signatures[0].public_key.pkh();
+
+    // When collateral is set to 0, it is actually the default collateral
+    // Get the consensus constants from to node to find out what is the default collateral
+    if dr_output.collateral == 0 {
+        let request = r#"{"jsonrpc": "2.0","method": "getConsensusConstants", "id": "1"}"#;
+        let response = send_request(&mut stream, request)?;
+        let consensus_constants: ConsensusConstants = parse_response(&response)?;
+        dr_output.collateral = consensus_constants.collateral_minimum;
+    }
 
     let (data_request_state, reveals, tally, block_hash_tally_tx) = if transaction_block_hash
         .is_none()
@@ -854,14 +863,7 @@ pub fn data_request_report(
                                 if tally.out_of_consensus.contains(&pkh)
                                     && !tally.error_committers.contains(&pkh)
                                 {
-                                    let collateral = if dr_output.collateral == 0 {
-                                        // TODO: handle case when collateral is 0 (default)
-                                        unimplemented!("Data request with default collateral")
-                                    } else {
-                                        dr_output.collateral
-                                    };
-
-                                    format!("-{}", collateral)
+                                    format!("-{}", dr_output.collateral)
                                 } else {
                                     let reward = tally
                                         .outputs
@@ -870,13 +872,7 @@ pub fn data_request_report(
                                         .map(|vto| vto.value)
                                         .unwrap();
 
-                                    let collateral = if dr_output.collateral == 0 {
-                                        // TODO: handle case when collateral is 0 (default)
-                                        unimplemented!("Data request with default collateral")
-                                    } else {
-                                        dr_output.collateral
-                                    };
-                                    let reward = reward - collateral;
+                                    let reward = reward - dr_output.collateral;
 
                                     // Note: the collateral is not included in the reward
                                     if reward == 0 {
