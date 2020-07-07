@@ -119,6 +119,7 @@ impl StreamHandler<BytesMut, Error> for Session {
     /// This is main event loop for client requests
     fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
         let result = WitnetMessage::from_pb_bytes(&bytes);
+
         match result {
             Err(err) => log::error!("Error decoding message: {:?}", err),
             Ok(msg) => {

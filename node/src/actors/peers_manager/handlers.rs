@@ -18,7 +18,7 @@ impl Handler<AddPeers> for PeersManager {
         // The easiest way to check if a peer was added manually is by using msg.src_address,
         // which is set to None when using the addPeers JSON-RPC method and also when reading peers from config
         if msg.src_address.is_none() {
-            self.peers.ice_peer_addresses_remove(&msg.addresses);
+            self.peers.remove_many_from_ice(&msg.addresses);
         }
         self.peers.add_to_new(msg.addresses, msg.src_address)
     }

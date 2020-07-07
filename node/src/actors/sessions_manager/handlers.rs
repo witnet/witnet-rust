@@ -18,7 +18,7 @@ use crate::actors::{
     messages::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification,
         GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult, PeerBeacon, Register,
-        SessionsUnitResult, SetLastBeacon, TryMineBlock, Unregister,
+        RemoveAddressesFromTried, SessionsUnitResult, SetLastBeacon, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -169,6 +169,15 @@ impl Handler<Unregister> for SessionsManager {
                         msg.session_type,
                         msg.address
                     );
+
+                    let peers_manager_addr = PeersManager::from_registry();
+                    // Ice the peer that was unregistered
+                    peers_manager_addr.do_send(RemoveAddressesFromTried {
+                        // Use the address to which we connected to, not the public address reported by the peer
+                        addresses: vec![msg.address],
+                        ice: true,
+                    });
+
                     if msg.session_type == SessionType::Outbound {
                         self.beacons.remove(&msg.address);
                     }

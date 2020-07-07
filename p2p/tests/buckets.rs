@@ -128,6 +128,39 @@ mod ice {
 
         assert!(!is_iced);
     }
+
+    #[test]
+    fn test_ice_address_non_existent_in_tried() {
+        let ice_period = Duration::from_secs(1000);
+        let mut peers = Peers {
+            ice_period,
+            ..Default::default()
+        };
+        let address = ip("192.168.1.1:21337");
+
+        peers.clear_tried_bucket();
+        peers.remove_from_tried(&[address], true);
+
+        let is_iced = peers.ice_bucket_contains(&address);
+
+        assert!(is_iced);
+    }
+    #[test]
+    fn test_not_ice_address_non_existent_in_tried() {
+        let ice_period = Duration::from_secs(1000);
+        let mut peers = Peers {
+            ice_period,
+            ..Default::default()
+        };
+        let address = ip("192.168.1.1:21337");
+
+        peers.clear_tried_bucket();
+        peers.remove_from_tried(&[address], false);
+
+        let is_iced = peers.ice_bucket_contains(&address);
+
+        assert!(!is_iced);
+    }
 }
 
 /// Tests for the business logic of inserting peer addresses into the `new` buckets.
