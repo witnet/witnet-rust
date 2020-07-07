@@ -127,6 +127,26 @@ impl Peers {
         contains
     }
 
+    /// Extract (collect and remove) all melted peers from the `ice` bucket
+    pub fn extract_melted_peers_from_ice_bucket(&mut self) -> Vec<SocketAddr> {
+        let current_ts = get_timestamp();
+        let ice_period = self.current_ice_period();
+        let mut addresses = vec![];
+        self.ice_bucket.retain(|addr, ts| {
+            let retain_address = *ts >= current_ts.saturating_sub(ice_period);
+
+            // If the address was iced more than `ice_period` seconds ago, we can remove it from
+            // the ice bucket, accumulate in the vector and pretend it was not even there in the first place.
+            if !retain_address {
+                addresses.push(*addr);
+            }
+
+            retain_address
+        });
+
+        addresses
+    }
+
     /// Contains for new bucket
     pub fn new_bucket_contains(&self, index: u16) -> bool {
         self.new_bucket.contains_key(&index)
@@ -171,12 +191,6 @@ impl Peers {
         addrs: Vec<SocketAddr>,
         src_address: Option<SocketAddr>,
     ) -> Result<Vec<SocketAddr>, failure::Error> {
-        // If the source address that sent us this peer addresses is None, use the invalid address
-        // "0.0.0.0:0". This will make all the peer addresses that were added using manual methods
-        // go to the same buckets.
-        let src_address = src_address
-            .unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
-
         // Insert address
         // Note: if the peer address exists, the peer info will be overwritten
         let result = addrs
@@ -194,6 +208,10 @@ impl Peers {
                     // If the index points to the same address that it is already
                     // in tried, we don't include in new bucket
                     if elem.is_none() || (elem.unwrap().address != address) {
+                        // If the source address that sent us this peer addresses is None, use the same address
+                        // that we want to add. This will make all the peer addresses that were added using manual methods
+                        // go to the same bucket that if it was announced by that address.
+                        let src_address = src_address.unwrap_or_else(|| address);
                         let index = self.new_bucket_index(&address, &src_address);
 
                         self.new_bucket

@@ -136,6 +136,7 @@ impl SessionsManager {
                 command: SendGetPeers {},
                 safu: false,
             });
+
             act.discovery_peers(ctx, discovery_peers_period);
         });
     }

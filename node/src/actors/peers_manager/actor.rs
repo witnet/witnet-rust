@@ -26,14 +26,11 @@ impl Actor for PeersManager {
                 // Get known peers
                 let known_peers: Vec<_> = config.connections.known_peers.iter().cloned().collect();
 
-                // Get storage peers period
+                // Get connection periods from config
                 let storage_peers_period = config.connections.storage_peers_period;
-
-                // Set bucketing update period
                 act.bucketing_update_period = config.connections.bucketing_update_period;
-
-                // Get feeler period
                 let feeler_peers_period = config.connections.feeler_peers_period;
+                let check_melted_peers_period = config.connections.check_melted_peers_period;
 
                 // Add all peers
                 log::info!(
@@ -86,10 +83,13 @@ impl Actor for PeersManager {
                     })
                     .spawn(ctx);
 
-                // Start the storage peers process on SessionsManager start
+                // Start the storage peers process on PeersManager start
                 act.persist_peers(ctx, storage_peers_period);
 
-                // Start the feeleer peers process on SessionsManager start
+                // The peers melt process begins upon PeersManager's start
+                act.melt_peers(ctx, check_melted_peers_period);
+
+                // Start the feeleer peers process on PeersManager start
                 act.feeler(ctx, feeler_peers_period);
 
                 fut::ok(())

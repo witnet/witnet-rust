@@ -29,9 +29,9 @@ use crate::actors::{
     messages::{
         AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlockVote, AddTransaction,
         CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
-        GetHighestCheckpointBeacon, GetItem, PeerBeacon, RequestPeers, SendGetPeers,
-        SendInventoryAnnouncement, SendInventoryItem, SendLastBeacon, SendSuperBlockVote,
-        SessionUnitResult,
+        GetHighestCheckpointBeacon, GetItem, PeerBeacon, RemoveAddressesFromTried, RequestPeers,
+        SendGetPeers, SendInventoryAnnouncement, SendInventoryItem, SendLastBeacon,
+        SendSuperBlockVote, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -144,7 +144,11 @@ impl StreamHandler<BytesMut, Error> for Session {
                     //   HANDSHAKE    //
                     ////////////////////
                     // Handle Version message
-                    (_, SessionStatus::Unconsolidated, Command::Version(command_version)) => {
+                    (
+                        session_type,
+                        SessionStatus::Unconsolidated,
+                        Command::Version(command_version),
+                    ) => {
                         let current_ts = get_timestamp();
                         match handshake_version(
                             self,
@@ -161,6 +165,15 @@ impl StreamHandler<BytesMut, Error> for Session {
                             }
                             Err(err) => {
                                 log::warn!("Dropping peer {}: {}", self.remote_addr, err);
+
+                                if session_type == SessionType::Feeler {
+                                    let peers_manager_addr = PeersManager::from_registry();
+                                    // Ice the peer that was an error
+                                    peers_manager_addr.do_send(RemoveAddressesFromTried {
+                                        addresses: vec![self.remote_addr],
+                                        ice: true,
+                                    });
+                                }
 
                                 // Stop this session
                                 ctx.stop();

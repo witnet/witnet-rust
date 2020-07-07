@@ -194,6 +194,14 @@ pub struct Connections {
     ))]
     pub discovery_peers_period: Duration,
 
+    /// Period of the peers melt task
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "check_melted_peers_period_seconds"
+    ))]
+    pub check_melted_peers_period: Duration,
+
     /// Period of the feeler task (try_peer)
     #[partial_struct(serde(
         default,
@@ -540,6 +548,10 @@ impl Connections {
                 .discovery_peers_period
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_discovery_peers_period()),
+            check_melted_peers_period: config
+                .check_melted_peers_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_check_melted_peers_period()),
             feeler_peers_period: config
                 .feeler_peers_period
                 .to_owned()
@@ -882,6 +894,7 @@ mod tests {
             bootstrap_peers_period: Some(Duration::from_secs(10)),
             storage_peers_period: Some(Duration::from_secs(60)),
             discovery_peers_period: Some(Duration::from_secs(100)),
+            check_melted_peers_period: Some(Duration::from_secs(112)),
             feeler_peers_period: Some(Duration::from_secs(1)),
             handshake_timeout: Some(Duration::from_secs(3)),
             handshake_max_ts_diff: Some(17),
@@ -901,6 +914,7 @@ mod tests {
         assert_eq!(config.bootstrap_peers_period, Duration::from_secs(10));
         assert_eq!(config.storage_peers_period, Duration::from_secs(60));
         assert_eq!(config.discovery_peers_period, Duration::from_secs(100));
+        assert_eq!(config.check_melted_peers_period, Duration::from_secs(112));
         assert_eq!(config.feeler_peers_period, Duration::from_secs(1));
         assert_eq!(config.handshake_timeout, Duration::from_secs(3));
         assert_eq!(config.blocks_timeout, 5);

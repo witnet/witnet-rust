@@ -141,6 +141,24 @@ impl PeersManager {
         });
     }
 
+    /// Method to periodically melt peers
+    fn melt_peers(&self, ctx: &mut Context<Self>, check_melted_peers_period: Duration) {
+        // Schedule the melt_peers with a given period
+        ctx.run_later(check_melted_peers_period, move |act, ctx| {
+            // Remove peers from `ice` bucket that have "melted", i.e. they have been in that bucket
+            // for as long as specified by the `connections.bucketing_ice_period_seconds` setting in
+            // the configuration. These peers will be added to `new` again, so as to ensure that
+            // they never get stuck in the `ice` bucket
+            let addresses = act.peers.extract_melted_peers_from_ice_bucket();
+            if !addresses.is_empty() {
+                log::debug!("Melting these addresses: {:?}", addresses);
+                let _res = act.peers.add_to_new(addresses, None);
+            }
+
+            act.melt_peers(ctx, check_melted_peers_period);
+        });
+    }
+
     /// Set Magic number
     pub fn set_magic(&mut self, new_magic: u16) {
         self.magic = new_magic;

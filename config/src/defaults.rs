@@ -60,6 +60,11 @@ pub trait Defaults {
         Duration::from_secs(30)
     }
 
+    /// Default period for melt peers
+    fn connections_check_melted_peers_period(&self) -> Duration {
+        Duration::from_secs(3600)
+    }
+
     /// Default period for trying connecting to recently discovered peer addresses
     /// in search for quality peers
     fn connections_feeler_peers_period(&self) -> Duration {

@@ -24,7 +24,7 @@ impl Handler<AddPeers> for PeersManager {
     }
 }
 
-/// Handler for AddPeers message
+/// Handler for AddConsolidatedPeer message
 impl Handler<AddConsolidatedPeer> for PeersManager {
     type Result = PeersSocketAddrResult;
 
