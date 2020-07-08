@@ -320,7 +320,7 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
     let pkh = factories::pkh();
     let time_lock = 0;
     let err = wallet
-        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)), false)
         .unwrap_err();
 
     assert_eq!(
@@ -360,7 +360,7 @@ fn test_create_transaction_components_without_a_change_address() {
     let fee = 0;
     let time_lock = 0;
     let vtt = wallet
-        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)), false)
         .unwrap();
 
     assert_eq!(1, vtt.value);
@@ -404,7 +404,7 @@ fn test_create_transaction_components_whith_a_change_address() {
     };
     let time_lock = 0;
     let vtt = wallet
-        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)), false)
         .unwrap();
 
     assert_eq!(1, vtt.value);
@@ -461,7 +461,7 @@ fn test_create_transaction_components_which_value_overflows() {
     let fee = 0;
     let time_lock = 0;
     let err = wallet
-        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)), false)
         .unwrap_err();
 
     assert_eq!(

@@ -430,8 +430,13 @@ where
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
-        let components =
-            self._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))?;
+        let components = self._create_transaction_components(
+            &mut state,
+            value,
+            fee,
+            Some((pkh, time_lock)),
+            false,
+        )?;
 
         let body = types::VTTransactionBody::new(components.inputs, components.outputs);
         let sign_data = body.hash();
@@ -465,7 +470,7 @@ where
         let value = request
             .checked_total_value()
             .map_err(|_| Error::TransactionValueOverflow)?;
-        let components = self._create_transaction_components(&mut state, value, fee, None)?;
+        let components = self._create_transaction_components(&mut state, value, fee, None, true)?;
 
         let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
         let sign_data = body.hash();
@@ -496,6 +501,7 @@ where
         value: u64,
         fee: u64,
         recipient: Option<(types::PublicKeyHash, u64)>,
+        change_address_same_as_input: bool,
     ) -> Result<types::TransactionComponents> {
         let target = value.saturating_add(fee);
         let mut payment = 0u64;
@@ -513,6 +519,7 @@ where
             });
         }
 
+        let mut first_pkh = None;
         for (out_ptr, key_balance) in state.utxo_set.iter() {
             if payment >= target {
                 break;
@@ -533,6 +540,13 @@ where
             let extended_sign_key =
                 parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
 
+            if first_pkh.is_none() && change_address_same_as_input {
+                let public_key: types::PK =
+                    types::ExtendedPK::from_secret_key(&self.engine, &extended_sign_key).into();
+
+                first_pkh = Some(witnet_data_structures::chain::PublicKey::from(public_key).pkh());
+            }
+
             payment = payment
                 .checked_add(key_balance.amount)
                 .ok_or_else(|| Error::TransactionValueOverflow)?;
@@ -550,10 +564,14 @@ where
             let change = payment - target;
 
             if change > 0 {
-                let change_address = self._gen_internal_address(state, None)?;
+                let change_pkh = if let Some(pkh) = first_pkh {
+                    pkh
+                } else {
+                    self._gen_internal_address(state, None)?.pkh
+                };
 
                 outputs.push(types::VttOutput {
-                    pkh: change_address.pkh,
+                    pkh: change_pkh,
                     value: change,
                     time_lock: 0,
                 });
