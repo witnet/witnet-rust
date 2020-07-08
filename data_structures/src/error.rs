@@ -193,7 +193,7 @@ pub enum TransactionError {
         transaction_value: u64,
     },
     /// Zero amount specified
-    #[fail(display = "Cannot build transaction with zero value")]
+    #[fail(display = "A transaction with zero value is invalid")]
     ZeroAmount,
     /// Incorrect count of out-of-consensus witnesses in Tally
     #[fail(

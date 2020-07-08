@@ -461,6 +461,7 @@ mod tests {
             _ => 0,
         }
     }
+
     fn outputs_sum_not_mine(transaction: &Transaction) -> u64 {
         let pkh = my_pkh();
         match transaction {
@@ -477,6 +478,32 @@ mod tests {
                 .map(|vt| if vt.pkh != pkh { vt.value } else { 0 })
                 .sum(),
             _ => 0,
+        }
+    }
+
+    // build_drt should only return one change output, with the same pkh as the first input, or
+    // no outputs if the value is zero
+    fn check_one_output(transaction: &Transaction, pkh: &PublicKeyHash, value: u64) {
+        match transaction {
+            Transaction::ValueTransfer(vt_tx) => {
+                if value == 0 {
+                    assert_eq!(vt_tx.body.outputs.len(), 0);
+                } else {
+                    assert_eq!(vt_tx.body.outputs.len(), 1);
+                    assert_eq!(vt_tx.body.outputs[0].value, value);
+                    assert_eq!(&vt_tx.body.outputs[0].pkh, pkh);
+                }
+            }
+            Transaction::DataRequest(dr_tx) => {
+                if value == 0 {
+                    assert_eq!(dr_tx.body.outputs.len(), 0);
+                } else {
+                    assert_eq!(dr_tx.body.outputs.len(), 1);
+                    assert_eq!(dr_tx.body.outputs[0].value, value);
+                    assert_eq!(&dr_tx.body.outputs[0].pkh, pkh);
+                }
+            }
+            t => panic!("Unexpected transaction type: {:?}", t),
         }
     }
 
@@ -929,6 +956,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outputs_sum(&t1), 3400);
+        check_one_output(&t1, &own_pkh, 0);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t2 = build_drt_tx(
@@ -945,6 +973,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outputs_sum(&t2), 3400);
+        check_one_output(&t2, &own_pkh, 0);
 
         // Execute transaction t2
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
@@ -971,6 +1000,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outputs_sum(&t1), 1_000_000);
+        check_one_output(&t1, &own_pkh, 1_000_000 - 1_000);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t2 = build_drt_tx(
@@ -987,6 +1017,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outputs_sum(&t2), 1_000_000);
+        check_one_output(&t2, &own_pkh, 1_000_000 - 3_400);
 
         // Execute transaction t2
         let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
@@ -1036,6 +1067,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outputs_sum(&t1), 1_000_000);
+        check_one_output(&t1, &own_pkh, 1_000_000 - 1_000);
 
         // Creating another transaction will fail because the old one is not confirmed yet
         // and this account only has 1 UTXO

@@ -703,18 +703,49 @@ pub fn validate_dr_transaction<'a>(
         signatures_to_verify,
     )?;
 
-    // A value transfer output cannot have zero value
-    for (idx, output) in dr_tx.body.outputs.iter().enumerate() {
-        if output.value == 0 {
-            return Err(TransactionError::ZeroValueOutput {
-                tx_hash: dr_tx.hash(),
-                output_id: idx,
-            }
-            .into());
+    // A data request can only have 0 or 1 outputs
+    if dr_tx.body.outputs.len() > 1 {
+        return Err(TransactionError::WrongNumberOutputs {
+            outputs: dr_tx.body.outputs.len(),
+            expected_outputs: 1,
         }
+        .into());
+    }
+
+    // A data request with 0 inputs can only be valid if the total cost of the data request is 0,
+    // which is not possible
+    if dr_tx.body.inputs.is_empty() {
+        return Err(TransactionError::ZeroAmount.into());
     }
 
     let fee = dr_transaction_fee(dr_tx, utxo_diff, epoch, epoch_constants)?;
+
+    if let Some(dr_output) = dr_tx.body.outputs.get(0) {
+        // A value transfer output cannot have zero value
+        if dr_output.value == 0 {
+            return Err(TransactionError::ZeroValueOutput {
+                tx_hash: dr_tx.hash(),
+                output_id: 0,
+            }
+            .into());
+        }
+
+        // The output must have the same pkh as the first input
+        let first_input = utxo_diff
+            .get(&dr_tx.body.inputs[0].output_pointer())
+            .unwrap();
+        let expected_pkh = first_input.pkh;
+
+        if dr_output.pkh != expected_pkh {
+            return Err(TransactionError::PublicKeyHashMismatch {
+                expected_pkh,
+                signature_pkh: dr_output.pkh,
+            }
+            .into());
+        }
+    } else {
+        // 0 outputs: nothing to validate
+    }
 
     validate_data_request_output(&dr_tx.body.dr_output)?;
 

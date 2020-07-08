@@ -1242,12 +1242,16 @@ fn genesis_vtt_valid() {
 
 #[test]
 fn data_request_no_inputs() {
+    // Try to create a data request with no inputs
+    // A data request with no inputs may cause a panic in validations because we need to get the pkh
+    // of the first input, and in this case there is no first input
+    // This is mitigated by checking that there is at least one input, and returning ZeroAmount
+    // error if there are no inputs
     let mut signatures_to_verify = vec![];
     let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
-    // Try to create a data request with no inputs
     let dr_output = DataRequestOutput {
         witness_reward: 500,
         witnesses: 2,
@@ -1270,7 +1274,7 @@ fn data_request_no_inputs() {
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NegativeFee
+        TransactionError::ZeroAmount
     );
 }
 
@@ -1522,6 +1526,10 @@ fn data_request_input_not_enough_value() {
 
 #[test]
 fn data_request_output_value_overflow() {
+    // Try to create a value transfer output with 2 outputs with value near u64::max_value()
+    // This may cause an overflow in the fee validations if implemented incorrectly
+    // The current implementation handles this by rejecting data requests with more than 1 value
+    // transfer output
     let mut signatures_to_verify = vec![];
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
@@ -1579,7 +1587,10 @@ fn data_request_output_value_overflow() {
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::OutputValueOverflow
+        TransactionError::WrongNumberOutputs {
+            outputs: 2,
+            expected_outputs: 1,
+        }
     );
 }
 
@@ -1975,7 +1986,7 @@ fn data_request_miner_fee_with_change() {
     };
     let change_output = ValueTransferOutput {
         time_lock: 0,
-        pkh: PublicKeyHash::default(),
+        pkh: MY_PKH_1.parse().unwrap(),
         value: 200,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2001,6 +2012,117 @@ fn data_request_miner_fee_with_change() {
 }
 
 #[test]
+fn data_request_change_to_different_pkh() {
+    // Use 1000 input to pay 750 for data request, and request 200 change to a different address
+    // This should fail because the change can only be sent to the same pkh as the first input
+    let mut signatures_to_verify = vec![];
+    let data_request = example_data_request();
+    let dr_output = DataRequestOutput {
+        witness_reward: 750 / 2,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+        ..DataRequestOutput::default()
+    };
+
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 1000,
+        time_lock: 0,
+    };
+    let change_output = ValueTransferOutput {
+        time_lock: 0,
+        pkh: MY_PKH_2.parse().unwrap(),
+        value: 200,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+        MAX_DR_WEIGHT,
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::PublicKeyHashMismatch {
+            expected_pkh: MY_PKH_1.parse().unwrap(),
+            signature_pkh: MY_PKH_2.parse().unwrap(),
+        }
+    );
+}
+
+#[test]
+fn data_request_two_change_outputs() {
+    // Use 1000 input to pay 750 for data request, and request 200 change to the same address but
+    // split into two outputs
+    // This should fail because the data request can only have one output
+    let mut signatures_to_verify = vec![];
+    let data_request = example_data_request();
+    let dr_output = DataRequestOutput {
+        witness_reward: 750 / 2,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+        ..DataRequestOutput::default()
+    };
+
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 1000,
+        time_lock: 0,
+    };
+    let change_output_1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 150,
+    };
+    let change_output_2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 50,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let dr_tx_body =
+        DRTransactionBody::new(vec![vti], vec![change_output_1, change_output_2], dr_output);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+        MAX_DR_WEIGHT,
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::WrongNumberOutputs {
+            outputs: 2,
+            expected_outputs: 1,
+        }
+    );
+}
+
+#[test]
 fn data_request_miner_fee_with_too_much_change() {
     // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
     let mut signatures_to_verify = vec![];
@@ -2021,7 +2143,7 @@ fn data_request_miner_fee_with_too_much_change() {
     };
     let change_output = ValueTransferOutput {
         time_lock: 0,
-        pkh: PublicKeyHash::default(),
+        pkh: MY_PKH_1.parse().unwrap(),
         value: 300,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2068,7 +2190,7 @@ fn data_request_zero_value_output() {
     };
     let change_output = ValueTransferOutput {
         time_lock: 0,
-        pkh: PublicKeyHash::default(),
+        pkh: MY_PKH_1.parse().unwrap(),
         value: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -6417,7 +6539,7 @@ fn block_add_drt() {
 
         let vto0 = ValueTransferOutput {
             time_lock: 0,
-            pkh: Default::default(),
+            pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
@@ -6453,7 +6575,7 @@ fn block_add_2_drt_same_input() {
 
         let vto0 = ValueTransferOutput {
             time_lock: 0,
-            pkh: Default::default(),
+            pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
@@ -6473,7 +6595,7 @@ fn block_add_2_drt_same_input() {
 
         let vto0 = ValueTransferOutput {
             time_lock: 0,
-            pkh: Default::default(),
+            pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
@@ -6514,7 +6636,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
 
         let vto0 = ValueTransferOutput {
             time_lock: 0,
-            pkh: Default::default(),
+            pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
