@@ -135,14 +135,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             }
             StateMachine::Synchronizing => {}
             StateMachine::AlmostSynced | StateMachine::Synced => {
-                if self.sm_state == StateMachine::AlmostSynced {
-                    // We only reach Synced state after genesis event
-                    // In other words, this is the only point in the whole base code for the state
-                    // machine to move into `Synced` state.
-                    log::debug!("Moving from AlmostSynced to Synced state");
-                    log::info!("{}", SYNCED_BANNER);
-                    self.sm_state = StateMachine::Synced;
-                }
                 match self.chain_state {
                     ChainState {
                         reputation_engine: Some(ref mut rep_engine),
@@ -742,6 +734,13 @@ impl Handler<PeersBeacons> for ChainManager {
                 let our_beacon = self.get_chain_beacon();
                 match consensus {
                     Some(consensus_beacon) if consensus_beacon == our_beacon => {
+                        if self.sm_state == StateMachine::AlmostSynced {
+                            // This is the only point in the whole base code for the state
+                            // machine to move into `Synced` state.
+                            log::debug!("Moving from AlmostSynced to Synced state");
+                            log::info!("{}", SYNCED_BANNER);
+                            self.sm_state = StateMachine::Synced;
+                        }
                         Ok(peers_to_unregister)
                     }
                     Some(_) => {
