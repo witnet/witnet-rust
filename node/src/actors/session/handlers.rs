@@ -164,8 +164,6 @@ impl StreamHandler<BytesMut, Error> for Session {
                                 try_consolidate_session(self, ctx);
                             }
                             Err(err) => {
-                                log::warn!("Dropping peer {}: {}", self.remote_addr, err);
-
                                 if session_type == SessionType::Feeler {
                                     let peers_manager_addr = PeersManager::from_registry();
                                     // Ice the peer that was an error
@@ -173,6 +171,18 @@ impl StreamHandler<BytesMut, Error> for Session {
                                         addresses: vec![self.remote_addr],
                                         ice: true,
                                     });
+                                    log::debug!(
+                                        "Dropping feeler connection {}: {}",
+                                        self.remote_addr,
+                                        err
+                                    );
+                                } else {
+                                    log::warn!(
+                                        "Dropping {:?} peer {}: {}",
+                                        session_type,
+                                        self.remote_addr,
+                                        err
+                                    );
                                 }
 
                                 // Stop this session
