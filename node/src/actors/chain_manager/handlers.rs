@@ -1453,8 +1453,16 @@ impl Handler<GetMempool> for ChainManager {
 
     fn handle(&mut self, _msg: GetMempool, _ctx: &mut Self::Context) -> Self::Result {
         let res = GetMempoolResult {
-            value_transfer: self.transactions_pool.vt_iter().map(|t| t.hash()).collect(),
-            data_request: self.transactions_pool.dr_iter().map(|t| t.hash()).collect(),
+            value_transfer: self
+                .transactions_pool
+                .vt_iter()
+                .map(|(t, _)| t.hash())
+                .collect(),
+            data_request: self
+                .transactions_pool
+                .dr_iter()
+                .map(|(t, _)| t.hash())
+                .collect(),
         };
 
         Ok(res)

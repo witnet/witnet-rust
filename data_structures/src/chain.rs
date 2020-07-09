@@ -1459,8 +1459,8 @@ impl RADTally {
 }
 
 type PrioritizedHash = (OrderedFloat<f64>, Hash);
-type PrioritizedVTTransaction = (OrderedFloat<f64>, VTTransaction);
-type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction);
+type PrioritizedVTTransaction = (OrderedFloat<f64>, VTTransaction, u64);
+type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction, u64);
 
 /// A pool of validated transactions that supports constant access by
 /// [`Hash`](Hash) and iteration over the
@@ -1849,7 +1849,7 @@ impl TransactionsPool {
     fn vt_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<VTTransaction> {
         self.vt_transactions
             .remove(key)
-            .map(|(weight, transaction)| {
+            .map(|(weight, transaction, _)| {
                 self.sorted_vt_index.remove(&(weight, *key));
                 self.total_vt_weight -= u64::from(transaction.weight());
                 if !consolidated {
@@ -1902,7 +1902,7 @@ impl TransactionsPool {
     fn dr_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<DRTransaction> {
         self.dr_transactions
             .remove(key)
-            .map(|(weight, transaction)| {
+            .map(|(weight, transaction, _)| {
                 self.sorted_dr_index.remove(&(weight, *key));
                 self.total_dr_weight -= u64::from(transaction.weight());
                 if !consolidated {
@@ -2095,7 +2095,7 @@ impl TransactionsPool {
                         .push(vt_tx.hash());
                 }
 
-                self.vt_transactions.insert(key, (priority, vt_tx));
+                self.vt_transactions.insert(key, (priority, vt_tx, fee));
                 self.sorted_vt_index.insert((priority, key));
             }
             Transaction::DataRequest(dr_tx) => {
@@ -2111,7 +2111,7 @@ impl TransactionsPool {
                         .push(dr_tx.hash());
                 }
 
-                self.dr_transactions.insert(key, (priority, dr_tx));
+                self.dr_transactions.insert(key, (priority, dr_tx, fee));
                 self.sorted_dr_index.insert((priority, key));
             }
             Transaction::Commit(co_tx) => {
@@ -2178,20 +2178,20 @@ impl TransactionsPool {
     /// let tx2 = iter.next();
     ///
     /// ```
-    pub fn vt_iter(&self) -> impl Iterator<Item = &VTTransaction> {
+    pub fn vt_iter(&self) -> impl Iterator<Item = (&VTTransaction, &u64)> {
         self.sorted_vt_index
             .iter()
             .rev()
-            .filter_map(move |(_, h)| self.vt_transactions.get(h).map(|(_, t)| t))
+            .filter_map(move |(_, h)| self.vt_transactions.get(h).map(|(_, t, fee)| (t, fee)))
     }
 
     /// An iterator visiting all the data request transactions
     /// in the pool
-    pub fn dr_iter(&self) -> impl Iterator<Item = &DRTransaction> {
+    pub fn dr_iter(&self) -> impl Iterator<Item = (&DRTransaction, &u64)> {
         self.sorted_dr_index
             .iter()
             .rev()
-            .filter_map(move |(_, h)| self.dr_transactions.get(h).map(|(_, t)| t))
+            .filter_map(move |(_, h)| self.dr_transactions.get(h).map(|(_, t, fee)| (t, fee)))
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -2206,16 +2206,36 @@ impl TransactionsPool {
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     /// let hash = transaction.hash();
     ///
-    /// assert!(pool.vt_get(&hash).is_none());
+    /// assert!(pool.vt_get_fee(&hash).is_none());
     ///
     /// pool.insert(transaction, 0);
     ///
-    /// assert!(pool.vt_get(&hash).is_some());
+    /// assert!(pool.vt_get_fee(&hash).is_some());
     /// ```
-    pub fn vt_get(&self, key: &Hash) -> Option<&VTTransaction> {
-        self.vt_transactions
-            .get(key)
-            .map(|(_, transaction)| transaction)
+    pub fn vt_get_fee(&self, key: &Hash) -> Option<u64> {
+        self.vt_transactions.get(key).map(|(_, _, fee)| *fee)
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// Examples:
+    ///
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
+    /// # use witnet_data_structures::transaction::{Transaction, DRTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::DataRequest(DRTransaction::default());
+    /// let hash = transaction.hash();
+    ///
+    /// assert!(pool.dr_get_fee(&hash).is_none());
+    ///
+    /// pool.insert(transaction, 0);
+    ///
+    /// assert!(pool.dr_get_fee(&hash).is_some());
+    /// ```
+    pub fn dr_get_fee(&self, key: &Hash) -> Option<u64> {
+        self.dr_transactions.get(key).map(|(_, _, fee)| *fee)
     }
 
     /// Retains only the elements specified by the predicate.
@@ -2256,7 +2276,7 @@ impl TransactionsPool {
             ..
         } = *self;
 
-        vt_transactions.retain(|hash, (weight, vt_transaction)| {
+        vt_transactions.retain(|hash, (weight, vt_transaction, _)| {
             let retain = f(vt_transaction);
             if !retain {
                 *total_vt_weight -= 1;
@@ -2271,11 +2291,11 @@ impl TransactionsPool {
     pub fn get(&self, hash: &Hash) -> Option<Transaction> {
         self.vt_transactions
             .get(hash)
-            .map(|(_, vtt)| Transaction::ValueTransfer(vtt.clone()))
+            .map(|(_, vtt, _)| Transaction::ValueTransfer(vtt.clone()))
             .or_else(|| {
                 self.dr_transactions
                     .get(hash)
-                    .map(|(_, drt)| Transaction::DataRequest(drt.clone()))
+                    .map(|(_, drt, _)| Transaction::DataRequest(drt.clone()))
             })
             .or_else(|| {
                 self.co_hash_index

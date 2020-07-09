@@ -13,7 +13,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
-use witnet_data_structures::chain::ConsensusConstants;
+use witnet_data_structures::chain::{ConsensusConstants, TransactionsPool};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, DataRequestOutput,
@@ -590,11 +590,20 @@ pub fn construct_report_from_clause_result(
 pub fn validate_vt_transaction<'a>(
     vt_tx: &'a VTTransaction,
     utxo_diff: &UtxoDiff,
+    tx_pool: &TransactionsPool,
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     max_vt_weight: u32,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    if let Some(fee) = tx_pool.vt_get_fee(&vt_tx.hash()) {
+        return Ok((
+            vt_tx.body.inputs.iter().collect(),
+            vt_tx.body.outputs.iter().collect(),
+            fee,
+        ));
+    }
+
     if vt_tx.weight() > max_vt_weight {
         return Err(TransactionError::ValueTransferWeightLimitExceeded {
             weight: vt_tx.weight(),
@@ -680,15 +689,25 @@ pub fn validate_genesis_vt_transaction(
 }
 
 /// Function to validate a data request transaction
+#[allow(clippy::too_many_arguments)]
 pub fn validate_dr_transaction<'a>(
     dr_tx: &'a DRTransaction,
     utxo_diff: &UtxoDiff,
+    tx_pool: &TransactionsPool,
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     collateral_minimum: u64,
     max_dr_weight: u32,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    if let Some(fee) = tx_pool.dr_get_fee(&dr_tx.hash()) {
+        return Ok((
+            dr_tx.body.inputs.iter().collect(),
+            dr_tx.body.outputs.iter().collect(),
+            fee,
+        ));
+    }
+
     if dr_tx.weight() > max_dr_weight {
         return Err(TransactionError::DataRequestWeightLimitExceeded {
             weight: dr_tx.weight(),
@@ -802,6 +821,7 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
 pub fn validate_commit_transaction(
     co_tx: &CommitTransaction,
     dr_pool: &DataRequestPool,
+    tx_pool: &TransactionsPool,
     vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
@@ -823,9 +843,17 @@ pub fn validate_commit_transaction(
 
     let dr_output = &dr_state.data_request;
 
+    let proof_pkh = co_tx.body.proof.proof.pkh();
+    if tx_pool.commit_contains(&dr_pointer, &proof_pkh, &co_tx.hash()) == Ok(true) {
+        return Ok((
+            dr_pointer,
+            dr_output.witnesses,
+            dr_output.commit_and_reveal_fee,
+        ));
+    }
+
     // Commitment's output is only for change propose, so it only has to be one output and the
     // address has to be the same than the address which creates the commitment
-    let proof_pkh = co_tx.body.proof.proof.pkh();
     if co_tx.body.outputs.len() > 1 {
         return Err(TransactionError::SeveralCommitOutputs.into());
     }
@@ -908,6 +936,7 @@ pub fn validate_commit_transaction(
 pub fn validate_reveal_transaction(
     re_tx: &RevealTransaction,
     dr_pool: &DataRequestPool,
+    tx_pool: &TransactionsPool,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<u64, failure::Error> {
     // Get DataRequest information
@@ -916,6 +945,11 @@ pub fn validate_reveal_transaction(
         .data_request_state(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
+    let pkh2 = re_tx.body.pkh;
+    if tx_pool.reveal_contains(&dr_pointer, &pkh2, &re_tx.hash()) == Ok(true) {
+        return Ok(dr_state.data_request.commit_and_reveal_fee);
+    }
+
     if dr_state.stage != DataRequestStage::REVEAL {
         return Err(DataRequestError::NotRevealStage.into());
     }
@@ -923,7 +957,6 @@ pub fn validate_reveal_transaction(
     let reveal_signature =
         validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures, signatures_to_verify)?;
     let pkh = reveal_signature.public_key.pkh();
-    let pkh2 = re_tx.body.pkh;
     if pkh != pkh2 {
         return Err(TransactionError::PublicKeyHashMismatch {
             expected_pkh: pkh2,
@@ -1478,6 +1511,7 @@ pub fn update_utxo_diff(
 pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
+    tx_pool: &TransactionsPool,
     block: &Block,
     vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
@@ -1517,6 +1551,7 @@ pub fn validate_block_transactions(
             let (inputs, outputs, fee) = validate_vt_transaction(
                 transaction,
                 &utxo_diff,
+                tx_pool,
                 epoch,
                 epoch_constants,
                 signatures_to_verify,
@@ -1554,6 +1589,7 @@ pub fn validate_block_transactions(
         let (inputs, outputs, fee) = validate_dr_transaction(
             transaction,
             &utxo_diff,
+            tx_pool,
             epoch,
             epoch_constants,
             signatures_to_verify,
@@ -1591,6 +1627,7 @@ pub fn validate_block_transactions(
         let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
             &transaction,
             dr_pool,
+            tx_pool,
             vrf_input,
             signatures_to_verify,
             rep_eng,
@@ -1640,7 +1677,8 @@ pub fn validate_block_transactions(
     let mut re_mt = ProgressiveMerkleTree::sha256();
     let mut reveal_hs = HashSet::with_capacity(block.txns.reveal_txns.len());
     for transaction in &block.txns.reveal_txns {
-        let fee = validate_reveal_transaction(&transaction, dr_pool, signatures_to_verify)?;
+        let fee =
+            validate_reveal_transaction(&transaction, dr_pool, tx_pool, signatures_to_verify)?;
 
         // Validation for only one reveal for pkh/data request in a block
         let pkh = transaction.body.pkh;
@@ -1822,10 +1860,11 @@ pub fn validate_genesis_block(
 #[allow(clippy::too_many_arguments)]
 pub fn validate_new_transaction(
     transaction: &Transaction,
-    (reputation_engine, unspent_outputs_pool, data_request_pool): (
+    (reputation_engine, unspent_outputs_pool, data_request_pool, transactions_pool): (
         &ReputationEngine,
         &UnspentOutputsPool,
         &DataRequestPool,
+        &TransactionsPool,
     ),
     vrf_input: CheckpointVRF,
     current_epoch: Epoch,
@@ -1843,6 +1882,7 @@ pub fn validate_new_transaction(
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
             &tx,
             &utxo_diff,
+            transactions_pool,
             current_epoch,
             epoch_constants,
             signatures_to_verify,
@@ -1853,6 +1893,7 @@ pub fn validate_new_transaction(
         Transaction::DataRequest(tx) => validate_dr_transaction(
             &tx,
             &utxo_diff,
+            transactions_pool,
             current_epoch,
             epoch_constants,
             signatures_to_verify,
@@ -1863,6 +1904,7 @@ pub fn validate_new_transaction(
         Transaction::Commit(tx) => validate_commit_transaction(
             &tx,
             &data_request_pool,
+            transactions_pool,
             vrf_input,
             signatures_to_verify,
             &reputation_engine,
@@ -1874,9 +1916,12 @@ pub fn validate_new_transaction(
             block_number,
         )
         .map(|(_, _, fee)| fee),
-        Transaction::Reveal(tx) => {
-            validate_reveal_transaction(&tx, &data_request_pool, signatures_to_verify)
-        }
+        Transaction::Reveal(tx) => validate_reveal_transaction(
+            &tx,
+            &data_request_pool,
+            transactions_pool,
+            signatures_to_verify,
+        ),
         _ => Err(TransactionError::NotValidTransaction.into()),
     }
 }

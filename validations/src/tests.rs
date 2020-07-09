@@ -225,6 +225,7 @@ fn vtt_no_inputs_no_outputs() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -258,6 +259,7 @@ fn vtt_no_inputs_zero_output() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -291,6 +293,7 @@ fn vtt_no_inputs() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -325,6 +328,7 @@ fn vtt_no_inputs_but_one_signature() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -364,6 +368,7 @@ fn vtt_one_input_but_no_signature() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -493,6 +498,7 @@ fn vtt_one_input_signatures() {
         validate_vt_transaction(
             &vt_tx,
             &utxo_diff,
+            &TransactionsPool::default(),
             Epoch::default(),
             EpochConstants::default(),
             &mut signatures_to_verify,
@@ -529,6 +535,7 @@ fn vtt_input_not_in_utxo() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -570,6 +577,7 @@ fn vtt_input_not_enough_value() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -606,6 +614,7 @@ fn vtt_one_input_zero_value_output() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -650,6 +659,7 @@ fn vtt_one_input_two_outputs_negative_fee() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -691,6 +701,7 @@ fn vtt_one_input_two_outputs() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -731,6 +742,7 @@ fn vtt_two_inputs_one_signature() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -777,6 +789,7 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -826,6 +839,7 @@ fn vtt_two_inputs_three_signatures() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -876,6 +890,7 @@ fn vtt_two_inputs_two_outputs() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -922,6 +937,7 @@ fn vtt_input_value_overflow() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -971,6 +987,7 @@ fn vtt_output_value_overflow() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1016,6 +1033,7 @@ fn vtt_timelock() {
         validate_vt_transaction(
             &vt_tx,
             &utxo_diff,
+            &TransactionsPool::default(),
             epoch,
             epoch_constants,
             &mut signatures_to_verify,
@@ -1059,6 +1077,7 @@ fn vtt_validation_weight_limit_exceeded() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1100,6 +1119,7 @@ fn vtt_valid() {
     let x = validate_vt_transaction(
         &vt_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1267,6 +1287,7 @@ fn data_request_no_inputs() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1302,6 +1323,7 @@ fn data_request_no_inputs_but_one_signature() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1346,6 +1368,7 @@ fn data_request_one_input_but_no_signature() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1391,6 +1414,7 @@ fn data_request_one_input_signatures() {
         validate_dr_transaction(
             &dr_transaction,
             &utxo_diff,
+            &TransactionsPool::default(),
             Epoch::default(),
             EpochConstants::default(),
             &mut signatures_to_verify,
@@ -1432,6 +1456,7 @@ fn data_request_input_double_spend() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1470,6 +1495,7 @@ fn data_request_input_not_in_utxo() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1513,6 +1539,7 @@ fn data_request_input_not_enough_value() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1580,6 +1607,7 @@ fn data_request_output_value_overflow() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1615,6 +1643,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
     validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1870,6 +1899,7 @@ fn dr_validation_weight_limit_exceeded() {
     let x = validate_dr_transaction(
         &dr_tx,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -1955,6 +1985,7 @@ fn data_request_miner_fee() {
     let dr_miner_fee = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -2001,6 +2032,7 @@ fn data_request_miner_fee_with_change() {
     let dr_miner_fee = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -2048,6 +2080,7 @@ fn data_request_change_to_different_pkh() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -2107,6 +2140,7 @@ fn data_request_two_change_outputs() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -2158,6 +2192,7 @@ fn data_request_miner_fee_with_too_much_change() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -2205,6 +2240,7 @@ fn data_request_zero_value_output() {
     let x = validate_dr_transaction(
         &dr_transaction,
         &utxo_diff,
+        &TransactionsPool::default(),
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
@@ -2235,6 +2271,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     validate_commit_transaction(
         &c_tx,
         &dr_pool,
+        &TransactionsPool::default(),
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
@@ -2291,6 +2328,7 @@ fn test_commit_with_dr_and_utxo_set(
     validate_commit_transaction(
         &c_tx,
         &dr_pool,
+        &TransactionsPool::default(),
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
@@ -2378,6 +2416,7 @@ fn test_commit_difficult_proof() {
     let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
+        &TransactionsPool::default(),
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
@@ -2456,6 +2495,7 @@ fn test_commit_with_collateral(
     validate_commit_transaction(
         &c_tx,
         &dr_pool,
+        &TransactionsPool::default(),
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
@@ -2708,6 +2748,7 @@ fn commitment_invalid_proof() {
     let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
+        &TransactionsPool::default(),
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
@@ -2786,6 +2827,7 @@ fn commitment_dr_in_reveal_stage() {
     let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
+        &TransactionsPool::default(),
         vrf_input,
         &mut signatures_to_verify,
         &rep_eng,
@@ -3176,6 +3218,7 @@ fn commitment_collateral_zero_is_minimum() {
         validate_commit_transaction(
             &c_tx,
             &dr_pool,
+            &TransactionsPool::default(),
             vrf_input,
             &mut signatures_to_verify,
             &rep_eng,
@@ -3267,6 +3310,7 @@ fn commitment_timelock() {
         validate_commit_transaction(
             &c_tx,
             &dr_pool,
+            &TransactionsPool::default(),
             vrf_input,
             &mut signatures_to_verify,
             &rep_eng,
@@ -3352,7 +3396,12 @@ fn reveal_signatures() {
     let f = |rb, rs| -> Result<_, failure::Error> {
         let r_tx = RevealTransaction::new(rb, vec![rs]);
         let mut signatures_to_verify = vec![];
-        let ret = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify)?;
+        let ret = validate_reveal_transaction(
+            &r_tx,
+            &dr_pool,
+            &TransactionsPool::default(),
+            &mut signatures_to_verify,
+        )?;
         verify_signatures_test(signatures_to_verify)?;
         Ok(ret)
     };
@@ -3451,7 +3500,12 @@ fn reveal_dr_in_commit_stage() {
     let rs = sign_tx(PRIV_KEY_1, &rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
+    let x = validate_reveal_transaction(
+        &r_tx,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotRevealStage,
@@ -3467,7 +3521,12 @@ fn reveal_no_signature() {
     rb.dr_pointer = dr_pointer;
     let r_tx = RevealTransaction::new(rb, vec![]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
+    let x = validate_reveal_transaction(
+        &r_tx,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::SignatureNotFound,
@@ -3487,7 +3546,12 @@ fn reveal_wrong_signature_public_key() {
     let rs = sign_tx(PRIV_KEY_1, &rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
+    let x = validate_reveal_transaction(
+        &r_tx,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::PublicKeyHashMismatch {
@@ -3509,7 +3573,12 @@ fn reveal_unknown_dr() {
     let rs = sign_tx(PRIV_KEY_1, &rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
+    let x = validate_reveal_transaction(
+        &r_tx,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestNotFound { hash: dr_pointer },
@@ -3527,7 +3596,12 @@ fn reveal_no_commitment() {
     let rs = sign_tx(PRIV_KEY_2, &rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
+    let x = validate_reveal_transaction(
+        &r_tx,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::CommitNotFound,
@@ -3545,7 +3619,12 @@ fn reveal_invalid_commitment() {
     let rs = sign_tx(PRIV_KEY_1, &rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
+    let x = validate_reveal_transaction(
+        &r_tx,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedCommitment,
@@ -3612,8 +3691,13 @@ fn reveal_valid_commitment() {
         .unwrap();
     dr_pool.update_data_request_stages();
 
-    let fee = validate_reveal_transaction(&reveal_transaction, &dr_pool, &mut signatures_to_verify)
-        .unwrap();
+    let fee = validate_reveal_transaction(
+        &reveal_transaction,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    )
+    .unwrap();
     assert_eq!(fee, 20);
 
     // Create other reveal
@@ -3625,8 +3709,12 @@ fn reveal_valid_commitment() {
     let reveal_signature2 = sign_tx(PRIV_KEY_1, &reveal_body2);
     let reveal_transaction2 = RevealTransaction::new(reveal_body2, vec![reveal_signature2]);
 
-    let error =
-        validate_reveal_transaction(&reveal_transaction2, &dr_pool, &mut signatures_to_verify);
+    let error = validate_reveal_transaction(
+        &reveal_transaction2,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         error.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedCommitment
@@ -3639,8 +3727,12 @@ fn reveal_valid_commitment() {
     dr_pool.update_data_request_stages();
 
     // Validate trying to include a reveal previously included
-    let error =
-        validate_reveal_transaction(&reveal_transaction, &dr_pool, &mut signatures_to_verify);
+    let error = validate_reveal_transaction(
+        &reveal_transaction,
+        &dr_pool,
+        &TransactionsPool::default(),
+        &mut signatures_to_verify,
+    );
     assert_eq!(
         error.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DuplicatedReveal {
@@ -5517,6 +5609,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     validate_block_transactions(
         &utxo_set,
         &dr_pool,
+        &TransactionsPool::default(),
         &b,
         vrf_input,
         &mut signatures_to_verify,
@@ -5779,6 +5872,7 @@ fn block_difficult_proof() {
             validate_block_transactions(
                 &utxo_set,
                 &dr_pool,
+                &TransactionsPool::default(),
                 &b,
                 vrf_input,
                 &mut signatures_to_verify,
@@ -6376,6 +6470,7 @@ fn test_blocks_with_limits(
         validate_block_transactions(
             &utxo_set,
             &dr_pool,
+            &TransactionsPool::default(),
             &b,
             vrf_input,
             &mut signatures_to_verify,
@@ -6959,6 +7054,7 @@ fn genesis_block_value_overflow() {
     let x = validate_block_transactions(
         &utxo_set,
         &dr_pool,
+        &TransactionsPool::default(),
         &b,
         vrf_input,
         &mut signatures_to_verify,
@@ -7038,6 +7134,7 @@ fn genesis_block_full_validate() {
     validate_block_transactions(
         &utxo_set,
         &dr_pool,
+        &TransactionsPool::default(),
         &b,
         vrf_input,
         &mut signatures_to_verify,
@@ -7124,6 +7221,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         validate_block_transactions(
             &utxo_set,
             &dr_pool,
+            &TransactionsPool::default(),
             &b,
             vrf_input,
             &mut signatures_to_verify,
@@ -7293,6 +7391,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         validate_block_transactions(
             &utxo_set,
             &dr_pool,
+            &TransactionsPool::default(),
             &b,
             vrf_input,
             &mut signatures_to_verify,
@@ -7345,6 +7444,7 @@ fn validate_required_tally_not_found() {
     let e = validate_block_transactions(
         &UnspentOutputsPool::default(),
         &dr_pool,
+        &TransactionsPool::default(),
         &b,
         CheckpointVRF::default(),
         &mut vec![],

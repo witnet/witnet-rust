@@ -721,7 +721,7 @@ fn build_block(
             .weight();
     // Currently only value transfer transactions weight is taking into account
 
-    for vt_tx in transactions_pool.vt_iter() {
+    for (vt_tx, _) in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();
         let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
@@ -759,7 +759,7 @@ fn build_block(
         ..DataRequestOutput::default()
     };
     let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
-    for dr_tx in transactions_pool.dr_iter() {
+    for (dr_tx, _) in transactions_pool.dr_iter() {
         let transaction_weight = dr_tx.weight();
         let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
