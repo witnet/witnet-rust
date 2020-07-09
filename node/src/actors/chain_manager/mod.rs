@@ -379,7 +379,7 @@ impl ChainManager {
                     u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
                     chain_info.consensus_constants.mining_replication_factor,
                     chain_info.consensus_constants.mining_backup_factor,
-                    current_epoch,
+                    block.block_header.beacon.checkpoint,
                     chain_info.consensus_constants.initial_difficulty,
                     chain_info
                         .consensus_constants

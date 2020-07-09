@@ -1714,7 +1714,7 @@ pub fn validate_block(
         let (target_hash, _) = calculate_randpoe_threshold(
             total_identities,
             consensus_constants.mining_backup_factor,
-            current_epoch,
+            block_epoch,
             consensus_constants.initial_difficulty,
             consensus_constants.epochs_with_initial_difficulty,
         );
@@ -1828,13 +1828,13 @@ pub fn validate_new_transaction(
 pub fn calculate_randpoe_threshold(
     total_identities: u32,
     replication_factor: u32,
-    current_epoch: u32,
+    block_epoch: u32,
     initial_difficulty: u32,
     epochs_with_initial_difficulty: u32,
 ) -> (Hash, f64) {
     let max = u64::max_value();
     let initial_difficulty = std::cmp::max(1, initial_difficulty);
-    let target = if current_epoch <= epochs_with_initial_difficulty {
+    let target = if block_epoch <= epochs_with_initial_difficulty {
         max / u64::from(initial_difficulty)
     } else if total_identities == 0 || replication_factor >= total_identities {
         max
@@ -1899,7 +1899,7 @@ impl VrfSlots {
         total_identities: u32,
         replication_factor: u32,
         backup_factor: u32,
-        current_epoch: u32,
+        block_epoch: u32,
         initial_difficulty: u32,
         epochs_with_initial_difficulty: u32,
     ) -> Self {
@@ -1909,7 +1909,7 @@ impl VrfSlots {
                     calculate_randpoe_threshold(
                         total_identities,
                         rf,
-                        current_epoch,
+                        block_epoch,
                         initial_difficulty,
                         epochs_with_initial_difficulty,
                     )
