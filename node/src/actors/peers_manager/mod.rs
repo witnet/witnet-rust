@@ -41,6 +41,8 @@ pub struct PeersManager {
     peers: Peers,
     /// Period to consider if a peer is updated
     pub bucketing_update_period: i64,
+    /// Period in seconds for checking melted peers in the "ice" bucket
+    pub check_melted_peers_period: Duration,
     /// Magic number from ConsensusConstants
     magic: u16,
 }
@@ -51,6 +53,7 @@ impl PeersManager {
         PeersManager {
             peers: Peers::from_config(config),
             bucketing_update_period: config.connections.bucketing_update_period,
+            check_melted_peers_period: config.connections.check_melted_peers_period,
             magic: config.consensus_constants.get_magic(),
         }
     }
@@ -141,9 +144,19 @@ impl PeersManager {
         });
     }
 
+    /// Retrieve current check_melted_peers period
+    pub fn current_check_melted_peers_period(&self) -> Duration {
+        if self.peers.bootstrapped {
+            self.check_melted_peers_period
+        } else {
+            Duration::from_secs(60)
+        }
+    }
+
     /// Method to periodically melt peers
-    fn melt_peers(&self, ctx: &mut Context<Self>, check_melted_peers_period: Duration) {
+    fn melt_peers(&self, ctx: &mut Context<Self>) {
         // Schedule the melt_peers with a given period
+        let check_melted_peers_period = self.current_check_melted_peers_period();
         ctx.run_later(check_melted_peers_period, move |act, ctx| {
             // Remove peers from `ice` bucket that have "melted", i.e. they have been in that bucket
             // for as long as specified by the `connections.bucketing_ice_period_seconds` setting in
@@ -155,7 +168,7 @@ impl PeersManager {
                 let _res = act.peers.add_to_new(addresses, None);
             }
 
-            act.melt_peers(ctx, check_melted_peers_period);
+            act.melt_peers(ctx);
         });
     }
 

@@ -30,7 +30,7 @@ impl Actor for PeersManager {
                 let storage_peers_period = config.connections.storage_peers_period;
                 act.bucketing_update_period = config.connections.bucketing_update_period;
                 let feeler_peers_period = config.connections.feeler_peers_period;
-                let check_melted_peers_period = config.connections.check_melted_peers_period;
+                act.check_melted_peers_period = config.connections.check_melted_peers_period;
 
                 // Add all peers
                 log::info!(
@@ -69,7 +69,7 @@ impl Actor for PeersManager {
                     .send(GetEpoch)
                     .into_actor(act)
                     .then(move |epoch, act, ctx| {
-                        if epoch.is_ok() {
+                        if epoch.expect("Error when asking for current epoch while initializing PeersManager").is_ok() {
                             act.peers.bootstrapped = true
                         } else {
                             epoch_manager
@@ -87,7 +87,7 @@ impl Actor for PeersManager {
                 act.persist_peers(ctx, storage_peers_period);
 
                 // The peers melt process begins upon PeersManager's start
-                act.melt_peers(ctx, check_melted_peers_period);
+                act.melt_peers(ctx);
 
                 // Start the feeleer peers process on PeersManager start
                 act.feeler(ctx, feeler_peers_period);
