@@ -79,7 +79,7 @@ impl Handler<Create> for SessionsManager {
         // condition
         if self.sessions.reject_sybil_inbounds && msg.session_type == SessionType::Inbound {
             if let Some(range) = self.sessions.is_similar_to_inbound_session(&remote_addr) {
-                log::debug!("Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}", remote_addr, ip_range_string(range));
+                log::trace!("Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}", remote_addr, ip_range_string(range));
                 return;
             }
         };
