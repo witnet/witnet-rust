@@ -486,6 +486,10 @@ pub fn consensus_constants_from_partial(
             .collateral_minimum
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_collateral_minimum()),
+        bootstrapping_committee: config
+            .bootstrapping_committee
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_bootsrapping_committee()),
         collateral_age: config
             .collateral_age
             .to_owned()

@@ -970,12 +970,30 @@ impl ChainManager {
         })
         .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
         .and_then(move |(block_headers, last_hash), act, _ctx| {
-            let ars_members = &act.chain_state.last_ars;
+            let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+            let ars_members = {
+                // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
+                // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
+                // the bootstrap committee signs is at least epoch activity_period + collateral_age
+                if act.current_epoch.unwrap()
+                    > chain_info.consensus_constants.collateral_age
+                        + chain_info.consensus_constants.activity_period
+                {
+                    act.chain_state.last_ars.clone()
+                } else {
+                    chain_info
+                        .consensus_constants
+                        .bootstrapping_committee
+                        .iter()
+                        .map(|add| add.parse().unwrap())
+                        .collect()
+                }
+            };
             let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
 
             let superblock = act.chain_state.superblock_state.build_superblock(
                 &block_headers,
-                ars_members,
+                &ars_members,
                 ars_ordered_keys,
                 superblock_index,
                 last_hash,
