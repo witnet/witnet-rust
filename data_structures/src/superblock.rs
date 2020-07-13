@@ -2,7 +2,7 @@ use crate::chain::{
     BlockHeader, Bn256PublicKey, CheckpointBeacon, Hash, Hashable, PublicKeyHash, SuperBlock,
     SuperBlockVote,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -40,9 +40,12 @@ pub struct SuperBlockState {
     // Set of received superblock votes
     // This is cleared when we try to create a new superblock
     received_superblocks: HashSet<SuperBlockVote>,
-    // Set of votes that agree with current_superblock_hash
+    // Map each identity to its superblock vote
+    votes_of_each_identity: HashMap<PublicKeyHash, SuperBlockVote>,
+    // Map of superblock_hash to votes to that superblock
+    // This votes are valid according to the ARS check
     // This is cleared when we try to create a new superblock
-    votes_on_local_superlock: HashSet<SuperBlockVote>,
+    votes_on_each_superblock: HashMap<Hash, Vec<SuperBlockVote>>,
     // The last ARS ordered keys
     previous_ars_ordered_keys: Vec<Bn256PublicKey>,
 }
@@ -62,11 +65,15 @@ impl SuperBlockState {
 
             match valid {
                 Some(true) => {
-                    // If the superblock vote is valid and agrees with the local superblock hash,
-                    // store it
-                    if Some(sbv.superblock_hash) == self.current_superblock_hash {
-                        self.votes_on_local_superlock.insert(sbv.clone());
+                    // If the superblock vote is valid, store it
+                    self.votes_on_each_superblock
+                        .entry(sbv.superblock_hash)
+                        .or_default()
+                        .push(sbv.clone());
+                    let pkh = sbv.secp256k1_signature.public_key.pkh();
+                    self.votes_of_each_identity.insert(pkh, sbv.clone());
 
+                    if Some(sbv.superblock_hash) == self.current_superblock_hash {
                         AddSuperBlockVote::ValidWithSameHash
                     } else {
                         AddSuperBlockVote::ValidButDifferentHash
@@ -124,7 +131,8 @@ impl SuperBlockState {
         last_block_in_previous_superblock: Hash,
     ) -> Option<SuperBlock> {
         self.current_superblock_index = Some(superblock_index);
-        self.votes_on_local_superlock.clear();
+        self.votes_on_each_superblock.clear();
+        self.votes_of_each_identity.clear();
         let key_leaves = hash_key_leaves(ars_ordered_bn256_keys);
 
         match mining_build_superblock(
@@ -167,12 +175,14 @@ impl SuperBlockState {
                     // Validate again, check if they are valid now
                     let valid = self.is_valid(&sbv);
 
-                    // If the superblock vote is valid and agrees with the local superblock hash,
-                    // store it
-                    if valid == Some(true)
-                        && Some(sbv.superblock_hash) == self.current_superblock_hash
-                    {
-                        self.votes_on_local_superlock.insert(sbv);
+                    // If the superblock vote is valid, store it
+                    if valid == Some(true) {
+                        self.votes_on_each_superblock
+                            .entry(sbv.superblock_hash)
+                            .or_default()
+                            .push(sbv.clone());
+                        let pkh = sbv.secp256k1_signature.public_key.pkh();
+                        self.votes_of_each_identity.insert(pkh, sbv);
                     }
                 }
                 // old_superblock_votes should be empty, as we have drained it
@@ -191,6 +201,16 @@ impl SuperBlockState {
             checkpoint: self.current_superblock_index?,
             hash_prev_block: self.current_superblock_hash?,
         })
+    }
+
+    /// Returns the superblock hash and the number of votes of the most voted superblock.
+    /// In case of tie, returns one of the superblocks with the most votes.
+    /// If there are zero votes, returns None.
+    pub fn most_voted_superblock(&self) -> Option<(Hash, usize)> {
+        self.votes_on_each_superblock
+            .iter()
+            .map(|(superblock_hash, votes)| (*superblock_hash, votes.len()))
+            .max_by_key(|&(_, num_votes)| num_votes)
     }
 }
 
@@ -605,7 +625,7 @@ mod tests {
     #[test]
     fn superblock_state_check_on_build() {
         // When calling build_superblock, all the old superblock votes will be evaluated again, and
-        // inserted into votes_on_local_superblock if they agree
+        // inserted into votes_on_each_superblock
         let mut sbs = SuperBlockState::default();
 
         let p1 = PublicKey::from_bytes([1; 33]);
@@ -649,9 +669,9 @@ mod tests {
         let mut v1 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v1.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::MaybeValid);
-        // The vote is not inserted into votes_on_local_superlock because the local superblock is
+        // The vote is not inserted into votes_on_each_superblock because the local superblock is
         // still the one with index 0, while the vote has index 1
-        assert_eq!(sbs.votes_on_local_superlock, HashSet::new());
+        assert_eq!(sbs.votes_on_each_superblock, HashMap::new());
         // Create the second superblock afterwards
         let sb2 = sbs
             .build_superblock(
@@ -663,17 +683,17 @@ mod tests {
             )
             .unwrap();
         assert_eq!(sb2, expected_sb2);
-        let mut hh = HashSet::new();
-        hh.insert(v1);
-        assert_eq!(sbs.votes_on_local_superlock, hh);
+        let mut hh: HashMap<_, Vec<_>> = HashMap::new();
+        hh.entry(sb2_hash).or_default().push(v1);
+        assert_eq!(sbs.votes_on_each_superblock, hh);
 
         // Votes received during the next "superblock epoch" are also included
         // Receive a superblock vote for index 1 when we are in index 1
         let mut v2 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v2.secp256k1_signature.public_key = p2;
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
-        hh.insert(v2);
-        assert_eq!(sbs.votes_on_local_superlock, hh);
+        hh.entry(sb2_hash).or_default().push(v2);
+        assert_eq!(sbs.votes_on_each_superblock, hh);
 
         // But if we are in index 2 and receive a vote for index 1, the votes are simply marked as
         // "MaybeValid", they are not included in votes_on_local_superlock
@@ -686,12 +706,12 @@ mod tests {
                 genesis_hash,
             )
             .unwrap();
-        // Votes_on_local_superlock are cleared when the local superblock changes
-        assert_eq!(sbs.votes_on_local_superlock, HashSet::new());
+        // votes_on_each_superblock are cleared when the local superblock changes
+        assert_eq!(sbs.votes_on_each_superblock, HashMap::new());
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v3.secp256k1_signature.public_key = p3;
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::MaybeValid);
-        assert_eq!(sbs.votes_on_local_superlock, HashSet::new());
+        assert_eq!(sbs.votes_on_each_superblock, HashMap::new());
     }
 
     #[test]
@@ -733,11 +753,8 @@ mod tests {
         let superblock_state = SuperBlockState {
             current_ars_identities: Some(HashSet::default()),
             current_superblock_hash: Some(Hash::default()),
-            current_superblock_index: None,
             previous_ars_identities: Some(HashSet::default()),
-            received_superblocks: HashSet::default(),
-            votes_on_local_superlock: HashSet::default(),
-            previous_ars_ordered_keys: vec![],
+            ..Default::default()
         };
         let beacon = superblock_state.get_beacon();
 
@@ -751,9 +768,7 @@ mod tests {
             current_superblock_hash: Some(Hash::default()),
             current_superblock_index: Some(1),
             previous_ars_identities: Some(HashSet::default()),
-            received_superblocks: HashSet::default(),
-            votes_on_local_superlock: HashSet::default(),
-            previous_ars_ordered_keys: vec![],
+            ..Default::default()
         };
         let beacon = superblock_state.get_beacon();
 
