@@ -263,6 +263,19 @@ pub trait Defaults {
         3
     }
 
+    /// First superblocks signing committee
+    fn consensus_constants_bootsrapping_committee(&self) -> Vec<String> {
+        // FIXME(#1114): Choose a proper value for the committee
+        // [] pkhs
+
+        // Testnet configuration
+        vec![
+            "twit1fulan0j78dmdfa3gx0779kszj5sc5j35feljv5".to_string(),
+            "twit1zutan0dwtfmfcnv34epvjyhwamny20vkx09zjc".to_string(),
+            "twit1mengan0dvms7tzcul9epxmat8dh6temdunwkm5".to_string(),
+        ]
+    }
+
     /// Wallet server address
     fn wallet_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11212)

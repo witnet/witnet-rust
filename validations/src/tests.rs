@@ -5228,6 +5228,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
         collateral_minimum: 1,
+        bootstrapping_committee: vec![],
         collateral_age: 1,
         superblock_period: 0,
         mining_backup_factor: 8,
@@ -5487,6 +5488,7 @@ fn block_difficult_proof() {
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
         collateral_minimum: 1,
+        bootstrapping_committee: vec![],
         collateral_age: 1,
         superblock_period: 0,
         mining_backup_factor: 8,
@@ -6079,6 +6081,7 @@ fn test_blocks_with_limits(
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
         collateral_minimum: 1,
+        bootstrapping_committee: vec![],
         collateral_age: 1,
         superblock_period: 0,
         mining_backup_factor: 8,
@@ -6640,6 +6643,7 @@ fn genesis_block_after_not_bootstrap_hash() {
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
         collateral_minimum: 1,
+        bootstrapping_committee: vec![],
         collateral_age: 1,
         superblock_period: 0,
         mining_backup_factor: 1,
@@ -6711,6 +6715,7 @@ fn genesis_block_value_overflow() {
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
+        bootstrapping_committee: vec![],
         collateral_minimum: 1,
         collateral_age: 1,
         superblock_period: 0,
@@ -6788,6 +6793,7 @@ fn genesis_block_full_validate() {
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
+        bootstrapping_committee: vec![],
         collateral_minimum: 1,
         collateral_age: 1,
         superblock_period: 0,
@@ -6846,6 +6852,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
     let utxo_diff = {
         let consensus_constants = ConsensusConstants {
             checkpoint_zero_timestamp: 0,
+            bootstrapping_committee: vec![],
             checkpoints_period: 0,
             collateral_minimum: 1,
             collateral_age: 1,
@@ -7026,6 +7033,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
 
         let consensus_constants = ConsensusConstants {
             checkpoint_zero_timestamp: 0,
+            bootstrapping_committee: vec![],
             checkpoints_period: 0,
             collateral_minimum: 1,
             collateral_age: 1,

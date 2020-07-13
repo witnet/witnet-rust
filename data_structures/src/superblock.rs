@@ -32,6 +32,8 @@ pub enum AddSuperBlockVote {
 pub struct SuperBlockState {
     // Set of ARS identities that will be able to send superblock votes in the next superblock epoch
     current_ars_identities: Option<HashSet<PublicKeyHash>>,
+    // Subset of ARS in charge of signing the next superblock
+    current_signing_committee: Option<HashSet<PublicKeyHash>>,
     // Current superblock hash created by this node
     current_superblock_hash: Option<Hash>,
     // Current superblock index, used to limit the range of broadcasted votes to
@@ -112,7 +114,9 @@ impl SuperBlockState {
                     }
                 }
                 Some(false) => {
-                    if Some(sbv.superblock_index) == self.current_superblock_index {
+                    if Some(sbv.superblock_index) == self.current_superblock_index
+                        || self.previous_ars_identities.is_none()
+                    {
                         AddSuperBlockVote::NotInArs
                     } else {
                         AddSuperBlockVote::InvalidIndex
@@ -128,19 +132,21 @@ impl SuperBlockState {
     /// Returns true, false, or unknown
     fn is_valid(&self, sbv: &SuperBlockVote) -> Option<bool> {
         match self.current_superblock_index {
-            // We do not know the current index, we cannot know if the vote is valid
-            None => None,
+            // The superblock state is not initialized therefore no one should sign
+            None => Some(false),
             // If the index is the same as the current one, the vote is valid if it is signed by a
-            // member of the ARS
+            // member of the ARS. If no ARS is set, return false
             Some(x) if x == sbv.superblock_index => self
-                .previous_ars_identities
+                .current_signing_committee
                 .as_ref()
-                .map(|x| x.contains(&sbv.secp256k1_signature.public_key.pkh())),
+                .map_or(Some(false), |x| {
+                    Some(x.contains(&sbv.secp256k1_signature.public_key.pkh()))
+                }),
             // If the index is not the same as the current one, but it is within an acceptable range
             // of [x-1, x+1], broadcast the vote without checking if it is a member of the ARS, as
             // the ARS may have changed and we do not keep older copies of the ARS in memory
             Some(x) => {
-                // Check [x-1, x+1] range with overflow prevention
+                // Check [x-1,  x+1] range with overflow prevention
                 if ((x.saturating_sub(1))..=(x.saturating_add(1))).contains(&sbv.superblock_index) {
                     None
                 } else {
@@ -198,6 +204,8 @@ impl SuperBlockState {
                     hs.clear();
                     hs.extend(ars_pkh_keys.iter().cloned());
                     self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
+                    // For the current index, update the signing committee
+                    self.update_superblock_signing_committee(superblock_index);
                 }
 
                 // This replace is needed because the for loop below needs unique access to self,
@@ -246,6 +254,12 @@ impl SuperBlockState {
     /// Check if we had already received this superblock vote
     pub fn contains(&self, sbv: &SuperBlockVote) -> bool {
         self.received_superblocks.contains(sbv)
+    }
+
+    /// Updates the current superblock signing committee for a given superblock index
+    /// #FIXME This function should be update with issue 1395
+    pub fn update_superblock_signing_committee(&mut self, _current_index: u32) {
+        self.current_signing_committee = self.previous_ars_identities.clone();
     }
 }
 
@@ -425,19 +439,19 @@ mod tests {
     #[test]
     fn superblock_state_default_add_votes() {
         // When the superblock state is initialized to default (for example when starting the node),
-        // all the received superblock votes are marked as `MaybeValid` or `AlreadySeen`
+        // all the received superblock votes are marked as `NotInArs`
         let mut sbs = SuperBlockState::default();
 
         let v1 = SuperBlockVote::new_unsigned(Hash::SHA256([1; 32]), 0);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::MaybeValid);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
 
         let v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 0);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::MaybeValid);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
 
         // Before building the first superblock locally we do not know the current superblock_index,
-        // so all the superblock votes will be "MaybeValid"
+        // so all the superblock votes will be "NotInArs"
         let v3 = SuperBlockVote::new_unsigned(Hash::SHA256([3; 32]), 33);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::MaybeValid);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
     }
 
     #[test]
@@ -456,7 +470,7 @@ mod tests {
             .build_superblock(&block_headers, &ars_identities, &[bls_pk], 0, genesis_hash)
             .unwrap();
         let v1 = SuperBlockVote::new_unsigned(sb1.hash(), 0);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::MaybeValid);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
     }
 
     #[test]
@@ -522,7 +536,7 @@ mod tests {
         let mut sbs = SuperBlockState::default();
 
         let v0 = SuperBlockVote::new_unsigned(Hash::SHA256([1; 32]), 0);
-        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::MaybeValid);
+        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::NotInArs);
         assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::AlreadySeen);
 
         let block_headers = vec![BlockHeader::default()];
@@ -541,8 +555,8 @@ mod tests {
                 genesis_hash,
             )
             .unwrap();
-        // After building a new superblock the cache is invalidated
-        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::MaybeValid);
+        // After building a new superblock the cache is invalidated but the previous ARS is still empty
+        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::NotInArs);
         assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::AlreadySeen);
 
         let _sb2 = sbs
@@ -751,9 +765,9 @@ mod tests {
             .build_superblock(&block_headers, &ars0, &ars0_ordered, 0, genesis_hash)
             .unwrap();
         let (v1, v2, v3) = create_votes(sb0.hash(), 0);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::MaybeValid);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::MaybeValid);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::MaybeValid);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
         // can be valid, they all return `NotInArs`

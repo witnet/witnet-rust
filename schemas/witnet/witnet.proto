@@ -303,6 +303,7 @@ message ConsensusConstants {
     uint32 extra_rounds = 17;
     uint32 initial_difficulty = 18;
     uint32 epochs_with_initial_difficulty = 19;
+    repeated string bootstrapping_committee = 20;
 }
 
 message VrfProof {

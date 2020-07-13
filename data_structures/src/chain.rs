@@ -184,6 +184,9 @@ pub struct ConsensusConstants {
     /// Number of epochs with the initial difficulty active
     /// (This number represent the last epoch where the initial difficulty is active)
     pub epochs_with_initial_difficulty: u32,
+
+    /// Superblock signing committee for the first superblocks
+    pub bootstrapping_committee: Vec<String>,
 }
 
 impl ConsensusConstants {

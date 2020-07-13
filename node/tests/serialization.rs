@@ -33,6 +33,7 @@ fn chain_state() {
             mining_backup_factor: 0,
             mining_replication_factor: 0,
             collateral_minimum: 0,
+            bootstrapping_committee: vec![],
             collateral_age: 0,
             superblock_period: 0,
             extra_rounds: 0,
