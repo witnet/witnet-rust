@@ -35,8 +35,12 @@ pub struct SuperBlockState {
     // Current superblock index, used to limit the range of broadcasted votes to
     // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
     current_superblock_index: Option<u32>,
+    // Map of identities that voted more than once. This votes are considered invalid.
+    identities_that_voted_more_than_once: HashMap<PublicKeyHash, Vec<SuperBlockVote>>,
     // Set of ARS identities that can currently send superblock votes
     previous_ars_identities: Option<HashSet<PublicKeyHash>>,
+    // The last ARS ordered keys
+    previous_ars_ordered_keys: Vec<Bn256PublicKey>,
     // Set of received superblock votes
     // This is cleared when we try to create a new superblock
     received_superblocks: HashSet<SuperBlockVote>,
@@ -46,11 +50,43 @@ pub struct SuperBlockState {
     // This votes are valid according to the ARS check
     // This is cleared when we try to create a new superblock
     votes_on_each_superblock: HashMap<Hash, Vec<SuperBlockVote>>,
-    // The last ARS ordered keys
-    previous_ars_ordered_keys: Vec<Bn256PublicKey>,
 }
 
 impl SuperBlockState {
+    // Returns false if the identity voted more than once
+    fn insert_vote(&mut self, sbv: SuperBlockVote) -> bool {
+        // If the superblock vote is valid, store it
+        let pkh = sbv.secp256k1_signature.public_key.pkh();
+        if let Some(m) = self.identities_that_voted_more_than_once.get_mut(&pkh) {
+            // This identity was already marked as bad
+            m.push(sbv);
+
+            false
+        } else if let Some(old_sbv) = self.votes_of_each_identity.insert(pkh, sbv.clone()) {
+            // This identity has already voted for a different superblock
+            // Remove both votes and reject future votes by this identity
+            let sbv = self.votes_of_each_identity.remove(&pkh).unwrap();
+            let v = self
+                .votes_on_each_superblock
+                .get_mut(&old_sbv.superblock_hash)
+                .unwrap();
+            let pos = v.iter().position(|x| *x == old_sbv).unwrap();
+            v.swap_remove(pos);
+
+            self.identities_that_voted_more_than_once
+                .insert(pkh, vec![old_sbv, sbv]);
+
+            false
+        } else {
+            self.votes_on_each_superblock
+                .entry(sbv.superblock_hash)
+                .or_default()
+                .push(sbv);
+
+            true
+        }
+    }
+
     /// Add a vote sent by another peer.
     /// This method assumes that the signatures are valid, they must be checked by the caller.
     pub fn add_vote(&mut self, sbv: &SuperBlockVote) -> AddSuperBlockVote {
@@ -65,15 +101,9 @@ impl SuperBlockState {
 
             match valid {
                 Some(true) => {
-                    // If the superblock vote is valid, store it
-                    self.votes_on_each_superblock
-                        .entry(sbv.superblock_hash)
-                        .or_default()
-                        .push(sbv.clone());
-                    let pkh = sbv.secp256k1_signature.public_key.pkh();
-                    self.votes_of_each_identity.insert(pkh, sbv.clone());
-
-                    if Some(sbv.superblock_hash) == self.current_superblock_hash {
+                    if !self.insert_vote(sbv.clone()) {
+                        AddSuperBlockVote::DoubleVote
+                    } else if Some(sbv.superblock_hash) == self.current_superblock_hash {
                         AddSuperBlockVote::ValidWithSameHash
                     } else {
                         AddSuperBlockVote::ValidButDifferentHash
@@ -177,12 +207,7 @@ impl SuperBlockState {
 
                     // If the superblock vote is valid, store it
                     if valid == Some(true) {
-                        self.votes_on_each_superblock
-                            .entry(sbv.superblock_hash)
-                            .or_default()
-                            .push(sbv.clone());
-                        let pkh = sbv.secp256k1_signature.public_key.pkh();
-                        self.votes_of_each_identity.insert(pkh, sbv);
+                        self.insert_vote(sbv);
                     }
                 }
                 // old_superblock_votes should be empty, as we have drained it
@@ -524,6 +549,145 @@ mod tests {
         let v3 = SuperBlockVote::new_unsigned(Hash::SHA256([4; 32]), 3);
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::InvalidIndex);
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::AlreadySeen);
+    }
+
+    #[test]
+    fn superblock_state_double_vote() {
+        // Check that an identity cannot vote for more than one superblock per index
+        let mut sbs = SuperBlockState::default();
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let bls_pk1 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+
+        let ars0 = vec![];
+        let ars1 = vec![p1.pkh()];
+        let ars2 = vec![p1.pkh()];
+
+        let ars0_ordered = vec![];
+        let ars1_ordered = vec![bls_pk1.clone()];
+        let ars2_ordered = vec![bls_pk1];
+
+        // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
+        // (because it does not exist)
+        let _sb0 = sbs
+            .build_superblock(&block_headers, &ars0, &ars0_ordered, 0, genesis_hash)
+            .unwrap();
+
+        // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
+        // can be valid, they all return `NotInArs`
+        let _sb1 = sbs
+            .build_superblock(&block_headers, &ars1, &ars1_ordered, 1, genesis_hash)
+            .unwrap();
+
+        // The ARS included in superblock 1 contains only identity p1, so only its vote will be
+        // valid in superblock votes for index 2
+        let sb2 = sbs
+            .build_superblock(&block_headers, &ars2, &ars2_ordered, 2, genesis_hash)
+            .unwrap();
+        let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v1.secp256k1_signature.public_key = p1.clone();
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        let mut v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
+        v2.secp256k1_signature.public_key = p1;
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::DoubleVote);
+    }
+
+    #[test]
+    fn superblock_state_double_vote_on_different_epoch() {
+        // Check that an identity cannot vote for more than one superblock per index, even if one
+        // vote is received before we build the corresponding superblock
+        let mut sbs = SuperBlockState::default();
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let bls_pk1 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+
+        let ars0 = vec![];
+        let ars1 = vec![p1.pkh()];
+        let ars2 = vec![p1.pkh()];
+
+        let ars0_ordered = vec![];
+        let ars1_ordered = vec![bls_pk1.clone()];
+        let ars2_ordered = vec![bls_pk1];
+
+        // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
+        // (because it does not exist)
+        let _sb0 = sbs
+            .build_superblock(&block_headers, &ars0, &ars0_ordered, 0, genesis_hash)
+            .unwrap();
+
+        // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
+        // can be valid, they all return `NotInArs`
+        let _sb1 = sbs
+            .build_superblock(&block_headers, &ars1, &ars1_ordered, 1, genesis_hash)
+            .unwrap();
+
+        let mut v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
+        v2.secp256k1_signature.public_key = p1.clone();
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::MaybeValid);
+
+        // The ARS included in superblock 1 contains only identity p1, so only its vote will be
+        // valid in superblock votes for index 2
+        let sb2 = sbs
+            .build_superblock(&block_headers, &ars2, &ars2_ordered, 2, genesis_hash)
+            .unwrap();
+        let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v1.secp256k1_signature.public_key = p1;
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::DoubleVote);
+    }
+
+    #[test]
+    fn superblock_state_no_double_vote_if_index_is_different() {
+        // Check that an identity can vote for one superblock with index i and for a different
+        // superblock with index i+1 without any penalty
+        let mut sbs = SuperBlockState::default();
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let bls_pk1 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+
+        let ars0 = vec![];
+        let ars1 = vec![p1.pkh()];
+        let ars2 = vec![p1.pkh()];
+
+        let ars0_ordered = vec![];
+        let ars1_ordered = vec![bls_pk1.clone()];
+        let ars2_ordered = vec![bls_pk1];
+
+        // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
+        // (because it does not exist)
+        let _sb0 = sbs
+            .build_superblock(&block_headers, &ars0, &ars0_ordered, 0, genesis_hash)
+            .unwrap();
+
+        // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
+        // can be valid, they all return `NotInArs`
+        let _sb1 = sbs
+            .build_superblock(&block_headers, &ars1, &ars1_ordered, 1, genesis_hash)
+            .unwrap();
+
+        // The ARS included in superblock 1 contains only identity p1, so only its vote will be
+        // valid in superblock votes for index 2
+        let sb2 = sbs
+            .build_superblock(&block_headers, &ars2, &ars2_ordered, 2, genesis_hash)
+            .unwrap();
+        let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v1.secp256k1_signature.public_key = p1.clone();
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        // This is a vote for index 3
+        let mut v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 3);
+        v2.secp256k1_signature.public_key = p1;
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::MaybeValid);
     }
 
     #[test]
