@@ -121,7 +121,7 @@ pub trait Operable {
     fn operate_in_context(
         &self,
         call: &RadonCall,
-        context: &mut ReportContext,
+        context: &mut ReportContext<RadonTypes>,
     ) -> Result<RadonTypes, RadError>;
 }
 
@@ -135,7 +135,7 @@ pub fn operate(input: RadonTypes, call: &RadonCall) -> Result<RadonTypes, RadErr
 pub fn operate_in_context(
     input: RadonTypes,
     call: &RadonCall,
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
     input.as_operable().operate_in_context(call, context)
 }

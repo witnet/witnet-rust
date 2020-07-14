@@ -163,7 +163,7 @@ impl Operable for RadonArray {
     fn operate_in_context(
         &self,
         call: &RadonCall,
-        context: &mut ReportContext,
+        context: &mut ReportContext<RadonTypes>,
     ) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::ArrayFilter, Some(args)) => {

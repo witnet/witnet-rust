@@ -19,6 +19,7 @@ use crate::{
     types::{array::RadonArray, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
+use witnet_data_structures::radon_report::RetrievalMetadata;
 
 pub mod error;
 pub mod filters;
@@ -34,10 +35,10 @@ pub type Result<T> = std::result::Result<T, RadError>;
 /// The return type of any method executing the entire life cycle of a data request.
 #[derive(Debug, Serialize)]
 pub struct RADRequestExecutionReport {
-    /// Vector of reports about retrieval of data sources.
-    pub retrieve: Vec<RadonReport<RadonTypes>>,
     /// Report about aggregation of data sources.
     pub aggregate: RadonReport<RadonTypes>,
+    /// Vector of reports about retrieval of data sources.
+    pub retrieve: Vec<RadonReport<RadonTypes>>,
     /// Report about aggregation of reports (reveals, actually).
     pub tally: RadonReport<RadonTypes>,
 }
@@ -51,8 +52,8 @@ pub fn try_data_request(
     settings: RadonScriptExecutionSettings,
     inputs_injection: Option<&[&str]>,
 ) -> RADRequestExecutionReport {
-    let context = &mut ReportContext::default();
-
+    let mut retrieval_context =
+        ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     let retrieve_responses = if let Some(inputs) = inputs_injection {
         assert_eq!(inputs.len(), request.retrieve.len(), "Tried to locally run a data request with a number of injected sources different than the number of retrieval paths ({} != {})", inputs.len(), request.retrieve.len());
 
@@ -61,7 +62,7 @@ pub fn try_data_request(
             .iter()
             .zip(inputs.iter())
             .map(|(retrieve, input)| {
-                run_retrieval_with_data_report(retrieve, input, context, settings)
+                run_retrieval_with_data_report(retrieve, input, &mut retrieval_context, settings)
             })
             .collect()
     } else {
@@ -77,7 +78,8 @@ pub fn try_data_request(
     let retrieval_reports: Vec<RadonReport<RadonTypes>> = retrieve_responses
         .into_iter()
         .map(|retrieve| {
-            retrieve.unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+            retrieve
+                .unwrap_or_else(|error| RadonReport::from_result(Err(error), &retrieval_context))
         })
         .collect();
     let retrieval_values: Vec<RadonTypes> = retrieval_reports
@@ -85,18 +87,24 @@ pub fn try_data_request(
         .map(|report| report.result.clone())
         .collect();
 
-    let aggregation_report = run_aggregation_report(retrieval_values, &request.aggregate, settings)
-        .unwrap_or_else(|error| RadonReport::from_result(Err(error), context));
-    let aggregation_value = aggregation_report.result.clone();
-
-    let tally_report = run_tally_report(
-        vec![aggregation_value],
-        &request.tally,
-        None,
-        None,
+    let mut aggregation_context = ReportContext::from_stage(Stage::Contextless);
+    let aggregation_report = run_aggregation_with_context_report(
+        retrieval_values,
+        &request.aggregate,
+        &mut aggregation_context,
         settings,
     )
-    .unwrap_or_else(|error| RadonReport::from_result(Err(error), context));
+    .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context));
+    let aggregation_value = aggregation_report.result.clone();
+
+    let mut tally_context = ReportContext::from_stage(Stage::Contextless);
+    let tally_report = run_tally_with_context_report(
+        vec![aggregation_value],
+        &request.tally,
+        &mut tally_context,
+        settings,
+    )
+    .unwrap_or_else(|error| RadonReport::from_result(Err(error), &tally_context));
 
     RADRequestExecutionReport {
         retrieve: retrieval_reports,
@@ -109,7 +117,7 @@ pub fn try_data_request(
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
     response: &str,
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
@@ -128,7 +136,7 @@ pub fn run_retrieval_with_data(
     response: &str,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonTypes> {
-    let context = &mut ReportContext::default();
+    let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     run_retrieval_with_data_report(retrieve, response, context, settings)
         .map(RadonReport::into_inner)
 }
@@ -138,8 +146,7 @@ pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let context = &mut ReportContext::default();
-    context.stage = Stage::Retrieval;
+    let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
 
     match retrieve.kind {
         RADType::HttpGet => {
@@ -206,9 +213,18 @@ pub fn run_aggregation_report(
     aggregate: &RADAggregate,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let context = &mut ReportContext::default();
-    context.stage = Stage::Aggregation;
+    let context = &mut ReportContext::from_stage(Stage::Aggregation);
 
+    run_aggregation_with_context_report(radon_types_vec, aggregate, context, settings)
+}
+
+/// Run aggregate stage of a data request on a custom context, return `RadonReport`.
+pub fn run_aggregation_with_context_report(
+    radon_types_vec: Vec<RadonTypes>,
+    aggregate: &RADAggregate,
+    context: &mut ReportContext<RadonTypes>,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
     let radon_script = create_radon_script_from_filters_and_reducer(filters, reducer)?;
@@ -240,7 +256,6 @@ pub fn run_tally_report(
     errors: Option<Vec<bool>>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let context = &mut ReportContext::default();
     let mut metadata = TallyMetaData::default();
     if let Some(liars) = liars {
         metadata.liars = liars;
@@ -252,8 +267,21 @@ pub fn run_tally_report(
     } else {
         metadata.errors = vec![false; radon_types_vec.len()];
     }
-    context.stage = Stage::Tally(metadata);
+    let mut context = ReportContext {
+        stage: Stage::Tally(metadata),
+        ..Default::default()
+    };
 
+    run_tally_with_context_report(radon_types_vec, consensus, &mut context, settings)
+}
+
+/// Run tally stage of a data request on a custom context, return `RadonReport`.
+pub fn run_tally_with_context_report(
+    radon_types_vec: Vec<RadonTypes>,
+    consensus: &RADTally,
+    context: &mut ReportContext<RadonTypes>,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
     let radon_script = create_radon_script_from_filters_and_reducer(filters, reducer)?;

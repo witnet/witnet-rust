@@ -46,7 +46,7 @@ pub fn filter(
     input: &RadonArray,
     filter_code: RadonFilters,
     extra_args: &[Value],
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
     let error = || {
         Err(RadError::UnsupportedFilter {

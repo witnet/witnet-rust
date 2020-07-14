@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 use crate::radon_error::ErrorLike;
+use crate::radon_report::Stage::Contextless;
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
 ///
@@ -18,7 +19,7 @@ where
     RT: TypeLike,
 {
     /// Stage-specific metadata.
-    pub metadata: Stage,
+    pub metadata: Stage<RT>,
     /// Vector of partial results (the results in between each of the operators in a script)
     pub partial_results: Option<Vec<RT>>,
     /// This the intercepted result of the script execution: any `IE` raised in runtime has already
@@ -35,7 +36,7 @@ where
 {
     /// Factory for constructing a `RadonReport` from the `Result` of something that could be
     /// `TypeLike` or `ErrorLike` plus a `ReportContext`.
-    pub fn from_result(result: Result<RT, RT::Error>, context: &ReportContext) -> Self {
+    pub fn from_result(result: Result<RT, RT::Error>, context: &ReportContext<RT>) -> Self {
         let intercepted = RT::intercept(result);
         RadonReport {
             metadata: context.stage.clone(),
@@ -49,7 +50,7 @@ where
     /// `TypeLike` or `ErrorLike`, plus a `ReportContext`.
     pub fn from_partial_results(
         partial_results: Vec<Result<RT, RT::Error>>,
-        context: &ReportContext,
+        context: &ReportContext<RT>,
     ) -> Self {
         let intercepted: Vec<RT> = partial_results.into_iter().map(RT::intercept).collect();
         let result = (*intercepted
@@ -95,20 +96,43 @@ pub trait TypeLike: Clone + Sized {
 
 /// A generic structure for bubbling up any kind of metadata that may be generated during the
 /// execution of a RADON script.
-#[derive(Default)]
-pub struct ReportContext {
+pub struct ReportContext<RT>
+where
+    RT: TypeLike,
+{
     pub call_arguments: Option<Vec<serde_cbor::Value>>,
     pub call_argument_index: Option<u8>,
     pub call_index: Option<u8>,
     pub call_operator: Option<u8>,
     pub completion_time: Option<Instant>,
-    pub stage: Stage,
+    pub stage: Stage<RT>,
     pub start_time: Option<Instant>,
     pub script_index: Option<u8>,
 }
 
+impl<RT> Default for ReportContext<RT>
+where
+    RT: TypeLike,
+{
+    fn default() -> Self {
+        Self {
+            call_arguments: None,
+            call_argument_index: None,
+            call_index: None,
+            call_operator: None,
+            completion_time: None,
+            stage: Contextless,
+            start_time: None,
+            script_index: None,
+        }
+    }
+}
+
 /// Implementation of convenience methods for `ReportContext`
-impl ReportContext {
+impl<RT> ReportContext<RT>
+where
+    RT: TypeLike,
+{
     /// Set start time.
     pub fn start(&mut self) {
         self.start_time = Some(Instant::now());
@@ -128,58 +152,103 @@ impl ReportContext {
     }
 
     /// Create a context that is initialized for a particular stage
-    pub fn from_stage(stage: Stage) -> Self {
-        let mut new = Self::default();
-        new.stage = stage;
-
-        new
+    pub fn from_stage(stage: Stage<RT>) -> Self {
+        Self {
+            stage,
+            ..Default::default()
+        }
     }
 }
 
 /// Tell different stage-specific metadata structures from each other.
 #[derive(Clone, Debug, Serialize)]
-pub enum Stage {
+pub enum Stage<RT>
+where
+    RT: TypeLike,
+{
+    /// Metadata for Aggregation stage.
+    Aggregation,
     /// Metadata for contextless execution of RADON scripts.
     Contextless,
     /// Metadata for Retrieval stage.
-    Retrieval,
-    /// Metadata for Aggregation stage.
-    Aggregation,
+    Retrieval(RetrievalMetadata<RT>),
     /// Metadata for Tally stage.
-    Tally(TallyMetaData),
+    Tally(TallyMetaData<RT>),
 }
 
 /// Implementation of the default value of `Stage`.
-impl Default for Stage {
+impl<RT> Default for Stage<RT>
+where
+    RT: TypeLike,
+{
     fn default() -> Self {
         Stage::Contextless
     }
 }
 
-// This structure is not needed yet but it is here just in case we need it in the future.
-///// Retrieval-specific metadata structure.
-//pub struct RetrievalMetaData {}
+/// Retrieval and aggregation specific metadata structure.
+#[derive(Clone, Debug, Serialize)]
+pub struct RetrievalMetadata<RT>
+where
+    RT: TypeLike,
+{
+    pub subscript_partial_results: Vec<Vec<Vec<RT>>>,
+}
+
+impl<RT> Default for RetrievalMetadata<RT>
+where
+    RT: TypeLike,
+{
+    fn default() -> Self {
+        Self {
+            subscript_partial_results: vec![],
+        }
+    }
+}
 
 // This structure is not needed yet but it is here just in case we need it in the future.
 ///// Retrieval-specific metadata structure.
 //pub struct AggregationMetaData {}
 
 /// Tally-specific metadata structure.
-#[derive(Clone, Debug, Default, Serialize)]
-pub struct TallyMetaData {
+#[derive(Clone, Debug, Serialize)]
+pub struct TallyMetaData<RT>
+where
+    RT: TypeLike,
+{
+    /// Proportion between total reveals and "truthers" count:
+    /// `liars.iter().filter(std::ops::Not).count() / reveals.len()`
+    pub consensus: f32,
+    /// An error is a RadonError value (or considered as an error due to a RadonError consensus)
+    pub errors: Vec<bool>,
     /// A positional vector of "truthers" and "liars", i.e. reveals that passed all the filters vs.
     /// those which were filtered out.
     /// This follows a reverse logic: `false` is truth and `true` is lie.
     /// A liar is an out-of-consensus value
     pub liars: Vec<bool>,
-    /// An error is a RadonError value (or considered as an error due to a RadonError consensus)
-    pub errors: Vec<bool>,
-    /// Proportion between total reveals and "truthers" count:
-    /// `liars.iter().filter(std::ops::Not).count() / reveals.len()`
-    pub consensus: f32,
+    /// A positional vector of results for each of the operators contained in each of the subscripts
+    /// that may exist in a tally function.
+    pub subscript_partial_results: Vec<RT>,
 }
 
-impl TallyMetaData {
+impl<RT> Default for TallyMetaData<RT>
+where
+    RT: TypeLike,
+{
+    fn default() -> Self {
+        Self {
+            consensus: 0.0,
+            errors: vec![],
+            liars: vec![],
+            subscript_partial_results: vec![],
+        }
+    }
+}
+
+impl<RT> TallyMetaData<RT>
+where
+    RT: TypeLike,
+{
     /// Update liars vector
     /// new_liars length has to be less than false elements in liars
     // FIXME: Allow for now, since there is no safe cast function from a usize to float yet
@@ -217,45 +286,60 @@ mod tests {
 
     use super::*;
 
+    #[derive(Clone)]
+    struct DummyType;
+
+    #[derive(Clone, Default, Debug, Fail)]
+    struct DummyError;
+
+    impl TypeLike for DummyType {
+        type Error = DummyError;
+
+        fn encode(&self) -> Result<Vec<u8>, Self::Error> {
+            unimplemented!()
+        }
+
+        fn intercept(_result: Result<Self, Self::Error>) -> Self {
+            unimplemented!()
+        }
+    }
+
+    // Satisfy the trait bound `Dummy: fmt::Display` required by `failure::Fail`
+    impl fmt::Display for DummyError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            writeln!(f, "Error")
+        }
+    }
+
+    // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
+    impl ErrorLike for DummyError {
+        fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
+            let kind = u8::from(RadonErrors::SourceScriptNotCBOR);
+            let arg0 = 2;
+
+            Ok(vec![
+                SerdeCborValue::Integer(kind.into()),
+                SerdeCborValue::Integer(arg0.into()),
+            ])
+        }
+
+        fn decode_cbor_array(
+            _serde_cbor_array: Vec<SerdeCborValue>,
+        ) -> Result<RadonError<Self>, failure::Error> {
+            unimplemented!()
+        }
+    }
+
+    // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`
+    impl std::convert::From<cbor::encoder::EncodeError> for DummyError {
+        fn from(_: cbor::encoder::EncodeError) -> Self {
+            DummyError
+        }
+    }
+
     #[test]
     fn test_encode_not_cbor() {
-        #[derive(Clone, Default, Debug, Fail)]
-        struct Dummy;
-
-        // Satisfy the trait bound `Dummy: fmt::Display` required by `failure::Fail`
-        impl fmt::Display for Dummy {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                writeln!(f, "Error")
-            }
-        }
-
-        // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
-        impl ErrorLike for Dummy {
-            fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
-                let kind = u8::from(RadonErrors::SourceScriptNotCBOR);
-                let arg0 = 2;
-
-                Ok(vec![
-                    SerdeCborValue::Integer(kind.into()),
-                    SerdeCborValue::Integer(arg0.into()),
-                ])
-            }
-
-            fn decode_cbor_array(
-                _serde_cbor_array: Vec<SerdeCborValue>,
-            ) -> Result<RadonError<Self>, failure::Error> {
-                unimplemented!()
-            }
-        }
-
-        // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`
-        impl std::convert::From<cbor::encoder::EncodeError> for Dummy {
-            fn from(_: cbor::encoder::EncodeError) -> Self {
-                Dummy
-            }
-        }
-
-        let error = RadonError::new(Dummy);
+        let error = RadonError::new(DummyError);
 
         let encoded: Vec<u8> = error.encode_tagged_bytes().unwrap();
         let expected = vec![216, 39, 130, 1, 2];
@@ -265,11 +349,17 @@ mod tests {
 
     #[test]
     fn test_update_liars() {
-        let mut metadata = TallyMetaData::default();
         // [1,1,0,1,0,0,0,1,0,0] => 6 false values
-        metadata.liars = vec![
+        let liars = vec![
             true, true, false, true, false, false, false, true, false, false,
         ];
+
+        let mut metadata = TallyMetaData::<DummyType> {
+            consensus: 0.0,
+            errors: vec![],
+            liars,
+            subscript_partial_results: vec![],
+        };
 
         // [0,1,1,0,0,1]
         let v = vec![false, true, true, false, false, true];
