@@ -693,54 +693,76 @@ impl ChainManager {
             self.sm_state
         );
 
-        // We broadcast all superblock votes with valid secp256k1 signature, signed by members
-        // of the ARS, even if the superblock hash is different from our local superblock hash.
-        // If the superblock index is different from the current one we cannot check ARS membership,
-        // so we broadcast it if the index is within an acceptable range (not too old).
-        let should_broadcast = match self.chain_state.superblock_state.add_vote(&superblock_vote) {
-            AddSuperBlockVote::AlreadySeen => false,
-            AddSuperBlockVote::InvalidIndex => {
-                log::debug!(
-                    "Not forwarding superblock vote: invalid superblock index: {}",
-                    superblock_vote.superblock_index
-                );
-
-                false
-            }
-            AddSuperBlockVote::NotInArs => {
-                log::debug!(
-                    "Not forwarding superblock vote: identity not in ARS: {}",
-                    superblock_vote.secp256k1_signature.public_key.pkh()
-                );
-
-                false
-            }
-            AddSuperBlockVote::MaybeValid
-            | AddSuperBlockVote::ValidButDifferentHash
-            | AddSuperBlockVote::ValidWithSameHash => true,
-        };
-
-        if should_broadcast {
-            // Validate secp256k1 signature
-            signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
-                superblock_vote: superblock_vote.clone(),
-            }])
-            .map_err(|e| {
-                log::error!("Verify superblock vote signature: {}", e);
-            })
-            .and_then(|()| {
-                SessionsManager::from_registry()
-                    .send(Broadcast {
-                        command: SendSuperBlockVote { superblock_vote },
-                        only_inbound: false,
-                    })
-                    .map_err(|e| {
-                        log::error!("Forward superblock vote: {}", e);
-                    })
-            })
-            .into_actor(self)
-            .spawn(ctx);
+        // Check if we already received this vote
+        if self.chain_state.superblock_state.contains(&superblock_vote) {
+            return Ok(());
         }
+
+        // Validate secp256k1 signature
+        signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
+            superblock_vote: superblock_vote.clone(),
+        }])
+        .map_err(|e| {
+            log::error!("Verify superblock vote signature: {}", e);
+        })
+        .into_actor(self)
+        .and_then(move |(), act, _ctx| {
+            // Validate vote: the identity should be able to vote
+            // We broadcast all superblock votes with valid secp256k1 signature, signed by members
+            // of the ARS, even if the superblock hash is different from our local superblock hash.
+            // If the superblock index is different from the current one we cannot check ARS membership,
+            // so we broadcast it if the index is within an acceptable range (not too old).
+            let should_broadcast = match act.chain_state.superblock_state.add_vote(&superblock_vote)
+            {
+                AddSuperBlockVote::AlreadySeen => false,
+                AddSuperBlockVote::DoubleVote => {
+                    log::debug!(
+                        "Not forwarding superblock vote: idenitiy voted more than once: {}",
+                        superblock_vote.secp256k1_signature.public_key.pkh()
+                    );
+
+                    false
+                }
+                AddSuperBlockVote::InvalidIndex => {
+                    log::debug!(
+                        "Not forwarding superblock vote: invalid superblock index: {}",
+                        superblock_vote.superblock_index
+                    );
+
+                    false
+                }
+                AddSuperBlockVote::NotInArs => {
+                    log::debug!(
+                        "Not forwarding superblock vote: identity not in ARS: {}",
+                        superblock_vote.secp256k1_signature.public_key.pkh()
+                    );
+
+                    false
+                }
+                AddSuperBlockVote::MaybeValid
+                | AddSuperBlockVote::ValidButDifferentHash
+                | AddSuperBlockVote::ValidWithSameHash => true,
+            };
+
+            actix::fut::result(if should_broadcast {
+                Ok(superblock_vote)
+            } else {
+                Err(())
+            })
+        })
+        .and_then(|superblock_vote, act, _ctx| {
+            // Broadcast vote
+            SessionsManager::from_registry()
+                .send(Broadcast {
+                    command: SendSuperBlockVote { superblock_vote },
+                    only_inbound: false,
+                })
+                .map_err(|e| {
+                    log::error!("Forward superblock vote: {}", e);
+                })
+                .into_actor(act)
+        })
+        .spawn(ctx);
 
         Ok(())
     }

@@ -13,6 +13,8 @@ use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree
 pub enum AddSuperBlockVote {
     /// vote already counted
     AlreadySeen,
+    /// this identity has already voted for a different superblock with this index
+    DoubleVote,
     /// invalid superblock index
     InvalidIndex,
     /// unverifiable vote because we do not have the required ARS state
@@ -236,6 +238,11 @@ impl SuperBlockState {
             .iter()
             .map(|(superblock_hash, votes)| (*superblock_hash, votes.len()))
             .max_by_key(|&(_, num_votes)| num_votes)
+    }
+
+    /// Check if we had already received this superblock vote
+    pub fn contains(&self, sbv: &SuperBlockVote) -> bool {
+        self.received_superblocks.contains(sbv)
     }
 }
 
