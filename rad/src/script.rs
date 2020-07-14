@@ -77,7 +77,7 @@ impl RadonScriptExecutionSettings {
 pub fn execute_radon_script(
     input: RadonTypes,
     script: &[RadonCall],
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>, RadError> {
     // Set the execution start timestamp, if enabled by `timing` setting

@@ -145,7 +145,7 @@ impl Operable for RadonFloat {
     fn operate_in_context(
         &self,
         call: &RadonCall,
-        _context: &mut ReportContext,
+        _context: &mut ReportContext<RadonTypes>,
     ) -> Result<RadonTypes, RadError> {
         self.operate(call)
     }

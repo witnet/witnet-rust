@@ -7,7 +7,7 @@ use witnet_data_structures::radon_report::{ReportContext, Stage};
 
 pub fn mode_filter(
     input: &RadonArray,
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
     let mode = mode(&input)?;
     let mut liars = vec![];
@@ -36,7 +36,10 @@ mod tests {
     use witnet_data_structures::radon_report::TallyMetaData;
 
     // Helper function which works with Rust integers, to remove RadonTypes from tests
-    fn imode(input_i128: &[i128], ctx: &mut ReportContext) -> Result<Vec<i128>, RadError> {
+    fn imode(
+        input_i128: &[i128],
+        ctx: &mut ReportContext<RadonTypes>,
+    ) -> Result<Vec<i128>, RadError> {
         let input_vec: Vec<RadonTypes> = input_i128
             .iter()
             .map(|f| RadonTypes::Integer(RadonInteger::from(*f)))
@@ -123,7 +126,10 @@ mod tests {
     }
 
     // Helper function which works with Rust Strings, to remove RadonTypes from tests
-    fn strmode(input_string: &[String], ctx: &mut ReportContext) -> Result<Vec<String>, RadError> {
+    fn strmode(
+        input_string: &[String],
+        ctx: &mut ReportContext<RadonTypes>,
+    ) -> Result<Vec<String>, RadError> {
         let input_vec: Vec<RadonTypes> = input_string
             .iter()
             .map(|f| RadonTypes::String(RadonString::from(f.clone())))

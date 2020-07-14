@@ -14,7 +14,7 @@ use witnet_data_structures::radon_report::{ReportContext, Stage};
 pub fn standard_filter(
     input: &RadonArray,
     extra_args: &[Value],
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonArray::radon_type_name(),
@@ -86,7 +86,7 @@ pub fn standard_filter(
 fn keep_rows(
     input: &RadonArray,
     keep: &RadonArray,
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
     let mut result = vec![];
     let mut bool_vec = vec![];

@@ -127,7 +127,7 @@ pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
 pub fn filter(
     input: &RadonArray,
     args: &[Value],
-    context: &mut ReportContext,
+    context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonArray::radon_type_name(),
