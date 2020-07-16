@@ -984,15 +984,22 @@ impl ChainManager {
             let ars_ordered_keys: Vec<Bn256PublicKey> =
                 act.chain_state.alt_keys.get_rep_ordered_bn256_list(trs);
 
-            let superblock = act.chain_state.superblock_state.build_superblock(
-                &block_headers,
-                &ars_members,
-                &ars_ordered_keys,
-                consensus_constants.superblock_signing_committee_size,
-                superblock_index,
-                last_hash,
-            );
-            actix::fut::ok(superblock)
+            if act.chain_state.superblock_state.has_consensus() {
+                let superblock = act.chain_state.superblock_state.build_superblock(
+                    &block_headers,
+                    &ars_members,
+                    &ars_ordered_keys,
+                    consensus_constants.superblock_signing_committee_size,
+                    superblock_index,
+                    last_hash,
+                );
+                actix::fut::ok(superblock)
+            } else {
+                // No consensus: move to waiting consensus
+                log::warn!("No superblock consensus. Moving to WaitingConsensus state");
+                act.sm_state = StateMachine::WaitingConsensus;
+                actix::fut::err(())
+            }
         });
 
         Box::new(fut)

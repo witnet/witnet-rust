@@ -171,6 +171,11 @@ impl SuperBlockState {
         }
     }
 
+    /// Return true if the local superblock has the majority of votes
+    pub fn has_consensus(&self) -> bool {
+        self.most_voted_superblock() == Some(self.current_superblock_hash)
+    }
+
     /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
     /// `ars_pkh_keys` will be used to validate all the superblock votes received for the
     /// next superblock. The votes for the current superblock must be validated using
@@ -250,13 +255,24 @@ impl SuperBlockState {
     }
 
     /// Returns the superblock hash and the number of votes of the most voted superblock.
+    /// If the most voted superblock does not have a majority of votes, returns None.
     /// In case of tie, returns one of the superblocks with the most votes.
     /// If there are zero votes, returns None.
-    pub fn most_voted_superblock(&self) -> Option<(Hash, usize)> {
+    pub fn most_voted_superblock(&self) -> Option<Hash> {
         self.votes_on_each_superblock
             .iter()
             .map(|(superblock_hash, votes)| (*superblock_hash, votes.len()))
             .max_by_key(|&(_, num_votes)| num_votes)
+            .and_then(|(superblock_hash, num_votes)| {
+                // If previous_ars_identities is None, it means that the first superblock has not
+                // been consolidated yet. In that case there is no ARS, so return None.
+                let identities_that_can_vote = self.previous_ars_identities.as_ref()?.len();
+                if two_thirds_consensus(num_votes, identities_that_can_vote) {
+                    Some(superblock_hash)
+                } else {
+                    None
+                }
+            })
     }
 
     /// Check if we had already received this superblock vote
@@ -309,6 +325,15 @@ fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
     }
 
     v_subset
+}
+
+/// Returns true if the number of votes is enough to achieve 2/3 consensus.
+///
+/// The number of votes needed must be strictly greater than 2/3 of the number of identities.
+pub fn two_thirds_consensus(votes: usize, identities: usize) -> bool {
+    let required_votes = identities * 2 / 3;
+
+    votes > required_votes
 }
 
 /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
@@ -933,6 +958,98 @@ mod tests {
     }
 
     #[test]
+    fn superblock_state_most_voted() {
+        // Create 3 superblocks, where each one of them has an ARS with only one identity
+        // This checks that the ARS is correctly set
+        let mut sbs = SuperBlockState::default();
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+        let p4 = PublicKey::from_bytes([4; 33]);
+
+        let bls_pk1 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+        let bls_pk2 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[2; 32]).unwrap())
+                .unwrap();
+        let bls_pk3 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
+        let bls_pk4 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[4; 32]).unwrap())
+                .unwrap();
+
+        let ars0 = vec![p1.pkh(), p2.pkh(), p3.pkh()];
+        let ars1 = vec![p1.pkh(), p2.pkh(), p3.pkh(), p4.pkh()];
+        let ars2 = vec![p1.pkh(), p2.pkh(), p3.pkh(), p4.pkh()];
+
+        let ars0_ordered = vec![bls_pk1.clone(), bls_pk2.clone(), bls_pk3.clone()];
+        let ars1_ordered = vec![
+            bls_pk1.clone(),
+            bls_pk2.clone(),
+            bls_pk3.clone(),
+            bls_pk4.clone(),
+        ];
+        let ars2_ordered = vec![bls_pk1, bls_pk2, bls_pk3, bls_pk4];
+
+        let create_votes = |superblock_hash, superblock_index| {
+            let mut v1 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v1.secp256k1_signature.public_key = p1.clone();
+            let mut v2 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v2.secp256k1_signature.public_key = p2.clone();
+            let mut v3 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v3.secp256k1_signature.public_key = p3.clone();
+            let mut v4 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v4.secp256k1_signature.public_key = p4.clone();
+
+            (v1, v2, v3, v4)
+        };
+
+        // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
+        // (because it does not exist)
+        let sb0 = sbs
+            .build_superblock(&block_headers, &ars0, &ars0_ordered, 0, genesis_hash)
+            .unwrap();
+        let (v1, v2, v3, v4) = create_votes(sb0.hash(), 0);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInArs);
+
+        // The ARS included in superblock 0 contains identities p1, p2, p3
+        let sb1 = sbs
+            .build_superblock(&block_headers, &ars1, &ars1_ordered, 1, genesis_hash)
+            .unwrap();
+        let (v1, v2, v3, v4) = create_votes(sb1.hash(), 1);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb1.hash()));
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb1.hash()));
+
+        // The ARS included in superblock 1 contains identities p1, p2, p3, p4
+        let sb2 = sbs
+            .build_superblock(&block_headers, &ars2, &ars2_ordered, 2, genesis_hash)
+            .unwrap();
+        let (v1, v2, v3, v4) = create_votes(sb2.hash(), 2);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2.hash()));
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2.hash()));
+    }
+
+    #[test]
     fn superblock_state_check_on_build() {
         // When calling build_superblock, all the old superblock votes will be evaluated again, and
         // inserted into votes_on_each_superblock
@@ -1330,5 +1447,19 @@ mod tests {
                 hash_prev_block: Hash::default(),
             }
         );
+    }
+
+    #[test]
+    fn test_two_thirds_consensus() {
+        assert_eq!(two_thirds_consensus(2, 3), false);
+        assert_eq!(two_thirds_consensus(3, 3), true);
+        assert_eq!(two_thirds_consensus(2, 4), false);
+        assert_eq!(two_thirds_consensus(3, 4), true);
+        assert_eq!(two_thirds_consensus(21, 32), false);
+        assert_eq!(two_thirds_consensus(22, 32), true);
+        assert_eq!(two_thirds_consensus(22, 33), false);
+        assert_eq!(two_thirds_consensus(23, 33), true);
+        assert_eq!(two_thirds_consensus(22, 34), false);
+        assert_eq!(two_thirds_consensus(23, 34), true);
     }
 }
