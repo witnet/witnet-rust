@@ -18,6 +18,7 @@ use witnet_data_structures::{
         OwnUnspentOutputsPool, PublicKeyHash, ReputationEngine,
     },
     data_request::DataRequestPool,
+    superblock::SuperBlockState,
     types::LastBeacon,
     vrf::VrfCtx,
 };
@@ -178,11 +179,20 @@ impl ChainManager {
                             },
                         };
 
+                        let bootstrap_committee = chain_info
+                            .consensus_constants
+                            .bootstrapping_committee
+                            .iter()
+                            .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                            .collect();
+                        let superblock_state = SuperBlockState::new(bootstrap_hash, bootstrap_committee);
+
                         ChainState {
                             chain_info: Some(chain_info),
                             reputation_engine: Some(reputation_engine),
                             own_utxos: OwnUnspentOutputsPool::new(),
                             data_request_pool: DataRequestPool::new(consensus_constants.extra_rounds),
+                            superblock_state,
                             ..ChainState::default()
                         }
                     }
