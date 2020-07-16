@@ -8,10 +8,7 @@ use crate::{
     error::RadError,
     filters::{self, RadonFilters},
     reducers::{self, RadonReducers},
-    script::{
-        execute_contextfree_radon_script, execute_radon_script, unpack_subscript,
-        RadonScriptExecutionSettings,
-    },
+    script::{execute_radon_script, unpack_subscript, RadonScriptExecutionSettings},
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
@@ -96,7 +93,11 @@ pub fn get_string(input: &RadonArray, args: &[Value]) -> Result<RadonString, Rad
     item.try_into()
 }
 
-pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+pub fn map(
+    input: &RadonArray,
+    args: &[Value],
+    context: &mut ReportContext<RadonTypes>,
+) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonArray::radon_type_name(),
         operator: "Map".to_string(),
@@ -114,17 +115,34 @@ pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     };
     let subscript = unpack_subscript(&args[0]).map_err(subscript_err)?;
 
-    let mut result = vec![];
+    let mut reports = vec![];
+    let mut results = vec![];
+
+    let settings = RadonScriptExecutionSettings::enable_all();
     for item in input.value() {
-        // FIXME: add support for bubbling up errors thrown in subcontexts.
-        // FIXME: use the new `execute_radon_script` instead.
-        result.push(execute_contextfree_radon_script(
-            item,
-            subscript.as_slice(),
-        )?);
+        let report = execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;
+
+        results.push(item.clone());
+        reports.push(report);
     }
 
-    Ok(RadonArray::from(result).into())
+    if let Stage::Retrieval(metadata) = &mut context.stage {
+        let mut partial_results = vec![];
+        for index in 0..(subscript.len() + 1) {
+            let mut partial_result = vec![];
+            for report in &reports {
+                if let Some(report_partial_results) = &report.partial_results {
+                    if let Some(result) = report_partial_results.get(index) {
+                        partial_result.push((*result).clone());
+                    }
+                }
+            }
+            partial_results.push(partial_result);
+        }
+        metadata.subscript_partial_results.push(partial_results);
+    }
+
+    Ok(RadonArray::from(results).into())
 }
 
 pub fn filter(
@@ -158,13 +176,10 @@ pub fn filter(
                 let report =
                     execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;
 
-                match &report.result {
-                    RadonTypes::Boolean(boolean) => {
-                        if boolean.value() {
-                            results.push(item.clone());
-                        }
+                if let RadonTypes::Boolean(boolean) = &report.result {
+                    if boolean.value() {
+                        results.push(item.clone());
                     }
-                    _ => {}
                 }
 
                 reports.push(report);
@@ -200,7 +215,11 @@ pub fn filter(
     }
 }
 
-pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> {
+pub fn sort(
+    input: &RadonArray,
+    args: &[Value],
+    context: &mut ReportContext<RadonTypes>,
+) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonArray::radon_type_name(),
         operator: "Sort".to_string(),
@@ -216,7 +235,7 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
     // Sort can be called with an optional argument.
     // If that argument is missing, default to []
     let map_args = if args.is_empty() { &empty_array } else { args };
-    let mapped_array = map(input, map_args)?;
+    let mapped_array = map(input, map_args, context)?;
     let mapped_array = match mapped_array {
         RadonTypes::Array(x) => x,
         _ => unreachable!(),
@@ -227,7 +246,7 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
         input_value.iter().zip(mapped_array_value.iter()).collect();
     // if input is empty, return the array
     if input.value().is_empty() {
-        return Ok(input.clone());
+        return Ok(input.clone().into());
     }
     // Sort not applicable if not homogeneous
     if !input.is_homogeneous() {
@@ -259,7 +278,7 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
 
     let result: Vec<_> = tuple_array.into_iter().map(|(a, _)| a.clone()).collect();
 
-    Ok(RadonArray::from(result))
+    Ok(RadonArray::from(result).into())
 }
 
 pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
@@ -569,6 +588,38 @@ mod tests {
     }
 
     #[test]
+    fn test_map_with_partial_results() {
+        let input = RadonArray::from(vec![
+            RadonInteger::from(2).into(),
+            RadonInteger::from(3).into(),
+        ]);
+        let script = vec![Value::Array(vec![
+            Value::Array(vec![
+                Value::Integer(IntegerMultiply as i128),
+                Value::Integer(2),
+            ]),
+            Value::Array(vec![
+                Value::Integer(IntegerGreaterThan as i128),
+                Value::Integer(5),
+            ]),
+        ])];
+        let mut context = ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
+        map(&input, &script, &mut context).unwrap();
+
+        if let Stage::Retrieval(metadata) = context.stage {
+            let expected_partial_results = vec![vec![
+                vec![RadonInteger::from(2).into(), RadonInteger::from(3).into()],
+                vec![RadonInteger::from(4).into(), RadonInteger::from(6).into()],
+                vec![
+                    RadonBoolean::from(false).into(),
+                    RadonBoolean::from(true).into(),
+                ],
+            ]];
+            assert_eq!(metadata.subscript_partial_results, expected_partial_results);
+        }
+    }
+
+    #[test]
     fn test_map_integer_greater_than() {
         let input = RadonArray::from(vec![
             RadonInteger::from(2).into(),
@@ -578,7 +629,7 @@ mod tests {
             Value::Integer(IntegerGreaterThan as i128),
             Value::Integer(4),
         ])])];
-        let output = map(&input, &script).unwrap();
+        let output = map(&input, &script, &mut ReportContext::default()).unwrap();
 
         let expected = RadonTypes::Array(RadonArray::from(vec![
             RadonBoolean::from(false).into(),
@@ -597,7 +648,7 @@ mod tests {
         let script = vec![Value::Array(vec![Value::Array(vec![Value::Text(
             "Hello".to_string(),
         )])])];
-        let result = map(&input, &script);
+        let result = map(&input, &script, &mut ReportContext::default());
 
         let expected_err = RadError::Subscript {
             input_type: "RadonArray".to_string(),
@@ -615,7 +666,7 @@ mod tests {
             RadonInteger::from(6).into(),
         ]);
         let script = vec![Value::Integer(IntegerGreaterThan as i128)];
-        let result = map(&input, &script);
+        let result = map(&input, &script, &mut ReportContext::default());
 
         let expected_err = RadError::Subscript {
             input_type: "RadonArray".to_string(),
@@ -635,7 +686,7 @@ mod tests {
             RadonInteger::from(6).into(),
         ]);
         let script = vec![];
-        let result = map(&input, &script);
+        let result = map(&input, &script, &mut ReportContext::default());
 
         let expected_err = RadError::WrongArguments {
             input_type: "RadonArray",
@@ -657,7 +708,7 @@ mod tests {
             Value::Integer(4),
         ])]);
         let args = vec![script, Value::Text("foo".to_string())];
-        let result = map(&input, &args);
+        let result = map(&input, &args, &mut ReportContext::default());
 
         let expected_err = RadError::WrongArguments {
             input_type: "RadonArray",
@@ -799,13 +850,13 @@ mod tests {
             Value::Integer(MapGetString as i128),
             Value::Text("key2".to_string()),
         ])])];
-        let output = sort(&input, &script).unwrap();
+        let output = sort(&input, &script, &mut ReportContext::default()).unwrap();
 
-        let expected = RadonArray::from(vec![
+        let expected = RadonTypes::from(RadonArray::from(vec![
             RadonMap::from(map2).into(),
             RadonMap::from(map1).into(),
             RadonMap::from(map3).into(),
-        ]);
+        ]));
 
         assert_eq!(output, expected)
     }
@@ -853,13 +904,13 @@ mod tests {
             Value::Integer(MapGetInteger as i128),
             Value::Text("key2".to_string()),
         ])])];
-        let output = sort(&input, &script).unwrap();
+        let output = sort(&input, &script, &mut ReportContext::default()).unwrap();
 
-        let expected = RadonArray::from(vec![
+        let expected = RadonTypes::from(RadonArray::from(vec![
             RadonMap::from(map3).into(),
             RadonMap::from(map1).into(),
             RadonMap::from(map2).into(),
-        ]);
+        ]));
 
         assert_eq!(output, expected)
     }
@@ -907,13 +958,13 @@ mod tests {
             Value::Integer(MapGetInteger as i128),
             Value::Text("key2".to_string()),
         ])])];
-        let output = sort(&input, &script).unwrap();
+        let output = sort(&input, &script, &mut ReportContext::default()).unwrap();
 
-        let expected = RadonArray::from(vec![
+        let expected = RadonTypes::from(RadonArray::from(vec![
             RadonMap::from(map1).into(),
             RadonMap::from(map2).into(),
             RadonMap::from(map3).into(),
-        ]);
+        ]));
 
         assert_eq!(output, expected)
     }
@@ -933,7 +984,7 @@ mod tests {
             Value::Integer(MapGetInteger as i128),
             Value::Text("key2".to_string()),
         ])])];
-        let output = sort(&input, &script).unwrap_err();
+        let output = sort(&input, &script, &mut ReportContext::default()).unwrap_err();
 
         assert_eq!(output.to_string(), "Failed to get key `key2` from RadonMap")
     }
@@ -951,7 +1002,7 @@ mod tests {
             Value::Integer(MapGetString as i128),
             Value::Text("key2".to_string()),
         ])])];
-        let output = sort(&input, &script).unwrap_err();
+        let output = sort(&input, &script, &mut ReportContext::default()).unwrap_err();
 
         assert_eq!(
             output.to_string(),
@@ -976,7 +1027,7 @@ mod tests {
             Value::Integer(MapGetFloat as i128),
             Value::Text("key2".to_string()),
         ])])];
-        let output = sort(&input, &script).unwrap_err();
+        let output = sort(&input, &script, &mut ReportContext::default()).unwrap_err();
         let expected_err = RadError::UnsupportedSortOp { array: input };
 
         assert_eq!(output, expected_err);
@@ -988,11 +1039,11 @@ mod tests {
             RadonString::from("Hello world!").into(),
             RadonString::from("Bye world!").into(),
         ]);
-        let expected = RadonArray::from(vec![
+        let expected = RadonTypes::from(RadonArray::from(vec![
             RadonString::from("Bye world!").into(),
             RadonString::from("Hello world!").into(),
-        ]);
-        let output = sort(&input, &[]).unwrap();
+        ]));
+        let output = sort(&input, &[], &mut ReportContext::default()).unwrap();
         assert_eq!(output, expected);
     }
 
@@ -1005,14 +1056,14 @@ mod tests {
             RadonString::from("a").into(),
             RadonString::from("").into(),
         ]);
-        let expected = RadonArray::from(vec![
+        let expected = RadonTypes::from(RadonArray::from(vec![
             RadonString::from("").into(),
             RadonString::from("a").into(),
             RadonString::from("aa").into(),
             RadonString::from("ab").into(),
             RadonString::from("ba").into(),
-        ]);
-        let output = sort(&input, &[]).unwrap();
+        ]));
+        let output = sort(&input, &[], &mut ReportContext::default()).unwrap();
         assert_eq!(output, expected);
     }
 
@@ -1024,13 +1075,13 @@ mod tests {
             RadonString::from("á").into(),
             RadonString::from("A").into(),
         ]);
-        let expected = RadonArray::from(vec![
+        let expected = RadonTypes::from(RadonArray::from(vec![
             RadonString::from("A").into(),
             RadonString::from("a").into(),
             RadonString::from("Á").into(),
             RadonString::from("á").into(),
-        ]);
-        let output = sort(&input, &[]).unwrap();
+        ]));
+        let output = sort(&input, &[], &mut ReportContext::default()).unwrap();
         assert_eq!(output, expected);
     }
 
@@ -1042,13 +1093,13 @@ mod tests {
             RadonInteger::from(-2i128).into(),
             RadonInteger::from(0i128).into(),
         ]);
-        let expected = RadonArray::from(vec![
+        let expected = RadonTypes::from(RadonArray::from(vec![
             RadonInteger::from(-2i128).into(),
             RadonInteger::from(0i128).into(),
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
-        ]);
-        let output = sort(&input, &[]).unwrap();
+        ]));
+        let output = sort(&input, &[], &mut ReportContext::default()).unwrap();
         assert_eq!(output, expected);
     }
 
@@ -1058,7 +1109,7 @@ mod tests {
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
         ]);
-        let output = sort(&input, &[]).unwrap_err();
+        let output = sort(&input, &[], &mut ReportContext::default()).unwrap_err();
         let expected_err = RadError::UnsupportedSortOp { array: input };
 
         assert_eq!(output, expected_err);
@@ -1070,7 +1121,7 @@ mod tests {
             RadonFloat::from(1f64).into(),
             RadonInteger::from(2i128).into(),
         ]);
-        let output = sort(&input, &[]).unwrap_err();
+        let output = sort(&input, &[], &mut ReportContext::default()).unwrap_err();
         let expected_err = RadError::UnsupportedOpNonHomogeneous {
             operator: "ArraySort".to_string(),
         };
@@ -1081,8 +1132,8 @@ mod tests {
     #[test]
     fn test_sort_empty_array() {
         let input = RadonArray::from(vec![]);
-        let expected = RadonArray::from(vec![]);
-        let output = sort(&input, &[]).unwrap();
+        let expected = RadonTypes::from(RadonArray::from(vec![]));
+        let output = sort(&input, &[], &mut ReportContext::default()).unwrap();
         assert_eq!(output, expected);
     }
 
