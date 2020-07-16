@@ -330,7 +330,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // Update reputation before checking Proof-of-Eligibility
                             let block_epoch = block.block_header.beacon.checkpoint;
 
-                            if self.create_superblocks && block_epoch % superblock_period == 0 {
+                            if block_epoch % superblock_period == 0 {
                                 // Create superblocks while synchronizing but do not broadcast them
                                 // This is needed to ensure that we can validate the received superblocks later on
                                 self.construct_superblock(ctx, block_epoch)

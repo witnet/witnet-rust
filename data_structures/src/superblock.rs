@@ -31,14 +31,14 @@ pub enum AddSuperBlockVote {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SuperBlockState {
     // Set of ARS identities that will be able to send superblock votes in the next superblock epoch
-    current_ars_identities: Option<HashSet<PublicKeyHash>>,
+    current_ars_identities: HashSet<PublicKeyHash>,
     // Subset of ARS in charge of signing the next superblock
     current_signing_committee: Option<HashSet<PublicKeyHash>>,
     // Current superblock hash created by this node
-    current_superblock_hash: Option<Hash>,
+    current_superblock_hash: Hash,
     // Current superblock index, used to limit the range of broadcasted votes to
     // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
-    current_superblock_index: Option<u32>,
+    current_superblock_index: u32,
     // Map of identities that voted more than once. This votes are considered invalid.
     identities_that_voted_more_than_once: HashMap<PublicKeyHash, Vec<SuperBlockVote>>,
     // Set of ARS identities that can currently send superblock votes
@@ -57,6 +57,17 @@ pub struct SuperBlockState {
 }
 
 impl SuperBlockState {
+    // Initialize the superblock state
+    pub fn new(superblock_genesis_hash: Hash, bootstrap_committee: Vec<PublicKeyHash>) -> Self {
+        let hs: HashSet<PublicKeyHash> = bootstrap_committee.iter().cloned().collect();
+        Self {
+            current_ars_identities: hs,
+            current_superblock_hash: superblock_genesis_hash,
+            current_superblock_index: 0,
+            ..SuperBlockState::default()
+        }
+    }
+
     // Returns false if the identity voted more than once
     fn insert_vote(&mut self, sbv: SuperBlockVote) -> bool {
         // If the superblock vote is valid, store it
@@ -107,14 +118,14 @@ impl SuperBlockState {
                 Some(true) => {
                     if !self.insert_vote(sbv.clone()) {
                         AddSuperBlockVote::DoubleVote
-                    } else if Some(sbv.superblock_hash) == self.current_superblock_hash {
+                    } else if sbv.superblock_hash == self.current_superblock_hash {
                         AddSuperBlockVote::ValidWithSameHash
                     } else {
                         AddSuperBlockVote::ValidButDifferentHash
                     }
                 }
                 Some(false) => {
-                    if Some(sbv.superblock_index) == self.current_superblock_index
+                    if sbv.superblock_index == self.current_superblock_index
                         || self.previous_ars_identities.is_none()
                     {
                         AddSuperBlockVote::NotInArs
@@ -131,28 +142,25 @@ impl SuperBlockState {
     /// is in the ARS.
     /// Returns true, false, or unknown
     fn is_valid(&self, sbv: &SuperBlockVote) -> Option<bool> {
-        match self.current_superblock_index {
-            // The superblock state is not initialized therefore no one should sign
-            None => Some(false),
+        if self.current_superblock_index == sbv.superblock_index {
             // If the index is the same as the current one, the vote is valid if it is signed by a
-            // member of the ARS. If no ARS is set, return false
-            Some(x) if x == sbv.superblock_index => self
-                .current_signing_committee
+            // member of the current signing committee
+            self.current_signing_committee
                 .as_ref()
                 .map_or(Some(false), |x| {
                     Some(x.contains(&sbv.secp256k1_signature.public_key.pkh()))
-                }),
+                })
+        } else if ((self.current_superblock_index.saturating_sub(1))
+            ..=self.current_superblock_index.saturating_add(1))
+            .contains(&sbv.superblock_index)
+        {
             // If the index is not the same as the current one, but it is within an acceptable range
             // of [x-1, x+1], broadcast the vote without checking if it is a member of the ARS, as
             // the ARS may have changed and we do not keep older copies of the ARS in memory
-            Some(x) => {
-                // Check [x-1,  x+1] range with overflow prevention
-                if ((x.saturating_sub(1))..=(x.saturating_add(1))).contains(&sbv.superblock_index) {
-                    None
-                } else {
-                    Some(false)
-                }
-            }
+            None
+        } else {
+            // If the index is outside the [x-1, x+1] range, it is considered not valid
+            Some(false)
         }
     }
 
@@ -168,7 +176,7 @@ impl SuperBlockState {
         superblock_index: u32,
         last_block_in_previous_superblock: Hash,
     ) -> Option<SuperBlock> {
-        self.current_superblock_index = Some(superblock_index);
+        self.current_superblock_index = superblock_index;
         self.votes_on_each_superblock.clear();
         self.votes_of_each_identity.clear();
         let key_leaves = hash_key_leaves(ars_ordered_bn256_keys);
@@ -182,31 +190,25 @@ impl SuperBlockState {
             None => {
                 // Clear state when there is no superblock
                 // Note that the ARS members list is not updated in this case
-                self.current_superblock_hash = None;
                 self.received_superblocks.clear();
 
                 None
             }
             Some(superblock) => {
                 let superblock_hash = superblock.hash();
-                self.current_superblock_hash = Some(superblock_hash);
+                self.current_superblock_hash = superblock_hash;
 
                 // Save ARS identities:
                 // previous = current
                 // current = ars_pkh_keys
-                {
-                    std::mem::swap(
-                        &mut self.previous_ars_identities,
-                        &mut self.current_ars_identities,
-                    );
-                    // Reuse allocated memory
-                    let hs = self.current_ars_identities.get_or_insert(HashSet::new());
-                    hs.clear();
-                    hs.extend(ars_pkh_keys.iter().cloned());
-                    self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
-                    // For the current index, update the signing committee
-                    self.update_superblock_signing_committee(superblock_index);
-                }
+
+                self.previous_ars_identities =
+                    Some(std::mem::take(&mut self.current_ars_identities));
+                self.current_ars_identities
+                    .extend(ars_pkh_keys.iter().cloned());
+                self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
+                // For the current index, update the signing committee
+                self.update_superblock_signing_committee(superblock_index);
 
                 // This replace is needed because the for loop below needs unique access to self,
                 // but it cannot have unique access to self if it is iterating over
@@ -232,13 +234,12 @@ impl SuperBlockState {
         }
     }
 
-    /// Returns an option with the last superblock hash and index if none of these fields is None.
-    /// else, returns None
-    pub fn get_beacon(&self) -> Option<CheckpointBeacon> {
-        Some(CheckpointBeacon {
-            checkpoint: self.current_superblock_index?,
-            hash_prev_block: self.current_superblock_hash?,
-        })
+    /// Returns the last superblock hash and index.
+    pub fn get_beacon(&self) -> CheckpointBeacon {
+        CheckpointBeacon {
+            checkpoint: self.current_superblock_index,
+            hash_prev_block: self.current_superblock_hash,
+        }
     }
 
     /// Returns the superblock hash and the number of votes of the most voted superblock.
@@ -455,6 +456,34 @@ mod tests {
     }
 
     #[test]
+    fn superblock_state_initial_non_empty() {
+        // When the superblock state is initialized to an initial state,
+        // only the bootstrap committe votes are marked as valid
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+
+        let block_headers = vec![BlockHeader::default()];
+
+        let ars1 = vec![p1.pkh()];
+        let ars2 = vec![p2.pkh()];
+        let mut sbs = SuperBlockState::new(Hash::default(), ars1);
+
+        let sb1 = sbs
+            .build_superblock(&block_headers, &ars2, &[], 0, Hash::default())
+            .unwrap();
+        let mut v0 = SuperBlockVote::new_unsigned(sb1.hash(), 0);
+
+        v0.secp256k1_signature.public_key = p1;
+
+        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::ValidWithSameHash);
+
+        let mut v1 = SuperBlockVote::new_unsigned(Hash::default(), 0);
+        v1.secp256k1_signature.public_key = p2;
+
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+    }
+
+    #[test]
     fn superblock_state_first_superblock_cannot_be_validated() {
         // The first superblock built after starting the node cannot be validated because we need
         // the list of ARS members from the previous superblock
@@ -492,7 +521,7 @@ mod tests {
         );
 
         let mut expected_sbs = SuperBlockState::default();
-        expected_sbs.current_superblock_index = Some(0);
+        expected_sbs.current_superblock_index = 0;
         assert_eq!(sbs, expected_sbs);
     }
 
@@ -506,7 +535,7 @@ mod tests {
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
                 .unwrap();
         let genesis_hash = Hash::default();
-        let _sb1 = sbs
+        let sb1 = sbs
             .build_superblock(
                 &block_headers,
                 &ars_identities,
@@ -523,9 +552,9 @@ mod tests {
         );
 
         // The only think that should change is the superblock_index
-        expected_sbs.current_superblock_index = Some(1);
-        // And the superblock_hash, which will be set to None
-        expected_sbs.current_superblock_hash = None;
+        expected_sbs.current_superblock_index = 1;
+        // And the superblock_hash, which will be set to the previous superblock
+        expected_sbs.current_superblock_hash = sb1.hash();
         assert_eq!(sbs, expected_sbs);
     }
 
@@ -933,33 +962,51 @@ mod tests {
         let superblock_state = SuperBlockState::default();
         let beacon = superblock_state.get_beacon();
 
-        assert!(beacon.is_none());
+        assert_eq!(
+            beacon,
+            CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default()
+            }
+        );
     }
 
     #[test]
     fn test_get_beacon_2() {
         let superblock_state = SuperBlockState {
-            current_ars_identities: Some(HashSet::default()),
-            current_superblock_hash: Some(Hash::default()),
+            current_ars_identities: HashSet::default(),
+            current_superblock_hash: Hash::SHA256([1; 32]),
             previous_ars_identities: Some(HashSet::default()),
             ..Default::default()
         };
         let beacon = superblock_state.get_beacon();
 
-        assert!(beacon.is_none());
+        assert_eq!(
+            beacon,
+            CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::SHA256([1; 32])
+            }
+        );
     }
 
     #[test]
     fn test_get_beacon_3() {
         let superblock_state = SuperBlockState {
-            current_ars_identities: Some(HashSet::default()),
-            current_superblock_hash: Some(Hash::default()),
-            current_superblock_index: Some(1),
+            current_ars_identities: HashSet::default(),
+            current_superblock_hash: Hash::default(),
+            current_superblock_index: 1,
             previous_ars_identities: Some(HashSet::default()),
             ..Default::default()
         };
         let beacon = superblock_state.get_beacon();
 
-        assert!(beacon.is_some());
+        assert_eq!(
+            beacon,
+            CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: Hash::default()
+            }
+        );
     }
 }
