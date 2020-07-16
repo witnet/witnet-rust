@@ -64,7 +64,7 @@ pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
     // This is believed to help with issue #1088
     futures::future::lazy(|| system.run())
         .wait()
-        .or_else(|error| Err(error.into()))
+        .map_err(|error| error.into())
 }
 
 /// Function to close the main system

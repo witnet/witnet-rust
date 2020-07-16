@@ -444,7 +444,7 @@ fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> 
     let tally_result = witnet_rad::run_tally(reported_values?, &dr.data_request.tally)?;
     log::info!("Tally result: {:?}", tally_result);
 
-    Ok(RadonTypes::try_from(tally_result)?)
+    Ok(tally_result)
 }
 
 fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutput, failure::Error> {

@@ -227,7 +227,7 @@ pub enum GenesisBlockInfoError {
 ///
 /// This is the format of `genesis_block.json`:
 ///
-/// ```norun
+/// ```ignore
 /// {
 ///     "alloc":[
 ///         [
@@ -1086,7 +1086,7 @@ pub struct DataRequestOutput {
 impl DataRequestOutput {
     /// Calculate the total value of a data request, return error on overflow
     ///
-    /// ```norun
+    /// ```ignore
     /// total_value = (witness_reward + commit_fee + reveal_fee) * witnesses + tally_fee
     /// ```
     pub fn checked_total_value(&self) -> Result<u64, TransactionError> {

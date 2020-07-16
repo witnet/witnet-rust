@@ -21,7 +21,7 @@ use web3::{
 /// will send a notification through the oneshot channel.
 /// To create a oneshot channel:
 ///
-/// ```norun
+/// ```ignore
 /// let (oneshot_tx, oneshot_rx) = oneshot::channel();
 /// let f = block_ticker_tx.send((block_hash, tx)).and_then(|()| rx);
 /// ```

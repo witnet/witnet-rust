@@ -919,10 +919,7 @@ mod tests {
         let int = RadonTypes::from(RadonInteger::from(0));
         // RadonError with error code 0
         let kind = RadonErrors::try_from(0).unwrap();
-        let err = RadonTypes::from(
-            RadonError::try_from(RadError::try_from_kind_and_cbor_args(kind, None).unwrap())
-                .unwrap(),
-        );
+        let err = RadonTypes::from(RadError::try_from_kind_and_cbor_args(kind, None).unwrap());
         // Ensure they encoded differently (errors are tagged using `39` as CBOR tag)
         assert_ne!(int.encode(), err.encode());
         // And they are not equal in runtime either

@@ -5,7 +5,7 @@
 //! * When the number of nodes is not a multiple of two, the last element is promoted to the
 //! next layer:
 //!
-//! ```norun
+//! ```ignore
 //!        ^
 //!    ^       ^
 //!  ^   ^   ^  |
@@ -86,7 +86,7 @@ fn merkle_tree_root_with_hashing_function<T: Copy>(hash_concat: fn(T, T) -> T, h
 ///
 /// Here is an illustration of the leaves vector when pushing 8 nodes in sequence.
 /// Each slot `[   ]` contains the concatenation of the hashes of the elements inside it.
-/// ```norun
+/// ```ignore
 /// [1   ]
 /// [12  ][    ]
 /// [12  ][3   ]

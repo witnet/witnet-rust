@@ -23,7 +23,7 @@ pub type BytesMut = bytes::BytesMut;
 /// Codec for client -> server transport
 ///
 /// Format:
-/// ```norun
+/// ```ignore
 /// Message size: u32
 /// Message: [u8; Message size]
 /// ```

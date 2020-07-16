@@ -200,6 +200,9 @@ impl SuperBlockState {
                     self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
                 }
 
+                // This replace is needed because the for loop below needs unique access to self,
+                // but it cannot have unique access to self if it is iterating over
+                // self.received_superblocks.drain()
                 let mut old_superblock_votes =
                     std::mem::replace(&mut self.received_superblocks, HashSet::new());
                 // Process old superblock votes
@@ -214,7 +217,7 @@ impl SuperBlockState {
                 }
                 // old_superblock_votes should be empty, as we have drained it
                 // But swap it back to reuse allocated memory
-                std::mem::replace(&mut self.received_superblocks, old_superblock_votes);
+                self.received_superblocks = old_superblock_votes;
 
                 Some(superblock)
             }

@@ -2098,8 +2098,8 @@ impl Diff {
     /// ```
     pub fn visit<A, F1, F2>(&self, args: &mut A, fn_add: F1, fn_remove: F2)
     where
-        F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput) -> (),
-        F2: Fn(&mut A, &OutputPointer) -> (),
+        F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput),
+        F2: Fn(&mut A, &OutputPointer),
     {
         for (output_pointer, (output, _)) in self.utxos_to_add.iter() {
             fn_add(args, output_pointer, output);
