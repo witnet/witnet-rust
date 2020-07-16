@@ -8,13 +8,16 @@ use crate::{
     error::RadError,
     filters::{self, RadonFilters},
     reducers::{self, RadonReducers},
-    script::{execute_contextfree_radon_script, unpack_subscript},
+    script::{
+        execute_contextfree_radon_script, execute_radon_script, unpack_subscript,
+        RadonScriptExecutionSettings,
+    },
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
     },
 };
-use witnet_data_structures::radon_report::ReportContext;
+use witnet_data_structures::radon_report::{ReportContext, Stage};
 
 pub fn count(input: &RadonArray) -> RadonInteger {
     RadonInteger::from(input.value().len() as i128)
@@ -139,14 +142,6 @@ pub fn filter(
 
     let first_arg = args.get(0).ok_or_else(wrong_args)?;
     match first_arg {
-        Value::Integer(arg) => {
-            let filter_code =
-                RadonFilters::try_from(u8::try_from(*arg).map_err(|_| unknown_filter(*arg))?)
-                    .map_err(|_| unknown_filter(*arg))?;
-            let (_args, extra_args) = args.split_at(1);
-
-            filters::filter(input, filter_code, extra_args, context)
-        }
         Value::Array(_arg) => {
             let subscript_err = |e| RadError::Subscript {
                 input_type: "RadonArray".to_string(),
@@ -155,23 +150,51 @@ pub fn filter(
             };
             let subscript = unpack_subscript(first_arg).map_err(subscript_err)?;
 
-            let mut result = vec![];
+            let mut reports = vec![];
+            let mut results = vec![];
+
+            let settings = RadonScriptExecutionSettings::enable_all();
             for item in input.value() {
-                match execute_contextfree_radon_script(item.clone(), subscript.as_slice())? {
+                let report =
+                    execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;
+
+                match &report.result {
                     RadonTypes::Boolean(boolean) => {
                         if boolean.value() {
-                            result.push(item);
+                            results.push(item.clone());
                         }
                     }
-                    value => {
-                        return Err(RadError::ArrayFilterWrongSubscript {
-                            value: value.to_string(),
-                        })
-                    }
+                    _ => {}
                 }
+
+                reports.push(report);
             }
 
-            Ok(RadonArray::from(result).into())
+            if let Stage::Retrieval(metadata) = &mut context.stage {
+                let mut partial_results = vec![];
+                for index in 0..(subscript.len() + 1) {
+                    let mut partial_result = vec![];
+                    for report in &reports {
+                        if let Some(report_partial_results) = &report.partial_results {
+                            if let Some(result) = report_partial_results.get(index) {
+                                partial_result.push((*result).clone());
+                            }
+                        }
+                    }
+                    partial_results.push(partial_result);
+                }
+                metadata.subscript_partial_results.push(partial_results);
+            }
+
+            Ok(RadonArray::from(results).into())
+        }
+        Value::Integer(arg) => {
+            let filter_code =
+                RadonFilters::try_from(u8::try_from(*arg).map_err(|_| unknown_filter(*arg))?)
+                    .map_err(|_| unknown_filter(*arg))?;
+            let (_args, extra_args) = args.split_at(1);
+
+            filters::filter(input, filter_code, extra_args, context)
         }
         _ => Err(wrong_args()),
     }
@@ -303,6 +326,7 @@ mod tests {
         },
     };
     use std::collections::HashMap;
+    use witnet_data_structures::radon_report::RetrievalMetadata;
 
     #[test]
     fn test_array_count() {
@@ -642,6 +666,38 @@ mod tests {
         };
 
         assert_eq!(result.unwrap_err(), expected_err);
+    }
+
+    #[test]
+    fn test_filter_with_partial_results() {
+        let input = RadonArray::from(vec![
+            RadonInteger::from(2).into(),
+            RadonInteger::from(3).into(),
+        ]);
+        let script = vec![Value::Array(vec![
+            Value::Array(vec![
+                Value::Integer(IntegerMultiply as i128),
+                Value::Integer(2),
+            ]),
+            Value::Array(vec![
+                Value::Integer(IntegerGreaterThan as i128),
+                Value::Integer(5),
+            ]),
+        ])];
+        let mut context = ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
+        filter(&input, &script, &mut context).unwrap();
+
+        if let Stage::Retrieval(metadata) = context.stage {
+            let expected_partial_results = vec![vec![
+                vec![RadonInteger::from(2).into(), RadonInteger::from(3).into()],
+                vec![RadonInteger::from(4).into(), RadonInteger::from(6).into()],
+                vec![
+                    RadonBoolean::from(false).into(),
+                    RadonBoolean::from(true).into(),
+                ],
+            ]];
+            assert_eq!(metadata.subscript_partial_results, expected_partial_results);
+        }
     }
 
     #[test]
