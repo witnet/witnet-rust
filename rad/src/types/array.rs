@@ -145,12 +145,15 @@ impl Operable for RadonArray {
             (RadonOpCodes::ArrayFilter, Some(args)) => {
                 array_operators::filter(self, args.as_slice(), &mut ReportContext::default())
             }
-            (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(self, args.as_slice()),
+            (RadonOpCodes::ArrayMap, Some(args)) => {
+                array_operators::map(self, args.as_slice(), &mut ReportContext::default())
+            }
             (RadonOpCodes::ArrayReduce, Some(args)) => {
                 array_operators::reduce(self, args.as_slice())
             }
             (RadonOpCodes::ArraySort, Some(args)) => {
-                array_operators::sort(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::sort(self, args.as_slice(), &mut ReportContext::default())
+                    .map(RadonTypes::from)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_ARRAY_TYPE_NAME.to_string(),
@@ -168,6 +171,12 @@ impl Operable for RadonArray {
         match call {
             (RadonOpCodes::ArrayFilter, Some(args)) => {
                 array_operators::filter(self, args.as_slice(), context)
+            }
+            (RadonOpCodes::ArrayMap, Some(args)) => {
+                array_operators::map(self, args.as_slice(), context)
+            }
+            (RadonOpCodes::ArraySort, Some(args)) => {
+                array_operators::sort(self, args.as_slice(), context)
             }
             other => self.operate(other),
         }
