@@ -12,6 +12,7 @@ use crate::{
     config_mngr, signature_mngr, storage_mngr,
 };
 use witnet_crypto::key::CryptoEngine;
+use witnet_data_structures::superblock::SuperBlockState;
 use witnet_data_structures::{
     chain::{
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo,
