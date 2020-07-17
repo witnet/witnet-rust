@@ -906,8 +906,7 @@ impl ChainManager {
         let inventory_manager = InventoryManager::from_registry();
 
         let init_epoch = block_epoch - superblock_period;
-        let init_epoch = init_epoch.saturating_sub(1);
-        let final_epoch = block_epoch.saturating_sub(2);
+        let final_epoch = block_epoch.saturating_sub(1);
         let genesis_hash = consensus_constants.genesis_hash;
 
         let fut = futures::future::ok(self.handle(
