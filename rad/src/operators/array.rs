@@ -122,7 +122,13 @@ pub fn map(
     for item in input.value() {
         let report = execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;
 
-        results.push(item.clone());
+        // If there is an error while mapping, short-circuit and bubble up the intercepted error as
+        // it comes from the radon script execution
+        if let intercepted @ RadonTypes::RadonError(_) = &report.result {
+            return Ok(intercepted.clone());
+        }
+
+        results.push(report.result.clone());
         reports.push(report);
     }
 
@@ -180,6 +186,10 @@ pub fn filter(
                     if boolean.value() {
                         results.push(item.clone());
                     }
+                } else {
+                    return Err(RadError::ArrayFilterWrongSubscript {
+                        value: report.result.to_string(),
+                    });
                 }
 
                 reports.push(report);
@@ -235,9 +245,16 @@ pub fn sort(
     // Sort can be called with an optional argument.
     // If that argument is missing, default to []
     let map_args = if args.is_empty() { &empty_array } else { args };
-    let mapped_array = map(input, map_args, context)?;
-    let mapped_array = match mapped_array {
+    let mapped_array = match map(input, map_args, context)? {
         RadonTypes::Array(x) => x,
+        RadonTypes::RadonError(error) => {
+            if let RadError::UnhandledIntercept { inner, message: _ } = error.inner() {
+                if let Some(super_inner) = inner {
+                    return Err(*super_inner.clone());
+                }
+            }
+            return Err(error.inner().clone());
+        }
         _ => unreachable!(),
     };
 
@@ -916,7 +933,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sort_idecntial_maps_integer_values() {
+    fn test_sort_identical_maps_integer_values() {
         let mut map1 = HashMap::new();
         map1.insert(
             "key1".to_string(),
