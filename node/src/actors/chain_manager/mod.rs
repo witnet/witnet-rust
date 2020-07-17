@@ -956,7 +956,12 @@ impl ChainManager {
         })
         .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
         .and_then(move |(block_headers, last_hash), act, ctx| {
-            if act.chain_state.superblock_state.has_consensus() {
+            // If the node is not synced yet, assume that the superblock is valid.
+            // This is because the node is consolidating blocks received during the synchronization
+            // process, which are assumed to be valid.
+            if act.sm_state != StateMachine::Synced
+                || act.chain_state.superblock_state.has_consensus()
+            {
                 // Consensus: persist chain state
                 act.persist_chain_state(ctx);
                 log::info!("Consensus! Superblock {:?}", act.get_superblock_beacon());
