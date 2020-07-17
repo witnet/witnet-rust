@@ -54,6 +54,24 @@ impl ChainManager {
     pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
         if !self.mining_enabled {
             log::debug!("Mining disabled in configuration");
+            if self.chain_state.chain_info.is_none() {
+                log::warn!("ChainInfo is not set");
+
+                return;
+            }
+            if self.current_epoch.is_none() {
+                log::warn!("Cannot create superblock because current epoch is unknown");
+
+                return;
+            }
+            let chain_info = self.chain_state.chain_info.as_ref().unwrap();
+            let current_epoch = self.current_epoch.unwrap();
+            // Even if mining is disabled, we still need to create superblocks
+            let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
+            // Everyone creates superblocks, but only ARS members sign and broadcast them
+            if self.create_superblocks && current_epoch % superblock_period == 0 {
+                self.superblock_creating_and_broadcasting(ctx, current_epoch);
+            }
             return;
         }
 
