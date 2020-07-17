@@ -539,16 +539,12 @@ impl ChainManager {
 
                 // Store the ARS and the order of the keys
                 let trs = reputation_engine.trs();
-                let current_ars = reputation_engine
-                    .ars()
-                    .active_identities()
-                    .cloned()
-                    .collect();
                 let alt_keys = &self.chain_state.alt_keys;
 
                 let ordered_alts: Vec<Bn256PublicKey> = alt_keys.get_rep_ordered_bn256_list(trs);
+                let ordered_ars: Vec<PublicKeyHash> = alt_keys.get_rep_ordered_pkh_list(trs);
                 // last ars with previous block ars info
-                self.chain_state.last_ars = current_ars;
+                self.chain_state.last_ars = ordered_ars;
                 self.chain_state.last_ars_ordered_keys = ordered_alts;
 
                 let rep_info = update_pools(

@@ -2785,6 +2785,20 @@ impl AltKeys {
             .filter_map(|pkh| self.get_bn256(&pkh).cloned())
             .collect()
     }
+
+    /// Get keys ordered by reputation. If tie, order by pkh.
+    /// These keys will be used to order the ARS when forming a superblock
+    pub fn get_rep_ordered_pkh_list(
+        &self,
+        reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
+    ) -> Vec<PublicKeyHash> {
+        self.bn256
+            .iter()
+            .map(|(pkh, _)| *pkh)
+            .sorted_by_key(|&pkh| (reputation_set.get(&pkh), pkh))
+            .clone()
+            .collect()
+    }
 }
 
 impl ChainState {
