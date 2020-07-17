@@ -955,41 +955,46 @@ impl ChainManager {
             }
         })
         .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
-        .and_then(move |(block_headers, last_hash), act, _ctx| {
-            let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-            let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
-
-            let ars_members: Vec<PublicKeyHash> = {
-                // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
-                // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
-                // the bootstrap committee signs is at least epoch activity_period + collateral_age
-
-                if act.current_epoch.unwrap()
-                    > chain_info.consensus_constants.collateral_age
-                        + chain_info.consensus_constants.activity_period
-                {
-                    act.chain_state
-                        .alt_keys
-                        .get_rep_ordered_pkh_list(reputation_engine.trs())
-                } else {
-                    chain_info
-                        .consensus_constants
-                        .bootstrapping_committee
-                        .iter()
-                        .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                        .collect()
-                }
-            };
-
-            // Store the ARS and the order of the keys
-            let trs = reputation_engine.trs();
-
-            let ars_ordered_keys: Vec<Bn256PublicKey> =
-                act.chain_state.alt_keys.get_rep_ordered_bn256_list(trs);
-
+        .and_then(move |(block_headers, last_hash), act, ctx| {
             if act.chain_state.superblock_state.has_consensus() {
                 // Consensus: persist chain state
-                act.persist_chain_state();
+                act.persist_chain_state(ctx);
+                log::info!("Consensus! Superblock {:?}", act.get_superblock_beacon());
+                log::info!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                log::info!(
+                    "The last block of the consolidated superblock is {}",
+                    last_hash
+                );
+                let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+                let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
+
+                let ars_members: Vec<PublicKeyHash> = {
+                    // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
+                    // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
+                    // the bootstrap committee signs is at least epoch activity_period + collateral_age
+                    if act.current_epoch.unwrap()
+                        > chain_info.consensus_constants.collateral_age
+                            + chain_info.consensus_constants.activity_period
+                    {
+                        act.chain_state
+                            .alt_keys
+                            .get_rep_ordered_pkh_list(reputation_engine.trs())
+                    } else {
+                        chain_info
+                            .consensus_constants
+                            .bootstrapping_committee
+                            .iter()
+                            .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                            .collect()
+                    }
+                };
+
+                // Store the ARS and the order of the keys
+                let trs = reputation_engine.trs();
+
+                let ars_ordered_keys: Vec<Bn256PublicKey> =
+                    act.chain_state.alt_keys.get_rep_ordered_bn256_list(trs);
+
                 let superblock = act.chain_state.superblock_state.build_superblock(
                     &block_headers,
                     &ars_members,
@@ -1003,8 +1008,21 @@ impl ChainManager {
             } else {
                 // No consensus: move to waiting consensus and restore chain_state from storage
                 log::warn!("No superblock consensus. Moving to WaitingConsensus state");
-                self.initialize_from_storage(ctx);
+                act.initialize_from_storage(ctx);
+                // TODO: initialize_from_storage creates a future, here the storage is not restored
+                // yet so we cannot show the restored tip of the chain
+                /*
                 log::info!("Restored chain state from storage");
+                log::info!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                log::info!(
+                    "The last block of the consolidated superblock is {}",
+                    last_hash
+                );
+                if act.get_chain_beacon().hash_prev_block != last_hash {
+                    log::error!("Restore from storage failed");
+                }
+                */
+
                 act.sm_state = StateMachine::WaitingConsensus;
 
                 actix::fut::err(())
