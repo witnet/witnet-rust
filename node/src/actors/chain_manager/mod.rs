@@ -51,7 +51,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
-    superblock::AddSuperBlockVote,
+    superblock::{AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
     types::LastBeacon,
     vrf::VrfCtx,
@@ -970,71 +970,80 @@ impl ChainManager {
         })
         .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
         .and_then(move |(block_headers, last_hash), act, ctx| {
-            // If the node is not synced yet, assume that the superblock is valid.
-            // This is because the node is consolidating blocks received during the synchronization
-            // process, which are assumed to be valid.
-            if act.sm_state != StateMachine::Synced
-                || act.chain_state.superblock_state.has_consensus()
-            {
-                // Consensus: persist chain state
-                act.persist_chain_state(ctx);
-                log::info!("Consensus! Superblock {:?}", act.get_superblock_beacon());
-                log::info!("Current tip of the chain: {:?}", act.get_chain_beacon());
-                log::info!(
-                    "The last block of the consolidated superblock is {}",
-                    last_hash
-                );
-                let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-                let ars_members = {
-                    // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
-                    // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
-                    // the bootstrap committee signs is at least epoch activity_period + collateral_age
-                    if act.current_epoch.unwrap()
-                        > chain_info.consensus_constants.collateral_age
-                            + chain_info.consensus_constants.activity_period
-                    {
-                        act.chain_state.last_ars.clone()
-                    } else {
-                        chain_info
-                            .consensus_constants
-                            .bootstrapping_committee
-                            .iter()
-                            .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                            .collect()
-                    }
-                };
-                let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
-
-                let superblock = act.chain_state.superblock_state.build_superblock(
-                    &block_headers,
-                    &ars_members,
-                    ars_ordered_keys,
-                    superblock_index,
-                    last_hash,
-                );
-
-                actix::fut::ok(superblock)
+            let consensus = if act.sm_state == StateMachine::Synced {
+                act.chain_state.superblock_state.has_consensus()
             } else {
-                // No consensus: move to waiting consensus and restore chain_state from storage
-                log::warn!("No superblock consensus. Moving to WaitingConsensus state");
-                act.initialize_from_storage(ctx);
-                // TODO: initialize_from_storage creates a future, here the storage is not restored
-                // yet so we cannot show the restored tip of the chain
-                /*
-                log::info!("Restored chain state from storage");
-                log::info!("Current tip of the chain: {:?}", act.get_chain_beacon());
-                log::info!(
-                    "The last block of the consolidated superblock is {}",
-                    last_hash
-                );
-                if act.get_chain_beacon().hash_prev_block != last_hash {
-                    log::error!("Restore from storage failed");
+                // If the node is not synced yet, assume that the superblock is valid.
+                // This is because the node is consolidating blocks received during the synchronization
+                // process, which are assumed to be valid.
+                SuperBlockConsensus::SameAsLocal
+            };
+            match consensus {
+                SuperBlockConsensus::SameAsLocal => {
+                    // Consensus: persist chain state
+                    act.persist_chain_state(ctx);
+                    log::info!("Consensus! Superblock {:?}", act.get_superblock_beacon());
+                    log::info!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                    log::info!(
+                        "The last block of the consolidated superblock is {}",
+                        last_hash
+                    );
+                    let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+                    let ars_members = {
+                        // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
+                        // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
+                        // the bootstrap committee signs is at least epoch activity_period + collateral_age
+                        if act.current_epoch.unwrap()
+                            > chain_info.consensus_constants.collateral_age
+                                + chain_info.consensus_constants.activity_period
+                        {
+                            act.chain_state.last_ars.clone()
+                        } else {
+                            chain_info
+                                .consensus_constants
+                                .bootstrapping_committee
+                                .iter()
+                                .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                                .collect()
+                        }
+                    };
+                    let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
+
+                    let superblock = act.chain_state.superblock_state.build_superblock(
+                        &block_headers,
+                        &ars_members,
+                        ars_ordered_keys,
+                        superblock_index,
+                        last_hash,
+                    );
+
+                    actix::fut::ok(superblock)
                 }
-                */
+                SuperBlockConsensus::Different(target_superblock_hash) => {
+                    // No consensus: move to waiting consensus and restore chain_state from storage
+                    // TODO: start syncronizing with target superblock hash
+                    log::warn!("Superblock consensus {} different from current superblock. Moving to WaitingConsensus state", target_superblock_hash);
+                    act.initialize_from_storage(ctx);
+                    act.sm_state = StateMachine::WaitingConsensus;
 
-                act.sm_state = StateMachine::WaitingConsensus;
+                    actix::fut::err(())
+                }
+                SuperBlockConsensus::NoConsensus => {
+                    // No consensus: move to AlmostSynced and restore chain_state from storage
+                    log::warn!("No superblock consensus. Moving to AlmostSynced state");
+                    act.initialize_from_storage(ctx);
+                    act.sm_state = StateMachine::AlmostSynced;
 
-                actix::fut::err(())
+                    actix::fut::err(())
+                }
+                SuperBlockConsensus::Unknown => {
+                    // Consensus unknown: move to waiting consensus and restore chain_state from storage
+                    log::warn!("Superblock consensus unknown. Moving to WaitingConsensus state");
+                    act.initialize_from_storage(ctx);
+                    act.sm_state = StateMachine::WaitingConsensus;
+
+                    actix::fut::err(())
+                }
             }
         });
 
