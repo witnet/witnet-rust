@@ -30,6 +30,18 @@ pub enum AddSuperBlockVote {
     ValidWithSameHash,
 }
 
+/// Possible result of SuperBlockState::has_consensus
+pub enum SuperBlockConsensus {
+    /// The local superblock has the majority of votes, everything ok
+    SameAsLocal,
+    /// A different superblock has the majority of votes, go to waiting consensus
+    Different(Hash),
+    /// No superblock candidate can achieve majority of votes
+    NoConsensus,
+    /// There are some missing votes that are needed to determine the consenus
+    Unknown,
+}
+
 /// State related to superblocks
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SuperBlockState {
@@ -179,17 +191,50 @@ impl SuperBlockState {
     }
 
     /// Return true if the local superblock has the majority of votes
-    pub fn has_consensus(&self) -> bool {
+    pub fn has_consensus(&self) -> SuperBlockConsensus {
         log::info!("Superblock votes: {:?}", self.votes_on_each_superblock);
         log::info!("Previous ars: {:?}", self.previous_ars_identities);
         // If previous_ars_identities is None, this is the first superblock. The first superblock
         // is the one with index 0 and genesis hash. These are consensus constants and we do not
         // need any votes to determine that that is the most voted superblock.
         if self.previous_ars_identities.is_none() {
-            return true;
+            return SuperBlockConsensus::SameAsLocal;
         }
-
-        self.most_voted_superblock() == Some(self.current_superblock_hash)
+        let identities_that_can_vote = self.previous_ars_identities.as_ref().unwrap().len();
+        let (most_voted_superblock, most_voted_num_votes) = match self
+            .votes_on_each_superblock
+            .iter()
+            .map(|(superblock_hash, votes)| (*superblock_hash, votes.len()))
+            .max_by_key(|&(_, num_votes)| num_votes)
+        {
+            Some(x) => x,
+            None => {
+                // 0 votes, no consensus
+                return SuperBlockConsensus::Unknown;
+            }
+        };
+        if two_thirds_consensus(most_voted_num_votes, identities_that_can_vote) {
+            if most_voted_superblock == self.current_superblock_hash {
+                SuperBlockConsensus::SameAsLocal
+            } else {
+                SuperBlockConsensus::Different(most_voted_superblock)
+            }
+        } else {
+            // FIXME(#1389): does this take into account double votes?
+            let num_total_votes = self.votes_of_each_identity.len();
+            let num_missing_votes = identities_that_can_vote - num_total_votes;
+            if two_thirds_consensus(
+                most_voted_num_votes + num_missing_votes,
+                identities_that_can_vote,
+            ) {
+                // There is no consensus, but if the missing votes vote the same as the
+                // majority, there can be consensus
+                SuperBlockConsensus::Unknown
+            } else {
+                // There is no consensus, regardless of the missing votes
+                SuperBlockConsensus::NoConsensus
+            }
+        }
     }
 
     /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
