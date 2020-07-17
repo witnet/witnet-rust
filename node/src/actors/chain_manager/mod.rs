@@ -621,13 +621,16 @@ impl ChainManager {
                                 transaction: Transaction::Reveal(reveal),
                             })
                         }
+                        // Persist blocks and transactions but do not persist chain_state, it will
+                        // be persisted on superblock consolidation
+                        // TODO: this means that after a reorganization a call to getBlock or
+                        // getTransaction will show the content without any warning that the block
+                        // is not on the main chain. To fix this we could remove forked blocks when
+                        // a reorganization is detected.
                         self.persist_items(
                             ctx,
                             vec![StoreInventoryItem::Block(Box::new(block.clone()))],
                         );
-
-                        // Persist chain_info into storage
-                        self.persist_chain_state(ctx);
 
                         // Send notification to JsonRpcServer
                         JsonRpcServer::from_registry().do_send(NewBlock { block })
@@ -985,6 +988,8 @@ impl ChainManager {
                 act.chain_state.alt_keys.get_rep_ordered_bn256_list(trs);
 
             if act.chain_state.superblock_state.has_consensus() {
+                // Consensus: persist chain state
+                act.persist_chain_state();
                 let superblock = act.chain_state.superblock_state.build_superblock(
                     &block_headers,
                     &ars_members,
@@ -993,11 +998,15 @@ impl ChainManager {
                     superblock_index,
                     last_hash,
                 );
+
                 actix::fut::ok(superblock)
             } else {
-                // No consensus: move to waiting consensus
+                // No consensus: move to waiting consensus and restore chain_state from storage
                 log::warn!("No superblock consensus. Moving to WaitingConsensus state");
+                self.initialize_from_storage(ctx);
+                log::info!("Restored chain state from storage");
                 act.sm_state = StateMachine::WaitingConsensus;
+
                 actix::fut::err(())
             }
         });
