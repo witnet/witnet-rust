@@ -182,6 +182,13 @@ impl SuperBlockState {
     pub fn has_consensus(&self) -> bool {
         log::info!("Superblock votes: {:?}", self.votes_on_each_superblock);
         log::info!("Previous ars: {:?}", self.previous_ars_identities);
+        // If previous_ars_identities is None, this is the first superblock. The first superblock
+        // is the one with index 0 and genesis hash. These are consensus constants and we do not
+        // need any votes to determine that that is the most voted superblock.
+        if self.previous_ars_identities.is_none() {
+            return true;
+        }
+
         self.most_voted_superblock() == Some(self.current_superblock_hash)
     }
 
