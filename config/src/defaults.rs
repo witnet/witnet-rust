@@ -133,6 +133,11 @@ pub trait Defaults {
             .unwrap()
     }
 
+    /// Default period between superblocks
+    fn consensus_constants_superblock_signing_committee_size(&self) -> u32 {
+        100
+    }
+
     /// JSON-RPC server enabled by default
     fn jsonrpc_enabled(&self) -> bool {
         true
