@@ -233,6 +233,12 @@ impl ChainManager {
                 act.chain_state = chain_state;
                 act.last_chain_state = act.chain_state.clone();
 
+                // initialize_from_storage is also used to implement reorganizations
+                // In that case, we must clear some fields to avoid forks
+                act.best_candidate = None;
+                act.candidates.clear();
+                act.seen_candidates.clear();
+
                 SessionsManager::from_registry().do_send(SetLastBeacon {
                     beacon: LastBeacon {
                         highest_block_checkpoint: act.get_chain_beacon(),
