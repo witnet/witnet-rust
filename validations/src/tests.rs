@@ -5246,6 +5246,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         extra_rounds: 0,
         initial_difficulty: 0,
         epochs_with_initial_difficulty: 0,
+        superblock_signing_committee_size: 100,
     };
 
     // Insert output to utxo
@@ -5506,6 +5507,7 @@ fn block_difficult_proof() {
         extra_rounds: 0,
         initial_difficulty: 0,
         epochs_with_initial_difficulty: 0,
+        superblock_signing_committee_size: 100,
     };
 
     // Insert output to utxo
@@ -6099,6 +6101,7 @@ fn test_blocks_with_limits(
         extra_rounds: 0,
         initial_difficulty: 0,
         epochs_with_initial_difficulty: 0,
+        superblock_signing_committee_size: 100,
     };
 
     // Insert output to utxo
@@ -6661,6 +6664,7 @@ fn genesis_block_after_not_bootstrap_hash() {
         extra_rounds: 0,
         initial_difficulty: 0,
         epochs_with_initial_difficulty: 0,
+        superblock_signing_committee_size: 100,
     };
     let mut signatures_to_verify = vec![];
 
@@ -6734,6 +6738,7 @@ fn genesis_block_value_overflow() {
         extra_rounds: 0,
         initial_difficulty: 0,
         epochs_with_initial_difficulty: 0,
+        superblock_signing_committee_size: 100,
     };
     let vrf_input = CheckpointVRF::default();
     let mut signatures_to_verify = vec![];
@@ -6812,6 +6817,7 @@ fn genesis_block_full_validate() {
         extra_rounds: 0,
         initial_difficulty: 0,
         epochs_with_initial_difficulty: 0,
+        superblock_signing_committee_size: 100,
     };
 
     // Validate block
@@ -6871,6 +6877,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             extra_rounds: 0,
             initial_difficulty: 0,
             epochs_with_initial_difficulty: 0,
+            superblock_signing_committee_size: 100,
         };
         let dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -7052,6 +7059,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             extra_rounds: 0,
             initial_difficulty: 0,
             epochs_with_initial_difficulty: 0,
+            superblock_signing_committee_size: 100,
         };
 
         let (inputs, outputs) = (vec![vti], vec![change_vto.clone()]);

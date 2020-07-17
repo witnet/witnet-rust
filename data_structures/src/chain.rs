@@ -190,6 +190,9 @@ pub struct ConsensusConstants {
 
     /// Superblock signing committee for the first superblocks
     pub bootstrapping_committee: Vec<String>,
+
+    /// Superblock signing committee for the first superblocks
+    pub superblock_signing_committee_size: u32,
 }
 
 impl ConsensusConstants {
