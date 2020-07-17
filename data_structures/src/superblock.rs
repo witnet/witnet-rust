@@ -70,14 +70,17 @@ impl SuperBlockState {
 
     // Returns false if the identity voted more than once
     fn insert_vote(&mut self, sbv: SuperBlockVote) -> bool {
+        log::debug!("Superblock insert vote {:?}", sbv);
         // If the superblock vote is valid, store it
         let pkh = sbv.secp256k1_signature.public_key.pkh();
         if let Some(m) = self.identities_that_voted_more_than_once.get_mut(&pkh) {
+            log::debug!("Triple vote");
             // This identity was already marked as bad
             m.push(sbv);
 
             false
         } else if let Some(old_sbv) = self.votes_of_each_identity.insert(pkh, sbv.clone()) {
+            log::debug!("Double vote");
             // This identity has already voted for a different superblock
             // Remove both votes and reject future votes by this identity
             let sbv = self.votes_of_each_identity.remove(&pkh).unwrap();
@@ -93,6 +96,7 @@ impl SuperBlockState {
 
             false
         } else {
+            log::debug!("OK");
             self.votes_on_each_superblock
                 .entry(sbv.superblock_hash)
                 .or_default()
@@ -105,7 +109,7 @@ impl SuperBlockState {
     /// Add a vote sent by another peer.
     /// This method assumes that the signatures are valid, they must be checked by the caller.
     pub fn add_vote(&mut self, sbv: &SuperBlockVote) -> AddSuperBlockVote {
-        if self.received_superblocks.contains(sbv) {
+        let r = if self.received_superblocks.contains(sbv) {
             // Already processed before
             AddSuperBlockVote::AlreadySeen
         } else {
@@ -135,7 +139,10 @@ impl SuperBlockState {
                 }
                 None => AddSuperBlockVote::MaybeValid,
             }
-        }
+        };
+        log::debug!("Add vote: {:?}", r);
+
+        r
     }
 
     /// Since we do not check signatures here, a superblock vote is valid if the signing identity
@@ -166,6 +173,8 @@ impl SuperBlockState {
 
     /// Return true if the local superblock has the majority of votes
     pub fn has_consensus(&self) -> bool {
+        log::info!("Superblock votes: {:?}", self.votes_on_each_superblock);
+        log::info!("Previous ars: {:?}", self.previous_ars_identities);
         self.most_voted_superblock() == Some(self.current_superblock_hash)
     }
 
