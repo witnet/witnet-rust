@@ -560,6 +560,15 @@ impl PeersBeacons {
             .filter_map(|(p, b)| if *b != Some(beacon) { Some(*p) } else { None })
             .collect()
     }
+
+    /// Collects the peers that have not sent us a beacon
+    pub fn peers_with_no_beacon(&self) -> Vec<SocketAddr> {
+        // Unregister peers which have not sent us a beacon
+        (&self.pb)
+            .iter()
+            .filter_map(|(p, b)| if b.is_none() { Some(*p) } else { None })
+            .collect()
+    }
 }
 
 impl Handler<PeersBeacons> for ChainManager {
@@ -591,6 +600,7 @@ impl Handler<PeersBeacons> for ChainManager {
                 (usize::from(x) * consensus_threshold + 99) / 100
             })
             .unwrap_or(1);
+        let peers_with_no_beacon = peers_beacons.peers_with_no_beacon();
         let peers_to_unregister = if let Some(consensus_beacon) = consensus {
             peers_beacons.decide_peers_to_unregister(consensus_beacon)
         } else if pb_len < peers_needed_for_consensus {
@@ -740,12 +750,11 @@ impl Handler<PeersBeacons> for ChainManager {
                             consensus
                         );
 
-                        self.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
+                        // If we are synced, it does not matter what blocks have been consolidated
+                        // by our outbound peers, we will stay synced until the next superblock
+                        // vote
 
-                        self.sm_state = StateMachine::WaitingConsensus;
-
-                        Ok(peers_to_unregister)
+                        Ok(peers_with_no_beacon)
                     }
                     None => {
                         // If we are synced and the consensus beacon is not the same as our beacon, then
@@ -762,9 +771,12 @@ impl Handler<PeersBeacons> for ChainManager {
                                 our_beacon
                             );
                         }
-                        self.sm_state = StateMachine::AlmostSynced;
 
-                        Ok(peers_to_unregister)
+                        // If we are synced, it does not matter what blocks have been consolidated
+                        // by our outbound peers, we will stay synced until the next superblock
+                        // vote
+
+                        Ok(peers_with_no_beacon)
                     }
                 }
             }
