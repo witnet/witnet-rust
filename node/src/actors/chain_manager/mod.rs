@@ -713,12 +713,13 @@ impl ChainManager {
             {
                 AddSuperBlockVote::AlreadySeen => false,
                 AddSuperBlockVote::DoubleVote => {
+                    // We must forward double votes to make sure all the nodes are aware of them
                     log::debug!(
-                        "Not forwarding superblock vote: idenitiy voted more than once: {}",
+                        "Idenitity voted more than once: {}",
                         superblock_vote.secp256k1_signature.public_key.pkh()
                     );
 
-                    false
+                    true
                 }
                 AddSuperBlockVote::InvalidIndex => {
                     log::debug!(
