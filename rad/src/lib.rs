@@ -7,7 +7,7 @@ pub use serde_cbor::Value as CborValue;
 
 use witnet_data_structures::{
     chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
-    radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
+    radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
 };
 
 use crate::{
@@ -19,7 +19,6 @@ use crate::{
     types::{array::RadonArray, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
-use witnet_data_structures::radon_report::RetrievalMetadata;
 
 pub mod error;
 pub mod filters;
@@ -298,11 +297,7 @@ pub fn run_tally_with_context_report(
 /// Run tally stage of a data request, return `RadonTypes`.
 pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
-    let settings = RadonScriptExecutionSettings {
-        partial_results: false,
-        timing: false,
-        breakpoints: false,
-    };
+    let settings = RadonScriptExecutionSettings::disable_all();
     run_tally_report(radon_types_vec, consensus, None, None, settings).map(RadonReport::into_inner)
 }
 
