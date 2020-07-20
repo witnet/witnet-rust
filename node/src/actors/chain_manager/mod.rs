@@ -897,6 +897,8 @@ impl ChainManager {
         let consensus_constants = self.consensus_constants();
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
+        let signing_committee_size =
+            u32::from(consensus_constants.superblock_signing_committee_size);
 
         let superblock_index = block_epoch / superblock_period;
         let inventory_manager = InventoryManager::from_registry();
@@ -988,6 +990,7 @@ impl ChainManager {
                 &block_headers,
                 &ars_members,
                 ars_ordered_keys,
+                signing_committee_size,
                 superblock_index,
                 last_hash,
             );
@@ -1667,6 +1670,29 @@ mod tests {
             CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: Hash::SHA256([1; 32]),
+            }
+        );
+
+        // build a superblock
+        chain_manager.chain_state.superblock_state.build_superblock(
+            &[BlockHeader::default()],
+            &[],
+            &[],
+            100,
+            1,
+            genesis_hash,
+        );
+
+        let superblock_hash =
+            mining_build_superblock(&[BlockHeader::default()], &[], 1, genesis_hash)
+                .unwrap()
+                .hash();
+
+        assert_eq!(
+            chain_manager.get_superblock_beacon(),
+            CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: superblock_hash,
             }
         );
     }
