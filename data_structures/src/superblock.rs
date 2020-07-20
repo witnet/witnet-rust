@@ -202,9 +202,6 @@ impl SuperBlockState {
                 None
             }
             Some(superblock) => {
-                let superblock_hash = superblock.hash();
-                self.current_superblock_hash = superblock_hash;
-
                 // Save ARS identities:
                 // previous = current
                 // current = ars_pkh_keys
@@ -216,6 +213,9 @@ impl SuperBlockState {
                 self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
                 // For the current index, update the signing committee
                 self.update_superblock_signing_committee(signing_committee_size, superblock_index);
+
+                let superblock_hash = superblock.hash();
+                self.current_superblock_hash = superblock_hash;
 
                 // This replace is needed because the for loop below needs unique access to self,
                 // but it cannot have unique access to self if it is iterating over
@@ -264,23 +264,25 @@ impl SuperBlockState {
         self.received_superblocks.contains(sbv)
     }
 
-    /// Updates the current superblock signing committee for a given superblock index
-    /// #FIXME This function should be update with issue 1395
+    /// Updates the current superblock signing committee for a given superblock hash
     pub fn update_superblock_signing_committee(
         &mut self,
         _signing_committee_size: u32,
         _current_index: u32,
     ) -> Option<HashSet<PublicKeyHash>> {
-        // If the number of identities is lower than 100, then all the members of the ARS sign the superblock
+        // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
         let ars_ordered = &self.previous_ordered_ars_identities;
         if ars_ordered.len() < usize::try_from(_signing_committee_size).unwrap() {
             self.current_signing_committee = self.previous_ars_identities.clone();
             self.current_signing_committee.clone()
         } else {
-            // Get the number of subsets of 100 members
-            let n = ars_ordered.len() / 100;
-            // Start counting the members of the subset from the superblock_index
-            let first_member = self.current_superblock_index;
+            // Get the number of subsets of _signing_committee_size members
+            let n = ars_ordered.len() / usize::try_from(_signing_committee_size).unwrap();
+            println!("{}", n);
+            // Start counting the members of the subset from the superblock_hash
+            let a = *self.current_superblock_hash.as_ref().get(0).unwrap() as u32;
+            let b = a % _signing_committee_size;
+            let first_member = b % n as u32;
             // Get the subset
             let subset = magic_partition(
                 &ars_ordered.to_vec(),
@@ -996,6 +998,115 @@ mod tests {
         v3.secp256k1_signature.public_key = p3;
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::MaybeValid);
         assert_eq!(sbs.votes_on_each_superblock, HashMap::new());
+    }
+
+    #[test]
+    fn test_update_superblock_signing_committee() {
+        // When the ARS has less members than the committee size it should
+        // return the entire ARS as superblock signing committee.
+        let mut sbs = SuperBlockState::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+
+        let bls_pk1 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+        let bls_pk2 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[2; 32]).unwrap())
+                .unwrap();
+        let bls_pk3 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
+
+        let block_headers = vec![BlockHeader::default()];
+        let ars_identities = vec![p1.pkh(), p2.pkh(), p3.pkh()];
+        let ordered_ars = vec![bls_pk1, bls_pk2, bls_pk3];
+        let genesis_hash = Hash::default();
+        let _sb1 = sbs
+            .build_superblock(
+                &block_headers,
+                &ars_identities,
+                &ordered_ars,
+                100,
+                0,
+                genesis_hash,
+            )
+            .unwrap();
+        sbs.previous_ordered_ars_identities = vec![p1.pkh(), p2.pkh(), p3.pkh()];
+        sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
+        let committee_size = 4;
+        let current_index = 2;
+        let subset = sbs.update_superblock_signing_committee(committee_size, current_index);
+        assert_eq!(ars_identities.len(), subset.unwrap().len());
+    }
+
+    #[test]
+    fn test_update_superblock_signing_committee_2() {
+        // It shpuld return a subset of 4 members from an ARS having size 8
+        let mut sbs = SuperBlockState::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+        let p4 = PublicKey::from_bytes([4; 33]);
+        let p5 = PublicKey::from_bytes([5; 33]);
+        let p6 = PublicKey::from_bytes([6; 33]);
+        let p7 = PublicKey::from_bytes([7; 33]);
+        let p8 = PublicKey::from_bytes([8; 33]);
+
+        let bls_pk1 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+        let bls_pk2 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[2; 32]).unwrap())
+                .unwrap();
+        let bls_pk3 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
+
+        let block_headers = vec![BlockHeader::default()];
+        let ars_identities = vec![
+            p1.pkh(),
+            p2.pkh(),
+            p3.pkh(),
+            p4.pkh(),
+            p5.pkh(),
+            p6.pkh(),
+            p7.pkh(),
+            p8.pkh(),
+        ];
+        let ordered_ars = vec![bls_pk1, bls_pk2, bls_pk3];
+        let genesis_hash = Hash::default();
+        let _sb1 = sbs
+            .build_superblock(
+                &block_headers,
+                &ars_identities,
+                &ordered_ars,
+                4,
+                0,
+                genesis_hash,
+            )
+            .unwrap();
+        sbs.previous_ordered_ars_identities = vec![
+            p1.pkh(),
+            p2.pkh(),
+            p3.pkh(),
+            p4.pkh(),
+            p5.pkh(),
+            p6.pkh(),
+            p7.pkh(),
+            p8.pkh(),
+        ];
+        sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
+        let committee_size = 4;
+        let current_index = 3;
+        let subset = sbs.update_superblock_signing_committee(committee_size, current_index);
+        assert_eq!(
+            usize::try_from(committee_size).unwrap(),
+            subset.unwrap().len()
+        );
     }
 
     #[test]
