@@ -122,7 +122,7 @@ pub fn map(
     let mut reports = vec![];
     let mut results = vec![];
 
-    let settings = RadonScriptExecutionSettings::enable_all();
+    let settings = RadonScriptExecutionSettings::tailored_to_stage(&context.stage);
     for item in input.value() {
         let report = execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;
 
@@ -168,7 +168,7 @@ pub fn filter(
             let mut reports = vec![];
             let mut results = vec![];
 
-            let settings = RadonScriptExecutionSettings::enable_all();
+            let settings = RadonScriptExecutionSettings::tailored_to_stage(&context.stage);
             for item in input.value() {
                 let report =
                     execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;

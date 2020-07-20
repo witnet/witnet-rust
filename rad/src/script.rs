@@ -7,7 +7,7 @@ use serde_cbor::{
 
 use witnet_data_structures::{
     chain::RADFilter,
-    radon_report::{RadonReport, ReportContext},
+    radon_report::{RadonReport, ReportContext, Stage},
 };
 
 use crate::{
@@ -67,6 +67,14 @@ impl RadonScriptExecutionSettings {
             partial_results: true,
             timing: true,
             breakpoints: true,
+        }
+    }
+
+    /// Only enable the execution features that are suitable for a specific data request stage.
+    pub fn tailored_to_stage(stage: &Stage<RadonTypes>) -> Self {
+        match stage {
+            Stage::Retrieval(_) => Self::enable_all(),
+            _ => Self::all_but_partial_results(),
         }
     }
 }
