@@ -900,6 +900,9 @@ impl ChainManager {
         let signing_committee_size =
             u32::from(consensus_constants.superblock_signing_committee_size);
 
+        let signing_committee_size =
+            u32::from(consensus_constants.superblock_signing_committee_size);
+
         let superblock_index = block_epoch / superblock_period;
         let inventory_manager = InventoryManager::from_registry();
 
