@@ -47,51 +47,63 @@ fn two() {
 
 #[test]
 fn manual_hash_test() {
-    let a = Sha256([0x00; 32]);
-    let b = Sha256([0x11; 32]);
-    let c = Sha256([0x22; 32]);
-    let d = Sha256([0x33; 32]);
-    let e = Sha256([0x44; 32]);
-    let f = Sha256([0x55; 32]);
-    let g = Sha256([0x66; 32]);
+    let hash_a = Sha256([0x00; 32]);
+    let hash_b = Sha256([0x11; 32]);
+    let hash_c = Sha256([0x22; 32]);
+    let hash_d = Sha256([0x33; 32]);
+    let hash_e = Sha256([0x44; 32]);
+    let hash_f = Sha256([0x55; 32]);
+    let hash_g = Sha256([0x66; 32]);
 
-    let h = hash_concat;
+    let hc = hash_concat;
     // Verify the expected hash by manually hashing the elements in order
-    assert_eq!(merkle_tree_root(&[a, b]), h(a, b));
-    assert_eq!(merkle_tree_root(&[a, b, c]), h(h(a, b), c));
-    assert_eq!(merkle_tree_root(&[a, b, c, d]), h(h(a, b), h(c, d)));
+    assert_eq!(merkle_tree_root(&[hash_a, hash_b]), hc(hash_a, hash_b));
     assert_eq!(
-        merkle_tree_root(&[a, b, c, d, e]),
-        h(h(h(a, b), h(c, d)), e)
+        merkle_tree_root(&[hash_a, hash_b, hash_c]),
+        hc(hc(hash_a, hash_b), hash_c)
     );
     assert_eq!(
-        merkle_tree_root(&[a, b, c, d, e, f]),
-        h(h(h(a, b), h(c, d)), h(e, f))
+        merkle_tree_root(&[hash_a, hash_b, hash_c, hash_d]),
+        hc(hc(hash_a, hash_b), hc(hash_c, hash_d))
     );
     assert_eq!(
-        merkle_tree_root(&[a, b, c, d, e, f, g]),
-        h(h(h(a, b), h(c, d)), h(h(e, f), g))
+        merkle_tree_root(&[hash_a, hash_b, hash_c, hash_d, hash_e]),
+        hc(hc(hc(hash_a, hash_b), hc(hash_c, hash_d)), hash_e)
+    );
+    assert_eq!(
+        merkle_tree_root(&[hash_a, hash_b, hash_c, hash_d, hash_e, hash_f]),
+        hc(
+            hc(hc(hash_a, hash_b), hc(hash_c, hash_d)),
+            hc(hash_e, hash_f)
+        )
+    );
+    assert_eq!(
+        merkle_tree_root(&[hash_a, hash_b, hash_c, hash_d, hash_e, hash_f, hash_g]),
+        hc(
+            hc(hc(hash_a, hash_b), hc(hash_c, hash_d)),
+            hc(hc(hash_e, hash_f), hash_g)
+        )
     );
 }
 
 #[test]
 fn progressive() {
     // Compare the ProgressiveMerkleTree against the slice-based one
-    let a = Sha256([0x00; 32]);
-    let b = Sha256([0x11; 32]);
-    let c = Sha256([0x22; 32]);
-    let d = Sha256([0x33; 32]);
-    let e = Sha256([0x44; 32]);
-    let f = Sha256([0x55; 32]);
-    let g = Sha256([0x66; 32]);
-    let x = vec![a, b, c, d, e, f, g];
+    let hash_a = Sha256([0x00; 32]);
+    let hash_b = Sha256([0x11; 32]);
+    let hash_c = Sha256([0x22; 32]);
+    let hash_d = Sha256([0x33; 32]);
+    let hash_e = Sha256([0x44; 32]);
+    let hash_f = Sha256([0x55; 32]);
+    let hash_g = Sha256([0x66; 32]);
+    let hashes = vec![hash_a, hash_b, hash_c, hash_d, hash_e, hash_f, hash_g];
 
     let mut mt = ProgressiveMerkleTree::sha256();
     // Empty merkle tree: empty hash
     assert_eq!(merkle_tree_root(&[]), mt.root());
     let mut mhashes = vec![];
 
-    for hash in x {
+    for hash in hashes {
         mt.push(hash);
         mhashes.push(hash);
         assert_eq!(merkle_tree_root(&mhashes), mt.root());
@@ -101,20 +113,20 @@ fn progressive() {
 #[test]
 fn full_merkle_tree() {
     // Compare the FullMerkleTree against the slice-based one
-    let a = Sha256([0x00; 32]);
-    let b = Sha256([0x11; 32]);
-    let c = Sha256([0x22; 32]);
-    let d = Sha256([0x33; 32]);
-    let e = Sha256([0x44; 32]);
-    let f = Sha256([0x55; 32]);
-    let g = Sha256([0x66; 32]);
-    let x = vec![a, b, c, d, e, f, g];
+    let hash_a = Sha256([0x00; 32]);
+    let hash_b = Sha256([0x11; 32]);
+    let hash_c = Sha256([0x22; 32]);
+    let hash_d = Sha256([0x33; 32]);
+    let hash_e = Sha256([0x44; 32]);
+    let hash_f = Sha256([0x55; 32]);
+    let hadh_g = Sha256([0x66; 32]);
+    let hashes = vec![hash_a, hash_b, hash_c, hash_d, hash_e, hash_f, hadh_g];
 
     // Empty merkle tree: empty hash
     assert_eq!(merkle_tree_root(&[]), FullMerkleTree::sha256(vec![]).root());
 
-    for i in 0..x.len() {
-        let mhashes = &x[..i];
+    for i in 0..hashes.len() {
+        let mhashes = &hashes[..i];
         assert_eq!(
             merkle_tree_root(mhashes),
             FullMerkleTree::sha256(mhashes.to_vec()).root()
