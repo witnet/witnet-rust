@@ -133,7 +133,7 @@ pub trait Defaults {
             .unwrap()
     }
 
-    /// Default period between superblocks
+    /// Default size of the superblock signing committee
     fn consensus_constants_superblock_signing_committee_size(&self) -> u32 {
         100
     }

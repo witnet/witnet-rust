@@ -276,18 +276,13 @@ impl SuperBlockState {
             self.current_signing_committee.clone()
         } else {
             // Get the number of subsets of _signing_committee_size members
-            let n = ars_ordered.len() / usize::try_from(_signing_committee_size).unwrap();
-            println!("{}", n);
+            let n = ars_ordered.len() as u64 / u64::from(_signing_committee_size);
             // Start counting the members of the subset from the superblock_hash
-            let a = *self.current_superblock_hash.as_ref().get(0).unwrap() as u32;
-            let b = a % _signing_committee_size;
-            let first_member = b % n as u32;
+            let a = u64::from(*self.current_superblock_hash.as_ref().get(0).unwrap());
+            let b = a % u64::from(_signing_committee_size);
+            let first_member = b % n;
             // Get the subset
-            let subset = magic_partition(
-                &ars_ordered.to_vec(),
-                usize::try_from(first_member).unwrap(),
-                n,
-            );
+            let subset = magic_partition(&ars_ordered.to_vec(), first_member, n);
             let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
             self.current_signing_committee = Some(hs);
             self.current_signing_committee.clone()
@@ -295,13 +290,13 @@ impl SuperBlockState {
     }
 }
 
-fn magic_partition<T: Clone>(v: &[T], first: usize, each: usize) -> Vec<T> {
-    if first >= v.len() {
+fn magic_partition<T: Clone>(v: &[T], first: u64, each: u64) -> Vec<T> {
+    if usize::try_from(first).unwrap() >= v.len() {
         return vec![];
     }
 
-    v[first..]
-        .chunks(each)
+    v[usize::try_from(first).unwrap()..]
+        .chunks(usize::try_from(each).unwrap())
         .map(|chunk| chunk[0].clone())
         .collect()
 }
