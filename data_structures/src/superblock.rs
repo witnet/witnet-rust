@@ -212,7 +212,7 @@ impl SuperBlockState {
                     .extend(ars_pkh_keys.iter().cloned());
                 self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
                 // For the current index, update the signing committee
-                self.update_superblock_signing_committee(signing_committee_size, superblock_index);
+                self.update_superblock_signing_committee(signing_committee_size);
 
                 let superblock_hash = superblock.hash();
                 self.current_superblock_hash = superblock_hash;
@@ -268,7 +268,6 @@ impl SuperBlockState {
     pub fn update_superblock_signing_committee(
         &mut self,
         _signing_committee_size: u32,
-        _current_index: u32,
     ) -> Option<HashSet<PublicKeyHash>> {
         // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
         let ars_ordered = &self.previous_ordered_ars_identities;
@@ -1037,8 +1036,7 @@ mod tests {
         sbs.previous_ordered_ars_identities = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
         let committee_size = 4;
-        let current_index = 2;
-        let subset = sbs.update_superblock_signing_committee(committee_size, current_index);
+        let subset = sbs.update_superblock_signing_committee(committee_size);
         assert_eq!(ars_identities.len(), subset.unwrap().len());
     }
 
@@ -1101,8 +1099,7 @@ mod tests {
         ];
         sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
         let committee_size = 4;
-        let current_index = 3;
-        let subset = sbs.update_superblock_signing_committee(committee_size, current_index);
+        let subset = sbs.update_superblock_signing_committee(committee_size);
         assert_eq!(
             usize::try_from(committee_size).unwrap(),
             subset.unwrap().len()
