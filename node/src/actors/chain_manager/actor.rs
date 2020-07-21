@@ -173,6 +173,10 @@ impl ChainManager {
                                 checkpoint: 0,
                                 hash_prev_block,
                             },
+                            highest_superblock_checkpoint: CheckpointBeacon {
+                                checkpoint: 0,
+                                hash_prev_block,
+                            },
                             highest_vrf_output: CheckpointVRF {
                                 checkpoint: 0,
                                 hash_prev_vrf: hash_prev_block,
