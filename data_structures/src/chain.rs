@@ -191,7 +191,7 @@ pub struct ConsensusConstants {
     /// Superblock signing committee for the first superblocks
     pub bootstrapping_committee: Vec<String>,
 
-    /// Superblock signing committee for the first superblocks
+    /// Size of the superblock signing committee
     pub superblock_signing_committee_size: u32,
 }
 
@@ -2796,7 +2796,6 @@ impl AltKeys {
             .iter()
             .map(|(pkh, _)| *pkh)
             .sorted_by_key(|&pkh| (reputation_set.get(&pkh), pkh))
-            .clone()
             .collect()
     }
 }
