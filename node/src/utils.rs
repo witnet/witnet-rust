@@ -1,9 +1,9 @@
 use std::{collections::HashMap, hash::Hash};
 
 /// Given a list of elements, return the most common one. In case of tie, return `None`.
-pub fn mode_consensus<'a, I, V>(pb: I, threshold: usize) -> Option<&'a V>
+pub fn mode_consensus<I, V>(pb: I, threshold: usize) -> Option<V>
 where
-    I: Iterator<Item = &'a V>,
+    I: Iterator<Item = V>,
     V: Eq + Hash,
 {
     let mut bp = HashMap::new();

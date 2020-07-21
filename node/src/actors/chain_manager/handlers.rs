@@ -527,6 +527,9 @@ impl PeersBeacons {
         let mut beacon_peers_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for (k, v) in self.pb.iter() {
             let v = v
+                .as_ref()
+                // TODO: this method ignores the superblock beacon
+                .map(|x| x.highest_block_checkpoint)
                 .map(|x| format!("#{} {}", x.checkpoint, x.hash_prev_block))
                 .unwrap_or_else(|| "NO BEACON".to_string());
             beacon_peers_map.entry(v).or_default().push(k.to_string());
@@ -540,7 +543,7 @@ impl PeersBeacons {
     /// The beacons are `Option<CheckpointBeacon>`, so peers that have not
     /// sent us a beacon are counted as `None`. Keeping that in mind, we
     /// reach consensus as long as consensus_threshold % of peers agree.
-    pub fn consensus(&self, consensus_threshold: usize) -> Option<CheckpointBeacon> {
+    pub fn block_consensus(&self, consensus_threshold: usize) -> Option<CheckpointBeacon> {
         // We need to add `num_missing_peers` times NO BEACON, to take into account
         // missing outbound peers.
         let num_missing_peers = self.outbound_limit
@@ -558,14 +561,17 @@ impl PeersBeacons {
         mode_consensus(
             self.pb
                 .iter()
-                .map(|(_p, b)| b)
-                .chain(std::iter::repeat(&None).take(num_missing_peers)),
+                .map(|(_p, b)| {
+                    b.as_ref()
+                        .map(|last_beacon| last_beacon.highest_block_checkpoint)
+                })
+                .chain(std::iter::repeat(None).take(num_missing_peers)),
             consensus_threshold,
         )
         // Flatten result:
         // None (consensus % below threshold) should be treated the same way as
         // Some(None) (most of the peers did not send a beacon)
-        .and_then(|x| *x)
+        .and_then(|x| x)
     }
 
     /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
@@ -573,7 +579,16 @@ impl PeersBeacons {
         // Unregister peers which have a different beacon
         (&self.pb)
             .iter()
-            .filter_map(|(p, b)| if *b != Some(beacon) { Some(*p) } else { None })
+            .filter_map(|(p, b)| {
+                if b.as_ref()
+                    .map(|last_beacon| last_beacon.highest_block_checkpoint != beacon)
+                    .unwrap_or(true)
+                {
+                    Some(*p)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 }
@@ -598,7 +613,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
-        let consensus = peers_beacons.consensus(consensus_threshold);
+        let consensus = peers_beacons.block_consensus(consensus_threshold);
         let outbound_limit = peers_beacons.outbound_limit;
         let pb_len = peers_beacons.pb.len();
         let peers_needed_for_consensus = outbound_limit
@@ -1161,17 +1176,29 @@ mod tests {
 
     #[test]
     fn peers_beacons_consensus_less_peers_than_outbound() {
-        let beacon1 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
-                .parse()
-                .unwrap(),
+        let beacon1 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
-        let beacon2 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
-                .parse()
-                .unwrap(),
+        let beacon2 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
 
         // 0 peers
@@ -1179,98 +1206,119 @@ mod tests {
             pb: vec![],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 1 peer
         let peers_beacons = PeersBeacons {
-            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone()))],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 2 peers
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 3 peers and 2 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2.clone())),
             ],
             outbound_limit: Some(4),
         };
         // Note that the consensus % includes the missing peers,
         // so in this case it is 2/4 (50%), not 2/3 (66%), so there is no consensus for 60%
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 3 peers and 3 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+        assert_eq!(
+            peers_beacons.block_consensus(60),
+            Some(beacon1.highest_block_checkpoint)
+        );
 
         // 4 peers and 2 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
-                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 4 peers and 3 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
                 ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+        assert_eq!(
+            peers_beacons.block_consensus(60),
+            Some(beacon1.highest_block_checkpoint)
+        );
 
         // 4 peers and 4 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+        assert_eq!(
+            peers_beacons.block_consensus(60),
+            Some(beacon1.highest_block_checkpoint)
+        );
     }
     #[test]
     fn test_unregister_peers() {
-        let beacon1 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
-                .parse()
-                .unwrap(),
+        let beacon1 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
-        let beacon2 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
-                .parse()
-                .unwrap(),
+        let beacon2 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
 
         // 0 peers
@@ -1278,36 +1326,42 @@ mod tests {
             pb: vec![],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.decide_peers_to_unregister(beacon1), []);
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
+            []
+        );
 
         // 1 peer in consensus
         peers_beacons = PeersBeacons {
-            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
-            outbound_limit: Some(4),
-        };
-        assert_eq!(peers_beacons.decide_peers_to_unregister(beacon1), []);
-
-        // 1 peer out of consensus
-        peers_beacons = PeersBeacons {
-            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone()))],
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon2),
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
+            []
+        );
+
+        // 1 peer out of consensus
+        peers_beacons = PeersBeacons {
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone()))],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon2.highest_block_checkpoint),
             ["127.0.0.1:10001".parse().unwrap()]
         );
 
         peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
-                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2.clone())),
             ],
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon2),
+            peers_beacons.decide_peers_to_unregister(beacon2.highest_block_checkpoint),
             [
                 "127.0.0.1:10001".parse().unwrap(),
                 "127.0.0.1:10002".parse().unwrap()
@@ -1316,15 +1370,15 @@ mod tests {
 
         peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
                 ("127.0.0.1:10003".parse().unwrap(), None),
                 ("127.0.0.1:10004".parse().unwrap(), None),
             ],
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon1),
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
             [
                 "127.0.0.1:10003".parse().unwrap(),
                 "127.0.0.1:10004".parse().unwrap()
@@ -1341,7 +1395,7 @@ mod tests {
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon1),
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
             [
                 "127.0.0.1:10001".parse().unwrap(),
                 "127.0.0.1:10002".parse().unwrap(),
