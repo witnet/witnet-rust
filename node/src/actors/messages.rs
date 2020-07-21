@@ -173,7 +173,7 @@ impl Message for GetBlocksEpochRange {
 /// A list of peers and their respective last beacon, used to establish consensus
 pub struct PeersBeacons {
     /// A list of peers and their respective last beacon
-    pub pb: Vec<(SocketAddr, Option<CheckpointBeacon>)>,
+    pub pb: Vec<(SocketAddr, Option<LastBeacon>)>,
     /// Outbound limit: how many beacons did we expect in total
     pub outbound_limit: Option<u16>,
 }
@@ -837,7 +837,7 @@ pub struct PeerBeacon {
     /// Socket address which identifies the peer
     pub address: SocketAddr,
     /// Last beacon received from peer
-    pub beacon: CheckpointBeacon,
+    pub beacon: LastBeacon,
 }
 
 /// Get number of inbound and outbound sessions

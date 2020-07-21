@@ -136,7 +136,7 @@ pub struct InventoryRequest {
     pub inventory: Vec<InventoryEntry>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::LastBeacon")]
 pub struct LastBeacon {
     pub highest_block_checkpoint: CheckpointBeacon,
