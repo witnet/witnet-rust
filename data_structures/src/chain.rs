@@ -60,6 +60,9 @@ pub struct ChainInfo {
     /// Checkpoint of the last block in the blockchain
     pub highest_block_checkpoint: CheckpointBeacon,
 
+    /// Checkpoint hash of the highest superblock in the blockchain
+    pub highest_superblock_checkpoint: CheckpointBeacon,
+
     /// Checkpoint and VRF hash of the highest block in the blockchain
     pub highest_vrf_output: CheckpointVRF,
 }

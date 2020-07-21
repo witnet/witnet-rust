@@ -664,7 +664,11 @@ impl ChainManager {
 
     /// Retrieves the latest superblock hash an index.
     fn get_superblock_beacon(&self) -> CheckpointBeacon {
-        self.chain_state.superblock_state.get_beacon()
+        self.chain_state
+            .chain_info
+            .as_ref()
+            .expect("ChainInfo is None")
+            .highest_superblock_checkpoint
     }
 
     fn consensus_constants(&self) -> ConsensusConstants {
@@ -1536,13 +1540,11 @@ mod tests {
             ChainInfo, Environment, KeyedSignature, PartialConsensusConstants, PublicKey,
             ValueTransferOutput,
         },
-        superblock::mining_build_superblock,
         transaction::{CommitTransaction, DRTransaction, RevealTransaction},
     };
 
     pub use super::*;
     use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
-    use witnet_data_structures::superblock::SuperBlockState;
 
     #[test]
     fn test_rep_info_update() {
@@ -1657,39 +1659,18 @@ mod tests {
                 &Testnet,
             ),
             highest_block_checkpoint: CheckpointBeacon::default(),
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::SHA256([1; 32]),
+            },
             highest_vrf_output: CheckpointVRF::default(),
         });
-        chain_manager.chain_state.superblock_state =
-            SuperBlockState::new(Hash::SHA256([1; 32]), vec![]);
-        let genesis_hash = chain_manager.consensus_constants().genesis_hash;
 
         assert_eq!(
             chain_manager.get_superblock_beacon(),
             CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: Hash::SHA256([1; 32]),
-            }
-        );
-
-        // build a superblock
-        chain_manager.chain_state.superblock_state.build_superblock(
-            &[BlockHeader::default()],
-            &[],
-            &[],
-            1,
-            genesis_hash,
-        );
-
-        let superblock_hash =
-            mining_build_superblock(&[BlockHeader::default()], &[], 1, genesis_hash)
-                .unwrap()
-                .hash();
-
-        assert_eq!(
-            chain_manager.get_superblock_beacon(),
-            CheckpointBeacon {
-                checkpoint: 1,
-                hash_prev_block: superblock_hash,
             }
         );
     }

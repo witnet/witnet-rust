@@ -44,6 +44,10 @@ fn chain_state() {
             checkpoint: 0,
             hash_prev_block: bootstrap_hash,
         },
+        highest_superblock_checkpoint: CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: bootstrap_hash,
+        },
         highest_vrf_output: CheckpointVRF {
             checkpoint: 0,
             hash_prev_vrf: bootstrap_hash,
