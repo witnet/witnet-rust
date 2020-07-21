@@ -330,13 +330,18 @@ impl Handler<AddBlocks> for ChainManager {
                             // Update reputation before checking Proof-of-Eligibility
                             let block_epoch = block.block_header.beacon.checkpoint;
 
-                            if block_epoch % superblock_period == 0 {
-                                // Create superblocks while synchronizing but do not broadcast them
+                            // Construct superblock upon consolidation of the first block that took place after
+                            // the initial checkpoint of the next superblock
+                            let next_superblock_index =
+                                self.chain_state.superblock_state.get_beacon().checkpoint + 1;
+                            if block_epoch >= next_superblock_index * superblock_period {
+                                // Construct superblocks while synchronizing but do not broadcast them
                                 // This is needed to ensure that we can validate the received superblocks later on
                                 self.construct_superblock(ctx, block_epoch)
                                     .and_then(move |_, _act, _ctx| actix::fut::ok(()))
                                     .wait(ctx);
                             }
+
                             // Do not update reputation when consolidating genesis block
                             if block.hash() != consensus_constants.genesis_hash {
                                 if let Some(ref mut rep_engine) = self.chain_state.reputation_engine
