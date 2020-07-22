@@ -4,7 +4,7 @@ use crate::chain::{
 };
 use std::collections::{HashMap, HashSet};
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 use serde::{Deserialize, Serialize};
 
@@ -275,14 +275,15 @@ impl SuperBlockState {
             self.current_signing_committee = self.previous_ars_identities.clone();
             self.current_signing_committee.clone()
         } else {
-            // Get the number of subsets of _signing_committee_size members
-            let n = ars_ordered.len() as u64 / u64::from(_signing_committee_size);
             // Start counting the members of the subset from the superblock_hash
             let a = u64::from(*self.current_superblock_hash.as_ref().get(0).unwrap());
-            let b = a % u64::from(_signing_committee_size);
-            let first_member = b % n;
+            let first = a % u64::from(_signing_committee_size);
             // Get the subset
-            let subset = magic_partition(&ars_ordered.to_vec(), first_member, n);
+            let subset = magic_partition(
+                &ars_ordered.to_vec(),
+                first.try_into().unwrap(),
+                _signing_committee_size.try_into().unwrap(),
+            );
             let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
             self.current_signing_committee = Some(hs);
             self.current_signing_committee.clone()
@@ -290,15 +291,25 @@ impl SuperBlockState {
     }
 }
 
-fn magic_partition<T: Clone>(v: &[T], first: u64, each: u64) -> Vec<T> {
-    if usize::try_from(first).unwrap() >= v.len() {
+// Take size element out of v.len() starting with element at index first:
+// magic_partition(v, 3, 3), v=[]0, 1, 2, 3, 4, 5].
+// Will return elements at index 3, 5, 1.
+fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
+    if first >= v.len().try_into().unwrap() {
         return vec![];
     }
+    let each = v.len() / size;
 
-    v[usize::try_from(first).unwrap()..]
-        .chunks(usize::try_from(each).unwrap())
-        .map(|chunk| chunk[0].clone())
-        .collect()
+    let mut v_subset = Vec::new();
+    v_subset.push(v[first].clone());
+
+    let mut a = (first + each) % v.len();
+    while v_subset.len() < size {
+        v_subset.push(v[a].clone());
+        a = (a + each) % v.len();
+    }
+
+    v_subset
 }
 
 /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
