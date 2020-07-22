@@ -1562,6 +1562,11 @@ fn show_sync_progress(
     // TODO: this may be misleading because when the target is a superblock, the node may be at
     // 100% progress but not synced for a few blocks...
     //let target_checkpoint = sync_target.block.map(|block| block.checkpoint).unwrap_or(sync_target.superblock.checkpoint * superblock_period);
+    if sync_target.block.is_none() {
+        // TODO: how to show progress?
+        log::info!("Syncronization progress: ?/?, to superblock {:?}", sync_target.superblock);
+        return;
+    }
     let target_checkpoint = sync_target.block.map(|block| block.checkpoint).unwrap();
     // Show progress log
     let mut percent_done_float =
