@@ -135,6 +135,18 @@ impl Default for StateMachine {
     }
 }
 
+/// Synchronization target determined by the beacons received from outbound peers
+#[derive(Clone, Debug)]
+pub struct SyncTarget {
+    // The target block can be None if there is no consensus at the block level
+    block: Option<CheckpointBeacon>,
+    // The target superblock must always be set. Here we only know the superblock index and hash,
+    // we do not know the block hash. The block index can be derived from the superblock index.
+    // This must be a superblock beacon consolidated with more than 2/3 of the votes, and it we be
+    // irreversibly consolidated when reached.
+    superblock: CheckpointBeacon,
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +166,7 @@ pub struct ChainManager {
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
-    target_beacon: Option<CheckpointBeacon>,
+    sync_target: Option<SyncTarget>,
     /// The node asked for a batch of blocks on this epoch. This is used to implement a timeout
     /// that will move the node back to WaitingConsensus state if it does not receive any AddBlocks
     /// message after a certain number of epochs
@@ -456,20 +468,10 @@ impl ChainManager {
         }
     }
 
-    fn persist_blocks_batch(
-        &self,
-        ctx: &mut Context<Self>,
-        blocks: Vec<Block>,
-        target_beacon: CheckpointBeacon,
-    ) {
+    fn persist_blocks_batch(&self, ctx: &mut Context<Self>, blocks: Vec<Block>) {
         let mut to_persist = Vec::with_capacity(blocks.len());
         for block in blocks {
-            let block_hash = block.hash();
             to_persist.push(StoreInventoryItem::Block(Box::new(block)));
-
-            if block_hash == target_beacon.hash_prev_block {
-                break;
-            }
         }
 
         self.persist_items(ctx, to_persist);
@@ -919,11 +921,11 @@ impl ChainManager {
                     .then(move |res| match res {
                         Ok(Ok(block)) => futures::future::ok(block.block_header),
                         Ok(Err(e)) => {
-                            log::error!("Error in GetItemBlock: {}", e);
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
                             futures::future::err(())
                         }
                         Err(e) => {
-                            log::error!("Error in GetItemBlock: {}", e);
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
                             futures::future::err(())
                         }
                     })
@@ -1554,30 +1556,34 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
 
 fn show_sync_progress(
     beacon: CheckpointBeacon,
-    target_beacon: CheckpointBeacon,
+    sync_target: &SyncTarget,
     epoch_constants: EpochConstants,
 ) {
+    // TODO: this may be misleading because when the target is a superblock, the node may be at
+    // 100% progress but not synced for a few blocks...
+    //let target_checkpoint = sync_target.block.map(|block| block.checkpoint).unwrap_or(sync_target.superblock.checkpoint * superblock_period);
+    let target_checkpoint = sync_target.block.map(|block| block.checkpoint).unwrap();
     // Show progress log
     let mut percent_done_float =
-        f64::from(beacon.checkpoint) / f64::from(target_beacon.checkpoint) * 100.0;
+        f64::from(beacon.checkpoint) / f64::from(target_checkpoint) * 100.0;
 
     // Never show 100% unless it's actually done
-    if beacon.checkpoint != target_beacon.checkpoint && percent_done_float > 99.99 {
+    if beacon.checkpoint != target_checkpoint && percent_done_float > 99.99 {
         percent_done_float = 99.99;
     }
     let percent_done_string = format!("{:.2}%", percent_done_float);
 
     // Block age is actually the difference in age: it assumes that the last
     // block is 0 seconds old
-    let block_age = (target_beacon.checkpoint - beacon.checkpoint)
-        * u32::from(epoch_constants.checkpoints_period);
+    let block_age =
+        (target_checkpoint - beacon.checkpoint) * u32::from(epoch_constants.checkpoints_period);
 
     let human_age = seconds_to_human_string(u64::from(block_age));
     log::info!(
         "Synchronization progress: {} ({:>6}/{:>6}). Latest synced block is {} old.",
         percent_done_string,
         beacon.checkpoint,
-        target_beacon.checkpoint,
+        target_checkpoint,
         human_age
     );
 }
