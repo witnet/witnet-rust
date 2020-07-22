@@ -350,8 +350,9 @@ impl Handler<AddBlocks> for ChainManager {
                                 }
                             } else {
                                 // TODO: saturating_sub?
+                                // No, the target superblock cannot be the superblock with index 0
                                 let epoch_of_the_last_block_according_to_target_superblock =
-                                    sync_target.superblock.checkpoint * superblock_period - 1;
+                                    sync_target.superblock.checkpoint * superblock_period - 2;
                                 if block_epoch
                                     > epoch_of_the_last_block_according_to_target_superblock
                                 {
@@ -415,8 +416,9 @@ impl Handler<AddBlocks> for ChainManager {
                                 }
                             } else {
                                 // TODO: saturating_sub?
+                                // No, the target superblock cannot be the superblock with index 0
                                 let epoch_of_the_last_block_according_to_target_superblock =
-                                    sync_target.superblock.checkpoint * superblock_period - 1;
+                                    sync_target.superblock.checkpoint * superblock_period - 2;
                                 if block_epoch
                                     == epoch_of_the_last_block_according_to_target_superblock
                                 {
@@ -472,9 +474,17 @@ impl Handler<AddBlocks> for ChainManager {
                                             Some(superblock) => {
                                                 if superblock.hash() == sync_target.superblock.hash_prev_block {
                                                     act.persist_chain_state(ctx);
-                                                    // Target achived, go back to state 1
-                                                    act.sm_state = StateMachine::WaitingConsensus;
-
+                                                    if sync_target.block.is_some() {
+                                                        log::info!("Block sync target achieved, go to WaitingConsensus state");
+                                                        // Target achived, go back to state 1
+                                                        act.sm_state = StateMachine::WaitingConsensus;
+                                                    } else {
+                                                        //log::info!("Superblock sync target achieved, go to Synced state");
+                                                        // TODO: is this a good idea?
+                                                        //act.sm_state = StateMachine::Synced;
+                                                        log::info!("Superblock sync target achieved, go to WaitingConsensus state");
+                                                        act.sm_state = StateMachine::WaitingConsensus;
+                                                    }
                                                 } else {
                                                     // The superblock hash is different from what
                                                     // it should be.
@@ -768,8 +778,8 @@ impl Handler<PeersBeacons> for ChainManager {
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
         // TODO: for testing, always assume there is no block consensus, only use superblock consensus
-        //let consensus = None;
-        let consensus = peers_beacons.block_consensus(consensus_threshold);
+        let consensus = None;
+        //let consensus = peers_beacons.block_consensus(consensus_threshold);
         let superblock_consensus = peers_beacons.superblock_consensus(consensus_threshold);
         let outbound_limit = peers_beacons.outbound_limit;
         let pb_len = peers_beacons.pb.len();
@@ -893,14 +903,28 @@ impl Handler<PeersBeacons> for ChainManager {
                             superblock: superblock_consensus,
                         });
 
-                        log::debug!("Sync target {:?}", self.sync_target);
+                        // There is no clear block consensus but there is superblock consensus
+                        let local_superblock = self.get_superblock_beacon();
 
-                        // TODO: use superblock beacon to check if we are already synchronized
-                        self.request_blocks_batch(ctx);
-                        self.sm_state = StateMachine::Synchronizing;
+                        // If the superblock consensus is the same as the local consensus, we can
+                        // be considered synced. Most likely, the network will have some extra
+                        // blocks that are unknown to this node, but it should be synced after the
+                        // next superblock voting round
+                        if local_superblock == superblock_consensus {
+                            // TODO: almost synced?
+                            self.sm_state = StateMachine::Synced;
 
-                        // Unregister peers with no superblock consensus
-                        Ok(peers_to_unregister)
+                            // Unregister peers with no superblock consensus
+                            Ok(peers_to_unregister)
+                        } else {
+                            log::debug!("Sync target {:?}", self.sync_target);
+
+                            self.request_blocks_batch(ctx);
+                            self.sm_state = StateMachine::Synchronizing;
+
+                            // Unregister peers with no superblock consensus
+                            Ok(peers_to_unregister)
+                        }
                     }
                     // There is no superblock consensus but there is block consensus
                     // This should never happen, but if it does, drop all peers
