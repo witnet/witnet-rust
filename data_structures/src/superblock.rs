@@ -214,8 +214,7 @@ impl SuperBlockState {
                 // For the current index, update the signing committee
                 self.update_superblock_signing_committee(signing_committee_size);
 
-                let superblock_hash = superblock.hash();
-                self.current_superblock_hash = superblock_hash;
+                self.current_superblock_hash = superblock.hash();
 
                 // This replace is needed because the for loop below needs unique access to self,
                 // but it cannot have unique access to self if it is iterating over
@@ -276,8 +275,8 @@ impl SuperBlockState {
             self.current_signing_committee.clone()
         } else {
             // Start counting the members of the subset from the superblock_hash
-            let a = u64::from(*self.current_superblock_hash.as_ref().get(0).unwrap());
-            let first = a % u64::from(_signing_committee_size);
+            let superblock_hash = u64::from(*self.current_superblock_hash.as_ref().get(0).unwrap());
+            let first = superblock_hash % u64::from(_signing_committee_size);
             // Get the subset
             let subset = magic_partition(
                 &ars_ordered.to_vec(),
