@@ -206,6 +206,8 @@ pub struct ChainManager {
     external_percentage: u8,
     /// Enable superblock creation
     create_superblocks: bool,
+    /// List of superblock votes received while we are synchronizing
+    temp_superblock_votes: Vec<SuperBlockVote>,
 }
 /// Wrapper around a block candidate that contains additional metadata regarding
 /// needed chain state mutations in case the candidate gets consolidated.
@@ -685,6 +687,69 @@ impl ChainManager {
             .clone()
     }
 
+    fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) -> Result<(), failure::Error> {
+        for superblock_vote in std::mem::take(&mut self.temp_superblock_votes) {
+            log::debug!("add_temp_superblock_votes {:?}", superblock_vote);
+            // Check if we already received this vote
+            if self.chain_state.superblock_state.contains(&superblock_vote) {
+                return Ok(());
+            }
+
+            // Validate secp256k1 signature
+            signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
+                superblock_vote: superblock_vote.clone(),
+            }])
+            .map_err(|e| {
+                log::error!("Verify superblock vote signature: {}", e);
+            })
+            .into_actor(self)
+            .and_then(move |(), act, _ctx| {
+                // Validate vote: the identity should be able to vote
+                // We broadcast all superblock votes with valid secp256k1 signature, signed by members
+                // of the ARS, even if the superblock hash is different from our local superblock hash.
+                // If the superblock index is different from the current one we cannot check ARS membership,
+                // so we broadcast it if the index is within an acceptable range (not too old).
+                let _should_broadcast =
+                    match act.chain_state.superblock_state.add_vote(&superblock_vote) {
+                        AddSuperBlockVote::AlreadySeen => false,
+                        AddSuperBlockVote::DoubleVote => {
+                            // We must forward double votes to make sure all the nodes are aware of them
+                            log::debug!(
+                                "Idenitity voted more than once: {}",
+                                superblock_vote.secp256k1_signature.public_key.pkh()
+                            );
+
+                            true
+                        }
+                        AddSuperBlockVote::InvalidIndex => {
+                            log::debug!(
+                                "Not forwarding superblock vote: invalid superblock index: {}",
+                                superblock_vote.superblock_index
+                            );
+
+                            false
+                        }
+                        AddSuperBlockVote::NotInArs => {
+                            log::debug!(
+                                "Not forwarding superblock vote: identity not in ARS: {}",
+                                superblock_vote.secp256k1_signature.public_key.pkh()
+                            );
+
+                            false
+                        }
+                        AddSuperBlockVote::MaybeValid
+                        | AddSuperBlockVote::ValidButDifferentHash
+                        | AddSuperBlockVote::ValidWithSameHash => true,
+                    };
+
+                actix::fut::ok(())
+            })
+            .spawn(ctx);
+        }
+
+        Ok(())
+    }
+
     fn add_superblock_vote(
         &mut self,
         superblock_vote: SuperBlockVote,
@@ -694,6 +759,10 @@ impl ChainManager {
             "AddSuperBlockVote received while StateMachine is in state {:?}",
             self.sm_state
         );
+
+        if self.sm_state != StateMachine::Synced {
+            self.temp_superblock_votes.push(superblock_vote.clone());
+        }
 
         // Check if we already received this vote
         if self.chain_state.superblock_state.contains(&superblock_vote) {
