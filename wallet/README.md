@@ -8,7 +8,6 @@ The Wallet executable is self-documented, so you can just start with:
 > cargo run -- wallet --help
 ```
 
-## Wallet documentation
+## Wallet API
 
-The Wallet documentation is being written in the [Wiki](https://github.com/witnet/witnet-rust/wiki/Wallet) section of this repository.
-
+The Wallet server API is described in the [Developer Docs](https://docs.witnet.io/developer/wallet-api/) section of the [Witnet documentation](https://docs.witnet.io).
