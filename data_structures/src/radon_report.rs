@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 use crate::radon_error::ErrorLike;
-use crate::radon_report::Stage::Contextless;
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
 ///
@@ -95,18 +94,35 @@ pub trait TypeLike: Clone + Sized {
 }
 
 /// A generic structure for bubbling up any kind of metadata that may be generated during the
-/// execution of a RADON script.
+/// execution of a RADON script. This is specially useful for tracing errors back to specific calls
+/// in scripts.
+///
+/// The word "processed" in the structure member descriptions implies that the execution was
+/// successful up to the preceding call or argument, and that the parsing and execution of the
+/// reported call or argument index did at least began.
+///
+/// Scripts that are executed successfully in their full extent will therefore report here the
+/// index of the last call in the script. On the contrary, scripts that fail will report the index
+/// of the call that failed.
 pub struct ReportContext<RT>
 where
     RT: TypeLike,
 {
+    /// The arguments of the last call that has been processed.
     pub call_arguments: Option<Vec<serde_cbor::Value>>,
+    /// The index of the last argument in a call that has been processed.
     pub call_argument_index: Option<u8>,
+    /// The index of the last call that has been processed.
     pub call_index: Option<u8>,
+    /// The operator in the last call that has been processed.
     pub call_operator: Option<u8>,
+    /// The timestamp when the execution of the script finished.
     pub completion_time: Option<Instant>,
+    /// Metadata that is specific to the stage of the script.
     pub stage: Stage<RT>,
+    /// The timestamp when the execution of the script began.
     pub start_time: Option<Instant>,
+    /// The index of the last script or subscript in a stage that has been processed.
     pub script_index: Option<u8>,
 }
 
@@ -121,7 +137,7 @@ where
             call_index: None,
             call_operator: None,
             completion_time: None,
-            stage: Contextless,
+            stage: Stage::Contextless,
             start_time: None,
             script_index: None,
         }
