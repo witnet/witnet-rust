@@ -152,9 +152,6 @@ impl ChainManager {
         let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
         // Everyone creates superblocks, but only ARS members sign and broadcast them
         if current_epoch % superblock_period == 0 {
-            // TODO: replace this to a proper consolidation when 2/3 of votes are achieved
-            chain_info.highest_superblock_checkpoint =
-                self.chain_state.superblock_state.get_beacon();
             self.superblock_creating_and_broadcasting(ctx, current_epoch);
         }
 

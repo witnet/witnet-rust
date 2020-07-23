@@ -361,7 +361,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 // TODO: saturating_sub?
                                 // No, the target superblock cannot be the superblock with index 0
                                 let epoch_of_the_last_block_according_to_target_superblock =
-                                    sync_target.superblock.checkpoint * superblock_period - 2;
+                                    sync_target.superblock.checkpoint * superblock_period - 1;
                                 if block_epoch
                                     > epoch_of_the_last_block_according_to_target_superblock
                                 {
@@ -399,7 +399,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 // TODO: saturating_sub?
                                 // No, the target superblock cannot be the superblock with index 0
                                 let epoch_of_the_last_block_according_to_target_superblock =
-                                    sync_target.superblock.checkpoint * superblock_period - 2;
+                                    sync_target.superblock.checkpoint * superblock_period - 1;
                                 if block_epoch
                                     == epoch_of_the_last_block_according_to_target_superblock
                                 {
