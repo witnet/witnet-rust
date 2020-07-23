@@ -342,34 +342,20 @@ impl Handler<AddBlocks> for ChainManager {
                             i += 1;
                             let block_epoch = block.block_header.beacon.checkpoint;
 
-                            // Check when to stop processing blocks
-                            // If sync_target.block is Some, use that block as the target
-                            // If sync_target.block is None, use the superblock checkpoint as the
-                            // target: synchronize up to the last block according to that
-                            // superblock
-                            if let Some(target_block) = sync_target.block {
-                                if block_epoch > target_block.checkpoint {
-                                    log::debug!(
-                                        "Sync done up to block #{}",
-                                        target_block.checkpoint
-                                    );
-                                    i -= 1;
-                                    target_reached = true;
-                                    break;
-                                }
-                            } else {
-                                // TODO: saturating_sub?
-                                // No, the target superblock cannot be the superblock with index 0
-                                let epoch_of_the_last_block_according_to_target_superblock =
-                                    sync_target.superblock.checkpoint * superblock_period - 1;
-                                if block_epoch
-                                    > epoch_of_the_last_block_according_to_target_superblock
-                                {
-                                    log::debug!("Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block_according_to_target_superblock, sync_target.superblock.checkpoint);
-                                    i -= 1;
-                                    target_reached = true;
-                                    break;
-                                }
+                            // TODO: stop processing blocks according to the superblock target,
+                            // then verify that the superblock is correct, persist the chain state
+                            // and keep processing the remaining blocks. The remaining blocks
+                            // should not be persisted.
+                            // TODO: saturating_sub?
+                            // No, the target superblock cannot be the superblock with index 0
+                            let epoch_of_the_last_block_according_to_target_superblock =
+                                sync_target.superblock.checkpoint * superblock_period - 1;
+                            if block_epoch > epoch_of_the_last_block_according_to_target_superblock
+                            {
+                                log::debug!("Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block_according_to_target_superblock, sync_target.superblock.checkpoint);
+                                i -= 1;
+                                target_reached = true;
+                                break;
                             }
 
                             if let Err(e) = self.process_requested_block(ctx, block.clone()) {
@@ -386,27 +372,15 @@ impl Handler<AddBlocks> for ChainManager {
                             // TODO: this is duplicated above, this could be moved outside of the
                             // for loop because it is only used to handle the case when the last
                             // block is the target block
-                            if let Some(target_block) = sync_target.block {
-                                if block_epoch == target_block.checkpoint {
-                                    log::debug!(
-                                        "Sync done up to block #{}",
-                                        target_block.checkpoint
-                                    );
-                                    target_reached = true;
-                                    break;
-                                }
-                            } else {
-                                // TODO: saturating_sub?
-                                // No, the target superblock cannot be the superblock with index 0
-                                let epoch_of_the_last_block_according_to_target_superblock =
-                                    sync_target.superblock.checkpoint * superblock_period - 1;
-                                if block_epoch
-                                    == epoch_of_the_last_block_according_to_target_superblock
-                                {
-                                    log::debug!("Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block_according_to_target_superblock, sync_target.superblock.checkpoint);
-                                    target_reached = true;
-                                    break;
-                                }
+                            // TODO: saturating_sub?
+                            // No, the target superblock cannot be the superblock with index 0
+                            let epoch_of_the_last_block_according_to_target_superblock =
+                                sync_target.superblock.checkpoint * superblock_period - 1;
+                            if block_epoch == epoch_of_the_last_block_according_to_target_superblock
+                            {
+                                log::debug!("Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block_according_to_target_superblock, sync_target.superblock.checkpoint);
+                                target_reached = true;
+                                break;
                             }
                         }
                     }
@@ -416,13 +390,17 @@ impl Handler<AddBlocks> for ChainManager {
                         // target block
                         // TODO: verify that truncate is correct
                         //let block_hashes = |msg: &AddBlocks| -> Vec<_> { msg.blocks.iter().map(|x| x.hash()).collect() };
-                        let block_hashes = |msg: &AddBlocks| -> usize { msg.blocks.len() };
+                        use witnet_data_structures::chain::Block;
+                        let block_hashes = |blocks: &[Block]| -> usize { blocks.len() };
                         log::debug!(
                             "Truncating list of blocks. Before: {:?}",
-                            block_hashes(&msg)
+                            block_hashes(&msg.blocks)
                         );
-                        msg.blocks.truncate(i);
-                        log::debug!("After: {:?}", block_hashes(&msg));
+                        // Only persist blocks up to the last block according to the superblock
+                        // target. The remaining blocks will be processed, but not persisted to
+                        // storage. So the next reorganization will delete these blocks.
+                        let mut rest_blocks = msg.blocks.split_off(i);
+                        log::debug!("After: {:?}", block_hashes(&msg.blocks));
 
                         if target_reached {
                             // TODO: we want to create the last superblock, if it was not created yet,
@@ -450,28 +428,120 @@ impl Handler<AddBlocks> for ChainManager {
                                 // TODO: this is needed to check synchronization target
                                 log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, epoch_during_which_we_should_construct_the_target_superblock);
                                 self.construct_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock)
-                                    .and_then(move |superblock, act, ctx| {
+                                    .and_then({ let sync_target = sync_target.clone(); move |superblock, act, ctx| {
                                         if superblock.hash() == sync_target.superblock.hash_prev_block {
                                             act.persist_chain_state(ctx);
-                                            if sync_target.block.is_some() {
-                                                log::info!("Block sync target achieved, go to WaitingConsensus state");
-                                                // Target achived, go back to state 1
-                                                act.sm_state = StateMachine::WaitingConsensus;
-                                            } else {
-                                                //log::info!("Superblock sync target achieved, go to Synced state");
-                                                // TODO: is this a good idea?
-                                                //act.sm_state = StateMachine::Synced;
-                                                log::info!("Superblock sync target achieved, go to WaitingConsensus state");
-                                                act.sm_state = StateMachine::WaitingConsensus;
-                                            }
+
+                                            actix::fut::ok(())
                                         } else {
                                             // The superblock hash is different from what
                                             // it should be.
                                             // This probably means a bug in the code, so
                                             // panic
                                             panic!("Mismatching superblock. Target: {:?} Created #{} {} {:?}", sync_target, superblock.index, superblock.hash(), superblock);
+                                            actix::fut::err(())
+                                        }
+                                    }})
+                                    .and_then(move |(), act, ctx| {
+                                        let mut target_reached = false;
+                                        let mut i = 0;
+                                        for block in rest_blocks.iter() {
+                                            i += 1;
+                                            let block_epoch = block.block_header.beacon.checkpoint;
+
+                                            if block_epoch
+                                                > sync_target.block.checkpoint
+                                            {
+                                                log::debug!("Sync done up to block #{}", sync_target.block.checkpoint);
+                                                i -= 1;
+                                                target_reached = true;
+                                                break;
+                                            }
+
+                                            // Do not update reputation when consolidating genesis block
+                                            if block.hash() != consensus_constants.genesis_hash {
+                                                if let Some(ref mut rep_engine) = act.chain_state.reputation_engine
+                                                {
+                                                    // TODO: do we also need to update_empty after the last block?
+                                                    // Any epochs between the last block_epoch and current_epoch
+                                                    // are never updated
+                                                    if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
+                                                        log::error!(
+                                                            "Error updating reputation before processing block: {}",
+                                                            e
+                                                        );
+                                                    }
+                                                }
+                                            }
+
+                                            if let Err(e) = act.process_requested_block(ctx, block.clone()) {
+                                                log::error!("Error processing block: {}", e);
+                                                act.initialize_from_storage(ctx);
+                                                log::info!("Restored chain state from storage");
+                                                batch_succeeded = false;
+                                                break;
+                                            }
+
+                                            let beacon = act.get_chain_beacon();
+                                            show_sync_progress(beacon, &sync_target, act.epoch_constants.unwrap());
+
+                                            // TODO: this is duplicated above, this could be moved outside of the
+                                            // for loop because it is only used to handle the case when the last
+                                            // block is the target block
+                                            if block_epoch
+                                                == sync_target.block.checkpoint
+                                            {
+                                                if sync_target.block.hash_prev_block != block.hash() {
+                                                    log::error!("Target block hash mismatch: {} != {}", sync_target.block.hash_prev_block, block.hash());
+                                                    act.initialize_from_storage(ctx);
+                                                    log::info!("Restored chain state from storage");
+                                                    batch_succeeded = false;
+                                                    break;
+                                                } else {
+                                                    log::debug!("Sync done up to block #{}", sync_target.block.checkpoint);
+                                                    target_reached = true;
+                                                    break;
+                                                }
+                                            }
                                         }
 
+                                        if batch_succeeded {
+                                            // Only persist consolidated blocks, truncate so the last block is the
+                                            // target block
+                                            // TODO: verify that truncate is correct
+                                            //let block_hashes = |msg: &AddBlocks| -> Vec<_> { msg.blocks.iter().map(|x| x.hash()).collect() };
+                                            use witnet_data_structures::chain::Block;
+                                            let block_hashes = |blocks: &[Block]| -> usize { blocks.len() };
+                                            log::debug!(
+                                                "Truncating list of blocks. Before: {:?}",
+                                                block_hashes(&rest_blocks)
+                                            );
+                                            // Only persist blocks up to the last block according to the superblock
+                                            // target. The remaining blocks will be processed, but not persisted to
+                                            // storage. So the next reorganization will delete these blocks.
+                                            rest_blocks.truncate(i);
+                                            log::debug!("After: {:?}", block_hashes(&rest_blocks));
+
+                                            // We need to persist blocks in order to be able to construct the
+                                            // superblock
+                                            // TODO: verify that superblock creation does not start until all
+                                            // the blocks have been persisted
+                                            act.persist_blocks_batch(ctx, rest_blocks);
+                                            let to_be_stored =
+                                                act.chain_state.data_request_pool.finished_data_requests();
+                                            act.persist_data_requests(ctx, to_be_stored);
+
+                                            if target_reached {
+                                                log::info!("Block sync target achieved, go to WaitingConsensus state");
+                                                // Target achived, go back to state 1
+                                                act.sm_state = StateMachine::WaitingConsensus;
+                                            } else {
+                                                // TODO: if the target superblock is in this batch but
+                                                // the target block is in the next batch, does this
+                                                // code work?
+                                                act.request_blocks_batch(ctx);
+                                            }
+                                        }
                                         actix::fut::ok(())
                                     })
                                     .wait(ctx);
@@ -753,10 +823,8 @@ impl Handler<PeersBeacons> for ChainManager {
 
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
-        // TODO: for testing, always assume there is no block consensus, only use superblock consensus
-        let consensus = None;
-        //let consensus = peers_beacons.block_consensus(consensus_threshold);
         let superblock_consensus = peers_beacons.superblock_consensus(consensus_threshold);
+        let consensus = peers_beacons.block_consensus(consensus_threshold);
         let outbound_limit = peers_beacons.outbound_limit;
         let pb_len = peers_beacons.pb.len();
         let peers_needed_for_consensus = outbound_limit
@@ -798,7 +866,7 @@ impl Handler<PeersBeacons> for ChainManager {
                 match (superblock_consensus, consensus) {
                     (Some(superblock_consensus), Some(consensus_beacon)) => {
                         self.sync_target = Some(SyncTarget {
-                            block: Some(consensus_beacon),
+                            block: consensus_beacon,
                             superblock: superblock_consensus,
                         });
                         log::debug!("Sync target {:?}", self.sync_target);
@@ -875,8 +943,12 @@ impl Handler<PeersBeacons> for ChainManager {
                     // There is superblock consensus but no block consensus
                     // Sync up to the superblock
                     (Some(superblock_consensus), None) => {
+                        // TODO: if there is no block consensus just pick one at random from the
+                        // beacons that are in superblock_consensus. And refactor this match into a
+                        // simpler if
+                        let block = Default::default();
                         self.sync_target = Some(SyncTarget {
-                            block: None,
+                            block,
                             superblock: superblock_consensus,
                         });
 
@@ -914,7 +986,7 @@ impl Handler<PeersBeacons> for ChainManager {
                 match (superblock_consensus, consensus) {
                     (Some(superblock_consensus), Some(consensus_beacon)) => {
                         self.sync_target = Some(SyncTarget {
-                            block: Some(consensus_beacon),
+                            block: consensus_beacon,
                             superblock: superblock_consensus,
                         });
 
@@ -944,8 +1016,12 @@ impl Handler<PeersBeacons> for ChainManager {
                         Ok(peers_to_unregister)
                     }
                     (Some(superblock_consensus), None) => {
+                        // TODO: if there is no block consensus just pick one at random from the
+                        // beacons that are in superblock_consensus. And refactor this match into a
+                        // simpler if
+                        let block = Default::default();
                         self.sync_target = Some(SyncTarget {
-                            block: None,
+                            block,
                             superblock: superblock_consensus,
                         });
                         // TODO: use superblock beacon to check if we are already synchronized

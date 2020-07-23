@@ -138,8 +138,8 @@ impl Default for StateMachine {
 /// Synchronization target determined by the beacons received from outbound peers
 #[derive(Clone, Debug)]
 pub struct SyncTarget {
-    // The target block can be None if there is no consensus at the block level
-    block: Option<CheckpointBeacon>,
+    // TODO: the target block must be set, but the node will not assume that it is valid
+    block: CheckpointBeacon,
     // The target superblock must always be set. Here we only know the superblock index and hash,
     // we do not know the block hash. The block index can be derived from the superblock index.
     // This must be a superblock beacon consolidated with more than 2/3 of the votes, and it we be
@@ -1586,18 +1586,7 @@ fn show_sync_progress(
     sync_target: &SyncTarget,
     epoch_constants: EpochConstants,
 ) {
-    // TODO: this may be misleading because when the target is a superblock, the node may be at
-    // 100% progress but not synced for a few blocks...
-    //let target_checkpoint = sync_target.block.map(|block| block.checkpoint).unwrap_or(sync_target.superblock.checkpoint * superblock_period);
-    if sync_target.block.is_none() {
-        // TODO: how to show progress?
-        log::info!(
-            "Syncronization progress: ?/?, to superblock {:?}",
-            sync_target.superblock
-        );
-        return;
-    }
-    let target_checkpoint = sync_target.block.map(|block| block.checkpoint).unwrap();
+    let target_checkpoint = sync_target.block.checkpoint;
     // Show progress log
     let mut percent_done_float =
         f64::from(beacon.checkpoint) / f64::from(target_checkpoint) * 100.0;
