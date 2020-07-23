@@ -2,9 +2,10 @@ use crate::chain::{
     BlockHeader, Bn256PublicKey, CheckpointBeacon, Hash, Hashable, PublicKeyHash, SuperBlock,
     SuperBlockVote,
 };
-use std::collections::{HashMap, HashSet};
-
-use std::convert::{TryFrom, TryInto};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::{TryFrom, TryInto},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -211,8 +212,13 @@ impl SuperBlockState {
                 self.current_ars_identities
                     .extend(ars_pkh_keys.iter().cloned());
                 self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
-                // For the current index, update the signing committee
-                self.update_superblock_signing_committee(signing_committee_size);
+                // For the current superblock hash, calculate the signing committee
+                self.current_signing_committee = calculate_superblock_signing_committee(
+                    self.previous_ars_identities.clone(),
+                    self.previous_ordered_ars_identities.clone(),
+                    signing_committee_size,
+                    self.current_superblock_hash,
+                );
 
                 self.current_superblock_hash = superblock.hash();
 
@@ -262,31 +268,30 @@ impl SuperBlockState {
     pub fn contains(&self, sbv: &SuperBlockVote) -> bool {
         self.received_superblocks.contains(sbv)
     }
+}
 
-    /// Updates the current superblock signing committee for a given superblock hash
-    pub fn update_superblock_signing_committee(
-        &mut self,
-        _signing_committee_size: u32,
-    ) -> Option<HashSet<PublicKeyHash>> {
-        // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
-        let ars_ordered = &self.previous_ordered_ars_identities;
-        if ars_ordered.len() < usize::try_from(_signing_committee_size).unwrap() {
-            self.current_signing_committee = self.previous_ars_identities.clone();
-            self.current_signing_committee.clone()
-        } else {
-            // Start counting the members of the subset from the superblock_hash
-            let superblock_hash = u64::from(*self.current_superblock_hash.as_ref().get(0).unwrap());
-            let first = superblock_hash % u64::from(_signing_committee_size);
-            // Get the subset
-            let subset = magic_partition(
-                &ars_ordered.to_vec(),
-                first.try_into().unwrap(),
-                _signing_committee_size.try_into().unwrap(),
-            );
-            let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
-            self.current_signing_committee = Some(hs);
-            self.current_signing_committee.clone()
-        }
+/// Calculates the superblock signing committee for a given superblock hash and ars
+pub fn calculate_superblock_signing_committee(
+    ars_identities: Option<HashSet<PublicKeyHash>>,
+    ordered_ars_identities: Vec<PublicKeyHash>,
+    signing_committee_size: u32,
+    superblock_hash: Hash,
+) -> Option<HashSet<PublicKeyHash>> {
+    // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
+    if ordered_ars_identities.len() < usize::try_from(signing_committee_size).unwrap() {
+        ars_identities
+    } else {
+        // Start counting the members of the subset from the superblock_hash
+        let mut first = u32::from(*superblock_hash.as_ref().get(0).unwrap());
+        first %= signing_committee_size;
+        // Get the subset
+        let subset = magic_partition(
+            &ordered_ars_identities.to_vec(),
+            first.try_into().unwrap(),
+            signing_committee_size.try_into().unwrap(),
+        );
+        let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
+        Some(hs)
     }
 }
 
@@ -294,7 +299,7 @@ impl SuperBlockState {
 // magic_partition(v, 3, 3), v=[]0, 1, 2, 3, 4, 5].
 // Will return elements at index 3, 5, 1.
 fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
-    if first >= v.len().try_into().unwrap() {
+    if first >= v.len() {
         return vec![];
     }
     let each = v.len() / size;
@@ -1005,7 +1010,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_superblock_signing_committee() {
+    fn test_calculate_superblock_signing_committee() {
         // When the ARS has less members than the committee size it should
         // return the entire ARS as superblock signing committee.
         let mut sbs = SuperBlockState::default();
@@ -1041,12 +1046,17 @@ mod tests {
         sbs.previous_ordered_ars_identities = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
         let committee_size = 4;
-        let subset = sbs.update_superblock_signing_committee(committee_size);
+        let subset = calculate_superblock_signing_committee(
+            sbs.previous_ars_identities,
+            sbs.previous_ordered_ars_identities,
+            committee_size,
+            sbs.current_superblock_hash,
+        );
         assert_eq!(ars_identities.len(), subset.unwrap().len());
     }
 
     #[test]
-    fn test_update_superblock_signing_committee_2() {
+    fn test_calculate_superblock_signing_committee_2() {
         // It shpuld return a subset of 4 members from an ARS having size 8
         let mut sbs = SuperBlockState::default();
 
@@ -1104,7 +1114,12 @@ mod tests {
         ];
         sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
         let committee_size = 4;
-        let subset = sbs.update_superblock_signing_committee(committee_size);
+        let subset = calculate_superblock_signing_committee(
+            sbs.previous_ars_identities,
+            sbs.previous_ordered_ars_identities,
+            committee_size,
+            sbs.current_superblock_hash,
+        );
         assert_eq!(
             usize::try_from(committee_size).unwrap(),
             subset.unwrap().len()
