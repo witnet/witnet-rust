@@ -409,9 +409,16 @@ pub fn mining_build_superblock(
         None =>
         // Build "empty" Superblock (there were no blocks during super-epoch)
         {
+            let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
+            log::debug!(
+                "Created superblock #{} with hash_prev_block {}, ARS {}, blocks []",
+                index,
+                last_block_in_previous_superblock,
+                ars_root,
+            );
             SuperBlock {
                 ars_length: ars_ordered_hash_leaves.len() as u64,
-                ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
+                ars_root,
                 index,
                 last_block: last_block_in_previous_superblock,
                 last_block_in_previous_superblock,
@@ -429,14 +436,27 @@ pub fn mining_build_superblock(
                 .map(|b| b.merkle_roots.tally_hash_merkle_root)
                 .collect();
 
+            let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
+            let blocks: Vec<_> = block_headers
+                .iter()
+                .map(|b| format!("#{}: {}", b.beacon.checkpoint, b.hash()))
+                .collect();
+            log::debug!(
+                "Created superblock #{} with hash_prev_block {}, ARS {}, blocks {:?}",
+                index,
+                last_block_in_previous_superblock,
+                ars_root,
+                blocks
+            );
+
             SuperBlock {
                 ars_length: ars_ordered_hash_leaves.len() as u64,
-                ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
                 data_request_root: hash_merkle_tree_root(&merkle_drs),
+                tally_root: hash_merkle_tree_root(&merkle_tallies),
+                ars_root,
                 index,
                 last_block: last_block_hash,
                 last_block_in_previous_superblock,
-                tally_root: hash_merkle_tree_root(&merkle_tallies),
             }
         }
     }

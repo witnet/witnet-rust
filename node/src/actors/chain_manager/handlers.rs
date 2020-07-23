@@ -9,8 +9,8 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
-        Hash, Hashable, NodeStats, PublicKeyHash, Reputation, SuperBlockVote, UtxoInfo,
+        get_utxo_info, Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport,
+        Epoch, Hash, Hashable, NodeStats, PublicKeyHash, Reputation, SuperBlockVote, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -19,10 +19,7 @@ use witnet_data_structures::{
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
-use super::{
-    show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
-    SyncTarget,
-};
+use super::{transaction_factory, ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
     actors::{
         chain_manager::BlockCandidate,
@@ -272,7 +269,6 @@ impl Handler<GetNodeStats> for ChainManager {
 impl Handler<AddBlocks> for ChainManager {
     type Result = SessionUnitResult;
 
-    #[allow(clippy::cognitive_complexity)]
     fn handle(&mut self, mut msg: AddBlocks, ctx: &mut Context<Self>) {
         log::debug!(
             "AddBlocks received while StateMachine is in state {:?}",
@@ -307,280 +303,222 @@ impl Handler<AddBlocks> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {
-                if let Some(sync_target) = self.sync_target.clone() {
-                    let mut batch_succeeded = true;
-                    let mut i = 0;
-                    let mut target_reached = false;
-                    let chain_beacon = self.get_chain_beacon();
-                    let superblock_period = u32::from(consensus_constants.superblock_period);
-                    if msg.blocks.is_empty() {
-                        batch_succeeded = false;
-                        log::debug!("Received an empty AddBlocks message");
-                    // FIXME(#684): this condition would be modified when genesis block exist
-                    } else if chain_beacon.hash_prev_block != consensus_constants.bootstrap_hash
-                        && msg.blocks[0].hash() != chain_beacon.hash_prev_block
-                        && msg.blocks[0].block_header.beacon.checkpoint == chain_beacon.checkpoint
-                    {
-                        // Fork case
-                        batch_succeeded = false;
-                        log::error!("Mismatching blocks, fork detected");
-                        self.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
-                    } else {
-                        // FIXME(#684): this condition would be deleted when genesis block exist
-                        if chain_beacon.hash_prev_block == consensus_constants.bootstrap_hash
-                            || msg.blocks[0].block_header.beacon.checkpoint
-                                > chain_beacon.checkpoint
-                        {
-                        } else {
-                            // Ignore genesis block
-                            // TODO: this remove may be expensive, find a better way
-                            msg.blocks.remove(0);
-                        };
-
-                        for block in msg.blocks.iter() {
-                            i += 1;
-                            let block_epoch = block.block_header.beacon.checkpoint;
-
-                            // TODO: stop processing blocks according to the superblock target,
-                            // then verify that the superblock is correct, persist the chain state
-                            // and keep processing the remaining blocks. The remaining blocks
-                            // should not be persisted.
-                            // TODO: saturating_sub?
-                            // No, the target superblock cannot be the superblock with index 0
-                            let epoch_of_the_last_block_according_to_target_superblock =
-                                sync_target.superblock.checkpoint * superblock_period - 1;
-                            if block_epoch > epoch_of_the_last_block_according_to_target_superblock
-                            {
-                                log::debug!("Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block_according_to_target_superblock, sync_target.superblock.checkpoint);
-                                i -= 1;
-                                target_reached = true;
-                                break;
-                            }
-
-                            if let Err(e) = self.process_requested_block(ctx, block.clone()) {
-                                log::error!("Error processing block: {}", e);
-                                self.initialize_from_storage(ctx);
-                                log::info!("Restored chain state from storage");
-                                batch_succeeded = false;
-                                break;
-                            }
-
-                            let beacon = self.get_chain_beacon();
-                            show_sync_progress(beacon, &sync_target, self.epoch_constants.unwrap());
-
-                            // TODO: this is duplicated above, this could be moved outside of the
-                            // for loop because it is only used to handle the case when the last
-                            // block is the target block
-                            // TODO: saturating_sub?
-                            // No, the target superblock cannot be the superblock with index 0
-                            let epoch_of_the_last_block_according_to_target_superblock =
-                                sync_target.superblock.checkpoint * superblock_period - 1;
-                            if block_epoch == epoch_of_the_last_block_according_to_target_superblock
-                            {
-                                log::debug!("Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block_according_to_target_superblock, sync_target.superblock.checkpoint);
-                                target_reached = true;
-                                break;
-                            }
-                        }
+                if self.sync_target.is_none() {
+                    log::warn!("Target Beacon is None");
+                    // If we are not synchronizing, forget about when we started synchronizing
+                    if self.sm_state != StateMachine::Synchronizing {
+                        self.sync_waiting_for_add_blocks_since = None;
                     }
+                    return;
+                }
 
-                    if batch_succeeded {
-                        // Only persist consolidated blocks, truncate so the last block is the
-                        // target block
-                        // TODO: verify that truncate is correct
-                        //let block_hashes = |msg: &AddBlocks| -> Vec<_> { msg.blocks.iter().map(|x| x.hash()).collect() };
-                        use witnet_data_structures::chain::Block;
-                        let block_hashes = |blocks: &[Block]| -> usize { blocks.len() };
-                        log::debug!(
-                            "Truncating list of blocks. Before: {:?}",
-                            block_hashes(&msg.blocks)
-                        );
-                        // Only persist blocks up to the last block according to the superblock
-                        // target. The remaining blocks will be processed, but not persisted to
-                        // storage. So the next reorganization will delete these blocks.
-                        let mut rest_blocks = msg.blocks.split_off(i);
-                        log::debug!("After: {:?}", block_hashes(&msg.blocks));
+                if msg.blocks.is_empty() {
+                    log::debug!("Received an empty AddBlocks message");
+                    self.sm_state = StateMachine::WaitingConsensus;
+                    // If we are not synchronizing, forget about when we started synchronizing
+                    if self.sm_state != StateMachine::Synchronizing {
+                        self.sync_waiting_for_add_blocks_since = None;
+                    }
+                    return;
+                }
 
-                        if target_reached {
-                            // TODO: we want to create the last superblock, if it was not created yet,
-                            // but only if we have reached the sync target
+                let sync_target = self.sync_target.clone().unwrap();
+                let superblock_period = u32::from(consensus_constants.superblock_period);
 
-                            // We need to construct the last superblock if the current superblock
-                            // is different from the target superblock
-                            let mut need_to_construct_superblock = true;
-                            if sync_target.superblock.checkpoint == 0 {
-                                need_to_construct_superblock = false;
-                            }
-                            let epoch_during_which_we_should_construct_the_target_superblock =
-                                sync_target.superblock.checkpoint * superblock_period;
-                            if need_to_construct_superblock {
-                                // We need to persist blocks in order to be able to construct the
-                                // superblock
-                                // TODO: verify that superblock creation does not start until all
-                                // the blocks have been persisted
-                                self.persist_blocks_batch(ctx, msg.blocks);
-                                let to_be_stored =
-                                    self.chain_state.data_request_pool.finished_data_requests();
-                                self.persist_data_requests(ctx, to_be_stored);
-                                // Create superblocks while synchronizing but do not broadcast them
-                                // This is needed to ensure that we can validate the received superblocks later on
-                                // TODO: this is needed to check synchronization target
-                                log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, epoch_during_which_we_should_construct_the_target_superblock);
-                                self.construct_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock)
-                                    .and_then({ let sync_target = sync_target.clone(); move |superblock, act, ctx| {
-                                        if superblock.hash() == sync_target.superblock.hash_prev_block {
-                                            act.persist_chain_state(ctx);
+                // Hack: remove first block
+                // For some reason the other node sends one extra block, and we cannot consolidate
+                // it because it is our top block.
+                msg.blocks.remove(0);
+                /*
+                // Hack: remove genesis block
+                if msg.blocks[0].block_header.beacon.checkpoint == 0 && msg.blocks[0].block_header.beacon.hash_prev_block == consensus_constants.bootstrap_hash && msg.blocks[0].hash() == consensus_constants.genesis_hash {
+                    msg.blocks.remove(0);
+                }
+                */
 
-                                            actix::fut::ok(())
-                                        } else {
-                                            // The superblock hash is different from what
-                                            // it should be.
-                                            // This probably means a bug in the code, so
-                                            // panic
-                                            panic!("Mismatching superblock. Target: {:?} Created #{} {} {:?}", sync_target, superblock.index, superblock.hash(), superblock);
-                                            actix::fut::err(())
-                                        }
-                                    }})
-                                    .and_then(move |(), act, ctx| {
-                                        let mut target_reached = false;
-                                        let mut i = 0;
-                                        for block in rest_blocks.iter() {
-                                            i += 1;
-                                            let block_epoch = block.block_header.beacon.checkpoint;
+                let (blocks1, blocks2, blocks3, blocks4) =
+                    split_blocks_batch_at_target(msg.blocks, &sync_target, superblock_period);
 
-                                            if block_epoch
-                                                > sync_target.block.checkpoint
-                                            {
-                                                log::debug!("Sync done up to block #{}", sync_target.block.checkpoint);
-                                                i -= 1;
-                                                target_reached = true;
-                                                break;
-                                            }
+                // * Process blocks1
+                // * If target not reached, done
+                // * Create target superblock
+                // * Consolidate chain state and persist blocks1
+                // * Process blocks2
+                // * Persist blocks2
+                // * Create superblock (target+1)
+                // * Process blocks3
 
-                                            // Do not update reputation when consolidating genesis block
-                                            if block.hash() != consensus_constants.genesis_hash {
-                                                if let Some(ref mut rep_engine) = act.chain_state.reputation_engine
-                                                {
-                                                    // TODO: do we also need to update_empty after the last block?
-                                                    // Any epochs between the last block_epoch and current_epoch
-                                                    // are never updated
-                                                    if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
-                                                        log::error!(
-                                                            "Error updating reputation before processing block: {}",
-                                                            e
-                                                        );
-                                                    }
-                                                }
-                                            }
+                let (batch_succeeded, num_processed_blocks) =
+                    self.process_blocks_batch(ctx, &sync_target, &blocks1);
 
-                                            if let Err(e) = act.process_requested_block(ctx, block.clone()) {
-                                                log::error!("Error processing block: {}", e);
-                                                act.initialize_from_storage(ctx);
-                                                log::info!("Restored chain state from storage");
-                                                batch_succeeded = false;
-                                                break;
-                                            }
+                if !batch_succeeded {
+                    // This branch will happen if this node has forked, but the network has
+                    // a valid consensus. In that case we would want to restore the node to
+                    // the state just before the fork, and restart the synchronization.
 
-                                            let beacon = act.get_chain_beacon();
-                                            show_sync_progress(beacon, &sync_target, act.epoch_constants.unwrap());
+                    // This branch could also happen when one peer has sent us an invalid block batch.
+                    // Ideally we would mark it as a bad peer and restart the
+                    // synchronization process, but that's not implemented yet.
+                    // Note that in order to correctly restart the synchronization process,
+                    // restoring the chain state from storage is not enough,
+                    // as that storage was overwritten at the end of the last successful batch.
 
-                                            // TODO: this is duplicated above, this could be moved outside of the
-                                            // for loop because it is only used to handle the case when the last
-                                            // block is the target block
-                                            if block_epoch
-                                                == sync_target.block.checkpoint
-                                            {
-                                                if sync_target.block.hash_prev_block != block.hash() {
-                                                    log::error!("Target block hash mismatch: {} != {}", sync_target.block.hash_prev_block, block.hash());
-                                                    act.initialize_from_storage(ctx);
-                                                    log::info!("Restored chain state from storage");
-                                                    batch_succeeded = false;
-                                                    break;
-                                                } else {
-                                                    log::debug!("Sync done up to block #{}", sync_target.block.checkpoint);
-                                                    target_reached = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
+                    // In any case, the current behavior is to go back to WaitingConsensus
+                    // state and restart the synchronization on the next PeersBeacons message.
+                    log::error!("Received invalid blocks batch");
+                    self.sm_state = StateMachine::WaitingConsensus;
 
-                                        if batch_succeeded {
-                                            // Only persist consolidated blocks, truncate so the last block is the
-                                            // target block
-                                            // TODO: verify that truncate is correct
-                                            //let block_hashes = |msg: &AddBlocks| -> Vec<_> { msg.blocks.iter().map(|x| x.hash()).collect() };
-                                            use witnet_data_structures::chain::Block;
-                                            let block_hashes = |blocks: &[Block]| -> usize { blocks.len() };
-                                            log::debug!(
-                                                "Truncating list of blocks. Before: {:?}",
-                                                block_hashes(&rest_blocks)
-                                            );
-                                            // Only persist blocks up to the last block according to the superblock
-                                            // target. The remaining blocks will be processed, but not persisted to
-                                            // storage. So the next reorganization will delete these blocks.
-                                            rest_blocks.truncate(i);
-                                            log::debug!("After: {:?}", block_hashes(&rest_blocks));
+                    // If we are not synchronizing, forget about when we started synchronizing
+                    if self.sm_state != StateMachine::Synchronizing {
+                        self.sync_waiting_for_add_blocks_since = None;
+                    }
+                    return;
+                }
 
-                                            // We need to persist blocks in order to be able to construct the
-                                            // superblock
-                                            // TODO: verify that superblock creation does not start until all
-                                            // the blocks have been persisted
-                                            act.persist_blocks_batch(ctx, rest_blocks);
-                                            let to_be_stored =
-                                                act.chain_state.data_request_pool.finished_data_requests();
-                                            act.persist_data_requests(ctx, to_be_stored);
-
-                                            if target_reached {
-                                                log::info!("Block sync target achieved, go to WaitingConsensus state");
-                                                // Target achived, go back to state 1
-                                                act.sm_state = StateMachine::WaitingConsensus;
-
-                                                // TODO: calculate if we need to construct the
-                                                // superblock
-                                                let need_to_construct_superblock = true;
-                                                let epoch_during_which_we_should_construct_the_superblock = (sync_target.superblock.checkpoint + 1) * superblock_period;
-                                                if need_to_construct_superblock {
-                                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_superblock);
-                                                    act.construct_superblock(ctx, epoch_during_which_we_should_construct_the_superblock).and_then(|_superblock, _act, _ctx| {
-                                                        // Ignore the created superblock: do not
-                                                        // broadcast votes
-                                                        actix::fut::ok(())
-                                                    }).wait(ctx);
-                                                }
-                                            } else {
-                                                // TODO: if the target superblock is in this batch but
-                                                // the target block is in the next batch, does this
-                                                // code work?
-                                                act.request_blocks_batch(ctx);
-                                            }
-                                        }
-                                        actix::fut::ok(())
-                                    })
-                                    .wait(ctx);
-                            }
-                        } else {
-                            self.request_blocks_batch(ctx);
-                        }
+                let mut epoch_of_the_last_block = None;
+                if blocks2.is_some() {
+                    if num_processed_blocks == 0 {
+                        log::debug!("1 Sync done, 0 blocks processed");
                     } else {
-                        // This branch will happen if this node has forked, but the network has
-                        // a valid consensus. In that case we would want to restore the node to
-                        // the state just before the fork, and restart the synchronization.
-
-                        // This branch could also happen when one peer has sent us an invalid block batch.
-                        // Ideally we would mark it as a bad peer and restart the
-                        // synchronization process, but that's not implemented yet.
-                        // Note that in order to correctly restart the synchronization process,
-                        // restoring the chain state from storage is not enough,
-                        // as that storage was overwritten at the end of the last successful batch.
-
-                        // In any case, the current behavior is to go back to WaitingConsensus
-                        // state and restart the synchronization on the next PeersBeacons message.
-                        self.sm_state = StateMachine::WaitingConsensus;
+                        let last_processed_block = &blocks1[num_processed_blocks - 1];
+                        epoch_of_the_last_block =
+                            Some(last_processed_block.block_header.beacon.checkpoint);
+                        log::debug!("1 Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block.unwrap(), sync_target.superblock.checkpoint);
                     }
                 } else {
-                    log::warn!("Target Beacon is None");
+                    // Request next blocks batch
+                    log::debug!("1 Target not reached, request blocks batch");
+                    self.request_blocks_batch(ctx);
+                    return;
                 }
+
+                let blocks2 = blocks2.unwrap();
+                let blocks3 = blocks3.unwrap_or_default();
+
+                // We need to construct the last superblock if the current superblock
+                // is different from the target superblock
+                let current_superblock_checkpoint =
+                    self.chain_state.superblock_state.get_beacon().checkpoint;
+                let need_to_construct_superblock =
+                    sync_target.superblock.checkpoint != current_superblock_checkpoint;
+                let epoch_during_which_we_should_construct_the_target_superblock =
+                    sync_target.superblock.checkpoint * superblock_period;
+
+                // We need to construct the target superblock in order to be able to
+                // validate the next superblocks
+                if need_to_construct_superblock {
+                    // We need to persist blocks in order to be able to construct the
+                    // superblock
+                    // TODO: verify that superblock creation does not start until all
+                    // the blocks have been persisted
+                    self.persist_blocks_batch(ctx, blocks1);
+                    let to_be_stored =
+                        self.chain_state.data_request_pool.finished_data_requests();
+                    self.persist_data_requests(ctx, to_be_stored);
+                    // Create superblocks while synchronizing but do not broadcast them
+                    // This is needed to ensure that we can validate the received superblocks later on
+                    // TODO: this is needed to check synchronization target
+                    log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, epoch_during_which_we_should_construct_the_target_superblock);
+                    actix::fut::Either::A(self.construct_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock)
+                        .and_then({ let sync_target = sync_target.clone(); move |superblock, act, ctx| {
+                            if superblock.hash() == sync_target.superblock.hash_prev_block {
+                                act.persist_chain_state(ctx);
+                                actix::fut::ok(())
+                            } else {
+                                // The superblock hash is different from what it
+                                // should be.
+                                // This probably means a bug in the code, so panic
+                                log::error!("Mismatching superblock. Target: {:?} Created #{} {} {:?}", sync_target, superblock.index, superblock.hash(), superblock);
+                                act.sm_state = StateMachine::WaitingConsensus;
+
+                                // If we are not synchronizing, forget about when we started synchronizing
+                                if act.sm_state != StateMachine::Synchronizing {
+                                    act.sync_waiting_for_add_blocks_since = None;
+                                }
+                                actix::fut::err(())
+                            }
+                        }}))
+                } else {
+                    // No need to construct a superblock again,
+                    actix::fut::Either::B(actix::fut::ok(()))
+                }
+                    .and_then(move |(), act, ctx| {
+                        // Process remaining blocks
+                        let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks2);
+
+                        if !batch_succeeded {
+                            act.sm_state = StateMachine::WaitingConsensus;
+                            // TODO: return actix error
+                            return actix::fut::err(());
+                        }
+
+                        if num_processed_blocks == 0 {
+                            log::debug!("2 Sync done, 0 blocks processed");
+                        } else {
+                            let last_processed_block = &blocks2[num_processed_blocks - 1];
+                            epoch_of_the_last_block = Some(last_processed_block.block_header.beacon.checkpoint);
+                            log::debug!("2 Sync done up to block #{}", epoch_of_the_last_block.unwrap());
+                        }
+
+                        // Update ARS if there were no blocks right before the epoch during
+                        // which we should construct the target superblock
+                        let epoch_during_which_we_should_construct_the_second_superblock = (sync_target.superblock.checkpoint + 1) * superblock_period;
+                        // We need to persist blocks in order to be able to construct the
+                        // superblock
+                        // TODO: verify that superblock creation does not start until all
+                        // the blocks have been persisted
+                        act.persist_blocks_batch(ctx, blocks2);
+                        let to_be_stored =
+                            act.chain_state.data_request_pool.finished_data_requests();
+                        act.persist_data_requests(ctx, to_be_stored);
+
+                        log::info!("Block sync target achieved, go to WaitingConsensus state");
+                        // Target achived, go back to state 1
+                        act.sm_state = StateMachine::WaitingConsensus;
+
+                        // We must construct the second superblock in order to
+                        // be able to validate the votes for this superblock
+                        // later
+                        log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_second_superblock);
+                        act.construct_superblock(ctx, epoch_during_which_we_should_construct_the_second_superblock).and_then(move |_superblock, act, ctx| {
+                            // Ignore the created superblock: do not
+                            // broadcast votes
+                            // Process remaining blocks
+                            let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks3);
+
+                            if !batch_succeeded {
+                                log::error!("3 Received invalid blocks batch");
+                                act.sm_state = StateMachine::WaitingConsensus;
+
+                                // If we are not synchronizing, forget about when we started synchronizing
+                                if act.sm_state != StateMachine::Synchronizing {
+                                    act.sync_waiting_for_add_blocks_since = None;
+                                }
+                                return actix::fut::err(());
+                            }
+
+                            if num_processed_blocks == 0 {
+                                log::debug!("3 Sync done, 0 blocks processed");
+                            } else {
+                                let last_processed_block = &blocks3[num_processed_blocks - 1];
+                                let epoch_of_the_last_block = Some(last_processed_block.block_header.beacon.checkpoint);
+                                log::debug!("3 Sync done up to block #{}", epoch_of_the_last_block.unwrap());
+                            }
+
+                            log::info!("Block sync target achieved, go to WaitingConsensus state");
+                            // Target achived, go back to state 1
+                            act.sm_state = StateMachine::WaitingConsensus;
+
+                            if blocks4.is_some() {
+                                log::error!("This sync batch will not work because this node is one superblock behind, retry");
+                            }
+
+                            actix::fut::ok(())
+                        }).wait(ctx);
+
+                        actix::fut::ok(())
+                    })
+                    .wait(ctx);
             }
             StateMachine::AlmostSynced | StateMachine::Synced => {}
         };
@@ -590,6 +528,123 @@ impl Handler<AddBlocks> for ChainManager {
             self.sync_waiting_for_add_blocks_since = None;
         }
     }
+}
+
+/// Split the blocks batch into 4 parts:
+/// * All the blocks up to the last block according to superblock target
+/// * The blocks needed to create the superblock with index target+1
+/// * The remaining blocks that can be used to create superblock with index target+2
+/// * Blocks that are above superblock target+2
+///
+/// Assumes that the blocks are sorted by checkpoint, and no two blocks have the
+/// same checkpoint, and superblock_period is at least 1.
+// TODO: return slices instead of vectors?
+// TODO: refactor this, use a function that splits into 2 parts
+#[allow(clippy::type_complexity)]
+fn split_blocks_batch_at_target(
+    blocks: Vec<Block>,
+    sync_target: &SyncTarget,
+    superblock_period: u32,
+) -> (
+    Vec<Block>,
+    Option<Vec<Block>>,
+    Option<Vec<Block>>,
+    Option<Vec<Block>>,
+) {
+    let first_epoch_part_2 = sync_target.superblock.checkpoint * superblock_period;
+    let first_epoch_part_3 = (sync_target.superblock.checkpoint + 1) * superblock_period;
+    let first_epoch_part_4 = (sync_target.superblock.checkpoint + 2) * superblock_period;
+    log::debug!(
+        "Splitting blocks batch at epochs. part_2 >= {}, part_3 >= {}",
+        first_epoch_part_2,
+        first_epoch_part_3
+    );
+    //let first_epoch_part_3 = first_epoch_part_2 + superblock_period;
+
+    let mut part_1 = blocks;
+    let mut part_2 = None;
+    let mut part_3 = None;
+    let mut part_4 = None;
+
+    // TODO: search in reverse, should be faster
+    let position_first_elem_part_2 = part_1
+        .iter()
+        .position(|block| block.block_header.beacon.checkpoint >= first_epoch_part_2);
+    if let Some(i) = position_first_elem_part_2 {
+        part_2 = Some(part_1.split_off(i));
+        let position_first_elem_part_3 = part_2
+            .as_ref()
+            .unwrap()
+            .iter()
+            .position(|block| block.block_header.beacon.checkpoint >= first_epoch_part_3);
+        if let Some(i) = position_first_elem_part_3 {
+            part_3 = Some(part_2.as_mut().unwrap().split_off(i));
+            let position_first_elem_part_4 = part_3
+                .as_ref()
+                .unwrap()
+                .iter()
+                .position(|block| block.block_header.beacon.checkpoint >= first_epoch_part_4);
+            if let Some(i) = position_first_elem_part_4 {
+                part_4 = Some(part_3.as_mut().unwrap().split_off(i));
+            }
+        }
+    }
+
+    // Edge case: if the last block of part_1 has epoch first_epoch_part_2 - 1,
+    // part_2 should be Some(vec![]), not None
+    if part_2.is_none()
+        && part_1.last().is_some()
+        && part_1
+            .last()
+            .as_ref()
+            .unwrap()
+            .block_header
+            .beacon
+            .checkpoint
+            == first_epoch_part_2 - 1
+    {
+        part_2 = Some(vec![]);
+    }
+
+    // Edge case: if the last block of part_2 has epoch first_epoch_part_3 - 1,
+    // part_3 should be Some(vec![]), not None
+    if part_3.is_none()
+        && part_2.is_some()
+        && part_2.as_ref().unwrap().last().is_some()
+        && part_2
+            .as_ref()
+            .unwrap()
+            .last()
+            .as_ref()
+            .unwrap()
+            .block_header
+            .beacon
+            .checkpoint
+            == first_epoch_part_3 - 1
+    {
+        part_3 = Some(vec![]);
+    }
+
+    // Edge case: if the last block of part_3 has epoch first_epoch_part_4 - 1,
+    // part_4 should be Some(vec![]), not None
+    if part_4.is_none()
+        && part_3.is_some()
+        && part_3.as_ref().unwrap().last().is_some()
+        && part_3
+            .as_ref()
+            .unwrap()
+            .last()
+            .as_ref()
+            .unwrap()
+            .block_header
+            .beacon
+            .checkpoint
+            == first_epoch_part_4 - 1
+    {
+        part_4 = Some(vec![]);
+    }
+
+    (part_1, part_2, part_3, part_4)
 }
 
 /// Handler for AddCandidates message
@@ -1724,6 +1779,128 @@ mod tests {
                 "127.0.0.1:10003".parse().unwrap(),
                 "127.0.0.1:10004".parse().unwrap()
             ]
+        );
+    }
+
+    #[test]
+    fn test_split_blocks_batch() {
+        use witnet_data_structures::chain::block_example;
+        let b = |checkpoint| {
+            let mut block = block_example();
+            block.block_header.beacon.checkpoint = checkpoint;
+
+            block
+        };
+
+        let mut sync_target = SyncTarget {
+            block: Default::default(),
+            superblock: Default::default(),
+        };
+        let superblock_period = 10;
+
+        assert_eq!(
+            split_blocks_batch_at_target(vec![], &sync_target, superblock_period),
+            (vec![], None, None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0)], &sync_target, superblock_period),
+            (vec![], Some(vec![b(0)]), None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(8)], &sync_target, superblock_period),
+            (vec![], Some(vec![b(0), b(8)]), None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(9)], &sync_target, superblock_period),
+            (vec![], Some(vec![b(0), b(9)]), Some(vec![]), None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(10)], &sync_target, superblock_period),
+            (vec![], Some(vec![b(0)]), Some(vec![b(10)]), None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(10), b(19)], &sync_target, superblock_period),
+            (
+                vec![],
+                Some(vec![b(0)]),
+                Some(vec![b(10), b(19)]),
+                Some(vec![])
+            )
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(10), b(20)], &sync_target, superblock_period),
+            (
+                vec![],
+                Some(vec![b(0)]),
+                Some(vec![b(10)]),
+                Some(vec![b(20)])
+            )
+        );
+
+        sync_target.superblock.checkpoint = 1;
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0)], &sync_target, superblock_period),
+            (vec![b(0)], None, None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(8)], &sync_target, superblock_period),
+            (vec![b(0), b(8)], None, None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(9)], &sync_target, superblock_period),
+            (vec![b(0), b(9)], Some(vec![]), None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(10)], &sync_target, superblock_period),
+            (vec![b(0)], Some(vec![b(10)]), None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(8), b(11)], &sync_target, superblock_period),
+            (vec![b(0), b(8)], Some(vec![b(11)]), None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(
+                vec![b(0), b(9), b(10), b(18)],
+                &sync_target,
+                superblock_period
+            ),
+            (vec![b(0), b(9)], Some(vec![b(10), b(18)]), None, None)
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(
+                vec![b(0), b(9), b(10), b(19)],
+                &sync_target,
+                superblock_period
+            ),
+            (
+                vec![b(0), b(9)],
+                Some(vec![b(10), b(19)]),
+                Some(vec![]),
+                None
+            ),
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(0), b(10), b(20)], &sync_target, superblock_period),
+            (vec![b(0)], Some(vec![b(10)]), Some(vec![b(20)]), None),
+        );
+        assert_eq!(
+            split_blocks_batch_at_target(
+                vec![b(0), b(9), b(10), b(19), b(20), b(21)],
+                &sync_target,
+                superblock_period
+            ),
+            (
+                vec![b(0), b(9)],
+                Some(vec![b(10), b(19)]),
+                Some(vec![b(20), b(21)]),
+                None
+            ),
+        );
+
+        sync_target.superblock.checkpoint = 2;
+        assert_eq!(
+            split_blocks_batch_at_target(vec![b(100)], &sync_target, superblock_period),
+            (vec![], Some(vec![]), Some(vec![]), Some(vec![b(100)]))
         );
     }
 }

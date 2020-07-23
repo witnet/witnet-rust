@@ -82,6 +82,10 @@ impl ChainManager {
                 "Not mining because node is not in Synced state (current state is {:?})",
                 self.sm_state
             );
+            // TODO: do we want to create superblocks when not synced?
+            // WaitingConsensus: probably not
+            // Synchronizing: not here, they are created in AddBlocks handler
+            // AlmostSynced: yes?
             return;
         }
 

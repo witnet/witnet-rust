@@ -729,7 +729,7 @@ impl ChainManager {
 
                             false
                         }
-                        AddSuperBlockVote::NotInArs => {
+                        AddSuperBlockVote::NotInSigningCommittee => {
                             log::debug!(
                                 "Not forwarding superblock vote: identity not in ARS: {}",
                                 superblock_vote.secp256k1_signature.public_key.pkh()
@@ -1043,6 +1043,7 @@ impl ChainManager {
         })
         .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
         .and_then(move |(block_headers, last_hash), act, ctx| {
+            // TODO: Synced or AlmostSynced?
             let consensus = if act.sm_state == StateMachine::Synced {
                 act.chain_state.superblock_state.has_consensus()
             } else {
@@ -1221,6 +1222,33 @@ impl ChainManager {
             .spawn(ctx);
         let epoch = self.current_epoch.unwrap();
         self.sync_waiting_for_add_blocks_since = Some(epoch);
+    }
+
+    fn process_blocks_batch(
+        &mut self,
+        ctx: &mut Context<Self>,
+        sync_target: &SyncTarget,
+        blocks: &[Block],
+    ) -> (bool, usize) {
+        let mut batch_succeeded = true;
+        let mut num_processed_blocks = 0;
+
+        for block in blocks.iter() {
+            num_processed_blocks += 1;
+
+            if let Err(e) = self.process_requested_block(ctx, block.clone()) {
+                log::error!("Error processing block: {}", e);
+                self.initialize_from_storage(ctx);
+                log::info!("Restored chain state from storage");
+                batch_succeeded = false;
+                break;
+            }
+
+            let beacon = self.get_chain_beacon();
+            show_sync_progress(beacon, &sync_target, self.epoch_constants.unwrap());
+        }
+
+        (batch_succeeded, num_processed_blocks)
     }
 }
 
