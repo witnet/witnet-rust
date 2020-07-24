@@ -839,6 +839,7 @@ impl ChainManager {
         Ok(())
     }
 
+    #[must_use]
     fn add_transaction(
         &mut self,
         msg: AddTransaction,
@@ -967,6 +968,7 @@ impl ChainManager {
     }
 
     /// Construct superblock process which uses futures
+    #[must_use]
     pub fn construct_superblock(
         &mut self,
         ctx: &mut Context<Self>,
@@ -1145,6 +1147,7 @@ impl ChainManager {
     }
 
     /// Block validation process which uses futures
+    #[must_use]
     pub fn future_process_validations(
         &mut self,
         block: Block,

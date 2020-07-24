@@ -535,6 +535,19 @@ impl Handler<AddBlocks> for ChainManager {
                                                 log::info!("Block sync target achieved, go to WaitingConsensus state");
                                                 // Target achived, go back to state 1
                                                 act.sm_state = StateMachine::WaitingConsensus;
+
+                                                // TODO: calculate if we need to construct the
+                                                // superblock
+                                                let need_to_construct_superblock = true;
+                                                let epoch_during_which_we_should_construct_the_superblock = (sync_target.superblock.checkpoint + 1) * superblock_period;
+                                                if need_to_construct_superblock {
+                                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_superblock);
+                                                    act.construct_superblock(ctx, epoch_during_which_we_should_construct_the_superblock).and_then(|_superblock, _act, _ctx| {
+                                                        // Ignore the created superblock: do not
+                                                        // broadcast votes
+                                                        actix::fut::ok(())
+                                                    }).wait(ctx);
+                                                }
                                             } else {
                                                 // TODO: if the target superblock is in this batch but
                                                 // the target block is in the next batch, does this
