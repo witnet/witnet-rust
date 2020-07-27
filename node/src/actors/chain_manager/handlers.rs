@@ -739,7 +739,7 @@ impl PeersBeacons {
     /// The beacons are `Option<CheckpointBeacon>`, so peers that have not
     /// sent us a beacon are counted as `None`. Keeping that in mind, we
     /// reach consensus as long as consensus_threshold % of peers agree.
-    pub fn superblock_consensus(&self, consensus_threshold: usize) -> Option<CheckpointBeacon> {
+    pub fn superblock_consensus(&self, consensus_threshold: usize) -> Option<(LastBeacon, bool)> {
         // We need to add `num_missing_peers` times NO BEACON, to take into account
         // missing outbound peers.
         let num_missing_peers = self.outbound_limit
@@ -768,6 +768,58 @@ impl PeersBeacons {
         // None (consensus % below threshold) should be treated the same way as
         // Some(None) (most of the peers did not send a beacon)
         .and_then(|x| x)
+        .map(|superblock_consensus| {
+            // If there is superblock consensus, we also need to set the block consensus.
+            // We will use all the beacons that set superblock_beacon to superblock_consensus
+            // There are 3 cases:
+            // * A majority of beacons agree on a block. We will use this block as the
+            // block_consensus and unregister all the peers that voted a different block
+            // * There is a majority of beacons but it is below consensus_threshold. We will use
+            // this majority as the block_consensus, and we will unregister the peers that voted on
+            // a different superblock
+            // * There is a tie. Will use any block as the consensus. So if there are 4 votes for
+            // A, 4 votes for B, and 1 vote for C, the consensus can be A, B, or C.
+            let block_beacons: Vec<_> = self
+                .pb
+                .iter()
+                .filter_map(|(_p, b)| {
+                    b.as_ref().and_then(|last_beacon| {
+                        if last_beacon.highest_superblock_checkpoint == superblock_consensus {
+                            Some(last_beacon.highest_block_checkpoint)
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .collect();
+            // Case 1
+            let block_consensus_mode = mode_consensus(block_beacons.iter(), consensus_threshold);
+
+            let (block_consensus, is_there_block_consensus) = if let Some(x) = block_consensus_mode
+            {
+                (*x, true)
+            } else {
+                (
+                    // Case 2
+                    mode_consensus(block_beacons.iter(), 0)
+                        .copied()
+                        .unwrap_or_else(|| {
+                            // Case 3
+                            // TODO: choose one at random?
+                            block_beacons[0]
+                        }),
+                    false,
+                )
+            };
+
+            (
+                LastBeacon {
+                    highest_superblock_checkpoint: superblock_consensus,
+                    highest_block_checkpoint: block_consensus,
+                },
+                is_there_block_consensus,
+            )
+        })
     }
 
     /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
@@ -836,8 +888,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
-        let superblock_consensus = peers_beacons.superblock_consensus(consensus_threshold);
-        let consensus = peers_beacons.block_consensus(consensus_threshold);
+        let beacon_consensus = peers_beacons.superblock_consensus(consensus_threshold);
         let outbound_limit = peers_beacons.outbound_limit;
         let pb_len = peers_beacons.pb.len();
         let peers_needed_for_consensus = outbound_limit
@@ -847,10 +898,14 @@ impl Handler<PeersBeacons> for ChainManager {
             })
             .unwrap_or(1);
         let peers_with_no_beacon = peers_beacons.peers_with_no_beacon();
-        let peers_to_unregister = if let Some(consensus_beacon) = consensus {
-            peers_beacons.decide_peers_to_unregister(consensus_beacon)
-        } else if let Some(superblock_consensus) = superblock_consensus {
-            peers_beacons.decide_peers_to_unregister_s(superblock_consensus)
+        let peers_to_unregister = if let Some((consensus, is_there_block_consensus)) =
+            beacon_consensus.as_ref()
+        {
+            if *is_there_block_consensus {
+                peers_beacons.decide_peers_to_unregister(consensus.highest_block_checkpoint)
+            } else {
+                peers_beacons.decide_peers_to_unregister_s(consensus.highest_superblock_checkpoint)
+            }
         } else if pb_len < peers_needed_for_consensus {
             // Not enough outbound peers, do not unregister any peers
             log::debug!(
@@ -872,12 +927,17 @@ impl Handler<PeersBeacons> for ChainManager {
             }
         };
 
+        let beacon_consensus = beacon_consensus.map(|(beacon, _)| beacon);
+
         let peers_to_unregister = match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
-                match (superblock_consensus, consensus) {
-                    (Some(superblock_consensus), Some(consensus_beacon)) => {
+                match beacon_consensus {
+                    Some(LastBeacon {
+                        highest_superblock_checkpoint: superblock_consensus,
+                        highest_block_checkpoint: consensus_beacon,
+                    }) => {
                         self.sync_target = Some(SyncTarget {
                             block: consensus_beacon,
                             superblock: superblock_consensus,
@@ -953,51 +1013,16 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         Ok(peers_to_unregister)
                     }
-                    // There is superblock consensus but no block consensus
-                    // Sync up to the superblock
-                    (Some(superblock_consensus), None) => {
-                        // TODO: if there is no block consensus just pick one at random from the
-                        // beacons that are in superblock_consensus. And refactor this match into a
-                        // simpler if
-                        let block = Default::default();
-                        self.sync_target = Some(SyncTarget {
-                            block,
-                            superblock: superblock_consensus,
-                        });
-
-                        // There is no clear block consensus but there is superblock consensus
-                        let local_superblock = self.get_superblock_beacon();
-
-                        // If the superblock consensus is the same as the local consensus, we can
-                        // be considered synced. Most likely, the network will have some extra
-                        // blocks that are unknown to this node, but it should be synced after the
-                        // next superblock voting round
-                        if local_superblock == superblock_consensus {
-                            // TODO: almost synced?
-                            self.sm_state = StateMachine::Synced;
-
-                            // Unregister peers with no superblock consensus
-                            Ok(peers_to_unregister)
-                        } else {
-                            log::debug!("Sync target {:?}", self.sync_target);
-
-                            self.request_blocks_batch(ctx);
-                            self.sm_state = StateMachine::Synchronizing;
-
-                            // Unregister peers with no superblock consensus
-                            Ok(peers_to_unregister)
-                        }
-                    }
-                    // There is no superblock consensus but there is block consensus
-                    // This should never happen, but if it does, drop all peers
-                    (None, Some(_consensus_beacon)) => Ok(peers_to_unregister),
                     // No consensus: unregister all peers
-                    (None, None) => Ok(peers_to_unregister),
+                    None => Ok(peers_to_unregister),
                 }
             }
             StateMachine::Synchronizing => {
-                match (superblock_consensus, consensus) {
-                    (Some(superblock_consensus), Some(consensus_beacon)) => {
+                match beacon_consensus {
+                    Some(LastBeacon {
+                        highest_superblock_checkpoint: superblock_consensus,
+                        highest_block_checkpoint: consensus_beacon,
+                    }) => {
                         self.sync_target = Some(SyncTarget {
                             block: consensus_beacon,
                             superblock: superblock_consensus,
@@ -1028,29 +1053,8 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         Ok(peers_to_unregister)
                     }
-                    (Some(superblock_consensus), None) => {
-                        // TODO: if there is no block consensus just pick one at random from the
-                        // beacons that are in superblock_consensus. And refactor this match into a
-                        // simpler if
-                        let block = Default::default();
-                        self.sync_target = Some(SyncTarget {
-                            block,
-                            superblock: superblock_consensus,
-                        });
-                        // TODO: use superblock beacon to check if we are already synchronized
-                        self.request_blocks_batch(ctx);
-
-                        Ok(peers_to_unregister)
-                    }
-                    // There is no superblock consensus but there is block consensus
-                    // This should never happen, but if it does, drop all peers
-                    (None, Some(_consensus_beacon)) => {
-                        self.sm_state = StateMachine::WaitingConsensus;
-
-                        Ok(peers_to_unregister)
-                    }
                     // No consensus: unregister all peers
-                    (None, None) => {
+                    None => {
                         self.sm_state = StateMachine::WaitingConsensus;
 
                         Ok(peers_to_unregister)
@@ -1059,8 +1063,11 @@ impl Handler<PeersBeacons> for ChainManager {
             }
             StateMachine::AlmostSynced | StateMachine::Synced => {
                 let our_beacon = self.get_chain_beacon();
-                match consensus {
-                    Some(consensus_beacon) if consensus_beacon == our_beacon => {
+                match beacon_consensus {
+                    Some(LastBeacon {
+                        highest_block_checkpoint: consensus_beacon,
+                        ..
+                    }) if consensus_beacon == our_beacon => {
                         if self.sm_state == StateMachine::AlmostSynced {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
@@ -1071,12 +1078,15 @@ impl Handler<PeersBeacons> for ChainManager {
                         }
                         Ok(peers_to_unregister)
                     }
-                    Some(_) => {
+                    Some(LastBeacon {
+                        highest_block_checkpoint: consensus_beacon,
+                        ..
+                    }) => {
                         // We are out of consensus!
                         log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
                             our_beacon,
-                            consensus
+                            consensus_beacon,
                         );
 
                         // If we are synced, it does not matter what blocks have been consolidated
