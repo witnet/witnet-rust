@@ -23,7 +23,7 @@ pub enum AddSuperBlockVote {
     /// unverifiable vote because we do not have the required ARS state
     MaybeValid,
     /// vote from a peer not in the ARS
-    NotInArs,
+    NotInSigningCommittee,
     /// valid vote but with different hash
     ValidButDifferentHash,
     /// valid vote with identical hash
@@ -135,7 +135,7 @@ impl SuperBlockState {
                     if sbv.superblock_index == self.current_superblock_index
                         || self.previous_ars_identities.is_none()
                     {
-                        AddSuperBlockVote::NotInArs
+                        AddSuperBlockVote::NotInSigningCommittee
                     } else {
                         AddSuperBlockVote::InvalidIndex
                     }
@@ -497,19 +497,19 @@ mod tests {
     #[test]
     fn superblock_state_default_add_votes() {
         // When the superblock state is initialized to default (for example when starting the node),
-        // all the received superblock votes are marked as `NotInArs`
+        // all the received superblock votes are marked as `NotInSigningCommittee`
         let mut sbs = SuperBlockState::default();
 
         let v1 = SuperBlockVote::new_unsigned(Hash::SHA256([1; 32]), 0);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
 
         let v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 0);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
 
         // Before building the first superblock locally we do not know the current superblock_index,
-        // so all the superblock votes will be "NotInArs"
+        // so all the superblock votes will be "NotInSigningCommittee"
         let v3 = SuperBlockVote::new_unsigned(Hash::SHA256([3; 32]), 33);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
     }
 
     #[test]
@@ -537,7 +537,7 @@ mod tests {
         let mut v1 = SuperBlockVote::new_unsigned(Hash::default(), 0);
         v1.secp256k1_signature.public_key = p2;
 
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
     }
 
     #[test]
@@ -564,7 +564,7 @@ mod tests {
             )
             .unwrap();
         let v1 = SuperBlockVote::new_unsigned(sb1.hash(), 0);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
     }
 
     #[test]
@@ -648,7 +648,7 @@ mod tests {
         let mut sbs = SuperBlockState::default();
 
         let v0 = SuperBlockVote::new_unsigned(Hash::SHA256([1; 32]), 0);
-        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::AlreadySeen);
 
         let block_headers = vec![BlockHeader::default()];
@@ -670,7 +670,7 @@ mod tests {
             )
             .unwrap();
         // After building a new superblock the cache is invalidated but the previous ARS is still empty
-        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.add_vote(&v0), AddSuperBlockVote::AlreadySeen);
 
         let _sb2 = sbs
@@ -685,7 +685,7 @@ mod tests {
             )
             .unwrap();
         let v1 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 1);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::AlreadySeen);
 
         let v2 = SuperBlockVote::new_unsigned(Hash::SHA256([3; 32]), 2);
@@ -732,7 +732,7 @@ mod tests {
             .unwrap();
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
-        // can be valid, they all return `NotInArs`
+        // can be valid, they all return `NotInSigningCommittee`
         let _sb1 = sbs
             .build_superblock(
                 &block_headers,
@@ -802,7 +802,7 @@ mod tests {
             .unwrap();
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
-        // can be valid, they all return `NotInArs`
+        // can be valid, they all return `NotInSigningCommittee`
         let _sb1 = sbs
             .build_superblock(
                 &block_headers,
@@ -873,7 +873,7 @@ mod tests {
             .unwrap();
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
-        // can be valid, they all return `NotInArs`
+        // can be valid, they all return `NotInSigningCommittee`
         let _sb1 = sbs
             .build_superblock(
                 &block_headers,
@@ -967,12 +967,12 @@ mod tests {
             )
             .unwrap();
         let (v1, v2, v3) = create_votes(sb0.hash(), 0);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
-        // can be valid, they all return `NotInArs`
+        // can be valid, they all return `NotInSigningCommittee`
         let sb1 = sbs
             .build_superblock(
                 &block_headers,
@@ -985,9 +985,9 @@ mod tests {
             )
             .unwrap();
         let (v1, v2, v3) = create_votes(sb1.hash(), 1);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
 
         // The ARS included in superblock 1 contains only identity p1, so only the vote v1 will be
         // valid in superblock votes for index 2
@@ -1004,8 +1004,8 @@ mod tests {
             .unwrap();
         let (v1, v2, v3) = create_votes(sb2.hash(), 2);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
 
         // The ARS included in superblock 2 contains only identity p2, so only the vote v2 will be
         // valid in superblock votes for index 3
@@ -1021,9 +1021,9 @@ mod tests {
             )
             .unwrap();
         let (v1, v2, v3) = create_votes(sb3.hash(), 3);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
 
         // The ARS included in superblock 3 contains only identity p3, so only the vote v3 will be
         // valid in superblock votes for index 4
@@ -1039,8 +1039,8 @@ mod tests {
             )
             .unwrap();
         let (v1, v2, v3) = create_votes(sb4.hash(), 4);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::ValidWithSameHash);
     }
 
@@ -1210,7 +1210,7 @@ mod tests {
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v3.secp256k1_signature.public_key = p3;
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
     }
 
     #[test]
