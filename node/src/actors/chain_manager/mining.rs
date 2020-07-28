@@ -422,7 +422,6 @@ impl ChainManager {
                         );
 
                         actix::fut::err(())
-
                     } else {
                         // Update `current_retrieval_count` thanks to interior mutability of the
                         // `cloned_retrieval_count` reference. This is a recursive operation so as
@@ -455,7 +454,7 @@ impl ChainManager {
                         None => {
                             log::error!("ChainInfo is None");
                             return actix::fut::err(());
-                        },
+                        }
                     };
 
                     let block_number_limit = act.chain_state.block_number().saturating_sub(collateral_age);
@@ -472,12 +471,12 @@ impl ChainManager {
                         // the next epoch or at least in two epochs
                         u64::from(checkpoint_period),
                         // The block number must be lower than this limit
-                        block_number_limit
+                        block_number_limit,
                     ) {
                         Ok(collateral) => actix::fut::ok((vrf_proof, collateral)),
                         Err(TransactionError::NoMoney {
                                 available_balance, transaction_value, ..
-                        }) => {
+                            }) => {
                             let required_collateral = transaction_value;
                             log::warn!("Not enough mature UTXOs for collateral for data request {}: Available balance: {}, Required collateral: {}",
                                 Yellow.bold().paint(dr_pointer.to_string()),
@@ -533,7 +532,7 @@ impl ChainManager {
                         Err(e) => {
                             log::error!("Couldn't decode tally value from bytes: {}", e);
                             actix::fut::err(())
-                        },
+                        }
                     }
                 })
                 .and_then(move |(reveal_bytes, vrf_proof_dr, collateral), act, _| {
@@ -590,65 +589,52 @@ impl ChainManager {
     ) {
         self.construct_superblock(ctx, current_epoch)
             .and_then(move |superblock, act, _ctx| {
-                match superblock {
-                    Some(superblock) => {
-                        let superblock_hash = superblock.hash();
-                        log::debug!(
-                            "SUPERBLOCK #{} {}: {:?}",
-                            superblock.index,
-                            superblock_hash,
-                            superblock
-                        );
+                let superblock_hash = superblock.hash();
+                log::debug!(
+                    "SUPERBLOCK #{} {}: {:?}",
+                    superblock.index,
+                    superblock_hash,
+                    superblock
+                );
 
-                        let mut superblock_vote =
-                            SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
-                        let bn256_message = superblock_vote.bn256_signature_message();
-                        let fut = signature_mngr::bn256_sign(bn256_message)
+                let mut superblock_vote =
+                    SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
+                let bn256_message = superblock_vote.bn256_signature_message();
+
+                signature_mngr::bn256_sign(bn256_message)
+                    .map_err(|e| {
+                        log::error!("Failed to sign superblock with bn256 key: {}", e);
+                    })
+                    .and_then(move |bn256_keyed_signature| {
+                        // Actually, we don't need to include the BN256 public key because
+                        // it is stored in the `alt_keys` mapping, indexed by the
+                        // secp256k1 public key hash
+                        let bn256_signature = bn256_keyed_signature.signature;
+                        superblock_vote.set_bn256_signature(bn256_signature);
+                        let secp256k1_message = superblock_vote.secp256k1_signature_message();
+                        let sign_bytes = calculate_sha256(&secp256k1_message).0;
+                        signature_mngr::sign_data(sign_bytes)
+                            .map(move |secp256k1_signature| {
+                                superblock_vote.set_secp256k1_signature(secp256k1_signature);
+
+                                superblock_vote
+                            })
                             .map_err(|e| {
-                                log::error!("Failed to sign superblock with bn256 key: {}", e);
+                                log::error!("Failed to sign superblock with secp256k1 key: {}", e);
                             })
-                            .and_then(move |bn256_keyed_signature| {
-                                // Actually, we don't need to include the BN256 public key because
-                                // it is stored in the `alt_keys` mapping, indexed by the
-                                // secp256k1 public key hash
-                                let bn256_signature = bn256_keyed_signature.signature;
-                                superblock_vote.set_bn256_signature(bn256_signature);
-                                let secp256k1_message =
-                                    superblock_vote.secp256k1_signature_message();
-                                let sign_bytes = calculate_sha256(&secp256k1_message).0;
-                                signature_mngr::sign_data(sign_bytes)
-                                    .map(move |secp256k1_signature| {
-                                        superblock_vote
-                                            .set_secp256k1_signature(secp256k1_signature);
+                    })
+                    .into_actor(act)
+                    .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
+                        Ok(()) => actix::fut::ok(()),
+                        Err(e) => {
+                            log::error!(
+                                "Error when broadcasting recently created superblock: {}",
+                                e
+                            );
 
-                                        superblock_vote
-                                    })
-                                    .map_err(|e| {
-                                        log::error!(
-                                            "Failed to sign superblock with secp256k1 key: {}",
-                                            e
-                                        );
-                                    })
-                            })
-                            .into_actor(act)
-                            .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
-                                Ok(()) => actix::fut::ok(()),
-                                Err(e) => {
-                                    log::error!(
-                                        "Error when broadcasting recently created superblock: {}",
-                                        e
-                                    );
-
-                                    actix::fut::err(())
-                                }
-                            });
-                        actix::fut::Either::A(fut)
-                    }
-                    None => {
-                        log::warn!("No blocks to build a superblock");
-                        actix::fut::Either::B(actix::fut::ok(()))
-                    }
-                }
+                            actix::fut::err(())
+                        }
+                    })
             })
             .wait(ctx)
     }
@@ -1133,6 +1119,7 @@ mod tests {
 
     static LAST_VRF_INPUT: &str =
         "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
+
     #[test]
     fn build_signed_empty_block() {
         // Initialize transaction_pool with 1 transaction

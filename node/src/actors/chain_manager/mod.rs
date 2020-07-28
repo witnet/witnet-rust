@@ -893,7 +893,7 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<Self>,
         block_epoch: u32,
-    ) -> ResponseActFuture<Self, Option<SuperBlock>, ()> {
+    ) -> ResponseActFuture<Self, SuperBlock, ()> {
         let consensus_constants = self.consensus_constants();
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
