@@ -601,7 +601,7 @@ mod tests {
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false];
         assert_eq!(consensus.result, expected_result);
-        let tally_metadata = if let Stage::Tally(tm) = consensus.metadata {
+        let tally_metadata = if let Stage::Tally(tm) = consensus.context.stage {
             tm
         } else {
             panic!("No tally stage");
@@ -633,7 +633,7 @@ mod tests {
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false, false];
         assert_eq!(consensus.result, expected_result);
-        let tally_metadata = if let Stage::Tally(tm) = consensus.metadata {
+        let tally_metadata = if let Stage::Tally(tm) = consensus.context.stage {
             tm
         } else {
             panic!("No tally stage");
@@ -666,7 +666,7 @@ mod tests {
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false, false, false];
         assert_eq!(consensus.result, expected_result);
-        let tally_metadata = if let Stage::Tally(tm) = consensus.metadata {
+        let tally_metadata = if let Stage::Tally(tm) = consensus.context.stage {
             tm
         } else {
             panic!("No tally stage");
@@ -703,7 +703,7 @@ mod tests {
         assert_eq!(output_tally, expected);
 
         let expected_liars = vec![false, false, true];
-        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+        let tally_metadata = if let Stage::Tally(tm) = report.context.stage {
             tm
         } else {
             panic!("No tally stage");
@@ -747,7 +747,7 @@ mod tests {
         assert_eq!(output_tally, expected);
 
         let expected_liars = vec![true, false, false, true];
-        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+        let tally_metadata = if let Stage::Tally(tm) = report.context.stage {
             tm
         } else {
             panic!("No tally stage");
@@ -782,7 +782,7 @@ mod tests {
         assert_eq!(output_tally, expected);
 
         let expected_liars = vec![false, false, false, false];
-        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+        let tally_metadata = if let Stage::Tally(tm) = report.context.stage {
             tm
         } else {
             panic!("No tally stage");

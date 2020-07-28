@@ -423,7 +423,7 @@ pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
 where
     RT: TypeLike,
 {
-    if let Stage::Tally(tally_metadata) = &report.metadata {
+    if let Stage::Tally(tally_metadata) = &report.context.stage {
         let commits_count = committers.len();
         let reveals_count = revealers.len();
         let mut out_of_consensus = committers;
