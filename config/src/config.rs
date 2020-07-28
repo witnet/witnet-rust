@@ -495,7 +495,7 @@ pub fn consensus_constants_from_partial(
         bootstrapping_committee: config
             .bootstrapping_committee
             .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_bootsrapping_committee()),
+            .unwrap_or_else(|| defaults.consensus_constants_bootstrapping_committee()),
         collateral_age: config
             .collateral_age
             .to_owned()

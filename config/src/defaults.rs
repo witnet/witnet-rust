@@ -274,7 +274,7 @@ pub trait Defaults {
     }
 
     /// First superblocks signing committee
-    fn consensus_constants_bootsrapping_committee(&self) -> Vec<String> {
+    fn consensus_constants_bootstrapping_committee(&self) -> Vec<String> {
         // FIXME(#1114): Choose a proper value for the committee
         // [] pkhs
 
