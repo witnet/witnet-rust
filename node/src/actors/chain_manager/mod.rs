@@ -725,7 +725,7 @@ impl ChainManager {
 
                     false
                 }
-                AddSuperBlockVote::NotInArs => {
+                AddSuperBlockVote::NotInSigningCommittee => {
                     log::debug!(
                         "Not forwarding superblock vote: identity not in ARS: {}",
                         superblock_vote.secp256k1_signature.public_key.pkh()
