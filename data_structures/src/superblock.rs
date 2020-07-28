@@ -422,7 +422,8 @@ pub fn calculate_superblock_signing_committee(
         ars_identities.identities
     } else {
         // Start counting the members of the subset from the superblock_hash
-        let mut first = u32::from(*superblock_hash.as_ref().get(0).unwrap()) + current_superblock_index;
+        let mut first =
+            u32::from(*superblock_hash.as_ref().get(0).unwrap()) + current_superblock_index;
         first %= signing_committee_size;
         // Get the subset
         let subset = magic_partition(
