@@ -40,6 +40,7 @@ fn chain_state() {
             initial_difficulty: 0,
             epochs_with_initial_difficulty: 0,
             superblock_signing_committee_size: 100,
+            superblock_agreement_decreasing_period: 100,
         },
         highest_block_checkpoint: CheckpointBeacon {
             checkpoint: 0,

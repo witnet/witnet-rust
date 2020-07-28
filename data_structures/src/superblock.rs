@@ -371,6 +371,7 @@ impl SuperBlockState {
         self.signing_committee = calculate_superblock_signing_committee(
             self.ars_previous_identities.clone(),
             signing_committee_size,
+            superblock_index,
             self.current_superblock_beacon.hash_prev_block,
         );
 
@@ -413,6 +414,7 @@ impl SuperBlockState {
 pub fn calculate_superblock_signing_committee(
     ars_identities: ARSIdentities,
     signing_committee_size: u32,
+    current_superblock_index: u32,
     superblock_hash: Hash,
 ) -> HashSet<PublicKeyHash> {
     // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
@@ -420,7 +422,7 @@ pub fn calculate_superblock_signing_committee(
         ars_identities.identities
     } else {
         // Start counting the members of the subset from the superblock_hash
-        let mut first = u32::from(*superblock_hash.as_ref().get(0).unwrap());
+        let mut first = u32::from(*superblock_hash.as_ref().get(0).unwrap()) + current_superblock_index;
         first %= signing_committee_size;
         // Get the subset
         let subset = magic_partition(
@@ -1432,7 +1434,7 @@ mod tests {
         // Receive three superblock votes for index 1
         // Since the signing_committee_size is 2, one of the votes will not be valid
         let mut v1 = SuperBlockVote::new_unsigned(sb2_hash, 1);
-        v1.secp256k1_signature.public_key = p1;
+        v1.secp256k1_signature.public_key = p3;
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
         assert_eq!(
             sbs.votes_mempool.most_voted_superblock(),
@@ -1446,7 +1448,7 @@ mod tests {
             Some((sb2_hash, 2))
         );
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
-        v3.secp256k1_signature.public_key = p3;
+        v3.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(
             sbs.votes_mempool.most_voted_superblock(),
@@ -1484,6 +1486,7 @@ mod tests {
         let subset = calculate_superblock_signing_committee(
             sbs.ars_previous_identities,
             committee_size,
+            0,
             sbs.current_superblock_beacon.hash_prev_block,
         );
         assert_eq!(ars_identities.len(), subset.len());
@@ -1531,6 +1534,7 @@ mod tests {
         let subset = calculate_superblock_signing_committee(
             sbs.ars_previous_identities,
             committee_size,
+            0,
             sbs.current_superblock_beacon.hash_prev_block,
         );
 

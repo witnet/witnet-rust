@@ -26,7 +26,7 @@
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
 use std::{
-    cmp::Ordering,
+    cmp::{Ordering,max},
     collections::{HashMap, HashSet},
     convert::TryFrom,
     time::Duration,
@@ -40,7 +40,7 @@ use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
 use futures::future::{join_all, Future};
 use itertools::Itertools;
-use witnet_crypto::key::CryptoEngine;
+use witnet_crypto::{key::CryptoEngine, hash::calculate_sha256};
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
@@ -76,7 +76,6 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
-use witnet_crypto::hash::calculate_sha256;
 
 mod actor;
 mod handlers;
@@ -1195,10 +1194,22 @@ impl ChainManager {
                         // Store the ARS and the order of the keys
                         let ars_identities = ARSIdentities::new(ars_members);
 
+                        // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
+                        // Committee_size = expected_size - ((current_index-last_consolidated_index)/decrease_period))
+
+                        let committee_size = calculate_committee_size(
+                            consensus_constants
+                                .superblock_signing_committee_size,
+                            consensus_constants.superblock_agreement_decreasing_period,
+                            chain_info.highest_superblock_checkpoint.checkpoint,
+                                superblock_index
+                        );
+                        log::debug!("The current signing committee size is {}", committee_size);
+
                         let superblock = act.chain_state.superblock_state.build_superblock(
                             &block_headers,
                             ars_identities,
-                            consensus_constants.superblock_signing_committee_size,
+                            committee_size,
                             superblock_index,
                             last_hash,
                             &act.chain_state.alt_keys,
@@ -1830,6 +1841,32 @@ fn show_sync_progress(
     );
 }
 
+// TODO: handle recovery cases after reduction
+fn calculate_committee_size(
+    default_committee_size: u32,
+    decreasing_period: u32,
+    last_consolidated_checkpoint: u32,
+    current_checkpoint: u32
+) -> u32 {
+    // If the last consolidated superblock is 0, we return the default committee size
+    if last_consolidated_checkpoint == 0 {
+        default_committee_size
+    } else {
+        // We calculate the difference between the last consolidated superblock checkpoint and the current one
+        // If this difference exceeds the decreasing_period, we reduce the committee size
+        // The minimum committee size is 1
+        max(
+            default_committee_size
+                .saturating_sub(
+                    current_checkpoint
+                        .saturating_sub(last_consolidated_checkpoint)
+                        / decreasing_period,
+                ),
+            1,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use witnet_data_structures::{
@@ -1969,6 +2006,82 @@ mod tests {
                 checkpoint: 0,
                 hash_prev_block: Hash::SHA256([1; 32]),
             }
+        );
+    }
+
+    #[test]
+    fn test_calculate_committee_size() {
+
+        let mut size = calculate_committee_size(
+            5,
+            4,
+            0,
+            1
+        );
+
+        assert_eq!(
+            size,
+            5
+        );
+
+        size = calculate_committee_size(
+            5,
+            4,
+            0,
+            300
+        );
+
+        assert_eq!(
+            size,
+            5
+        );
+
+        size = calculate_committee_size(
+            5,
+            4,
+            3,
+            4
+        );
+
+        assert_eq!(
+            size,
+            5
+        );
+
+        size = calculate_committee_size(
+            5,
+            4,
+            3,
+            7
+        );
+
+        assert_eq!(
+            size,
+            4
+        );
+
+        size = calculate_committee_size(
+            5,
+            4,
+            3,
+            12
+        );
+
+        assert_eq!(
+            size,
+            3
+        );
+
+        size = calculate_committee_size(
+            5,
+            4,
+            3,
+            200
+        );
+
+        assert_eq!(
+            size,
+            1
         );
     }
 }
