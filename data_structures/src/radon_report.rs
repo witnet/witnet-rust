@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
 
@@ -104,6 +104,7 @@ pub trait TypeLike: Clone + Sized {
 /// Scripts that are executed successfully in their full extent will therefore report here the
 /// index of the last call in the script. On the contrary, scripts that fail will report the index
 /// of the call that failed.
+#[derive(Clone, Debug, Serialize)]
 pub struct ReportContext<RT>
 where
     RT: TypeLike,
@@ -117,11 +118,11 @@ where
     /// The operator in the last call that has been processed.
     pub call_operator: Option<u8>,
     /// The timestamp when the execution of the script finished.
-    pub completion_time: Option<Instant>,
+    pub completion_time: Option<SystemTime>,
     /// Metadata that is specific to the stage of the script.
     pub stage: Stage<RT>,
     /// The timestamp when the execution of the script began.
-    pub start_time: Option<Instant>,
+    pub start_time: Option<SystemTime>,
     /// The index of the last script or subscript in a stage that has been processed.
     pub script_index: Option<u8>,
 }
@@ -151,18 +152,20 @@ where
 {
     /// Set start time.
     pub fn start(&mut self) {
-        self.start_time = Some(Instant::now());
+        self.start_time = Some(SystemTime::now());
     }
 
     /// Set completion time.
     pub fn complete(&mut self) {
-        self.completion_time = Some(Instant::now())
+        self.completion_time = Some(SystemTime::now())
     }
 
     /// Compute difference between start and completion time.
     fn duration(&self) -> Duration {
         match (self.start_time, self.completion_time) {
-            (Some(start_time), Some(completion_time)) => completion_time.duration_since(start_time),
+            (Some(start_time), Some(completion_time)) => completion_time
+                .duration_since(start_time)
+                .expect("Completion time should always be equal or greater than start time"),
             _ => Duration::default(),
         }
     }
