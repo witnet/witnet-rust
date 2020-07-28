@@ -17,8 +17,8 @@ pub struct RadonReport<RT>
 where
     RT: TypeLike,
 {
-    /// Stage-specific metadata.
-    pub metadata: Stage<RT>,
+    /// Execution details, including stage-specific metadata.
+    pub context: ReportContext<RT>,
     /// Vector of partial results (the results in between each of the operators in a script)
     pub partial_results: Option<Vec<RT>>,
     /// This the intercepted result of the script execution: any `IE` raised in runtime has already
@@ -38,7 +38,7 @@ where
     pub fn from_result(result: Result<RT, RT::Error>, context: &ReportContext<RT>) -> Self {
         let intercepted = RT::intercept(result);
         RadonReport {
-            metadata: context.stage.clone(),
+            context: context.clone(),
             partial_results: None,
             result: intercepted,
             running_time: context.duration(),
@@ -58,7 +58,7 @@ where
         .clone();
 
         RadonReport {
-            metadata: context.stage.clone(),
+            context: context.clone(),
             partial_results: Some(intercepted),
             result,
             running_time: context.duration(),
