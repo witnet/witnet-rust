@@ -301,7 +301,7 @@ pub fn calculate_superblock_signing_committee(
 }
 
 // Take size element out of v.len() starting with element at index first:
-// magic_partition(v, 3, 3), v=[]0, 1, 2, 3, 4, 5].
+// magic_partition(v, 3, 3), v=[0, 1, 2, 3, 4, 5].
 // Will return elements at index 3, 5, 1.
 fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
     if first >= v.len() {
@@ -1143,9 +1143,9 @@ mod tests {
     }
 
     #[test]
-    fn superblock_voted_by_singing_committee() {
+    fn superblock_voted_by_signing_committee() {
         // When adding a superblock vote, it should be valid only by members of the
-        // superblock singning commiittee.
+        // superblock signing commiittee.
         let mut sbs = SuperBlockState::default();
 
         let p1 = PublicKey::from_bytes([1; 33]);
@@ -1248,7 +1248,7 @@ mod tests {
                 genesis_hash,
             )
             .unwrap();
-        sbs.previous_ordered_ars_identities = vec![p1.pkh(), p2.pkh(), p3.pkh()];
+        sbs.previous_ordered_ars_identities = ars_identities.clone();
         sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
         let committee_size = 4;
         let subset = calculate_superblock_signing_committee(
@@ -1308,16 +1308,7 @@ mod tests {
                 genesis_hash,
             )
             .unwrap();
-        sbs.previous_ordered_ars_identities = vec![
-            p1.pkh(),
-            p2.pkh(),
-            p3.pkh(),
-            p4.pkh(),
-            p5.pkh(),
-            p6.pkh(),
-            p7.pkh(),
-            p8.pkh(),
-        ];
+        sbs.previous_ordered_ars_identities = ars_identities.clone();
         sbs.previous_ars_identities = Some(ars_identities.iter().cloned().collect());
         let committee_size = 4;
         let subset = calculate_superblock_signing_committee(
@@ -1326,9 +1317,73 @@ mod tests {
             committee_size,
             sbs.current_superblock_hash,
         );
+
+        // The members of the signing_committee should be p3, p5, p7 and p1
+        assert_eq!(
+            subset
+                .as_ref()
+                .map_or(Some(false), |x| { Some(x.contains(&p3.pkh())) }),
+            Some(true)
+        );
+
+        assert_eq!(
+            subset
+                .as_ref()
+                .map_or(Some(false), |x| { Some(x.contains(&p5.pkh())) }),
+            Some(true)
+        );
+
+        assert_eq!(
+            subset
+                .as_ref()
+                .map_or(Some(false), |x| { Some(x.contains(&p7.pkh())) }),
+            Some(true)
+        );
+
+        assert_eq!(
+            subset
+                .as_ref()
+                .map_or(Some(false), |x| { Some(x.contains(&p1.pkh())) }),
+            Some(true)
+        );
+
         assert_eq!(
             usize::try_from(committee_size).unwrap(),
             subset.unwrap().len()
+        );
+    }
+
+    #[test]
+    fn test_magic_particion() {
+        // Tests the magic partition function
+        let empty_vec: Vec<i32> = vec![];
+
+        assert_eq!(magic_partition(&empty_vec, 0, 5), empty_vec);
+        assert_eq!(
+            magic_partition(&[0, 1, 2, 3, 4, 5, 6], 0, 5),
+            vec![0, 1, 2, 3, 4]
+        );
+        assert_eq!(
+            magic_partition(&[0, 1, 2, 3, 4, 5, 6], 4, 5),
+            vec![4, 5, 6, 0, 1]
+        );
+        assert_eq!(
+            magic_partition(&[0, 1, 2, 3, 4, 5, 6], 2, 5),
+            vec![2, 3, 4, 5, 6]
+        );
+        assert_eq!(
+            magic_partition(&[0, 1, 2, 3, 4, 5, 6], 3, 5),
+            vec![3, 4, 5, 6, 0]
+        );
+        assert_eq!(magic_partition(&[0, 1, 2, 3, 4, 5, 6], 4, 2), vec![4, 0]);
+        assert_eq!(
+            magic_partition(&[0, 1, 2, 3, 4, 5, 6], 5, 6),
+            vec![5, 6, 0, 1, 2, 3]
+        );
+        assert_eq!(magic_partition(&[0, 1, 2, 3, 4, 5, 6], 6, 3), vec![6, 1, 3]);
+        assert_eq!(
+            magic_partition(&[0, 1, 2, 3, 4, 5, 6], 1, 5),
+            vec![1, 2, 3, 4, 5]
         );
     }
 
