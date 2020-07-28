@@ -982,11 +982,13 @@ impl ChainManager {
                         .collect()
                 }
             };
+
             let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
 
             let superblock = act.chain_state.superblock_state.build_superblock(
                 &block_headers,
                 &ars_members,
+                &act.chain_state.last_ars,
                 ars_ordered_keys,
                 consensus_constants.superblock_signing_committee_size,
                 superblock_index,
