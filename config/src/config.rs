@@ -430,6 +430,12 @@ pub fn consensus_constants_from_partial(
             .superblock_period
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_superblock_period()),
+        superblock_agreement_decreasing_period: config
+            .superblock_agreement_decreasing_period
+            .to_owned()
+            .unwrap_or_else(|| {
+                defaults.consensus_constants_superblock_agreement_decreasing_period()
+            }),
         bootstrap_hash: config
             .bootstrap_hash
             .to_owned()
