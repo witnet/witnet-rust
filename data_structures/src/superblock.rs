@@ -175,63 +175,52 @@ impl SuperBlockState {
         ars_ordered_bn256_keys: &[Bn256PublicKey],
         superblock_index: u32,
         last_block_in_previous_superblock: Hash,
-    ) -> Option<SuperBlock> {
+    ) -> SuperBlock {
         self.current_superblock_index = superblock_index;
         self.votes_on_each_superblock.clear();
         self.votes_of_each_identity.clear();
         let key_leaves = hash_key_leaves(ars_ordered_bn256_keys);
 
-        match mining_build_superblock(
+        let superblock = mining_build_superblock(
             block_headers,
             &key_leaves,
             superblock_index,
             last_block_in_previous_superblock,
-        ) {
-            None => {
-                // Clear state when there is no superblock
-                // Note that the ARS members list is not updated in this case
-                self.received_superblocks.clear();
+        );
 
-                None
-            }
-            Some(superblock) => {
-                let superblock_hash = superblock.hash();
-                self.current_superblock_hash = superblock_hash;
+        self.current_superblock_hash = superblock.hash();
 
-                // Save ARS identities:
-                // previous = current
-                // current = ars_pkh_keys
+        // Save ARS identities:
+        // previous = current
+        // current = ars_pkh_keys
 
-                self.previous_ars_identities =
-                    Some(std::mem::take(&mut self.current_ars_identities));
-                self.current_ars_identities
-                    .extend(ars_pkh_keys.iter().cloned());
-                self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
-                // For the current index, update the signing committee
-                self.update_superblock_signing_committee(superblock_index);
+        self.previous_ars_identities = Some(std::mem::take(&mut self.current_ars_identities));
+        self.current_ars_identities
+            .extend(ars_pkh_keys.iter().cloned());
+        self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
+        // For the current index, update the signing committee
+        self.update_superblock_signing_committee(superblock_index);
 
-                // This replace is needed because the for loop below needs unique access to self,
-                // but it cannot have unique access to self if it is iterating over
-                // self.received_superblocks.drain()
-                let mut old_superblock_votes =
-                    std::mem::replace(&mut self.received_superblocks, HashSet::new());
-                // Process old superblock votes
-                for sbv in old_superblock_votes.drain() {
-                    // Validate again, check if they are valid now
-                    let valid = self.is_valid(&sbv);
+        // This replace is needed because the for loop below needs unique access to self,
+        // but it cannot have unique access to self if it is iterating over
+        // self.received_superblocks.drain()
+        let mut old_superblock_votes =
+            std::mem::replace(&mut self.received_superblocks, HashSet::new());
+        // Process old superblock votes
+        for sbv in old_superblock_votes.drain() {
+            // Validate again, check if they are valid now
+            let valid = self.is_valid(&sbv);
 
-                    // If the superblock vote is valid, store it
-                    if valid == Some(true) {
-                        self.insert_vote(sbv);
-                    }
-                }
-                // old_superblock_votes should be empty, as we have drained it
-                // But swap it back to reuse allocated memory
-                self.received_superblocks = old_superblock_votes;
-
-                Some(superblock)
+            // If the superblock vote is valid, store it
+            if valid == Some(true) {
+                self.insert_vote(sbv);
             }
         }
+        // old_superblock_votes should be empty, as we have drained it
+        // But swap it back to reuse allocated memory
+        self.received_superblocks = old_superblock_votes;
+
+        superblock
     }
 
     /// Returns the last superblock hash and index.
@@ -265,31 +254,50 @@ impl SuperBlockState {
 }
 
 /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
+/// // remove return Option
 pub fn mining_build_superblock(
     block_headers: &[BlockHeader],
     ars_ordered_hash_leaves: &[Hash],
     index: u32,
     last_block_in_previous_superblock: Hash,
-) -> Option<SuperBlock> {
-    let last_block = block_headers.last()?.hash();
-    let merkle_drs: Vec<Hash> = block_headers
-        .iter()
-        .map(|b| b.merkle_roots.dr_hash_merkle_root)
-        .collect();
-    let merkle_tallies: Vec<Hash> = block_headers
-        .iter()
-        .map(|b| b.merkle_roots.tally_hash_merkle_root)
-        .collect();
+) -> SuperBlock {
+    let last_block = block_headers.last();
+    match last_block {
+        None =>
+        // Build "empty" Superblock (there were no blocks during super-epoch)
+        {
+            SuperBlock {
+                ars_length: ars_ordered_hash_leaves.len() as u64,
+                ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
+                data_request_root: Hash::default(),
+                tally_root: Hash::default(),
+                index,
+                last_block: last_block_in_previous_superblock,
+                last_block_in_previous_superblock,
+            }
+        }
+        Some(last_block_header) => {
+            let last_block_hash = last_block_header.hash();
+            let merkle_drs: Vec<Hash> = block_headers
+                .iter()
+                .map(|b| b.merkle_roots.dr_hash_merkle_root)
+                .collect();
+            let merkle_tallies: Vec<Hash> = block_headers
+                .iter()
+                .map(|b| b.merkle_roots.tally_hash_merkle_root)
+                .collect();
 
-    Some(SuperBlock {
-        ars_length: ars_ordered_hash_leaves.len() as u64,
-        data_request_root: hash_merkle_tree_root(&merkle_drs),
-        tally_root: hash_merkle_tree_root(&merkle_tallies),
-        ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
-        index,
-        last_block,
-        last_block_in_previous_superblock,
-    })
+            SuperBlock {
+                ars_length: ars_ordered_hash_leaves.len() as u64,
+                data_request_root: hash_merkle_tree_root(&merkle_drs),
+                tally_root: hash_merkle_tree_root(&merkle_tallies),
+                ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
+                index,
+                last_block: last_block_hash,
+                last_block_in_previous_superblock,
+            }
+        }
+    }
 }
 
 /// Takes a set of keys and calculates their hashes roots to be used as leaves.
