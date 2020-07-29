@@ -571,20 +571,6 @@ impl ChainManager {
                 // Insert candidate block into `block_chain` state
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
 
-                // Store the ARS and the order of the keys
-                let trs = reputation_engine.trs();
-                let current_ars = reputation_engine
-                    .ars()
-                    .active_identities()
-                    .cloned()
-                    .collect();
-                let alt_keys = &self.chain_state.alt_keys;
-
-                let ordered_alts: Vec<Bn256PublicKey> = alt_keys.get_rep_ordered_bn256_list(trs);
-                // last ars with previous block ars info
-                self.chain_state.last_ars = current_ars;
-                self.chain_state.last_ars_ordered_keys = ordered_alts;
-
                 match self.sm_state {
                     StateMachine::WaitingConsensus => {
                         // Persist finished data requests into storage
@@ -968,15 +954,20 @@ impl ChainManager {
         .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
         .and_then(move |(block_headers, last_hash), act, _ctx| {
             let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-            let ars_members = {
+            let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
+
+            let ars_members: Vec<PublicKeyHash> = {
                 // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
                 // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                 // the bootstrap committee signs is at least epoch activity_period + collateral_age
+
                 if act.current_epoch.unwrap()
                     > chain_info.consensus_constants.collateral_age
                         + chain_info.consensus_constants.activity_period
                 {
-                    act.chain_state.last_ars.clone()
+                    act.chain_state
+                        .alt_keys
+                        .get_rep_ordered_pkh_list(reputation_engine.trs())
                 } else {
                     chain_info
                         .consensus_constants
@@ -987,13 +978,16 @@ impl ChainManager {
                 }
             };
 
-            let ars_ordered_keys = &act.chain_state.last_ars_ordered_keys;
+            // Store the ARS and the order of the keys
+            let trs = reputation_engine.trs();
+
+            let ars_ordered_keys: Vec<Bn256PublicKey> =
+                act.chain_state.alt_keys.get_rep_ordered_bn256_list(trs);
 
             let superblock = act.chain_state.superblock_state.build_superblock(
                 &block_headers,
                 &ars_members,
-                &act.chain_state.last_ars,
-                ars_ordered_keys,
+                &ars_ordered_keys,
                 consensus_constants.superblock_signing_committee_size,
                 superblock_index,
                 last_hash,

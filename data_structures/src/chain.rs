@@ -2714,10 +2714,6 @@ pub struct ChainState {
     pub node_stats: NodeStats,
     /// Alternative public key mapping
     pub alt_keys: AltKeys,
-    /// Last ARS pkhs
-    pub last_ars: Vec<PublicKeyHash>,
-    /// Last ARS keys vector ordered by reputation
-    pub last_ars_ordered_keys: Vec<Bn256PublicKey>,
     /// Current superblock state
     pub superblock_state: SuperBlockState,
 }

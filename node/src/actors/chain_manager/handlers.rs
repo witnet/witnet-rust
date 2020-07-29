@@ -4,8 +4,8 @@ use std::{collections::BTreeMap, collections::HashMap, convert::TryFrom, net::So
 
 use witnet_data_structures::{
     chain::{
-        get_utxo_info, Bn256PublicKey, ChainState, CheckpointBeacon, DataRequestInfo,
-        DataRequestReport, Epoch, Hash, Hashable, NodeStats, PublicKeyHash, Reputation, UtxoInfo,
+        get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
+        Hash, Hashable, NodeStats, PublicKeyHash, Reputation, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -346,18 +346,6 @@ impl Handler<AddBlocks> for ChainManager {
                             if block.hash() != consensus_constants.genesis_hash {
                                 if let Some(ref mut rep_engine) = self.chain_state.reputation_engine
                                 {
-                                    // Store the ARS and the order of the keys
-                                    let trs = rep_engine.trs();
-                                    let current_ars =
-                                        rep_engine.ars().active_identities().cloned().collect();
-                                    let alt_keys = &self.chain_state.alt_keys;
-
-                                    let ordered_alts: Vec<Bn256PublicKey> =
-                                        alt_keys.get_rep_ordered_bn256_list(trs);
-                                    // last ars with previous block ars info
-                                    self.chain_state.last_ars = current_ars;
-                                    self.chain_state.last_ars_ordered_keys = ordered_alts;
-
                                     if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
                                         log::error!(
                                             "Error updating reputation before processing block: {}",
