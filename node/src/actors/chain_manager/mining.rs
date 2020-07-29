@@ -592,7 +592,7 @@ impl ChainManager {
             .and_then(move |superblock, act, _ctx| {
                 let superblock_hash = superblock.hash();
                 log::debug!(
-                    "SUPERBLOCK #{} {}: {:?}",
+                    "Local SUPERBLOCK #{} {}: {:?}",
                     superblock.index,
                     superblock_hash,
                     superblock
