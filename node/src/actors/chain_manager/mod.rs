@@ -247,7 +247,7 @@ impl ChainManager {
         )
         .into_actor(self)
         .and_then(|_, _, _| {
-            log::trace!("Successfully persisted chain_info into storage");
+            log::debug!("Successfully persisted chain_info into storage");
             fut::ok(())
         })
         .map_err(|err, _, _| log::error!("Failed to persist chain_info into storage: {}", err))
@@ -1059,6 +1059,7 @@ impl ChainManager {
                     act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
                         act.chain_state.superblock_state.get_beacon();
                     if act.sm_state == StateMachine::Synced {
+                        // Persist previous_chain_state with current superblock_state
                         act.persist_chain_state(ctx);
                     }
                     log::info!("Consensus! Superblock {:?}", act.get_superblock_beacon());
@@ -1105,14 +1106,6 @@ impl ChainManager {
                         superblock_index,
                         last_hash,
                     );
-
-                    if act.sm_state != StateMachine::Synced {
-                        // In synchronizing state, the consensus beacon is the one we just created
-                        act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
-                            act.chain_state.superblock_state.get_beacon();
-                        log::info!("Consensus while sync! Superblock {:?}", act.get_superblock_beacon());
-                        act.persist_chain_state(ctx);
-                    };
 
                     actix::fut::ok(superblock)
                 }

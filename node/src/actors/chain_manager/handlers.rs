@@ -422,7 +422,15 @@ impl Handler<AddBlocks> for ChainManager {
                     actix::fut::Either::A(self.construct_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock)
                         .and_then({ let sync_target = sync_target.clone(); move |superblock, act, ctx| {
                             if superblock.hash() == sync_target.superblock.hash_prev_block {
+                                // In synchronizing state, the consensus beacon is the one we just created
+                                act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
+                                    act.chain_state.superblock_state.get_beacon();
+                                log::info!("Consensus while sync! Superblock {:?}", act.get_superblock_beacon());
+                                // Persist current_chain_state with
+                                // current_superblock_state and the new superblock beacon
+                                act.last_chain_state = act.chain_state.clone();
                                 act.persist_chain_state(ctx);
+
                                 actix::fut::ok(())
                             } else {
                                 // The superblock hash is different from what it
