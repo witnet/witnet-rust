@@ -176,11 +176,9 @@ impl SuperBlockState {
     /// next superblock. The votes for the current superblock must be validated using
     /// `ars_pkh_keys_ordered` will be used to calculate the superblock_signing_committee
     /// `previous_ars_identities`. The ordered bn256 keys will be merkelized and appended to the superblock
-    #[allow(clippy::too_many_arguments)]
     pub fn build_superblock(
         &mut self,
         block_headers: &[BlockHeader],
-        ars_pkh_keys: &[PublicKeyHash],
         ars_pkh_keys_ordered: &[PublicKeyHash],
         ars_ordered_bn256_keys: &[Bn256PublicKey],
         signing_committee_size: u32,
@@ -205,7 +203,7 @@ impl SuperBlockState {
 
         self.previous_ars_identities = Some(std::mem::take(&mut self.current_ars_identities));
         self.current_ars_identities
-            .extend(ars_pkh_keys.iter().cloned());
+            .extend(ars_pkh_keys_ordered.iter().cloned());
         self.previous_ars_ordered_keys = ars_ordered_bn256_keys.to_vec();
         self.previous_ordered_ars_identities = self.current_ordered_ars_identities.to_vec();
         self.current_ordered_ars_identities = ars_pkh_keys_ordered.to_vec();
@@ -628,6 +626,7 @@ mod tests {
             current_superblock_index: 0,
             identities_that_voted_more_than_once: Default::default(),
             previous_ars_identities: Some(HashSet::new()),
+            previous_ordered_ars_identities: vec![],
             previous_ars_ordered_keys: vec![bls_pk],
             received_superblocks: Default::default(),
             votes_of_each_identity: Default::default(),
@@ -1030,7 +1029,7 @@ mod tests {
     #[test]
     fn superblock_voted_by_signing_committee() {
         // When adding a superblock vote, it should be valid only by members of the
-        // superblock signing commiittee.
+        // superblock signing committee.
         let mut sbs = SuperBlockState::default();
 
         let p1 = PublicKey::from_bytes([1; 33]);
@@ -1075,8 +1074,7 @@ mod tests {
             &hash_key_leaves(&ordered_ars),
             1,
             genesis_hash,
-        )
-        .unwrap();
+        );
         let sb2_hash = expected_sb2.hash();
 
         // Receive three superblock votes for index 1
