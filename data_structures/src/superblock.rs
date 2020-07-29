@@ -197,10 +197,6 @@ impl SuperBlockState {
             last_block_in_previous_superblock,
         );
 
-        // Save ARS identities:
-        // previous = current
-        // current = ars_pkh_keys
-
         self.previous_ars_identities = Some(std::mem::take(&mut self.current_ars_identities));
         self.current_ars_identities
             .extend(ars_pkh_keys_ordered.iter().cloned());
@@ -311,7 +307,6 @@ fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
 }
 
 /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
-/// // remove return Option
 pub fn mining_build_superblock(
     block_headers: &[BlockHeader],
     ars_ordered_hash_leaves: &[Hash],
@@ -326,11 +321,10 @@ pub fn mining_build_superblock(
             SuperBlock {
                 ars_length: ars_ordered_hash_leaves.len() as u64,
                 ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
-                data_request_root: Hash::default(),
-                tally_root: Hash::default(),
                 index,
                 last_block: last_block_in_previous_superblock,
                 last_block_in_previous_superblock,
+                ..Default::default()
             }
         }
         Some(last_block_header) => {
@@ -346,12 +340,12 @@ pub fn mining_build_superblock(
 
             SuperBlock {
                 ars_length: ars_ordered_hash_leaves.len() as u64,
-                data_request_root: hash_merkle_tree_root(&merkle_drs),
-                tally_root: hash_merkle_tree_root(&merkle_tallies),
                 ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
+                data_request_root: hash_merkle_tree_root(&merkle_drs),
                 index,
                 last_block: last_block_hash,
                 last_block_in_previous_superblock,
+                tally_root: hash_merkle_tree_root(&merkle_tallies),
             }
         }
     }
@@ -390,12 +384,12 @@ mod tests {
 
         let expected = SuperBlock {
             ars_length: 0,
-            data_request_root: default_hash,
-            tally_root: default_hash,
             ars_root: Hash::from(EMPTY_SHA256),
+            data_request_root: default_hash,
             index: 0,
             last_block: default_hash,
             last_block_in_previous_superblock: default_hash,
+            tally_root: default_hash,
         };
         assert_eq!(superblock, expected);
     }
@@ -434,12 +428,12 @@ mod tests {
 
         let expected_superblock = SuperBlock {
             ars_length: 1,
-            data_request_root: dr_merkle_root_1,
-            tally_root: tally_merkle_root_1,
             ars_root: default_hash,
+            data_request_root: dr_merkle_root_1,
             index: 0,
             last_block: block.hash(),
             last_block_in_previous_superblock: default_hash,
+            tally_root: tally_merkle_root_1,
         };
 
         let superblock = mining_build_superblock(&[block], &[default_hash], 0, default_hash);
@@ -498,12 +492,12 @@ mod tests {
 
         let expected_superblock = SuperBlock {
             ars_length: 1,
-            data_request_root: expected_superblock_dr_root,
-            tally_root: expected_superblock_tally_root,
             ars_root: default_hash,
+            data_request_root: expected_superblock_dr_root,
             index: 0,
             last_block: block_2.hash(),
             last_block_in_previous_superblock: default_hash,
+            tally_root: expected_superblock_tally_root,
         };
 
         let superblock =
@@ -581,10 +575,10 @@ mod tests {
 
     #[test]
     fn superblock_state_first_superblock_empty() {
-        // If the first superblock is None, the state is not updated except for the superblock_index
+        // If there were no blocks, there will be a second empty superblock. The state is not
+        // updated except for the superblock_index
         let mut sbs = SuperBlockState::default();
 
-        // If there were no blocks, there will be no superblock
         let block_headers = vec![];
         let ars_identities = vec![PublicKeyHash::from_bytes(&[1; 20]).unwrap()];
         let bls_pk =
@@ -604,12 +598,12 @@ mod tests {
 
         let expected_superblock = SuperBlock {
             ars_length: 1,
-            data_request_root: Hash::default(),
-            tally_root: Hash::default(),
             ars_root: hash_merkle_tree_root(&hash_key_leaves(&[bls_pk.clone()])),
+            data_request_root: Hash::default(),
             index: 0,
             last_block: genesis_hash,
             last_block_in_previous_superblock: genesis_hash,
+            tally_root: Hash::default(),
         };
         assert_eq!(first_superblock, expected_superblock);
 
@@ -620,24 +614,19 @@ mod tests {
 
         let mut expected_sbs = SuperBlockState {
             current_ars_identities: ars_identities.iter().cloned().collect(),
-            current_ordered_ars_identities: ars_identities.iter().cloned().collect(),
+            current_ordered_ars_identities: ars_identities.to_vec(),
             current_signing_committee: Some(HashSet::new()),
             current_superblock_hash: expected_superblock_hash,
-            current_superblock_index: 0,
-            identities_that_voted_more_than_once: Default::default(),
             previous_ars_identities: Some(HashSet::new()),
-            previous_ordered_ars_identities: vec![],
             previous_ars_ordered_keys: vec![bls_pk],
-            received_superblocks: Default::default(),
-            votes_of_each_identity: Default::default(),
-            votes_on_each_superblock: Default::default(),
+            ..Default::default()
         };
         expected_sbs.current_superblock_index = 0;
         assert_eq!(sbs, expected_sbs);
     }
 
     #[test]
-    fn superblock_state_second_superblock_none() {
+    fn superblock_state_second_superblock_empty() {
         let mut sbs = SuperBlockState::default();
 
         let block_headers = vec![BlockHeader::default()];
@@ -658,12 +647,12 @@ mod tests {
 
         let expected_second_superblock = SuperBlock {
             ars_length: 1,
-            data_request_root: Hash::default(),
-            tally_root: Hash::default(),
             ars_root: hash_merkle_tree_root(&hash_key_leaves(&[bls_pk.clone()])),
+            data_request_root: Hash::default(),
             index: 1,
             last_block: genesis_hash,
             last_block_in_previous_superblock: genesis_hash,
+            tally_root: Hash::default(),
         };
         let mut expected_sbs = sbs.clone();
         assert_eq!(
