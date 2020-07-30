@@ -244,6 +244,11 @@ impl SuperBlockState {
         }
     }
 
+    /// Returns the current superblock votes.
+    pub fn get_current_superblock_votes(&self) -> HashSet<SuperBlockVote> {
+        self.received_superblocks.clone()
+    }
+
     /// Returns the superblock hash and the number of votes of the most voted superblock.
     /// In case of tie, returns one of the superblocks with the most votes.
     /// If there are zero votes, returns None.
