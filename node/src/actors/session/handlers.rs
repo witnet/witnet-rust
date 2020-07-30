@@ -29,9 +29,9 @@ use crate::actors::{
     messages::{
         AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlockVote, AddTransaction,
         CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
-        GetHighestCheckpointBeacon, GetItem, PeerBeacon, RemoveAddressesFromTried, RequestPeers,
-        SendGetPeers, SendInventoryAnnouncement, SendInventoryItem, SendLastBeacon,
-        SendSuperBlockVote, SessionUnitResult,
+        GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
+        RemoveAddressesFromTried, RequestPeers, SendGetPeers, SendInventoryAnnouncement,
+        SendInventoryItem, SendLastBeacon, SendSuperBlockVote, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -227,9 +227,20 @@ impl StreamHandler<BytesMut, Error> for Session {
                             .into_actor(self)
                             .map_err(|e, _, _| log::error!("Inventory request error: {}", e))
                             .and_then(move |item_responses, session, _| {
+                                let mut send_superblock_votes = false;
                                 for (i, item_response) in item_responses.into_iter().enumerate() {
                                     match item_response {
-                                        Ok(item) => send_inventory_item_msg(session, item),
+                                        Ok(item) => {
+                                            if let InventoryItem::Block(block) = &item {
+                                                if block.block_header.beacon
+                                                    == session.last_beacon.highest_block_checkpoint
+                                                {
+                                                    send_superblock_votes = true;
+                                                }
+                                            }
+
+                                            send_inventory_item_msg(session, item)
+                                        }
                                         Err(e) => {
                                             // Failed to retrieve item from inventory manager
                                             match inventory[i] {
@@ -248,14 +259,43 @@ impl StreamHandler<BytesMut, Error> for Session {
                                                     );
                                                 }
                                             }
-
                                             // Stop block sending if an error occurs
                                             break;
                                         }
                                     }
                                 }
 
-                                actix::fut::ok(())
+                                actix::fut::ok(send_superblock_votes)
+                            })
+                            .and_then(|send_superblock_votes, session, _ctx| {
+                                // If this is the last batch, send to the peer all the superblock votes that are currently stored in
+                                // ChainManager. This allows faster synchronization in some cases, because if a node has not
+                                // received enough votes, it will revert to the last consolidated superblock and start the
+                                // synchronization again.
+                                // Note that it is not strictly needed as part of the protocol.
+                                let chain_manager_addr = ChainManager::from_registry();
+                                let fut = chain_manager_addr
+                                    .send(GetSuperBlockVotes)
+                                    .into_actor(session)
+                                    .map(|res, session, _ctx| match res {
+                                        Ok(votes) => {
+                                            for vote in votes {
+                                                send_superblock_vote(session, vote);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            log::error!("Inventory request error (votes): {}", e)
+                                        }
+                                    })
+                                    .map_err(|e, _act, _ctx| {
+                                        log::error!("Inventory request error (votes): {}", e)
+                                    });
+
+                                if send_superblock_votes {
+                                    actix::fut::Either::A(fut)
+                                } else {
+                                    actix::fut::Either::B(actix::fut::ok(()))
+                                }
                             })
                             .wait(ctx);
                     }
@@ -1016,7 +1056,7 @@ mod tests {
             check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch),
             Err(HandshakeError::PeerBeaconDifferentBlockHash {
                 current_beacon: current_beacon.clone(),
-                received_beacon: received_beacon.clone()
+                received_beacon: received_beacon.clone(),
             })
         );
         // And the other node cannot peer with us
@@ -1024,7 +1064,7 @@ mod tests {
             check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch),
             Err(HandshakeError::PeerBeaconDifferentBlockHash {
                 current_beacon: received_beacon,
-                received_beacon: current_beacon
+                received_beacon: current_beacon,
             })
         );
     }
