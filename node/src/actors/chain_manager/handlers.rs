@@ -142,7 +142,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             StateMachine::AlmostSynced | StateMachine::Synced => {
                 match self.chain_state {
                     ChainState {
-                        reputation_engine: Some(ref mut rep_engine),
+                        reputation_engine: Some(_),
                         ..
                     } => {
                         if self.epoch_constants.is_none()
@@ -169,14 +169,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 "There was no valid block candidate to consolidate for epoch {}",
                                 previous_epoch
                             );
-
-                            // Update ActiveReputationSet in case of epochs without blocks
-                            if let Err(e) = rep_engine.ars_mut().update(vec![], previous_epoch) {
-                                log::error!(
-                                    "Error updating empty reputation with no blocks: {}",
-                                    e
-                                );
-                            }
                         }
 
                         // Send last beacon on block consolidation
@@ -357,19 +349,6 @@ impl Handler<AddBlocks> for ChainManager {
                                 self.construct_superblock(ctx, block_epoch)
                                     .and_then(move |_, _act, _ctx| actix::fut::ok(()))
                                     .wait(ctx);
-                            }
-
-                            // Do not update reputation when consolidating genesis block
-                            if block.hash() != consensus_constants.genesis_hash {
-                                if let Some(ref mut rep_engine) = self.chain_state.reputation_engine
-                                {
-                                    if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
-                                        log::error!(
-                                            "Error updating reputation before processing block: {}",
-                                            e
-                                        );
-                                    }
-                                }
                             }
 
                             if let Err(e) = self.process_requested_block(ctx, block.clone()) {
