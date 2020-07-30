@@ -235,7 +235,19 @@ impl EpochManager {
     }
 
     /// Method to monitor checkpoints and execute some actions on each
+    ///
+    /// This function internally introduces a small random variance (±5s) on the update period to
+    /// prevent multiple nodes that were started at the same time from bunching at the NTP servers,
+    /// just like `ntpd` does.
     fn update_ntp_timestamp(&self, ctx: &mut Context<Self>, period: Duration, addr: String) {
+        // Variance is not applied on periods that are smaller than 10 seconds
+        let period = if period > Duration::from_secs(10) {
+            period + rand::thread_rng().gen_range(Duration::from_secs(0), Duration::from_secs(10))
+                - Duration::from_secs(5)
+        } else {
+            period
+        };
+
         // Wait until next checkpoint to execute the periodic function
         ctx.run_later(period, move |act, ctx| {
             update_global_timestamp(addr.as_str());
