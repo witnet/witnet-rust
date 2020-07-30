@@ -315,6 +315,8 @@ impl Handler<AddBlocks> for ChainManager {
                 if msg.blocks.is_empty() {
                     log::debug!("Received an empty AddBlocks message");
                     self.sm_state = StateMachine::WaitingConsensus;
+                    self.initialize_from_storage(ctx);
+                    log::info!("Restored chain state from storage");
                     // If we are not synchronizing, forget about when we started synchronizing
                     if self.sm_state != StateMachine::Synchronizing {
                         self.sync_waiting_for_add_blocks_since = None;
@@ -436,6 +438,8 @@ impl Handler<AddBlocks> for ChainManager {
                                 // The superblock hash is different from what it should be.
                                 log::error!("Mismatching superblock. Target: {:?} Created #{} {} {:?}", sync_target, superblock.index, superblock.hash(), superblock);
                                 act.sm_state = StateMachine::WaitingConsensus;
+                                act.initialize_from_storage(ctx);
+                                log::info!("Restored chain state from storage");
 
                                 // If we are not synchronizing, forget about when we started synchronizing
                                 if act.sm_state != StateMachine::Synchronizing {
