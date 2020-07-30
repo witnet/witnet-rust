@@ -68,7 +68,7 @@ server_address = "127.0.0.1:21338"
 
 [ntp]
 # Period for checking the local system clock drift against a public NTP server.
-update_period_seconds = 8000000
+update_period_seconds = 1024
 
 [mining]
 # Enable or disable mining and participation in resolving data requests.

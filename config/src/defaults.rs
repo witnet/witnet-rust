@@ -318,7 +318,7 @@ pub trait Defaults {
     }
 
     fn ntp_update_period(&self) -> Duration {
-        Duration::from_secs(600)
+        Duration::from_secs(1024)
     }
 
     fn ntp_server(&self) -> Vec<String> {
