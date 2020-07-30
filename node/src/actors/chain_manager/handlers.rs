@@ -1,11 +1,16 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::future::Future;
-use std::{collections::BTreeMap, collections::HashMap, convert::TryFrom, net::SocketAddr};
+use std::{
+    collections::BTreeMap,
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+    net::SocketAddr,
+};
 
 use witnet_data_structures::{
     chain::{
         get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
-        Hash, Hashable, NodeStats, PublicKeyHash, Reputation, UtxoInfo,
+        Hash, Hashable, NodeStats, PublicKeyHash, Reputation, SuperBlockVote, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -25,8 +30,8 @@ use crate::{
             Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
             GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
             GetMempoolResult, GetNodeStats, GetReputation, GetReputationAll, GetReputationStatus,
-            GetReputationStatusResult, GetState, GetUtxoInfo, PeersBeacons, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, TryMineBlock,
+            GetReputationStatusResult, GetState, GetSuperBlockVotes, GetUtxoInfo, PeersBeacons,
+            SendLastBeacon, SessionUnitResult, SetLastBeacon, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -246,6 +251,18 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
 
             Err(ChainInfoError::ChainInfoNotFound.into())
         }
+    }
+}
+
+/// Handler for GetSuperBlockVotes message
+impl Handler<GetSuperBlockVotes> for ChainManager {
+    type Result = Result<HashSet<SuperBlockVote>, failure::Error>;
+
+    fn handle(&mut self, _msg: GetSuperBlockVotes, _ctx: &mut Context<Self>) -> Self::Result {
+        Ok(self
+            .chain_state
+            .superblock_state
+            .get_current_superblock_votes())
     }
 }
 
@@ -610,7 +627,7 @@ impl Handler<PeersBeacons> for ChainManager {
             // Else, unregister all peers
             if self.sm_state == StateMachine::AlmostSynced || self.sm_state == StateMachine::Synced
             {
-                log::warn ! ("Lack of peer consensus while state is `AlmostSynced`: peers that do not coincide with our last beacon will be unregistered");
+                log::warn!("Lack of peer consensus while state is `AlmostSynced`: peers that do not coincide with our last beacon will be unregistered");
                 peers_beacons.decide_peers_to_unregister(self.get_chain_beacon())
             } else {
                 log::warn!("Lack of peer consensus: all peers will be unregistered");
@@ -1054,6 +1071,7 @@ impl Handler<GetReputationAll> for ChainManager {
             .collect())
     }
 }
+
 impl Handler<GetReputationStatus> for ChainManager {
     type Result = Result<GetReputationStatusResult, failure::Error>;
 
@@ -1246,6 +1264,7 @@ mod tests {
         };
         assert_eq!(peers_beacons.consensus(60), Some(beacon1));
     }
+
     #[test]
     fn test_unregister_peers() {
         let beacon1 = CheckpointBeacon {
