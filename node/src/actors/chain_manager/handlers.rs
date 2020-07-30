@@ -433,9 +433,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                 actix::fut::ok(())
                             } else {
-                                // The superblock hash is different from what it
-                                // should be.
-                                // This probably means a bug in the code, so panic
+                                // The superblock hash is different from what it should be.
                                 log::error!("Mismatching superblock. Target: {:?} Created #{} {} {:?}", sync_target, superblock.index, superblock.hash(), superblock);
                                 act.sm_state = StateMachine::WaitingConsensus;
 
