@@ -5,7 +5,7 @@ use actix::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt,
     fmt::Debug,
     marker::Send,
@@ -54,6 +54,14 @@ pub struct GetHighestCheckpointBeacon;
 
 impl Message for GetHighestCheckpointBeacon {
     type Result = Result<CheckpointBeacon, failure::Error>;
+}
+
+/// Message to obtain the last super block votes managed by the `ChainManager`
+/// actor.
+pub struct GetSuperBlockVotes;
+
+impl Message for GetSuperBlockVotes {
+    type Result = Result<HashSet<SuperBlockVote>, failure::Error>;
 }
 
 /// Add a new block
