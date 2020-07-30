@@ -1,9 +1,8 @@
-use actix::prelude::*;
-// use actix::{Actor, AsyncContext, Context, Recipient, SystemService};
-
-use ansi_term::Color::Purple;
-
 use std::{collections::BTreeMap, time::Duration};
+
+use actix::prelude::*;
+use ansi_term::Color::Purple;
+use rand::Rng;
 
 use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
