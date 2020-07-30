@@ -7,7 +7,6 @@ use crate::error::ReputationError;
 use crate::trs::{decrement_cache, increment_cache};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    convert::TryFrom,
     hash::Hash,
 };
 
@@ -19,7 +18,6 @@ use std::{
 ///
 /// The method `push_activity` insert a vector of identities in the structure
 /// and also update with the identities that are expired.
-
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[derive(Debug, Clone)]
 pub struct ActiveReputationSet<K>
@@ -47,7 +45,7 @@ where
     queue: VecDeque<HashSet<K>>,
     // Capacity
     capacity: usize,
-    // last update
+    // Last update (last computed block epoch)
     last_update: u32,
 }
 
@@ -115,7 +113,9 @@ where
     where
         M: IntoIterator<Item = K>,
     {
-        if self.queue.len() >= self.capacity {
+        let identities: HashSet<K> = identities.into_iter().collect();
+
+        if !identities.is_empty() && self.queue.len() >= self.capacity {
             self.queue.pop_front().unwrap().into_iter().for_each(|id| {
                 // If the cache is consistent, this unwrap cannot fail
                 decrement_cache(&mut self.map, id, 1).unwrap();
@@ -123,7 +123,6 @@ where
         }
 
         // Update new identities added to the queue
-        let identities: HashSet<K> = identities.into_iter().collect();
         identities.iter().for_each(|id| {
             increment_cache(&mut self.map, id.clone(), 1);
         });
@@ -132,59 +131,22 @@ where
     }
 
     /// Method to add a new entry taking into account the proposed time
-    pub fn update<M>(&mut self, identities: M, new_time: u32) -> Result<(), failure::Error>
+    pub fn update<M>(&mut self, identities: M, block_epoch: u32) -> Result<(), failure::Error>
     where
         M: IntoIterator<Item = K>,
     {
-        if new_time > self.last_update {
-            // We fill with an empty user vector for each epoch between actual and last -1
-            // That it will be where new active users will be added
-            let no_updated_epochs = new_time - self.last_update - 1;
-
-            if no_updated_epochs > u32::try_from(self.buffer_capacity())? {
-                self.clear()
-            } else {
-                for _i in 0..no_updated_epochs {
-                    self.push_activity(vec![]);
-                }
-            }
-
+        if block_epoch > self.last_update {
             self.push_activity(identities);
-            self.last_update = new_time;
+            self.last_update = block_epoch;
 
             Ok(())
-        } else if new_time == 0 {
+        } else if block_epoch == 0 {
             // In the epoch 0 (genesis block) there must be no reputation update
-            Ok(())
-        } else {
-            Err(ReputationError::InvalidUpdateTime {
-                new_time,
-                current_time: self.last_update,
-            }
-            .into())
-        }
-    }
-
-    /// Method to add a new entry taking into account the proposed time
-    pub fn update_empty(&mut self, new_time: u32) -> Result<(), failure::Error> {
-        if new_time > self.last_update {
-            // We fill with an empty user vector for each epoch between actual and last -1
-            // That it will be where new active users will be added
-            let no_updated_epochs = new_time - self.last_update - 1;
-
-            if no_updated_epochs > u32::try_from(self.buffer_capacity())? {
-                self.clear()
-            } else {
-                for _i in 0..no_updated_epochs {
-                    self.push_activity(vec![]);
-                }
-            }
-            self.last_update = new_time - 1;
 
             Ok(())
         } else {
             Err(ReputationError::InvalidUpdateTime {
-                new_time,
+                new_time: block_epoch,
                 current_time: self.last_update,
             }
             .into())
@@ -305,6 +267,13 @@ mod tests {
         assert_eq!(ars.last_update, 2);
         assert_eq!(ars.active_identities_number(), 2);
 
+        let _res = ars.update(vec![id2.clone()], 3);
+        assert_eq!(ars.contains(&id1), true);
+        assert_eq!(ars.contains(&id2), true);
+        assert_eq!(ars.contains(&id3), false);
+        assert_eq!(ars.last_update, 3);
+        assert_eq!(ars.active_identities_number(), 2);
+
         let _res = ars.update(vec![id3.clone()], 4);
         assert_eq!(ars.contains(&id1), false);
         assert_eq!(ars.contains(&id2), true);
@@ -314,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn update_ars_test_clean() {
+    fn update_ars_test_no_empty_epochs() {
         let mut ars = ActiveReputationSet::new(3);
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
@@ -340,11 +309,18 @@ mod tests {
         assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id3.clone()], 10);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
+        assert_eq!(ars.contains(&id1), true);
+        assert_eq!(ars.contains(&id2), true);
         assert_eq!(ars.contains(&id3), true);
         assert_eq!(ars.last_update, 10);
-        assert_eq!(ars.active_identities_number(), 1);
+        assert_eq!(ars.active_identities_number(), 3);
+
+        let _res = ars.update(vec![id3.clone()], 20);
+        assert_eq!(ars.contains(&id1), false);
+        assert_eq!(ars.contains(&id2), true);
+        assert_eq!(ars.contains(&id3), true);
+        assert_eq!(ars.last_update, 20);
+        assert_eq!(ars.active_identities_number(), 2);
     }
 
     #[test]
@@ -367,11 +343,11 @@ mod tests {
         assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id2.clone()], 10);
-        assert_eq!(ars.contains(&id1), false);
+        assert_eq!(ars.contains(&id1), true);
         assert_eq!(ars.contains(&id2), true);
         assert_eq!(ars.contains(&id3), false);
         assert_eq!(ars.last_update, 10);
-        assert_eq!(ars.active_identities_number(), 1);
+        assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id3.clone()], 11);
         let _res = ars.update(vec![id3.clone()], 12);
@@ -408,7 +384,7 @@ mod tests {
             error.to_string(),
             ReputationError::InvalidUpdateTime {
                 new_time: 10,
-                current_time: 10
+                current_time: 10,
             }
             .to_string()
         );
@@ -420,7 +396,7 @@ mod tests {
             error2.to_string(),
             ReputationError::InvalidUpdateTime {
                 new_time: 5,
-                current_time: 10
+                current_time: 10,
             }
             .to_string()
         );
@@ -431,8 +407,8 @@ mod tests {
     #[test]
     // FIXME(#676): Remove clippy skip error
     #[allow(clippy::cognitive_complexity)]
-    fn update_ars_test_empty() {
-        let mut ars = ActiveReputationSet::new(10);
+    fn update_ars_test_never_empty() {
+        let mut ars = ActiveReputationSet::new(3);
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
         let id3 = "Charlie".to_string();
@@ -449,13 +425,6 @@ mod tests {
         assert_eq!(ars.last_update, 10);
         assert_eq!(ars.active_identities_number(), 1);
 
-        let _res = ars.update_empty(17);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
-        assert_eq!(ars.last_update, 16);
-        assert_eq!(ars.active_identities_number(), 1);
-
         let _res = ars.update(vec![id2.clone()], 17);
         assert_eq!(ars.contains(&id1), true);
         assert_eq!(ars.contains(&id2), true);
@@ -463,18 +432,13 @@ mod tests {
         assert_eq!(ars.last_update, 17);
         assert_eq!(ars.active_identities_number(), 2);
 
-        let _res = ars.update_empty(21);
-        assert_eq!(ars.contains(&id1), false);
+        let _res = ars.update(vec![], 21);
+        let _res = ars.update(vec![], 23);
+        let _res = ars.update(vec![], 24);
+        assert_eq!(ars.contains(&id1), true);
         assert_eq!(ars.contains(&id2), true);
         assert_eq!(ars.contains(&id3), false);
-        assert_eq!(ars.last_update, 20);
-        assert_eq!(ars.active_identities_number(), 1);
-
-        let _res = ars.update(vec![id3.clone()], 21);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), true);
-        assert_eq!(ars.last_update, 21);
+        assert_eq!(ars.last_update, 24);
         assert_eq!(ars.active_identities_number(), 2);
     }
 }
