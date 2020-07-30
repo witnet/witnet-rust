@@ -193,14 +193,14 @@ impl SuperBlockState {
     /// Return true if the local superblock has the majority of votes
     pub fn has_consensus(&self) -> SuperBlockConsensus {
         log::info!("Superblock votes: {:?}", self.votes_on_each_superblock);
-        log::info!("Previous ars: {:?}", self.previous_ars_identities);
-        // If previous_ars_identities is None, this is the first superblock. The first superblock
+        log::info!("Previous ars: {:?}", self.current_signing_committee);
+        // If current_signing_committee is None, this is the first superblock. The first superblock
         // is the one with index 0 and genesis hash. These are consensus constants and we do not
         // need any votes to determine that that is the most voted superblock.
-        if self.previous_ars_identities.is_none() {
+        if self.current_signing_committee.is_none() {
             return SuperBlockConsensus::SameAsLocal;
         }
-        let identities_that_can_vote = self.previous_ars_identities.as_ref().unwrap().len();
+        let identities_that_can_vote = self.current_signing_committee.as_ref().unwrap().len();
         let (most_voted_superblock, most_voted_num_votes) = match self
             .votes_on_each_superblock
             .iter()
@@ -327,7 +327,7 @@ impl SuperBlockState {
             .and_then(|(superblock_hash, num_votes)| {
                 // If previous_ars_identities is None, it means that the first superblock has not
                 // been consolidated yet. In that case there is no ARS, so return None.
-                let identities_that_can_vote = self.previous_ars_identities.as_ref()?.len();
+                let identities_that_can_vote = self.current_signing_committee.as_ref()?.len();
                 if two_thirds_consensus(num_votes, identities_that_can_vote) {
                     Some(superblock_hash)
                 } else {
@@ -1006,7 +1006,7 @@ mod tests {
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
-        // can be valid, they all return `NotInArs`
+        // can be valid, they all return `NotInSigningCommittee`
         let sb1 = sbs.build_superblock(&block_headers, &ars1, &ars1_ordered, 100, 1, genesis_hash);
         let (v1, v2, v3) = create_votes(sb1.hash(), 1);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
@@ -1092,19 +1092,15 @@ mod tests {
 
         // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
         // (because it does not exist)
-        let sb0 = sbs
-            .build_superblock(&block_headers, &ars0, &ars0_ordered, 0, genesis_hash)
-            .unwrap();
+        let sb0 = sbs.build_superblock(&block_headers, &ars0, &ars0_ordered, 100, 0, genesis_hash);
         let (v1, v2, v3, v4) = create_votes(sb0.hash(), 0);
-        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInArs);
-        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInSigningCommittee);
 
         // The ARS included in superblock 0 contains identities p1, p2, p3
-        let sb1 = sbs
-            .build_superblock(&block_headers, &ars1, &ars1_ordered, 1, genesis_hash)
-            .unwrap();
+        let sb1 = sbs.build_superblock(&block_headers, &ars1, &ars1_ordered, 100, 1, genesis_hash);
         let (v1, v2, v3, v4) = create_votes(sb1.hash(), 1);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
         assert_eq!(sbs.most_voted_superblock(), None);
@@ -1112,13 +1108,11 @@ mod tests {
         assert_eq!(sbs.most_voted_superblock(), None);
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::ValidWithSameHash);
         assert_eq!(sbs.most_voted_superblock(), Some(sb1.hash()));
-        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInArs);
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.most_voted_superblock(), Some(sb1.hash()));
 
         // The ARS included in superblock 1 contains identities p1, p2, p3, p4
-        let sb2 = sbs
-            .build_superblock(&block_headers, &ars2, &ars2_ordered, 2, genesis_hash)
-            .unwrap();
+        let sb2 = sbs.build_superblock(&block_headers, &ars2, &ars2_ordered, 100, 2, genesis_hash);
         let (v1, v2, v3, v4) = create_votes(sb2.hash(), 2);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
         assert_eq!(sbs.most_voted_superblock(), None);
@@ -1274,12 +1268,15 @@ mod tests {
         let mut v1 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v1.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
         let mut v2 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v2.secp256k1_signature.public_key = p2;
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2_hash));
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v3.secp256k1_signature.public_key = p3;
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2_hash));
     }
 
     #[test]
