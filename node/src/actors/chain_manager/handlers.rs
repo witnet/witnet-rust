@@ -603,7 +603,8 @@ impl Handler<AddBlocks> for ChainManager {
 /// * All the blocks up to the last block according to superblock target
 /// * The blocks needed to create the superblock with index target+1
 /// * The remaining blocks that can be used to create superblock with index target+2
-/// * Blocks that are above superblock target+2
+/// * Blocks that are from the future // TODO: remove part_4
+/// * The superblock index of the second superblock to be created
 ///
 /// Assumes that the blocks are sorted by checkpoint, and no two blocks have the
 /// same checkpoint, and superblock_period is at least 1.
@@ -960,7 +961,7 @@ impl PeersBeacons {
             .collect()
     }
 
-    /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
+    /// Collects the peers to unregister based on the superbeacon they reported and the superbeacon to be compared it with
     pub fn decide_peers_to_unregister_s(&self, superbeacon: CheckpointBeacon) -> Vec<SocketAddr> {
         // Unregister peers which have a different beacon
         (&self.pb)
