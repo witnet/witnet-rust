@@ -254,6 +254,7 @@ impl SuperBlockState {
         self.current_superblock_index = superblock_index;
         self.votes_on_each_superblock.clear();
         self.votes_of_each_identity.clear();
+        self.identities_that_voted_more_than_once.clear();
         let key_leaves = hash_key_leaves(ars_ordered_bn256_keys);
 
         let superblock = mining_build_superblock(
@@ -292,12 +293,12 @@ impl SuperBlockState {
 
             // If the superblock vote is valid, store it
             if valid == Some(true) {
+                // Insert to avoid validating again
+                self.received_superblocks.insert(sbv.clone());
+
                 self.insert_vote(sbv);
             }
         }
-        // old_superblock_votes should be empty, as we have drained it
-        // But swap it back to reuse allocated memory
-        self.received_superblocks = old_superblock_votes;
 
         superblock
     }
