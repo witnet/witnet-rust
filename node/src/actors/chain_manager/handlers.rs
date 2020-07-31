@@ -338,8 +338,12 @@ impl Handler<AddBlocks> for ChainManager {
                 }
                 */
 
-                let (blocks1, blocks2, blocks3, blocks4) =
-                    split_blocks_batch_at_target(msg.blocks, &sync_target, superblock_period);
+                let (blocks1, blocks2, blocks3, blocks4, epoch2) = split_blocks_batch_at_target(
+                    msg.blocks,
+                    self.current_epoch.unwrap(),
+                    &sync_target,
+                    superblock_period,
+                );
 
                 // * Process blocks1
                 // * If target not reached, done
@@ -394,7 +398,7 @@ impl Handler<AddBlocks> for ChainManager {
                     return;
                 }
 
-                let blocks2 = blocks2.unwrap();
+                let blocks2 = blocks2.unwrap_or_default();
                 let blocks3 = blocks3.unwrap_or_default();
 
                 // We need to construct the last superblock if the current superblock
@@ -470,29 +474,34 @@ impl Handler<AddBlocks> for ChainManager {
                             log::debug!("2 Sync done up to block #{}", epoch_of_the_last_block.unwrap());
                         }
 
-                        // Update ARS if there were no blocks right before the epoch during
-                        // which we should construct the target superblock
-                        let epoch_during_which_we_should_construct_the_second_superblock = (sync_target.superblock.checkpoint + 1) * superblock_period;
-                        // We need to persist blocks in order to be able to construct the
-                        // superblock
-                        // TODO: verify that superblock creation does not start until all
-                        // the blocks have been persisted
-                        act.persist_blocks_batch(ctx, blocks2);
-                        let to_be_stored =
-                            act.chain_state.data_request_pool.finished_data_requests();
-                        act.persist_data_requests(ctx, to_be_stored);
+                        if let Some(second_superblock_index) = epoch2 {
+                            // Update ARS if there were no blocks right before the epoch during
+                            // which we should construct the target superblock
+                            let epoch_during_which_we_should_construct_the_second_superblock = second_superblock_index * superblock_period;
+                            // We need to persist blocks in order to be able to construct the
+                            // superblock
+                            // TODO: verify that superblock creation does not start until all
+                            // the blocks have been persisted
+                            act.persist_blocks_batch(ctx, blocks2);
+                            let to_be_stored =
+                                act.chain_state.data_request_pool.finished_data_requests();
+                            act.persist_data_requests(ctx, to_be_stored);
 
-                        log::info!("Block sync target achieved, go to WaitingConsensus state");
-                        // Target achived, go back to state 1
-                        act.sm_state = StateMachine::WaitingConsensus;
+                            log::info!("Block sync target achieved, go to WaitingConsensus state");
+                            // Target achived, go back to state 1
+                            act.sm_state = StateMachine::WaitingConsensus;
 
-                        // We must construct the second superblock in order to
-                        // be able to validate the votes for this superblock
-                        // later
-                        log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_second_superblock);
-                        act.construct_superblock(ctx, epoch_during_which_we_should_construct_the_second_superblock).and_then(move |_superblock, act, ctx| {
-                            // Ignore the created superblock: do not
-                            // broadcast votes
+                            // We must construct the second superblock in order to
+                            // be able to validate the votes for this superblock
+                            // later
+                            log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_second_superblock);
+                            actix::fut::Either::A(act.construct_superblock(ctx, epoch_during_which_we_should_construct_the_second_superblock).map(|_superblock, _, _| {
+                                // Ignore the created superblock: do not
+                                // broadcast votes
+                            }))
+                        } else {
+                            actix::fut::Either::B(actix::fut::ok(()))
+                        }.and_then(move |(), act, ctx| {
                             // Process remaining blocks
                             let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks3);
 
@@ -553,6 +562,7 @@ impl Handler<AddBlocks> for ChainManager {
 #[allow(clippy::type_complexity)]
 fn split_blocks_batch_at_target(
     blocks: Vec<Block>,
+    epoch: u32,
     sync_target: &SyncTarget,
     superblock_period: u32,
 ) -> (
@@ -560,6 +570,7 @@ fn split_blocks_batch_at_target(
     Option<Vec<Block>>,
     Option<Vec<Block>>,
     Option<Vec<Block>>,
+    Option<u32>,
 ) {
     let first_epoch_part_2 = sync_target.superblock.checkpoint * superblock_period;
     let first_epoch_part_3 = (sync_target.superblock.checkpoint + 1) * superblock_period;
@@ -654,7 +665,13 @@ fn split_blocks_batch_at_target(
         part_4 = Some(vec![]);
     }
 
-    (part_1, part_2, part_3, part_4)
+    let next_index = if epoch / superblock_period == sync_target.superblock.checkpoint {
+        None
+    } else {
+        Some(epoch / superblock_period)
+    };
+
+    (part_1, part_2, part_3, part_4, next_index)
 }
 
 /// Handler for AddCandidates message
