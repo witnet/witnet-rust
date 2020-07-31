@@ -382,13 +382,12 @@ impl Handler<AddBlocks> for ChainManager {
                     return;
                 }
 
-                let mut epoch_of_the_last_block = None;
                 if blocks2.is_some() {
                     if num_processed_blocks == 0 {
                         log::debug!("1 Sync done, 0 blocks processed");
                     } else {
                         let last_processed_block = &blocks1[num_processed_blocks - 1];
-                        epoch_of_the_last_block =
+                        let epoch_of_the_last_block =
                             Some(last_processed_block.block_header.beacon.checkpoint);
                         log::debug!("1 Sync done up to block #{} because that is the last checkpoint according to superblock #{}", epoch_of_the_last_block.unwrap(), sync_target.superblock.checkpoint);
                     }
@@ -471,7 +470,7 @@ impl Handler<AddBlocks> for ChainManager {
                             log::debug!("2 Sync done, 0 blocks processed");
                         } else {
                             let last_processed_block = &blocks2[num_processed_blocks - 1];
-                            epoch_of_the_last_block = Some(last_processed_block.block_header.beacon.checkpoint);
+                            let epoch_of_the_last_block = Some(last_processed_block.block_header.beacon.checkpoint);
                             log::debug!("2 Sync done up to block #{}", epoch_of_the_last_block.unwrap());
                         }
 
