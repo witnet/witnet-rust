@@ -634,6 +634,8 @@ where
 
     // Edge case: if the last block of part_1 has epoch first_epoch_part_2 - 1,
     // part_2 should be Some(vec![]), not None
+    // here we should add a check to see whether we have the sync_target.block within the provided of blocks
+    // TODO: Cases blocks(0), blocks(8), epoch 21 -> vec([0,8]), Some([]), Some([]), None, Some(2))
     if part_2.is_none()
         && part_1.last().is_some()
         && key(part_1.last().as_ref().unwrap()) == first_epoch_part_2 - 1
@@ -643,11 +645,7 @@ where
 
     // Edge case: if the last block of part_2 has epoch first_epoch_part_3 - 1,
     // part_3 should be Some(vec![]), not None
-    if part_3.is_none()
-        && part_2.is_some()
-        && part_2.as_ref().unwrap().last().is_some()
-        && key(part_2.as_ref().unwrap().last().as_ref().unwrap()) == first_epoch_part_3 - 1
-    {
+    if part_3.is_none() && next_index.is_some() {
         part_3 = Some(vec![]);
     }
 
@@ -1810,8 +1808,9 @@ mod tests {
         // TODO: remove all the calls to b(x)
         let b = |x| x;
 
-        let test_split_batch =
-            |v, e, s: &SyncTarget| split_blocks_batch_at_target(|x| *x, v, e, &s.clone(), superblock_period);
+        let test_split_batch = |v, e, s: &SyncTarget| {
+            split_blocks_batch_at_target(|x| *x, v, e, &s.clone(), superblock_period)
+        };
 
         assert_eq!(
             test_split_batch(vec![], 1, &sync_target),
@@ -1835,39 +1834,43 @@ mod tests {
         );
         assert_eq!(
             test_split_batch(vec![b(0)], 1, &sync_target),
-            (vec![], None, Some(vec![b(0)]), None, None)
+            (vec![], Some(vec![b(0)]), None, None, None)
         );
         assert_eq!(
             test_split_batch(vec![b(0), b(8)], 9, &sync_target),
-            (vec![b(0), b(8)], None, None, None, None)
+            (vec![], Some(vec![b(0), b(8)]), None, None, None)
         );
         sync_target.superblock.checkpoint = 1;
         assert_eq!(
-            test_split_batch(vec![b(0), b(9)], 11, &sync_target),
-            (vec![b(0), b(9)], Some(vec![]), None, None, Some(1))
+            test_split_batch(vec![b(0), b(9)], 21, &sync_target),
+            (vec![b(0), b(9)], Some(vec![]), Some(vec![]), None, Some(2))
         );
         assert_eq!(
-            test_split_batch(vec![b(0), b(10)], 11, &sync_target),
-            (vec![b(0)], Some(vec![b(10)]), None, None, Some(1))
+            test_split_batch(vec![b(0), b(10)], 21, &sync_target),
+            (vec![b(0)], Some(vec![b(10)]), Some(vec![]), None, Some(2))
         );
         assert_eq!(
-            test_split_batch(vec![b(0), b(8), b(11)], 12, &sync_target),
-            (vec![b(0), b(8)], Some(vec![b(11)]), None, None, Some(1))
+            test_split_batch(vec![b(0), b(8), b(11)], 21, &sync_target),
+            (
+                vec![b(0), b(8)],
+                Some(vec![b(11)]),
+                Some(vec![]),
+                None,
+                Some(2)
+            )
         );
         assert_eq!(
-            test_split_batch(
-                vec![b(0), b(9), b(10), b(18)],
-                19,
-                &sync_target,
-            ),
-            (vec![b(0), b(9)], Some(vec![b(10), b(18)]), None, None, Some(1))
+            test_split_batch(vec![b(0), b(9), b(10), b(18), b(26)], 29, &sync_target,),
+            (
+                vec![b(0), b(9)],
+                Some(vec![b(10), b(18)]),
+                Some(vec![b(26)]),
+                None,
+                Some(2)
+            )
         );
         assert_eq!(
-            test_split_batch(
-                vec![b(0), b(9), b(10), b(19)],
-                21,
-                &sync_target,
-            ),
+            test_split_batch(vec![b(0), b(9), b(10), b(19)], 21, &sync_target,),
             (
                 vec![b(0), b(9)],
                 Some(vec![b(10), b(19)]),
@@ -1878,7 +1881,13 @@ mod tests {
         );
         assert_eq!(
             test_split_batch(vec![b(0), b(10), b(20)], 21, &sync_target),
-            (vec![b(0)], Some(vec![b(10)]), Some(vec![b(20)]), None, Some(2)),
+            (
+                vec![b(0)],
+                Some(vec![b(10)]),
+                Some(vec![b(20)]),
+                None,
+                Some(2)
+            ),
         );
         assert_eq!(
             test_split_batch(
@@ -1898,7 +1907,23 @@ mod tests {
         sync_target.superblock.checkpoint = 2;
         assert_eq!(
             test_split_batch(vec![b(100)], 101, &sync_target),
-            (vec![], Some(vec![]), Some(vec![]), Some(vec![b(100)]), Some(10))
+            (vec![], Some(vec![100]), None, None, None)
+        );
+
+        assert_eq!(
+            test_split_batch(vec![b(110)], 111, &sync_target),
+            (vec![], Some(vec![]), Some(vec![b(110)]), None, Some(11))
+        );
+
+        assert_eq!(
+            test_split_batch(vec![b(105), b(110)], 111, &sync_target),
+            (
+                vec![],
+                Some(vec![b(105)]),
+                Some(vec![b(110)]),
+                None,
+                Some(11)
+            )
         );
     }
 }
