@@ -30,6 +30,18 @@ pub enum AddSuperBlockVote {
     ValidWithSameHash,
 }
 
+/// Possible result of SuperBlockState::has_consensus
+pub enum SuperBlockConsensus {
+    /// The local superblock has the majority of votes, everything ok
+    SameAsLocal,
+    /// A different superblock has the majority of votes, go to waiting consensus
+    Different(Hash),
+    /// No superblock candidate can achieve majority of votes
+    NoConsensus,
+    /// There are some missing votes that are needed to determine the consenus
+    Unknown,
+}
+
 /// State related to superblocks
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SuperBlockState {
@@ -77,14 +89,17 @@ impl SuperBlockState {
 
     // Returns false if the identity voted more than once
     fn insert_vote(&mut self, sbv: SuperBlockVote) -> bool {
+        log::debug!("Superblock insert vote {:?}", sbv);
         // If the superblock vote is valid, store it
         let pkh = sbv.secp256k1_signature.public_key.pkh();
         if let Some(m) = self.identities_that_voted_more_than_once.get_mut(&pkh) {
+            log::debug!("Triple vote");
             // This identity was already marked as bad
             m.push(sbv);
 
             false
         } else if let Some(old_sbv) = self.votes_of_each_identity.insert(pkh, sbv.clone()) {
+            log::debug!("Double vote");
             // This identity has already voted for a different superblock
             // Remove both votes and reject future votes by this identity
             let sbv = self.votes_of_each_identity.remove(&pkh).unwrap();
@@ -100,6 +115,7 @@ impl SuperBlockState {
 
             false
         } else {
+            log::debug!("OK");
             self.votes_on_each_superblock
                 .entry(sbv.superblock_hash)
                 .or_default()
@@ -112,7 +128,7 @@ impl SuperBlockState {
     /// Add a vote sent by another peer.
     /// This method assumes that the signatures are valid, they must be checked by the caller.
     pub fn add_vote(&mut self, sbv: &SuperBlockVote) -> AddSuperBlockVote {
-        if self.received_superblocks.contains(sbv) {
+        let r = if self.received_superblocks.contains(sbv) {
             // Already processed before
             AddSuperBlockVote::AlreadySeen
         } else {
@@ -142,7 +158,10 @@ impl SuperBlockState {
                 }
                 None => AddSuperBlockVote::MaybeValid,
             }
-        }
+        };
+        log::debug!("Add vote: {:?}", r);
+
+        r
     }
 
     /// Since we do not check signatures here, a superblock vote is valid if the signing identity
@@ -168,6 +187,53 @@ impl SuperBlockState {
         } else {
             // If the index is outside the [x-1, x+1] range, it is considered not valid
             Some(false)
+        }
+    }
+
+    /// Return true if the local superblock has the majority of votes
+    pub fn has_consensus(&self) -> SuperBlockConsensus {
+        log::info!("Superblock votes: {:?}", self.votes_on_each_superblock);
+        log::info!("Previous ars: {:?}", self.current_signing_committee);
+        // If current_signing_committee is None, this is the first superblock. The first superblock
+        // is the one with index 0 and genesis hash. These are consensus constants and we do not
+        // need any votes to determine that that is the most voted superblock.
+        if self.current_signing_committee.is_none() {
+            return SuperBlockConsensus::SameAsLocal;
+        }
+        let identities_that_can_vote = self.current_signing_committee.as_ref().unwrap().len();
+        let (most_voted_superblock, most_voted_num_votes) = match self
+            .votes_on_each_superblock
+            .iter()
+            .map(|(superblock_hash, votes)| (*superblock_hash, votes.len()))
+            .max_by_key(|&(_, num_votes)| num_votes)
+        {
+            Some(x) => x,
+            None => {
+                // 0 votes, no consensus
+                return SuperBlockConsensus::Unknown;
+            }
+        };
+        if two_thirds_consensus(most_voted_num_votes, identities_that_can_vote) {
+            if most_voted_superblock == self.current_superblock_hash {
+                SuperBlockConsensus::SameAsLocal
+            } else {
+                SuperBlockConsensus::Different(most_voted_superblock)
+            }
+        } else {
+            // FIXME(#1389): does this take into account double votes?
+            let num_total_votes = self.votes_of_each_identity.len();
+            let num_missing_votes = identities_that_can_vote - num_total_votes;
+            if two_thirds_consensus(
+                most_voted_num_votes + num_missing_votes,
+                identities_that_can_vote,
+            ) {
+                // There is no consensus, but if the missing votes vote the same as the
+                // majority, there can be consensus
+                SuperBlockConsensus::Unknown
+            } else {
+                // There is no consensus, regardless of the missing votes
+                SuperBlockConsensus::NoConsensus
+            }
         }
     }
 
@@ -250,13 +316,24 @@ impl SuperBlockState {
     }
 
     /// Returns the superblock hash and the number of votes of the most voted superblock.
+    /// If the most voted superblock does not have a majority of votes, returns None.
     /// In case of tie, returns one of the superblocks with the most votes.
     /// If there are zero votes, returns None.
-    pub fn most_voted_superblock(&self) -> Option<(Hash, usize)> {
+    pub fn most_voted_superblock(&self) -> Option<Hash> {
         self.votes_on_each_superblock
             .iter()
             .map(|(superblock_hash, votes)| (*superblock_hash, votes.len()))
             .max_by_key(|&(_, num_votes)| num_votes)
+            .and_then(|(superblock_hash, num_votes)| {
+                // If previous_ars_identities is None, it means that the first superblock has not
+                // been consolidated yet. In that case there is no ARS, so return None.
+                let identities_that_can_vote = self.current_signing_committee.as_ref()?.len();
+                if two_thirds_consensus(num_votes, identities_that_can_vote) {
+                    Some(superblock_hash)
+                } else {
+                    None
+                }
+            })
     }
 
     /// Check if we had already received this superblock vote
@@ -311,6 +388,15 @@ fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
     v_subset
 }
 
+/// Returns true if the number of votes is enough to achieve 2/3 consensus.
+///
+/// The number of votes needed must be strictly greater than 2/3 of the number of identities.
+pub fn two_thirds_consensus(votes: usize, identities: usize) -> bool {
+    let required_votes = identities * 2 / 3;
+
+    votes > required_votes
+}
+
 /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
 pub fn mining_build_superblock(
     block_headers: &[BlockHeader],
@@ -323,9 +409,16 @@ pub fn mining_build_superblock(
         None =>
         // Build "empty" Superblock (there were no blocks during super-epoch)
         {
+            let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
+            log::debug!(
+                "Created superblock #{} with hash_prev_block {}, ARS {}, blocks []",
+                index,
+                last_block_in_previous_superblock,
+                ars_root,
+            );
             SuperBlock {
                 ars_length: ars_ordered_hash_leaves.len() as u64,
-                ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
+                ars_root,
                 index,
                 last_block: last_block_in_previous_superblock,
                 last_block_in_previous_superblock,
@@ -343,14 +436,27 @@ pub fn mining_build_superblock(
                 .map(|b| b.merkle_roots.tally_hash_merkle_root)
                 .collect();
 
+            let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
+            let blocks: Vec<_> = block_headers
+                .iter()
+                .map(|b| format!("#{}: {}", b.beacon.checkpoint, b.hash()))
+                .collect();
+            log::debug!(
+                "Created superblock #{} with hash_prev_block {}, ARS {}, blocks {:?}",
+                index,
+                last_block_in_previous_superblock,
+                ars_root,
+                blocks
+            );
+
             SuperBlock {
                 ars_length: ars_ordered_hash_leaves.len() as u64,
-                ars_root: hash_merkle_tree_root(ars_ordered_hash_leaves),
                 data_request_root: hash_merkle_tree_root(&merkle_drs),
+                tally_root: hash_merkle_tree_root(&merkle_tallies),
+                ars_root,
                 index,
                 last_block: last_block_hash,
                 last_block_in_previous_superblock,
-                tally_root: hash_merkle_tree_root(&merkle_tallies),
             }
         }
     }
@@ -900,7 +1006,7 @@ mod tests {
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
-        // can be valid, they all return `NotInArs`
+        // can be valid, they all return `NotInSigningCommittee`
         let sb1 = sbs.build_superblock(&block_headers, &ars1, &ars1_ordered, 100, 1, genesis_hash);
         let (v1, v2, v3) = create_votes(sb1.hash(), 1);
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
@@ -930,6 +1036,92 @@ mod tests {
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::ValidWithSameHash);
+    }
+
+    #[test]
+    fn superblock_state_most_voted() {
+        // Create 3 superblocks, where each one of them has an ARS with only one identity
+        // This checks that the ARS is correctly set
+        let mut sbs = SuperBlockState::default();
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+        let p4 = PublicKey::from_bytes([4; 33]);
+
+        let bls_pk1 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
+                .unwrap();
+        let bls_pk2 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[2; 32]).unwrap())
+                .unwrap();
+        let bls_pk3 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[3; 32]).unwrap())
+                .unwrap();
+        let bls_pk4 =
+            Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[4; 32]).unwrap())
+                .unwrap();
+
+        let ars0 = vec![p1.pkh(), p2.pkh(), p3.pkh()];
+        let ars1 = vec![p1.pkh(), p2.pkh(), p3.pkh(), p4.pkh()];
+        let ars2 = vec![p1.pkh(), p2.pkh(), p3.pkh(), p4.pkh()];
+
+        let ars0_ordered = vec![bls_pk1.clone(), bls_pk2.clone(), bls_pk3.clone()];
+        let ars1_ordered = vec![
+            bls_pk1.clone(),
+            bls_pk2.clone(),
+            bls_pk3.clone(),
+            bls_pk4.clone(),
+        ];
+        let ars2_ordered = vec![bls_pk1, bls_pk2, bls_pk3, bls_pk4];
+
+        let create_votes = |superblock_hash, superblock_index| {
+            let mut v1 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v1.secp256k1_signature.public_key = p1.clone();
+            let mut v2 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v2.secp256k1_signature.public_key = p2.clone();
+            let mut v3 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v3.secp256k1_signature.public_key = p3.clone();
+            let mut v4 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
+            v4.secp256k1_signature.public_key = p4.clone();
+
+            (v1, v2, v3, v4)
+        };
+
+        // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
+        // (because it does not exist)
+        let sb0 = sbs.build_superblock(&block_headers, &ars0, &ars0_ordered, 100, 0, genesis_hash);
+        let (v1, v2, v3, v4) = create_votes(sb0.hash(), 0);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInSigningCommittee);
+
+        // The ARS included in superblock 0 contains identities p1, p2, p3
+        let sb1 = sbs.build_superblock(&block_headers, &ars1, &ars1_ordered, 100, 1, genesis_hash);
+        let (v1, v2, v3, v4) = create_votes(sb1.hash(), 1);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb1.hash()));
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb1.hash()));
+
+        // The ARS included in superblock 1 contains identities p1, p2, p3, p4
+        let sb2 = sbs.build_superblock(&block_headers, &ars2, &ars2_ordered, 100, 2, genesis_hash);
+        let (v1, v2, v3, v4) = create_votes(sb2.hash(), 2);
+        assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2.hash()));
+        assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2.hash()));
     }
 
     #[test]
@@ -1076,12 +1268,15 @@ mod tests {
         let mut v1 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v1.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), None);
         let mut v2 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v2.secp256k1_signature.public_key = p2;
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2_hash));
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v3.secp256k1_signature.public_key = p3;
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
+        assert_eq!(sbs.most_voted_superblock(), Some(sb2_hash));
     }
 
     #[test]
@@ -1330,5 +1525,19 @@ mod tests {
                 hash_prev_block: Hash::default(),
             }
         );
+    }
+
+    #[test]
+    fn test_two_thirds_consensus() {
+        assert_eq!(two_thirds_consensus(2, 3), false);
+        assert_eq!(two_thirds_consensus(3, 3), true);
+        assert_eq!(two_thirds_consensus(2, 4), false);
+        assert_eq!(two_thirds_consensus(3, 4), true);
+        assert_eq!(two_thirds_consensus(21, 32), false);
+        assert_eq!(two_thirds_consensus(22, 32), true);
+        assert_eq!(two_thirds_consensus(22, 33), false);
+        assert_eq!(two_thirds_consensus(23, 33), true);
+        assert_eq!(two_thirds_consensus(22, 34), false);
+        assert_eq!(two_thirds_consensus(23, 34), true);
     }
 }
