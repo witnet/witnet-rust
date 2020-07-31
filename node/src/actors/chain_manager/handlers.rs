@@ -7,6 +7,7 @@ use std::{
     net::SocketAddr,
 };
 
+use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
         get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
@@ -33,7 +34,7 @@ use crate::{
         },
         sessions_manager::SessionsManager,
     },
-    storage_mngr,
+    signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
 
@@ -495,10 +496,59 @@ impl Handler<AddBlocks> for ChainManager {
                             // be able to validate the votes for this superblock
                             // later
                             log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_second_superblock);
-                            actix::fut::Either::A(act.construct_superblock(ctx, epoch_during_which_we_should_construct_the_second_superblock).map(|_superblock, _, _| {
-                                // Ignore the created superblock: do not
-                                // broadcast votes
-                            }))
+                            actix::fut::Either::A(act.construct_superblock(ctx, epoch_during_which_we_should_construct_the_second_superblock)
+                                // Create and broadcast our votes for the second superblock if we
+                                // are in the committee.
+                                // Warning: we are trusting our outbound peers to create the valid
+                                // superblock. A malicious peer could trick us into voting.
+                                .and_then(move |superblock, act, _ctx| {
+                                    let superblock_hash = superblock.hash();
+                                    log::debug!(
+                                        "Local SUPERBLOCK #{} {}: {:?}",
+                                        superblock.index,
+                                        superblock_hash,
+                                        superblock
+                                    );
+
+                                    let mut superblock_vote =
+                                        SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
+                                    let bn256_message = superblock_vote.bn256_signature_message();
+
+                                    signature_mngr::bn256_sign(bn256_message)
+                                        .map_err(|e| {
+                                            log::error!("Failed to sign superblock with bn256 key: {}", e);
+                                        })
+                                        .and_then(move |bn256_keyed_signature| {
+                                            // Actually, we don't need to include the BN256 public key because
+                                            // it is stored in the `alt_keys` mapping, indexed by the
+                                            // secp256k1 public key hash
+                                            let bn256_signature = bn256_keyed_signature.signature;
+                                            superblock_vote.set_bn256_signature(bn256_signature);
+                                            let secp256k1_message = superblock_vote.secp256k1_signature_message();
+                                            let sign_bytes = calculate_sha256(&secp256k1_message).0;
+                                            signature_mngr::sign_data(sign_bytes)
+                                                .map(move |secp256k1_signature| {
+                                                    superblock_vote.set_secp256k1_signature(secp256k1_signature);
+
+                                                    superblock_vote
+                                                })
+                                                .map_err(|e| {
+                                                    log::error!("Failed to sign superblock with secp256k1 key: {}", e);
+                                                })
+                                        })
+                                        .into_actor(act)
+                                        .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
+                                            Ok(()) => actix::fut::ok(()),
+                                            Err(e) => {
+                                                log::error!(
+                                                    "Error when broadcasting recently created superblock: {}",
+                                                    e
+                                                );
+
+                                                actix::fut::err(())
+                                            }
+                                        })
+                                }))
                         } else {
                             actix::fut::Either::B(actix::fut::ok(()))
                         }.and_then(move |(), act, ctx| {
