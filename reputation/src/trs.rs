@@ -937,13 +937,5 @@ mod tests {
         assert_eq!(ars.contains(&id3), true);
         assert_eq!(ars.active_identities_number(), 1);
         assert_eq!(trs.get_sum(ars.active_identities()), Reputation(1024));
-
-        ars.push_activity(vec![]);
-        ars.push_activity(vec![]);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), true);
-        assert_eq!(ars.active_identities_number(), 1);
-        assert_eq!(trs.get_sum(ars.active_identities()), Reputation(1024));
     }
 }

@@ -114,8 +114,14 @@ where
         M: IntoIterator<Item = K>,
     {
         let identities: HashSet<K> = identities.into_iter().collect();
+        // Push activity with no entries is not allowed
+        // Note: at least the node's miner activity should be pushed
+        assert!(
+            !identities.is_empty(),
+            "push activity with no entries is not allowed"
+        );
 
-        if !identities.is_empty() && self.queue.len() >= self.capacity {
+        if self.queue.len() >= self.capacity {
             self.queue.pop_front().unwrap().into_iter().for_each(|id| {
                 // If the cache is consistent, this unwrap cannot fail
                 decrement_cache(&mut self.map, id, 1).unwrap();
@@ -432,13 +438,22 @@ mod tests {
         assert_eq!(ars.last_update, 17);
         assert_eq!(ars.active_identities_number(), 2);
 
-        let _res = ars.update(vec![], 21);
-        let _res = ars.update(vec![], 23);
-        let _res = ars.update(vec![], 24);
-        assert_eq!(ars.contains(&id1), true);
+        let _res = ars.update(vec![id2.clone()], 21);
+        let _res = ars.update(vec![id2.clone()], 23);
+        let _res = ars.update(vec![id2.clone()], 24);
+        assert_eq!(ars.contains(&id1), false);
         assert_eq!(ars.contains(&id2), true);
         assert_eq!(ars.contains(&id3), false);
         assert_eq!(ars.last_update, 24);
-        assert_eq!(ars.active_identities_number(), 2);
+        assert_eq!(ars.active_identities_number(), 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn update_ars_empty_should_fail() {
+        let mut ars = ActiveReputationSet::new(3);
+        let id1 = "Alice".to_string();
+        assert_eq!(ars.contains(&id1), false);
+        let _ = ars.update(vec![], 1);
     }
 }
