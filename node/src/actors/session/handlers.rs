@@ -228,8 +228,11 @@ impl StreamHandler<BytesMut, Error> for Session {
                                     match item_response {
                                         Ok(item) => {
                                             if let InventoryItem::Block(block) = &item {
-                                                if block.block_header.beacon
-                                                    == session.last_beacon.highest_block_checkpoint
+                                                if block.block_header.beacon.checkpoint
+                                                    == session
+                                                        .last_beacon
+                                                        .highest_block_checkpoint
+                                                        .checkpoint
                                                 {
                                                     send_superblock_votes = true;
                                                 }
