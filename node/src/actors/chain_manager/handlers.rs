@@ -1142,6 +1142,7 @@ impl Handler<GetMempool> for ChainManager {
 
 // TODO: USE ME!
 #[allow(dead_code)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum BlockBatches<T> {
     TargetNotReached(Vec<T>),
     SyncWithoutCandidate(Vec<T>, Vec<T>),
@@ -1172,7 +1173,7 @@ where
     // The case where blocks is an empty array
     let last_epoch = key(blocks.last().unwrap_or(&T::default()));
 
-    if last_epoch < (sync_target.superblock.checkpoint * superblock_period - 1)
+    if last_epoch < ((sync_target.superblock.checkpoint * superblock_period).saturating_sub(1))
         && last_epoch < sync_target.block.checkpoint
     {
         return TargetNotReached(blocks);
@@ -1200,15 +1201,17 @@ where
     let candidate_split_position = consolidated_blocks
         .iter()
         .position(|block| key(block) >= consolidated_blocks_target);
-    let remaining_split_position = consolidated_blocks
-        .iter()
-        .position(|block| key(block) >= candidate_blocks_target);
+
     let mut candidate_blocks = vec![];
     let mut remaining_blocks = vec![];
 
     if let Some(candidate_split_position) = candidate_split_position {
         candidate_blocks = consolidated_blocks.split_off(candidate_split_position);
     }
+
+    let remaining_split_position = candidate_blocks
+        .iter()
+        .position(|block| key(block) >= candidate_blocks_target);
     if let Some(remaining_split_position) = remaining_split_position {
         remaining_blocks = candidate_blocks.split_off(remaining_split_position);
     }
@@ -1411,5 +1414,124 @@ mod tests {
                 "127.0.0.1:10004".parse().unwrap()
             ]
         );
+    }
+    #[test]
+    fn test_split_blocks_batch() {
+        use BlockBatches::*;
+        let mut sync_target = SyncTarget {
+            block: Default::default(),
+            superblock: Default::default(),
+        };
+        let superblock_period = 10;
+
+
+        let test_split_batch = |v, e, s: &SyncTarget| {
+            split_blocks_batch_at_target(|x| *x, v, e, &s.clone(), superblock_period)
+        };
+
+        assert_eq!(
+            test_split_batch(vec![], 1, &sync_target),
+            (SyncWithoutCandidate(vec![], vec![]))
+        );
+        assert_eq!(
+            test_split_batch(vec![0], 1, &sync_target),
+            (SyncWithoutCandidate(vec![], vec![0]))
+        );
+        assert_eq!(
+            test_split_batch(vec![0, 8], 9, &sync_target),
+            (SyncWithoutCandidate(vec![], vec![0, 8]))
+        );
+        assert_eq!(
+            test_split_batch(vec![0, 9], 11, &sync_target),
+            (SyncWithCandidate(vec![], vec![0, 9], vec![]))
+        );
+
+        assert_eq!(
+            test_split_batch(vec![0, 10], 11, &sync_target),
+            (SyncWithCandidate(vec![], vec![0], vec![10]))
+        );
+
+        sync_target.superblock.checkpoint = 1;
+
+        assert_eq!(
+            test_split_batch(vec![0, 9], 21, &sync_target),
+            (SyncWithCandidate(vec![0, 9], vec![], vec![]))
+        );
+        assert_eq!(
+            test_split_batch(vec![0, 10], 21, &sync_target),
+            (SyncWithCandidate(vec![0], vec![10], vec![]))
+        );
+        assert_eq!(
+            test_split_batch(vec![0, 8, 11], 21, &sync_target),
+            (SyncWithCandidate(vec![0, 8], vec![11], vec![]))
+        );
+        assert_eq!(
+            test_split_batch(vec![0, 9, 10, 18, 26], 29, &sync_target),
+            (
+                SyncWithCandidate(vec![0, 9], vec![10, 18], vec![26])
+            )
+        );
+        assert_eq!(
+            test_split_batch(vec![0, 9, 10, 19], 21, &sync_target,),
+            (
+                SyncWithCandidate(vec![0, 9], vec![10, 19], vec![])
+            ),
+        );
+        assert_eq!(
+            test_split_batch(vec![0, 10, 20], 21, &sync_target),
+            (
+                SyncWithCandidate(vec![0], vec![10], vec![20])
+            ),
+        );
+        assert_eq!(
+            test_split_batch(
+                vec![0, 9, 10, 19, 20, 21],
+                22,
+                &sync_target,
+            ),
+            (
+                SyncWithCandidate(vec![0, 9], vec![10, 19], vec![20, 21])
+            ),
+        );
+
+        sync_target.superblock.checkpoint = 2;
+        assert_eq!(
+            test_split_batch(vec![100], 101, &sync_target),
+            SyncWithoutCandidate(vec![], vec![100])
+        );
+
+        assert_eq!(
+            test_split_batch(vec![110], 111, &sync_target),
+            SyncWithCandidate(vec![], vec![], vec![110])
+        );
+
+        assert_eq!(
+            test_split_batch(vec![105, 110], 111, &sync_target),
+            (
+                SyncWithCandidate(vec![], vec![105], vec![110])
+            )
+        );
+
+        assert_eq!(
+            test_split_batch(vec![], 111, &sync_target),
+            (
+                SyncWithCandidate(vec![], vec![], vec![])
+            )
+        );
+
+        assert_eq!(
+            test_split_batch(vec![], 111, &sync_target),
+            (
+                SyncWithCandidate(vec![], vec![], vec![])
+            )
+        );
+
+        assert_eq!(
+            test_split_batch(vec![1, 8, 18, 108, 110], 111, &sync_target),
+            (
+                SyncWithCandidate(vec![1, 8, 18], vec![108], vec![110])
+            )
+        );
+
     }
 }
