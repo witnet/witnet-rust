@@ -135,6 +135,18 @@ impl Default for StateMachine {
     }
 }
 
+/// Synchronization target determined by the beacons received from outbound peers
+#[derive(Clone, Debug)]
+pub struct SyncTarget {
+    // TODO: the target block must be set, but the node will not assume that it is valid
+    block: CheckpointBeacon,
+    // The target superblock must always be set. Here we only know the superblock index and hash,
+    // we do not know the block hash. The block index can be derived from the superblock index.
+    // This must be a superblock beacon consolidated with more than 2/3 of the votes, and it must be
+    // irreversibly consolidated when reached.
+    superblock: CheckpointBeacon,
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
