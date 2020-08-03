@@ -20,7 +20,8 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
 use super::{
-    show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine, SyncTarget,
+    show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
+    SyncTarget,
 };
 use crate::{
     actors::{
@@ -1153,15 +1154,14 @@ pub enum BlockBatches<T> {
 // TODO: USE ME!
 #[allow(dead_code)]
 fn split_blocks_batch_at_target<T, F>(
-    mut key: F,
+    key: F,
     blocks: Vec<T>,
     current_epoch: u32,
     sync_target: &SyncTarget,
     superblock_period: u32,
-) -> BlockBatches<T>
+) -> Result<BlockBatches<T>, ChainManagerError>
 where
-    F: FnMut(&T) -> u32,
-    T: std::default::Default,
+    F: Fn(&T) -> u32 + Copy,
 {
     use BlockBatches::*;
 
@@ -1170,13 +1170,34 @@ where
         current_superblock_index >= sync_target.superblock.checkpoint,
         "Provided a sync target that is in the future"
     );
+
+    // If the chain reverted, this function cannot receive blocks from between the reverted epochs
+    let first_valid_block = (current_superblock_index
+        - ((current_superblock_index - sync_target.superblock.checkpoint) % 2))
+        * superblock_period;
+
+    let wrong_index = blocks.iter().position(|block| {
+        key(block) >= sync_target.superblock.checkpoint * superblock_period
+            && key(block) < first_valid_block
+    });
+    if let Some(wrong_index) = wrong_index {
+        // We received blocks that do not match the current epoch and the last consolidated superblock.
+        // as an example, if the last consolidated superblock has the block 9 inside, and we are in epoch 50,
+        // it means we reverted somehow. Thus Blocks between 10 and 49 cannot exist.
+        return Err(ChainManagerError::WrongBlocksForSuperblock {
+            wrong_index: key(&blocks[wrong_index]),
+            consolidated_superblock_index: sync_target.superblock.checkpoint,
+            current_superblock_index,
+        });
+    }
+
     // The case where blocks is an empty array
-    let last_epoch = key(blocks.last().unwrap_or(&T::default()));
+    let last_epoch = blocks.last().map(key).unwrap_or(0);
 
     if last_epoch < ((sync_target.superblock.checkpoint * superblock_period).saturating_sub(1))
         && last_epoch < sync_target.block.checkpoint
     {
-        return TargetNotReached(blocks);
+        return Ok(TargetNotReached(blocks));
     }
 
     if (current_superblock_index - sync_target.superblock.checkpoint) % 2 == 0 {
@@ -1190,7 +1211,7 @@ where
             remaining_blocks = consolidated_blocks.split_off(split_position);
         }
 
-        return SyncWithoutCandidate(consolidated_blocks, remaining_blocks);
+        return Ok(SyncWithoutCandidate(consolidated_blocks, remaining_blocks));
     }
 
     let (consolidated_blocks_target, candidate_blocks_target) = (
@@ -1216,7 +1237,11 @@ where
         remaining_blocks = candidate_blocks.split_off(remaining_split_position);
     }
 
-    return SyncWithCandidate(consolidated_blocks, candidate_blocks, remaining_blocks);
+    Ok(SyncWithCandidate(
+        consolidated_blocks,
+        candidate_blocks,
+        remaining_blocks,
+    ))
 }
 
 #[cfg(test)]
@@ -1431,57 +1456,51 @@ mod tests {
 
         assert_eq!(
             test_split_batch(vec![], 1, &sync_target),
-            (SyncWithoutCandidate(vec![], vec![]))
+            Ok(SyncWithoutCandidate(vec![], vec![]))
         );
         assert_eq!(
             test_split_batch(vec![0], 1, &sync_target),
-            (SyncWithoutCandidate(vec![], vec![0]))
+            Ok(SyncWithoutCandidate(vec![], vec![0]))
         );
         assert_eq!(
             test_split_batch(vec![0, 8], 9, &sync_target),
-            (SyncWithoutCandidate(vec![], vec![0, 8]))
+            Ok(SyncWithoutCandidate(vec![], vec![0, 8]))
         );
         assert_eq!(
             test_split_batch(vec![0, 9], 11, &sync_target),
-            (SyncWithCandidate(vec![], vec![0, 9], vec![]))
+            Ok(SyncWithCandidate(vec![], vec![0, 9], vec![]))
         );
 
         assert_eq!(
             test_split_batch(vec![0, 10], 11, &sync_target),
-            (SyncWithCandidate(vec![], vec![0], vec![10]))
+            Ok(SyncWithCandidate(vec![], vec![0], vec![10]))
         );
 
         sync_target.superblock.checkpoint = 1;
 
         assert_eq!(
             test_split_batch(vec![0, 9], 21, &sync_target),
-            (SyncWithCandidate(vec![0, 9], vec![], vec![]))
+            Ok(SyncWithCandidate(vec![0, 9], vec![], vec![]))
         );
         assert_eq!(
             test_split_batch(vec![0, 10], 21, &sync_target),
-            (SyncWithCandidate(vec![0], vec![10], vec![]))
+            Ok(SyncWithCandidate(vec![0], vec![10], vec![]))
         );
         assert_eq!(
             test_split_batch(vec![0, 8, 11], 21, &sync_target),
-            (SyncWithCandidate(vec![0, 8], vec![11], vec![]))
+            Ok(SyncWithCandidate(vec![0, 8], vec![11], vec![]))
         );
         assert_eq!(
             test_split_batch(vec![0, 9, 10, 18, 26], 29, &sync_target),
-            (
-                SyncWithCandidate(vec![0, 9], vec![10, 18], vec![26])
-            )
+            Ok(SyncWithCandidate(vec![0, 9], vec![10, 18], vec![26]))
         );
         assert_eq!(
             test_split_batch(vec![0, 9, 10, 19], 21, &sync_target,),
-            (
-                SyncWithCandidate(vec![0, 9], vec![10, 19], vec![])
-            ),
+            Ok(SyncWithCandidate(vec![0, 9], vec![10, 19], vec![]))
         );
         assert_eq!(
             test_split_batch(vec![0, 10, 20], 21, &sync_target),
-            (
-                SyncWithCandidate(vec![0], vec![10], vec![20])
-            ),
+            Ok(SyncWithCandidate(vec![0], vec![10], vec![20]))
         );
         assert_eq!(
             test_split_batch(
@@ -1489,49 +1508,48 @@ mod tests {
                 22,
                 &sync_target,
             ),
-            (
-                SyncWithCandidate(vec![0, 9], vec![10, 19], vec![20, 21])
-            ),
+            Ok(SyncWithCandidate(vec![0, 9], vec![10, 19], vec![20, 21]))
         );
 
         sync_target.superblock.checkpoint = 2;
         assert_eq!(
             test_split_batch(vec![100], 101, &sync_target),
-            SyncWithoutCandidate(vec![], vec![100])
+            Ok(SyncWithoutCandidate(vec![], vec![100]))
         );
 
         assert_eq!(
             test_split_batch(vec![110], 111, &sync_target),
-            SyncWithCandidate(vec![], vec![], vec![110])
+            Ok(SyncWithCandidate(vec![], vec![], vec![110]))
         );
 
         assert_eq!(
             test_split_batch(vec![105, 110], 111, &sync_target),
-            (
-                SyncWithCandidate(vec![], vec![105], vec![110])
-            )
+            Ok(SyncWithCandidate(vec![], vec![105], vec![110]))
         );
 
         assert_eq!(
             test_split_batch(vec![], 111, &sync_target),
-            (
-                SyncWithCandidate(vec![], vec![], vec![])
-            )
+            Ok(SyncWithCandidate(vec![], vec![], vec![]))
         );
 
         assert_eq!(
             test_split_batch(vec![], 111, &sync_target),
-            (
-                SyncWithCandidate(vec![], vec![], vec![])
-            )
+            Ok(SyncWithCandidate(vec![], vec![], vec![]))
         );
 
         assert_eq!(
             test_split_batch(vec![1, 8, 18, 108, 110], 111, &sync_target),
-            (
-                SyncWithCandidate(vec![1, 8, 18], vec![108], vec![110])
-            )
+            Ok(SyncWithCandidate(vec![1, 8, 18], vec![108], vec![110]))
         );
 
+        sync_target.superblock.checkpoint = 3;
+        assert_eq!(
+            test_split_batch(vec![1, 8, 18, 70, 100], 101, &sync_target),
+            (Err(ChainManagerError::WrongBlocksForSuperblock {
+                wrong_index: 70,
+                consolidated_superblock_index: 3,
+                current_superblock_index: 10
+            }))
+        );
     }
 }
