@@ -2767,33 +2767,6 @@ impl AltKeys {
             }
         }
     }
-
-    /// Get bn256 keys ordered by reputation. If tie, order by pkh.
-    /// These keys will be used to form the superblock
-    pub fn get_rep_ordered_bn256_list(
-        &self,
-        reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
-    ) -> Vec<Bn256PublicKey> {
-        self.bn256
-            .iter()
-            .map(|(pkh, _)| *pkh)
-            .sorted_by_key(|&pkh| (reputation_set.get(&pkh), pkh))
-            .filter_map(|pkh| self.get_bn256(&pkh).cloned())
-            .collect()
-    }
-
-    /// Get keys ordered by reputation. If tie, order by pkh.
-    /// These keys will be used to order the ARS when forming a superblock
-    pub fn get_rep_ordered_pkh_list(
-        &self,
-        reputation_set: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
-    ) -> Vec<PublicKeyHash> {
-        self.bn256
-            .iter()
-            .map(|(pkh, _)| *pkh)
-            .sorted_by_key(|&pkh| (reputation_set.get(&pkh), pkh))
-            .collect()
-    }
 }
 
 impl ChainState {
@@ -2919,6 +2892,14 @@ impl ReputationEngine {
 
     pub fn clear_threshold_cache(&self) {
         self.threshold_cache.borrow_mut().clear_threshold_cache()
+    }
+
+    pub fn get_rep_ordered_ars_list(&self) -> Vec<PublicKeyHash> {
+        self.ars
+            .active_identities()
+            .cloned()
+            .sorted_by_key(|&pkh| (self.trs.get(&pkh), pkh))
+            .collect()
     }
 }
 
@@ -3289,7 +3270,10 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody};
+    use crate::{
+        superblock::ARSIdentities,
+        transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
+    };
 
     #[test]
     fn test_block_hashable_trait() {
@@ -4559,7 +4543,6 @@ mod tests {
 
     #[test]
     fn test_ordered_alts_no_tie() {
-        let mut trs = TotalReputationSet::new();
         let mut alt_keys = AltKeys::default();
 
         let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
@@ -4588,16 +4571,19 @@ mod tests {
             (p3, Reputation(1)),
         ];
 
-        trs.gain(Alpha(4), v4).unwrap();
-        let expected_order = vec![p3_bls, p2_bls, p1_bls];
-        let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
+        let mut rep_engine = ReputationEngine::new(100);
+        rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
+        rep_engine.ars_mut().push_activity(vec![p1, p2, p3]);
 
-        assert_eq!(expected_order, ordered_keys);
+        let expected_order = vec![p3_bls, p2_bls, p1_bls];
+        let ordered_identities = rep_engine.get_rep_ordered_ars_list();
+        let ars_identities = ARSIdentities::new(ordered_identities, alt_keys);
+
+        assert_eq!(expected_order, ars_identities.get_rep_ordered_bn256_list());
     }
 
     #[test]
     fn test_ordered_alts_with_tie() {
-        let mut trs = TotalReputationSet::new();
         let mut alt_keys = AltKeys::default();
 
         let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
@@ -4624,16 +4610,19 @@ mod tests {
             (p3, Reputation(1)),
         ];
 
-        trs.gain(Alpha(4), v4).unwrap();
-        let expected_order = vec![p3_bls, p2_bls, p1_bls];
-        let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
+        let mut rep_engine = ReputationEngine::new(100);
+        rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
+        rep_engine.ars_mut().push_activity(vec![p1, p2, p3]);
 
-        assert_eq!(expected_order, ordered_keys);
+        let expected_order = vec![p3_bls, p2_bls, p1_bls];
+        let ordered_identities = rep_engine.get_rep_ordered_ars_list();
+        let ars_identities = ARSIdentities::new(ordered_identities, alt_keys);
+
+        assert_eq!(expected_order, ars_identities.get_rep_ordered_bn256_list());
     }
 
     #[test]
     fn test_ordered_alts_with_tie_2() {
-        let mut trs = TotalReputationSet::new();
         let mut alt_keys = AltKeys::default();
 
         let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
@@ -4676,11 +4665,15 @@ mod tests {
             (p5, Reputation(1)),
         ];
 
-        trs.gain(Alpha(4), v4).unwrap();
-        let expected_order = vec![p3_bls, p2_bls, p5_bls, p4_bls, p1_bls];
-        let ordered_keys = alt_keys.get_rep_ordered_bn256_list(&trs);
+        let mut rep_engine = ReputationEngine::new(100);
+        rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
+        rep_engine.ars_mut().push_activity(vec![p1, p2, p3, p4, p5]);
 
-        assert_eq!(expected_order, ordered_keys);
+        let expected_order = vec![p3_bls, p2_bls, p5_bls, p4_bls, p1_bls];
+        let ordered_identities = rep_engine.get_rep_ordered_ars_list();
+        let ars_identities = ARSIdentities::new(ordered_identities, alt_keys);
+
+        assert_eq!(expected_order, ars_identities.get_rep_ordered_bn256_list());
     }
 
     #[test]
