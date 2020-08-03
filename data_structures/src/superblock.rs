@@ -35,7 +35,7 @@ pub enum AddSuperBlockVote {
 pub enum SuperBlockConsensus {
     /// The local superblock has the majority of votes, everything ok
     SameAsLocal,
-    /// A different superblock has the majority of votes, go to waiting consensus
+    /// A different superblock has the majority of votes
     Different(Hash),
     /// No superblock candidate can achieve majority of votes
     NoConsensus,
@@ -157,6 +157,7 @@ impl SuperBlockState {
                 None => AddSuperBlockVote::MaybeValid,
             }
         };
+        // TODO: delete this log after testing
         log::debug!("Add vote: {:?}", r);
 
         r
@@ -190,8 +191,8 @@ impl SuperBlockState {
 
     /// Return true if the local superblock has the majority of votes
     pub fn has_consensus(&self) -> SuperBlockConsensus {
-        log::info!("Superblock votes: {:?}", self.votes_on_each_superblock);
-        log::info!("Previous ars: {:?}", self.current_signing_committee);
+        log::debug!("Superblock votes: {:?}", self.votes_on_each_superblock);
+        log::debug!("Previous ars: {:?}", self.current_signing_committee);
         // If current_signing_committee is None, this is the first superblock. The first superblock
         // is the one with index 0 and genesis hash. These are consensus constants and we do not
         // need any votes to determine that that is the most voted superblock.
@@ -1097,7 +1098,7 @@ mod tests {
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::AlreadySeen);
         assert_eq!(sbs.add_vote(&v4), AddSuperBlockVote::NotInSigningCommittee);
 
-        // Crate a superblock with the ars_identities
+        // Create a superblock with the ars_identities
         let sb1 = sbs.build_superblock(
             &block_headers,
             &ars_identities,

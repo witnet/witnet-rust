@@ -962,6 +962,7 @@ impl ChainManager {
                 SuperBlockConsensus::SameAsLocal
             };
 
+            // TODO: Remove this log after testing
             log::debug!("{:?}", consensus);
 
             let chain_info = act.chain_state.chain_info.as_ref().unwrap();
