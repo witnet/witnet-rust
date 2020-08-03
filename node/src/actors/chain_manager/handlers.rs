@@ -20,7 +20,7 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
 use super::{
-    show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
+    show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine, SyncTarget,
 };
 use crate::{
     actors::{
@@ -1138,6 +1138,82 @@ impl Handler<GetMempool> for ChainManager {
 
         Ok(res)
     }
+}
+
+// TODO: USE ME!
+#[allow(dead_code)]
+pub enum BlockBatches<T> {
+    TargetNotReached(Vec<T>),
+    SyncWithoutCandidate(Vec<T>, Vec<T>),
+    SyncWithCandidate(Vec<T>, Vec<T>, Vec<T>),
+}
+
+// TODO: return slices instead of vectors?
+// TODO: USE ME!
+#[allow(dead_code)]
+fn split_blocks_batch_at_target<T, F>(
+    mut key: F,
+    blocks: Vec<T>,
+    current_epoch: u32,
+    sync_target: &SyncTarget,
+    superblock_period: u32,
+) -> BlockBatches<T>
+where
+    F: FnMut(&T) -> u32,
+    T: std::default::Default,
+{
+    use BlockBatches::*;
+
+    let current_superblock_index = current_epoch / superblock_period;
+    assert!(
+        current_superblock_index >= sync_target.superblock.checkpoint,
+        "Provided a sync target that is in the future"
+    );
+    // The case where blocks is an empty array
+    let last_epoch = key(blocks.last().unwrap_or(&T::default()));
+
+    if last_epoch < (sync_target.superblock.checkpoint * superblock_period - 1)
+        && last_epoch < sync_target.block.checkpoint
+    {
+        return TargetNotReached(blocks);
+    }
+
+    if (current_superblock_index - sync_target.superblock.checkpoint) % 2 == 0 {
+        let consolidated_blocks_target = sync_target.superblock.checkpoint * superblock_period;
+        let mut consolidated_blocks = blocks;
+        let mut remaining_blocks = vec![];
+        let split_position = consolidated_blocks
+            .iter()
+            .position(|block| key(block) >= consolidated_blocks_target);
+        if let Some(split_position) = split_position {
+            remaining_blocks = consolidated_blocks.split_off(split_position);
+        }
+
+        return SyncWithoutCandidate(consolidated_blocks, remaining_blocks);
+    }
+
+    let (consolidated_blocks_target, candidate_blocks_target) = (
+        sync_target.superblock.checkpoint * superblock_period,
+        current_superblock_index * superblock_period,
+    );
+    let mut consolidated_blocks = blocks;
+    let candidate_split_position = consolidated_blocks
+        .iter()
+        .position(|block| key(block) >= consolidated_blocks_target);
+    let remaining_split_position = consolidated_blocks
+        .iter()
+        .position(|block| key(block) >= candidate_blocks_target);
+    let mut candidate_blocks = vec![];
+    let mut remaining_blocks = vec![];
+
+    if let Some(candidate_split_position) = candidate_split_position {
+        candidate_blocks = consolidated_blocks.split_off(candidate_split_position);
+    }
+    if let Some(remaining_split_position) = remaining_split_position {
+        remaining_blocks = candidate_blocks.split_off(remaining_split_position);
+    }
+
+    return SyncWithCandidate(consolidated_blocks, candidate_blocks, remaining_blocks);
 }
 
 #[cfg(test)]
