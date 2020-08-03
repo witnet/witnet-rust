@@ -112,6 +112,19 @@ pub enum ChainManagerError {
     /// The node is trying to mine a block so commits are not allowed
     #[fail(display = "Commit received while node is trying to mine a block")]
     TooLateToCommit,
+    /// The node received a batch of blocks that is inconsistent with the current index
+    #[fail(
+        display = "Wrong number of blocks provided {:?} for superblock index {:?} and epoch {:?})",
+        wrong_index, consolidated_superblock_index, current_superblock_index
+    )]
+    WrongBlocksForSuperblock {
+        /// Tells what the wrong index was
+        wrong_index: u32,
+        /// Tells what the current superblock index was
+        consolidated_superblock_index: u32,
+        /// Tells what the current epoch was
+        current_superblock_index: u32,
+    },
 }
 
 /// State Machine
