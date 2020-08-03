@@ -51,7 +51,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
-    superblock::AddSuperBlockVote,
+    superblock::{AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
     types::LastBeacon,
     vrf::VrfCtx,
@@ -953,6 +953,17 @@ impl ChainManager {
         })
         .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
         .and_then(move |(block_headers, last_hash), act, _ctx| {
+            let consensus = if act.sm_state == StateMachine::Synced {
+                act.chain_state.superblock_state.has_consensus()
+            } else {
+                // If the node is not synced yet, assume that the superblock is valid.
+                // This is because the node is consolidating blocks received during the synchronization
+                // process, which are assumed to be valid.
+                SuperBlockConsensus::SameAsLocal
+            };
+
+            log::debug!("{:?}", consensus);
+
             let chain_info = act.chain_state.chain_info.as_ref().unwrap();
             let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
 

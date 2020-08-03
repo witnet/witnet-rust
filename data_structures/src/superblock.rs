@@ -30,6 +30,7 @@ pub enum AddSuperBlockVote {
     ValidWithSameHash,
 }
 
+#[derive(Debug)]
 /// Possible result of SuperBlockState::has_consensus
 pub enum SuperBlockConsensus {
     /// The local superblock has the majority of votes, everything ok
