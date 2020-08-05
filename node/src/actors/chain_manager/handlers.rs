@@ -1182,7 +1182,7 @@ where
     });
     if let Some(wrong_index) = wrong_index {
         // We received blocks that do not match the current epoch and the last consolidated superblock.
-        // as an example, if the last consolidated superblock has the block 9 inside, and we are in epoch 50,
+        // As an example, if the last consolidated superblock has the block 9 inside, and we are in epoch 50,
         // it means we reverted somehow. Thus Blocks between 10 and 49 cannot exist.
         return Err(ChainManagerError::WrongBlocksForSuperblock {
             wrong_index: key(&blocks[wrong_index]),
@@ -1449,9 +1449,14 @@ mod tests {
         };
         let superblock_period = 10;
 
-
-        let test_split_batch = |v, e, s: &SyncTarget| {
-            split_blocks_batch_at_target(|x| *x, v, e, &s.clone(), superblock_period)
+        let test_split_batch = |provided_blocks, epoch, sync_target: &SyncTarget| {
+            split_blocks_batch_at_target(
+                |x| *x,
+                provided_blocks,
+                epoch,
+                &sync_target.clone(),
+                superblock_period,
+            )
         };
 
         assert_eq!(
@@ -1503,11 +1508,7 @@ mod tests {
             Ok(SyncWithCandidate(vec![0], vec![10], vec![20]))
         );
         assert_eq!(
-            test_split_batch(
-                vec![0, 9, 10, 19, 20, 21],
-                22,
-                &sync_target,
-            ),
+            test_split_batch(vec![0, 9, 10, 19, 20, 21], 22, &sync_target,),
             Ok(SyncWithCandidate(vec![0, 9], vec![10, 19], vec![20, 21]))
         );
 
@@ -1550,6 +1551,14 @@ mod tests {
                 consolidated_superblock_index: 3,
                 current_superblock_index: 10
             }))
+        );
+
+        sync_target.superblock.checkpoint = 10;
+        sync_target.block.checkpoint = 99;
+
+        assert_eq!(
+            test_split_batch(vec![1, 8, 18], 101, &sync_target),
+            Ok(TargetNotReached(vec![1, 8, 18]))
         );
     }
 }
