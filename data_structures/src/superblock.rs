@@ -171,20 +171,16 @@ impl SuperBlockVotesMempool {
 /// State related to superblocks
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SuperBlockState {
-    // Set of ARS identities that will be able to send superblock votes in the next superblock epoch
+    // Structure of the current Active Reputation Set identities
     ars_current_identities: ARSIdentities,
-    // Set of ARS identities that can currently send superblock votes
+    // Structure of the previous Active Reputation Set identities
     ars_previous_identities: ARSIdentities,
-
+    // Current superblock beacon including the superblock hash created by this node
+    //and the current superblock index, used to limit the range of broadcasted votes to
+    // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
+    current_superblock_beacon: CheckpointBeacon,
     // Subset of ARS in charge of signing the next superblock
     current_signing_committee: Option<HashSet<PublicKeyHash>>,
-
-    // Current superblock hash created by this node
-    current_superblock_hash: Hash,
-    // Current superblock index, used to limit the range of broadcasted votes to
-    // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
-    current_superblock_index: u32,
-
     // SuperBlockMempool
     votes_mempool: SuperBlockVotesMempool,
 }
@@ -199,8 +195,10 @@ impl SuperBlockState {
                 ordered_identities: vec![],
                 alt_keys: AltKeys::default(),
             },
-            current_superblock_hash: superblock_genesis_hash,
-            current_superblock_index: 0,
+            current_superblock_beacon: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: superblock_genesis_hash,
+            },
             ..SuperBlockState::default()
         }
     }
@@ -216,7 +214,8 @@ impl SuperBlockState {
 
             AddSuperBlockVote::DoubleVote
         } else {
-            let is_same_hash = sbv.superblock_hash == self.current_superblock_hash;
+            let is_same_hash =
+                sbv.superblock_hash == self.current_superblock_beacon.hash_prev_block;
             self.votes_mempool.insert_vote(sbv);
 
             if is_same_hash {
@@ -242,7 +241,7 @@ impl SuperBlockState {
             match valid {
                 Some(true) => self.insert_vote(sbv.clone()),
                 Some(false) => {
-                    if sbv.superblock_index == self.current_superblock_index
+                    if sbv.superblock_index == self.current_superblock_beacon.checkpoint
                         || self.ars_previous_identities.is_empty()
                     {
                         AddSuperBlockVote::NotInSigningCommittee
@@ -263,16 +262,14 @@ impl SuperBlockState {
     /// is in the superblock signing committee.
     /// Returns true, false, or unknown
     fn is_valid(&self, sbv: &SuperBlockVote) -> Option<bool> {
-        if self.current_superblock_index == sbv.superblock_index {
+        let superblock_index = self.current_superblock_beacon.checkpoint;
+        if superblock_index == sbv.superblock_index {
             // If the index is the same as the current one, the vote is valid if it is signed by a
             // member of the current signing committee
-            self.current_signing_committee
-                .as_ref()
-                .map_or(Some(false), |x| {
-                    Some(x.contains(&sbv.secp256k1_signature.public_key.pkh()))
-                })
-        } else if ((self.current_superblock_index.saturating_sub(1))
-            ..=self.current_superblock_index.saturating_add(1))
+            self.current_signing_committee.as_ref().map_or(Some(false), |x| {
+                Some(x.contains(&sbv.secp256k1_signature.public_key.pkh()))
+            })
+        } else if ((superblock_index.saturating_sub(1))..=superblock_index.saturating_add(1))
             .contains(&sbv.superblock_index)
         {
             // If the index is not the same as the current one, but it is within an acceptable range
@@ -309,7 +306,7 @@ impl SuperBlockState {
             };
 
         if two_thirds_consensus(most_voted_num_votes, identities_that_can_vote) {
-            if most_voted_superblock == self.current_superblock_hash {
+            if most_voted_superblock == self.current_superblock_beacon.hash_prev_block {
                 SuperBlockConsensus::SameAsLocal
             } else {
                 SuperBlockConsensus::Different(most_voted_superblock)
@@ -350,7 +347,6 @@ impl SuperBlockState {
         superblock_index: u32,
         last_block_in_previous_superblock: Hash,
     ) -> SuperBlock {
-        self.current_superblock_index = superblock_index;
         let key_leaves = hash_key_leaves(&ars_ordered_identities.get_rep_ordered_bn256_list());
 
         let superblock = mining_build_superblock(
@@ -362,14 +358,18 @@ impl SuperBlockState {
 
         self.update_ars_identities(ars_ordered_identities);
 
-        // For the current superblock hash, calculate the signing committee
+        // Before updating the superblock_beacon, calculate the signing committee
         self.current_signing_committee = calculate_superblock_signing_committee(
             self.ars_previous_identities.clone(),
             signing_committee_size,
-            self.current_superblock_hash,
+            self.current_superblock_beacon.hash_prev_block,
         );
 
-        self.current_superblock_hash = superblock.hash();
+        // update the superblock_beacon
+        self.current_superblock_beacon = CheckpointBeacon {
+            checkpoint: superblock_index,
+            hash_prev_block: superblock.hash(),
+        };
 
         let old_votes = self.votes_mempool.clear_and_remove_votes();
         for sbv in old_votes {
@@ -386,10 +386,7 @@ impl SuperBlockState {
 
     /// Returns the last superblock hash and index.
     pub fn get_beacon(&self) -> CheckpointBeacon {
-        CheckpointBeacon {
-            checkpoint: self.current_superblock_index,
-            hash_prev_block: self.current_superblock_hash,
-        }
+        self.current_superblock_beacon
     }
 
     /// Returns the current superblock votes.
@@ -792,14 +789,16 @@ mod tests {
                 .parse()
                 .unwrap();
 
-        let mut expected_sbs = SuperBlockState {
+        let expected_sbs = SuperBlockState {
             ars_current_identities: ars_identities,
             current_signing_committee: Some(HashSet::new()),
-            current_superblock_hash: expected_superblock_hash,
+            current_superblock_beacon: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: expected_superblock_hash,
+            },
             ars_previous_identities: ARSIdentities::default(),
             ..Default::default()
         };
-        expected_sbs.current_superblock_index = 0;
         assert_eq!(sbs, expected_sbs);
     }
 
@@ -834,11 +833,12 @@ mod tests {
         );
 
         // The only think that should change is the superblock_index
-        expected_sbs.current_superblock_index = 1;
         // And the superblock_hash, which will be set to the previous superblock
-        expected_sbs.current_superblock_hash = expected_second_superblock.hash();
-        expected_sbs.current_signing_committee =
-            Some(ars_identities.identities.iter().cloned().collect());
+        expected_sbs.current_superblock_beacon = CheckpointBeacon {
+            checkpoint: 1,
+            hash_prev_block: expected_second_superblock.hash(),
+        };
+        expected_sbs.current_signing_committee = Some(ars_identities.identities.iter().cloned().collect());
         expected_sbs.ars_previous_identities = ars_identities;
         assert_eq!(sbs, expected_sbs);
     }
@@ -1383,7 +1383,7 @@ mod tests {
         let subset = calculate_superblock_signing_committee(
             sbs.ars_previous_identities,
             committee_size,
-            sbs.current_superblock_hash,
+            sbs.current_superblock_beacon.hash_prev_block,
         );
         assert_eq!(ars_identities.len(), subset.unwrap().len());
     }
@@ -1422,7 +1422,7 @@ mod tests {
         let subset = calculate_superblock_signing_committee(
             sbs.ars_previous_identities,
             committee_size,
-            sbs.current_superblock_hash,
+            sbs.current_superblock_beacon.hash_prev_block,
         );
 
         // The members of the signing_committee should be p3, p5, p7 and p1
@@ -1533,7 +1533,10 @@ mod tests {
     fn test_get_beacon_2() {
         let superblock_state = SuperBlockState {
             ars_current_identities: ARSIdentities::default(),
-            current_superblock_hash: Hash::SHA256([1; 32]),
+            current_superblock_beacon: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::SHA256([1; 32]),
+            },
             ars_previous_identities: ARSIdentities::default(),
             ..Default::default()
         };
@@ -1552,8 +1555,10 @@ mod tests {
     fn test_get_beacon_3() {
         let superblock_state = SuperBlockState {
             ars_current_identities: ARSIdentities::default(),
-            current_superblock_hash: Hash::default(),
-            current_superblock_index: 1,
+            current_superblock_beacon: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: Hash::default(),
+            },
             ars_previous_identities: ARSIdentities::default(),
             ..Default::default()
         };
