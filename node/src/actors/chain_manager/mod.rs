@@ -76,6 +76,7 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
+use witnet_crypto::hash::calculate_sha256;
 
 mod actor;
 mod handlers;
@@ -179,7 +180,7 @@ pub struct ChainManager {
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
-    target_beacon: Option<CheckpointBeacon>,
+    sync_target: Option<SyncTarget>,
     /// The node asked for a batch of blocks on this epoch. This is used to implement a timeout
     /// that will move the node back to WaitingConsensus state if it does not receive any AddBlocks
     /// message after a certain number of epochs
@@ -219,7 +220,10 @@ pub struct ChainManager {
     external_percentage: u8,
     /// Enable superblock creation
     create_superblocks: bool,
+    /// List of superblock votes received while we are synchronizing
+    temp_superblock_votes: Vec<SuperBlockVote>,
 }
+
 /// Wrapper around a block candidate that contains additional metadata regarding
 /// needed chain state mutations in case the candidate gets consolidated.
 #[derive(Debug)]
@@ -258,7 +262,7 @@ impl ChainManager {
         )
         .into_actor(self)
         .and_then(|_, _, _| {
-            log::trace!("Successfully persisted chain_info into storage");
+            log::debug!("Successfully persisted chain_info into storage");
             fut::ok(())
         })
         .map_err(|err, _, _| log::error!("Failed to persist chain_info into storage: {}", err))
@@ -266,6 +270,20 @@ impl ChainManager {
     }
     /// Method to persist the chain_state into storage
     fn persist_chain_state(&mut self, ctx: &mut Context<Self>) {
+        // When persisting the chain state, we need to update the highest superblock checkpoint.
+        // This is the highest superblock that obtained a majority of votes and we do not want to
+        // lose it when restoring the state.
+        self.last_chain_state
+            .chain_info
+            .as_mut()
+            .unwrap()
+            .highest_superblock_checkpoint = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .highest_superblock_checkpoint;
+        self.last_chain_state.superblock_state = self.chain_state.superblock_state.clone();
         self.persist_last_chain_state(ctx);
         // TODO: Evaluate another way to avoid clone
         self.last_chain_state = self.chain_state.clone();
@@ -481,20 +499,10 @@ impl ChainManager {
         }
     }
 
-    fn persist_blocks_batch(
-        &self,
-        ctx: &mut Context<Self>,
-        blocks: Vec<Block>,
-        target_beacon: CheckpointBeacon,
-    ) {
+    fn persist_blocks_batch(&self, ctx: &mut Context<Self>, blocks: Vec<Block>) {
         let mut to_persist = Vec::with_capacity(blocks.len());
         for block in blocks {
-            let block_hash = block.hash();
             to_persist.push(StoreInventoryItem::Block(Box::new(block)));
-
-            if block_hash == target_beacon.hash_prev_block {
-                break;
-            }
         }
 
         self.persist_items(ctx, to_persist);
@@ -646,13 +654,16 @@ impl ChainManager {
                                 transaction: Transaction::Reveal(reveal),
                             })
                         }
+                        // Persist blocks and transactions but do not persist chain_state, it will
+                        // be persisted on superblock consolidation
+                        // TODO: this means that after a reorganization a call to getBlock or
+                        // getTransaction will show the content without any warning that the block
+                        // is not on the main chain. To fix this we could remove forked blocks when
+                        // a reorganization is detected.
                         self.persist_items(
                             ctx,
                             vec![StoreInventoryItem::Block(Box::new(block.clone()))],
                         );
-
-                        // Persist chain_info into storage
-                        self.persist_chain_state(ctx);
 
                         // Send notification to JsonRpcServer
                         JsonRpcServer::from_registry().do_send(NewBlock { block })
@@ -691,6 +702,74 @@ impl ChainManager {
             .clone()
     }
 
+    fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) -> Result<(), failure::Error> {
+        for superblock_vote in std::mem::take(&mut self.temp_superblock_votes) {
+            log::debug!("add_temp_superblock_votes {:?}", superblock_vote);
+            // Check if we already received this vote
+            if self.chain_state.superblock_state.contains(&superblock_vote) {
+                return Ok(());
+            }
+
+            // Validate secp256k1 signature
+            signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
+                superblock_vote: superblock_vote.clone(),
+            }])
+            .map_err(|e| {
+                log::error!("Verify superblock vote signature: {}", e);
+            })
+            .into_actor(self)
+            .and_then(move |(), act, _ctx| {
+                // Check if we already received this vote (again, because this future can be executed
+                // by multiple tasks concurrently)
+                if act.chain_state.superblock_state.contains(&superblock_vote) {
+                    return actix::fut::ok(());
+                }
+                // Validate vote: the identity should be able to vote
+                // We broadcast all superblock votes with valid secp256k1 signature, signed by members
+                // of the ARS, even if the superblock hash is different from our local superblock hash.
+                // If the superblock index is different from the current one we cannot check ARS membership,
+                // so we broadcast it if the index is within an acceptable range (not too old).
+                let _should_broadcast =
+                    match act.chain_state.superblock_state.add_vote(&superblock_vote) {
+                        AddSuperBlockVote::AlreadySeen => false,
+                        AddSuperBlockVote::DoubleVote => {
+                            // We must forward double votes to make sure all the nodes are aware of them
+                            log::debug!(
+                                "Idenitity voted more than once: {}",
+                                superblock_vote.secp256k1_signature.public_key.pkh()
+                            );
+
+                            true
+                        }
+                        AddSuperBlockVote::InvalidIndex => {
+                            log::debug!(
+                                "Not forwarding superblock vote: invalid superblock index: {}",
+                                superblock_vote.superblock_index
+                            );
+
+                            false
+                        }
+                        AddSuperBlockVote::NotInSigningCommittee => {
+                            log::debug!(
+                                "Not forwarding superblock vote: identity not in ARS: {}",
+                                superblock_vote.secp256k1_signature.public_key.pkh()
+                            );
+
+                            false
+                        }
+                        AddSuperBlockVote::MaybeValid
+                        | AddSuperBlockVote::ValidButDifferentHash
+                        | AddSuperBlockVote::ValidWithSameHash => true,
+                    };
+
+                actix::fut::ok(())
+            })
+            .spawn(ctx);
+        }
+
+        Ok(())
+    }
+
     fn add_superblock_vote(
         &mut self,
         superblock_vote: SuperBlockVote,
@@ -700,6 +779,10 @@ impl ChainManager {
             "AddSuperBlockVote received while StateMachine is in state {:?}",
             self.sm_state
         );
+
+        if self.sm_state != StateMachine::Synced {
+            self.temp_superblock_votes.push(superblock_vote.clone());
+        }
 
         // Check if we already received this vote
         if self.chain_state.superblock_state.contains(&superblock_vote) {
@@ -715,6 +798,11 @@ impl ChainManager {
         })
         .into_actor(self)
         .and_then(move |(), act, _ctx| {
+            // Check if we already received this vote (again, because this future can be executed
+            // by multiple tasks concurrently)
+            if act.chain_state.superblock_state.contains(&superblock_vote) {
+                return actix::fut::err(());
+            }
             // Validate vote: the identity should be able to vote
             // We broadcast all superblock votes with valid secp256k1 signature, signed by members
             // of the ARS, even if the superblock hash is different from our local superblock hash.
@@ -776,6 +864,7 @@ impl ChainManager {
         Ok(())
     }
 
+    #[must_use]
     fn add_transaction(
         &mut self,
         msg: AddTransaction,
@@ -903,7 +992,120 @@ impl ChainManager {
         self.magic
     }
 
+    /// Build and vote candidate superblock process which uses futures
+    #[must_use]
+    pub fn build_and_vote_candidate_superblock(
+        &mut self,
+        ctx: &mut Context<Self>,
+        superblock_epoch: u32,
+    ) -> ResponseActFuture<Self, (), ()> {
+        let fut = self.construct_superblock(ctx, superblock_epoch).and_then(
+            move |superblock, act, _ctx| {
+                let superblock_hash = superblock.hash();
+                log::debug!(
+                    "Local SUPERBLOCK #{} {}: {:?}",
+                    superblock.index,
+                    superblock_hash,
+                    superblock
+                );
+
+                let mut superblock_vote =
+                    SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
+                let bn256_message = superblock_vote.bn256_signature_message();
+
+                signature_mngr::bn256_sign(bn256_message)
+                    .map_err(|e| {
+                        log::error!("Failed to sign superblock with bn256 key: {}", e);
+                    })
+                    .and_then(move |bn256_keyed_signature| {
+                        // Actually, we don't need to include the BN256 public key because
+                        // it is stored in the `alt_keys` mapping, indexed by the
+                        // secp256k1 public key hash
+                        let bn256_signature = bn256_keyed_signature.signature;
+                        superblock_vote.set_bn256_signature(bn256_signature);
+                        let secp256k1_message = superblock_vote.secp256k1_signature_message();
+                        let sign_bytes = calculate_sha256(&secp256k1_message).0;
+                        signature_mngr::sign_data(sign_bytes)
+                            .map(move |secp256k1_signature| {
+                                superblock_vote.set_secp256k1_signature(secp256k1_signature);
+
+                                superblock_vote
+                            })
+                            .map_err(|e| {
+                                log::error!("Failed to sign superblock with secp256k1 key: {}", e);
+                            })
+                    })
+                    .into_actor(act)
+                    .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
+                        Ok(()) => actix::fut::ok(()),
+                        Err(e) => {
+                            log::error!(
+                                "Error when broadcasting recently created superblock: {}",
+                                e
+                            );
+
+                            actix::fut::err(())
+                        }
+                    })
+            },
+        );
+
+        Box::new(fut)
+    }
+
+    /// Try to consolidate superblock process which uses futures
+    #[must_use]
+    pub fn try_consolidate_superblock(
+        &mut self,
+        ctx: &mut Context<Self>,
+        superblock_epoch: u32,
+        sync_target: SyncTarget,
+    ) -> ResponseActFuture<Self, (), ()> {
+        let fut = self.construct_superblock(ctx, superblock_epoch).and_then(
+            move |superblock, act, ctx| {
+                if superblock.hash() == sync_target.superblock.hash_prev_block {
+                    // In synchronizing state, the consensus beacon is the one we just created
+                    act.chain_state
+                        .chain_info
+                        .as_mut()
+                        .unwrap()
+                        .highest_superblock_checkpoint =
+                        act.chain_state.superblock_state.get_beacon();
+                    log::info!(
+                        "Consensus while sync! Superblock {:?}",
+                        act.get_superblock_beacon()
+                    );
+                    // Persist current_chain_state with
+                    // current_superblock_state and the new superblock beacon
+                    act.last_chain_state = act.chain_state.clone();
+                    act.persist_chain_state(ctx);
+
+                    actix::fut::ok(())
+                } else {
+                    // The superblock hash is different from what it should be.
+                    log::error!(
+                        "Mismatching superblock. Target: {:?} Created #{} {} {:?}",
+                        sync_target,
+                        superblock.index,
+                        superblock.hash(),
+                        superblock
+                    );
+                    act.sm_state = StateMachine::WaitingConsensus;
+                    act.initialize_from_storage(ctx);
+                    log::info!("Restored chain state from storage");
+
+                    // If we are not synchronizing, forget about when we started synchronizing
+                    act.sync_waiting_for_add_blocks_since = None;
+                    actix::fut::err(())
+                }
+            },
+        );
+
+        Box::new(fut)
+    }
+
     /// Construct superblock process which uses futures
+    #[must_use]
     pub fn construct_superblock(
         &mut self,
         ctx: &mut Context<Self>,
@@ -914,6 +1116,12 @@ impl ChainManager {
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
         let superblock_index = block_epoch / superblock_period;
+        if superblock_index == 0 {
+            panic!(
+                "Superblock 0 should not be created! Block epoch: {}",
+                block_epoch
+            );
+        }
         let inventory_manager = InventoryManager::from_registry();
 
         let init_epoch = block_epoch - superblock_period;
@@ -924,112 +1132,155 @@ impl ChainManager {
             GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
             ctx,
         ))
-        .and_then(move |res| match res {
-            Ok(v) => {
-                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
-                futures::future::ok(block_hashes)
-            }
-            Err(e) => {
-                log::error!("Error in GetBlocksEpochRange: {}", e);
-                futures::future::err(())
-            }
-        })
-        .and_then(move |block_hashes| {
-            let aux = block_hashes.into_iter().map(move |hash| {
-                inventory_manager
-                    .send(GetItemBlock { hash })
-                    .then(move |res| match res {
-                        Ok(Ok(block)) => futures::future::ok(block.block_header),
-                        Ok(Err(e)) => {
-                            log::error!("Error in GetItemBlock: {}", e);
-                            futures::future::err(())
-                        }
-                        Err(e) => {
-                            log::error!("Error in GetItemBlock: {}", e);
-                            futures::future::err(())
-                        }
-                    })
-                    .then(|x| futures::future::ok(x.ok()))
-            });
-
-            join_all(aux)
-                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
-                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
-        })
-        .into_actor(self)
-        .and_then(move |block_headers, act, ctx| {
-            let last_hash = act
-                .handle(
-                    GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
-                    ctx,
-                )
-                .map(move |v| {
-                    v.first()
-                        .map(|(_epoch, hash)| *hash)
-                        .unwrap_or(genesis_hash)
-                });
-            match last_hash {
-                Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
+            .and_then(move |res| match res {
+                Ok(v) => {
+                    let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
+                    futures::future::ok(block_hashes)
+                }
                 Err(e) => {
                     log::error!("Error in GetBlocksEpochRange: {}", e);
-                    actix::fut::err(())
+                    futures::future::err(())
                 }
-            }
-        })
-        .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
-        .and_then(move |(block_headers, last_hash), act, _ctx| {
-            let consensus = if act.sm_state == StateMachine::Synced {
-                act.chain_state.superblock_state.has_consensus()
-            } else {
-                // If the node is not synced yet, assume that the superblock is valid.
-                // This is because the node is consolidating blocks received during the synchronization
-                // process, which are assumed to be valid.
-                SuperBlockConsensus::SameAsLocal
-            };
+            })
+            .and_then(move |block_hashes| {
+                let aux = block_hashes.into_iter().map(move |hash| {
+                    inventory_manager
+                        .send(GetItemBlock { hash })
+                        .then(move |res| match res {
+                            Ok(Ok(block)) => futures::future::ok(block.block_header),
+                            Ok(Err(e)) => {
+                                log::error!("Error in GetItemBlock {}: {}", hash, e);
+                                futures::future::err(())
+                            }
+                            Err(e) => {
+                                log::error!("Error in GetItemBlock {}: {}", hash, e);
+                                futures::future::err(())
+                            }
+                        })
+                        .then(|x| futures::future::ok(x.ok()))
+                });
 
-            // TODO: Remove this log after testing
-            log::debug!("{:?}", consensus);
-
-            let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-            let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
-
-            let ars_members = {
-                // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
-                // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
-                // the bootstrap committee signs is at least epoch activity_period + collateral_age
-
-                if act.current_epoch.unwrap()
-                    > chain_info.consensus_constants.collateral_age
-                        + chain_info.consensus_constants.activity_period
-                {
-                    reputation_engine.get_rep_ordered_ars_list()
+                join_all(aux)
+                    // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+                    .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+            })
+            .into_actor(self)
+            .and_then(move |block_headers, act, ctx| {
+                let last_hash = act
+                    .handle(
+                        GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
+                        ctx,
+                    )
+                    .map(move |v| {
+                        v.first()
+                            .map(|(_epoch, hash)| *hash)
+                            .unwrap_or(genesis_hash)
+                    });
+                match last_hash {
+                    Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
+                    Err(e) => {
+                        log::error!("Error in GetBlocksEpochRange: {}", e);
+                        actix::fut::err(())
+                    }
+                }
+            })
+            .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
+            .and_then(move |(block_headers, last_hash), act, ctx| {
+                // TODO: Synced or AlmostSynced?
+                let consensus = if act.sm_state == StateMachine::Synced {
+                    act.chain_state.superblock_state.has_consensus()
                 } else {
-                    chain_info
-                        .consensus_constants
-                        .bootstrapping_committee
-                        .iter()
-                        .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                        .collect()
+                    // If the node is not synced yet, assume that the superblock is valid.
+                    // This is because the node is consolidating blocks received during the synchronization
+                    // process, which are assumed to be valid.
+                    SuperBlockConsensus::SameAsLocal
+                };
+                match consensus {
+                    SuperBlockConsensus::SameAsLocal => {
+                        // Consensus: persist chain state
+                        log::info!("Before update: superblock {:?}", act.get_superblock_beacon());
+                        act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
+                            act.chain_state.superblock_state.get_beacon();
+                        if act.sm_state == StateMachine::Synced {
+                            // Persist previous_chain_state with current superblock_state
+                            act.persist_chain_state(ctx);
+                        }
+                        log::info!("Consensus! Superblock {:?}", act.get_superblock_beacon());
+                        log::info!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                        log::info!(
+                        "The last block of the consolidated superblock is {}",
+                        last_hash
+                    );
+                        let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+                        let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
+
+                        let ars_members = {
+                            // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
+                            // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
+                            // the bootstrap committee signs is at least epoch activity_period + collateral_age
+
+                            if act.current_epoch.unwrap()
+                                > chain_info.consensus_constants.collateral_age
+                                    + chain_info.consensus_constants.activity_period
+                            {
+                                reputation_engine.get_rep_ordered_ars_list()
+                            } else {
+                                chain_info
+                                    .consensus_constants
+                                    .bootstrapping_committee
+                                    .iter()
+                                    .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                                    .collect()
+                            }
+                        };
+
+                        // Store the ARS and the order of the keys
+                        let ars_identities = ARSIdentities::new(ars_members);
+
+                        let superblock = act.chain_state.superblock_state.build_superblock(
+                            &block_headers,
+                            ars_identities,
+                            consensus_constants.superblock_signing_committee_size,
+                            superblock_index,
+                            last_hash,
+                            &act.chain_state.alt_keys,
+                        );
+
+                        actix::fut::ok(superblock)
+                    }
+                    SuperBlockConsensus::Different(target_superblock_hash) => {
+                        // No consensus: move to waiting consensus and restore chain_state from storage
+                        // TODO: start syncronizing with target superblock hash
+                        log::warn!("Superblock consensus {} different from current superblock. Moving to WaitingConsensus state", target_superblock_hash);
+                        act.initialize_from_storage(ctx);
+                        act.sm_state = StateMachine::WaitingConsensus;
+
+                        actix::fut::err(())
+                    }
+                    SuperBlockConsensus::NoConsensus => {
+                        // No consensus: move to AlmostSynced and restore chain_state from storage
+                        log::warn!("No superblock consensus. Moving to AlmostSynced state");
+                        act.initialize_from_storage(ctx);
+                        act.sm_state = StateMachine::AlmostSynced;
+
+                        actix::fut::err(())
+                    }
+                    SuperBlockConsensus::Unknown => {
+                        // Consensus unknown: move to waiting consensus and restore chain_state from storage
+                        log::warn!("Superblock consensus unknown. Moving to WaitingConsensus state");
+                        act.initialize_from_storage(ctx);
+                        act.sm_state = StateMachine::WaitingConsensus;
+
+                        actix::fut::err(())
+                    }
                 }
-            };
-
-            let ars_identities = ARSIdentities::new(ars_members);
-
-            let superblock = act.chain_state.superblock_state.build_superblock(
-                &block_headers,
-                ars_identities,
-                consensus_constants.superblock_signing_committee_size,
-                superblock_index,
-                last_hash,
-                &act.chain_state.alt_keys,
-            );
-            actix::fut::ok(superblock)
-        });
+            });
 
         Box::new(fut)
     }
 
     /// Block validation process which uses futures
+    #[must_use]
     pub fn future_process_validations(
         &mut self,
         block: Block,
@@ -1103,6 +1354,52 @@ impl ChainManager {
             .spawn(ctx);
         let epoch = self.current_epoch.unwrap();
         self.sync_waiting_for_add_blocks_since = Some(epoch);
+    }
+
+    fn process_blocks_batch(
+        &mut self,
+        ctx: &mut Context<Self>,
+        sync_target: &SyncTarget,
+        blocks: &[Block],
+    ) -> (bool, usize) {
+        let mut batch_succeeded = true;
+        let mut num_processed_blocks = 0;
+
+        for block in blocks.iter() {
+            num_processed_blocks += 1;
+
+            if let Err(e) = self.process_requested_block(ctx, block.clone()) {
+                log::error!("Error processing block: {}", e);
+                self.initialize_from_storage(ctx);
+                log::info!("Restored chain state from storage");
+                batch_succeeded = false;
+                break;
+            }
+
+            let beacon = self.get_chain_beacon();
+            show_sync_progress(beacon, &sync_target, self.epoch_constants.unwrap());
+        }
+
+        (batch_succeeded, num_processed_blocks)
+    }
+
+    fn process_first_batch(
+        &mut self,
+        ctx: &mut Context<ChainManager>,
+        sync_target: &SyncTarget,
+        x: &[Block],
+    ) -> (bool, usize) {
+        let (batch_succeeded, num_processed_blocks) =
+            self.process_blocks_batch(ctx, &sync_target, &x);
+
+        if !batch_succeeded {
+            log::error!("Received invalid blocks batch");
+            self.sm_state = StateMachine::WaitingConsensus;
+            // TODO: re-check statement
+            self.sync_waiting_for_add_blocks_since = None;
+        }
+
+        (batch_succeeded, num_processed_blocks)
     }
 }
 
@@ -1533,30 +1830,31 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
 
 fn show_sync_progress(
     beacon: CheckpointBeacon,
-    target_beacon: CheckpointBeacon,
+    sync_target: &SyncTarget,
     epoch_constants: EpochConstants,
 ) {
+    let target_checkpoint = sync_target.block.checkpoint;
     // Show progress log
     let mut percent_done_float =
-        f64::from(beacon.checkpoint) / f64::from(target_beacon.checkpoint) * 100.0;
+        f64::from(beacon.checkpoint) / f64::from(target_checkpoint) * 100.0;
 
     // Never show 100% unless it's actually done
-    if beacon.checkpoint != target_beacon.checkpoint && percent_done_float > 99.99 {
+    if beacon.checkpoint != target_checkpoint && percent_done_float > 99.99 {
         percent_done_float = 99.99;
     }
     let percent_done_string = format!("{:.2}%", percent_done_float);
 
     // Block age is actually the difference in age: it assumes that the last
     // block is 0 seconds old
-    let block_age = (target_beacon.checkpoint - beacon.checkpoint)
-        * u32::from(epoch_constants.checkpoints_period);
+    let block_age =
+        (target_checkpoint - beacon.checkpoint) * u32::from(epoch_constants.checkpoints_period);
 
     let human_age = seconds_to_human_string(u64::from(block_age));
     log::info!(
         "Synchronization progress: {} ({:>6}/{:>6}). Latest synced block is {} old.",
         percent_done_string,
         beacon.checkpoint,
-        target_beacon.checkpoint,
+        target_checkpoint,
         human_age
     );
 }
@@ -1656,7 +1954,7 @@ mod tests {
             RequestResult {
                 truths: 1,
                 lies: 0,
-                errors: 0
+                errors: 0,
             }
         );
         assert_eq!(
@@ -1664,7 +1962,7 @@ mod tests {
             RequestResult {
                 truths: 0,
                 lies: 0,
-                errors: 1
+                errors: 1,
             }
         );
         assert_eq!(
@@ -1672,7 +1970,7 @@ mod tests {
             RequestResult {
                 truths: 0,
                 lies: 1,
-                errors: 0
+                errors: 0,
             }
         );
     }

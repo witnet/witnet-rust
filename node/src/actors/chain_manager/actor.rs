@@ -231,7 +231,6 @@ impl ChainManager {
                 }
 
                 act.chain_state = chain_state;
-                act.last_chain_state = act.chain_state.clone();
 
                 // initialize_from_storage is also used to implement reorganizations
                 // In that case, we must clear some fields to avoid forks
@@ -246,6 +245,8 @@ impl ChainManager {
                     },
                 });
 
+                // Persist current chain state
+                act.last_chain_state = act.chain_state.clone();
                 act.persist_chain_state(ctx);
             }).wait(ctx);
     }

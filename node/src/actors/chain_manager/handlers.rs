@@ -19,10 +19,7 @@ use witnet_data_structures::{
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
-use super::{
-    show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
-    SyncTarget,
-};
+use super::{transaction_factory, ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
     actors::{
         chain_manager::BlockCandidate,
@@ -39,6 +36,7 @@ use crate::{
     storage_mngr,
     utils::mode_consensus,
 };
+use witnet_data_structures::chain::Block;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -272,8 +270,7 @@ impl Handler<GetNodeStats> for ChainManager {
 impl Handler<AddBlocks> for ChainManager {
     type Result = SessionUnitResult;
 
-    #[allow(clippy::cognitive_complexity)]
-    fn handle(&mut self, msg: AddBlocks, ctx: &mut Context<Self>) {
+    fn handle(&mut self, mut msg: AddBlocks, ctx: &mut Context<Self>) {
         log::debug!(
             "AddBlocks received while StateMachine is in state {:?}",
             self.sm_state
@@ -307,114 +304,270 @@ impl Handler<AddBlocks> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {
-                if let Some(target_beacon) = self.target_beacon {
-                    let mut batch_succeeded = true;
-                    let chain_beacon = self.get_chain_beacon();
-                    let superblock_period = u32::from(consensus_constants.superblock_period);
-                    if msg.blocks.is_empty() {
-                        batch_succeeded = false;
-                        log::debug!("Received an empty AddBlocks message");
-                    // FIXME(#684): this condition would be modified when genesis block exist
-                    } else if chain_beacon.hash_prev_block != consensus_constants.bootstrap_hash
-                        && msg.blocks[0].hash() != chain_beacon.hash_prev_block
-                        && msg.blocks[0].block_header.beacon.checkpoint == chain_beacon.checkpoint
-                    {
-                        // Fork case
-                        batch_succeeded = false;
-                        log::error!("Mismatching blocks, fork detected");
-                        self.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
-                    } else {
-                        // FIXME(#684): this condition would be deleted when genesis block exist
-                        let blocks = if chain_beacon.hash_prev_block
-                            == consensus_constants.bootstrap_hash
-                            || msg.blocks[0].block_header.beacon.checkpoint
-                                > chain_beacon.checkpoint
-                        {
-                            &msg.blocks[..]
-                        } else {
-                            &msg.blocks[1..]
-                        };
-
-                        for block in blocks.iter() {
-                            // Update reputation before checking Proof-of-Eligibility
-                            let block_epoch = block.block_header.beacon.checkpoint;
-
-                            // Construct superblock upon consolidation of the first block that took place after
-                            // the initial checkpoint of the next superblock
-                            let next_superblock_index =
-                                self.chain_state.superblock_state.get_beacon().checkpoint + 1;
-                            if block_epoch >= next_superblock_index * superblock_period {
-                                // Construct superblocks while synchronizing but do not broadcast them
-                                // This is needed to ensure that we can validate the received superblocks later on
-                                self.construct_superblock(ctx, block_epoch)
-                                    .and_then(move |_, _act, _ctx| actix::fut::ok(()))
-                                    .wait(ctx);
-                            }
-
-                            if let Err(e) = self.process_requested_block(ctx, block.clone()) {
-                                log::error!("Error processing block: {}", e);
-                                self.initialize_from_storage(ctx);
-                                log::info!("Restored chain state from storage");
-                                batch_succeeded = false;
-                                break;
-                            }
-
-                            let beacon = self.get_chain_beacon();
-                            show_sync_progress(
-                                beacon,
-                                target_beacon,
-                                self.epoch_constants.unwrap(),
-                            );
-
-                            if beacon == target_beacon {
-                                break;
-                            }
-                        }
-                    }
-
-                    if batch_succeeded {
-                        self.persist_blocks_batch(ctx, msg.blocks, target_beacon);
-                        let to_be_stored =
-                            self.chain_state.data_request_pool.finished_data_requests();
-                        self.persist_data_requests(ctx, to_be_stored);
-                        self.persist_chain_state(ctx);
-
-                        let beacon = self.get_chain_beacon();
-
-                        if beacon == target_beacon {
-                            // Target achived, go back to state 1
-                            self.sm_state = StateMachine::WaitingConsensus;
-                        } else {
-                            self.request_blocks_batch(ctx);
-                        }
-                    } else {
-                        // This branch will happen if this node has forked, but the network has
-                        // a valid consensus. In that case we would want to restore the node to
-                        // the state just before the fork, and restart the synchronization.
-
-                        // This branch could also happen when one peer has sent us an invalid block batch.
-                        // Ideally we would mark it as a bad peer and restart the
-                        // synchronization process, but that's not implemented yet.
-                        // Note that in order to correctly restart the synchronization process,
-                        // restoring the chain state from storage is not enough,
-                        // as that storage was overwritten at the end of the last successful batch.
-
-                        // In any case, the current behavior is to go back to WaitingConsensus
-                        // state and restart the synchronization on the next PeersBeacons message.
-                        self.sm_state = StateMachine::WaitingConsensus;
-                    }
-                } else {
+                // TODO: review if `sync_waiting_for_add_blocks_since = None` is needed
+                if self.sync_target.is_none() {
                     log::warn!("Target Beacon is None");
+                    // If we are not synchronizing, forget about when we started synchronizing
+                    // if self.sm_state != StateMachine::Synchronizing {
+                    //     self.sync_waiting_for_add_blocks_since = None;
+                    // }
+                    return;
                 }
+
+                if msg.blocks.is_empty() {
+                    log::debug!("Received an empty AddBlocks message");
+                    self.sm_state = StateMachine::WaitingConsensus;
+                    self.initialize_from_storage(ctx);
+                    log::info!("Restored chain state from storage");
+                    // If we are not synchronizing, forget about when we started synchronizing
+                    self.sync_waiting_for_add_blocks_since = None;
+
+                    return;
+                }
+
+                let sync_target = self.sync_target.clone().unwrap();
+                let superblock_period = u32::from(consensus_constants.superblock_period);
+
+                // TODO: review this hack
+                // Hack: remove first block
+                // For some reason the other node sends one extra block, and we cannot consolidate
+                // it because it is our top block.
+                msg.blocks.remove(0);
+                /*
+                // Hack: remove genesis block
+                if msg.blocks[0].block_header.beacon.checkpoint == 0 && msg.blocks[0].block_header.beacon.hash_prev_block == consensus_constants.bootstrap_hash && msg.blocks[0].hash() == consensus_constants.genesis_hash {
+                    msg.blocks.remove(0);
+                }
+                */
+
+                // Split received blocks into batches according to 3 different cases:
+                // 1. TargetNotReached: superblock target not reachable with the received block batch.
+                // 2. SyncWithoutCandidate: target superblock needs to be consolidated, but no
+                // candidate superblock should be built.
+                // 3. SyncWithCandidate: target superblock needs to be consolidated, and a candidate
+                // superblock should be built.
+                let block_batches = split_blocks_batch_at_target(
+                    |b| b.block_header.beacon.checkpoint,
+                    msg.blocks,
+                    self.current_epoch.unwrap(),
+                    &sync_target,
+                    superblock_period,
+                );
+
+                use BlockBatches::*;
+                match block_batches {
+                    // TargetNotReached:
+                    // 1. process blocks
+                    // 2. requests block batch -> revert to WaitingConsensus
+                    Ok(TargetNotReached(blocks1)) => {
+                        let (batch_succeeded, num_processed_blocks) =
+                            self.process_first_batch(ctx, &sync_target, &blocks1);
+                        if !batch_succeeded {
+                            return;
+                        }
+                        log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
+
+                        log::debug!("1 Target not reached, request blocks batch");
+                        self.request_blocks_batch(ctx);
+                    }
+                    // SyncWithoutCandidate:
+                    // 1. process blocks
+                    // 2. construct consolidated superblock (if needed)
+                    // 3. handle remaining blocks
+                    Ok(SyncWithoutCandidate(blocks1, blocks2)) => {
+                        let (batch_succeeded, num_processed_blocks) =
+                            self.process_first_batch(ctx, &sync_target, &blocks1);
+                        if !batch_succeeded {
+                            return;
+                        }
+                        log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
+
+                        // TODO: review if can be refactored
+                        let current_superblock_checkpoint =
+                            self.chain_state.superblock_state.get_beacon().checkpoint;
+                        let need_to_construct_superblock =
+                            sync_target.superblock.checkpoint != current_superblock_checkpoint;
+                        let epoch_during_which_we_should_construct_the_target_superblock =
+                            sync_target.superblock.checkpoint * superblock_period;
+
+                        if need_to_construct_superblock {
+                            // We need to persist blocks in order to be able to construct the
+                            // superblock
+                            // TODO: verify that superblock creation does not start until all
+                            // the blocks have been persisted
+                            self.persist_blocks_batch(ctx, blocks1);
+                            let to_be_stored =
+                                self.chain_state.data_request_pool.finished_data_requests();
+                            self.persist_data_requests(ctx, to_be_stored);
+                            // Create superblocks while synchronizing but do not broadcast them
+                            // This is needed to ensure that we can validate the received superblocks later on
+                            // TODO: this is needed to check synchronization target
+                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, epoch_during_which_we_should_construct_the_target_superblock);
+                            actix::fut::Either::A(
+                                self.try_consolidate_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock, sync_target.clone())
+                            )
+                        } else {
+                            // No need to construct a superblock again,
+                            actix::fut::Either::B(actix::fut::ok(()))
+                        }
+                            .and_then(move |(), act, ctx| {
+                                // TODO: re-check WaitingConsensus
+                                act.sm_state = StateMachine::WaitingConsensus;
+                                // Process remaining blocks
+                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks2);
+                                if !batch_succeeded {
+                                    // act.sm_state = StateMachine::WaitingConsensus;
+                                    return actix::fut::err(());
+                                }
+                                log_sync_progress(&sync_target, &blocks2, num_processed_blocks, 2);
+
+                                actix::fut::ok(())
+                            })
+                            .wait(ctx);
+                    }
+                    // SyncWithCandidate:
+                    // 1. process blocks
+                    // 2. construct consolidated superblock (if needed)
+                    // 3. build and vote new candidate superblock
+                    // 4. process remaining blocks
+                    Ok(SyncWithCandidate(blocks1, blocks2, blocks3)) => {
+                        let (batch_succeeded, num_processed_blocks) =
+                            self.process_first_batch(ctx, &sync_target, &blocks1);
+                        if !batch_succeeded {
+                            return;
+                        }
+                        log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
+
+                        let current_superblock_checkpoint =
+                            self.chain_state.superblock_state.get_beacon().checkpoint;
+                        let need_to_construct_superblock =
+                            sync_target.superblock.checkpoint != current_superblock_checkpoint;
+                        let epoch_during_which_we_should_construct_the_target_superblock =
+                            sync_target.superblock.checkpoint * superblock_period;
+
+                        if need_to_construct_superblock {
+                            // We need to persist blocks in order to be able to construct the
+                            // superblock
+                            // TODO: verify that superblock creation does not start until all
+                            // the blocks have been persisted
+                            self.persist_blocks_batch(ctx, blocks1);
+                            let to_be_stored =
+                                self.chain_state.data_request_pool.finished_data_requests();
+                            self.persist_data_requests(ctx, to_be_stored);
+                            // Create superblocks while synchronizing but do not broadcast them
+                            // This is needed to ensure that we can validate the received superblocks later on
+                            // TODO: this is needed to check synchronization target
+                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, epoch_during_which_we_should_construct_the_target_superblock);
+                            actix::fut::Either::A(
+                                self.try_consolidate_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock, sync_target.clone())
+                            )
+                        } else {
+                            // No need to construct a superblock again,
+                            actix::fut::Either::B(actix::fut::ok(()))
+                        }
+                            .and_then({
+                                let sync_target = sync_target.clone();
+                                move |(), act, ctx| {
+                                    // Process remaining blocks
+                                    let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks2);
+                                    if !batch_succeeded {
+                                        act.sm_state = StateMachine::WaitingConsensus;
+                                        // TODO: return actix error
+                                        return actix::fut::err(());
+                                    }
+                                    log_sync_progress(&sync_target, &blocks2, num_processed_blocks, 2);
+
+                                    // Update ARS if there were no blocks right before the epoch during
+                                    // which we should construct the target superblock
+                                    let epoch_during_which_we_should_construct_the_second_superblock = (act.current_epoch.unwrap() / superblock_period) * superblock_period;
+
+                                    // We need to persist blocks in order to be able to construct the
+                                    // superblock
+                                    // TODO: verify that superblock creation does not start until all
+                                    // the blocks have been persisted
+                                    act.persist_blocks_batch(ctx, blocks2);
+                                    let to_be_stored =
+                                        act.chain_state.data_request_pool.finished_data_requests();
+                                    act.persist_data_requests(ctx, to_be_stored);
+
+                                    log::info!("Block sync target achieved, go to WaitingConsensus state");
+                                    // Target achieved, go back to state 1
+                                    act.sm_state = StateMachine::WaitingConsensus;
+
+                                    // We must construct the second superblock in order to
+                                    // be able to validate the votes for this superblock
+                                    // later
+                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_second_superblock);
+
+                                    actix::fut::ok(epoch_during_which_we_should_construct_the_second_superblock)
+                                }
+                            })
+                            .and_then(move | epoch_during_which_we_should_construct_the_second_superblock, act, ctx| {
+                                act.build_and_vote_candidate_superblock(ctx, epoch_during_which_we_should_construct_the_second_superblock)
+                            })
+                            .and_then(move |_, act, ctx| {
+                                let sync_target = sync_target.clone();
+                                // Process remaining blocks
+                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks3);
+                                if !batch_succeeded {
+                                    log::error!("3 Received invalid blocks batch");
+                                    act.sm_state = StateMachine::WaitingConsensus;
+                                    act.sync_waiting_for_add_blocks_since = None;
+
+                                    return actix::fut::err(());
+                                }
+                                log_sync_progress(&sync_target, &blocks3, num_processed_blocks, 3);
+
+                                log::info!("Block sync target achieved, go to WaitingConsensus state");
+                                // Target achieved, go back to state 1
+                                act.sm_state = StateMachine::WaitingConsensus;
+
+                                actix::fut::ok(())
+                            })
+                            .wait(ctx);
+                    }
+                    Err(ChainManagerError::WrongBlocksForSuperblock {
+                        wrong_index,
+                        consolidated_superblock_index,
+                        current_superblock_index,
+                    }) => {
+                        log::warn!("Received unexpected blocks for superblock index {} (consolidated: {}, current {}). Delaying synchronization until next epoch.",
+                            wrong_index,
+                            consolidated_superblock_index,
+                            current_superblock_index
+                        );
+                        // Requesting blocks again
+                        self.request_blocks_batch(ctx);
+                    }
+                    Err(e) => {
+                        log::error!("Unexpected error while splitting received blocks {:?}", e)
+                    }
+                };
             }
             StateMachine::AlmostSynced | StateMachine::Synced => {}
         };
 
+        // TODO: check when `sync_waiting_for_add_blocks_since` is set
         // If we are not synchronizing, forget about when we started synchronizing
         if self.sm_state != StateMachine::Synchronizing {
             self.sync_waiting_for_add_blocks_since = None;
         }
+    }
+}
+
+fn log_sync_progress(
+    sync_target: &SyncTarget,
+    blocks: &[Block],
+    num_processed_blocks: usize,
+    iteration: usize,
+) {
+    // TODO: refactor Logs
+    if num_processed_blocks == 0 {
+        log::debug!("{} Sync done, 0 blocks processed", iteration);
+    } else {
+        let last_processed_block = &blocks[num_processed_blocks - 1];
+        let epoch_of_the_last_block = Some(last_processed_block.block_header.beacon.checkpoint);
+        log::debug!("{} Sync done up to block #{} because that is the last checkpoint according to superblock #{}", iteration, epoch_of_the_last_block.unwrap(), sync_target.superblock.checkpoint);
     }
 }
 
@@ -512,6 +665,9 @@ impl PeersBeacons {
         let mut beacon_peers_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for (k, v) in self.pb.iter() {
             let v = v
+                .as_ref()
+                // TODO: this method ignores the superblock beacon
+                .map(|x| x.highest_block_checkpoint)
                 .map(|x| format!("#{} {}", x.checkpoint, x.hash_prev_block))
                 .unwrap_or_else(|| "NO BEACON".to_string());
             beacon_peers_map.entry(v).or_default().push(k.to_string());
@@ -525,7 +681,7 @@ impl PeersBeacons {
     /// The beacons are `Option<CheckpointBeacon>`, so peers that have not
     /// sent us a beacon are counted as `None`. Keeping that in mind, we
     /// reach consensus as long as consensus_threshold % of peers agree.
-    pub fn consensus(&self, consensus_threshold: usize) -> Option<CheckpointBeacon> {
+    pub fn block_consensus(&self, consensus_threshold: usize) -> Option<CheckpointBeacon> {
         // We need to add `num_missing_peers` times NO BEACON, to take into account
         // missing outbound peers.
         let num_missing_peers = self.outbound_limit
@@ -543,14 +699,106 @@ impl PeersBeacons {
         mode_consensus(
             self.pb
                 .iter()
-                .map(|(_p, b)| b)
-                .chain(std::iter::repeat(&None).take(num_missing_peers)),
+                .map(|(_p, b)| {
+                    b.as_ref()
+                        .map(|last_beacon| last_beacon.highest_block_checkpoint)
+                })
+                .chain(std::iter::repeat(None).take(num_missing_peers)),
             consensus_threshold,
         )
         // Flatten result:
         // None (consensus % below threshold) should be treated the same way as
         // Some(None) (most of the peers did not send a beacon)
-        .and_then(|x| *x)
+        .and_then(|x| x)
+    }
+
+    // TODO: this is a copy-paste of block_consensus, refactor?
+    /// Run the consensus on the beacons, will return the most common beacon.
+    /// We do not take into account our beacon to calculate the consensus.
+    /// The beacons are `Option<CheckpointBeacon>`, so peers that have not
+    /// sent us a beacon are counted as `None`. Keeping that in mind, we
+    /// reach consensus as long as consensus_threshold % of peers agree.
+    pub fn superblock_consensus(&self, consensus_threshold: usize) -> Option<(LastBeacon, bool)> {
+        // We need to add `num_missing_peers` times NO BEACON, to take into account
+        // missing outbound peers.
+        let num_missing_peers = self.outbound_limit
+            .map(|outbound_limit| {
+                // TODO: is it possible to receive more than outbound_limit beacons?
+                // (it shouldn't be possible)
+                assert!(self.pb.len() <= outbound_limit as usize, "Received more beacons than the outbound_limit. Check the code for race conditions.");
+                usize::try_from(outbound_limit).unwrap() - self.pb.len()
+            })
+            // The outbound limit is set when the SessionsManager actor is initialized, so here it
+            // cannot be None. But if it is None, set num_missing_peers to 0 in order to calculate
+            // consensus with the existing beacons.
+            .unwrap_or(0);
+
+        mode_consensus(
+            self.pb
+                .iter()
+                .map(|(_p, b)| {
+                    b.as_ref()
+                        .map(|last_beacon| last_beacon.highest_superblock_checkpoint)
+                })
+                .chain(std::iter::repeat(None).take(num_missing_peers)),
+            consensus_threshold,
+        )
+        // Flatten result:
+        // None (consensus % below threshold) should be treated the same way as
+        // Some(None) (most of the peers did not send a beacon)
+        .and_then(|x| x)
+        .map(|superblock_consensus| {
+            // If there is superblock consensus, we also need to set the block consensus.
+            // We will use all the beacons that set superblock_beacon to superblock_consensus
+            // There are 3 cases:
+            // * A majority of beacons agree on a block. We will use this block as the
+            // block_consensus and unregister all the peers that voted a different block
+            // * There is a majority of beacons but it is below consensus_threshold. We will use
+            // this majority as the block_consensus, and we will unregister the peers that voted on
+            // a different superblock
+            // * There is a tie. Will use any block as the consensus. So if there are 4 votes for
+            // A, 4 votes for B, and 1 vote for C, the consensus can be A, B, or C.
+            let block_beacons: Vec<_> = self
+                .pb
+                .iter()
+                .filter_map(|(_p, b)| {
+                    b.as_ref().and_then(|last_beacon| {
+                        if last_beacon.highest_superblock_checkpoint == superblock_consensus {
+                            Some(last_beacon.highest_block_checkpoint)
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .collect();
+            // Case 1
+            let block_consensus_mode = mode_consensus(block_beacons.iter(), consensus_threshold);
+
+            let (block_consensus, is_there_block_consensus) = if let Some(x) = block_consensus_mode
+            {
+                (*x, true)
+            } else {
+                (
+                    // Case 2
+                    mode_consensus(block_beacons.iter(), 0)
+                        .copied()
+                        .unwrap_or_else(|| {
+                            // Case 3
+                            // TODO: choose one at random?
+                            block_beacons[0]
+                        }),
+                    false,
+                )
+            };
+
+            (
+                LastBeacon {
+                    highest_superblock_checkpoint: superblock_consensus,
+                    highest_block_checkpoint: block_consensus,
+                },
+                is_there_block_consensus,
+            )
+        })
     }
 
     /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
@@ -558,7 +806,43 @@ impl PeersBeacons {
         // Unregister peers which have a different beacon
         (&self.pb)
             .iter()
-            .filter_map(|(p, b)| if *b != Some(beacon) { Some(*p) } else { None })
+            .filter_map(|(p, b)| {
+                if b.as_ref()
+                    .map(|last_beacon| last_beacon.highest_block_checkpoint != beacon)
+                    .unwrap_or(true)
+                {
+                    Some(*p)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
+    pub fn decide_peers_to_unregister_s(&self, superbeacon: CheckpointBeacon) -> Vec<SocketAddr> {
+        // Unregister peers which have a different beacon
+        (&self.pb)
+            .iter()
+            .filter_map(|(p, b)| {
+                if b.as_ref()
+                    .map(|last_beacon| last_beacon.highest_superblock_checkpoint != superbeacon)
+                    .unwrap_or(true)
+                {
+                    Some(*p)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Collects the peers that have not sent us a beacon
+    pub fn peers_with_no_beacon(&self) -> Vec<SocketAddr> {
+        // Unregister peers which have not sent us a beacon
+        (&self.pb)
+            .iter()
+            .filter_map(|(p, b)| if b.is_none() { Some(*p) } else { None })
             .collect()
     }
 }
@@ -583,7 +867,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
-        let consensus = peers_beacons.consensus(consensus_threshold);
+        let beacon_consensus = peers_beacons.superblock_consensus(consensus_threshold);
         let outbound_limit = peers_beacons.outbound_limit;
         let pb_len = peers_beacons.pb.len();
         let peers_needed_for_consensus = outbound_limit
@@ -592,8 +876,15 @@ impl Handler<PeersBeacons> for ChainManager {
                 (usize::from(x) * consensus_threshold + 99) / 100
             })
             .unwrap_or(1);
-        let peers_to_unregister = if let Some(consensus_beacon) = consensus {
-            peers_beacons.decide_peers_to_unregister(consensus_beacon)
+        let peers_with_no_beacon = peers_beacons.peers_with_no_beacon();
+        let peers_to_unregister = if let Some((consensus, is_there_block_consensus)) =
+            beacon_consensus.as_ref()
+        {
+            if *is_there_block_consensus {
+                peers_beacons.decide_peers_to_unregister(consensus.highest_block_checkpoint)
+            } else {
+                peers_beacons.decide_peers_to_unregister_s(consensus.highest_superblock_checkpoint)
+            }
         } else if pb_len < peers_needed_for_consensus {
             // Not enough outbound peers, do not unregister any peers
             log::debug!(
@@ -615,138 +906,173 @@ impl Handler<PeersBeacons> for ChainManager {
             }
         };
 
+        let beacon_consensus = beacon_consensus.map(|(beacon, _)| beacon);
+
         let peers_to_unregister = match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
-                if let Some(consensus_beacon) = consensus {
-                    self.target_beacon = Some(consensus_beacon);
+                match beacon_consensus {
+                    Some(LastBeacon {
+                        highest_superblock_checkpoint: superblock_consensus,
+                        highest_block_checkpoint: consensus_beacon,
+                    }) => {
+                        self.sync_target = Some(SyncTarget {
+                            block: consensus_beacon,
+                            superblock: superblock_consensus,
+                        });
+                        log::debug!("Sync target {:?}", self.sync_target);
 
-                    let our_beacon = self.get_chain_beacon();
-
-                    let consensus_constants = self.consensus_constants();
-
-                    // Check if we are already synchronized
-                    self.sm_state = if consensus_beacon.hash_prev_block
-                        == consensus_constants.bootstrap_hash
-                    {
-                        log::debug!("The consensus is that there is no genesis block yet");
-
-                        StateMachine::WaitingConsensus
-                    } else if our_beacon == consensus_beacon {
-                        StateMachine::AlmostSynced
-                    } else if our_beacon.checkpoint == consensus_beacon.checkpoint
-                        && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
-                    {
-                        // Fork case
-                        log::warn!(
-                            "[CONSENSUS]: We are on {:?} but the network is on {:?}",
-                            our_beacon,
-                            consensus_beacon
+                        let our_beacon = self.get_chain_beacon();
+                        log::debug!(
+                            "Consensus beacon: {:?} Our beacon {:?}",
+                            (consensus_beacon, superblock_consensus),
+                            our_beacon
                         );
 
-                        self.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
+                        let consensus_constants = self.consensus_constants();
 
-                        StateMachine::WaitingConsensus
-                    } else {
-                        // Review candidates
-                        let consensus_block_hash = consensus_beacon.hash_prev_block;
-                        let candidate = self.candidates.remove(&consensus_block_hash);
-                        // Clear candidates, as they are only valid for one epoch
-                        self.candidates.clear();
-                        self.seen_candidates.clear();
-                        // TODO: Be functional my friend
-                        if let Some(consensus_block) = candidate {
-                            match self.process_requested_block(ctx, consensus_block) {
-                                Ok(()) => {
-                                    log::info!(
-                                        "Consolidate consensus candidate. AlmostSynced state"
-                                    );
-                                    StateMachine::AlmostSynced
-                                }
-                                Err(e) => {
-                                    log::debug!("Failed to consolidate consensus candidate: {}", e);
+                        // Check if we are already synchronized
+                        // TODO: use superblock beacon
+                        self.sm_state = if consensus_beacon.hash_prev_block
+                            == consensus_constants.bootstrap_hash
+                        {
+                            log::debug!("The consensus is that there is no genesis block yet");
 
-                                    self.request_blocks_batch(ctx);
+                            StateMachine::WaitingConsensus
+                        } else if our_beacon == consensus_beacon {
+                            StateMachine::AlmostSynced
+                        } else if our_beacon.checkpoint == consensus_beacon.checkpoint
+                            && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
+                        {
+                            // Fork case
+                            log::warn!(
+                                "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                                our_beacon,
+                                consensus_beacon
+                            );
 
-                                    StateMachine::Synchronizing
-                                }
-                            }
+                            self.initialize_from_storage(ctx);
+                            log::info!("Restored chain state from storage");
+
+                            StateMachine::WaitingConsensus
                         } else {
-                            self.request_blocks_batch(ctx);
+                            // Review candidates
+                            let consensus_block_hash = consensus_beacon.hash_prev_block;
+                            let candidate = self.candidates.remove(&consensus_block_hash);
+                            // Clear candidates, as they are only valid for one epoch
+                            self.candidates.clear();
+                            self.seen_candidates.clear();
+                            // TODO: Be functional my friend
+                            if let Some(consensus_block) = candidate {
+                                match self.process_requested_block(ctx, consensus_block) {
+                                    Ok(()) => {
+                                        log::info!(
+                                            "Consolidate consensus candidate. AlmostSynced state"
+                                        );
+                                        StateMachine::AlmostSynced
+                                    }
+                                    Err(e) => {
+                                        log::debug!(
+                                            "Failed to consolidate consensus candidate: {}",
+                                            e
+                                        );
 
-                            StateMachine::Synchronizing
-                        }
-                    };
+                                        self.request_blocks_batch(ctx);
 
-                    Ok(peers_to_unregister)
-                } else {
-                    Ok(peers_to_unregister)
+                                        StateMachine::Synchronizing
+                                    }
+                                }
+                            } else {
+                                self.request_blocks_batch(ctx);
+
+                                StateMachine::Synchronizing
+                            }
+                        };
+
+                        Ok(peers_to_unregister)
+                    }
+                    // No consensus: unregister all peers
+                    None => Ok(peers_to_unregister),
                 }
             }
             StateMachine::Synchronizing => {
-                if let Some(consensus_beacon) = consensus {
-                    self.target_beacon = Some(consensus_beacon);
+                match beacon_consensus {
+                    Some(LastBeacon {
+                        highest_superblock_checkpoint: superblock_consensus,
+                        highest_block_checkpoint: consensus_beacon,
+                    }) => {
+                        self.sync_target = Some(SyncTarget {
+                            block: consensus_beacon,
+                            superblock: superblock_consensus,
+                        });
 
-                    let our_beacon = self.get_chain_beacon();
+                        let our_beacon = self.get_chain_beacon();
 
-                    // Check if we are already synchronized
-                    self.sm_state = if our_beacon == consensus_beacon {
-                        StateMachine::AlmostSynced
-                    } else if our_beacon.checkpoint == consensus_beacon.checkpoint
-                        && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
-                    {
-                        // Fork case
-                        log::warn!(
-                            "[CONSENSUS]: We are on {:?} but the network is on {:?}",
-                            our_beacon,
-                            consensus_beacon
-                        );
+                        // Check if we are already synchronized
+                        self.sm_state = if our_beacon == consensus_beacon {
+                            StateMachine::AlmostSynced
+                        } else if our_beacon.checkpoint == consensus_beacon.checkpoint
+                            && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
+                        {
+                            // Fork case
+                            log::warn!(
+                                "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                                our_beacon,
+                                consensus_beacon
+                            );
 
-                        self.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
+                            self.initialize_from_storage(ctx);
+                            log::info!("Restored chain state from storage");
 
-                        StateMachine::WaitingConsensus
-                    } else {
-                        StateMachine::Synchronizing
-                    };
+                            StateMachine::WaitingConsensus
+                        } else {
+                            StateMachine::Synchronizing
+                        };
 
-                    Ok(peers_to_unregister)
-                } else {
-                    // Move to waiting consensus stage
-                    self.sm_state = StateMachine::WaitingConsensus;
+                        Ok(peers_to_unregister)
+                    }
+                    // No consensus: unregister all peers
+                    None => {
+                        self.sm_state = StateMachine::WaitingConsensus;
 
-                    Ok(peers_to_unregister)
+                        Ok(peers_to_unregister)
+                    }
                 }
             }
             StateMachine::AlmostSynced | StateMachine::Synced => {
                 let our_beacon = self.get_chain_beacon();
-                match consensus {
-                    Some(consensus_beacon) if consensus_beacon == our_beacon => {
+                match beacon_consensus {
+                    Some(LastBeacon {
+                        highest_block_checkpoint: consensus_beacon,
+                        ..
+                    }) if consensus_beacon == our_beacon => {
                         if self.sm_state == StateMachine::AlmostSynced {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
                             log::debug!("Moving from AlmostSynced to Synced state");
                             log::info!("{}", SYNCED_BANNER);
                             self.sm_state = StateMachine::Synced;
+                            self.add_temp_superblock_votes(ctx).unwrap();
                         }
                         Ok(peers_to_unregister)
                     }
-                    Some(_) => {
+                    Some(LastBeacon {
+                        highest_block_checkpoint: consensus_beacon,
+                        ..
+                    }) => {
                         // We are out of consensus!
                         log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
                             our_beacon,
-                            consensus
+                            consensus_beacon,
                         );
 
-                        self.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
+                        // If we are synced, it does not matter what blocks have been consolidated
+                        // by our outbound peers, we will stay synced until the next superblock
+                        // vote
 
-                        self.sm_state = StateMachine::WaitingConsensus;
-
-                        Ok(peers_to_unregister)
+                        Ok(peers_with_no_beacon)
                     }
                     None => {
                         // If we are synced and the consensus beacon is not the same as our beacon, then
@@ -763,9 +1089,12 @@ impl Handler<PeersBeacons> for ChainManager {
                                 our_beacon
                             );
                         }
-                        self.sm_state = StateMachine::AlmostSynced;
 
-                        Ok(peers_to_unregister)
+                        // If we are synced, it does not matter what blocks have been consolidated
+                        // by our outbound peers, we will stay synced until the next superblock
+                        // vote
+
+                        Ok(peers_with_no_beacon)
                     }
                 }
             }
@@ -1250,17 +1579,29 @@ mod tests {
 
     #[test]
     fn peers_beacons_consensus_less_peers_than_outbound() {
-        let beacon1 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
-                .parse()
-                .unwrap(),
+        let beacon1 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
-        let beacon2 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
-                .parse()
-                .unwrap(),
+        let beacon2 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
 
         // 0 peers
@@ -1268,99 +1609,120 @@ mod tests {
             pb: vec![],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 1 peer
         let peers_beacons = PeersBeacons {
-            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone()))],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 2 peers
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 3 peers and 2 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2.clone())),
             ],
             outbound_limit: Some(4),
         };
         // Note that the consensus % includes the missing peers,
         // so in this case it is 2/4 (50%), not 2/3 (66%), so there is no consensus for 60%
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 3 peers and 3 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+        assert_eq!(
+            peers_beacons.block_consensus(60),
+            Some(beacon1.highest_block_checkpoint)
+        );
 
         // 4 peers and 2 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
-                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), None);
+        assert_eq!(peers_beacons.block_consensus(60), None);
 
         // 4 peers and 3 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
                 ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+        assert_eq!(
+            peers_beacons.block_consensus(60),
+            Some(beacon1.highest_block_checkpoint)
+        );
 
         // 4 peers and 4 agree
         let peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1.clone())),
             ],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+        assert_eq!(
+            peers_beacons.block_consensus(60),
+            Some(beacon1.highest_block_checkpoint)
+        );
     }
 
     #[test]
     fn test_unregister_peers() {
-        let beacon1 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
-                .parse()
-                .unwrap(),
+        let beacon1 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
-        let beacon2 = CheckpointBeacon {
-            checkpoint: 1,
-            hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
-                .parse()
-                .unwrap(),
+        let beacon2 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+                    .parse()
+                    .unwrap(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::default(),
+            },
         };
 
         // 0 peers
@@ -1368,36 +1730,42 @@ mod tests {
             pb: vec![],
             outbound_limit: Some(4),
         };
-        assert_eq!(peers_beacons.decide_peers_to_unregister(beacon1), []);
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
+            []
+        );
 
         // 1 peer in consensus
         peers_beacons = PeersBeacons {
-            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
-            outbound_limit: Some(4),
-        };
-        assert_eq!(peers_beacons.decide_peers_to_unregister(beacon1), []);
-
-        // 1 peer out of consensus
-        peers_beacons = PeersBeacons {
-            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone()))],
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon2),
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
+            []
+        );
+
+        // 1 peer out of consensus
+        peers_beacons = PeersBeacons {
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone()))],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(
+            peers_beacons.decide_peers_to_unregister(beacon2.highest_block_checkpoint),
             ["127.0.0.1:10001".parse().unwrap()]
         );
 
         peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
-                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2.clone())),
             ],
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon2),
+            peers_beacons.decide_peers_to_unregister(beacon2.highest_block_checkpoint),
             [
                 "127.0.0.1:10001".parse().unwrap(),
                 "127.0.0.1:10002".parse().unwrap()
@@ -1406,15 +1774,15 @@ mod tests {
 
         peers_beacons = PeersBeacons {
             pb: vec![
-                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
-                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
                 ("127.0.0.1:10003".parse().unwrap(), None),
                 ("127.0.0.1:10004".parse().unwrap(), None),
             ],
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon1),
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
             [
                 "127.0.0.1:10003".parse().unwrap(),
                 "127.0.0.1:10004".parse().unwrap()
@@ -1431,7 +1799,7 @@ mod tests {
             outbound_limit: Some(4),
         };
         assert_eq!(
-            peers_beacons.decide_peers_to_unregister(beacon1),
+            peers_beacons.decide_peers_to_unregister(beacon1.highest_block_checkpoint),
             [
                 "127.0.0.1:10001".parse().unwrap(),
                 "127.0.0.1:10002".parse().unwrap(),
