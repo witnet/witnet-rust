@@ -233,7 +233,7 @@ impl SessionsManager {
         log::debug!("Sending PeersBeacons message");
         let pb: Vec<_> = pb
             .iter()
-            .map(|(k, v)| (*k, Some(*v)))
+            .map(|(k, v)| (*k, Some(v.clone())))
             .chain(pnb.iter().map(|k| (*k, None)))
             .collect();
         let mut peers_to_keep: HashSet<_> = pb.iter().map(|(k, _v)| *k).collect();
