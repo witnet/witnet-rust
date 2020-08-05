@@ -228,8 +228,11 @@ impl StreamHandler<BytesMut, Error> for Session {
                                     match item_response {
                                         Ok(item) => {
                                             if let InventoryItem::Block(block) = &item {
-                                                if block.block_header.beacon
-                                                    == session.last_beacon.highest_block_checkpoint
+                                                if block.block_header.beacon.checkpoint
+                                                    == session
+                                                        .last_beacon
+                                                        .highest_block_checkpoint
+                                                        .checkpoint
                                                 {
                                                     send_superblock_votes = true;
                                                 }
@@ -873,14 +876,10 @@ fn session_last_beacon_inbound(
         .wait(ctx);
 }
 
-// FIXME(#1366): handle superblock_beacon.
 fn session_last_beacon_outbound(
     session: &Session,
     _ctx: &mut Context<Session>,
-    LastBeacon {
-        highest_block_checkpoint: beacon,
-        ..
-    }: LastBeacon,
+    beacon: LastBeacon,
 ) {
     SessionsManager::from_registry().do_send(PeerBeacon {
         address: session.remote_addr,
