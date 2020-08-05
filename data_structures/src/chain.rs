@@ -2894,6 +2894,7 @@ impl ReputationEngine {
         self.threshold_cache.borrow_mut().clear_threshold_cache()
     }
 
+    /// Get ARS keys ordered by reputation. If tie, order by pkh.
     pub fn get_rep_ordered_ars_list(&self) -> Vec<PublicKeyHash> {
         self.ars
             .active_identities()
@@ -4577,9 +4578,12 @@ mod tests {
 
         let expected_order = vec![p3_bls, p2_bls, p1_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
-        let ars_identities = ARSIdentities::new(ordered_identities, alt_keys);
+        let ars_identities = ARSIdentities::new(ordered_identities);
 
-        assert_eq!(expected_order, ars_identities.get_rep_ordered_bn256_list());
+        assert_eq!(
+            expected_order,
+            ars_identities.get_rep_ordered_bn256_list(&alt_keys)
+        );
     }
 
     #[test]
@@ -4616,9 +4620,12 @@ mod tests {
 
         let expected_order = vec![p3_bls, p2_bls, p1_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
-        let ars_identities = ARSIdentities::new(ordered_identities, alt_keys);
+        let ars_identities = ARSIdentities::new(ordered_identities);
 
-        assert_eq!(expected_order, ars_identities.get_rep_ordered_bn256_list());
+        assert_eq!(
+            expected_order,
+            ars_identities.get_rep_ordered_bn256_list(&alt_keys)
+        );
     }
 
     #[test]
@@ -4671,9 +4678,12 @@ mod tests {
 
         let expected_order = vec![p3_bls, p2_bls, p5_bls, p4_bls, p1_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
-        let ars_identities = ARSIdentities::new(ordered_identities, alt_keys);
+        let ars_identities = ARSIdentities::new(ordered_identities);
 
-        assert_eq!(expected_order, ars_identities.get_rep_ordered_bn256_list());
+        assert_eq!(
+            expected_order,
+            ars_identities.get_rep_ordered_bn256_list(&alt_keys)
+        );
     }
 
     #[test]

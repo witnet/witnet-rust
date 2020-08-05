@@ -51,7 +51,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
-    superblock::{AddSuperBlockVote, SuperBlockConsensus},
+    superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
     types::LastBeacon,
     vrf::VrfCtx,
@@ -76,7 +76,6 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
-use witnet_data_structures::superblock::ARSIdentities;
 
 mod actor;
 mod handlers;
@@ -994,7 +993,7 @@ impl ChainManager {
             let chain_info = act.chain_state.chain_info.as_ref().unwrap();
             let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
 
-            let (ars_members, alt_keys) = {
+            let ars_members = {
                 // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
                 // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                 // the bootstrap committee signs is at least epoch activity_period + collateral_age
@@ -1003,24 +1002,18 @@ impl ChainManager {
                     > chain_info.consensus_constants.collateral_age
                         + chain_info.consensus_constants.activity_period
                 {
-                    (
-                        reputation_engine.get_rep_ordered_ars_list(),
-                        act.chain_state.alt_keys.clone(),
-                    )
+                    reputation_engine.get_rep_ordered_ars_list()
                 } else {
-                    (
-                        chain_info
-                            .consensus_constants
-                            .bootstrapping_committee
-                            .iter()
-                            .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                            .collect(),
-                        AltKeys::default(),
-                    )
+                    chain_info
+                        .consensus_constants
+                        .bootstrapping_committee
+                        .iter()
+                        .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                        .collect()
                 }
             };
 
-            let ars_identities = ARSIdentities::new(ars_members, alt_keys);
+            let ars_identities = ARSIdentities::new(ars_members);
 
             let superblock = act.chain_state.superblock_state.build_superblock(
                 &block_headers,
@@ -1028,6 +1021,7 @@ impl ChainManager {
                 consensus_constants.superblock_signing_committee_size,
                 superblock_index,
                 last_hash,
+                &act.chain_state.alt_keys,
             );
             actix::fut::ok(superblock)
         });
