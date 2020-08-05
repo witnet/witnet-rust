@@ -180,7 +180,7 @@ pub struct SuperBlockState {
     // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
     current_superblock_beacon: CheckpointBeacon,
     // Subset of ARS in charge of signing the next superblock
-    current_signing_committee: Option<HashSet<PublicKeyHash>>,
+    signing_committee: HashSet<PublicKeyHash>,
     // SuperBlockMempool
     votes_mempool: SuperBlockVotesMempool,
 }
@@ -266,9 +266,10 @@ impl SuperBlockState {
         if superblock_index == sbv.superblock_index {
             // If the index is the same as the current one, the vote is valid if it is signed by a
             // member of the current signing committee
-            self.current_signing_committee.as_ref().map_or(Some(false), |x| {
-                Some(x.contains(&sbv.secp256k1_signature.public_key.pkh()))
-            })
+            Some(
+                self.signing_committee
+                    .contains(&sbv.secp256k1_signature.public_key.pkh()),
+            )
         } else if ((superblock_index.saturating_sub(1))..=superblock_index.saturating_add(1))
             .contains(&sbv.superblock_index)
         {
@@ -288,14 +289,14 @@ impl SuperBlockState {
             "Superblock votes: {:?}",
             self.votes_mempool.get_valid_votes()
         );
-        log::debug!("Previous ars: {:?}", self.current_signing_committee);
-        // If current_signing_committee is None, this is the first superblock. The first superblock
+        log::debug!("Signing committee: {:?}", self.signing_committee);
+        // If signing_committee is empty, this is the first superblock. The first superblock
         // is the one with index 0 and genesis hash. These are consensus constants and we do not
         // need any votes to determine that that is the most voted superblock.
-        if self.current_signing_committee.is_none() {
+        if self.signing_committee.is_empty() {
             return SuperBlockConsensus::SameAsLocal;
         }
-        let identities_that_can_vote = self.current_signing_committee.as_ref().unwrap().len();
+        let identities_that_can_vote = self.signing_committee.len();
         let (most_voted_superblock, most_voted_num_votes) =
             match self.votes_mempool.most_voted_superblock() {
                 Some(x) => x,
@@ -359,7 +360,7 @@ impl SuperBlockState {
         self.update_ars_identities(ars_ordered_identities);
 
         // Before updating the superblock_beacon, calculate the signing committee
-        self.current_signing_committee = calculate_superblock_signing_committee(
+        self.signing_committee = calculate_superblock_signing_committee(
             self.ars_previous_identities.clone(),
             signing_committee_size,
             self.current_superblock_beacon.hash_prev_block,
@@ -405,10 +406,10 @@ pub fn calculate_superblock_signing_committee(
     ars_identities: ARSIdentities,
     signing_committee_size: u32,
     superblock_hash: Hash,
-) -> Option<HashSet<PublicKeyHash>> {
+) -> HashSet<PublicKeyHash> {
     // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
     if ars_identities.len() < usize::try_from(signing_committee_size).unwrap() {
-        Some(ars_identities.identities)
+        ars_identities.identities
     } else {
         // Start counting the members of the subset from the superblock_hash
         let mut first = u32::from(*superblock_hash.as_ref().get(0).unwrap());
@@ -420,7 +421,7 @@ pub fn calculate_superblock_signing_committee(
             signing_committee_size.try_into().unwrap(),
         );
         let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
-        Some(hs)
+        hs
     }
 }
 
@@ -791,7 +792,7 @@ mod tests {
 
         let expected_sbs = SuperBlockState {
             ars_current_identities: ars_identities,
-            current_signing_committee: Some(HashSet::new()),
+            signing_committee: HashSet::new(),
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: expected_superblock_hash,
@@ -838,7 +839,7 @@ mod tests {
             checkpoint: 1,
             hash_prev_block: expected_second_superblock.hash(),
         };
-        expected_sbs.current_signing_committee = Some(ars_identities.identities.iter().cloned().collect());
+        expected_sbs.signing_committee = ars_identities.identities.iter().cloned().collect();
         expected_sbs.ars_previous_identities = ars_identities;
         assert_eq!(sbs, expected_sbs);
     }
@@ -1385,7 +1386,7 @@ mod tests {
             committee_size,
             sbs.current_superblock_beacon.hash_prev_block,
         );
-        assert_eq!(ars_identities.len(), subset.unwrap().len());
+        assert_eq!(ars_identities.len(), subset.len());
     }
 
     #[test]
@@ -1426,38 +1427,15 @@ mod tests {
         );
 
         // The members of the signing_committee should be p3, p5, p7 and p1
-        assert_eq!(
-            subset
-                .as_ref()
-                .map_or(Some(false), |x| { Some(x.contains(&p3.pkh())) }),
-            Some(true)
-        );
+        assert_eq!(subset.contains(&p3.pkh()), true);
 
-        assert_eq!(
-            subset
-                .as_ref()
-                .map_or(Some(false), |x| { Some(x.contains(&p5.pkh())) }),
-            Some(true)
-        );
+        assert_eq!(subset.contains(&p5.pkh()), true);
 
-        assert_eq!(
-            subset
-                .as_ref()
-                .map_or(Some(false), |x| { Some(x.contains(&p7.pkh())) }),
-            Some(true)
-        );
+        assert_eq!(subset.contains(&p7.pkh()), true);
 
-        assert_eq!(
-            subset
-                .as_ref()
-                .map_or(Some(false), |x| { Some(x.contains(&p1.pkh())) }),
-            Some(true)
-        );
+        assert_eq!(subset.contains(&p1.pkh()), true);
 
-        assert_eq!(
-            usize::try_from(committee_size).unwrap(),
-            subset.unwrap().len()
-        );
+        assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
     }
 
     #[test]
