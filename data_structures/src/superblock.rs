@@ -102,8 +102,15 @@ impl SuperBlockVotesMempool {
     }
 
     // Returns true if the identity voted more than once
-    fn check_double_vote(&self, pkh: &PublicKeyHash) -> bool {
-        self.penalized_identities.contains(pkh) || self.votes_of_each_identity.contains_key(pkh)
+    fn check_double_vote(&self, pkh: &PublicKeyHash, sbv_hash: &Hash) -> bool {
+        if self.penalized_identities.contains(pkh) {
+            true
+        } else if let Some(vote) = self.votes_of_each_identity.get(pkh) {
+            // In case of being the same vote, it should not be considered as double vote
+            sbv_hash != &vote.superblock_hash
+        } else {
+            false
+        }
     }
 
     // Remove both votes and reject future votes by this identity
@@ -121,12 +128,17 @@ impl SuperBlockVotesMempool {
 
     fn insert_vote(&mut self, sbv: SuperBlockVote) {
         let pkh = sbv.secp256k1_signature.public_key.pkh();
-        self.votes_of_each_identity.insert(pkh, sbv.clone());
-
-        self.votes_on_each_superblock
-            .entry(sbv.superblock_hash)
-            .or_default()
-            .push(sbv);
+        if self
+            .votes_of_each_identity
+            .insert(pkh, sbv.clone())
+            .is_none()
+        {
+            // Only insert votes from a PublicKeyHash the first time
+            self.votes_on_each_superblock
+                .entry(sbv.superblock_hash)
+                .or_default()
+                .push(sbv);
+        }
     }
 
     fn get_received_votes(&self) -> HashSet<SuperBlockVote> {
@@ -200,7 +212,10 @@ impl SuperBlockState {
         // If the superblock vote is valid, store it
         let pkh = sbv.secp256k1_signature.public_key.pkh();
 
-        if self.votes_mempool.check_double_vote(&pkh) {
+        if self
+            .votes_mempool
+            .check_double_vote(&pkh, &sbv.superblock_hash)
+        {
             // This identity has already voted for a different superblock
             self.votes_mempool.override_vote(pkh);
 
