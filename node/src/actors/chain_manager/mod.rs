@@ -150,7 +150,7 @@ impl Default for StateMachine {
 }
 
 /// Synchronization target determined by the beacons received from outbound peers
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct SyncTarget {
     // TODO: the target block must be set, but the node will not assume that it is valid
     block: CheckpointBeacon,
@@ -277,12 +277,7 @@ impl ChainManager {
             .chain_info
             .as_mut()
             .unwrap()
-            .highest_superblock_checkpoint = self
-            .chain_state
-            .chain_info
-            .as_ref()
-            .unwrap()
-            .highest_superblock_checkpoint;
+            .highest_superblock_checkpoint = self.get_superblock_beacon();
         self.last_chain_state.superblock_state = self.chain_state.superblock_state.clone();
         self.persist_last_chain_state(ctx);
         // TODO: Evaluate another way to avoid clone
@@ -656,7 +651,8 @@ impl ChainManager {
                         }
                         // Persist blocks and transactions but do not persist chain_state, it will
                         // be persisted on superblock consolidation
-                        // TODO: this means that after a reorganization a call to getBlock or
+                        // FIXME #1437: discard persisted and non-consolidated blocks
+                        // This means that after a reorganization a call to getBlock or
                         // getTransaction will show the content without any warning that the block
                         // is not on the main chain. To fix this we could remove forked blocks when
                         // a reorganization is detected.
@@ -724,43 +720,7 @@ impl ChainManager {
                 if act.chain_state.superblock_state.contains(&superblock_vote) {
                     return actix::fut::ok(());
                 }
-                // Validate vote: the identity should be able to vote
-                // We broadcast all superblock votes with valid secp256k1 signature, signed by members
-                // of the ARS, even if the superblock hash is different from our local superblock hash.
-                // If the superblock index is different from the current one we cannot check ARS membership,
-                // so we broadcast it if the index is within an acceptable range (not too old).
-                let _should_broadcast =
-                    match act.chain_state.superblock_state.add_vote(&superblock_vote) {
-                        AddSuperBlockVote::AlreadySeen => false,
-                        AddSuperBlockVote::DoubleVote => {
-                            // We must forward double votes to make sure all the nodes are aware of them
-                            log::debug!(
-                                "Idenitity voted more than once: {}",
-                                superblock_vote.secp256k1_signature.public_key.pkh()
-                            );
-
-                            true
-                        }
-                        AddSuperBlockVote::InvalidIndex => {
-                            log::debug!(
-                                "Not forwarding superblock vote: invalid superblock index: {}",
-                                superblock_vote.superblock_index
-                            );
-
-                            false
-                        }
-                        AddSuperBlockVote::NotInSigningCommittee => {
-                            log::debug!(
-                                "Not forwarding superblock vote: identity not in ARS: {}",
-                                superblock_vote.secp256k1_signature.public_key.pkh()
-                            );
-
-                            false
-                        }
-                        AddSuperBlockVote::MaybeValid
-                        | AddSuperBlockVote::ValidButDifferentHash
-                        | AddSuperBlockVote::ValidWithSameHash => true,
-                    };
+                act.chain_state.superblock_state.add_vote(&superblock_vote);
 
                 actix::fut::ok(())
             })
@@ -800,6 +760,7 @@ impl ChainManager {
         .and_then(move |(), act, _ctx| {
             // Check if we already received this vote (again, because this future can be executed
             // by multiple tasks concurrently)
+            // Note: the `fut:err` is used to signal that vote shouldn't be broadcasted (again)
             if act.chain_state.superblock_state.contains(&superblock_vote) {
                 return actix::fut::err(());
             }
@@ -1018,11 +979,9 @@ impl ChainManager {
                         log::error!("Failed to sign superblock with bn256 key: {}", e);
                     })
                     .and_then(move |bn256_keyed_signature| {
-                        // Actually, we don't need to include the BN256 public key because
-                        // it is stored in the `alt_keys` mapping, indexed by the
-                        // secp256k1 public key hash
-                        let bn256_signature = bn256_keyed_signature.signature;
-                        superblock_vote.set_bn256_signature(bn256_signature);
+                        // There is no need to include the BN256 public key because it is stored in
+                        // the `alt_keys` mapping, indexed by the secp256k1 public key hash
+                        superblock_vote.set_bn256_signature(bn256_keyed_signature.signature);
                         let secp256k1_message = superblock_vote.secp256k1_signature_message();
                         let sign_bytes = calculate_sha256(&secp256k1_message).0;
                         signature_mngr::sign_data(sign_bytes)
@@ -1250,7 +1209,7 @@ impl ChainManager {
                     }
                     SuperBlockConsensus::Different(target_superblock_hash) => {
                         // No consensus: move to waiting consensus and restore chain_state from storage
-                        // TODO: start syncronizing with target superblock hash
+                        // TODO: it could be possible to synchronize with a target superblock hash
                         log::warn!("Superblock consensus {} different from current superblock. Moving to WaitingConsensus state", target_superblock_hash);
                         act.initialize_from_storage(ctx);
                         act.sm_state = StateMachine::WaitingConsensus;
@@ -1387,19 +1346,32 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<ChainManager>,
         sync_target: &SyncTarget,
-        x: &[Block],
+        blocks: &[Block],
     ) -> (bool, usize) {
         let (batch_succeeded, num_processed_blocks) =
-            self.process_blocks_batch(ctx, &sync_target, &x);
+            self.process_blocks_batch(ctx, &sync_target, &blocks);
 
         if !batch_succeeded {
             log::error!("Received invalid blocks batch");
             self.sm_state = StateMachine::WaitingConsensus;
-            // TODO: re-check statement
             self.sync_waiting_for_add_blocks_since = None;
         }
 
         (batch_succeeded, num_processed_blocks)
+    }
+
+    fn superblock_consolidation_is_needed(
+        &self,
+        sync_target: &SyncTarget,
+        superblock_period: u32,
+    ) -> Option<u32> {
+        if sync_target.superblock.checkpoint
+            == self.chain_state.superblock_state.get_beacon().checkpoint
+        {
+            Some(sync_target.superblock.checkpoint * superblock_period)
+        } else {
+            None
+        }
     }
 }
 

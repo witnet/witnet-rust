@@ -9,8 +9,8 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
-        Hash, Hashable, NodeStats, PublicKeyHash, Reputation, SuperBlockVote, UtxoInfo,
+        get_utxo_info, Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport,
+        Epoch, Hash, Hashable, NodeStats, PublicKeyHash, Reputation, SuperBlockVote, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -36,7 +36,6 @@ use crate::{
     storage_mngr,
     utils::mode_consensus,
 };
-use witnet_data_structures::chain::Block;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -303,14 +302,10 @@ impl Handler<AddBlocks> for ChainManager {
                     }
                 }
             }
+            StateMachine::AlmostSynced | StateMachine::Synced => {}
             StateMachine::Synchronizing => {
-                // TODO: review if `sync_waiting_for_add_blocks_since = None` is needed
                 if self.sync_target.is_none() {
                     log::warn!("Target Beacon is None");
-                    // If we are not synchronizing, forget about when we started synchronizing
-                    // if self.sm_state != StateMachine::Synchronizing {
-                    //     self.sync_waiting_for_add_blocks_since = None;
-                    // }
                     return;
                 }
 
@@ -319,26 +314,20 @@ impl Handler<AddBlocks> for ChainManager {
                     self.sm_state = StateMachine::WaitingConsensus;
                     self.initialize_from_storage(ctx);
                     log::info!("Restored chain state from storage");
-                    // If we are not synchronizing, forget about when we started synchronizing
-                    self.sync_waiting_for_add_blocks_since = None;
 
                     return;
                 }
 
-                let sync_target = self.sync_target.clone().unwrap();
+                let sync_target = self
+                    .sync_target
+                    .expect("The sync target should be defined for synchronizing");
                 let superblock_period = u32::from(consensus_constants.superblock_period);
 
-                // TODO: review this hack
+                // TODO: Review this hack
                 // Hack: remove first block
                 // For some reason the other node sends one extra block, and we cannot consolidate
                 // it because it is our top block.
                 msg.blocks.remove(0);
-                /*
-                // Hack: remove genesis block
-                if msg.blocks[0].block_header.beacon.checkpoint == 0 && msg.blocks[0].block_header.beacon.hash_prev_block == consensus_constants.bootstrap_hash && msg.blocks[0].hash() == consensus_constants.genesis_hash {
-                    msg.blocks.remove(0);
-                }
-                */
 
                 // Split received blocks into batches according to 3 different cases:
                 // 1. TargetNotReached: superblock target not reachable with the received block batch.
@@ -357,7 +346,7 @@ impl Handler<AddBlocks> for ChainManager {
                 use BlockBatches::*;
                 match block_batches {
                     // TargetNotReached:
-                    // 1. process blocks
+                    // 1. process blocks (not yet ready for consolidation)
                     // 2. requests block batch -> revert to WaitingConsensus
                     Ok(TargetNotReached(blocks1)) => {
                         let (batch_succeeded, num_processed_blocks) =
@@ -382,41 +371,28 @@ impl Handler<AddBlocks> for ChainManager {
                         }
                         log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
 
-                        // TODO: review if can be refactored
-                        let current_superblock_checkpoint =
-                            self.chain_state.superblock_state.get_beacon().checkpoint;
-                        let need_to_construct_superblock =
-                            sync_target.superblock.checkpoint != current_superblock_checkpoint;
-                        let epoch_during_which_we_should_construct_the_target_superblock =
-                            sync_target.superblock.checkpoint * superblock_period;
-
-                        if need_to_construct_superblock {
+                        if let Some(consolidate_superblock_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
                             // We need to persist blocks in order to be able to construct the
                             // superblock
-                            // TODO: verify that superblock creation does not start until all
-                            // the blocks have been persisted
                             self.persist_blocks_batch(ctx, blocks1);
                             let to_be_stored =
                                 self.chain_state.data_request_pool.finished_data_requests();
                             self.persist_data_requests(ctx, to_be_stored);
                             // Create superblocks while synchronizing but do not broadcast them
                             // This is needed to ensure that we can validate the received superblocks later on
-                            // TODO: this is needed to check synchronization target
-                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, epoch_during_which_we_should_construct_the_target_superblock);
+                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock, sync_target.clone())
+                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target)
                             )
                         } else {
                             // No need to construct a superblock again,
                             actix::fut::Either::B(actix::fut::ok(()))
                         }
                             .and_then(move |(), act, ctx| {
-                                // TODO: re-check WaitingConsensus
                                 act.sm_state = StateMachine::WaitingConsensus;
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks2);
                                 if !batch_succeeded {
-                                    // act.sm_state = StateMachine::WaitingConsensus;
                                     return actix::fut::err(());
                                 }
                                 log_sync_progress(&sync_target, &blocks2, num_processed_blocks, 2);
@@ -438,53 +414,40 @@ impl Handler<AddBlocks> for ChainManager {
                         }
                         log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
 
-                        let current_superblock_checkpoint =
-                            self.chain_state.superblock_state.get_beacon().checkpoint;
-                        let need_to_construct_superblock =
-                            sync_target.superblock.checkpoint != current_superblock_checkpoint;
-                        let epoch_during_which_we_should_construct_the_target_superblock =
-                            sync_target.superblock.checkpoint * superblock_period;
-
-                        if need_to_construct_superblock {
+                        if let Some(consolidate_superblock_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
                             // We need to persist blocks in order to be able to construct the
                             // superblock
-                            // TODO: verify that superblock creation does not start until all
-                            // the blocks have been persisted
                             self.persist_blocks_batch(ctx, blocks1);
                             let to_be_stored =
                                 self.chain_state.data_request_pool.finished_data_requests();
                             self.persist_data_requests(ctx, to_be_stored);
                             // Create superblocks while synchronizing but do not broadcast them
                             // This is needed to ensure that we can validate the received superblocks later on
-                            // TODO: this is needed to check synchronization target
-                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, epoch_during_which_we_should_construct_the_target_superblock);
+                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, epoch_during_which_we_should_construct_the_target_superblock, sync_target.clone())
+                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target)
                             )
                         } else {
                             // No need to construct a superblock again,
                             actix::fut::Either::B(actix::fut::ok(()))
                         }
                             .and_then({
-                                let sync_target = sync_target.clone();
                                 move |(), act, ctx| {
                                     // Process remaining blocks
                                     let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks2);
                                     if !batch_succeeded {
                                         act.sm_state = StateMachine::WaitingConsensus;
-                                        // TODO: return actix error
+
                                         return actix::fut::err(());
                                     }
                                     log_sync_progress(&sync_target, &blocks2, num_processed_blocks, 2);
 
                                     // Update ARS if there were no blocks right before the epoch during
                                     // which we should construct the target superblock
-                                    let epoch_during_which_we_should_construct_the_second_superblock = (act.current_epoch.unwrap() / superblock_period) * superblock_period;
+                                    let candidate_superblock_epoch = (act.current_epoch.unwrap() / superblock_period) * superblock_period;
 
                                     // We need to persist blocks in order to be able to construct the
                                     // superblock
-                                    // TODO: verify that superblock creation does not start until all
-                                    // the blocks have been persisted
                                     act.persist_blocks_batch(ctx, blocks2);
                                     let to_be_stored =
                                         act.chain_state.data_request_pool.finished_data_requests();
@@ -494,19 +457,17 @@ impl Handler<AddBlocks> for ChainManager {
                                     // Target achieved, go back to state 1
                                     act.sm_state = StateMachine::WaitingConsensus;
 
-                                    // We must construct the second superblock in order to
-                                    // be able to validate the votes for this superblock
-                                    // later
-                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, epoch_during_which_we_should_construct_the_second_superblock);
+                                    // We must construct the second superblock in order to be able
+                                    // to validate the votes for this superblock later
+                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, candidate_superblock_epoch);
 
-                                    actix::fut::ok(epoch_during_which_we_should_construct_the_second_superblock)
+                                    actix::fut::ok(candidate_superblock_epoch)
                                 }
                             })
-                            .and_then(move | epoch_during_which_we_should_construct_the_second_superblock, act, ctx| {
-                                act.build_and_vote_candidate_superblock(ctx, epoch_during_which_we_should_construct_the_second_superblock)
+                            .and_then(move |candidate_superblock_epoch, act, ctx| {
+                                act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch)
                             })
                             .and_then(move |_, act, ctx| {
-                                let sync_target = sync_target.clone();
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks3);
                                 if !batch_succeeded {
@@ -544,7 +505,6 @@ impl Handler<AddBlocks> for ChainManager {
                     }
                 };
             }
-            StateMachine::AlmostSynced | StateMachine::Synced => {}
         };
 
         // TODO: check when `sync_waiting_for_add_blocks_since` is set
@@ -1470,7 +1430,6 @@ impl Handler<GetMempool> for ChainManager {
     }
 }
 
-// TODO: USE ME!
 #[allow(dead_code)]
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockBatches<T> {
@@ -1479,9 +1438,6 @@ pub enum BlockBatches<T> {
     SyncWithCandidate(Vec<T>, Vec<T>, Vec<T>),
 }
 
-// TODO: return slices instead of vectors?
-// TODO: USE ME!
-#[allow(dead_code)]
 fn split_blocks_batch_at_target<T, F>(
     key: F,
     blocks: Vec<T>,
