@@ -1145,8 +1145,7 @@ impl ChainManager {
             })
             .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
             .and_then(move |(block_headers, last_hash), act, ctx| {
-                // TODO: Synced or AlmostSynced?
-                let consensus = if act.sm_state == StateMachine::Synced {
+                let consensus = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                     act.chain_state.superblock_state.has_consensus()
                 } else {
                     // If the node is not synced yet, assume that the superblock is valid.
