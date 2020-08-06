@@ -22,7 +22,7 @@ use witnet_validations::validations::validate_rad_request;
 use super::{transaction_factory, ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
     actors::{
-        chain_manager::BlockCandidate,
+        chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction,
             Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
@@ -343,38 +343,42 @@ impl Handler<AddBlocks> for ChainManager {
                     superblock_period,
                 );
 
-                use BlockBatches::*;
                 match block_batches {
                     // TargetNotReached:
                     // 1. process blocks (not yet ready for consolidation)
                     // 2. requests block batch -> revert to WaitingConsensus
-                    Ok(TargetNotReached(blocks1)) => {
+                    Ok(TargetNotReached(blocks)) => {
                         let (batch_succeeded, num_processed_blocks) =
-                            self.process_first_batch(ctx, &sync_target, &blocks1);
+                            self.process_first_batch(ctx, &sync_target, &blocks);
                         if !batch_succeeded {
                             return;
                         }
-                        log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
 
-                        log::debug!("1 Target not reached, request blocks batch");
+                        log::debug!("TargetNotReached: superblock target #{} not reached, requesting more blocks. ({} processed blocks)",
+                            sync_target.superblock.checkpoint, num_processed_blocks);
                         self.request_blocks_batch(ctx);
                     }
                     // SyncWithoutCandidate:
                     // 1. process blocks
                     // 2. construct consolidated superblock (if needed)
                     // 3. handle remaining blocks
-                    Ok(SyncWithoutCandidate(blocks1, blocks2)) => {
+                    Ok(SyncWithoutCandidate(consolidate_blocks, remainig_blocks)) => {
                         let (batch_succeeded, num_processed_blocks) =
-                            self.process_first_batch(ctx, &sync_target, &blocks1);
+                            self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
                         if !batch_succeeded {
                             return;
                         }
-                        log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
+                        log_sync_progress(
+                            &sync_target,
+                            &consolidate_blocks,
+                            num_processed_blocks,
+                            "SyncWithoutCandidate(consolidation)",
+                        );
 
                         if let Some(consolidate_superblock_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
                             // We need to persist blocks in order to be able to construct the
                             // superblock
-                            self.persist_blocks_batch(ctx, blocks1);
+                            self.persist_blocks_batch(ctx, consolidate_blocks);
                             let to_be_stored =
                                 self.chain_state.data_request_pool.finished_data_requests();
                             self.persist_data_requests(ctx, to_be_stored);
@@ -391,11 +395,11 @@ impl Handler<AddBlocks> for ChainManager {
                             .and_then(move |(), act, ctx| {
                                 act.sm_state = StateMachine::WaitingConsensus;
                                 // Process remaining blocks
-                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks2);
+                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remainig_blocks);
                                 if !batch_succeeded {
                                     return actix::fut::err(());
                                 }
-                                log_sync_progress(&sync_target, &blocks2, num_processed_blocks, 2);
+                                log_sync_progress(&sync_target, &remainig_blocks, num_processed_blocks, "SyncWithoutCandidate(remaining)");
 
                                 actix::fut::ok(())
                             })
@@ -406,18 +410,27 @@ impl Handler<AddBlocks> for ChainManager {
                     // 2. construct consolidated superblock (if needed)
                     // 3. build and vote new candidate superblock
                     // 4. process remaining blocks
-                    Ok(SyncWithCandidate(blocks1, blocks2, blocks3)) => {
+                    Ok(SyncWithCandidate(
+                        consolidate_blocks,
+                        candidate_blocks,
+                        remaining_blocks,
+                    )) => {
                         let (batch_succeeded, num_processed_blocks) =
-                            self.process_first_batch(ctx, &sync_target, &blocks1);
+                            self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
                         if !batch_succeeded {
                             return;
                         }
-                        log_sync_progress(&sync_target, &blocks1, num_processed_blocks, 1);
+                        log_sync_progress(
+                            &sync_target,
+                            &consolidate_blocks,
+                            num_processed_blocks,
+                            "SyncWithCandidate(consolidation)",
+                        );
 
                         if let Some(consolidate_superblock_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
                             // We need to persist blocks in order to be able to construct the
                             // superblock
-                            self.persist_blocks_batch(ctx, blocks1);
+                            self.persist_blocks_batch(ctx, consolidate_blocks);
                             let to_be_stored =
                                 self.chain_state.data_request_pool.finished_data_requests();
                             self.persist_data_requests(ctx, to_be_stored);
@@ -434,13 +447,13 @@ impl Handler<AddBlocks> for ChainManager {
                             .and_then({
                                 move |(), act, ctx| {
                                     // Process remaining blocks
-                                    let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks2);
+                                    let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &candidate_blocks);
                                     if !batch_succeeded {
                                         act.sm_state = StateMachine::WaitingConsensus;
 
                                         return actix::fut::err(());
                                     }
-                                    log_sync_progress(&sync_target, &blocks2, num_processed_blocks, 2);
+                                    log_sync_progress(&sync_target, &candidate_blocks, num_processed_blocks, "SyncWithCandidate(candidate)");
 
                                     // Update ARS if there were no blocks right before the epoch during
                                     // which we should construct the target superblock
@@ -448,7 +461,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                     // We need to persist blocks in order to be able to construct the
                                     // superblock
-                                    act.persist_blocks_batch(ctx, blocks2);
+                                    act.persist_blocks_batch(ctx, candidate_blocks);
                                     let to_be_stored =
                                         act.chain_state.data_request_pool.finished_data_requests();
                                     act.persist_data_requests(ctx, to_be_stored);
@@ -469,15 +482,15 @@ impl Handler<AddBlocks> for ChainManager {
                             })
                             .and_then(move |_, act, ctx| {
                                 // Process remaining blocks
-                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &blocks3);
+                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
-                                    log::error!("3 Received invalid blocks batch");
+                                    log::error!("Received invalid blocks batch... reverting to WaitingConsensus");
                                     act.sm_state = StateMachine::WaitingConsensus;
                                     act.sync_waiting_for_add_blocks_since = None;
 
                                     return actix::fut::err(());
                                 }
-                                log_sync_progress(&sync_target, &blocks3, num_processed_blocks, 3);
+                                log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
 
                                 log::info!("Block sync target achieved, go to WaitingConsensus state");
                                 // Target achieved, go back to state 1
@@ -519,15 +532,19 @@ fn log_sync_progress(
     sync_target: &SyncTarget,
     blocks: &[Block],
     num_processed_blocks: usize,
-    iteration: usize,
+    stage: &str,
 ) {
-    // TODO: refactor Logs
     if num_processed_blocks == 0 {
-        log::debug!("{} Sync done, 0 blocks processed", iteration);
+        log::debug!("{}: sync done, 0 blocks processed", stage);
     } else {
         let last_processed_block = &blocks[num_processed_blocks - 1];
-        let epoch_of_the_last_block = Some(last_processed_block.block_header.beacon.checkpoint);
-        log::debug!("{} Sync done up to block #{} because that is the last checkpoint according to superblock #{}", iteration, epoch_of_the_last_block.unwrap(), sync_target.superblock.checkpoint);
+        let epoch_of_the_last_block = last_processed_block.block_header.beacon.checkpoint;
+        log::debug!(
+            "{}: sync done up to block #{} (last checkpoint of superblock #{} reached)",
+            stage,
+            epoch_of_the_last_block,
+            sync_target.superblock.checkpoint
+        );
     }
 }
 
@@ -626,9 +643,15 @@ impl PeersBeacons {
         for (k, v) in self.pb.iter() {
             let v = v
                 .as_ref()
-                // TODO: this method ignores the superblock beacon
-                .map(|x| x.highest_block_checkpoint)
-                .map(|x| format!("#{} {}", x.checkpoint, x.hash_prev_block))
+                .map(|x| {
+                    format!(
+                        "Block #{}: {} - Superblock #{}: {}",
+                        x.highest_block_checkpoint.checkpoint,
+                        x.highest_block_checkpoint.hash_prev_block,
+                        x.highest_superblock_checkpoint.checkpoint,
+                        x.highest_superblock_checkpoint.hash_prev_block
+                    )
+                })
                 .unwrap_or_else(|| "NO BEACON".to_string());
             beacon_peers_map.entry(v).or_default().push(k.to_string());
         }

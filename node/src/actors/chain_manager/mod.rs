@@ -775,7 +775,7 @@ impl ChainManager {
                 AddSuperBlockVote::DoubleVote => {
                     // We must forward double votes to make sure all the nodes are aware of them
                     log::debug!(
-                        "Idenitity voted more than once: {}",
+                        "Identity voted more than once: {}",
                         superblock_vote.secp256k1_signature.public_key.pkh()
                     );
 
@@ -791,7 +791,7 @@ impl ChainManager {
                 }
                 AddSuperBlockVote::NotInSigningCommittee => {
                     log::debug!(
-                        "Not forwarding superblock vote: identity not in ARS: {}",
+                        "Not forwarding superblock vote: identity not in Signing Committee: {}",
                         superblock_vote.secp256k1_signature.public_key.pkh()
                     );
 
@@ -1157,16 +1157,16 @@ impl ChainManager {
                 match consensus {
                     SuperBlockConsensus::SameAsLocal => {
                         // Consensus: persist chain state
-                        log::info!("Before update: superblock {:?}", act.get_superblock_beacon());
+                        log::debug!("Before update: superblock {:?}", act.get_superblock_beacon());
                         act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
                             act.chain_state.superblock_state.get_beacon();
                         if act.sm_state == StateMachine::Synced {
                             // Persist previous_chain_state with current superblock_state
                             act.persist_chain_state(ctx);
                         }
-                        log::info!("Consensus! Superblock {:?}", act.get_superblock_beacon());
-                        log::info!("Current tip of the chain: {:?}", act.get_chain_beacon());
-                        log::info!(
+                        log::info!("Consensus reached for Superblock #{:?}", act.get_superblock_beacon());
+                        log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                        log::debug!(
                         "The last block of the consolidated superblock is {}",
                         last_hash
                     );
