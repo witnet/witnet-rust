@@ -2495,18 +2495,12 @@ pub struct OwnUnspentOutputsPool {
     /// Map of output pointer to timestamp
     /// Those UTXOs have a timestamp value to avoid double spending
     map: HashMap<OutputPointer, u64>,
-    /// Counter of UTXOs bigger than the minimum collateral
-    bigger_than_min_counter: usize,
-    /// Collateral minimum
-    collateral_min: u64,
 }
 
 impl OwnUnspentOutputsPool {
-    pub fn new(collateral_min: u64) -> Self {
+    pub fn new() -> Self {
         Self {
             map: HashMap::default(),
-            bigger_than_min_counter: 0,
-            collateral_min,
         }
     }
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&u64>
@@ -2533,27 +2527,15 @@ impl OwnUnspentOutputsPool {
         self.map.contains_key(k)
     }
 
-    pub fn insert(&mut self, k: OutputPointer, v: u64, value: u64) -> Option<u64> {
-        let old_ts = self.map.insert(k, v);
-        if old_ts.is_none() && value >= self.collateral_min {
-            self.bigger_than_min_counter += 1;
-        }
-
-        old_ts
+    pub fn insert(&mut self, k: OutputPointer, v: u64) -> Option<u64> {
+        self.map.insert(k, v)
     }
 
-    pub fn remove(&mut self, k: &OutputPointer, value: u64) -> Option<u64> {
-        let ts = self.map.remove(k);
-
-        if ts.is_some() && value >= self.collateral_min {
-            self.bigger_than_min_counter -= 1;
-        }
-
-        ts
+    pub fn remove(&mut self, k: &OutputPointer) -> Option<u64> {
+        self.map.remove(k)
     }
 
     pub fn drain(&mut self) -> std::collections::hash_map::Drain<OutputPointer, u64> {
-        self.bigger_than_min_counter = 0;
         self.map.drain()
     }
 
@@ -2563,10 +2545,6 @@ impl OwnUnspentOutputsPool {
 
     pub fn keys(&self) -> std::collections::hash_map::Keys<OutputPointer, u64> {
         self.map.keys()
-    }
-
-    pub fn bigger_than_min_counter(&self) -> usize {
-        self.bigger_than_min_counter
     }
 
     pub fn len(&self) -> usize {
@@ -2613,7 +2591,7 @@ pub struct UtxoMetadata {
     pub output_pointer: OutputPointer,
     pub value: u64,
     pub timelock: u64,
-    pub ready_for_collateral: bool,
+    pub utxo_mature: bool,
 }
 
 /// Information about our own UTXOs
@@ -2621,10 +2599,8 @@ pub struct UtxoMetadata {
 pub struct UtxoInfo {
     /// Vector of OutputPointer with their values, time_locks and if it is ready for collateral
     pub utxos: Vec<UtxoMetadata>,
-    /// Counter of UTXOs bigger than the minimum collateral
-    pub bigger_than_min_counter: usize,
-    /// Counter of UTXOs bigger than the minimum collateral and older than collateral coinage
-    pub old_utxos_counter: usize,
+    /// Minimum collateral from consensus constants
+    pub collateral_min: u64,
 }
 
 #[allow(clippy::cast_sign_loss)]
@@ -2632,10 +2608,7 @@ fn create_utxo_metadata(
     vto: &ValueTransferOutput,
     o: &OutputPointer,
     all_utxos: &UnspentOutputsPool,
-    collateral_min: u64,
     block_number_limit: u32,
-    bigger_than_min_counter: &mut usize,
-    old_utxos_counter: &mut usize,
 ) -> UtxoMetadata {
     let now = get_timestamp() as u64;
     let timelock = if vto.time_lock >= now {
@@ -2643,21 +2616,13 @@ fn create_utxo_metadata(
     } else {
         0
     };
-    if vto.value >= collateral_min {
-        *bigger_than_min_counter += 1;
-    }
-    let ready_for_collateral = (vto.value >= collateral_min)
-        && (all_utxos.included_in_block_number(o).unwrap() <= block_number_limit)
-        && timelock == 0;
-    if ready_for_collateral {
-        *old_utxos_counter += 1;
-    }
+    let utxo_mature: bool = all_utxos.included_in_block_number(o).unwrap() <= block_number_limit;
 
     UtxoMetadata {
         output_pointer: o.clone(),
         value: vto.value,
         timelock,
-        ready_for_collateral,
+        utxo_mature,
     }
 }
 
@@ -2670,23 +2635,12 @@ pub fn get_utxo_info(
     collateral_min: u64,
     block_number_limit: u32,
 ) -> UtxoInfo {
-    let mut bigger_than_min_counter = 0;
-    let mut old_utxos_counter = 0;
-
     let utxos = if let Some(pkh) = pkh {
         all_utxos
             .iter()
             .filter_map(|(o, (vto, _))| {
                 if vto.pkh == pkh {
-                    Some(create_utxo_metadata(
-                        vto,
-                        o,
-                        all_utxos,
-                        collateral_min,
-                        block_number_limit,
-                        &mut bigger_than_min_counter,
-                        &mut old_utxos_counter,
-                    ))
+                    Some(create_utxo_metadata(vto, o, all_utxos, block_number_limit))
                 } else {
                     None
                 }
@@ -2697,25 +2651,16 @@ pub fn get_utxo_info(
         own_utxos
             .iter()
             .filter_map(|(o, _)| {
-                all_utxos.get(o).map(|vto| {
-                    create_utxo_metadata(
-                        vto,
-                        o,
-                        all_utxos,
-                        collateral_min,
-                        block_number_limit,
-                        &mut bigger_than_min_counter,
-                        &mut old_utxos_counter,
-                    )
-                })
+                all_utxos
+                    .get(o)
+                    .map(|vto| create_utxo_metadata(vto, o, all_utxos, block_number_limit))
             })
             .collect()
     };
 
     UtxoInfo {
         utxos,
-        bigger_than_min_counter,
-        old_utxos_counter,
+        collateral_min,
     }
 }
 
@@ -4560,7 +4505,7 @@ mod tests {
 
         let mut own_utxos = OwnUnspentOutputsPool::default();
         for (o, _) in utxo_pool.iter() {
-            own_utxos.insert(o.clone(), 0, 0);
+            own_utxos.insert(o.clone(), 0);
         }
         assert_eq!(own_utxos.len(), 4);
 

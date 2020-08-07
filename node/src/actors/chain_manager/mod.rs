@@ -1239,16 +1239,12 @@ fn update_pools(
             |own_utxos, output_pointer, output| {
                 // Insert new outputs
                 if output.pkh == own_pkh {
-                    own_utxos.insert(output_pointer.clone(), 0, output.value);
+                    own_utxos.insert(output_pointer.clone(), 0);
                 }
             },
             |own_utxos, output_pointer| {
                 // Remove spent inputs
-                let value = unspent_outputs_pool
-                    .get(output_pointer)
-                    .map(|vto| vto.value)
-                    .unwrap_or(0);
-                own_utxos.remove(&output_pointer, value);
+                own_utxos.remove(&output_pointer);
             },
         );
     }

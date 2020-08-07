@@ -178,7 +178,7 @@ impl ChainManager {
                         ChainState {
                             chain_info: Some(chain_info),
                             reputation_engine: Some(reputation_engine),
-                            own_utxos: OwnUnspentOutputsPool::new(consensus_constants.collateral_minimum),
+                            own_utxos: OwnUnspentOutputsPool::new(),
                             data_request_pool: DataRequestPool::new(consensus_constants.extra_rounds),
                             ..ChainState::default()
                         }
