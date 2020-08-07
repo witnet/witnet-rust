@@ -148,47 +148,101 @@ pub fn get_utxo_info(
     let utxo_info = parse_response::<UtxoInfo>(&response)?;
 
     let utxos_len = utxo_info.utxos.len();
+    let mut utxo_sum = 0;
 
-    if long {
-        let mut table = Table::new();
-        table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-        table.set_titles(row![
-            "OutputPointer",
-            "Value (in wits)",
-            "Time lock",
-            "Ready for collateral"
-        ]);
-        for utxo_metadata in utxo_info
-            .utxos
-            .into_iter()
-            .sorted_by_key(|um| (um.value, um.output_pointer.clone()))
-        {
+    let mut utxo_too_small_counter = 0;
+    let mut utxo_too_small_sum = 0;
+
+    let mut utxo_not_ready_counter = 0;
+    let mut utxo_not_ready_sum = 0;
+
+    let mut utxo_ready_counter = 0;
+    let mut utxo_ready_sum = 0;
+
+    let mut table = Table::new();
+    table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row![
+        "OutputPointer",
+        "Value (in wits)",
+        "Time lock",
+        "Ready for collateral"
+    ]);
+
+    for utxo_metadata in utxo_info
+        .utxos
+        .into_iter()
+        .sorted_by_key(|um| (um.value, um.output_pointer.clone()))
+    {
+        let ready_for_collateral: bool = (utxo_metadata.value >= utxo_info.collateral_min)
+            && utxo_metadata.utxo_mature
+            && utxo_metadata.timelock == 0;
+
+        if long {
             let value = Wit::from_nanowits(utxo_metadata.value).to_string();
             let time_lock = if utxo_metadata.timelock == 0 {
                 "Ready".to_string()
             } else {
-                let date = pretty_print(utxo_metadata.timelock as i64, 0);
-                format!("{:?}", date)
+                pretty_print(utxo_metadata.timelock as i64, 0)
             };
+
             table.add_row(row![
                 utxo_metadata.output_pointer.to_string(),
                 value,
                 time_lock,
-                utxo_metadata.ready_for_collateral.to_string()
+                ready_for_collateral.to_string()
             ]);
         }
+
+        utxo_sum += utxo_metadata.value;
+        // Utxo bigger than collateral minimum, no timelock and mature
+        if ready_for_collateral {
+            utxo_ready_counter += 1;
+            utxo_ready_sum += utxo_metadata.value;
+        // Utxo smaller than collateral_min, can never be collateralized (until joined)
+        } else if utxo_metadata.value < utxo_info.collateral_min {
+            utxo_too_small_counter += 1;
+            utxo_too_small_sum += utxo_metadata.value;
+        // Utxo with a timelock enabled or utxo bigger than collateral minimum, no timelock but not mature
+        } else {
+            utxo_not_ready_counter += 1;
+            utxo_not_ready_sum += utxo_metadata.value;
+        }
+    }
+
+    if long {
         table.printstd();
         println!("-----------------------");
     }
-    println!("Total number of utxos: {}", utxos_len);
-    println!(
-        "Total number of utxos bigger than collateral minimum: {}",
-        utxo_info.bigger_than_min_counter
-    );
-    println!(
-        "Total number of utxos older than collateral coinage: {}",
-        utxo_info.old_utxos_counter
-    );
+
+    let mut utxos_table = Table::new();
+    utxos_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    utxos_table.set_titles(row!["Utxos", "Number", "Value (in wits)"]);
+    utxos_table.add_row(row![
+        "Total utxos".to_string(),
+        utxos_len,
+        Wit::from_nanowits(utxo_sum).to_string()
+    ]);
+    utxos_table.add_row(row![
+        "Utxos smaller than collateral minimum".to_string(),
+        utxo_too_small_counter,
+        Wit::from_nanowits(utxo_too_small_sum).to_string()
+    ]);
+    utxos_table.add_row(row![
+        "Utxos bigger than collateral minimum".to_string(),
+        (utxos_len - utxo_too_small_counter),
+        Wit::from_nanowits(utxo_sum - utxo_too_small_sum).to_string()
+    ]);
+    utxos_table.add_row(row![
+        "Utxos bigger than and ready for collateral".to_string(),
+        utxo_ready_counter,
+        Wit::from_nanowits(utxo_ready_sum).to_string()
+    ]);
+    utxos_table.add_row(row![
+        "Utxos bigger than and not ready for collateral".to_string(),
+        utxo_not_ready_counter,
+        Wit::from_nanowits(utxo_not_ready_sum).to_string()
+    ]);
+    utxos_table.printstd();
 
     Ok(())
 }

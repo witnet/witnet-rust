@@ -410,7 +410,7 @@ mod tests {
                 Transaction::ValueTransfer(vt_tx) => {
                     // Remove spent inputs
                     for input in &vt_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer(), 0);
+                        own_utxos.remove(&input.output_pointer());
                     }
                     // Insert new outputs
                     for (i, output) in vt_tx.body.outputs.iter().enumerate() {
@@ -421,7 +421,6 @@ mod tests {
                                     output_index: u32::try_from(i).unwrap(),
                                 },
                                 0,
-                                0,
                             );
                         }
                     }
@@ -430,7 +429,7 @@ mod tests {
                 Transaction::DataRequest(dr_tx) => {
                     // Remove spent inputs
                     for input in &dr_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer(), 0);
+                        own_utxos.remove(&input.output_pointer());
                     }
                     // Insert new outputs
                     for (i, output) in dr_tx.body.outputs.iter().enumerate() {
@@ -440,7 +439,6 @@ mod tests {
                                     transaction_id: transaction.hash(),
                                     output_index: u32::try_from(i).unwrap(),
                                 },
-                                0,
                                 0,
                             );
                         }
