@@ -510,8 +510,8 @@ impl Handler<AddBlocks> for ChainManager {
                             consolidated_superblock_index,
                             current_superblock_index
                         );
-                        // Requesting blocks again
-                        self.request_blocks_batch(ctx);
+                        self.sm_state = StateMachine::WaitingConsensus;
+                        self.sync_waiting_for_add_blocks_since = None;
                     }
                     Err(e) => {
                         log::error!("Unexpected error while splitting received blocks {:?}", e)
