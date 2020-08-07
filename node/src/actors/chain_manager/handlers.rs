@@ -375,7 +375,7 @@ impl Handler<AddBlocks> for ChainManager {
                             "SyncWithoutCandidate(consolidation)",
                         );
 
-                        if let Some(consolidate_superblock_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
+                        if let Some(consolidate_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
                             // We need to persist blocks in order to be able to construct the
                             // superblock
                             self.persist_blocks_batch(ctx, consolidate_blocks);
@@ -384,9 +384,9 @@ impl Handler<AddBlocks> for ChainManager {
                             self.persist_data_requests(ctx, to_be_stored);
                             // Create superblocks while synchronizing but do not broadcast them
                             // This is needed to ensure that we can validate the received superblocks later on
-                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
+                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target)
+                                self.try_consolidate_superblock(ctx, consolidate_epoch, sync_target)
                             )
                         } else {
                             // No need to construct a superblock again,
@@ -1451,15 +1451,19 @@ where
         key(block) >= sync_target.superblock.checkpoint * superblock_period
             && key(block) < first_valid_block
     });
+
     if let Some(wrong_index) = wrong_index {
         // We received blocks that do not match the current epoch and the last consolidated superblock.
         // As an example, if the last consolidated superblock has the block 9 inside, and we are in epoch 50,
-        // it means we reverted somehow. Thus Blocks between 10 and 49 cannot exist.
-        return Err(ChainManagerError::WrongBlocksForSuperblock {
-            wrong_index: key(&blocks[wrong_index]),
-            consolidated_superblock_index: sync_target.superblock.checkpoint,
-            current_superblock_index,
-        });
+        // it means we reverted somehow.
+        // Sync target 0 is excluded from this validation
+        if sync_target.superblock.checkpoint != 0 {
+            return Err(ChainManagerError::WrongBlocksForSuperblock {
+                wrong_index: key(&blocks[wrong_index]),
+                consolidated_superblock_index: sync_target.superblock.checkpoint,
+                current_superblock_index,
+            });
+        }
     }
 
     // The case where blocks is an empty array

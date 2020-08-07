@@ -1017,48 +1017,48 @@ impl ChainManager {
     pub fn try_consolidate_superblock(
         &mut self,
         ctx: &mut Context<Self>,
-        superblock_epoch: u32,
+        block_epoch: u32,
         sync_target: SyncTarget,
     ) -> ResponseActFuture<Self, (), ()> {
-        let fut = self.construct_superblock(ctx, superblock_epoch).and_then(
-            move |superblock, act, ctx| {
-                if superblock.hash() == sync_target.superblock.hash_prev_block {
-                    // In synchronizing state, the consensus beacon is the one we just created
-                    act.chain_state
-                        .chain_info
-                        .as_mut()
-                        .unwrap()
-                        .highest_superblock_checkpoint =
-                        act.chain_state.superblock_state.get_beacon();
-                    log::info!(
-                        "Consensus while sync! Superblock {:?}",
-                        act.get_superblock_beacon()
-                    );
-                    // Persist current_chain_state with
-                    // current_superblock_state and the new superblock beacon
-                    act.last_chain_state = act.chain_state.clone();
-                    act.persist_chain_state(ctx);
+        let fut =
+            self.construct_superblock(ctx, block_epoch)
+                .and_then(move |superblock, act, ctx| {
+                    if superblock.hash() == sync_target.superblock.hash_prev_block {
+                        // In synchronizing state, the consensus beacon is the one we just created
+                        act.chain_state
+                            .chain_info
+                            .as_mut()
+                            .unwrap()
+                            .highest_superblock_checkpoint =
+                            act.chain_state.superblock_state.get_beacon();
+                        log::info!(
+                            "Consensus while sync! Superblock {:?}",
+                            act.get_superblock_beacon()
+                        );
+                        // Persist current_chain_state with
+                        // current_superblock_state and the new superblock beacon
+                        act.last_chain_state = act.chain_state.clone();
+                        act.persist_chain_state(ctx);
 
-                    actix::fut::ok(())
-                } else {
-                    // The superblock hash is different from what it should be.
-                    log::error!(
-                        "Mismatching superblock. Target: {:?} Created #{} {} {:?}",
-                        sync_target,
-                        superblock.index,
-                        superblock.hash(),
-                        superblock
-                    );
-                    act.sm_state = StateMachine::WaitingConsensus;
-                    act.initialize_from_storage(ctx);
-                    log::info!("Restored chain state from storage");
+                        actix::fut::ok(())
+                    } else {
+                        // The superblock hash is different from what it should be.
+                        log::error!(
+                            "Mismatching superblock. Target: {:?} Created #{} {} {:?}",
+                            sync_target,
+                            superblock.index,
+                            superblock.hash(),
+                            superblock
+                        );
+                        act.sm_state = StateMachine::WaitingConsensus;
+                        act.initialize_from_storage(ctx);
+                        log::info!("Restored chain state from storage");
 
-                    // If we are not synchronizing, forget about when we started synchronizing
-                    act.sync_waiting_for_add_blocks_since = None;
-                    actix::fut::err(())
-                }
-            },
-        );
+                        // If we are not synchronizing, forget about when we started synchronizing
+                        act.sync_waiting_for_add_blocks_since = None;
+                        actix::fut::err(())
+                    }
+                });
 
         Box::new(fut)
     }
@@ -1163,7 +1163,7 @@ impl ChainManager {
                             // Persist previous_chain_state with current superblock_state
                             act.persist_chain_state(ctx);
                         }
-                        log::info!("Consensus reached for Superblock #{:?}", act.get_superblock_beacon());
+                        log::info!("Consensus reached for Superblock #{:?}", act.get_superblock_beacon().checkpoint);
                         log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
                         log::debug!(
                         "The last block of the consolidated superblock is {}",
@@ -1177,7 +1177,7 @@ impl ChainManager {
                             // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                             // the bootstrap committee signs is at least epoch activity_period + collateral_age
 
-                            if act.current_epoch.unwrap()
+                            if block_epoch
                                 > chain_info.consensus_constants.collateral_age
                                     + chain_info.consensus_constants.activity_period
                             {
@@ -1367,9 +1367,9 @@ impl ChainManager {
         if sync_target.superblock.checkpoint
             == self.chain_state.superblock_state.get_beacon().checkpoint
         {
-            Some(sync_target.superblock.checkpoint * superblock_period)
-        } else {
             None
+        } else {
+            Some(sync_target.superblock.checkpoint * superblock_period)
         }
     }
 }
