@@ -196,7 +196,7 @@ pub trait Defaults {
         // 2000
 
         // Testnet configuration
-        1000
+        2000
     }
 
     /// Reputation will expire after N witnessing acts
