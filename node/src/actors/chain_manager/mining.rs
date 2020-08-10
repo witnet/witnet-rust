@@ -4,7 +4,6 @@ use actix::{
 use ansi_term::Color::{White, Yellow};
 use futures::future::{join_all, Future};
 use std::{
-    cmp::Ordering,
     collections::HashSet,
     convert::TryFrom,
     sync::{
@@ -1007,10 +1006,11 @@ fn calculate_mining_probability(
     let mut equal = 0;
     let mut less = 0;
     for &active_id in rep_engine.ars().active_identities() {
-        match rep_engine.trs().get(&active_id).cmp(&own_rep) {
-            Ordering::Greater => greater += 1,
-            Ordering::Equal => equal += 1,
-            Ordering::Less => less += 1,
+        let rep = rep_engine.trs().get(&active_id);
+        match (rep.0 > 0, own_rep.0 > 0) {
+            (true, false) => greater += 1,
+            (false, true) => less += 1,
+            _ => equal += 1,
         }
     }
     // In case of not being active, the equal value is plus 1.
@@ -1655,53 +1655,26 @@ mod tests {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf1_bf1() {
-        let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
+        let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 0, 0];
         let (probs, new_prob) = calculate_mining_probs(v_rep, 1, 1);
 
-        assert_eq!(
-            (probs[0] * 10_000.0).round() as u32,
-            (10.0 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[1] * 10_000.0).round() as u32,
-            (8.13 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[2] * 10_000.0).round() as u32,
-            (8.13 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[3] * 10_000.0).round() as u32,
-            (8.13 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[4] * 10_000.0).round() as u32,
-            (5.64 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[5] * 10_000.0).round() as u32,
-            (5.64 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[6] * 10_000.0).round() as u32,
-            (5.64 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[7] * 10_000.0).round() as u32,
-            (5.64 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[8] * 10_000.0).round() as u32,
-            (4.09 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[9] * 10_000.0).round() as u32,
-            (4.09 as f64 * 100.0).round() as u32
-        );
+        for &prob in &probs[0..8] {
+            assert_eq!(
+                (prob * 10_000.0).round() as u32,
+                (7.12 as f64 * 100.0).round() as u32
+            );
+        }
+
+        for &prob in &probs[8..10] {
+            assert_eq!(
+                (prob * 10_000.0).round() as u32,
+                (4.09 as f64 * 100.0).round() as u32
+            );
+        }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (3.49 as f64 * 100.0).round() as u32
+            (3.89 as f64 * 100.0).round() as u32
         );
     }
 
@@ -1712,46 +1685,12 @@ mod tests {
         let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
         let (probs, new_prob) = calculate_mining_probs(v_rep, 1, 2);
 
-        assert_eq!(
-            (probs[0] * 10_000.0).round() as u32,
-            (13.87 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[1] * 10_000.0).round() as u32,
-            (11.24 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[2] * 10_000.0).round() as u32,
-            (11.24 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[3] * 10_000.0).round() as u32,
-            (11.24 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[4] * 10_000.0).round() as u32,
-            (7.72 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[5] * 10_000.0).round() as u32,
-            (7.72 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[6] * 10_000.0).round() as u32,
-            (7.72 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[7] * 10_000.0).round() as u32,
-            (7.72 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[8] * 10_000.0).round() as u32,
-            (5.52 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[9] * 10_000.0).round() as u32,
-            (5.52 as f64 * 100.0).round() as u32
-        );
+        for prob in probs {
+            assert_eq!(
+                (prob * 10_000.0).round() as u32,
+                (9.04 as f64 * 100.0).round() as u32
+            );
+        }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
@@ -1766,46 +1705,12 @@ mod tests {
         let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
         let (probs, new_prob) = calculate_mining_probs(v_rep, 2, 2);
 
-        assert_eq!(
-            (probs[0] * 10_000.0).round() as u32,
-            (20.0 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[1] * 10_000.0).round() as u32,
-            (13.01 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[2] * 10_000.0).round() as u32,
-            (13.01 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[3] * 10_000.0).round() as u32,
-            (13.01 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[4] * 10_000.0).round() as u32,
-            (6.05 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[5] * 10_000.0).round() as u32,
-            (6.05 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[6] * 10_000.0).round() as u32,
-            (6.05 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[7] * 10_000.0).round() as u32,
-            (6.05 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[8] * 10_000.0).round() as u32,
-            (3.02 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[9] * 10_000.0).round() as u32,
-            (3.02 as f64 * 100.0).round() as u32
-        );
+        for prob in probs {
+            assert_eq!(
+                (prob * 10_000.0).round() as u32,
+                (8.93 as f64 * 100.0).round() as u32
+            );
+        }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
@@ -1820,46 +1725,12 @@ mod tests {
         let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
         let (probs, new_prob) = calculate_mining_probs(v_rep, 4, 8);
 
-        assert_eq!(
-            (probs[0] * 10_000.0).round() as u32,
-            (40.12 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[1] * 10_000.0).round() as u32,
-            (15.77 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[2] * 10_000.0).round() as u32,
-            (15.77 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[3] * 10_000.0).round() as u32,
-            (15.77 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[4] * 10_000.0).round() as u32,
-            (2.87 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[5] * 10_000.0).round() as u32,
-            (2.87 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[6] * 10_000.0).round() as u32,
-            (2.87 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[7] * 10_000.0).round() as u32,
-            (2.87 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[8] * 10_000.0).round() as u32,
-            (0.56 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[9] * 10_000.0).round() as u32,
-            (0.56 as f64 * 100.0).round() as u32
-        );
+        for prob in probs {
+            assert_eq!(
+                (prob * 10_000.0).round() as u32,
+                (10.02 as f64 * 100.0).round() as u32
+            );
+        }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
@@ -1933,19 +1804,19 @@ mod tests {
 
         assert_eq!(
             (probs[0] * 10_000.0).round() as u32,
-            (2.58 as f64 * 100.0).round() as u32
+            (1_f64 * 100.0).round() as u32
         );
         assert_eq!(
             (probs[25] * 10_000.0).round() as u32,
-            (0.94 as f64 * 100.0).round() as u32
+            (1_f64 * 100.0).round() as u32
         );
         assert_eq!(
             (probs[50] * 10_000.0).round() as u32,
-            (0.35 as f64 * 100.0).round() as u32
+            (1_f64 * 100.0).round() as u32
         );
         assert_eq!(
             (probs[75] * 10_000.0).round() as u32,
-            (0.13 as f64 * 100.0).round() as u32
+            (1_f64 * 100.0).round() as u32
         );
 
         assert_eq!(
@@ -1961,22 +1832,12 @@ mod tests {
         let v_rep = vec![10, 8, 8, 2];
         let (probs, new_prob) = calculate_mining_probs(v_rep, 4, 8);
 
-        assert_eq!(
-            (probs[0] * 10_000.0).round() as u32,
-            (100.0 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[1] * 10_000.0).round() as u32,
-            (0.0 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[2] * 10_000.0).round() as u32,
-            (0.0 as f64 * 100.0).round() as u32
-        );
-        assert_eq!(
-            (probs[3] * 10_000.0).round() as u32,
-            (0.0 as f64 * 100.0).round() as u32
-        );
+        for prob in probs {
+            assert_eq!(
+                (prob * 10_000.0).round() as u32,
+                (25_f64 * 100.0).round() as u32
+            );
+        }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
