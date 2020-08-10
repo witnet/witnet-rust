@@ -121,7 +121,11 @@ impl StreamHandler<BytesMut, Error> for Session {
         let result = WitnetMessage::from_pb_bytes(&bytes);
 
         match result {
-            Err(err) => log::error!("Error decoding message: {:?}", err),
+            Err(err) => {
+                log::error!("Error decoding message: {:?}", err);
+
+                ctx.stop();
+            }
             Ok(msg) => {
                 self.log_received_message(&msg, &bytes);
 
