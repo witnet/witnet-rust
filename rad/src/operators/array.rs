@@ -126,10 +126,10 @@ pub fn map(
     for item in input.value() {
         let report = execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;
 
-        // If there is an error while mapping, short-circuit and bubble up the intercepted error as
-        // it comes from the radon script execution
-        if let intercepted @ RadonTypes::RadonError(_) = &report.result {
-            return Ok(intercepted.clone());
+        // If there is an error while mapping, short-circuit and bubble up the error as it comes
+        // from the radon script execution
+        if let RadonTypes::RadonError(error) = &report.result {
+            return Err(error.clone().into_inner());
         }
 
         results.push(report.result.clone());
@@ -172,6 +172,12 @@ pub fn filter(
             for item in input.value() {
                 let report =
                     execute_radon_script(item.clone(), subscript.as_slice(), context, settings)?;
+
+                // If there is an error while mapping, short-circuit and bubble up the error as it comes
+                // from the radon script execution
+                if let RadonTypes::RadonError(error) = &report.result {
+                    return Err(error.clone().into_inner());
+                }
 
                 if let RadonTypes::Boolean(boolean) = &report.result {
                     if boolean.value() {
