@@ -14,11 +14,15 @@ use std::{
     str::FromStr,
 };
 
-use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
+use witnet_crypto::{
+    hash::calculate_sha256,
+    key::{CryptoEngine, ExtendedPK, ExtendedSK},
+};
 use witnet_data_structures::{
     chain::{
-        Block, DataRequestInfo, DataRequestOutput, Environment, NodeStats, OutputPointer,
-        PublicKey, PublicKeyHash, Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
+        Block, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature, NodeStats,
+        OutputPointer, PublicKey, PublicKeyHash, Reputation, UtxoInfo, UtxoSelectionStrategy,
+        ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -1023,6 +1027,33 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure
         } else {
             bail!("Failed to add peer addresses: {:?}", params);
         }
+    }
+
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize)]
+struct SignatureWithData {
+    data: String,
+    signature: KeyedSignature,
+}
+
+pub fn sign_claiming_data(addr: SocketAddr, message: String) -> Result<(), failure::Error> {
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sign", "params": {:?}, "id": "1"}}"#,
+        calculate_sha256(message.as_bytes()).as_ref(),
+    );
+
+    let mut stream = start_client(addr)?;
+    let response = send_request(&mut stream, &request)?;
+
+    let signature: KeyedSignature = parse_response(&response)?;
+    match serde_json::to_value(SignatureWithData {
+        data: message,
+        signature,
+    }) {
+        Ok(value) => println!("Signed claiming data:\n{}", value),
+        Err(error) => bail!("Failed to sign claiming data: {:?}", error),
     }
 
     Ok(())

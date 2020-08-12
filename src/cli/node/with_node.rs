@@ -18,6 +18,9 @@ pub fn exec_cmd(
     mut config: Config,
 ) -> Result<(), failure::Error> {
     match command {
+        Command::Claim { node, identifier } => {
+            rpc::sign_claiming_data(node.unwrap_or(config.jsonrpc.server_address), identifier)
+        }
         Command::GetBlock { node, hash } => {
             rpc::get_block(node.unwrap_or(config.jsonrpc.server_address), hash)
         }
@@ -234,6 +237,14 @@ pub enum Command {
         /// If zero, unlimited
         #[structopt(long = "limit", allow_hyphen_values = true, default_value = "-50")]
         limit: i64,
+    },
+    Claim {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Identifier to be claimed by the node (e.g. Witnet ID)
+        #[structopt(short = "i", long = "identifier")]
+        identifier: String,
     },
     #[structopt(
         name = "minerList",
