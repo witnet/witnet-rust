@@ -407,6 +407,12 @@ impl SuperBlockState {
         self.votes_mempool.get_received_votes()
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    /// Returns the length of the current committee
+    pub fn get_committee_length(&self) -> u32 {
+        self.signing_committee.len() as u32
+    }
+
     /// Check if we had already received this superblock vote
     pub fn contains(&self, sbv: &SuperBlockVote) -> bool {
         self.votes_mempool.contains(sbv)

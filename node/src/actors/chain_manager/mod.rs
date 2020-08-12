@@ -76,6 +76,7 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
+use std::cmp::min;
 
 mod actor;
 mod handlers;
@@ -1198,6 +1199,7 @@ impl ChainManager {
                         let committee_size = current_committee_size_requirement(
                             consensus_constants
                                 .superblock_signing_committee_size,
+                            act.chain_state.superblock_state.get_committee_length(),
                             consensus_constants.superblock_committee_decreasing_period,
                             consensus_constants.superblock_committee_decreasing_step,
                             chain_info.highest_superblock_checkpoint.checkpoint,
@@ -1845,6 +1847,7 @@ fn show_sync_progress(
 // and  step, last consolidated epoch and the current checkpoint
 fn current_committee_size_requirement(
     default_committee_size: u32,
+    last_committee_size: u32,
     decreasing_period: u32,
     decreasing_step: u32,
     last_consolidated_checkpoint: u32,
@@ -1853,7 +1856,7 @@ fn current_committee_size_requirement(
     // If the last consolidated superblock is 0, return the default committee size
     if last_consolidated_checkpoint == 0 {
         default_committee_size
-    } else {
+    } else if current_checkpoint - last_consolidated_checkpoint >= decreasing_period {
         // Calculate the difference between the last consolidated superblock checkpoint and the current one
         // If this difference exceeds the decreasing_period, reduce the committee size by decreasing_step * difference
         // The minimum committee size is 1
@@ -1864,6 +1867,13 @@ fn current_committee_size_requirement(
                     * decreasing_step,
             ),
             1,
+        )
+    } else {
+        // In this case, if the last_committee_size was equal to default, return default
+        // Else, increase the committee size step by step
+        min(
+            last_committee_size.saturating_add(decreasing_step),
+            default_committee_size,
         )
     }
 }
@@ -2012,32 +2022,44 @@ mod tests {
 
     #[test]
     fn test_current_committee_size_requirement() {
-        let mut size = current_committee_size_requirement(5, 4, 1, 0, 1);
+        let mut size = current_committee_size_requirement(5, 5, 4, 1, 0, 1);
 
         assert_eq!(size, 5);
 
-        size = current_committee_size_requirement(5, 4, 1, 0, 300);
+        size = current_committee_size_requirement(5, 5, 4, 1, 0, 300);
 
         assert_eq!(size, 5);
 
-        size = current_committee_size_requirement(5, 4, 1, 3, 4);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 4);
 
         assert_eq!(size, 5);
 
-        size = current_committee_size_requirement(5, 4, 1, 3, 7);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 7);
 
         assert_eq!(size, 4);
 
-        size = current_committee_size_requirement(5, 4, 1, 3, 12);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 12);
 
         assert_eq!(size, 3);
 
-        size = current_committee_size_requirement(5, 4, 1, 3, 200);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 200);
 
         assert_eq!(size, 1);
 
-        size = current_committee_size_requirement(100, 5, 5, 5, 50);
+        size = current_committee_size_requirement(100, 100, 5, 5, 5, 50);
 
         assert_eq!(size, 55);
+
+        size = current_committee_size_requirement(100, 55, 5, 5, 5, 6);
+
+        assert_eq!(size, 60);
+
+        size = current_committee_size_requirement(100, 98, 5, 5, 5, 6);
+
+        assert_eq!(size, 100);
+
+        size = current_committee_size_requirement(100, 100, 5, 5, 5, 6);
+
+        assert_eq!(size, 100);
     }
 }
