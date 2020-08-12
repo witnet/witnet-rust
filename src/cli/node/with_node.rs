@@ -18,8 +18,29 @@ pub fn exec_cmd(
     mut config: Config,
 ) -> Result<(), failure::Error> {
     match command {
-        Command::Claim { node, identifier } => {
-            rpc::sign_claiming_data(node.unwrap_or(config.jsonrpc.server_address), identifier)
+        Command::Claim {
+            node,
+            identifier,
+            write,
+            write_to,
+        } => {
+            let write_to_path = match (write, write_to) {
+                // Don't write
+                (false, None) => None,
+                // Write to the same folder where the config file is located
+                // Fail if using default configuration (not sourced from a file in the filesystem)
+                (true, None) => config_path
+                    .expect("Cannot guess a file system path for writing the signed claiming data. Please specify a valid path right after the `--write` flag.")
+                    .parent()
+                    .map(Path::to_path_buf),
+                // Write to custom path
+                (_, Some(path)) => Some(path),
+            };
+            rpc::claim(
+                node.unwrap_or(config.jsonrpc.server_address),
+                identifier,
+                write_to_path.as_deref(),
+            )
         }
         Command::GetBlock { node, hash } => {
             rpc::get_block(node.unwrap_or(config.jsonrpc.server_address), hash)
@@ -245,6 +266,12 @@ pub enum Command {
         /// Identifier to be claimed by the node (e.g. Witnet ID)
         #[structopt(short = "i", long = "identifier")]
         identifier: String,
+        /// Write the signed claimed data to "storage_path/claim-<id>-<public_key>.txt"
+        #[structopt(long = "write")]
+        write: bool,
+        /// Change the path to write storage_path/claim-<id>-<public_key>.txt". Implies --write
+        #[structopt(long = "write-to")]
+        write_to: Option<PathBuf>,
     },
     #[structopt(
         name = "minerList",

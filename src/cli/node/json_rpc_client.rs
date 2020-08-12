@@ -14,6 +14,7 @@ use std::{
     str::FromStr,
 };
 
+use std::fs::File;
 use witnet_crypto::{
     hash::calculate_sha256,
     key::{CryptoEngine, ExtendedPK, ExtendedSK},
@@ -1035,13 +1036,21 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure
 #[derive(Serialize, Deserialize)]
 struct SignatureWithData {
     data: String,
-    signature: KeyedSignature,
+    keyed_signature: KeyedSignature,
 }
 
-pub fn sign_claiming_data(addr: SocketAddr, message: String) -> Result<(), failure::Error> {
+pub fn claim(
+    addr: SocketAddr,
+    identifier: String,
+    write_to_path: Option<&Path>,
+) -> Result<(), failure::Error> {
+    if identifier.is_empty() || identifier.trim()!=identifier {
+        bail!("Claiming identifier cannot be empty or start/end with empty spaces");
+    }
+
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "sign", "params": {:?}, "id": "1"}}"#,
-        calculate_sha256(message.as_bytes()).as_ref(),
+        calculate_sha256(identifier.as_bytes()).as_ref(),
     );
 
     let mut stream = start_client(addr)?;
@@ -1049,10 +1058,27 @@ pub fn sign_claiming_data(addr: SocketAddr, message: String) -> Result<(), failu
 
     let signature: KeyedSignature = parse_response(&response)?;
     match serde_json::to_value(SignatureWithData {
-        data: message,
-        signature,
+        data: identifier.clone(),
+        keyed_signature: signature.clone(),
     }) {
-        Ok(value) => println!("Signed claiming data:\n{}", value),
+        Ok(signed_data) => {
+            if let Some(base_path) = write_to_path {
+                let path = base_path.join(format!(
+                    "claim-{}-{}.txt",
+                    identifier,
+                    PublicKeyHash::from_public_key(&signature.public_key)
+                ));
+                let mut file = File::create(&path)?;
+                file.write_all(format!("{}\n", signed_data).as_bytes())?;
+                let full_path = Path::new(&path);
+                println!(
+                    "Signed claiming data written to {}",
+                    full_path.canonicalize()?.as_path().display()
+                );
+            } else {
+                println!("Signed claiming data:\n{}", signed_data);
+            }
+        }
         Err(error) => bail!("Failed to sign claiming data: {:?}", error),
     }
 
