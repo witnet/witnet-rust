@@ -430,12 +430,6 @@ pub fn consensus_constants_from_partial(
             .superblock_period
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_superblock_period()),
-        superblock_agreement_decreasing_period: config
-            .superblock_agreement_decreasing_period
-            .to_owned()
-            .unwrap_or_else(|| {
-                defaults.consensus_constants_superblock_agreement_decreasing_period()
-            }),
         bootstrap_hash: config
             .bootstrap_hash
             .to_owned()
@@ -508,6 +502,16 @@ pub fn consensus_constants_from_partial(
             .superblock_signing_committee_size
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_superblock_signing_committee_size()),
+        superblock_committee_decreasing_period: config
+            .superblock_committee_decreasing_period
+            .to_owned()
+            .unwrap_or_else(|| {
+                defaults.consensus_constants_superblock_committee_decreasing_period()
+            }),
+        superblock_committee_decreasing_step: config
+            .superblock_committee_decreasing_step
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_superblock_committee_decreasing_step()),
     }
 }
 
