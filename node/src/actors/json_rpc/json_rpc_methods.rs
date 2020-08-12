@@ -43,7 +43,6 @@ use crate::{
     },
     signature_mngr,
 };
-use futures::future;
 
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
 
@@ -861,15 +860,11 @@ pub fn sign_data(params: Result<[u8; 32], jsonrpc_core::Error>) -> JsonRpcResult
 
     let fut = signature_mngr::sign_data(data)
         .map_err(internal_error)
-        .and_then(|ks| {
-            log::debug!("Signature: {:?}", ks.signature);
-            // ks.signature.to_bytes().unwrap().to_vec().into()
-            match ks.signature.to_bytes() {
-                Ok(bytes) => future::Either::A(future::ok(bytes.to_vec().into())),
-                Err(e) => {
-                    let err = internal_error(e);
-                    future::Either::B(futures::failed(err))
-                }
+        .and_then(|ks| match serde_json::to_value(ks) {
+            Ok(value) => futures::finished(value),
+            Err(e) => {
+                let err = internal_error_s(e);
+                futures::failed(err)
             }
         });
 
