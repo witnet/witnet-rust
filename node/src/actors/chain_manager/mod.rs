@@ -1195,12 +1195,11 @@ impl ChainManager {
                         let ars_identities = ARSIdentities::new(ars_members);
 
                         // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
-                        // Committee_size = expected_size - ((current_index-last_consolidated_index)/decrease_period))
-
-                        let committee_size = calculate_committee_size(
+                        let committee_size = current_committee_size_requirement(
                             consensus_constants
                                 .superblock_signing_committee_size,
-                            consensus_constants.superblock_agreement_decreasing_period,
+                            consensus_constants.superblock_committee_decreasing_period,
+                            consensus_constants.superblock_committee_decreasing_step,
                             chain_info.highest_superblock_checkpoint.checkpoint,
                                 superblock_index
                         );
@@ -1842,22 +1841,27 @@ fn show_sync_progress(
 }
 
 // TODO: handle recovery cases after reduction
-fn calculate_committee_size(
+// Returns the committee size to be applied given the default committee size, decreasing period
+// and  step, last consolidated epoch and the current checkpoint
+fn current_committee_size_requirement(
     default_committee_size: u32,
     decreasing_period: u32,
+    decreasing_step: u32,
     last_consolidated_checkpoint: u32,
     current_checkpoint: u32,
 ) -> u32 {
-    // If the last consolidated superblock is 0, we return the default committee size
+    // If the last consolidated superblock is 0, return the default committee size
     if last_consolidated_checkpoint == 0 {
         default_committee_size
     } else {
-        // We calculate the difference between the last consolidated superblock checkpoint and the current one
-        // If this difference exceeds the decreasing_period, we reduce the committee size
+        // Calculate the difference between the last consolidated superblock checkpoint and the current one
+        // If this difference exceeds the decreasing_period, reduce the committee size by decreasing_step * difference
         // The minimum committee size is 1
         max(
             default_committee_size.saturating_sub(
-                current_checkpoint.saturating_sub(last_consolidated_checkpoint) / decreasing_period,
+                (current_checkpoint.saturating_sub(last_consolidated_checkpoint)
+                    / decreasing_period)
+                    * decreasing_step,
             ),
             1,
         )
@@ -2007,29 +2011,33 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_committee_size() {
-        let mut size = calculate_committee_size(5, 4, 0, 1);
+    fn test_current_committee_size_requirement() {
+        let mut size = current_committee_size_requirement(5, 4, 1, 0, 1);
 
         assert_eq!(size, 5);
 
-        size = calculate_committee_size(5, 4, 0, 300);
+        size = current_committee_size_requirement(5, 4, 1, 0, 300);
 
         assert_eq!(size, 5);
 
-        size = calculate_committee_size(5, 4, 3, 4);
+        size = current_committee_size_requirement(5, 4, 1, 3, 4);
 
         assert_eq!(size, 5);
 
-        size = calculate_committee_size(5, 4, 3, 7);
+        size = current_committee_size_requirement(5, 4, 1, 3, 7);
 
         assert_eq!(size, 4);
 
-        size = calculate_committee_size(5, 4, 3, 12);
+        size = current_committee_size_requirement(5, 4, 1, 3, 12);
 
         assert_eq!(size, 3);
 
-        size = calculate_committee_size(5, 4, 3, 200);
+        size = current_committee_size_requirement(5, 4, 1, 3, 200);
 
         assert_eq!(size, 1);
+
+        size = current_committee_size_requirement(100, 5, 5, 5, 50);
+
+        assert_eq!(size, 55);
     }
 }

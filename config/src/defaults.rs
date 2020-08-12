@@ -111,9 +111,14 @@ pub trait Defaults {
         10
     }
 
-    /// Default period between superblocks
-    fn consensus_constants_superblock_agreement_decreasing_period(&self) -> u32 {
-        100
+    /// Default period (in superblock periods) after which the committee should be reduced
+    fn consensus_constants_superblock_committee_decreasing_period(&self) -> u32 {
+        5
+    }
+
+    /// Default committee reduction step
+    fn consensus_constants_superblock_committee_decreasing_step(&self) -> u32 {
+        5
     }
 
     /// Default Hash value for the auxiliary bootstrap block

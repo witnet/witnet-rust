@@ -194,8 +194,11 @@ pub struct ConsensusConstants {
     /// Size of the superblock signing committee
     pub superblock_signing_committee_size: u32,
 
-    /// Period after which the agreement requirement should decrease by one member/vote (in superblock periods)
-    pub superblock_agreement_decreasing_period: u32,
+    /// Period after which the committee size should decrease (in superblock periods)
+    pub superblock_committee_decreasing_period: u32,
+
+    /// Step by which the committee should be reduced after superblock_agreement_decreasing_period
+    pub superblock_committee_decreasing_step: u32,
 }
 
 impl ConsensusConstants {
