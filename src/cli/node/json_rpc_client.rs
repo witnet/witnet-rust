@@ -1035,8 +1035,9 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure
 
 #[derive(Serialize, Deserialize)]
 struct SignatureWithData {
-    data: String,
-    keyed_signature: KeyedSignature,
+    identifier: String,
+    public_key: String,
+    signature: String,
 }
 
 pub fn claim(
@@ -1044,7 +1045,7 @@ pub fn claim(
     identifier: String,
     write_to_path: Option<&Path>,
 ) -> Result<(), failure::Error> {
-    if identifier.is_empty() || identifier.trim()!=identifier {
+    if identifier.is_empty() || identifier.trim() != identifier {
         bail!("Claiming identifier cannot be empty or start/end with empty spaces");
     }
 
@@ -1057,9 +1058,14 @@ pub fn claim(
     let response = send_request(&mut stream, &request)?;
 
     let signature: KeyedSignature = parse_response(&response)?;
-    match serde_json::to_value(SignatureWithData {
-        data: identifier.clone(),
-        keyed_signature: signature.clone(),
+    match serde_json::to_string_pretty(&SignatureWithData {
+        identifier: identifier.clone(),
+        public_key: PublicKeyHash::from_public_key(&signature.public_key).to_string(),
+        signature: signature
+            .signature
+            .to_bytes()?
+            .iter()
+            .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x)),
     }) {
         Ok(signed_data) => {
             if let Some(base_path) = write_to_path {
