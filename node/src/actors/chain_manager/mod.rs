@@ -26,7 +26,7 @@
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
 use std::{
-    cmp::{max, Ordering},
+    cmp::{max, min, Ordering},
     collections::{HashMap, HashSet},
     convert::TryFrom,
     time::Duration,
@@ -76,7 +76,6 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
-use std::cmp::min;
 
 mod actor;
 mod handlers;
