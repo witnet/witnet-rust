@@ -8,13 +8,13 @@ use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     fmt,
+    fs::File,
     io::{self, BufRead, BufReader, Read, Write},
     net::{SocketAddr, TcpStream},
     path::Path,
     str::FromStr,
 };
 
-use std::fs::File;
 use witnet_crypto::{
     hash::calculate_sha256,
     key::{CryptoEngine, ExtendedPK, ExtendedSK},

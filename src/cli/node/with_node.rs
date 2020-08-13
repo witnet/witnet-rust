@@ -259,6 +259,10 @@ pub enum Command {
         #[structopt(long = "limit", allow_hyphen_values = true, default_value = "-50")]
         limit: i64,
     },
+    #[structopt(
+        name = "claim",
+        about = "Claim a Witnet identity by signing the identifier with the node master key"
+    )]
     Claim {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
