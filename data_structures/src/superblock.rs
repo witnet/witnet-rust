@@ -9,7 +9,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root};
+use witnet_crypto::{
+    hash::{calculate_sha256, Sha256},
+    merkle::merkle_tree_root as crypto_merkle_tree_root,
+};
 
 /// Possible result of SuperBlockState::add_vote
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -411,6 +414,7 @@ impl SuperBlockState {
 }
 
 /// Calculates the superblock signing committee for a given superblock hash and ars
+#[allow(clippy::cast_possible_truncation)]
 pub fn calculate_superblock_signing_committee(
     ars_identities: ARSIdentities,
     signing_committee_size: u32,
@@ -421,10 +425,14 @@ pub fn calculate_superblock_signing_committee(
     if ars_identities.len() < usize::try_from(signing_committee_size).unwrap() {
         ars_identities.identities
     } else {
-        // Start counting the members of the subset from the superblock_hash
-        let mut first =
-            u32::from(*superblock_hash.as_ref().get(0).unwrap()) + current_superblock_index;
-        first %= signing_committee_size;
+        // Hash of the current_index, to avoid potential committee collisions
+        let index_hash = Hash::from(calculate_sha256(&current_superblock_index.to_be_bytes()));
+        // Start counting the members of the subset from the superblock_hash plus superblock index hash
+        let mut first = u32::from(*superblock_hash.as_ref().get(0).unwrap())
+            + u32::from(*index_hash.as_ref().get(0).unwrap());
+        // We need to choose a first member from all the potential ARS members
+        first %= ars_identities.len() as u32;
+
         // Get the subset
         let subset = magic_partition(
             &ars_identities.ordered_identities.to_vec(),
@@ -1539,16 +1547,72 @@ mod tests {
             sbs.current_superblock_beacon.hash_prev_block,
         );
 
-        // The members of the signing_committee should be p3, p5, p7 and p1
-        assert_eq!(subset.contains(&p3.pkh()), true);
+        // The members of the signing_committee should be p4, p6, p8 and p2
+        assert_eq!(subset.contains(&p4.pkh()), true);
 
-        assert_eq!(subset.contains(&p5.pkh()), true);
+        assert_eq!(subset.contains(&p6.pkh()), true);
 
-        assert_eq!(subset.contains(&p7.pkh()), true);
+        assert_eq!(subset.contains(&p8.pkh()), true);
 
-        assert_eq!(subset.contains(&p1.pkh()), true);
+        assert_eq!(subset.contains(&p2.pkh()), true);
 
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
+    }
+
+    #[test]
+    fn test_calculate_superblock_signing_committee_3() {
+        // It shpuld return a subset of 2 members from an ARS having size 3
+        let mut sbs = SuperBlockState::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+
+        let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh()];
+        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let alt_keys = create_alt_keys(pkhs, vec![]);
+
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+        let _sb1 = sbs.build_superblock(
+            &block_headers,
+            ars_identities.clone(),
+            2,
+            0,
+            genesis_hash,
+            &alt_keys,
+        );
+        sbs.ars_previous_identities = ars_identities.clone();
+        let committee_size = 2;
+        let subset = calculate_superblock_signing_committee(
+            sbs.ars_previous_identities,
+            committee_size,
+            0,
+            sbs.current_superblock_beacon.hash_prev_block,
+        );
+
+        // The members of the signing_committee should be p4, p6, p8 and p2
+        assert_eq!(subset.contains(&p1.pkh()), true);
+
+        assert_eq!(subset.contains(&p2.pkh()), true);
+
+        assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
+
+        sbs.ars_previous_identities = ars_identities;
+        let committee_size = 2;
+        let subset_2 = calculate_superblock_signing_committee(
+            sbs.ars_previous_identities.clone(),
+            committee_size,
+            9,
+            sbs.current_superblock_beacon.hash_prev_block,
+        );
+
+        // The members of the signing_committee should be p4, p6, p8 and p2
+        assert_eq!(subset_2.contains(&p3.pkh()), true);
+
+        assert_eq!(subset_2.contains(&p2.pkh()), true);
+
+        assert_eq!(usize::try_from(committee_size).unwrap(), subset_2.len());
     }
 
     #[test]
