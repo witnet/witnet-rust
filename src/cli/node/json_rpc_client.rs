@@ -1035,6 +1035,7 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure
 
 #[derive(Serialize, Deserialize)]
 struct SignatureWithData {
+    address: String,
     identifier: String,
     public_key: String,
     signature: String,
@@ -1060,7 +1061,12 @@ pub fn claim(
     let signature: KeyedSignature = parse_response(&response)?;
     match serde_json::to_string_pretty(&SignatureWithData {
         identifier: identifier.clone(),
-        public_key: PublicKeyHash::from_public_key(&signature.public_key).to_string(),
+        address: PublicKeyHash::from_public_key(&signature.public_key).to_string(),
+        public_key: signature
+            .public_key
+            .to_bytes()
+            .iter()
+            .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x)),
         signature: signature
             .signature
             .to_bytes()?
