@@ -52,8 +52,8 @@ use witnet_data_structures::{
 impl ChainManager {
     /// Try to mine a block
     pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
-        if !self.mining_enabled {
-            log::debug!("Mining disabled in configuration");
+        if !self.mining_enabled || self.sm_state == StateMachine::AlmostSynced {
+            log::debug!("The node is in AlmostSynced (or mining disabled). Constructing the superblock anyway");
             if self.chain_state.chain_info.is_none() {
                 log::warn!("ChainInfo is not set");
 
