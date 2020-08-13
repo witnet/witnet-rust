@@ -1239,4 +1239,45 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn verify_claim_output() {
+        use witnet_crypto::{
+            secp256k1::Secp256k1,
+            signature::{verify, PublicKey as SecpPublicKey, Signature as SecpSignature},
+        };
+
+        let json_output = r#"
+        {
+          "address": "twit17k4tzsf9zs70q8ndur7qvavvhvrkfd8jkjrppw",
+          "identifier": "WITNET_000",
+          "public_key": "038f48d48aaa177c54809598649a037fb75a391449c8d0fee3f7d3b7f8fcd48239",
+          "signature": "a1a37548b1367dd683b87abf534aafa5c9c3c9c15fd4186d437180a61e7bd31e585cf36ff2fddbc6ad5bbdddb65c2195895f855b60a7b81f44a100288a821561"
+        }"#;
+
+        // Parse the string of data into serde_json::Value.
+        let signature_with_data: SignatureWithData = serde_json::from_str(json_output).unwrap();
+
+        // Check address is correctly derived from public key
+        let address = PublicKeyHash::from_public_key(
+            &PublicKey::try_from_slice(
+                &hex::decode(signature_with_data.public_key.clone()).unwrap(),
+            )
+            .unwrap(),
+        )
+        .bech32(Environment::Testnet);
+        assert_eq!(address, signature_with_data.address);
+
+        // Required fields for Secpk1 signature verification
+        let secp = Secp256k1::new();
+        let signed_data = calculate_sha256(signature_with_data.identifier.as_bytes().as_ref());
+        let public_key =
+            SecpPublicKey::from_slice(&hex::decode(signature_with_data.public_key).unwrap())
+                .unwrap();
+        let signature =
+            SecpSignature::from_compact(&hex::decode(signature_with_data.signature).unwrap())
+                .unwrap();
+
+        assert!(verify(&secp, &public_key, signed_data.as_ref(), &signature).is_ok());
+    }
 }
