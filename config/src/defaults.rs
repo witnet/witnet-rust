@@ -366,8 +366,8 @@ impl Defaults for Development {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Wednesday, 24-Jun-2020, 11:00 UTC
-        1_592_996_400
+        // Wednesday, 19-Aug-2020, 09:00 UTC
+        1_597_827_600
     }
 
     fn connections_reject_sybil_inbounds(&self) -> bool {
