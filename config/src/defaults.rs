@@ -413,7 +413,7 @@ impl Defaults for Testnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Tuesday, 14-Jul-2020, 09:00 UTC
-        1_594_717_200
+        // Wednesday, 19-Aug-2020, 09:00 UTC
+        1_597_827_600
     }
 }
