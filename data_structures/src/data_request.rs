@@ -87,6 +87,20 @@ impl DataRequestPool {
             .collect()
     }
 
+    /// Get data request pointers ready for tally
+    pub fn get_tally_ready_drs(&self) -> HashSet<Hash> {
+        self.data_request_pool
+            .iter()
+            .filter_map(|(dr_pointer, dr_state)| {
+                if let DataRequestStage::TALLY = dr_state.stage {
+                    Some(*dr_pointer)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// Add a data request to the data request pool
     pub fn add_data_request(
         &mut self,
@@ -883,6 +897,9 @@ mod tests {
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::TALLY
         );
+        let mut expected_hs = HashSet::new();
+        expected_hs.insert(dr_pointer);
+        assert_eq!(p.get_tally_ready_drs(), expected_hs)
     }
 
     #[test]

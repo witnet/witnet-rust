@@ -381,6 +381,12 @@ pub enum BlockError {
         weight, max_weight
     )]
     TotalDataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Tallies required
+    #[fail(
+        display = "There are {} tallies required not found in block {}",
+        count, block_hash
+    )]
+    TalliesRequired { count: usize, block_hash: Hash },
 }
 
 #[derive(Debug, Fail)]

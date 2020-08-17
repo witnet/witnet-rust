@@ -1627,12 +1627,16 @@ pub fn validate_block_transactions(
     // Validate tally transactions in a block
     let mut ta_mt = ProgressiveMerkleTree::sha256();
     let mut tally_hs = HashSet::with_capacity(block.txns.tally_txns.len());
+    let mut expected_tally_ready_drs = dr_pool.get_tally_ready_drs();
     for transaction in &block.txns.tally_txns {
         let (outputs, fee) = validate_tally_transaction(
             transaction,
             dr_pool,
             consensus_constants.collateral_minimum,
         )?;
+
+        // Remove tally created from expected
+        expected_tally_ready_drs.remove(&transaction.dr_pointer);
 
         // Validation for only one tally for data request in a block
         let dr_pointer = transaction.dr_pointer;
@@ -1650,6 +1654,16 @@ pub fn validate_block_transactions(
         ta_mt.push(Sha256(sha));
     }
     let ta_hash_merkle_root = ta_mt.root();
+
+    // All tallies expected should have been removed when created
+    // If not, block is invalide due to have expected tallies not found
+    if !expected_tally_ready_drs.is_empty() {
+        return Err(BlockError::TalliesRequired {
+            count: expected_tally_ready_drs.len(),
+            block_hash: block.hash(),
+        }
+        .into());
+    }
 
     if !is_genesis {
         // Validate mint

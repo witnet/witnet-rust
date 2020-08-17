@@ -7160,6 +7160,39 @@ fn validate_commit_transactions_included_in_utxo_diff() {
 }
 
 #[test]
+fn validate_required_tally_not_found() {
+    let dr_pointer = Hash::default();
+    let mut dr_state = DataRequestState::default();
+    dr_state.stage = DataRequestStage::TALLY;
+
+    let mut dr_pool = DataRequestPool::default();
+    dr_pool.data_request_pool.insert(dr_pointer, dr_state);
+
+    let b = Block::default();
+
+    let e = validate_block_transactions(
+        &UnspentOutputsPool::default(),
+        &dr_pool,
+        &b,
+        CheckpointVRF::default(),
+        &mut vec![],
+        &ReputationEngine::new(1000),
+        EpochConstants::default(),
+        100,
+        &ConsensusConstants::default(),
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        e.downcast::<BlockError>().unwrap(),
+        BlockError::TalliesRequired {
+            count: 1,
+            block_hash: b.hash()
+        },
+    );
+}
+
+#[test]
 fn validate_vt_weight_overflow() {
     let t0 = {
         let vto0 = ValueTransferOutput {

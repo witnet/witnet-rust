@@ -120,7 +120,9 @@ impl Environment {
 }
 
 /// Consensus-critical configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize, ProtobufConvert)]
+#[derive(
+    PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize, ProtobufConvert, Default,
+)]
 #[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 #[protobuf_convert(pb = "witnet::ConsensusConstants")]
 pub struct ConsensusConstants {
@@ -341,7 +343,7 @@ pub struct CheckpointVRF {
 pub type Epoch = u32;
 
 /// Block data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::Block")]
 pub struct Block {
     /// The header of the block
@@ -2293,7 +2295,7 @@ impl From<DataRequestReport> for DataRequestInfo {
 }
 
 /// State of data requests in progress (stored in memory)
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct DataRequestState {
     /// Data request output (contains all required information to process it)
     pub data_request: DataRequestOutput,
@@ -2442,6 +2444,12 @@ pub enum DataRequestStage {
     REVEAL,
     /// Expecting tally to be included in block
     TALLY,
+}
+
+impl Default for DataRequestStage {
+    fn default() -> Self {
+        DataRequestStage::COMMIT
+    }
 }
 
 /// Unspent Outputs Pool
