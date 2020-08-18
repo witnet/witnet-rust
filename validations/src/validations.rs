@@ -1875,12 +1875,11 @@ pub fn calculate_reppoe_threshold(
     pkh: &PublicKeyHash,
     num_witnesses: u16,
 ) -> (Hash, f64) {
-    let my_reputation = rep_eng.trs().get(pkh);
     let total_active_rep = rep_eng.total_active_reputation();
 
     // Add 1 to reputation because otherwise a node with 0 reputation would
     // never be eligible for a data request
-    let my_reputation = u64::from(my_reputation.0) + 1;
+    let my_reputation = u64::from(rep_eng.get_eligibility(pkh)) + 1;
     let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
 
     let max = u64::max_value();
@@ -2703,89 +2702,89 @@ mod tests {
             .unwrap();
 
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 80);
+        assert_eq!((p00 * 100_f64).round() as i128, 24);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 2);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 2);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 2);
+        assert_eq!((p00 * 100_f64).round() as i128, 20);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 2);
+        assert_eq!((p00 * 100_f64).round() as i128, 18);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 1);
+        assert_eq!((p00 * 100_f64).round() as i128, 15);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 1);
+        assert_eq!((p00 * 100_f64).round() as i128, 12);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 1);
+        assert_eq!((p00 * 100_f64).round() as i128, 9);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 1);
         assert_eq!((p00 * 100_f64).round() as i128, 1);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 1);
         assert_eq!((p00 * 100_f64).round() as i128, 1);
 
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
+        assert_eq!((p00 * 100_f64).round() as i128, 48);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 50);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
+        assert_eq!((p00 * 100_f64).round() as i128, 40);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
+        assert_eq!((p00 * 100_f64).round() as i128, 36);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 2);
+        assert_eq!((p00 * 100_f64).round() as i128, 30);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 2);
+        assert_eq!((p00 * 100_f64).round() as i128, 24);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 2);
+        assert_eq!((p00 * 100_f64).round() as i128, 18);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 5);
+        assert_eq!((p00 * 100_f64).round() as i128, 2);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 5);
+        assert_eq!((p00 * 100_f64).round() as i128, 2);
 
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
+        assert_eq!((p00 * 100_f64).round() as i128, 72);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 20);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 20);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 20);
+        assert_eq!((p00 * 100_f64).round() as i128, 60);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 20);
+        assert_eq!((p00 * 100_f64).round() as i128, 54);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 3);
+        assert_eq!((p00 * 100_f64).round() as i128, 45);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 3);
+        assert_eq!((p00 * 100_f64).round() as i128, 36);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 3);
+        assert_eq!((p00 * 100_f64).round() as i128, 27);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
+        assert_eq!((p00 * 100_f64).round() as i128, 3);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
+        assert_eq!((p00 * 100_f64).round() as i128, 3);
 
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
+        assert_eq!((p00 * 100_f64).round() as i128, 96);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 40);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 40);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 40);
+        assert_eq!((p00 * 100_f64).round() as i128, 80);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 40);
+        assert_eq!((p00 * 100_f64).round() as i128, 72);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 4);
+        assert_eq!((p00 * 100_f64).round() as i128, 60);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 4);
+        assert_eq!((p00 * 100_f64).round() as i128, 48);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 4);
+        assert_eq!((p00 * 100_f64).round() as i128, 36);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 20);
+        assert_eq!((p00 * 100_f64).round() as i128, 4);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 20);
+        assert_eq!((p00 * 100_f64).round() as i128, 4);
 
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 5);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 5);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 60);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 60);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 60);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 60);
+        assert_eq!((p00 * 100_f64).round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 5);
+        assert_eq!((p00 * 100_f64).round() as i128, 90);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 5);
+        assert_eq!((p00 * 100_f64).round() as i128, 72);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 5);
+        assert_eq!((p00 * 100_f64).round() as i128, 54);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 30);
+        assert_eq!((p00 * 100_f64).round() as i128, 6);
         let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 30);
+        assert_eq!((p00 * 100_f64).round() as i128, 6);
     }
 
     // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable

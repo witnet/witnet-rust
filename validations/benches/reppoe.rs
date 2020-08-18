@@ -17,10 +17,9 @@ mod validations {
         pkh: &PublicKeyHash,
         num_witnesses: u16,
     ) -> (Hash, f64) {
-        let my_reputation = rep_eng.trs().get(pkh);
         // Add 1 to reputation because otherwise a node with 0 reputation would
         // never be eligible for a data request
-        let my_reputation = u64::from(my_reputation.0) + 1;
+        let my_reputation = u64::from(rep_eng.get_eligibility()) + 1;
 
         // Add N to the total active reputation to account for the +1 to my_reputation
         // This is equivalent to adding 1 reputation to every active identity

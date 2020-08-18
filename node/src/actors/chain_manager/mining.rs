@@ -308,13 +308,15 @@ impl ChainManager {
         let is_ars_member = rep_eng.is_ars_member(&own_pkh);
 
         let my_reputation = rep_eng.trs().get(&own_pkh).0 + 1;
+        let my_eligibility = rep_eng.get_eligibility(&own_pkh) + 1;
         let total_active_reputation = rep_eng.total_active_reputation();
         let num_active_identities =
             u32::try_from(rep_eng.ars().active_identities_number()).unwrap();
         log::debug!("{} data requests for this epoch", dr_pointers.len());
         log::debug!(
-            "Reputation: {}, total: {}, active identities: {}",
+            "Reputation: {}, eligibility: {}, total: {}, active identities: {}",
             my_reputation,
+            my_eligibility,
             total_active_reputation,
             num_active_identities,
         );

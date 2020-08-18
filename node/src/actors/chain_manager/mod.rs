@@ -2098,7 +2098,7 @@ mod tests {
         // (with reputation greater than 0)
         let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
         assert_eq!(rep_ars.len(), 2);
-        assert_eq!(rep_ars, [ids[1], ids[0]]);
+        assert_eq!(rep_ars, [ids[0], ids[1]]);
     }
 
     #[test]
@@ -2139,6 +2139,6 @@ mod tests {
         // the nodes in the example ARS have reputation greater than 0
         let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
         assert_eq!(rep_ars.len(), 6);
-        assert_eq!(rep_ars, [ids[5], ids[4], ids[3], ids[2], ids[1], ids[0]]);
+        assert_eq!(rep_ars, [ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]]);
     }
 }

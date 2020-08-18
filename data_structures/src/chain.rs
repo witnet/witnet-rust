@@ -2860,17 +2860,22 @@ impl ReputationEngine {
     }
 
     /// Calculate total active reputation and sorted active reputation
-    fn calculate_active_rep(&self) -> (u64, Vec<u32>) {
-        let mut total_active_rep = 0;
-        let mut sorted_identities: Vec<u32> = self
-            .ars
-            .active_identities()
-            .map(|pkh| self.trs.get(pkh).0 + 1)
-            .inspect(|rep| total_active_rep += u64::from(*rep))
-            .collect();
-        sorted_identities.sort_unstable_by_key(|&r| std::cmp::Reverse(r));
+    fn calculate_active_rep(&self) -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>) {
+        let sorted_identities = self.get_rep_ordered_ars_list();
 
-        (total_active_rep, sorted_identities)
+        // Redistribute the reputation along the trapezoid
+        let (trapezoid_hm, total_trapezoid_rep) =
+            trapezoidal_eligibility(&sorted_identities, self.trs());
+
+        // Total active reputation
+        let total_active_rep = u64::from(total_trapezoid_rep) + sorted_identities.len() as u64;
+
+        let sorted_rep = sorted_identities
+            .iter()
+            .map(|pkh| *trapezoid_hm.get(pkh).unwrap_or(&0) + 1)
+            .collect();
+
+        (total_active_rep, sorted_rep, trapezoid_hm)
     }
 
     /// Return a factor to increase the threshold dynamically
@@ -2885,6 +2890,12 @@ impl ReputationEngine {
         self.threshold_cache
             .borrow_mut()
             .total_active_reputation(|| self.calculate_active_rep())
+    }
+
+    pub fn get_eligibility(&self, pkh: &PublicKeyHash) -> u32 {
+        self.threshold_cache
+            .borrow_mut()
+            .get_trapezoidal_eligibility(pkh, || self.calculate_active_rep())
     }
 
     /// Invalidate cached values of self.threshold_factor
@@ -2907,9 +2918,107 @@ impl ReputationEngine {
         self.ars
             .active_identities()
             .cloned()
-            .sorted_by_key(|&pkh| (self.trs.get(&pkh), pkh))
+            .sorted_by_key(|&pkh| std::cmp::Reverse((self.trs.get(&pkh), pkh)))
             .collect()
     }
+}
+
+/// Calculate the result of `y = mx + K`
+/// The result is rounded and low saturated in 0
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn magic_line(x: f64, m: f64, k: f64) -> u32 {
+    let res = m * x + k;
+    if res < 0_f64 {
+        0
+    } else {
+        res.round() as u32
+    }
+}
+
+/// List only those identities with reputation greater than zero
+fn filter_reputed_identities(
+    identities: &[PublicKeyHash],
+    trs: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
+) -> (Vec<PublicKeyHash>, u32) {
+    let mut total_rep = 0;
+    let filtered_identities = identities
+        .iter()
+        .filter_map(|pkh| {
+            // Identities with zero reputation will be excluded for the trapezoid calculations
+            let rep = trs.get(pkh).0;
+            if rep != 0 {
+                total_rep += rep;
+                Some(*pkh)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    (filtered_identities, total_rep)
+}
+
+/// Calculate the values and the total reputation
+/// for the upper triangle of the trapezoid
+#[allow(clippy::cast_precision_loss)]
+fn calculate_trapezoid_triangle(m: f64, k: f64, identities_len: usize) -> (Vec<u32>, u32) {
+    let mut total_triangle_reputation = 0;
+    let mut triangle_reputation = vec![];
+
+    for i in 0..identities_len {
+        let calculated_rep = magic_line(i as f64, m, k);
+        total_triangle_reputation += calculated_rep;
+        triangle_reputation.push(calculated_rep);
+    }
+
+    (triangle_reputation, total_triangle_reputation)
+}
+
+/// Use the trapezoid distribution to calculate eligibility for each of the identities
+/// in the ARS based on their reputation ranking
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn trapezoidal_eligibility(
+    sorted_identities: &[PublicKeyHash],
+    trs: &TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
+) -> (HashMap<PublicKeyHash, u32>, u32) {
+    let (active_reputed_ids, total_active_rep) = filter_reputed_identities(sorted_identities, trs);
+    let active_reputed_ids_len = active_reputed_ids.len();
+
+    if active_reputed_ids_len == 0 {
+        return (HashMap::default(), 0);
+    }
+
+    // Calculate parameters for the curve y = mx + k
+    // k: average of the total active reputation
+    let k = f64::from(total_active_rep) / active_reputed_ids_len as f64;
+    // m: negative slope calculated with the average and the last value
+    let minimum = f64::from(trs.get(&active_reputed_ids.last().unwrap()).0);
+    let m = (minimum - k) / ((active_reputed_ids_len as f64) - 1_f64);
+
+    let (triangle_reputation, total_triangle_reputation) =
+        calculate_trapezoid_triangle(m, k, active_reputed_ids_len);
+
+    // To complete the trapezoid, an offset needs to be added (the rectangle at the base)
+    let remaining_reputation = total_active_rep - total_triangle_reputation;
+    let offset_reputation = remaining_reputation / (active_reputed_ids_len as u32);
+    let ids_with_extra_rep = (remaining_reputation as usize) % active_reputed_ids_len;
+
+    let mut hm = HashMap::default();
+    for (i, (pkh, rep)) in active_reputed_ids
+        .into_iter()
+        .zip(triangle_reputation.iter())
+        .enumerate()
+    {
+        let mut trapezoid_rep = rep + offset_reputation;
+        if i < ids_with_extra_rep {
+            trapezoid_rep += 1;
+        }
+
+        // Include the modified reputation in the hashmap
+        hm.insert(pkh, trapezoid_rep);
+    }
+
+    (hm, total_active_rep)
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -2918,17 +3027,36 @@ struct ReputationThresholdCache {
     total_active_rep: u64,
     sorted_active_rep: Vec<u32>,
     threshold: HashMap<u16, u32>,
+    trapezoid_rep: HashMap<PublicKeyHash, u32>,
 }
 
 impl ReputationThresholdCache {
     fn clear_threshold_cache(&mut self) {
         self.threshold.clear();
     }
-    fn initialize(&mut self, total_active_rep: u64, sorted_active_rep: Vec<u32>) {
+    fn initialize(
+        &mut self,
+        total_active_rep: u64,
+        sorted_active_rep: Vec<u32>,
+        trapezoid_rep: HashMap<PublicKeyHash, u32>,
+    ) {
         self.threshold.clear();
         self.total_active_rep = total_active_rep;
         self.sorted_active_rep = sorted_active_rep;
         self.valid = true;
+        self.trapezoid_rep = trapezoid_rep;
+    }
+
+    fn get_trapezoidal_eligibility<F>(&mut self, pkh: &PublicKeyHash, gen: F) -> u32
+    where
+        F: Fn() -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>),
+    {
+        if !self.valid {
+            let (total_active_rep, sorted_active_rep, trapezoid_rep) = gen();
+            self.initialize(total_active_rep, sorted_active_rep, trapezoid_rep);
+        }
+
+        *self.trapezoid_rep.get(pkh).unwrap_or(&0)
     }
 
     fn invalidate(&mut self) {
@@ -2937,11 +3065,11 @@ impl ReputationThresholdCache {
 
     fn threshold_factor<F>(&mut self, n: u16, gen: F) -> u32
     where
-        F: Fn() -> (u64, Vec<u32>),
+        F: Fn() -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep) = gen();
-            self.initialize(total_active_rep, sorted_active_rep);
+            let (total_active_rep, sorted_active_rep, trapezoid_rep) = gen();
+            self.initialize(total_active_rep, sorted_active_rep, trapezoid_rep);
         }
 
         let Self {
@@ -2962,11 +3090,11 @@ impl ReputationThresholdCache {
 
     fn total_active_reputation<F>(&mut self, gen: F) -> u64
     where
-        F: Fn() -> (u64, Vec<u32>),
+        F: Fn() -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep) = gen();
-            self.initialize(total_active_rep, sorted_active_rep);
+            let (total_active_rep, sorted_active_rep, trapezoid_rep) = gen();
+            self.initialize(total_active_rep, sorted_active_rep, trapezoid_rep);
         }
 
         self.total_active_rep
@@ -4320,7 +4448,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(rep_engine.threshold_factor(1), 1);
-        assert_eq!(rep_engine.threshold_factor(2), 4);
+        assert_eq!(rep_engine.threshold_factor(2), 3);
     }
 
     #[test]
@@ -4401,11 +4529,11 @@ mod tests {
 
         assert_eq!(rep_engine.threshold_factor(0), 0);
         assert_eq!(rep_engine.threshold_factor(1), 1);
-        assert_eq!(rep_engine.threshold_factor(2), 5);
-        assert_eq!(rep_engine.threshold_factor(3), 10);
-        assert_eq!(rep_engine.threshold_factor(4), 20);
-        assert_eq!(rep_engine.threshold_factor(5), 30);
-        assert_eq!(rep_engine.threshold_factor(6), 40);
+        assert_eq!(rep_engine.threshold_factor(2), 2);
+        assert_eq!(rep_engine.threshold_factor(3), 3);
+        assert_eq!(rep_engine.threshold_factor(4), 4);
+        assert_eq!(rep_engine.threshold_factor(5), 6);
+        assert_eq!(rep_engine.threshold_factor(6), 10);
         assert_eq!(rep_engine.threshold_factor(7), 50);
         assert_eq!(rep_engine.threshold_factor(8), 100);
         assert_eq!(rep_engine.threshold_factor(9), u32::max_value());
@@ -4584,7 +4712,7 @@ mod tests {
         rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
         rep_engine.ars_mut().push_activity(vec![p1, p2, p3]);
 
-        let expected_order = vec![p3_bls, p2_bls, p1_bls];
+        let expected_order = vec![p1_bls, p2_bls, p3_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
         let ars_identities = ARSIdentities::new(ordered_identities);
 
@@ -4599,8 +4727,8 @@ mod tests {
         let mut alt_keys = AltKeys::default();
 
         let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
-        let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
-        let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
 
         let p1_bls =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
@@ -4626,7 +4754,7 @@ mod tests {
         rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
         rep_engine.ars_mut().push_activity(vec![p1, p2, p3]);
 
-        let expected_order = vec![p3_bls, p2_bls, p1_bls];
+        let expected_order = vec![p1_bls, p3_bls, p2_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
         let ars_identities = ARSIdentities::new(ordered_identities);
 
@@ -4641,10 +4769,10 @@ mod tests {
         let mut alt_keys = AltKeys::default();
 
         let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
-        let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
-        let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
-        let p4 = PublicKeyHash::from_bytes(&[0x05 as u8; 20]).unwrap();
-        let p5 = PublicKeyHash::from_bytes(&[0x04 as u8; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
+        let p4 = PublicKeyHash::from_bytes(&[0x04 as u8; 20]).unwrap();
+        let p5 = PublicKeyHash::from_bytes(&[0x05 as u8; 20]).unwrap();
 
         let p1_bls =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
@@ -4684,7 +4812,7 @@ mod tests {
         rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
         rep_engine.ars_mut().push_activity(vec![p1, p2, p3, p4, p5]);
 
-        let expected_order = vec![p3_bls, p2_bls, p5_bls, p4_bls, p1_bls];
+        let expected_order = vec![p1_bls, p5_bls, p4_bls, p3_bls, p2_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
         let ars_identities = ARSIdentities::new(ordered_identities);
 
@@ -4719,5 +4847,126 @@ mod tests {
             public_key: vec![1; 65],
         };
         assert_eq!(bls_pk.is_valid(), false);
+    }
+
+    #[test]
+    fn test_magic_line() {
+        let k = 10_f64;
+        let m = -1.37;
+
+        assert_eq!(magic_line(0_f64, m, k), 10);
+        assert_eq!(magic_line(1_f64, m, k), 9);
+        assert_eq!(magic_line(2_f64, m, k), 7);
+        assert_eq!(magic_line(3_f64, m, k), 6);
+        assert_eq!(magic_line(4_f64, m, k), 5);
+        assert_eq!(magic_line(5_f64, m, k), 3);
+        assert_eq!(magic_line(6_f64, m, k), 2);
+        assert_eq!(magic_line(7_f64, m, k), 0);
+        assert_eq!(magic_line(8_f64, m, k), 0);
+    }
+
+    #[test]
+    fn test_trapezoid_reputation_equal_reputation() {
+        let mut rep_engine = ReputationEngine::new(1000);
+        let mut ids = vec![];
+        for i in 0..6 {
+            ids.push(PublicKeyHash::from_bytes(&[i; 20]).unwrap());
+        }
+        rep_engine.ars_mut().push_activity(ids.clone());
+
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[0], Reputation(10))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[1], Reputation(10))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[2], Reputation(10))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[3], Reputation(10))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[4], Reputation(10))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[5], Reputation(10))])
+            .unwrap();
+
+        let (trapezoid_hm, total) = trapezoidal_eligibility(&ids, rep_engine.trs());
+        assert_eq!(total, 60);
+
+        let trapezoid: Vec<u32> = trapezoid_hm.values().cloned().collect();
+        assert_eq!(trapezoid, vec![10, 10, 10, 10, 10, 10]);
+    }
+
+    #[test]
+    fn test_trapezoid_reputation_specific_example() {
+        let mut rep_engine = ReputationEngine::new(1000);
+        let mut ids = vec![];
+        for i in 0..8 {
+            ids.push(PublicKeyHash::from_bytes(&[i; 20]).unwrap());
+        }
+        rep_engine.ars_mut().push_activity(ids.clone());
+
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[0], Reputation(79))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[1], Reputation(9))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[2], Reputation(1))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[3], Reputation(1))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[4], Reputation(1))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[5], Reputation(1))])
+            .unwrap();
+
+        let (trapezoid_hm, total) = trapezoidal_eligibility(&ids, rep_engine.trs());
+        assert_eq!(total, 92);
+
+        assert_eq!(trapezoid_hm.get(&ids[0]), Some(&23));
+        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&19));
+        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&17));
+        assert_eq!(trapezoid_hm.get(&ids[3]), Some(&14));
+        assert_eq!(trapezoid_hm.get(&ids[4]), Some(&11));
+        assert_eq!(trapezoid_hm.get(&ids[5]), Some(&8));
+        assert_eq!(trapezoid_hm.get(&ids[6]), None);
+        assert_eq!(trapezoid_hm.get(&ids[7]), None);
+
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[6], Reputation(1))])
+            .unwrap();
+
+        let (trapezoid_hm, total) = trapezoidal_eligibility(&ids, rep_engine.trs());
+        assert_eq!(total, 93);
+
+        assert_eq!(trapezoid_hm.get(&ids[0]), Some(&20));
+        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&18));
+        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&15));
+        assert_eq!(trapezoid_hm.get(&ids[3]), Some(&13));
+        assert_eq!(trapezoid_hm.get(&ids[4]), Some(&11));
+        assert_eq!(trapezoid_hm.get(&ids[5]), Some(&9));
+        assert_eq!(trapezoid_hm.get(&ids[6]), Some(&7));
+        assert_eq!(trapezoid_hm.get(&ids[7]), None);
     }
 }
