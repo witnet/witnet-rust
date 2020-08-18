@@ -1631,8 +1631,8 @@ fn example_data_request() -> RADRequest {
         time_lock: 0,
         retrieve: vec![RADRetrieve {
             kind: RADType::HttpGet,
-            url: "".to_string(),
-            script: vec![0x80],
+            url: "https://blockchain.info/q/latesthash".to_string(),
+            script: vec![128],
         }],
         aggregate: RADAggregate {
             filters: vec![],
@@ -1713,13 +1713,29 @@ fn data_request_no_scripts() {
 
 #[test]
 fn data_request_empty_scripts() {
-    // 0x90 is an empty array in MessagePack
-    let x = test_rad_request(example_data_request());
+    let data_request = RADRequest {
+        time_lock: 0,
+        retrieve: vec![RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "".to_string(),
+            script: vec![0x80],
+        }],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: RadonReducers::Mode as u32,
+        },
+        tally: RADTally {
+            filters: vec![],
+            reducer: RadonReducers::Mode as u32,
+        },
+    };
 
-    // This is currently accepted as a valid data request.
-    // If this test fails in the future, modify it to check that
-    // this is an invalid data request.
-    x.unwrap();
+    let x = test_rad_request(data_request);
+    // The data request should be invalid since the sources are empty
+    assert_eq!(
+        x.unwrap_err().downcast::<DataRequestError>().unwrap(),
+        DataRequestError::NoRetrievalSource,
+    );
 }
 
 #[test]
@@ -1843,7 +1859,7 @@ fn dr_validation_weight_limit_exceeded() {
     );
     let dr_tx = DRTransaction::new(dr_body, vec![]);
     let dr_weight = dr_tx.weight();
-    assert_eq!(dr_weight, 1605);
+    assert_eq!(dr_weight, 1641);
 
     let x = validate_dr_transaction(
         &dr_tx,
@@ -1852,14 +1868,14 @@ fn dr_validation_weight_limit_exceeded() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
-        1605 - 1,
+        1641 - 1,
     );
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestWeightLimitExceeded {
-            weight: 1605,
-            max_weight: 1605 - 1
+            weight: 1641,
+            max_weight: 1641 - 1
         }
     );
 }
@@ -2133,7 +2149,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "a852dcb0c24d385298ea927b68e8ff3285a429e052403f0dad4b2281a865218a";
+static DR_HASH: &str = "2f46b49aa1d1e1e6c6d465978e7097f8cd4955f62d6715caf6b793a139178c18";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr_and_utxo_set(
@@ -3025,7 +3041,7 @@ fn commitment_collateral_zero_is_minimum() {
         // dr_hash changed because the collateral is 0
         assert_eq!(
             dr_hash,
-            "749e480363305800fe1ba8fff3d900264fa8205eec38a1a996c442575993a5ca"
+            "b0d47c15bb89fbb767b5e8d4d2184784e4b84a679489b06d3cd313d1ded791a1"
                 .parse()
                 .unwrap()
         );
@@ -7257,12 +7273,12 @@ fn validate_dr_weight_overflow() {
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-        assert_eq!(dr_tx.weight(), 1569);
+        assert_eq!(dr_tx.weight(), 1605);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
-        assert_eq!(dr_tx2.weight(), 1569);
+        assert_eq!(dr_tx2.weight(), 1605);
 
         (
             BlockTransactions {
@@ -7275,14 +7291,14 @@ fn validate_dr_weight_overflow() {
     let x = test_blocks_with_limits(
         vec![t0],
         0,
-        2 * 1569 - 1,
+        2 * 1605 - 1,
         GENESIS_BLOCK_HASH.parse().unwrap(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::TotalDataRequestWeightLimitExceeded {
-            weight: 2 * 1569,
-            max_weight: 2 * 1569 - 1,
+            weight: 2 * 1605,
+            max_weight: 2 * 1605 - 1,
         },
     );
 }
@@ -7299,7 +7315,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
 
-        assert_eq!(dr_tx.weight(), 80433);
+        assert_eq!(dr_tx.weight(), 80469);
 
         (
             BlockTransactions {
@@ -7318,7 +7334,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestWeightLimitExceeded {
-            weight: 80433,
+            weight: 80469,
             max_weight: MAX_DR_WEIGHT,
         },
     );
@@ -7336,12 +7352,12 @@ fn validate_dr_weight_valid() {
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-        assert_eq!(dr_tx.weight(), 1569);
+        assert_eq!(dr_tx.weight(), 1605);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
-        assert_eq!(dr_tx2.weight(), 1569);
+        assert_eq!(dr_tx2.weight(), 1605);
 
         (
             BlockTransactions {
@@ -7351,6 +7367,6 @@ fn validate_dr_weight_valid() {
             2_000_000 - 2 * dr_value,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 0, 2 * 1569, GENESIS_BLOCK_HASH.parse().unwrap());
+    let x = test_blocks_with_limits(vec![t0], 0, 2 * 1605, GENESIS_BLOCK_HASH.parse().unwrap());
     x.unwrap();
 }
