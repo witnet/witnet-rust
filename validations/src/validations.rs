@@ -5,6 +5,8 @@ use std::{
     fmt,
 };
 
+//std::cmp::PartialEq<std::vec::Vec<_>>
+
 use itertools::Itertools;
 
 use witnet_crypto::{
@@ -293,7 +295,15 @@ pub fn validate_mint_transaction(
 /// Function to validate a rad request
 pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Error> {
     let retrieval_paths = &rad_request.retrieve;
+    // If the data requests has no retrive it is set as invalid
+    if retrieval_paths.is_empty() {
+        return Err(RadError::UnsupportedReducerInAT { operator: 0 }.into());
+    }
     for path in retrieval_paths {
+        // If the sources are empty the data request is set as invalid
+        if path.url == "" {
+            return Err(DataRequestError::NoRetrievalSource.into());
+        }
         unpack_radon_script(path.script.as_slice())?;
     }
 

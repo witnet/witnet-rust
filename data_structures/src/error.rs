@@ -467,6 +467,8 @@ pub enum DataRequestError {
     NotTallyStage,
     #[fail(display = "Cannot persist unfinished data request (with no Tally)")]
     UnfinishedDataRequest,
+    #[fail(display = "The data request is not valid since it has no retrieval sources")]
+    NoRetrievalSource,
 }
 
 /// Possible errors when converting between epoch and timestamp
