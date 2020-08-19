@@ -912,13 +912,13 @@ mod tests {
     #[test]
     fn exact_change_data_request() {
         let own_pkh = my_pkh();
-        let outputs = vec![pay_me(3900)];
+        let outputs = vec![pay_me(3400)];
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                witness_reward: 3900 / 4,
+                witness_reward: 3400 / 4,
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
@@ -928,16 +928,14 @@ mod tests {
             &all_utxos,
         )
         .unwrap();
-        assert_eq!(outputs_sum(&t1), 3900);
+        assert_eq!(outputs_sum(&t1), 3400);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
                 witness_reward: 1000 / 4,
                 witnesses: 4,
-                commit_fee: 300,
-                reveal_fee: 400,
-                tally_fee: 100,
+                commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
             0,
@@ -946,7 +944,7 @@ mod tests {
             &all_utxos,
         )
         .unwrap();
-        assert_eq!(outputs_sum(&t2), 3900);
+        assert_eq!(outputs_sum(&t2), 3400);
 
         // Execute transaction t2
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
@@ -979,9 +977,7 @@ mod tests {
             DataRequestOutput {
                 witness_reward: 1000 / 4,
                 witnesses: 4,
-                commit_fee: 300,
-                reveal_fee: 400,
-                tally_fee: 100,
+                commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
             0,
@@ -1001,21 +997,21 @@ mod tests {
                 .get(own_utxos.iter().next().unwrap().0)
                 .unwrap()
                 .value,
-            1_000_000 - 3_900
+            1_000_000 - 3_400
         );
         assert_eq!(
             build_vtt_tx(
                 vec![],
-                1_000_000 - 3_900 + 1,
+                1_000_000 - 3_400 + 1,
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
             )
             .unwrap_err(),
             TransactionError::NoMoney {
-                total_balance: 1_000_000 - 3_900,
-                available_balance: 1_000_000 - 3_900,
-                transaction_value: 1_000_000 - 3_900 + 1
+                total_balance: 1_000_000 - 3_400,
+                available_balance: 1_000_000 - 3_400,
+                transaction_value: 1_000_000 - 3_400 + 1
             }
         );
     }
@@ -1047,9 +1043,7 @@ mod tests {
             DataRequestOutput {
                 witness_reward: 1000 / 4,
                 witnesses: 4,
-                commit_fee: 300,
-                reveal_fee: 400,
-                tally_fee: 100,
+                commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
             0,
@@ -1063,7 +1057,7 @@ mod tests {
             TransactionError::NoMoney {
                 total_balance: 1_000_000,
                 available_balance: 0,
-                transaction_value: 3900
+                transaction_value: 3400
             }
         );
     }

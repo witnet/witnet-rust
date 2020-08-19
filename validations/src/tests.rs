@@ -1670,9 +1670,7 @@ fn example_data_request_with_mode_filter() -> RADRequest {
 fn example_data_request_output(witnesses: u16, witness_reward: u64, fee: u64) -> DataRequestOutput {
     DataRequestOutput {
         witnesses,
-        commit_fee: fee,
-        reveal_fee: fee,
-        tally_fee: fee,
+        commit_and_reveal_fee: fee,
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -1687,9 +1685,7 @@ fn example_data_request_output_with_mode_filter(
 ) -> DataRequestOutput {
     DataRequestOutput {
         witnesses,
-        commit_fee: fee,
-        reveal_fee: fee,
-        tally_fee: fee,
+        commit_and_reveal_fee: fee,
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request_with_mode_filter(),
@@ -1832,9 +1828,7 @@ fn data_request_no_reward() {
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         witness_reward: 0,
-        commit_fee: 100,
-        reveal_fee: 100,
-        tally_fee: 500,
+        commit_and_reveal_fee: 100,
         witnesses: 2,
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
@@ -1859,7 +1853,7 @@ fn dr_validation_weight_limit_exceeded() {
     );
     let dr_tx = DRTransaction::new(dr_body, vec![]);
     let dr_weight = dr_tx.weight();
-    assert_eq!(dr_weight, 1641);
+    assert_eq!(dr_weight, 1625);
 
     let x = validate_dr_transaction(
         &dr_tx,
@@ -1868,14 +1862,14 @@ fn dr_validation_weight_limit_exceeded() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         ONE_WIT,
-        1641 - 1,
+        1625 - 1,
     );
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestWeightLimitExceeded {
-            weight: 1641,
-            max_weight: 1641 - 1
+            weight: 1625,
+            max_weight: 1625 - 1
         }
     );
 }
@@ -1885,9 +1879,7 @@ fn data_request_value_overflow() {
     let data_request = example_data_request();
     let dro = DataRequestOutput {
         witness_reward: 1,
-        commit_fee: 1,
-        reveal_fee: 1,
-        tally_fee: 1,
+        commit_and_reveal_fee: 1,
         witnesses: 2,
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
@@ -1912,23 +1904,7 @@ fn data_request_value_overflow() {
         TransactionError::FeeOverflow,
     );
     let x = test_drtx(DataRequestOutput {
-        commit_fee: u64::max_value(),
-        ..dro.clone()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::FeeOverflow,
-    );
-    let x = test_drtx(DataRequestOutput {
-        reveal_fee: u64::max_value(),
-        ..dro.clone()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::FeeOverflow,
-    );
-    let x = test_drtx(DataRequestOutput {
-        tally_fee: u64::max_value(),
+        commit_and_reveal_fee: u64::max_value(),
         ..dro
     });
     assert_eq!(
@@ -2149,7 +2125,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "2f46b49aa1d1e1e6c6d465978e7097f8cd4955f62d6715caf6b793a139178c18";
+static DR_HASH: &str = "12532668336db5ab99f359881022f05af90ad68559a0f8d15a7552abbe61dbc4";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr_and_utxo_set(
@@ -3041,7 +3017,7 @@ fn commitment_collateral_zero_is_minimum() {
         // dr_hash changed because the collateral is 0
         assert_eq!(
             dr_hash,
-            "b0d47c15bb89fbb767b5e8d4d2184784e4b84a679489b06d3cd313d1ded791a1"
+            "b2c74e1e23c4c77e07c39d365c440c5b6eb7323fe0708331091261f0107ff8c5"
                 .parse()
                 .unwrap()
         );
@@ -3464,7 +3440,7 @@ fn reveal_valid_commitment() {
     let epoch = 0;
     let dr_output = DataRequestOutput {
         witnesses: 5,
-        reveal_fee: 20,
+        commit_and_reveal_fee: 20,
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
         ..DataRequestOutput::default()
@@ -3954,12 +3930,11 @@ fn tally_dr_not_tally_stage() {
     let epoch = 0;
     let dr_output = DataRequestOutput {
         witnesses: 1,
-        reveal_fee: 20,
+        commit_and_reveal_fee: 20,
         witness_reward: 1000,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
         collateral: ONE_WIT,
-        ..DataRequestOutput::default()
     };
     let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output.clone());
     let dr_transaction_signature = sign_tx(PRIV_KEY_2, &dr_transaction_body);
@@ -5013,15 +4988,13 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
 fn validate_calculate_tally_change() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
-        commit_fee: 10,
-        reveal_fee: 15,
-        tally_fee: 200,
+        commit_and_reveal_fee: 15,
         witness_reward: 1000,
         ..DataRequestOutput::default()
     };
 
     // Case 0 commits
-    let expected_change = (10 + 15 + 1000) * 5;
+    let expected_change = (15 + 15 + 1000) * 5;
     assert_eq!(expected_change, calculate_tally_change(0, 0, 0, &dr_output));
 
     // Case 0 reveals
@@ -5051,9 +5024,7 @@ fn validate_calculate_tally_change() {
 fn validate_calculate_witness_reward() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
-        commit_fee: 10,
-        reveal_fee: 15,
-        tally_fee: 200,
+        commit_and_reveal_fee: 15,
         witness_reward: 1000,
         collateral: 5000,
         ..DataRequestOutput::default()
@@ -5731,12 +5702,11 @@ fn block_duplicated_commits() {
 
     let dro = DataRequestOutput {
         witness_reward: 1000 / 2,
-        commit_fee: 50,
+        commit_and_reveal_fee: 50,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
         collateral: ONE_WIT,
-        ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
@@ -5799,7 +5769,7 @@ fn block_duplicated_commits() {
                 b.txns.mint.epoch,
                 vec![ValueTransferOutput {
                     time_lock: 0,
-                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 100, // reveal_fee is 50*2
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 100, // commit_and_reveal_fee is 50*2
                     ..b.txns.mint.outputs[0]
                 }],
             );
@@ -5830,11 +5800,10 @@ fn block_duplicated_reveals() {
     let dro = DataRequestOutput {
         witness_reward: 1100 / 2,
         witnesses: 2,
-        reveal_fee: 50,
+        commit_and_reveal_fee: 50,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
         collateral: ONE_WIT,
-        ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
@@ -5912,7 +5881,7 @@ fn block_duplicated_reveals() {
                 b.txns.mint.epoch,
                 vec![ValueTransferOutput {
                     time_lock: 0,
-                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 100, // reveal_fee is 50*2
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 100, // commit_and_reveal_fee is 50*2
                     ..b.txns.mint.outputs[0]
                 }],
             );
@@ -7185,7 +7154,7 @@ fn validate_required_tally_not_found() {
 
     assert_eq!(
         e.downcast::<BlockError>().unwrap(),
-        BlockError::TalliesRequired {
+        BlockError::MissingExpectedTallies {
             count: 1,
             block_hash: b.hash()
         },
@@ -7306,12 +7275,12 @@ fn validate_dr_weight_overflow() {
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-        assert_eq!(dr_tx.weight(), 1605);
+        assert_eq!(dr_tx.weight(), 1589);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
-        assert_eq!(dr_tx2.weight(), 1605);
+        assert_eq!(dr_tx2.weight(), 1589);
 
         (
             BlockTransactions {
@@ -7324,14 +7293,14 @@ fn validate_dr_weight_overflow() {
     let x = test_blocks_with_limits(
         vec![t0],
         0,
-        2 * 1605 - 1,
+        2 * 1589 - 1,
         GENESIS_BLOCK_HASH.parse().unwrap(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::TotalDataRequestWeightLimitExceeded {
-            weight: 2 * 1605,
-            max_weight: 2 * 1605 - 1,
+            weight: 2 * 1589,
+            max_weight: 2 * 1589 - 1,
         },
     );
 }
@@ -7348,7 +7317,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
 
-        assert_eq!(dr_tx.weight(), 80469);
+        assert_eq!(dr_tx.weight(), 80453);
 
         (
             BlockTransactions {
@@ -7367,7 +7336,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestWeightLimitExceeded {
-            weight: 80469,
+            weight: 80453,
             max_weight: MAX_DR_WEIGHT,
         },
     );
@@ -7385,12 +7354,12 @@ fn validate_dr_weight_valid() {
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-        assert_eq!(dr_tx.weight(), 1605);
+        assert_eq!(dr_tx.weight(), 1589);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
-        assert_eq!(dr_tx2.weight(), 1605);
+        assert_eq!(dr_tx2.weight(), 1589);
 
         (
             BlockTransactions {

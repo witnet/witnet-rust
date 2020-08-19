@@ -901,7 +901,7 @@ fn build_block(
                 dr_state.data_request.witness_reward,
                 collateral,
             );
-            transaction_fees += dr_state.data_request.tally_fee + extra_tally_fee;
+            transaction_fees += extra_tally_fee;
         } else {
             log::warn!(
                 "Data Request pointed by tally transaction doesn't exist in DataRequestPool"
@@ -1408,9 +1408,7 @@ mod tests {
         let input = vec![Input::new(output1_pointer.clone())];
         let dr1 = DataRequestOutput {
             witnesses: 1,
-            commit_fee: 1,
-            reveal_fee: 1,
-            tally_fee: 1,
+            commit_and_reveal_fee: 1,
             witness_reward: 1,
             min_consensus_percentage: 51,
             data_request: RADRequest::default(),
@@ -1501,18 +1499,16 @@ mod tests {
         let input = vec![Input::new(output1_pointer.clone())];
         let dr1 = DataRequestOutput {
             witnesses: 1,
-            commit_fee: 1,
-            reveal_fee: 1,
-            tally_fee: 1,
+            commit_and_reveal_fee: 1,
             witness_reward: 1,
             min_consensus_percentage: 51,
             data_request: RADRequest::default(),
             collateral: 1_000_000_000,
         };
         let mut dr2 = dr1.clone();
-        dr2.commit_fee = 2;
+        dr2.commit_and_reveal_fee = 2;
         let mut dr3 = dr1.clone();
-        dr3.commit_fee = 3;
+        dr3.commit_and_reveal_fee = 3;
 
         let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
         let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);

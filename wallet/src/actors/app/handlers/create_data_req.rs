@@ -18,9 +18,7 @@ struct DataRequestOutput {
     data_request: RADRequest,
     witness_reward: u64,
     witnesses: u16,
-    commit_fee: u64,
-    reveal_fee: u64,
-    tally_fee: u64,
+    commit_and_reveal_fee: u64,
     min_consensus_percentage: u32,
     collateral: u64,
 }
@@ -94,9 +92,7 @@ fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app:
         },
         witness_reward: request.witness_reward,
         witnesses: request.witnesses,
-        commit_fee: request.commit_fee,
-        reveal_fee: request.reveal_fee,
-        tally_fee: request.tally_fee,
+        commit_and_reveal_fee: request.commit_and_reveal_fee,
         min_consensus_percentage: request.min_consensus_percentage,
         collateral: request.collateral,
     };

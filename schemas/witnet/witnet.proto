@@ -136,11 +136,9 @@ message DataRequestOutput {
     RADRequest data_request = 1;
     uint64 witness_reward = 2;
     uint32 witnesses = 3;
-    uint64 commit_fee = 4;
-    uint64 reveal_fee = 5;
-    uint64 tally_fee = 6;
-    uint32 min_consensus_percentage = 7;
-    uint64 collateral = 8;
+    uint64 commit_and_reveal_fee = 4;
+    uint32 min_consensus_percentage = 5;
+    uint64 collateral = 6;
 }
 
 message Input {

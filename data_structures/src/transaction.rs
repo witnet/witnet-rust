@@ -935,7 +935,7 @@ mod tests {
                 + 2 * OUTPUT_SIZE,
             dr_tx.weight()
         );
-        assert_eq!(1603, dr_tx.weight());
+        assert_eq!(1587, dr_tx.weight());
 
         let dro = DataRequestOutput {
             witnesses: 5,
@@ -956,6 +956,6 @@ mod tests {
                 + 5 * OUTPUT_SIZE,
             dr_tx.weight()
         );
-        assert_eq!(3511, dr_tx.weight());
+        assert_eq!(3495, dr_tx.weight());
     }
 }

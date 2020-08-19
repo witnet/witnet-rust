@@ -1088,9 +1088,8 @@ pub struct DataRequestOutput {
     pub data_request: RADRequest,
     pub witness_reward: u64,
     pub witnesses: u16,
-    pub commit_fee: u64,
-    pub reveal_fee: u64,
-    pub tally_fee: u64,
+    // This fee will be earn by the miner when include commits and/or reveals in the block
+    pub commit_and_reveal_fee: u64,
     // This field must be >50 and <100.
     // >50 because simple majority
     // <100 because a 100% consensus encourages to commit a RadError for free
@@ -1104,14 +1103,13 @@ impl DataRequestOutput {
     /// Calculate the total value of a data request, return error on overflow
     ///
     /// ```ignore
-    /// total_value = (witness_reward + commit_fee + reveal_fee) * witnesses + tally_fee
+    /// total_value = (witness_reward + commit_and_reveal_fee + commit_and_reveal_fee) * witnesses
     /// ```
     pub fn checked_total_value(&self) -> Result<u64, TransactionError> {
         self.witness_reward
-            .checked_add(self.commit_fee)
-            .and_then(|res| res.checked_add(self.reveal_fee))
+            .checked_add(self.commit_and_reveal_fee)
+            .and_then(|res| res.checked_add(self.commit_and_reveal_fee))
             .and_then(|res| res.checked_mul(u64::from(self.witnesses)))
-            .and_then(|res| res.checked_add(self.tally_fee))
             .ok_or_else(|| TransactionError::FeeOverflow)
     }
 
@@ -1119,15 +1117,11 @@ impl DataRequestOutput {
     pub fn weight(&self) -> u32 {
         // Witness reward: 8 bytes
         // Witnesses: 2 bytes
-        // commit_fee: 8 bytes
-        // reveal_fee: 8 bytes
-        // tally_fee: 8 bytes
+        // commit_and_reveal_fee: 8 bytes
         // min_consensus_percentage: 4 bytes
         // collateral: 8 bytes
 
-        self.data_request
-            .weight()
-            .saturating_add(8 + 2 + 8 + 8 + 8 + 4 + 8)
+        self.data_request.weight().saturating_add(8 + 2 + 8 + 4 + 8)
     }
 }
 
@@ -1836,7 +1830,7 @@ impl TransactionsPool {
                             // Check once again that after filtering invalid commitments, we still have as many as requested
                             if filtered_commits.len() == n_commits {
                                 commits_vec.extend(filtered_commits);
-                                total_fee += dr_output.commit_fee * n_commits as u64;
+                                total_fee += dr_output.commit_and_reveal_fee * n_commits as u64;
                             }
                         }
                     }
@@ -1870,7 +1864,7 @@ impl TransactionsPool {
                                 .map(|(_h, r)| re_hash_index.remove(&r).unwrap()),
                         );
 
-                        total_fee += dr_output.reveal_fee * n_reveals as u64;
+                        total_fee += dr_output.commit_and_reveal_fee * n_reveals as u64;
                     }
 
                     reveals_vec
@@ -4005,7 +3999,7 @@ mod tests {
 
         let dro1 = DataRequestOutput {
             witnesses: 1,
-            commit_fee: 501,
+            commit_and_reveal_fee: 501,
             ..Default::default()
         };
         let drb1 = DRTransactionBody::new(vec![], vec![], dro1);
@@ -4020,7 +4014,7 @@ mod tests {
 
         let dro2 = DataRequestOutput {
             witnesses: 1,
-            commit_fee: 100,
+            commit_and_reveal_fee: 100,
             ..Default::default()
         };
         let drb2 = DRTransactionBody::new(vec![], vec![], dro2);
@@ -4035,7 +4029,7 @@ mod tests {
 
         let dro3 = DataRequestOutput {
             witnesses: 1,
-            commit_fee: 500,
+            commit_and_reveal_fee: 500,
             ..Default::default()
         };
         let drb3 = DRTransactionBody::new(vec![], vec![], dro3);

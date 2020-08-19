@@ -377,8 +377,8 @@ pub fn calculate_tally_change(
     let witnesses = u64::from(dr_output.witnesses);
 
     dr_output.witness_reward * (witnesses - honests_count)
-        + dr_output.reveal_fee * (witnesses - reveals_count)
-        + dr_output.commit_fee * (witnesses - commits_count)
+        + dr_output.commit_and_reveal_fee * (witnesses - reveals_count)
+        + dr_output.commit_and_reveal_fee * (witnesses - commits_count)
 }
 
 pub fn calculate_witness_reward(

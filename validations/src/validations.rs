@@ -864,7 +864,11 @@ pub fn validate_commit_transaction(
     );
 
     // The commit fee here is the fee to include one commit
-    Ok((dr_pointer, dr_output.witnesses, dr_output.commit_fee))
+    Ok((
+        dr_pointer,
+        dr_output.witnesses,
+        dr_output.commit_and_reveal_fee,
+    ))
 }
 
 /// Function to validate a reveal transaction
@@ -910,7 +914,7 @@ pub fn validate_reveal_transaction(
     }
 
     // The reveal fee here is the fee to include one reveal
-    Ok(dr_state.data_request.reveal_fee)
+    Ok(dr_state.data_request.commit_and_reveal_fee)
 }
 
 fn create_expected_report(
@@ -1155,9 +1159,9 @@ pub fn validate_tally_transaction<'a>(
         0
     };
     let expected_dr_value = dr_state.data_request.checked_total_value()?;
-    let found_dr_value = dr_state.info.commits.len() as u64 * dr_state.data_request.commit_fee
-        + dr_state.info.reveals.len() as u64 * dr_state.data_request.reveal_fee
-        + dr_state.data_request.tally_fee
+    let found_dr_value = dr_state.info.commits.len() as u64
+        * dr_state.data_request.commit_and_reveal_fee
+        + dr_state.info.reveals.len() as u64 * dr_state.data_request.commit_and_reveal_fee
         + tally_extra_fee
         + total_tally_value;
 
@@ -1170,10 +1174,7 @@ pub fn validate_tally_transaction<'a>(
         .into());
     }
 
-    Ok((
-        ta_tx.outputs.iter().collect(),
-        dr_state.data_request.tally_fee + tally_extra_fee,
-    ))
+    Ok((ta_tx.outputs.iter().collect(), tally_extra_fee))
 }
 
 /// Function to validate a block signature
@@ -1655,10 +1656,10 @@ pub fn validate_block_transactions(
     }
     let ta_hash_merkle_root = ta_mt.root();
 
-    // All tallies expected should have been removed when created
-    // If not, block is invalide due to have expected tallies not found
+    // All data requests for which we expected tally transactions should have been removed
+    // upon creation of the tallies. If not, block is invalid due to missing expected tallies
     if !expected_tally_ready_drs.is_empty() {
-        return Err(BlockError::TalliesRequired {
+        return Err(BlockError::MissingExpectedTallies {
             count: expected_tally_ready_drs.len(),
             block_hash: block.hash(),
         }
