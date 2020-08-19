@@ -1706,8 +1706,8 @@ fn data_request_no_scripts() {
         tally: RADTally::default(),
     });
     assert_eq!(
-        x.unwrap_err().downcast::<RadError>().unwrap(),
-        RadError::UnsupportedReducerInAT { operator: 0 }
+        x.unwrap_err().downcast::<DataRequestError>().unwrap(),
+        DataRequestError::NoRetrievalSources,
     );
 }
 
@@ -1734,7 +1734,7 @@ fn data_request_empty_scripts() {
     // The data request should be invalid since the sources are empty
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
-        DataRequestError::NoRetrievalSource,
+        DataRequestError::NoRetrievalSources,
     );
 }
 
