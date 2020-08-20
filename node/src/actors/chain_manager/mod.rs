@@ -1171,7 +1171,7 @@ impl ChainManager {
                         let chain_info = act.chain_state.chain_info.as_ref().unwrap();
                         let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
 
-                        let ars_members = {
+                        let reputed_ars_members = {
                             // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
                             // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                             // the bootstrap committee signs is at least epoch activity_period + collateral_age
@@ -1180,7 +1180,8 @@ impl ChainManager {
                                 > chain_info.consensus_constants.collateral_age
                                     + chain_info.consensus_constants.activity_period
                             {
-                                reputation_engine.get_rep_ordered_ars_list()
+                                let ars_members = reputation_engine.get_rep_ordered_ars_list();
+                                 reputed_ars(ars_members, &reputation_engine)
                             } else {
                                 chain_info
                                     .consensus_constants
@@ -1191,8 +1192,9 @@ impl ChainManager {
                             }
                         };
 
-                        // Store the ARS and the order of the keys
-                        let ars_identities = ARSIdentities::new(ars_members);
+                        // Get the list of members of the ARs with reputation greater than 1
+                        // the list is ordered by reputation
+                        let reputed_ars = ARSIdentities::new(reputed_ars_members);
 
                         // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
                         let committee_size = current_committee_size_requirement(
@@ -1206,9 +1208,10 @@ impl ChainManager {
                         );
                         log::debug!("The current signing committee size is {}", committee_size);
 
+
                         let superblock = act.chain_state.superblock_state.build_superblock(
                             &block_headers,
-                            ars_identities,
+                            reputed_ars,
                             committee_size,
                             superblock_index,
                             last_hash,
@@ -1877,6 +1880,16 @@ fn current_committee_size_requirement(
     }
 }
 
+/// Get the reputed ars members
+pub fn reputed_ars(
+    v: Vec<PublicKeyHash>,
+    reputation_engine: &ReputationEngine,
+) -> Vec<PublicKeyHash> {
+    v.into_iter()
+        .filter(|pkh| reputation_engine.trs().get(&pkh).0 > 0)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use witnet_data_structures::{
@@ -2060,5 +2073,72 @@ mod tests {
         size = current_committee_size_requirement(100, 100, 5, 5, 5, 6);
 
         assert_eq!(size, 100);
+    }
+
+    #[test]
+    fn test_reputed_ars() {
+        // Set a reputation engine with 6 members of the ARS
+        let mut rep_engine = ReputationEngine::new(1000);
+        let mut ids = vec![];
+        for i in 0..6 {
+            ids.push(PublicKeyHash::from_bytes(&[i; 20]).unwrap());
+        }
+        rep_engine.ars_mut().push_activity(ids.clone());
+
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[0], Reputation(79))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[1], Reputation(9))])
+            .unwrap();
+
+        // The reputed ars should be the vector of the first two members
+        // (with reputation greater than 1)
+        let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
+        assert_eq!(rep_ars.len(), 2);
+        assert_eq!(rep_ars, [ids[1], ids[0]]);
+    }
+
+    #[test]
+    fn test_reputed_ars_2() {
+        let mut rep_engine = ReputationEngine::new(1000);
+        let mut ids = vec![];
+        for i in 0..6 {
+            ids.push(PublicKeyHash::from_bytes(&[i; 20]).unwrap());
+        }
+        rep_engine.ars_mut().push_activity(ids.clone());
+
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[0], Reputation(7))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[1], Reputation(6))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[2], Reputation(5))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[3], Reputation(4))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[4], Reputation(3))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[5], Reputation(2))])
+            .unwrap();
+
+        // The reputed_ars should be equal to the ARS since all of the nodes have
+        // reputation greater than 1
+        let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
+        assert_eq!(rep_ars.len(), 6);
+        assert_eq!(rep_ars, [ids[5], ids[4], ids[3], ids[2], ids[1], ids[0]]);
     }
 }
