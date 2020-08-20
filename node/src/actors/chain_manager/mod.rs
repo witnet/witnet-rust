@@ -1192,8 +1192,8 @@ impl ChainManager {
                             }
                         };
 
-                        // Get the list of members of the ARs with reputation greater than 1
-                        // the list is ordered by reputation
+                        // Get the list of members of the ARS with reputation greater than 0
+                        // the list itself is ordered by decreasing reputation
                         let reputed_ars = ARSIdentities::new(reputed_ars_members);
 
                         // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
@@ -1880,7 +1880,7 @@ fn current_committee_size_requirement(
     }
 }
 
-/// Get the reputed ars members
+/// Get the identities of all ARS members with non-neutral reputation
 pub fn reputed_ars(
     v: Vec<PublicKeyHash>,
     reputation_engine: &ReputationEngine,
@@ -2095,7 +2095,7 @@ mod tests {
             .unwrap();
 
         // The reputed ars should be the vector of the first two members
-        // (with reputation greater than 1)
+        // (with reputation greater than 0)
         let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
         assert_eq!(rep_ars.len(), 2);
         assert_eq!(rep_ars, [ids[1], ids[0]]);
@@ -2135,8 +2135,8 @@ mod tests {
             .gain(Alpha(10), vec![(ids[5], Reputation(2))])
             .unwrap();
 
-        // The reputed_ars should be equal to the ARS since all of the nodes have
-        // reputation greater than 1
+        // The size of the reputed_ars list should equal that of the ARS as all
+        // the nodes in the example ARS have reputation greater than 0
         let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
         assert_eq!(rep_ars.len(), 6);
         assert_eq!(rep_ars, [ids[5], ids[4], ids[3], ids[2], ids[1], ids[0]]);
