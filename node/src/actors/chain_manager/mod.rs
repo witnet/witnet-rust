@@ -1102,7 +1102,7 @@ impl ChainManager {
                             superblock.hash(),
                             superblock
                         );
-                        act.sm_state = StateMachine::WaitingConsensus;
+                        act.update_state_machine(StateMachine::WaitingConsensus);
                         act.initialize_from_storage(ctx);
                         log::info!("Restored chain state from storage");
 
@@ -1285,7 +1285,7 @@ impl ChainManager {
                         // TODO: it could be possible to synchronize with a target superblock hash
                         log::warn!("Superblock consensus {} different from current superblock. Moving to WaitingConsensus state", target_superblock_hash);
                         act.initialize_from_storage(ctx);
-                        act.sm_state = StateMachine::WaitingConsensus;
+                        act.update_state_machine(StateMachine::WaitingConsensus);
 
                         actix::fut::err(())
                     }
@@ -1293,7 +1293,7 @@ impl ChainManager {
                         // No consensus: move to AlmostSynced and restore chain_state from storage
                         log::warn!("No superblock consensus. Moving to AlmostSynced state");
                         act.initialize_from_storage(ctx);
-                        act.sm_state = StateMachine::AlmostSynced;
+                        act.update_state_machine(StateMachine::AlmostSynced);
 
                         actix::fut::err(())
                     }
@@ -1301,7 +1301,7 @@ impl ChainManager {
                         // Consensus unknown: move to waiting consensus and restore chain_state from storage
                         log::warn!("Superblock consensus unknown. Moving to WaitingConsensus state");
                         act.initialize_from_storage(ctx);
-                        act.sm_state = StateMachine::WaitingConsensus;
+                        act.update_state_machine(StateMachine::WaitingConsensus);
 
                         actix::fut::err(())
                     }
@@ -1356,6 +1356,19 @@ impl ChainManager {
         Box::new(fut)
     }
 
+    /// Transition the ChainManager state machine into a new state.
+    ///
+    /// This is expected to be the only means for updating the state machine, so debugging is easier
+    /// and to ensure that every transition gets logged in a predictable format.
+    fn update_state_machine(&mut self, new_state: StateMachine) {
+        log::debug!(
+            "Transitioning state machine from {:?} into {:?}",
+            self.sm_state,
+            new_state
+        );
+        self.sm_state = new_state
+    }
+
     fn request_blocks_batch(&mut self, ctx: &mut Context<Self>) {
         // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
         SessionsManager::from_registry()
@@ -1376,7 +1389,7 @@ impl ChainManager {
                     log::warn!("Failed to send LastBeacon to random peer");
                     if act.sm_state == StateMachine::Synchronizing {
                         log::debug!("Moving to WaitingConsensus state");
-                        act.sm_state = StateMachine::WaitingConsensus;
+                        act.update_state_machine(StateMachine::WaitingConsensus);
                         act.sync_waiting_for_add_blocks_since = None;
                     }
 
@@ -1426,7 +1439,7 @@ impl ChainManager {
 
         if !batch_succeeded {
             log::error!("Received invalid blocks batch");
-            self.sm_state = StateMachine::WaitingConsensus;
+            self.update_state_machine(StateMachine::WaitingConsensus);
             self.sync_waiting_for_add_blocks_since = None;
         }
 

@@ -103,7 +103,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         // Handle case consensus not achieved
         if !self.peers_beacons_received {
             log::warn!("No beacon messages received from peers. Moving to WaitingConsensus state");
-            self.sm_state = StateMachine::WaitingConsensus;
+            self.update_state_machine(StateMachine::WaitingConsensus);
             // Clear candidates
             self.candidates.clear();
             self.seen_candidates.clear();
@@ -115,7 +115,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     "Missed epoch notification {}. Moving to WaitingConsensus state",
                     last_checked_epoch + 1
                 );
-                self.sm_state = StateMachine::WaitingConsensus;
+                self.update_state_machine(StateMachine::WaitingConsensus);
             }
         }
 
@@ -314,7 +314,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                 if msg.blocks.is_empty() {
                     log::debug!("Received an empty AddBlocks message");
-                    self.sm_state = StateMachine::WaitingConsensus;
+                    self.update_state_machine(StateMachine::WaitingConsensus);
                     self.initialize_from_storage(ctx);
                     log::info!("Restored chain state from storage");
 
@@ -396,7 +396,7 @@ impl Handler<AddBlocks> for ChainManager {
                             actix::fut::Either::B(actix::fut::ok(()))
                         }
                             .and_then(move |(), act, ctx| {
-                                act.sm_state = StateMachine::WaitingConsensus;
+                                act.update_state_machine(StateMachine::WaitingConsensus);
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remainig_blocks);
                                 if !batch_succeeded {
@@ -452,7 +452,7 @@ impl Handler<AddBlocks> for ChainManager {
                                     // Process remaining blocks
                                     let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &candidate_blocks);
                                     if !batch_succeeded {
-                                        act.sm_state = StateMachine::WaitingConsensus;
+                                        act.update_state_machine(StateMachine::WaitingConsensus);
 
                                         return actix::fut::err(());
                                     }
@@ -471,7 +471,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                     log::info!("Block sync target achieved, go to WaitingConsensus state");
                                     // Target achieved, go back to state 1
-                                    act.sm_state = StateMachine::WaitingConsensus;
+                                    act.update_state_machine(StateMachine::WaitingConsensus);
 
                                     // We must construct the second superblock in order to be able
                                     // to validate the votes for this superblock later
@@ -488,7 +488,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
                                     log::error!("Received invalid blocks batch... reverting to WaitingConsensus");
-                                    act.sm_state = StateMachine::WaitingConsensus;
+                                    act.update_state_machine(StateMachine::WaitingConsensus);
                                     act.sync_waiting_for_add_blocks_since = None;
 
                                     return actix::fut::err(());
@@ -497,7 +497,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                 log::info!("Block sync target achieved, go to WaitingConsensus state");
                                 // Target achieved, go back to state 1
-                                act.sm_state = StateMachine::WaitingConsensus;
+                                act.update_state_machine(StateMachine::WaitingConsensus);
 
                                 actix::fut::ok(())
                             })
@@ -513,7 +513,7 @@ impl Handler<AddBlocks> for ChainManager {
                             consolidated_superblock_index,
                             current_superblock_index
                         );
-                        self.sm_state = StateMachine::WaitingConsensus;
+                        self.update_state_machine(StateMachine::WaitingConsensus);
                         self.sync_waiting_for_add_blocks_since = None;
                     }
                     Err(e) => {
@@ -883,7 +883,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         // Check if we are already synchronized
                         // TODO: use superblock beacon
-                        self.sm_state = if consensus_beacon.hash_prev_block
+                        let next_state = if consensus_beacon.hash_prev_block
                             == consensus_constants.bootstrap_hash
                         {
                             log::debug!("The consensus is that there is no genesis block yet");
@@ -939,6 +939,8 @@ impl Handler<PeersBeacons> for ChainManager {
                             }
                         };
 
+                        self.update_state_machine(next_state);
+
                         Ok(peers_to_unregister)
                     }
                     // No consensus: unregister all peers
@@ -959,7 +961,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         let our_beacon = self.get_chain_beacon();
 
                         // Check if we are already synchronized
-                        self.sm_state = if our_beacon == consensus_beacon {
+                        let next_state = if our_beacon == consensus_beacon {
                             StateMachine::AlmostSynced
                         } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                             && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
@@ -979,11 +981,13 @@ impl Handler<PeersBeacons> for ChainManager {
                             StateMachine::Synchronizing
                         };
 
+                        self.update_state_machine(next_state);
+
                         Ok(peers_to_unregister)
                     }
                     // No consensus: unregister all peers
                     None => {
-                        self.sm_state = StateMachine::WaitingConsensus;
+                        self.update_state_machine(StateMachine::WaitingConsensus);
 
                         Ok(peers_to_unregister)
                     }
@@ -1001,7 +1005,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             // machine to move into `Synced` state.
                             log::debug!("Moving from AlmostSynced to Synced state");
                             log::info!("{}", SYNCED_BANNER);
-                            self.sm_state = StateMachine::Synced;
+                            self.update_state_machine(StateMachine::Synced);
                             self.add_temp_superblock_votes(ctx).unwrap();
                         }
                         Ok(peers_to_unregister)
