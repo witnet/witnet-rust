@@ -53,13 +53,13 @@ pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
         return Err(wrong_args());
     }
 
-    let not_found = |index: usize| RadError::ArrayIndexNotFound {
+    let not_found = |index: usize| RadError::ArrayIndexOutOfBounds {
         index: i32::try_from(index).unwrap(),
     };
 
     let arg = args[0].to_owned();
     let index = from_value::<i32>(arg).map_err(|_| wrong_args())?;
-    let index = usize::try_from(index).map_err(|_| RadError::ArrayIndexNotFound { index })?;
+    let index = usize::try_from(index).map_err(|_| RadError::ArrayIndexOutOfBounds { index })?;
 
     input
         .value()
@@ -1029,10 +1029,14 @@ mod tests {
         ])])];
         let output = sort(&input, &script, &mut ReportContext::default()).unwrap_err();
 
-        assert_eq!(
-            output.to_string(),
-            "Failed to decode RadonString from serde_cbor::value::Value"
-        )
+        if let RadError::UnhandledIntercept { inner, .. } = output {
+            assert_eq!(
+                inner.unwrap().to_string(),
+                "Failed to decode RadonString from serde_cbor::value::Value"
+            )
+        } else {
+            panic!();
+        }
     }
 
     #[test]

@@ -52,6 +52,11 @@ pub enum RadonErrors {
     TallyExecution = 0x53,
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     MalformedReveal = 0x60,
+    // Access errors
+    /// Tried to access a value from an index using an index that is out of bounds
+    ArrayIndexOutOfBounds = 0x70,
+    /// Tried to access a value from a map using a key that does not exist
+    MapKeyNotFound = 0x71,
     // This should not exist:
     /// Some tally error is not intercepted but should
     UnhandledIntercept = 0xFF,

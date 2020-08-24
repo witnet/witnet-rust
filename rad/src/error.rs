@@ -40,7 +40,7 @@ pub enum RadError {
     JsonParse { description: String },
     /// The given index is not present in a RadonArray
     #[fail(display = "Failed to get item at index `{}` from RadonArray", index)]
-    ArrayIndexNotFound { index: i32 },
+    ArrayIndexOutOfBounds { index: i32 },
     /// The given key is not present in a RadonMap
     #[fail(display = "Failed to get key `{}` from RadonMap", key)]
     MapKeyNotFound { key: String },
@@ -410,6 +410,14 @@ impl RadError {
             RadonErrors::DivisionByZero => RadError::DivisionByZero,
             RadonErrors::RetrieveTimeout => RadError::RetrieveTimeout,
             RadonErrors::MalformedReveal => RadError::MalformedReveal,
+            RadonErrors::ArrayIndexOutOfBounds => {
+                let (index,) = deserialize_args(error_args)?;
+                RadError::ArrayIndexOutOfBounds { index }
+            }
+            RadonErrors::MapKeyNotFound => {
+                let (key,) = deserialize_args(error_args)?;
+                RadError::MapKeyNotFound { key }
+            }
             RadonErrors::UnsupportedOperator => {
                 let (input_type, operator, args) = deserialize_args(error_args)?;
                 RadError::UnsupportedOperator {
@@ -475,6 +483,8 @@ impl RadError {
                 };
                 Some(serialize_args((message,))?)
             }
+            RadError::ArrayIndexOutOfBounds { index } => Some(serialize_args((index,))?),
+            RadError::MapKeyNotFound { key } => Some(serialize_args((key,))?),
             RadError::UnhandledIntercept { inner, message } => {
                 let message = match (inner, message) {
                     // Only serialize the message
@@ -529,6 +539,8 @@ impl RadError {
             RadError::TallyExecution { .. } => RadonErrors::TallyExecution,
             RadError::UnhandledIntercept { .. } => RadonErrors::UnhandledIntercept,
             RadError::MalformedReveal => RadonErrors::MalformedReveal,
+            RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
+            RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }
@@ -672,6 +684,10 @@ mod tests {
             RadonErrors::TallyExecution => RadError::TallyExecution {
                 inner: None,
                 message: Some("Only the message field is serialized".to_string()),
+            },
+            RadonErrors::ArrayIndexOutOfBounds => RadError::ArrayIndexOutOfBounds { index: 2 },
+            RadonErrors::MapKeyNotFound => RadError::MapKeyNotFound {
+                key: String::from("value"),
             },
             RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept {
                 inner: None,
