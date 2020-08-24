@@ -12,7 +12,6 @@ use std::{
     },
 };
 
-use witnet_crypto::hash::calculate_sha256;
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
@@ -36,8 +35,7 @@ use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, DataRequestOutput, EpochConstants, Hashable, Input, PublicKeyHash,
-        ReputationEngine, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
-        ValueTransferOutput,
+        ReputationEngine, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -52,26 +50,8 @@ use witnet_data_structures::{
 impl ChainManager {
     /// Try to mine a block
     pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
-        if !self.mining_enabled || self.sm_state == StateMachine::AlmostSynced {
-            log::debug!("The node is in AlmostSynced (or mining disabled). Constructing the superblock anyway");
-            if self.chain_state.chain_info.is_none() {
-                log::warn!("ChainInfo is not set");
-
-                return;
-            }
-            if self.current_epoch.is_none() {
-                log::warn!("Cannot create superblock because current epoch is unknown");
-
-                return;
-            }
-            let chain_info = self.chain_state.chain_info.as_ref().unwrap();
-            let current_epoch = self.current_epoch.unwrap();
-            // Even if mining is disabled, we still need to create superblocks
-            let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
-            // Everyone creates superblocks, but only ARS members sign and broadcast them
-            if self.create_superblocks && current_epoch % superblock_period == 0 {
-                self.superblock_creating_and_broadcasting(ctx, current_epoch);
-            }
+        if !self.mining_enabled {
+            log::debug!("Mining is disabled in the configuration");
             return;
         }
 
@@ -81,10 +61,6 @@ impl ChainManager {
                 "Not mining because node is not in Synced state (current state is {:?})",
                 self.sm_state
             );
-            // TODO: do we want to create superblocks when not synced?
-            // WaitingConsensus: probably not
-            // Synchronizing: not here, they are created in AddBlocks handler
-            // AlmostSynced: yes?
             return;
         }
 
@@ -151,12 +127,6 @@ impl ChainManager {
 
         let own_pkh = self.own_pkh.unwrap_or_default();
         let is_ars_member = rep_engine.is_ars_member(&own_pkh);
-
-        let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
-        // Everyone creates superblocks, but only ARS members sign and broadcast them
-        if current_epoch % superblock_period == 0 {
-            self.superblock_creating_and_broadcasting(ctx, current_epoch);
-        }
 
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
@@ -582,64 +552,6 @@ impl ChainManager {
                 })
                 .spawn(ctx);
         }
-    }
-
-    /// Create a superblock and broadcast it
-    fn superblock_creating_and_broadcasting(
-        &mut self,
-        ctx: &mut Context<Self>,
-        current_epoch: u32,
-    ) {
-        self.construct_superblock(ctx, current_epoch)
-            .and_then(move |superblock, act, _ctx| {
-                let superblock_hash = superblock.hash();
-                log::debug!(
-                    "Local SUPERBLOCK #{} {}: {:?}",
-                    superblock.index,
-                    superblock_hash,
-                    superblock
-                );
-
-                let mut superblock_vote =
-                    SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
-                let bn256_message = superblock_vote.bn256_signature_message();
-
-                signature_mngr::bn256_sign(bn256_message)
-                    .map_err(|e| {
-                        log::error!("Failed to sign superblock with bn256 key: {}", e);
-                    })
-                    .and_then(move |bn256_keyed_signature| {
-                        // Actually, we don't need to include the BN256 public key because
-                        // it is stored in the `alt_keys` mapping, indexed by the
-                        // secp256k1 public key hash
-                        let bn256_signature = bn256_keyed_signature.signature;
-                        superblock_vote.set_bn256_signature(bn256_signature);
-                        let secp256k1_message = superblock_vote.secp256k1_signature_message();
-                        let sign_bytes = calculate_sha256(&secp256k1_message).0;
-                        signature_mngr::sign_data(sign_bytes)
-                            .map(move |secp256k1_signature| {
-                                superblock_vote.set_secp256k1_signature(secp256k1_signature);
-
-                                superblock_vote
-                            })
-                            .map_err(|e| {
-                                log::error!("Failed to sign superblock with secp256k1 key: {}", e);
-                            })
-                    })
-                    .into_actor(act)
-                    .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
-                        Ok(()) => actix::fut::ok(()),
-                        Err(e) => {
-                            log::error!(
-                                "Error when broadcasting recently created superblock: {}",
-                                e
-                            );
-
-                            actix::fut::err(())
-                        }
-                    })
-            })
-            .wait(ctx)
     }
 
     fn create_tally_transactions(

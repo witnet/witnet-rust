@@ -217,8 +217,6 @@ pub struct ChainManager {
     external_address: Option<PublicKeyHash>,
     /// Mint Percentage to share with the external address
     external_percentage: u8,
-    /// Enable superblock creation
-    create_superblocks: bool,
     /// List of superblock votes received while we are synchronizing
     temp_superblock_votes: Vec<SuperBlockVote>,
 }
@@ -669,6 +667,61 @@ impl ChainManager {
                 log::error!("No ChainInfo loaded in ChainManager");
             }
         }
+    }
+
+    /// Create a superblock, sign a superblock vote and broadcast it
+    fn create_and_broadcast_superblock(&mut self, ctx: &mut Context<Self>, current_epoch: u32) {
+        self.construct_superblock(ctx, current_epoch)
+            .and_then(move |superblock, act, _ctx| {
+                let superblock_hash = superblock.hash();
+                log::debug!(
+                    "Local SUPERBLOCK #{} {}: {:?}",
+                    superblock.index,
+                    superblock_hash,
+                    superblock
+                );
+
+                // TODO: Check if it is needed to create a superblock vote before doing it
+                let mut superblock_vote =
+                    SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
+                let bn256_message = superblock_vote.bn256_signature_message();
+
+                signature_mngr::bn256_sign(bn256_message)
+                    .map_err(|e| {
+                        log::error!("Failed to sign superblock with bn256 key: {}", e);
+                    })
+                    .and_then(move |bn256_keyed_signature| {
+                        // Actually, we don't need to include the BN256 public key because
+                        // it is stored in the `alt_keys` mapping, indexed by the
+                        // secp256k1 public key hash
+                        let bn256_signature = bn256_keyed_signature.signature;
+                        superblock_vote.set_bn256_signature(bn256_signature);
+                        let secp256k1_message = superblock_vote.secp256k1_signature_message();
+                        let sign_bytes = calculate_sha256(&secp256k1_message).0;
+                        signature_mngr::sign_data(sign_bytes)
+                            .map(move |secp256k1_signature| {
+                                superblock_vote.set_secp256k1_signature(secp256k1_signature);
+
+                                superblock_vote
+                            })
+                            .map_err(|e| {
+                                log::error!("Failed to sign superblock with secp256k1 key: {}", e);
+                            })
+                    })
+                    .into_actor(act)
+                    .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
+                        Ok(()) => actix::fut::ok(()),
+                        Err(e) => {
+                            log::error!(
+                                "Error when broadcasting recently created superblock: {}",
+                                e
+                            );
+
+                            actix::fut::err(())
+                        }
+                    })
+            })
+            .wait(ctx)
     }
 
     fn get_chain_beacon(&self) -> CheckpointBeacon {

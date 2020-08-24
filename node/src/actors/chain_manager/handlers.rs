@@ -84,6 +84,8 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
 
+        let superblock_period = u32::from(self.consensus_constants().superblock_period);
+
         log::debug!(
             "EpochNotification received while StateMachine is in state {:?}",
             self.sm_state
@@ -171,12 +173,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                         // Send last beacon on block consolidation
                         let sessions_manager = SessionsManager::from_registry();
-                        let beacon = self
-                            .chain_state
-                            .chain_info
-                            .as_ref()
-                            .unwrap()
-                            .highest_block_checkpoint;
+                        let beacon = self.get_chain_beacon();
                         let superblock_beacon = self.get_superblock_beacon();
                         let last_beacon = LastBeacon {
                             highest_block_checkpoint: beacon,
@@ -189,6 +186,12 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             command: SendLastBeacon { last_beacon },
                             only_inbound: true,
                         });
+
+                        // Create and broadcast a superblock in case of superblock period.
+                        // Everyone creates superblocks, but only ARS members sign and broadcast them
+                        if current_epoch % superblock_period == 0 {
+                            self.create_and_broadcast_superblock(ctx, current_epoch);
+                        }
 
                         // TODO: Review time since commits are clear and new ones are received before to mining
                         // Remove commits because they expire every epoch
