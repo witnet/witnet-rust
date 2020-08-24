@@ -430,13 +430,8 @@ where
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
-        let components = self._create_transaction_components(
-            &mut state,
-            value,
-            fee,
-            Some((pkh, time_lock)),
-            false,
-        )?;
+        let components =
+            self.create_vt_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))?;
 
         let body = types::VTTransactionBody::new(components.inputs, components.outputs);
         let sign_data = body.hash();
@@ -470,7 +465,7 @@ where
         let value = request
             .checked_total_value()
             .map_err(|_| Error::TransactionValueOverflow)?;
-        let components = self._create_transaction_components(&mut state, value, fee, None, true)?;
+        let components = self.create_dr_transaction_components(&mut state, value, fee)?;
 
         let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
         let sign_data = body.hash();
@@ -495,12 +490,33 @@ where
         Ok(types::DRTransaction::new(body, signatures?))
     }
 
-    fn _create_transaction_components(
+    fn create_vt_transaction_components(
         &self,
         state: &mut State,
         value: u64,
         fee: u64,
         recipient: Option<(types::PublicKeyHash, u64)>,
+    ) -> Result<types::TransactionComponents> {
+        self.create_transaction_components(state, value, fee, recipient, false)
+    }
+
+    fn create_dr_transaction_components(
+        &self,
+        state: &mut State,
+        value: u64,
+        fee: u64,
+    ) -> Result<types::TransactionComponents> {
+        self.create_transaction_components(state, value, fee, None, true)
+    }
+
+    fn create_transaction_components(
+        &self,
+        state: &mut State,
+        value: u64,
+        fee: u64,
+        recipient: Option<(types::PublicKeyHash, u64)>,
+        // When creating data request transactions, the change address must be the same as the
+        // first input address
         change_address_same_as_input: bool,
     ) -> Result<types::TransactionComponents> {
         let target = value.saturating_add(fee);
