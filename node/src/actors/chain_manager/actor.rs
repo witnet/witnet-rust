@@ -243,8 +243,8 @@ impl ChainManager {
                 });
 
                 // Persist current chain state
-                act.last_chain_state = act.chain_state.clone();
-                act.persist_chain_state(ctx);
+                act.previous_chain_state = act.chain_state.clone();
+                act.persist_previous_chain_state(ctx);
             }).wait(ctx);
     }
 

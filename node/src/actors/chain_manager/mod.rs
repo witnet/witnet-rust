@@ -44,10 +44,10 @@ use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
-        ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
-        EpochConstants, Hash, Hashable, InventoryItem, NodeStats, OwnUnspentOutputsPool,
-        PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlock,
-        SuperBlockVote, TransactionsPool, UnspentOutputsPool,
+        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
+        DataRequestReport, Epoch, EpochConstants, Hash, Hashable, InventoryItem, NodeStats,
+        OwnUnspentOutputsPool, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify,
+        SuperBlock, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -170,7 +170,7 @@ pub struct ChainManager {
     /// Blockchain state data structure
     chain_state: ChainState,
     /// Backup for ChainState
-    last_chain_state: ChainState,
+    previous_chain_state: ChainState,
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
@@ -244,42 +244,44 @@ impl SystemService for ChainManager {}
 
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
-    /// Method to persist backup of chain_state into storage
-    fn persist_last_chain_state(&self, ctx: &mut Context<Self>) {
-        match self.last_chain_state.chain_info.as_ref() {
-            Some(x) => x,
-            None => {
-                log::error!("Trying to persist an empty chain state value");
-                return;
-            }
-        };
+    /// Persist previous chain state into storage
+    fn persist_previous_chain_state(&mut self, ctx: &mut Context<Self>) {
+        // It makes no sense to persist empty chain states
+        if self.previous_chain_state.chain_info.is_none() {
+            log::error!("Trying to persist an empty previous_chain_state value");
+            return;
+        }
 
-        storage_mngr::put(
-            &storage_keys::chain_state_key(self.get_magic()),
-            &self.last_chain_state,
-        )
-        .into_actor(self)
-        .and_then(|_, _, _| {
-            log::debug!("Successfully persisted chain_info into storage");
-            fut::ok(())
-        })
-        .map_err(|err, _, _| log::error!("Failed to persist chain_info into storage: {}", err))
-        .wait(ctx);
-    }
-    /// Method to persist the chain_state into storage
-    fn persist_chain_state(&mut self, ctx: &mut Context<Self>) {
-        // When persisting the chain state, we need to update the highest superblock checkpoint.
+        // When updating the chain state, we need to update the highest superblock checkpoint.
         // This is the highest superblock that obtained a majority of votes and we do not want to
         // lose it when restoring the state.
-        self.last_chain_state
-            .chain_info
-            .as_mut()
-            .unwrap()
-            .highest_superblock_checkpoint = self.get_superblock_beacon();
-        self.last_chain_state.superblock_state = self.chain_state.superblock_state.clone();
-        self.persist_last_chain_state(ctx);
-        // TODO: Evaluate another way to avoid clone
-        self.last_chain_state = self.chain_state.clone();
+        let state = ChainState {
+            chain_info: Some(ChainInfo {
+                highest_superblock_checkpoint: self.get_superblock_beacon(),
+                ..self
+                    .previous_chain_state
+                    .chain_info
+                    .as_ref()
+                    .unwrap()
+                    .clone()
+            }),
+            superblock_state: self.chain_state.superblock_state.clone(),
+            ..self.previous_chain_state.clone()
+        };
+
+        storage_mngr::put(&storage_keys::chain_state_key(self.get_magic()), &state)
+            .into_actor(self)
+            .and_then(|_, _, _| {
+                log::debug!("Successfully persisted previous_chain_info into storage");
+                fut::ok(())
+            })
+            .map_err(|err, _, _| {
+                log::error!(
+                    "Failed to persist previous_chain_info into storage: {}",
+                    err
+                )
+            })
+            .wait(ctx);
     }
 
     /// Method to Send items to Inventory Manager
@@ -733,7 +735,7 @@ impl ChainManager {
             .highest_block_checkpoint
     }
 
-    /// Retrieves the latest superblock hash an index.
+    /// Retrieve the last consolidated superblock hash and index.
     fn get_superblock_beacon(&self) -> CheckpointBeacon {
         self.chain_state
             .chain_info
@@ -1090,8 +1092,8 @@ impl ChainManager {
                         );
                         // Persist current_chain_state with
                         // current_superblock_state and the new superblock beacon
-                        act.last_chain_state = act.chain_state.clone();
-                        act.persist_chain_state(ctx);
+                        act.previous_chain_state = act.chain_state.clone();
+                        act.persist_previous_chain_state(ctx);
 
                         actix::fut::ok(())
                     } else {
@@ -1172,98 +1174,91 @@ impl ChainManager {
                     .then(|x| futures::future::ok(x.ok()))
             });
 
-            join_all(aux)
-                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
-                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
-        })
-        .into_actor(self)
-        .and_then(move |block_headers, act, ctx| {
-            let last_hash = act
-                .handle(
-                    GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
-                    ctx,
-                )
-                .map(move |v| {
-                    v.first()
-                        .map(|(_epoch, hash)| *hash)
-                        .unwrap_or(genesis_hash)
-                });
-            match last_hash {
-                Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
-                Err(e) => {
-                    log::error!("Error in GetBlocksEpochRange: {}", e);
-                    actix::fut::err(())
-                }
-            }
-        })
-        .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
-        .and_then(move |(block_headers, last_hash), act, ctx| {
-            let consensus = if act.sm_state == StateMachine::Synced
-                || act.sm_state == StateMachine::AlmostSynced
-            {
-                act.chain_state.superblock_state.has_consensus()
-            } else {
-                // If the node is not synced yet, assume that the superblock is valid.
-                // This is because the node is consolidating blocks received during the synchronization
-                // process, which are assumed to be valid.
-                SuperBlockConsensus::SameAsLocal
-            };
-            match consensus {
-                SuperBlockConsensus::SameAsLocal => {
-                    // Consensus: persist chain state
-                    log::debug!(
-                        "Before update: superblock {:?}",
-                        act.get_superblock_beacon()
-                    );
-                    act.chain_state
-                        .chain_info
-                        .as_mut()
-                        .unwrap()
-                        .highest_superblock_checkpoint =
-                        act.chain_state.superblock_state.get_beacon();
-                    if act.sm_state == StateMachine::Synced {
-                        // Persist previous_chain_state with current superblock_state
-                        act.persist_chain_state(ctx);
+                join_all(aux)
+                    // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+                    .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+            })
+            .into_actor(self)
+            .and_then(move |block_headers, act, ctx| {
+                let last_hash = act
+                    .handle(
+                        GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
+                        ctx,
+                    )
+                    .map(move |v| {
+                        v.first()
+                            .map(|(_epoch, hash)| *hash)
+                            .unwrap_or(genesis_hash)
+                    });
+                match last_hash {
+                    Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
+                    Err(e) => {
+                        log::error!("Error in GetBlocksEpochRange: {}", e);
+                        actix::fut::err(())
                     }
-                    log::info!(
-                        "Consensus reached for Superblock #{:?}",
-                        act.get_superblock_beacon().checkpoint
-                    );
-                    log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
-                    log::debug!(
-                        "The last block of the consolidated superblock is {}",
-                        last_hash
-                    );
-                    let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-                    let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
+                }
+            })
+            .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
+            .and_then(move |(block_headers, last_hash), act, ctx| {
+                let consensus = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
+                    act.chain_state.superblock_state.has_consensus()
+                } else {
+                    // If the node is not synced yet, assume that the superblock is valid.
+                    // This is because the node is consolidating blocks received during the synchronization
+                    // process, which are assumed to be valid.
+                    SuperBlockConsensus::SameAsLocal
+                };
 
-                    let reputed_ars_members = {
-                        // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
-                        // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
-                        // the bootstrap committee signs is at least epoch activity_period + collateral_age
+                match consensus {
+                    SuperBlockConsensus::SameAsLocal => {
+                        // At this point we need to persist previous_chain_state,
+                        let superblock_beacon =  act.get_superblock_beacon();
+                        log::debug!("Before update: superblock {:?}", superblock_beacon);
 
-                        if block_epoch
-                            > chain_info.consensus_constants.collateral_age
-                                + chain_info.consensus_constants.activity_period
-                        {
-                            let ars_members = reputation_engine.get_rep_ordered_ars_list();
-                            let reputed = reputed_ars(&ars_members, &reputation_engine);
+                        // Take last beacon from superblock state and use it in current chain_info
+                        act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
+                            act.chain_state.superblock_state.get_beacon();
 
-                            // In case of no reputed nodes, return all active nodes
-                            if reputed.is_empty() {
-                                ars_members
-                            } else {
-                                reputed
-                            }
-                        } else {
-                            chain_info
-                                .consensus_constants
-                                .bootstrapping_committee
-                                .iter()
-                                .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                                .collect()
+                        if act.sm_state == StateMachine::Synced {
+                            // Persist previous_chain_state with current superblock_state
+                            act.persist_previous_chain_state(ctx);
                         }
-                    };
+
+                        log::info!("Consensus reached for Superblock #{:?}", superblock_beacon.checkpoint);
+                        log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                        log::debug!(
+                            "The last block of the consolidated superblock is {}",
+                            last_hash
+                        );
+
+                        let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+                        let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
+
+                        let reputed_ars_members =
+                            // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
+                            // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
+                            // the bootstrap committee signs is at least epoch activity_period + collateral_age
+                            if block_epoch
+                                > chain_info.consensus_constants.collateral_age
+                                    + chain_info.consensus_constants.activity_period
+                            {
+                                let ars_members = reputation_engine.get_rep_ordered_ars_list();
+                                let reputed = reputed_ars(&ars_members, &reputation_engine);
+
+                                // In case of no reputed nodes, return all active nodes
+                                if reputed.is_empty() {
+                                    ars_members
+                                } else {
+                                    reputed
+                                }
+                            } else {
+                                chain_info
+                                    .consensus_constants
+                                    .bootstrapping_committee
+                                    .iter()
+                                    .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                                    .collect()
+                            };
 
                     // Get the list of members of the ARS with reputation greater than 0
                     // the list itself is ordered by decreasing reputation
