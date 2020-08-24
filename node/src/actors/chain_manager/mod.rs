@@ -1234,7 +1234,14 @@ impl ChainManager {
                                     + chain_info.consensus_constants.activity_period
                             {
                                 let ars_members = reputation_engine.get_rep_ordered_ars_list();
-                                 reputed_ars(ars_members, &reputation_engine)
+                                let reputed = reputed_ars(&ars_members, &reputation_engine);
+
+                                // In case of no reputed nodes, return all active nodes
+                                if reputed.is_empty() {
+                                    ars_members
+                                } else {
+                                    reputed
+                                }
                             } else {
                                 chain_info
                                     .consensus_constants
@@ -1935,11 +1942,17 @@ fn current_committee_size_requirement(
 
 /// Get the identities of all ARS members with non-neutral reputation
 pub fn reputed_ars(
-    v: Vec<PublicKeyHash>,
+    v: &[PublicKeyHash],
     reputation_engine: &ReputationEngine,
 ) -> Vec<PublicKeyHash> {
-    v.into_iter()
-        .filter(|pkh| reputation_engine.trs().get(&pkh).0 > 0)
+    v.iter()
+        .filter_map(|pkh| {
+            if reputation_engine.trs().get(pkh).0 > 0 {
+                Some(*pkh)
+            } else {
+                None
+            }
+        })
         .collect()
 }
 
@@ -2149,7 +2162,7 @@ mod tests {
 
         // The reputed ars should be the vector of the first two members
         // (with reputation greater than 0)
-        let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
+        let rep_ars = reputed_ars(&rep_engine.get_rep_ordered_ars_list(), &rep_engine);
         assert_eq!(rep_ars.len(), 2);
         assert_eq!(rep_ars, [ids[0], ids[1]]);
     }
@@ -2190,7 +2203,7 @@ mod tests {
 
         // The size of the reputed_ars list should equal that of the ARS as all
         // the nodes in the example ARS have reputation greater than 0
-        let rep_ars = reputed_ars(rep_engine.get_rep_ordered_ars_list(), &rep_engine);
+        let rep_ars = reputed_ars(&rep_engine.get_rep_ordered_ars_list(), &rep_engine);
         assert_eq!(rep_ars.len(), 6);
         assert_eq!(rep_ars, [ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]]);
     }
