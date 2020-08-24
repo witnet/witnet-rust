@@ -284,6 +284,11 @@ impl ChainManager {
             .wait(ctx);
     }
 
+    /// Replace `previous_chain_state` with current `chain_state`
+    fn move_chain_state_forward(&mut self) {
+        self.previous_chain_state = self.chain_state.clone();
+    }
+
     /// Method to Send items to Inventory Manager
     fn persist_items(&self, ctx: &mut Context<Self>, items: Vec<StoreInventoryItem>) {
         // Get InventoryManager address
@@ -1090,9 +1095,9 @@ impl ChainManager {
                             "Consensus while sync! Superblock {:?}",
                             act.get_superblock_beacon()
                         );
-                        // Persist current_chain_state with
-                        // current_superblock_state and the new superblock beacon
-                        act.previous_chain_state = act.chain_state.clone();
+
+                        // Copy current chain state into previous chain state, and persist it
+                        act.move_chain_state_forward();
                         act.persist_previous_chain_state(ctx);
 
                         actix::fut::ok(())
@@ -1222,6 +1227,7 @@ impl ChainManager {
                         if act.sm_state == StateMachine::Synced {
                             // Persist previous_chain_state with current superblock_state
                             act.persist_previous_chain_state(ctx);
+                            act.move_chain_state_forward();
                         }
 
                         log::info!("Consensus reached for Superblock #{:?}", superblock_beacon.checkpoint);

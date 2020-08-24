@@ -242,8 +242,8 @@ impl ChainManager {
                     },
                 });
 
-                // Persist current chain state
-                act.previous_chain_state = act.chain_state.clone();
+                // Copy current chain state into previous chain state, and persist it
+                act.move_chain_state_forward();
                 act.persist_previous_chain_state(ctx);
             }).wait(ctx);
     }
