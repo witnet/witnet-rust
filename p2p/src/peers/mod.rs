@@ -34,7 +34,8 @@ pub struct Peers {
     pub ice_bucket: HashMap<SocketAddr, i64>,
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
-    #[serde(skip_serializing)]
+    #[serde(skip)]
+    #[serde(default = "safe_ice_period_default")]
     pub ice_period: Duration,
     /// Bucket for new addresses
     pub new_bucket: HashMap<u16, PeerInfo>,
@@ -51,7 +52,7 @@ impl Default for Peers {
         Peers {
             bootstrapped: false,
             ice_bucket: Default::default(),
-            ice_period: Default::default(),
+            ice_period: safe_ice_period_default(),
             new_bucket: Default::default(),
             server_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
             sk: thread_rng().gen(),
@@ -455,6 +456,11 @@ impl fmt::Display for Peers {
         }
         writeln!(f)
     }
+}
+
+/// Generate a safe default for the `Peers::ice_period` field
+fn safe_ice_period_default() -> Duration {
+    Duration::from_secs(60)
 }
 
 /// Returns the ip and ip split
