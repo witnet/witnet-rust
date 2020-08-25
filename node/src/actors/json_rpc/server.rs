@@ -17,7 +17,7 @@ use super::{
     SubscriptionResult, Subscriptions,
 };
 use crate::{
-    actors::messages::{InboundTcpConnect, NewBlock},
+    actors::messages::{ConsolidatedBlocks, InboundTcpConnect, NewBlock},
     config_mngr,
 };
 use jsonrpc_pubsub::{PubSubHandler, Session};
@@ -196,6 +196,48 @@ impl Handler<NewBlock> for JsonRpcServer {
             }
         } else {
             log::error!("Failed to acquire lock in NewBlock handle");
+        }
+    }
+}
+
+impl Handler<ConsolidatedBlocks> for JsonRpcServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: ConsolidatedBlocks, ctx: &mut Self::Context) -> Self::Result {
+        log::debug!("Got ConsolidatedBlocks message, sending notifications...");
+        log::trace!(
+            "Notifying consolidation of {} blocks: {:?}",
+            msg.hashes.len(),
+            msg.hashes
+        );
+
+        let hashes = serde_json::to_value(msg.hashes)
+            .expect("JSON serialization of ConsolidatedBlocks should never fail");
+        if let Ok(subscriptions) = self.subscriptions.lock() {
+            if let Some(consolidated_blocks_subscriptions) = subscriptions.get("consolidatedBlocks")
+            {
+                for (subscription, (sink, _params)) in consolidated_blocks_subscriptions {
+                    log::debug!(
+                        "Sending ConsolidatedBlocks notification through sink {:?}",
+                        sink
+                    );
+                    let params = jsonrpc_core::Params::from(SubscriptionResult {
+                        result: hashes.clone(),
+                        subscription: subscription.clone(),
+                    });
+                    ctx.spawn(sink.notify(params).into_actor(self).then(move |res, _, _| {
+                        if let Err(e) = res {
+                            log::error!("Failed to send notification: {:?}", e);
+                        }
+
+                        actix::fut::ok(())
+                    }));
+                }
+            } else {
+                log::warn!("Failed to find a subscription for ConsolidatedBlocks notifications");
+            }
+        } else {
+            log::error!("Failed to acquire lock in ConsolidatedBlocks handle");
         }
     }
 }
