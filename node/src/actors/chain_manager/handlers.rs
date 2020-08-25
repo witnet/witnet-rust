@@ -84,8 +84,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
 
-        let superblock_period = u32::from(self.consensus_constants().superblock_period);
-
         log::debug!(
             "EpochNotification received while StateMachine is in state {:?}",
             self.sm_state
@@ -183,12 +181,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             command: SendLastBeacon { last_beacon },
                             only_inbound: true,
                         });
-
-                        // Create and broadcast a superblock in case of superblock period.
-                        // Everyone creates superblocks, but only ARS members sign and broadcast them
-                        if current_epoch % superblock_period == 0 {
-                            self.create_and_broadcast_superblock(ctx, current_epoch);
-                        }
 
                         // TODO: Review time since commits are clear and new ones are received before to mining
                         // Remove commits because they expire every epoch
@@ -1058,6 +1050,16 @@ impl Handler<PeersBeacons> for ChainManager {
                     log::warn!("Timeout for waiting for blocks achieved. Requesting blocks again.");
                     self.request_blocks_batch(ctx);
                 }
+            }
+        } else if self.sm_state == StateMachine::AlmostSynced
+            || self.sm_state == StateMachine::Synced
+        {
+            // Create and broadcast a superblock in case of superblock period.
+            // Everyone creates superblocks, but only ARS members sign and broadcast them
+            let superblock_period = u32::from(self.consensus_constants().superblock_period);
+            let current_epoch = self.current_epoch.unwrap();
+            if current_epoch % superblock_period == 0 {
+                self.create_and_broadcast_superblock(ctx, current_epoch);
             }
         }
 
