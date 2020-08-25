@@ -65,6 +65,7 @@ use witnet_validations::validations::{
 
 use crate::{
     actors::{
+        chain_manager::handlers::SYNCED_BANNER,
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
@@ -1143,170 +1144,183 @@ impl ChainManager {
             GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
             ctx,
         ))
-            .and_then(move |res| match res {
-                Ok(v) => {
-                    let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
-                    futures::future::ok(block_hashes)
-                }
+        .and_then(move |res| match res {
+            Ok(v) => {
+                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
+                futures::future::ok(block_hashes)
+            }
+            Err(e) => {
+                log::error!("Error in GetBlocksEpochRange: {}", e);
+                futures::future::err(())
+            }
+        })
+        .and_then(move |block_hashes| {
+            let aux = block_hashes.into_iter().map(move |hash| {
+                inventory_manager
+                    .send(GetItemBlock { hash })
+                    .then(move |res| match res {
+                        Ok(Ok(block)) => futures::future::ok(block.block_header),
+                        Ok(Err(e)) => {
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            futures::future::err(())
+                        }
+                        Err(e) => {
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            futures::future::err(())
+                        }
+                    })
+                    .then(|x| futures::future::ok(x.ok()))
+            });
+
+            join_all(aux)
+                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+        })
+        .into_actor(self)
+        .and_then(move |block_headers, act, ctx| {
+            let last_hash = act
+                .handle(
+                    GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
+                    ctx,
+                )
+                .map(move |v| {
+                    v.first()
+                        .map(|(_epoch, hash)| *hash)
+                        .unwrap_or(genesis_hash)
+                });
+            match last_hash {
+                Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
                 Err(e) => {
                     log::error!("Error in GetBlocksEpochRange: {}", e);
-                    futures::future::err(())
+                    actix::fut::err(())
                 }
-            })
-            .and_then(move |block_hashes| {
-                let aux = block_hashes.into_iter().map(move |hash| {
-                    inventory_manager
-                        .send(GetItemBlock { hash })
-                        .then(move |res| match res {
-                            Ok(Ok(block)) => futures::future::ok(block.block_header),
-                            Ok(Err(e)) => {
-                                log::error!("Error in GetItemBlock {}: {}", hash, e);
-                                futures::future::err(())
-                            }
-                            Err(e) => {
-                                log::error!("Error in GetItemBlock {}: {}", hash, e);
-                                futures::future::err(())
-                            }
-                        })
-                        .then(|x| futures::future::ok(x.ok()))
-                });
-
-                join_all(aux)
-                    // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
-                    .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
-            })
-            .into_actor(self)
-            .and_then(move |block_headers, act, ctx| {
-                let last_hash = act
-                    .handle(
-                        GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
-                        ctx,
-                    )
-                    .map(move |v| {
-                        v.first()
-                            .map(|(_epoch, hash)| *hash)
-                            .unwrap_or(genesis_hash)
-                    });
-                match last_hash {
-                    Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
-                    Err(e) => {
-                        log::error!("Error in GetBlocksEpochRange: {}", e);
-                        actix::fut::err(())
+            }
+        })
+        .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
+        .and_then(move |(block_headers, last_hash), act, ctx| {
+            let consensus = if act.sm_state == StateMachine::Synced
+                || act.sm_state == StateMachine::AlmostSynced
+            {
+                act.chain_state.superblock_state.has_consensus()
+            } else {
+                // If the node is not synced yet, assume that the superblock is valid.
+                // This is because the node is consolidating blocks received during the synchronization
+                // process, which are assumed to be valid.
+                SuperBlockConsensus::SameAsLocal
+            };
+            match consensus {
+                SuperBlockConsensus::SameAsLocal => {
+                    // Consensus: persist chain state
+                    log::debug!(
+                        "Before update: superblock {:?}",
+                        act.get_superblock_beacon()
+                    );
+                    act.chain_state
+                        .chain_info
+                        .as_mut()
+                        .unwrap()
+                        .highest_superblock_checkpoint =
+                        act.chain_state.superblock_state.get_beacon();
+                    if act.sm_state == StateMachine::Synced {
+                        // Persist previous_chain_state with current superblock_state
+                        act.persist_chain_state(ctx);
                     }
-                }
-            })
-            .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
-            .and_then(move |(block_headers, last_hash), act, ctx| {
-                let consensus = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
-                    act.chain_state.superblock_state.has_consensus()
-                } else {
-                    // If the node is not synced yet, assume that the superblock is valid.
-                    // This is because the node is consolidating blocks received during the synchronization
-                    // process, which are assumed to be valid.
-                    SuperBlockConsensus::SameAsLocal
-                };
-                match consensus {
-                    SuperBlockConsensus::SameAsLocal => {
-                        // Consensus: persist chain state
-                        log::debug!("Before update: superblock {:?}", act.get_superblock_beacon());
-                        act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
-                            act.chain_state.superblock_state.get_beacon();
-                        if act.sm_state == StateMachine::Synced {
-                            // Persist previous_chain_state with current superblock_state
-                            act.persist_chain_state(ctx);
-                        }
-                        log::info!("Consensus reached for Superblock #{:?}", act.get_superblock_beacon().checkpoint);
-                        log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
-                        log::debug!(
+                    log::info!(
+                        "Consensus reached for Superblock #{:?}",
+                        act.get_superblock_beacon().checkpoint
+                    );
+                    log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                    log::debug!(
                         "The last block of the consolidated superblock is {}",
                         last_hash
                     );
-                        let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-                        let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
+                    let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+                    let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
 
-                        let reputed_ars_members = {
-                            // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
-                            // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
-                            // the bootstrap committee signs is at least epoch activity_period + collateral_age
+                    let reputed_ars_members = {
+                        // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
+                        // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
+                        // the bootstrap committee signs is at least epoch activity_period + collateral_age
 
-                            if block_epoch
-                                > chain_info.consensus_constants.collateral_age
-                                    + chain_info.consensus_constants.activity_period
-                            {
-                                let ars_members = reputation_engine.get_rep_ordered_ars_list();
-                                let reputed = reputed_ars(&ars_members, &reputation_engine);
+                        if block_epoch
+                            > chain_info.consensus_constants.collateral_age
+                                + chain_info.consensus_constants.activity_period
+                        {
+                            let ars_members = reputation_engine.get_rep_ordered_ars_list();
+                            let reputed = reputed_ars(&ars_members, &reputation_engine);
 
-                                // In case of no reputed nodes, return all active nodes
-                                if reputed.is_empty() {
-                                    ars_members
-                                } else {
-                                    reputed
-                                }
+                            // In case of no reputed nodes, return all active nodes
+                            if reputed.is_empty() {
+                                ars_members
                             } else {
-                                chain_info
-                                    .consensus_constants
-                                    .bootstrapping_committee
-                                    .iter()
-                                    .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                                    .collect()
+                                reputed
                             }
-                        };
+                        } else {
+                            chain_info
+                                .consensus_constants
+                                .bootstrapping_committee
+                                .iter()
+                                .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                                .collect()
+                        }
+                    };
 
-                        // Get the list of members of the ARS with reputation greater than 0
-                        // the list itself is ordered by decreasing reputation
-                        let reputed_ars = ARSIdentities::new(reputed_ars_members);
+                    // Get the list of members of the ARS with reputation greater than 0
+                    // the list itself is ordered by decreasing reputation
+                    let reputed_ars = ARSIdentities::new(reputed_ars_members);
 
-                        // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
-                        let committee_size = current_committee_size_requirement(
-                            consensus_constants
-                                .superblock_signing_committee_size,
-                            act.chain_state.superblock_state.get_committee_length(),
-                            consensus_constants.superblock_committee_decreasing_period,
-                            consensus_constants.superblock_committee_decreasing_step,
-                            chain_info.highest_superblock_checkpoint.checkpoint,
-                                superblock_index
-                        );
-                        log::debug!("The current signing committee size is {}", committee_size);
+                    // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
+                    let committee_size = current_committee_size_requirement(
+                        consensus_constants.superblock_signing_committee_size,
+                        act.chain_state.superblock_state.get_committee_length(),
+                        consensus_constants.superblock_committee_decreasing_period,
+                        consensus_constants.superblock_committee_decreasing_step,
+                        chain_info.highest_superblock_checkpoint.checkpoint,
+                        superblock_index,
+                    );
+                    log::debug!("The current signing committee size is {}", committee_size);
 
+                    let superblock = act.chain_state.superblock_state.build_superblock(
+                        &block_headers,
+                        reputed_ars,
+                        committee_size,
+                        superblock_index,
+                        last_hash,
+                        &act.chain_state.alt_keys,
+                    );
 
-                        let superblock = act.chain_state.superblock_state.build_superblock(
-                            &block_headers,
-                            reputed_ars,
-                            committee_size,
-                            superblock_index,
-                            last_hash,
-                            &act.chain_state.alt_keys,
-                        );
-
-                        actix::fut::ok(superblock)
-                    }
-                    SuperBlockConsensus::Different(target_superblock_hash) => {
-                        // No consensus: move to waiting consensus and restore chain_state from storage
-                        // TODO: it could be possible to synchronize with a target superblock hash
-                        log::warn!("Superblock consensus {} different from current superblock", target_superblock_hash);
-                        act.initialize_from_storage(ctx);
-                        act.update_state_machine(StateMachine::WaitingConsensus);
-
-                        actix::fut::err(())
-                    }
-                    SuperBlockConsensus::NoConsensus => {
-                        // No consensus: move to AlmostSynced and restore chain_state from storage
-                        log::warn!("No superblock consensus");
-                        act.initialize_from_storage(ctx);
-                        act.update_state_machine(StateMachine::AlmostSynced);
-
-                        actix::fut::err(())
-                    }
-                    SuperBlockConsensus::Unknown => {
-                        // Consensus unknown: move to waiting consensus and restore chain_state from storage
-                        log::warn!("Superblock consensus unknown");
-                        act.initialize_from_storage(ctx);
-                        act.update_state_machine(StateMachine::WaitingConsensus);
-
-                        actix::fut::err(())
-                    }
+                    actix::fut::ok(superblock)
                 }
-            });
+                SuperBlockConsensus::Different(target_superblock_hash) => {
+                    // No consensus: move to waiting consensus and restore chain_state from storage
+                    // TODO: it could be possible to synchronize with a target superblock hash
+                    log::warn!(
+                        "Superblock consensus {} different from current superblock",
+                        target_superblock_hash
+                    );
+                    act.initialize_from_storage(ctx);
+                    act.update_state_machine(StateMachine::WaitingConsensus);
+
+                    actix::fut::err(())
+                }
+                SuperBlockConsensus::NoConsensus => {
+                    // No consensus: move to AlmostSynced and restore chain_state from storage
+                    log::warn!("No superblock consensus");
+                    act.initialize_from_storage(ctx);
+                    act.update_state_machine(StateMachine::AlmostSynced);
+
+                    actix::fut::err(())
+                }
+                SuperBlockConsensus::Unknown => {
+                    // Consensus unknown: move to waiting consensus and restore chain_state from storage
+                    log::warn!("Superblock consensus unknown");
+                    act.initialize_from_storage(ctx);
+                    act.update_state_machine(StateMachine::WaitingConsensus);
+
+                    actix::fut::err(())
+                }
+            }
+        });
 
         Box::new(fut)
     }
@@ -1360,13 +1374,23 @@ impl ChainManager {
     ///
     /// This is expected to be the only means for updating the state machine, so debugging is easier
     /// and to ensure that every transition gets logged in a predictable format.
-    fn update_state_machine(&mut self, new_state: StateMachine) {
-        log::debug!(
-            "Transitioning state machine from {:?} into {:?}",
-            self.sm_state,
-            new_state
-        );
-        self.sm_state = new_state
+    fn update_state_machine(&mut self, next_state: StateMachine) {
+        match (&self.sm_state, &next_state) {
+            (old, new) if old == new => log::debug!("State machine staying in state {:?}", old),
+            (_, StateMachine::Synced) => log::debug!(
+                "State machine is transitioning from {:?} into {:?}\n{}",
+                self.sm_state,
+                next_state,
+                SYNCED_BANNER
+            ),
+            _ => log::debug!(
+                "State machine is transitioning from {:?} into {:?}",
+                self.sm_state,
+                next_state
+            ),
+        }
+
+        self.sm_state = next_state
     }
 
     fn request_blocks_batch(&mut self, ctx: &mut Context<Self>) {

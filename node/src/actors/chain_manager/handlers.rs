@@ -1000,7 +1000,6 @@ impl Handler<PeersBeacons> for ChainManager {
                         if self.sm_state == StateMachine::AlmostSynced {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
-                            log::info!("{}", SYNCED_BANNER);
                             self.update_state_machine(StateMachine::Synced);
                             self.add_temp_superblock_votes(ctx).unwrap();
                         }
