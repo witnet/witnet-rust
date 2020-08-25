@@ -111,10 +111,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
         if let Some(last_checked_epoch) = last_checked_epoch {
             if msg.checkpoint - last_checked_epoch != 1 {
-                log::warn!(
-                    "Missed epoch notification {}. Moving to WaitingConsensus state",
-                    last_checked_epoch + 1
-                );
+                log::warn!("Missed epoch notification {}.", last_checked_epoch + 1);
                 self.update_state_machine(StateMachine::WaitingConsensus);
             }
         }
@@ -469,7 +466,7 @@ impl Handler<AddBlocks> for ChainManager {
                                         act.chain_state.data_request_pool.finished_data_requests();
                                     act.persist_data_requests(ctx, to_be_stored);
 
-                                    log::info!("Block sync target achieved, go to WaitingConsensus state");
+                                    log::info!("Block sync target achieved");
                                     // Target achieved, go back to state 1
                                     act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -487,7 +484,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
-                                    log::error!("Received invalid blocks batch... reverting to WaitingConsensus");
+                                    log::error!("Received invalid blocks batch...");
                                     act.update_state_machine(StateMachine::WaitingConsensus);
                                     act.sync_waiting_for_add_blocks_since = None;
 
@@ -495,7 +492,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 }
                                 log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
 
-                                log::info!("Block sync target achieved, go to WaitingConsensus state");
+                                log::info!("Block sync target achieved");
                                 // Target achieved, go back to state 1
                                 act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -1003,7 +1000,6 @@ impl Handler<PeersBeacons> for ChainManager {
                         if self.sm_state == StateMachine::AlmostSynced {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
-                            log::debug!("Moving from AlmostSynced to Synced state");
                             log::info!("{}", SYNCED_BANNER);
                             self.update_state_machine(StateMachine::Synced);
                             self.add_temp_superblock_votes(ctx).unwrap();

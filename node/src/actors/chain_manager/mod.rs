@@ -1283,7 +1283,7 @@ impl ChainManager {
                     SuperBlockConsensus::Different(target_superblock_hash) => {
                         // No consensus: move to waiting consensus and restore chain_state from storage
                         // TODO: it could be possible to synchronize with a target superblock hash
-                        log::warn!("Superblock consensus {} different from current superblock. Moving to WaitingConsensus state", target_superblock_hash);
+                        log::warn!("Superblock consensus {} different from current superblock", target_superblock_hash);
                         act.initialize_from_storage(ctx);
                         act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -1291,7 +1291,7 @@ impl ChainManager {
                     }
                     SuperBlockConsensus::NoConsensus => {
                         // No consensus: move to AlmostSynced and restore chain_state from storage
-                        log::warn!("No superblock consensus. Moving to AlmostSynced state");
+                        log::warn!("No superblock consensus");
                         act.initialize_from_storage(ctx);
                         act.update_state_machine(StateMachine::AlmostSynced);
 
@@ -1299,7 +1299,7 @@ impl ChainManager {
                     }
                     SuperBlockConsensus::Unknown => {
                         // Consensus unknown: move to waiting consensus and restore chain_state from storage
-                        log::warn!("Superblock consensus unknown. Moving to WaitingConsensus state");
+                        log::warn!("Superblock consensus unknown");
                         act.initialize_from_storage(ctx);
                         act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -1388,7 +1388,6 @@ impl ChainManager {
                     // On error case go back to WaitingConsensus state
                     log::warn!("Failed to send LastBeacon to random peer");
                     if act.sm_state == StateMachine::Synchronizing {
-                        log::debug!("Moving to WaitingConsensus state");
                         act.update_state_machine(StateMachine::WaitingConsensus);
                         act.sync_waiting_for_add_blocks_since = None;
                     }
