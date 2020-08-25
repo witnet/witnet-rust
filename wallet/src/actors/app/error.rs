@@ -18,6 +18,8 @@ pub enum Error {
     NodeNotConnected,
     #[fail(display = "session not found")]
     SessionNotFound,
+    #[fail(display = "session(s) are still open")]
+    SessionsStillOpen,
     #[fail(display = "wallet not found")]
     WalletNotFound,
 }
@@ -49,6 +51,7 @@ impl Error {
                     Some(json!({ "cause": format!("{}", e) })),
                 )
             }
+            Error::SessionsStillOpen => (401, "Unauthorized", None),
         }
     }
 }

@@ -601,13 +601,18 @@ impl App {
         Box::new(f)
     }
 
-    /// Shutdown system if session id is valid
+    /// Shutdown system if session id is valid or there are no open sessions
     pub fn shutdown_request(
         &mut self,
-        session_id: &types::SessionId,
+        session_id: Option<types::SessionId>,
         ctx: &mut <Self as Actor>::Context,
     ) -> Result<()> {
-        self.state.get_wallets_by_session(&session_id)?;
+        // Check if valid id or no open session(s)
+        if let Some(session_id) = session_id {
+            self.state.get_wallets_by_session(&session_id)?;
+        } else if !self.state.sessions.is_empty() {
+            return Err(app::Error::SessionsStillOpen);
+        }
         self.stop(ctx);
 
         Ok(())
