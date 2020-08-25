@@ -69,8 +69,9 @@ use crate::{
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
-            AddItems, AddTransaction, Anycast, Broadcast, GetBlocksEpochRange, GetItemBlock,
-            NewBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
+            AddItems, AddTransaction, Anycast, Broadcast, ConsolidatedBlocks, GetBlocksEpochRange,
+            GetItemBlock, NewBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote,
+            StoreInventoryItem,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -1229,6 +1230,10 @@ impl ChainManager {
                         act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
                             act.chain_state.superblock_state.get_beacon();
 
+                        // Let JSON-RPC clients know that the blocks in the previous superblock can now
+                        // be considered consolidated
+                        act.notify_previous_superblock_consolidation(ctx);
+
                         if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                             // Persist previous_chain_state with current superblock_state
                             act.persist_chain_state(voted_superblock_beacon.checkpoint, ctx);
@@ -1486,6 +1491,30 @@ impl ChainManager {
             None
         } else {
             Some(sync_target.superblock.checkpoint * superblock_period)
+        }
+    }
+
+    /// Let JSON-RPC clients know that the blocks in the previous superblock can now
+    /// be considered consolidated
+    fn notify_previous_superblock_consolidation(&mut self, ctx: &mut Context<ChainManager>) {
+        let superblock_period = u32::from(self.consensus_constants().superblock_period);
+        let final_epoch = self
+            .chain_state_snapshot
+            .highest_persisted_superblock
+            .checked_mul(superblock_period)
+            .expect("Multiplying a superblock ID by `superblock_period` should never overflow");
+        let initial_epoch = final_epoch.saturating_sub(superblock_period);
+        let beacons = self.handle(
+            GetBlocksEpochRange::new_with_limit(initial_epoch..final_epoch, 0),
+            ctx,
+        );
+
+        if let Ok(beacons) = beacons {
+            if !beacons.is_empty() {
+                let hashes: Vec<Hash> =
+                    beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
+                JsonRpcServer::from_registry().do_send(ConsolidatedBlocks { hashes })
+            }
         }
     }
 }

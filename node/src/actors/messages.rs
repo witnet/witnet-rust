@@ -896,3 +896,13 @@ pub struct NewBlock {
     /// Block
     pub block: Block,
 }
+
+/// Notification signaling that a block has been consolidated.
+///
+/// As per current consensus algorithm, "consolidated" implies that there exists at least one
+/// superblock in the chain that builds upon the superblock where this block was anchored.
+#[derive(Message)]
+pub struct ConsolidatedBlocks {
+    /// The hashes of the blocks that we are signaling as consolidated.
+    pub hashes: Vec<Hash>,
+}
