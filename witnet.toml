@@ -95,8 +95,6 @@ genesis_path = ".witnet/config/genesis_block.json"
 [log]
 # Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"
 level = "info"
-# Automated bug reporting (helps the community improve the software)
-sentry_telemetry = true
 
 [wallet]
 # Tell the wallet component whether it is running on a testnet environment.
