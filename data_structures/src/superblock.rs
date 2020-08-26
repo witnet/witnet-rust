@@ -148,8 +148,30 @@ impl SuperBlockVotesMempool {
         self.received_votes.clone()
     }
 
+    #[cfg(test)]
     fn get_valid_votes(&self) -> HashMap<Hash, Vec<SuperBlockVote>> {
         self.votes_on_each_superblock.clone()
+    }
+
+    fn get_valid_votes_pretty(&self) -> String {
+        let mut s: String = self
+            .votes_on_each_superblock
+            .iter()
+            .map(|(superblock_hash, votes)| {
+                let pkhs: Vec<String> = votes
+                    .iter()
+                    .map(|vote| vote.secp256k1_signature.public_key.pkh())
+                    .map(|pkh| pkh.to_string())
+                    .collect();
+
+                format!("  {}: {} votes: {:?}\n", superblock_hash, pkhs.len(), pkhs)
+            })
+            .collect();
+
+        // Remove trailing "\n" if `s` is not empty
+        s.pop();
+
+        s
     }
 
     fn clear_and_remove_votes(&mut self) -> Vec<SuperBlockVote> {
@@ -295,17 +317,24 @@ impl SuperBlockState {
 
     /// Return true if the local superblock has the majority of votes
     pub fn has_consensus(&self) -> SuperBlockConsensus {
-        log::debug!(
-            "Superblock votes: {:?}",
-            self.votes_mempool.get_valid_votes()
-        );
-        log::debug!("Signing committee: {:?}", self.signing_committee);
         // If signing_committee is empty, this is the first superblock. The first superblock
         // is the one with index 0 and genesis hash. These are consensus constants and we do not
         // need any votes to determine that that is the most voted superblock.
         if self.signing_committee.is_empty() {
+            log::debug!("Superblock {:?} is assumed to be in consensus because the signing committee is empty", self.current_superblock_beacon);
             return SuperBlockConsensus::SameAsLocal;
         }
+
+        log::debug!(
+            "Superblock votes ({} in total):\n{}",
+            self.votes_mempool.valid_votes_counter(),
+            self.votes_mempool.get_valid_votes_pretty()
+        );
+        log::debug!(
+            "Signing committee of size {}: {:?}",
+            self.signing_committee.len(),
+            self.signing_committee_pretty()
+        );
         let signing_committee_length = self.signing_committee.len();
         let (most_voted_superblock, most_voted_num_votes) =
             match self.votes_mempool.most_voted_superblock() {
@@ -416,6 +445,13 @@ impl SuperBlockState {
     /// Check if we had already received this superblock vote
     pub fn contains(&self, sbv: &SuperBlockVote) -> bool {
         self.votes_mempool.contains(sbv)
+    }
+
+    pub fn signing_committee_pretty(&self) -> Vec<String> {
+        self.signing_committee
+            .iter()
+            .map(|pkh| pkh.to_string())
+            .collect()
     }
 }
 
