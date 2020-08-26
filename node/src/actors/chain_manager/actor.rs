@@ -234,6 +234,12 @@ impl ChainManager {
                 act.best_candidate = None;
                 act.candidates.clear();
                 act.seen_candidates.clear();
+                // Delete any saved copies of the old chain state to avoid accidentally persisting
+                // a forked state
+                act.chain_state_snapshot.clear();
+                // When initializing for the first time, we need to set the
+                // highest_persisted_superblock to the top consolidated superblock
+                act.chain_state_snapshot.highest_persisted_superblock = act.get_superblock_beacon().checkpoint;
 
                 SessionsManager::from_registry().do_send(SetLastBeacon {
                     beacon: LastBeacon {
@@ -242,9 +248,6 @@ impl ChainManager {
                     },
                 });
 
-                // Copy current chain state into previous chain state, and persist it
-                act.move_chain_state_forward();
-                act.persist_previous_chain_state(ctx);
             }).wait(ctx);
     }
 

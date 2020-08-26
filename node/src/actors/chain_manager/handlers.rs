@@ -465,9 +465,9 @@ impl Handler<AddBlocks> for ChainManager {
                                 }
                             })
                             .and_then(move |candidate_superblock_epoch, act, ctx| {
-                                act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch)
+                                act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch).map(move |_, _, _| candidate_superblock_epoch)
                             })
-                            .and_then(move |_, act, ctx| {
+                            .and_then(move |candidate_superblock_epoch, act, ctx| {
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
@@ -478,6 +478,10 @@ impl Handler<AddBlocks> for ChainManager {
                                     return actix::fut::err(());
                                 }
                                 log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
+
+                                let superblock_index = candidate_superblock_epoch / superblock_period;
+                                // Copy current chain state into previous chain state, but do not persist it yet
+                                act.move_chain_state_forward(superblock_index);
 
                                 log::info!("Block sync target achieved");
                                 // Target achieved, go back to state 1
@@ -492,10 +496,11 @@ impl Handler<AddBlocks> for ChainManager {
                         consolidated_superblock_index,
                         current_superblock_index,
                     }) => {
-                        log::warn!("Received unexpected blocks for superblock index {} (consolidated: {}, current {}). Delaying synchronization until next epoch.",
-                            wrong_index,
+                        log::warn!("Received unexpected block {} for superblock index (consolidated: {}, current {}). Delaying synchronization until next epoch.",
                             consolidated_superblock_index,
-                            current_superblock_index
+                            current_superblock_index,
+                            wrong_index,
+
                         );
                         self.update_state_machine(StateMachine::WaitingConsensus);
                         self.sync_waiting_for_add_blocks_since = None;

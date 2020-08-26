@@ -169,8 +169,8 @@ pub struct SyncTarget {
 pub struct ChainManager {
     /// Blockchain state data structure
     chain_state: ChainState,
-    /// Backup for ChainState
-    previous_chain_state: ChainState,
+    /// ChainState backup used to reset the state after a reorganization
+    chain_state_snapshot: ChainStateSnapshot,
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
@@ -245,12 +245,12 @@ impl SystemService for ChainManager {}
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
     /// Persist previous chain state into storage
-    fn persist_previous_chain_state(&mut self, ctx: &mut Context<Self>) {
-        // It makes no sense to persist empty chain states
-        if self.previous_chain_state.chain_info.is_none() {
-            log::error!("Trying to persist an empty previous_chain_state value");
+    fn persist_chain_state(&mut self, superblock_index: u32, ctx: &mut Context<Self>) {
+        let previous_chain_state = self.chain_state_snapshot.restore(superblock_index);
+        if previous_chain_state.is_none() {
             return;
         }
+        let previous_chain_state = previous_chain_state.unwrap();
 
         // When updating the chain state, we need to update the highest superblock checkpoint.
         // This is the highest superblock that obtained a majority of votes and we do not want to
@@ -258,16 +258,23 @@ impl ChainManager {
         let state = ChainState {
             chain_info: Some(ChainInfo {
                 highest_superblock_checkpoint: self.get_superblock_beacon(),
-                ..self
-                    .previous_chain_state
-                    .chain_info
-                    .as_ref()
-                    .unwrap()
-                    .clone()
+                ..previous_chain_state.chain_info.as_ref().unwrap().clone()
             }),
             superblock_state: self.chain_state.superblock_state.clone(),
-            ..self.previous_chain_state.clone()
+            ..previous_chain_state
         };
+
+        let chain_beacon = state.get_chain_beacon();
+        let superblock_beacon = state.get_superblock_beacon();
+
+        log::debug!(
+            "Persisting chain state for superblock #{} with chain beacon {:?} and super beacon {:?}",
+            superblock_index,
+            chain_beacon,
+            superblock_beacon
+        );
+
+        assert_eq!(superblock_beacon.checkpoint, superblock_index);
 
         storage_mngr::put(&storage_keys::chain_state_key(self.get_magic()), &state)
             .into_actor(self)
@@ -285,8 +292,9 @@ impl ChainManager {
     }
 
     /// Replace `previous_chain_state` with current `chain_state`
-    fn move_chain_state_forward(&mut self) {
-        self.previous_chain_state = self.chain_state.clone();
+    fn move_chain_state_forward(&mut self, superblock_index: u32) {
+        self.chain_state_snapshot
+            .take(superblock_index, &self.chain_state);
     }
 
     /// Method to Send items to Inventory Manager
@@ -733,29 +741,16 @@ impl ChainManager {
     }
 
     fn get_chain_beacon(&self) -> CheckpointBeacon {
-        self.chain_state
-            .chain_info
-            .as_ref()
-            .expect("ChainInfo is None")
-            .highest_block_checkpoint
+        self.chain_state.get_chain_beacon()
     }
 
     /// Retrieve the last consolidated superblock hash and index.
     fn get_superblock_beacon(&self) -> CheckpointBeacon {
-        self.chain_state
-            .chain_info
-            .as_ref()
-            .expect("ChainInfo is None")
-            .highest_superblock_checkpoint
+        self.chain_state.get_superblock_beacon()
     }
 
     fn consensus_constants(&self) -> ConsensusConstants {
-        self.chain_state
-            .chain_info
-            .as_ref()
-            .expect("ChainInfo is None")
-            .consensus_constants
-            .clone()
+        self.chain_state.get_consensus_constants()
     }
 
     fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) -> Result<(), failure::Error> {
@@ -1097,8 +1092,8 @@ impl ChainManager {
                         );
 
                         // Copy current chain state into previous chain state, and persist it
-                        act.move_chain_state_forward();
-                        act.persist_previous_chain_state(ctx);
+                        act.move_chain_state_forward(sync_target.superblock.checkpoint);
+                        act.persist_chain_state(sync_target.superblock.checkpoint, ctx);
 
                         actix::fut::ok(())
                     } else {
@@ -1141,6 +1136,10 @@ impl ChainManager {
                 block_epoch
             );
         }
+        // This is the superblock for which we will be counting votes, and if there is consensus,
+        // it will be the new consolidated superblock
+        let voted_superblock_beacon = self.chain_state.superblock_state.get_beacon();
+
         let inventory_manager = InventoryManager::from_registry();
 
         let init_epoch = block_epoch - superblock_period;
@@ -1206,8 +1205,16 @@ impl ChainManager {
             .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
             .and_then(move |(block_headers, last_hash), act, ctx| {
                 let consensus = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
+                    if voted_superblock_beacon.checkpoint + 1 != superblock_index {
+                        // Warn when there is are missing superblocks between the one that will be
+                        // consolidated and the one that will be created
+                        log::warn!("Counting votes for Superblock {:?} when the current superblock index is {}", voted_superblock_beacon, superblock_index);
+                    }
+
                     act.chain_state.superblock_state.has_consensus()
                 } else {
+                    log::debug!("The node is not synced yet, so assume that superblock {:?} is valid", voted_superblock_beacon);
+
                     // If the node is not synced yet, assume that the superblock is valid.
                     // This is because the node is consolidating blocks received during the synchronization
                     // process, which are assumed to be valid.
@@ -1217,20 +1224,17 @@ impl ChainManager {
                 match consensus {
                     SuperBlockConsensus::SameAsLocal => {
                         // At this point we need to persist previous_chain_state,
-                        let superblock_beacon =  act.get_superblock_beacon();
-                        log::debug!("Before update: superblock {:?}", superblock_beacon);
-
                         // Take last beacon from superblock state and use it in current chain_info
                         act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
                             act.chain_state.superblock_state.get_beacon();
 
-                        if act.sm_state == StateMachine::Synced {
+                        if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                             // Persist previous_chain_state with current superblock_state
-                            act.persist_previous_chain_state(ctx);
-                            act.move_chain_state_forward();
+                            act.persist_chain_state(voted_superblock_beacon.checkpoint, ctx);
+                            act.move_chain_state_forward(superblock_index);
                         }
 
-                        log::info!("Consensus reached for Superblock #{:?}", superblock_beacon.checkpoint);
+                        log::info!("Consensus reached for Superblock #{}", voted_superblock_beacon.checkpoint);
                         log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
                         log::debug!(
                             "The last block of the consolidated superblock is {}",
@@ -1482,6 +1486,127 @@ impl ChainManager {
         } else {
             Some(sync_target.superblock.checkpoint * superblock_period)
         }
+    }
+}
+
+/// Helper struct used to persist an old copy of the `ChainState` to the storage
+#[derive(Debug, Default)]
+struct ChainStateSnapshot {
+    // Previous chain_state and superblock index that corresponds to the last consolidated block.
+    // Note that when creating the snapshot, the superblock is not consolidated yet.
+    // When the superblock with index n is consolidated by the ChainManager,
+    // the state snapshot with superblock index n should be irreversibly persisted into the storage
+    previous_chain_state: Option<(ChainState, u32)>,
+    // The ChainState at this superblock index is already persisted in the storage
+    // Used to detect code that tries to persist old state
+    highest_persisted_superblock: u32,
+}
+
+impl ChainStateSnapshot {
+    // Returns false if the snapshot did already exist
+    // Returns true if the snapshot did not already exist
+    // Panics if a different chain state was already saved for this super epoch
+    fn take(&mut self, superblock_index: u32, state: &ChainState) -> bool {
+        let chain_beacon = state.get_chain_beacon();
+        let superblock_beacon = state.get_superblock_beacon();
+
+        log::debug!(
+            "Taking snapshot at superblock #{}. Chain beacon {:?}, superblock beacon {:?}",
+            superblock_index,
+            chain_beacon,
+            superblock_beacon
+        );
+
+        if let Some((prev_chain_state, prev_super_epoch)) = self.previous_chain_state.as_mut() {
+            if *prev_super_epoch == superblock_index {
+                log::warn!("ChainState snapshot {} already exists", superblock_index);
+                if prev_chain_state == state {
+                    false
+                } else {
+                    // Only allow overwriting a different chain state if the superblock index is 0
+                    if superblock_index == 0 {
+                        log::warn!(
+                            "ChainState mismatch in superblock #{}. Overwritting old with new",
+                            superblock_index
+                        );
+                        *prev_chain_state = state.clone();
+
+                        true
+                    } else {
+                        // Two snapshots of the same superblock should be identical, this is a bug
+                        panic!(
+                            "ChainState mismatch for superblock #{}: `{:?} != {:?}`",
+                            superblock_index, prev_chain_state, state
+                        );
+                    }
+                }
+            } else {
+                log::warn!(
+                    "Overwriting old chain state snapshot, it was superblock #{}",
+                    prev_super_epoch
+                );
+                self.previous_chain_state = Some((state.clone(), superblock_index));
+
+                true
+            }
+        } else {
+            self.previous_chain_state = Some((state.clone(), superblock_index));
+
+            true
+        }
+    }
+
+    // Returns None if this super_epoch was already consolidated before
+    // Returns Some(chain_state) if this super_epoch can be consolidated
+    // It is assumed that the caller will persist the chain_state
+    fn restore(&mut self, super_epoch: u32) -> Option<ChainState> {
+        if super_epoch == 0 {
+            // The superblock with index 0 is always consolidated, no need to persist it to storage
+            // This is because the superblock 0 does not include any blocks, it is the bootstrap
+            // superblock, so there is no state to persist
+            log::debug!("Skip persisting superblock #0 because it is already persisted");
+
+            None
+        } else if self.highest_persisted_superblock == super_epoch {
+            // This can happen during reorganizations
+            log::debug!(
+                "Tried to persist chain state for superblock #{} but it is already persisted",
+                super_epoch
+            );
+
+            None
+        } else if self.highest_persisted_superblock > super_epoch {
+            panic!("Tried to persist chain state for superblock #{} but it is already persisted. The highest persisted superblock is #{}", super_epoch, self.highest_persisted_superblock);
+        } else {
+            let skipped_superblocks = super_epoch - self.highest_persisted_superblock - 1;
+            if skipped_superblocks > 0 {
+                // This can happen when a new node is synchronizing: it will consolidate the top of
+                // chain without consolidating all the previous superblocks
+                log::debug!(
+                    "Skipped {} superblocks in consolidation",
+                    skipped_superblocks
+                );
+            }
+
+            // Replace self.previous_chain_state with None to prevent consolidating the same chain
+            // state more than once
+            if let Some((chain_state, prev_super_epoch)) = self.previous_chain_state.take() {
+                if prev_super_epoch != super_epoch {
+                    panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The current snapshot is for superblock #{}", super_epoch, prev_super_epoch);
+                }
+
+                self.highest_persisted_superblock = super_epoch;
+
+                Some(chain_state)
+            } else {
+                panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The highest persisted superblock is #{}", super_epoch, self.highest_persisted_superblock);
+            }
+        }
+    }
+
+    // Remove the taken snapshot
+    fn clear(&mut self) {
+        self.previous_chain_state = None;
     }
 }
 

@@ -2726,6 +2726,68 @@ pub struct ChainState {
     pub superblock_state: SuperBlockState,
 }
 
+impl ChainState {
+    /// Return the number of consolidated blocks
+    pub fn block_number(&self) -> u32 {
+        u32::try_from(self.block_chain.len()).unwrap()
+    }
+
+    /// Return the hash and epoch number of the last consolidated block
+    pub fn get_chain_beacon(&self) -> CheckpointBeacon {
+        self.chain_info
+            .as_ref()
+            .expect("ChainInfo is None")
+            .highest_block_checkpoint
+    }
+
+    /// Return the hash and index of the last superblock with a majority of votes
+    pub fn get_superblock_beacon(&self) -> CheckpointBeacon {
+        self.chain_info
+            .as_ref()
+            .expect("ChainInfo is None")
+            .highest_superblock_checkpoint
+    }
+
+    /// Return a copy of the consensus constants defined for the current network
+    pub fn get_consensus_constants(&self) -> ConsensusConstants {
+        self.chain_info
+            .as_ref()
+            .expect("ChainInfo is None")
+            .consensus_constants
+            .clone()
+    }
+
+    /// Method to check that all inputs point to unspent outputs
+    pub fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
+        inputs.iter().all(|tx_input| {
+            let output_pointer = tx_input.output_pointer();
+
+            self.unspent_outputs_pool.contains_key(&output_pointer)
+        })
+    }
+    /// Retrieve the output pointed by the output pointer in an input
+    pub fn get_output_from_input(&self, input: &Input) -> Option<&ValueTransferOutput> {
+        let output_pointer = input.output_pointer();
+
+        self.unspent_outputs_pool.get(&output_pointer)
+    }
+    /// Map a vector of inputs to a the vector of ValueTransferOutputs pointed by the inputs' output pointers
+    pub fn get_outputs_from_inputs(
+        &self,
+        inputs: &[Input],
+    ) -> Result<Vec<ValueTransferOutput>, Input> {
+        let v = inputs
+            .iter()
+            .map(|i| self.get_output_from_input(i))
+            .fuse()
+            .flatten()
+            .cloned()
+            .collect();
+
+        Ok(v)
+    }
+}
+
 /// Alternative public key mapping: maps each secp256k1 public key hash to
 /// different public keys in other curves
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -2774,43 +2836,6 @@ impl AltKeys {
                 self.insert_bn256(commit.body.proof.proof.pkh(), value.clone());
             }
         }
-    }
-}
-
-impl ChainState {
-    /// Method to check that all inputs point to unspent outputs
-    pub fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
-        inputs.iter().all(|tx_input| {
-            let output_pointer = tx_input.output_pointer();
-
-            self.unspent_outputs_pool.contains_key(&output_pointer)
-        })
-    }
-    /// Retrieve the output pointed by the output pointer in an input
-    pub fn get_output_from_input(&self, input: &Input) -> Option<&ValueTransferOutput> {
-        let output_pointer = input.output_pointer();
-
-        self.unspent_outputs_pool.get(&output_pointer)
-    }
-    /// Map a vector of inputs to a the vector of ValueTransferOutputs pointed by the inputs' output pointers
-    pub fn get_outputs_from_inputs(
-        &self,
-        inputs: &[Input],
-    ) -> Result<Vec<ValueTransferOutput>, Input> {
-        let v = inputs
-            .iter()
-            .map(|i| self.get_output_from_input(i))
-            .fuse()
-            .flatten()
-            .cloned()
-            .collect();
-
-        Ok(v)
-    }
-
-    /// Return the number of consolidated blocks
-    pub fn block_number(&self) -> u32 {
-        u32::try_from(self.block_chain.len()).unwrap()
     }
 }
 
