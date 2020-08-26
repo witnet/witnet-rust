@@ -747,49 +747,17 @@ impl Worker {
         let block_beacon = block.block_header.beacon;
         let current_last_sync = wallet.public_data()?.last_sync;
 
-        // If `last_block` buffer is empty, then valid block should be stored (but not yet indexed)
-        if wallet.public_data()?.last_block.is_none() {
-            return if block_beacon.hash_prev_block == current_last_sync.hash_prev_block {
-                wallet.update_sync_state(current_last_sync, block)?;
-                log::debug!(
-                    "Storing block #{} in `last_block` buffer to be indexed when next block arrives (prev_hash = {:?})",
-                    block_beacon.checkpoint,
-                    block_beacon.hash_prev_block,
-                );
-
-                Ok(())
-            } else {
-                log::warn!("Tried to store a block #{} in `last_block` buffer that does not build directly on top of our tip of the chain #{}. ({:?} != {:?})",
-                    block_beacon.checkpoint,
-                    current_last_sync.checkpoint,
-                    block_beacon.hash_prev_block,
-                    current_last_sync.hash_prev_block,
-                );
-
-                Err(block_error(BlockError::NotConnectedToLocalChainTip {
-                    block_previous_beacon: block_beacon.hash_prev_block,
-                    local_chain_tip: current_last_sync.hash_prev_block,
-                }))
-            };
-        }
-
-        let current_last_block = wallet
-            .public_data()?
-            .last_block
-            .expect("None case already considered");
-        let current_last_block_hash = current_last_block.hash();
-
         // Check if new pushed block is valid given the wallet state:
         // stop processing the block if it does not directly build on top of our tip of the chain
-        if block_beacon.hash_prev_block != current_last_block_hash
-            || block_beacon.checkpoint <= current_last_sync.checkpoint
+        if block_beacon.hash_prev_block != current_last_sync.hash_prev_block
+            || block_beacon.checkpoint < current_last_sync.checkpoint
         {
             log::warn!(
                 "Tried to process a block #{} that does not build directly on top of our tip of the chain #{}. ({:?} != {:?})",
                 block_beacon.checkpoint,
-                current_last_block.block_header.beacon.checkpoint,
+                current_last_sync.checkpoint,
                 block_beacon.hash_prev_block,
-                current_last_block.hash(),
+                current_last_sync.hash_prev_block,
             );
             return Err(block_error(BlockError::NotConnectedToLocalChainTip {
                 block_previous_beacon: block_beacon.hash_prev_block,
@@ -798,11 +766,9 @@ impl Worker {
         }
 
         // Index the previous stored block in `last_block`
-        let new_last_sync = self.index_block(current_last_block, &wallet, sink)?;
+        let new_last_sync = self.index_block(block.clone(), &wallet, sink)?;
 
-        // Update wallet state with the last synchronization information:
-        // - last_sync: last indexed epoch and block hash
-        // - last_block: last received block but not yet indexed
+        // Update wallet state with the last indexed epoch and block hash
         wallet.update_sync_state(new_last_sync, block)?;
 
         Ok(())

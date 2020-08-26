@@ -134,7 +134,6 @@ pub struct WalletData {
     pub current_account: u32,
     pub available_accounts: Vec<u32>,
     pub last_sync: CheckpointBeacon,
-    pub last_block: Option<ChainBlock>,
 }
 
 pub struct CreateWalletData<'a> {

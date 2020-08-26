@@ -127,7 +127,6 @@ where
         let current_account = state.account;
         let balance = state.balance;
         let last_sync = state.last_sync;
-        let last_block = state.last_block.clone();
 
         Ok(types::WalletData {
             id: self.id.clone(),
@@ -137,7 +136,6 @@ where
             current_account,
             available_accounts: state.available_accounts.clone(),
             last_sync,
-            last_block,
         })
     }
 
