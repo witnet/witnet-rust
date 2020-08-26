@@ -2756,36 +2756,6 @@ impl ChainState {
             .consensus_constants
             .clone()
     }
-
-    /// Method to check that all inputs point to unspent outputs
-    pub fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
-        inputs.iter().all(|tx_input| {
-            let output_pointer = tx_input.output_pointer();
-
-            self.unspent_outputs_pool.contains_key(&output_pointer)
-        })
-    }
-    /// Retrieve the output pointed by the output pointer in an input
-    pub fn get_output_from_input(&self, input: &Input) -> Option<&ValueTransferOutput> {
-        let output_pointer = input.output_pointer();
-
-        self.unspent_outputs_pool.get(&output_pointer)
-    }
-    /// Map a vector of inputs to a the vector of ValueTransferOutputs pointed by the inputs' output pointers
-    pub fn get_outputs_from_inputs(
-        &self,
-        inputs: &[Input],
-    ) -> Result<Vec<ValueTransferOutput>, Input> {
-        let v = inputs
-            .iter()
-            .map(|i| self.get_output_from_input(i))
-            .fuse()
-            .flatten()
-            .cloned()
-            .collect();
-
-        Ok(v)
-    }
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to
