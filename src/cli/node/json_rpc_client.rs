@@ -22,7 +22,7 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature, NodeStats,
-        OutputPointer, PublicKey, PublicKeyHash, Reputation, UtxoInfo, UtxoSelectionStrategy,
+        OutputPointer, PublicKey, PublicKeyHash, UtxoInfo, UtxoSelectionStrategy,
         ValueTransferOutput,
     },
     proto::ProtobufConvert,
@@ -32,7 +32,7 @@ use witnet_node::actors::{
     json_rpc::json_rpc_methods::{
         AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, SyncStatus,
     },
-    messages::BuildVtt,
+    messages::{BuildVtt, GetReputationResult},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
@@ -247,56 +247,56 @@ pub fn get_utxo_info(
     Ok(())
 }
 
+#[allow(clippy::cast_precision_loss)]
 pub fn get_reputation(
     addr: SocketAddr,
-    pkh: Option<PublicKeyHash>,
+    opt_pkh: Option<PublicKeyHash>,
     all: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
-    if all {
-        let request = r#"{"jsonrpc": "2.0","method": "getReputationAll", "id": "1"}"#;
-        let response = send_request(&mut stream, &request)?;
-        let rep_map = parse_response::<HashMap<PublicKeyHash, (Reputation, bool)>>(&response)?;
-        println!("Total Reputation: {{");
-        for (pkh, (rep, active)) in rep_map
-            .into_iter()
-            .sorted_by_key(|&(_, (r, _))| std::cmp::Reverse(r))
-        {
-            let active = if active { 'A' } else { ' ' };
-            println!("    [{}] {}: {}", active, pkh, rep.0);
-        }
-        println!("}}");
-        return Ok(());
-    }
+    let request = if all {
+        r#"{"jsonrpc": "2.0","method": "getReputationAll", "id": "1"}"#.to_string()
+    } else {
+        let pkh = match opt_pkh {
+            Some(pkh) => pkh,
+            None => {
+                log::info!("No pkh specified, will default to node pkh");
+                let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
+                let response = send_request(&mut stream, &request)?;
+                let node_pkh = parse_response::<PublicKeyHash>(&response)?;
+                log::info!("Node pkh: {}", node_pkh);
 
-    let pkh = match pkh {
-        Some(pkh) => pkh,
-        None => {
-            log::info!("No pkh specified, will default to node pkh");
-            let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-            let response = send_request(&mut stream, &request)?;
-            let node_pkh = parse_response::<PublicKeyHash>(&response)?;
-            log::info!("Node pkh: {}", node_pkh);
+                node_pkh
+            }
+        };
 
-            node_pkh
-        }
+        format!(
+            r#"{{"jsonrpc": "2.0","method": "getReputation", "params": [{}], "id": "1"}}"#,
+            serde_json::to_string(&pkh)?,
+        )
     };
 
-    let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "getReputation", "params": [{}], "id": "1"}}"#,
-        serde_json::to_string(&pkh)?,
-    );
     let response = send_request(&mut stream, &request)?;
-    log::info!("{}", response);
-    let (amount, active) = parse_response::<(Reputation, bool)>(&response)?;
+    let res = parse_response::<GetReputationResult>(&response)?;
 
-    println!(
-        "Identity {} has {} reputation and is {}",
-        pkh,
-        amount.0,
-        if active { "active" } else { "not active" }
-    );
+    if res.stats.is_empty() {
+        println!("Any identities has reputation yet");
+    }
+
+    for (pkh, rep_stats) in res.stats.into_iter().sorted_by_key(|(_, rep_stats)| {
+        std::cmp::Reverse((rep_stats.reputation.0, rep_stats.eligibility))
+    }) {
+        let active = if rep_stats.is_active { 'A' } else { ' ' };
+        let eligibility = f64::from(rep_stats.eligibility) / res.total_reputation as f64;
+        println!(
+            "    [{}] {} -> Reputation: {}, Eligibility: {:.6}%",
+            active,
+            pkh,
+            rep_stats.reputation.0,
+            eligibility * 100_f64
+        );
+    }
 
     Ok(())
 }

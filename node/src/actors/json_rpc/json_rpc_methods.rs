@@ -35,8 +35,7 @@ use crate::{
             AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, GetBalance,
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestReport, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemTransaction, GetKnownPeers,
-            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetReputationAll,
-            GetState, GetUtxoInfo,
+            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState, GetUtxoInfo,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -69,9 +68,11 @@ pub fn jsonrpc_io_handler(
     });
     io.add_method("getBalance", |params: Params| get_balance(params.parse()));
     io.add_method("getReputation", |params: Params| {
-        get_reputation(params.parse())
+        get_reputation(params.parse(), false)
     });
-    io.add_method("getReputationAll", |_params: Params| get_reputation_all());
+    io.add_method("getReputationAll", |_params: Params| {
+        get_reputation(Ok((PublicKeyHash::default(),)), true)
+    });
     io.add_method("peers", |_params: Params| peers());
     io.add_method("knownPeers", |_params: Params| known_peers());
     io.add_method("nodeStats", |_params: Params| node_stats());
@@ -966,7 +967,10 @@ pub fn get_utxo_info(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> J
 }
 
 /// Get Reputation of one pkh
-pub fn get_reputation(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub fn get_reputation(
+    params: Result<(PublicKeyHash,), jsonrpc_core::Error>,
+    all: bool,
+) -> JsonRpcResultAsync {
     let pkh = match params {
         Ok(x) => x.0,
         Err(e) => return Box::new(futures::failed(e)),
@@ -975,28 +979,7 @@ pub fn get_reputation(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> 
     let chain_manager_addr = ChainManager::from_registry();
 
     let fut = chain_manager_addr
-        .send(GetReputation { pkh })
-        .map_err(internal_error)
-        .and_then(|dr_info| match dr_info {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
-}
-
-/// Get all reputation from all identities
-pub fn get_reputation_all() -> JsonRpcResultAsync {
-    let chain_manager_addr = ChainManager::from_registry();
-
-    let fut = chain_manager_addr
-        .send(GetReputationAll)
+        .send(GetReputation { pkh, all })
         .map_err(internal_error)
         .and_then(|dr_info| match dr_info {
             Ok(x) => match serde_json::to_value(&x) {

@@ -1,16 +1,11 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::future::Future;
-use std::{
-    collections::BTreeMap,
-    collections::{HashMap, HashSet},
-    convert::TryFrom,
-    net::SocketAddr,
-};
+use std::{collections::BTreeMap, collections::HashSet, convert::TryFrom, net::SocketAddr};
 
 use witnet_data_structures::{
     chain::{
         get_utxo_info, Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport,
-        Epoch, Hash, Hashable, NodeStats, PublicKeyHash, Reputation, SuperBlockVote, UtxoInfo,
+        Epoch, Hash, Hashable, NodeStats, SuperBlockVote, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -27,9 +22,9 @@ use crate::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction,
             Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
             GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
-            GetMempoolResult, GetNodeStats, GetReputation, GetReputationAll, GetReputationStatus,
-            GetReputationStatusResult, GetState, GetSuperBlockVotes, GetUtxoInfo, PeersBeacons,
-            SendLastBeacon, SessionUnitResult, SetLastBeacon, TryMineBlock,
+            GetMempoolResult, GetNodeStats, GetReputation, GetReputationResult, GetState,
+            GetSuperBlockVotes, GetUtxoInfo, PeersBeacons, ReputationStats, SendLastBeacon,
+            SessionUnitResult, SetLastBeacon, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1284,11 +1279,11 @@ impl Handler<GetUtxoInfo> for ChainManager {
 }
 
 impl Handler<GetReputation> for ChainManager {
-    type Result = Result<(Reputation, bool), failure::Error>;
+    type Result = Result<GetReputationResult, failure::Error>;
 
     fn handle(
         &mut self,
-        GetReputation { pkh }: GetReputation,
+        GetReputation { pkh, all }: GetReputation,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -1303,57 +1298,36 @@ impl Handler<GetReputation> for ChainManager {
             None => return Err(ChainManagerError::ChainNotReady.into()),
         };
 
-        Ok((rep_eng.trs().get(&pkh), rep_eng.ars().contains(&pkh)))
-    }
-}
-
-impl Handler<GetReputationAll> for ChainManager {
-    type Result = Result<HashMap<PublicKeyHash, (Reputation, bool)>, failure::Error>;
-
-    fn handle(&mut self, _msg: GetReputationAll, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced {
-                current_state: self.sm_state,
-            }
-            .into());
-        }
-
-        let rep_eng = match self.chain_state.reputation_engine.as_ref() {
-            Some(x) => x,
-            None => return Err(ChainManagerError::ChainNotReady.into()),
+        let identities = if all {
+            rep_eng.trs().identities().map(|(k, _v)| k).collect()
+        } else {
+            vec![&pkh]
         };
 
-        Ok(rep_eng
-            .trs()
-            .identities()
-            .map(|(k, v)| (*k, (*v, rep_eng.ars().contains(k))))
-            .collect())
-    }
-}
+        let total_reputation = rep_eng.total_active_reputation();
+        let reputation_hm = identities
+            .into_iter()
+            .map(|pkh| {
+                let reputation = rep_eng.trs().get(pkh);
+                let eligibility = rep_eng.get_eligibility(pkh) + 1;
+                let is_active = rep_eng.ars().contains(pkh);
 
-impl Handler<GetReputationStatus> for ChainManager {
-    type Result = Result<GetReputationStatusResult, failure::Error>;
+                let rep_stats = ReputationStats {
+                    reputation,
+                    eligibility,
+                    is_active,
+                };
 
-    fn handle(&mut self, _msg: GetReputationStatus, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced {
-                current_state: self.sm_state,
-            }
-            .into());
-        }
+                (*pkh, rep_stats)
+            })
+            .collect();
 
-        let rep_eng = match self.chain_state.reputation_engine.as_ref() {
-            Some(x) => x,
-            None => return Err(ChainManagerError::ChainNotReady.into()),
+        let result = GetReputationResult {
+            stats: reputation_hm,
+            total_reputation,
         };
 
-        let num_active_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
-        let total_active_reputation = rep_eng.total_active_reputation();
-
-        Ok(GetReputationStatusResult {
-            num_active_identities,
-            total_active_reputation,
-        })
+        Ok(result)
     }
 }
 

@@ -253,39 +253,38 @@ impl Message for GetUtxoInfo {
     type Result = Result<UtxoInfo, failure::Error>;
 }
 
-/// Get Reputation of one pkh
+/// Reputation info
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ReputationStats {
+    /// Reputation
+    pub reputation: Reputation,
+    /// Eligibility: Trapezoidal reputation based on ranking
+    pub eligibility: u32,
+    /// Is active flag
+    pub is_active: bool,
+}
+
+/// GetReputation result
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetReputationResult {
+    /// Map of identity public key hash to reputation stats
+    pub stats: HashMap<PublicKeyHash, ReputationStats>,
+    /// Total active reputation
+    pub total_reputation: u64,
+}
+
+/// Get reputation of one identity if `all` is set to `false`,
+/// or all identities if `all` is set to `true`
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GetReputation {
     /// Public key hash
     pub pkh: PublicKeyHash,
+    /// All flag
+    pub all: bool,
 }
 
 impl Message for GetReputation {
-    type Result = Result<(Reputation, bool), failure::Error>;
-}
-
-/// Get all reputation from all identities
-#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct GetReputationAll;
-
-impl Message for GetReputationAll {
-    type Result = Result<HashMap<PublicKeyHash, (Reputation, bool)>, failure::Error>;
-}
-
-/// Get Reputation status: number of active identities and total active reputation
-#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct GetReputationStatus;
-
-/// Number of active identities and total active reputation
-pub struct GetReputationStatusResult {
-    /// Number of active identities
-    pub num_active_identities: u32,
-    /// Total active reputation
-    pub total_active_reputation: u64,
-}
-
-impl Message for GetReputationStatus {
-    type Result = Result<GetReputationStatusResult, failure::Error>;
+    type Result = Result<GetReputationResult, failure::Error>;
 }
 
 /// Get all the pending transactions
