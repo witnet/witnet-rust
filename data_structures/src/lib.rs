@@ -1,5 +1,14 @@
-// To enable `#[allow(clippy::all)]`
-//#![feature(tool_lints)]
+//! Witnet data structures
+
+#![deny(rust_2018_idioms)]
+#![deny(non_upper_case_globals)]
+#![deny(non_camel_case_types)]
+#![deny(non_snake_case)]
+#![deny(unused_mut)]
+// FIXME: add the missing documentation and enable this lint
+//#![deny(missing_docs)]
+// FIXME: allow only for protobuf generated code
+#![allow(elided_lifetimes_in_paths)]
 
 #[macro_use]
 extern crate protobuf_convert;
