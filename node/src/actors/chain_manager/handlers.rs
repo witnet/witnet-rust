@@ -1058,7 +1058,8 @@ impl Handler<PeersBeacons> for ChainManager {
             // Everyone creates superblocks, but only ARS members sign and broadcast them
             let superblock_period = u32::from(self.consensus_constants().superblock_period);
             let current_epoch = self.current_epoch.unwrap();
-            if current_epoch % superblock_period == 0 {
+            // During epoch 0 there is no need to create the superblock 0
+            if current_epoch != 0 && current_epoch % superblock_period == 0 {
                 self.create_and_broadcast_superblock(ctx, current_epoch);
             }
         }
