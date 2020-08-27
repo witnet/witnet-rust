@@ -126,7 +126,7 @@ impl Default for Environment {
 }
 
 impl fmt::Display for Environment {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
             Environment::Development => "development",
             Environment::Mainnet => "mainnet",
@@ -1012,7 +1012,7 @@ impl Into<Sha256> for Hash {
 }
 
 impl fmt::Display for Hash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Hash::SHA256(h) => f.write_str(
                 h.iter()
@@ -1064,7 +1064,7 @@ impl FromStr for Hash {
 }
 
 impl fmt::Debug for Hash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
@@ -1088,7 +1088,7 @@ impl AsRef<[u8]> for PublicKeyHash {
 }
 
 impl fmt::Display for PublicKeyHash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let address = self.bech32(get_environment());
 
         f.write_str(&address)
@@ -2519,13 +2519,13 @@ pub struct OutputPointer {
 }
 
 impl fmt::Display for OutputPointer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&format!("{}:{}", &self.transaction_id, &self.output_index))
     }
 }
 
 impl fmt::Debug for OutputPointer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
 }

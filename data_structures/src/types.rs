@@ -42,7 +42,7 @@ pub enum Command {
 }
 
 impl fmt::Display for Command {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Command::GetPeers(_) => f.write_str(&"GET_PEERS".to_string()),
             Command::Peers(_) => f.write_str(&"PEERS".to_string()),
