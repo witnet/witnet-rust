@@ -85,6 +85,23 @@ impl App {
         self.state.unsubscribe(id).map(|_| ())
     }
 
+    /// Subscribe to receiving notifications of a specific type from a Witnet node
+    pub fn jsonrpc_subscribe(&mut self, method: &str, ctx: &mut <Self as Actor>::Context) {
+        let recipient = ctx.address().recipient();
+
+        let request = types::RpcRequest::method("witnet_subscribe")
+            .timeout(self.params.requests_timeout)
+            .value(serde_json::to_value([method]).expect(
+                "Any JSON-RPC method name should be serializable using `serde_json::to_value`",
+            ));
+
+        log::debug!("Subscribing to {} notifications: {:?}", method, request);
+
+        self.params
+            .client
+            .do_send(jsonrpc::Subscribe(request, recipient));
+    }
+
     /// Generate a receive address for the wallet's current account.
     pub fn generate_address(
         &mut self,
@@ -494,7 +511,20 @@ impl App {
         Box::new(f)
     }
 
-    /// Handle new block notifications received from the node.
+    /// Handle any kind of notifications received from a Witnet node.
+    pub fn handle_notification(&mut self, method: String, value: types::Json) -> Result<()> {
+        match method.as_str() {
+            "newBlocks" => self.handle_block_notification(value),
+            _ => {
+                log::debug!("Unhandled `{}` notification", method);
+                log::trace!("Payload is {:?}", value);
+
+                Ok(())
+            }
+        }
+    }
+
+    /// Handle new block notifications received from a Witnet node.
     pub fn handle_block_notification(&mut self, value: types::Json) -> Result<()> {
         let block = serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?;
 
