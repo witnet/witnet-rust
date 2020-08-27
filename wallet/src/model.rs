@@ -110,13 +110,21 @@ impl fmt::Display for MovementType {
     }
 }
 
+/// Transaction linked to a balance movement in a wallet
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Transaction {
-    pub hash: String,
-    pub timestamp: i64,
+    /// Block in which the transaction is included
     pub block: Option<Beacon>,
-    pub miner_fee: u64,
+    /// Transaction is confirmed if block is consolidated by superblock
+    pub confirmed: bool,
+    /// Transaction data depending on its type
     pub data: TransactionData,
+    /// Transaction hash (used as identifier)
+    pub hash: String,
+    /// Reward to miner for including transaction in the block
+    pub miner_fee: u64,
+    /// Date when transaction was included a block (same as block date)
+    pub timestamp: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

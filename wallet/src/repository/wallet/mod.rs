@@ -1080,14 +1080,15 @@ fn build_balance_movement(
         kind,
         amount,
         transaction: model::Transaction {
-            hash: hex::encode(txn.transaction.hash()),
-            timestamp,
             block: Some(model::Beacon {
                 epoch: block_info.epoch,
                 block_hash: block_info.block_hash,
             }),
-            miner_fee,
+            confirmed: false,
             data: transaction_data,
+            hash: hex::encode(txn.transaction.hash()),
+            miner_fee,
+            timestamp,
         },
     })
 }
