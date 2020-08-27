@@ -18,6 +18,7 @@ pub struct UnspentOutputsPool {
 }
 
 impl UnspentOutputsPool {
+    /// Get the value transfer output referred to by the provided `OutputPointer`
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&ValueTransferOutput>
     where
         OutputPointer: std::borrow::Borrow<Q>,
@@ -26,6 +27,7 @@ impl UnspentOutputsPool {
         self.map.get(k).map(|(vt, _n)| vt)
     }
 
+    /// Returns true if the `OutputPointer` exists inside the `UnspentOutputsPool`
     pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
     where
         OutputPointer: std::borrow::Borrow<Q>,
@@ -34,6 +36,7 @@ impl UnspentOutputsPool {
         self.map.contains_key(k)
     }
 
+    /// Insert a new unspent `OutputPointer`
     pub fn insert(
         &mut self,
         k: OutputPointer,
@@ -43,16 +46,19 @@ impl UnspentOutputsPool {
         self.map.insert(k, (v, block_number))
     }
 
+    /// Remove a spent `OutputPointer`
     pub fn remove(&mut self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
         self.map.remove(k)
     }
 
+    /// Clear the collection and return an iterator over all the values
     pub fn drain(
         &mut self,
     ) -> std::collections::hash_map::Drain<OutputPointer, (ValueTransferOutput, u32)> {
         self.map.drain()
     }
 
+    /// Iterate over all the unspent outputs
     pub fn iter(
         &self,
     ) -> std::collections::hash_map::Iter<OutputPointer, (ValueTransferOutput, u32)> {

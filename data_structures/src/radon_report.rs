@@ -87,9 +87,15 @@ where
 /// This trait identifies a RADON-compatible type system, i.e. most likely an `enum` with different
 /// cases for different data types.
 pub trait TypeLike: Clone + Sized {
+    /// A structure that can be used as an error type.
     type Error: ErrorLike;
 
+    /// Serialize the `TypeLike` as a `Vec<u8>`.
     fn encode(&self) -> Result<Vec<u8>, Self::Error>;
+
+    /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
+    /// they can be handled as valid `RadonTypes::RadonError` values, which are subject to
+    /// commitment, revealing, tallying, etc.
     fn intercept(result: Result<Self, Self::Error>) -> Self;
 }
 
@@ -211,6 +217,16 @@ pub struct RetrievalMetadata<RT>
 where
     RT: TypeLike,
 {
+    /// Partial results of the subscripts, if enabled. It has 3 dimensions:
+    ///
+    /// `subscript_partial_results[subscript_index][operator_index][element_index]`
+    ///
+    /// * `subscript_index` is used to distinguish the different subscripts in one RADON script.
+    /// * `operator_index` is the index of the operator inside the subscript: the partial result.
+    ///     The first element is always the input value, and the last element is the result of the
+    ///     subscript.
+    /// * `element_index` is the index of the element inside the array that serves as the input of
+    ///     the subscript.
     pub subscript_partial_results: Vec<Vec<Vec<RT>>>,
 }
 

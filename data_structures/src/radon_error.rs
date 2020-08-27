@@ -72,7 +72,9 @@ impl Default for RadonErrors {
 /// This trait identifies a structure that can be used as an error type for `RadonError` and
 /// `RadonReport`.
 pub trait ErrorLike: Clone + Fail {
+    /// Encode the error as an array of `SerdeCborValue`
     fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error>;
+    /// Decode the error from an array of `SerdeCborValue`
     fn decode_cbor_array(
         serde_cbor_array: Vec<SerdeCborValue>,
     ) -> Result<RadonError<Self>, failure::Error>;
@@ -98,6 +100,8 @@ where
         RadonError { inner }
     }
 
+    /// Encode `RadonError` as tagged CBOR value with tag 39.
+    /// Returns the result as `CborValue`.
     pub fn encode_tagged_value(&self) -> Result<CborValue, failure::Error> {
         let values: Vec<CborValue> = self
             .inner
@@ -115,6 +119,8 @@ where
         ))
     }
 
+    /// Encode `RadonErorr` as tagged CBOR value with tag 39.
+    /// Returns the result as bytes.
     pub fn encode_tagged_bytes(&self) -> Result<Vec<u8>, failure::Error> {
         let mut encoder = GenericEncoder::new(Cursor::new(Vec::new()));
         encoder.value(&self.encode_tagged_value()?)?;
@@ -122,10 +128,12 @@ where
         Ok(encoder.into_inner().into_writer().into_inner())
     }
 
+    /// Get a reference to the inner error type
     pub fn inner(&self) -> &IE {
         &self.inner
     }
 
+    /// Unwrap the inner error type
     pub fn into_inner(self) -> IE {
         self.inner
     }
@@ -140,6 +148,7 @@ where
     }
 }
 
+/// Convert SerdeCborValue into CborValue
 pub fn try_from_serde_cbor_value_for_cbor_value(serde_cbor_value: SerdeCborValue) -> CborValue {
     // FIXME(#953): impl TryFrom<SerdeCborValue> for <CborValue>
     let mut decoder = cbor::decoder::GenericDecoder::new(
@@ -149,6 +158,7 @@ pub fn try_from_serde_cbor_value_for_cbor_value(serde_cbor_value: SerdeCborValue
     decoder.value().unwrap()
 }
 
+/// Convert CborValue into SerdeCborValue
 pub fn try_from_cbor_value_for_serde_cbor_value(cbor_value: CborValue) -> SerdeCborValue {
     // FIXME(#953): impl TryFrom<CborValue> for <SerdeCborValue>
     let mut encoder = cbor::encoder::GenericEncoder::new(Cursor::new(Vec::new()));

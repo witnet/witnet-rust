@@ -662,9 +662,12 @@ impl MintTransaction {
         MintTransaction::new(epoch, vt_outputs)
     }
 
+    /// Return the number of `MintTransactions` (always 1)
     pub fn len(&self) -> usize {
         1
     }
+
+    /// Returns false because the `MintTransaction` cannot be empty
     pub fn is_empty(&self) -> bool {
         false
     }

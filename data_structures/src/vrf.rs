@@ -70,10 +70,12 @@ impl VrfProof {
             .verify(&self.public_key.to_bytes(), &self.proof, &message.0)?)
     }
 
+    /// Return the pkh of the identity that signed the proof
     pub fn pkh(&self) -> PublicKeyHash {
         PublicKeyHash::from_public_key(&self.public_key)
     }
 
+    /// Getter for the VRF proof
     pub fn get_proof(&self) -> Vec<u8> {
         self.proof.clone()
     }

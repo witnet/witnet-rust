@@ -47,7 +47,9 @@ use crate::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
 
+/// Define how the different structures should be hashed.
 pub trait Hashable {
+    /// Calculate the hash of `self`
     fn hash(&self) -> Hash;
 }
 
@@ -244,6 +246,11 @@ pub struct ConsensusConstants {
 }
 
 impl ConsensusConstants {
+    /// Return the "magic number" for this consensus constants.
+    /// The magic number is the first 16 bits of the hash of the consensus constants serialized
+    /// using `ProtocolBuffers`.
+    /// This magic number is used in the handshake protocol to prevent nodes with different
+    /// consensus constants from peering with each other.
     pub fn get_magic(&self) -> u16 {
         let magic = calculate_sha256(&self.to_pb_bytes().unwrap());
         u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]))
@@ -432,6 +439,8 @@ impl Block {
         }
     }
 
+    /// Construct the genesis block.
+    /// This is a special block that is only valid for checkpoint 0, because it creates value.
     pub fn genesis(bootstrap_hash: Hash, value_transfer_txns: Vec<VTTransaction>) -> Block {
         let txns = BlockTransactions {
             mint: MintTransaction::default(),
@@ -484,6 +493,8 @@ impl Block {
 }
 
 impl BlockTransactions {
+    /// Return the number of transactions inside this block. This value includes the mint
+    /// transaction, as well as all the data requests, commits, reveals and tallies.
     pub fn len(&self) -> usize {
         self.mint.len()
             + self.value_transfer_txns.len()
@@ -493,6 +504,8 @@ impl BlockTransactions {
             + self.tally_txns.len()
     }
 
+    /// Returns true if this block contains no transactions
+    // TODO: this is impossible, remove this method
     pub fn is_empty(&self) -> bool {
         self.mint.is_empty()
             && self.value_transfer_txns.is_empty()
@@ -502,6 +515,7 @@ impl BlockTransactions {
             && self.tally_txns.is_empty()
     }
 
+    /// Get a transaction given the `TransactionPointer`
     pub fn get(&self, index: TransactionPointer) -> Option<Transaction> {
         match index {
             TransactionPointer::Mint => Some(&self.mint).cloned().map(Transaction::Mint),
@@ -533,6 +547,8 @@ impl BlockTransactions {
         }
     }
 
+    /// Create a list of `(transaction_hash, pointer_to_block)` for all the transactions inside
+    /// this block
     pub fn create_pointers_to_transactions(&self, block_hash: Hash) -> Vec<(Hash, PointerToBlock)> {
         // Store all the transactions as well
         let mut pointer_to_block = PointerToBlock {
@@ -789,12 +805,17 @@ impl SuperBlock {
     }
 }
 
+/// Superblock votes as sent through the network
 #[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert, Serialize, Deserialize)]
 #[protobuf_convert(pb = "witnet::SuperBlockVote")]
 pub struct SuperBlockVote {
+    /// BN256 signature of `superblock_index` and `superblock_hash`
     pub bn256_signature: Bn256Signature,
+    /// secp256k1 signature of `superblock_index`, `superblock_hash`, and `bn256_signature`
     pub secp256k1_signature: KeyedSignature,
+    /// Hash of the superblock that this vote is voting for
     pub superblock_hash: Hash,
+    /// Index of the superblock that this vote is voting for
     pub superblock_index: u32,
 }
 
@@ -810,9 +831,14 @@ impl SuperBlockVote {
             superblock_index,
         }
     }
+    /// Set the BN256 signature. This invalidates any previous secp256k1 signature, so the
+    /// secp256k1 signature must always be created after setting the BN256 signature.
+    /// Use `bn256_signature_message()` to get the bytes that need to be signed.
     pub fn set_bn256_signature(&mut self, bn256_signature: Bn256Signature) {
         self.bn256_signature = bn256_signature;
     }
+    /// Set the secp256k1 signature.
+    /// Use `secp256k1_signature_message()` to get the bytes that need to be signed.
     pub fn set_secp256k1_signature(&mut self, secp256k1_signature: KeyedSignature) {
         self.secp256k1_signature = secp256k1_signature;
     }
@@ -1043,9 +1069,11 @@ impl Hash {
 /// Error when parsing hash from string
 #[derive(Debug, Fail)]
 pub enum HashParseError {
+    /// Failed to parse string as hex
     #[fail(display = "Failed to parse hex: {}", _0)]
     Hex(#[cause] hex::FromHexError),
 
+    /// Invalid hash length
     #[fail(display = "Invalid hash length: expected 32 bytes but got {}", _0)]
     InvalidLength(usize),
 }
@@ -1101,22 +1129,33 @@ impl Hashable for PublicKeyHash {
     }
 }
 
-/// Error when parsing hash from string
+/// Error when parsing `PublicKeyHash` from string
 #[derive(Debug, Fail)]
 pub enum PublicKeyHashParseError {
+    /// Failed to parse string as hex
     #[fail(display = "Failed to parse hex: {}", _0)]
     Hex(#[cause] hex::FromHexError),
 
-    #[fail(display = "Invalid PKH length: expected 20 bytes but got {}", _0)]
+    /// Invalid `PublicKeyHash` length
+    #[fail(
+        display = "Invalid PublicKeyHash length: expected 20 bytes but got {}",
+        _0
+    )]
     InvalidLength(usize),
+
+    /// Tried to use testnet address in mainnet or vice versa
     #[fail(
         display = "Address is for different environment: prefix \"{}\" is not valid for {}",
         prefix, expected_environment
     )]
     WrongEnvironment {
+        /// The prefix found in the string
         prefix: String,
+        /// The environment the node is running in
         expected_environment: Environment,
     },
+
+    /// Failed to parse string as Bech32
     #[fail(display = "Failed to deserialize Bech32: {}", _0)]
     Bech32(#[cause] bech32::Error),
 }
@@ -1225,7 +1264,9 @@ impl Input {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::ValueTransferOutput")]
 pub struct ValueTransferOutput {
+    /// Address that will receive the value
     pub pkh: PublicKeyHash,
+    /// Transferred value in nanowits
     pub value: u64,
     /// The value attached to a time-locked output cannot be spent before the specified
     /// timestamp. That is, they cannot be used as an input in any transaction of a
@@ -1237,17 +1278,24 @@ pub struct ValueTransferOutput {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput")]
 pub struct DataRequestOutput {
+    /// Data request structure
     pub data_request: RADRequest,
+    /// Reward in nanowits that will be earned by honest witnesses
     pub witness_reward: u64,
+    /// Number of witnesses that will resolve this data request
     pub witnesses: u16,
-    // This fee will be earn by the miner when include commits and/or reveals in the block
+    /// This fee will be earn by the miner when include commits and/or reveals in the block
     pub commit_and_reveal_fee: u64,
-    // This field must be >50 and <100.
-    // >50 because simple majority
-    // <100 because a 100% consensus encourages to commit a RadError for free
+    /// The minimum percentage of non-error reveals required to consider this data request as
+    /// "resolved" instead of as "error".
+    /// This field must be >50 and <100.
+    /// >50 because simple majority
+    /// <100 because a 100% consensus encourages to commit a RadError for free
     pub min_consensus_percentage: u32,
-    // This field must be >= collateral_minimum, or zero
-    // If zero, it will be treated as collateral_minimum
+    /// The amount of nanowits that each witness must collateralize in order to claim eligibility of
+    /// this data request.
+    /// This field must be >= collateral_minimum, or zero.
+    /// If zero, it will be treated as collateral_minimum.
     pub collateral: u64,
 }
 
@@ -1296,14 +1344,18 @@ impl DataRequestOutput {
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::KeyedSignature")]
 pub struct KeyedSignature {
+    /// Signature
     pub signature: Signature,
+    /// Public key
     pub public_key: PublicKey,
 }
 
 /// Public Key data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize)]
 pub struct PublicKey {
+    /// Byte indicating how to decompress the public key
     pub compressed: u8,
+    /// Public key bytes
     pub bytes: [u8; 32],
 }
 
@@ -1348,6 +1400,7 @@ impl PublicKey {
 /// Secret Key data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SecretKey {
+    /// Bytes
     pub bytes: Protected,
 }
 
@@ -1360,8 +1413,9 @@ pub struct ExtendedSecretKey {
     pub chain_code: Protected,
 }
 
-/// BLS data structures
+// BLS data structures
 
+/// BN256 public key
 #[derive(Debug, Eq, PartialEq, Hash, Default, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256PublicKey")]
 pub struct Bn256PublicKey {
@@ -1373,23 +1427,33 @@ pub struct Bn256PublicKey {
     uncompressed: Memoized<Vec<u8>>,
 }
 
+/// BN256 secret key
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Bn256SecretKey {
+    /// Bytes
     pub bytes: Protected,
 }
+
+/// BN256 signature
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256Signature")]
 pub struct Bn256Signature {
+    /// Signature
     pub signature: Vec<u8>,
 }
+
+/// BN256 signature and public key
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256KeyedSignature")]
 pub struct Bn256KeyedSignature {
+    /// Signature
     pub signature: Bn256Signature,
+    /// Public key
     pub public_key: Bn256PublicKey,
 }
 
 impl Bn256PublicKey {
+    /// Derive public key from secret key
     pub fn from_secret_key(secret_key: &Bn256SecretKey) -> Result<Self, failure::Error> {
         let public_key = Bn256.derive_public_key(&secret_key.bytes)?;
 
@@ -1399,6 +1463,7 @@ impl Bn256PublicKey {
         })
     }
 
+    /// Interpret bytes as public key
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, failure::Error> {
         // Verify that this slice is a valid public key
         let _ = bn256::PublicKey::from_compressed(bytes)?;
@@ -1409,6 +1474,7 @@ impl Bn256PublicKey {
         })
     }
 
+    /// Convert public key to uncompressed format
     pub fn to_uncompressed(&self) -> Result<Vec<u8>, failure::Error> {
         // Use the cached uncompressed key, if it was already calculated
         if let Some(cached_uncompressed) = self.uncompressed.get_cloned() {
@@ -1424,11 +1490,14 @@ impl Bn256PublicKey {
         Ok(uncompressed)
     }
 
+    /// Return true if the public key is valid.
+    /// Must have the correct length and the point must pertain to the curve.
     pub fn is_valid(&self) -> bool {
         // Verify that the provided key is a valid public key
         bn256::PublicKey::from_compressed(&self.public_key).is_ok()
     }
 
+    /// Copy public key into a vector of bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         self.public_key.clone()
     }
@@ -1441,6 +1510,7 @@ impl Hashable for Bn256PublicKey {
 }
 
 impl Bn256SecretKey {
+    /// Interpret bytes as secret key
     pub fn from_slice(bytes: &[u8]) -> Result<Self, failure::Error> {
         // Verify that this slice is a valid secret key
         let _ = bn256::PrivateKey::new(bytes)?;
@@ -1450,6 +1520,8 @@ impl Bn256SecretKey {
         })
     }
 
+    /// Use the secret key to sign a message.
+    /// The message can be of any length, and it will be hashed internally.
     pub fn sign(&self, message: &[u8]) -> Result<Bn256Signature, failure::Error> {
         let signature = Bn256.sign(&self.bytes, &message)?;
 
@@ -1463,8 +1535,10 @@ impl Hashable for Bn256Signature {
     }
 }
 
+/// Retrieval type
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub enum RADType {
+    /// HTTP GET request
     #[serde(rename = "HTTP-GET")]
     HttpGet,
 }
@@ -1483,12 +1557,16 @@ pub struct RADRequest {
     /// whose opening timestamp predates the specified time lock. This effectively prevents
     /// a request from being processed before a specific future point in time.
     pub time_lock: u64,
+    /// List of retrieval sources and scripts
     pub retrieve: Vec<RADRetrieve>,
+    /// Aggregate script
     pub aggregate: RADAggregate,
+    /// Tally script
     pub tally: RADTally,
 }
 
 impl RADRequest {
+    /// Return the weight, used to enforce the block size limit.
     pub fn weight(&self) -> u32 {
         // Time lock: 8 bytes
 
@@ -1504,18 +1582,23 @@ impl RADRequest {
     }
 }
 
+/// Retrieve script and source
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::DataRequestOutput_RADRequest_RADRetrieve",
     crate = "crate"
 )]
 pub struct RADRetrieve {
+    /// Kind of retrieval
     pub kind: RADType,
+    /// URL
     pub url: String,
+    /// Serialized RADON script
     pub script: Vec<u8>,
 }
 
 impl RADRetrieve {
+    /// Return the weight, used to enforce the block size limit.
     pub fn weight(&self) -> u32 {
         // RADType: 1 byte
         let script_weight = u32::try_from(self.script.len()).unwrap_or(u32::MAX);
@@ -1525,14 +1608,18 @@ impl RADRetrieve {
     }
 }
 
+/// Filter stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADFilter", crate = "crate")]
 pub struct RADFilter {
+    /// `RadonFilters` code
     pub op: u32,
+    /// Serialized filter arguments
     pub args: Vec<u8>,
 }
 
 impl RADFilter {
+    /// Return the weight, used to enforce the block size limit.
     pub fn weight(&self) -> u32 {
         // op: 4 bytes
         let args_weight = u32::try_from(self.args.len()).unwrap_or(u32::MAX);
@@ -1540,17 +1627,22 @@ impl RADFilter {
         args_weight.saturating_add(4)
     }
 }
+
+/// Aggregate stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::DataRequestOutput_RADRequest_RADAggregate",
     crate = "crate"
 )]
 pub struct RADAggregate {
+    /// List of filters to be applied in sequence
     pub filters: Vec<RADFilter>,
+    /// `RadonReducers` opcode to be applied to the final result
     pub reducer: u32,
 }
 
 impl RADAggregate {
+    /// Return the weight, used to enforce the block size limit.
     pub fn weight(&self) -> u32 {
         // reducer: 4 bytes
 
@@ -1563,14 +1655,18 @@ impl RADAggregate {
     }
 }
 
+/// Tally stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADTally", crate = "crate")]
 pub struct RADTally {
+    /// List of filters to be applied in sequence
     pub filters: Vec<RADFilter>,
+    /// `RadonReducers` opcode to be applied to the final result
     pub reducer: u32,
 }
 
 impl RADTally {
+    /// Return the weight, used to enforce the block size limit.
     pub fn weight(&self) -> u32 {
         // reducer: 4 bytes
 
@@ -2514,7 +2610,9 @@ impl TransactionsPool {
 #[derive(Default, Hash, Clone, Eq, PartialEq, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::OutputPointer")]
 pub struct OutputPointer {
+    /// Transaction identifier
     pub transaction_id: Hash,
+    /// Index of output inside transaction
     pub output_index: u32,
 }
 
@@ -2575,25 +2673,37 @@ impl PartialOrd for OutputPointer {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::InventoryEntry")]
 pub enum InventoryEntry {
+    /// Transaction
     Tx(Hash),
+    /// Block
     Block(Hash),
     SuperBlock(u32),
 }
 
+/// Pointer to transaction inside block.
+/// Composed of transaction type and index
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum TransactionPointer {
+    /// Value transfer
     ValueTransfer(u32),
+    /// Data request
     DataRequest(u32),
+    /// Commit
     Commit(u32),
+    /// Reveal
     Reveal(u32),
+    /// Tally
     Tally(u32),
+    /// Mint
     Mint,
 }
 
 /// This is how transactions are stored in the database: hash of the containing block, plus index
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PointerToBlock {
+    /// Hash of the block that contains the transaction
     pub block_hash: Hash,
+    /// Index of the transaction inside that block
     pub transaction_index: TransactionPointer,
 }
 
@@ -2601,8 +2711,10 @@ pub struct PointerToBlock {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum InventoryItem {
+    /// Transaction
     #[serde(rename = "transaction")]
     Transaction(Transaction),
+    /// Block
     #[serde(rename = "block")]
     Block(Block),
     #[serde(rename = "superBlock")]

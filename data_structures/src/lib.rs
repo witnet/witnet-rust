@@ -35,8 +35,7 @@ pub mod error;
 /// Module containing data_request structures
 pub mod data_request;
 
-// Module containing superblock
-
+/// Module containing superblock structures
 pub mod superblock;
 
 /// Module containing transaction structures
@@ -51,8 +50,10 @@ pub mod utxo_pool;
 /// Module containing VRF-related structures
 pub mod vrf;
 
-/// RADON-related modules
+/// Module containing definitions of RADON errors
 pub mod radon_error;
+
+/// Module containing RadonReport structures
 pub mod radon_report;
 
 /// Serialization boilerplate to allow serializing some data structures as
