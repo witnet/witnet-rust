@@ -238,6 +238,9 @@ pub fn jsonrpc_io_handler(
                     "newBlocks" => {
                         add_subscription("newBlocks", subscriber);
                     }
+                    "consolidatedBlocks" => {
+                        add_subscription("consolidatedBlocks", subscriber);
+                    }
                     e => {
                         log::debug!("Unknown subscription method: {}", e);
                         // Ignore errors with `.ok()` because an error here means the connection was closed

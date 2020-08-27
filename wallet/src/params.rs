@@ -1,12 +1,12 @@
+use std::sync::Arc;
 use std::{sync::RwLock, time::Duration};
 
 use actix::Addr;
 
 use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants, Hash};
-use witnet_net::client::tcp::JsonRpcClient;
+use witnet_net::client::tcp::{Error as TcpError, JsonRpcClient};
 
 use crate::types;
-use std::sync::Arc;
 
 /// Initialization parameters that can be specific for each wallet.
 #[derive(Clone)]
@@ -75,5 +75,16 @@ impl NodeParams {
                 *beacon = new_beacon
             }
         }
+    }
+
+    /// Get the address of an existing JsonRpcClient actor, or that of a fresh new actor if the
+    /// existing one had died.  
+    pub fn get_client(&mut self) -> Result<Addr<JsonRpcClient>, TcpError> {
+        if !self.client.connected() {
+            log::warn!("JsonRpcClient actor was dead. Replacing...");
+            self.client = JsonRpcClient::start(&self.address)?;
+        }
+
+        Ok(self.client.clone())
     }
 }

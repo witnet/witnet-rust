@@ -1,7 +1,7 @@
 //! Defines a JsonRPC over TCP actor.
 //!
 //! See the `JsonRpcClient` struct for more information.
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use actix::prelude::*;
 use async_jsonrpc_client::{
@@ -22,8 +22,7 @@ pub struct JsonRpcClient {
     socket: TcpSocket,
     url: String,
     retry_connect: bool,
-    subscriber: Option<SetSubscriber>,
-    subscription_id: Option<String>,
+    subscriptions: HashMap<String, Subscribe>,
 }
 
 impl JsonRpcClient {
@@ -36,8 +35,7 @@ impl JsonRpcClient {
             socket,
             url: url.to_owned(),
             retry_connect: false,
-            subscriber: None,
-            subscription_id: None,
+            subscriptions: Default::default(),
         };
 
         Ok(client.start())
@@ -53,7 +51,19 @@ impl JsonRpcClient {
         self._handle = _handle;
         self.socket = socket;
         self.retry_connect = false;
-        // TODO: re-subscribe
+    }
+
+    /// Renew all existing subscriptions.
+    pub fn resubscribe(&mut self, ctx: &mut <Self as Actor>::Context) {
+        log::debug!("Recovering {} subscriptions", self.subscriptions.len());
+        self.subscriptions
+            .clone()
+            .into_iter()
+            .for_each(|(_, subscribe)| {
+                let method = subscription_method_from_request(&subscribe.0);
+                log::debug!("Resubscribing to `{}` notifications", method);
+                <Self as Handler<Subscribe>>::handle(self, subscribe, ctx);
+            })
     }
 
     /// Send Json-RPC request.
@@ -82,12 +92,20 @@ impl JsonRpcClient {
 
 impl Actor for JsonRpcClient {
     type Context = Context<Self>;
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        log::error!("JsonRpcClient actor stopped!")
+    }
 }
 
 impl Supervised for JsonRpcClient {}
 
-/// TODO: doc
-pub struct Notification(pub Value);
+/// JSONRPC notification.
+///
+/// Contains:
+/// 1. Subscription ID
+/// 2. A JSON value
+pub struct Notification(pub String, pub Value);
 
 impl Message for Notification {
     type Result = ();
@@ -148,7 +166,7 @@ impl Handler<Request> for JsonRpcClient {
     ) -> Self::Result {
         if self.retry_connect {
             self.reconnect();
-            ctx.notify(Subscribe);
+            self.resubscribe(ctx);
         }
 
         let fut = self
@@ -156,6 +174,7 @@ impl Handler<Request> for JsonRpcClient {
             .into_actor(self)
             .timeout(timeout, Error::RequestTimedOut(timeout.as_millis()))
             .map_err(move |err, _act, ctx| {
+                log::error!("JSONRPC Request error: {:?}", err);
                 if is_connection_error(&err) {
                     ctx.notify(RetryConnect);
                 }
@@ -166,23 +185,13 @@ impl Handler<Request> for JsonRpcClient {
     }
 }
 
-/// TODO: doc
-pub struct SetSubscriber(pub Recipient<Notification>, pub Request);
-
-impl Message for SetSubscriber {
-    type Result = ();
-}
-
-impl Handler<SetSubscriber> for JsonRpcClient {
-    type Result = <SetSubscriber as Message>::Result;
-
-    fn handle(&mut self, msg: SetSubscriber, ctx: &mut Self::Context) -> Self::Result {
-        self.subscriber = Some(msg);
-        ctx.notify(Subscribe);
-    }
-}
-
-struct Subscribe;
+/// A message representing a subscription to notifications.
+///
+/// This ties together:
+/// - The JSONRPC request that needs to be sent to the server for initiating the subscription.
+/// - A `Recipient` for JSONRPC notifications.
+#[derive(Clone)]
+pub struct Subscribe(pub Request, pub Recipient<Notification>);
 
 impl Message for Subscribe {
     type Result = ();
@@ -191,44 +200,43 @@ impl Message for Subscribe {
 impl Handler<Subscribe> for JsonRpcClient {
     type Result = <Subscribe as Message>::Result;
 
-    fn handle(&mut self, _msg: Subscribe, ctx: &mut Self::Context) -> Self::Result {
-        if let Some(SetSubscriber(recipient, request)) = self.subscriber.take() {
-            ctx.address()
-                .send(request.clone())
-                .map_err(|err| log::error!("Couldn't subscribe: {}", err))
-                .into_actor(self)
-                .map(|resp, act, ctx| {
-                    match resp {
-                        Ok(Value::String(id)) => {
-                            let stream = act
-                                .socket
-                                .subscribe(&id.clone().into())
-                                .map(|value| {
-                                    log::debug!(
-                                        "<< Forwarding notification from node to subscriber"
-                                    );
-                                    Notification(value)
-                                })
-                                .map_err(|err| Error::RequestFailed {
-                                    message: err.to_string(),
-                                    error_kind: err.0,
-                                });
-                            Self::add_stream(stream, ctx);
-                            act.subscription_id = Some(id);
-                            log::info!("Client subscription created");
+    fn handle(&mut self, subscribe: Subscribe, ctx: &mut Self::Context) -> Self::Result {
+        let request = subscribe.0.clone();
+        log::debug!("Handling Subscribe message. Request is {:?}", &request);
+        ctx.address()
+            .send(request.clone())
+            .map_err(|err| log::error!("Couldn't subscribe: {}", err))
+            .into_actor(self)
+            .map(move |resp, act, ctx| {
+                match resp {
+                    Ok(Value::String(id)) => {
+                        act.subscriptions.insert(id.clone(), subscribe.clone());
+                        let stream = act
+                            .socket
+                            .subscribe(&id.clone().into())
+                            .map(move |value| {
+                                log::debug!("<< Forwarding notification from node to subscribers",);
+                                log::trace!("<< {:?}", value);
+                                Notification(id.clone(), value)
+                            })
+                            .map_err(|err| Error::RequestFailed {
+                                message: err.to_string(),
+                                error_kind: err.0,
+                            });
+                        Self::add_stream(stream, ctx);
+                        if let Some(method) = request.params.get(0) {
+                            log::info!("Client {} subscription created", method);
                         }
-                        Ok(_) => {
-                            log::error!("Unsupported subscription id. Subscription cancelled.");
-                        }
-                        Err(err) => {
-                            log::error!("Couldn't subscribe: {}", err);
-                        }
-                    };
-                })
-                .spawn(ctx);
-
-            self.subscriber = Some(SetSubscriber(recipient, request));
-        }
+                    }
+                    Ok(_) => {
+                        log::error!("Unsupported subscription id. Subscription cancelled.");
+                    }
+                    Err(err) => {
+                        log::error!("Couldn't subscribe: {}", err);
+                    }
+                };
+            })
+            .spawn(ctx);
     }
 }
 
@@ -250,9 +258,16 @@ impl Handler<RetryConnect> for JsonRpcClient {
 }
 
 impl StreamHandler<Notification, Error> for JsonRpcClient {
-    fn handle(&mut self, msg: Notification, _ctx: &mut Self::Context) {
-        if let Some(SetSubscriber(ref recipient, _)) = self.subscriber {
-            if let Err(err) = recipient.do_send(msg) {
+    fn handle(
+        &mut self,
+        Notification(subscription_id, value): Notification,
+        _ctx: &mut Self::Context,
+    ) {
+        if let Some(Subscribe(ref request, ref recipient)) =
+            self.subscriptions.get(&subscription_id)
+        {
+            let method = subscription_method_from_request(request);
+            if let Err(err) = recipient.do_send(Notification(method, value)) {
                 log::error!("Client couldn't notify subscriber: {}", err);
             }
         }
@@ -263,8 +278,22 @@ fn is_connection_error(err: &Error) -> bool {
     match err {
         Error::RequestFailed { error_kind, .. } => match error_kind {
             TransportErrorKind::Transport(_) => true,
+            TransportErrorKind::Unreachable => true,
             _ => false,
         },
+        Error::RequestTimedOut(_) => true,
+        Error::Mailbox(_) => true,
         _ => false,
     }
+}
+
+/// Extract a subscription method from a JSONRPC request
+fn subscription_method_from_request(request: &Request) -> String {
+    request
+        .params
+        .get(0)
+        .cloned()
+        .map(serde_json::from_value)
+        .expect("Subscriptions should always have a method")
+        .expect("Subscription methods should always be String")
 }

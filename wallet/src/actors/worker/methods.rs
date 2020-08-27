@@ -542,7 +542,7 @@ impl Worker {
     /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet
     /// chain.
     pub fn sync(
-        &self,
+        &mut self,
         wallet_id: &str,
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
@@ -668,7 +668,11 @@ impl Worker {
     /// empty.
     /// A limit can be required on this side, but take into account that the node is not forced to
     /// honor it.
-    pub async fn get_block_chain(&self, epoch: i64, limit: i64) -> Result<Vec<types::ChainEntry>> {
+    pub async fn get_block_chain(
+        &mut self,
+        epoch: i64,
+        limit: i64,
+    ) -> Result<Vec<types::ChainEntry>> {
         log::debug!(
             "Getting block chain from epoch {} (limit = {})",
             epoch,
@@ -684,7 +688,8 @@ impl Worker {
 
         let f = self
             .node
-            .client
+            .get_client()
+            .expect("communication with JsonRpcClient failed")
             .send(req)
             .flatten()
             .map(|json| {

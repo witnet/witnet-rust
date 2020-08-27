@@ -9,12 +9,9 @@ impl Handler<jsonrpc::Notification> for app::App {
 
     fn handle(
         &mut self,
-        jsonrpc::Notification(value): jsonrpc::Notification,
+        jsonrpc::Notification(method, value): jsonrpc::Notification,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        match self.handle_block_notification(value) {
-            Ok(()) => (),
-            Err(err) => log::warn!("Could not index block: {}", err),
-        }
+        self.handle_notification(method, value).ok();
     }
 }
