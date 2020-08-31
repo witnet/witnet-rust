@@ -352,6 +352,8 @@ pub struct Mining {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub mint_external_address: Option<String>,
+    /// Mempool size limit in weight units
+    pub transactions_pool_total_weight_limit: u64,
 }
 
 /// NTP-related configuration
@@ -662,6 +664,10 @@ impl Mining {
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_mint_external_percentage()),
             mint_external_address: config.mint_external_address.clone(),
+            transactions_pool_total_weight_limit: config
+                .transactions_pool_total_weight_limit
+                .to_owned()
+                .unwrap_or_else(|| defaults.mining_transactions_pool_total_weight_limit()),
         }
     }
 }

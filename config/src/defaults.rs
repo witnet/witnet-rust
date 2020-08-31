@@ -187,6 +187,12 @@ pub trait Defaults {
         50
     }
 
+    /// Mempool size limit in weight units
+    fn mining_transactions_pool_total_weight_limit(&self) -> u64 {
+        // Default: no limit
+        u64::MAX
+    }
+
     fn consensus_constants_max_vt_weight(&self) -> u32 {
         20_000
     }
