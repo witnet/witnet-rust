@@ -1,12 +1,13 @@
-use std::sync::Arc;
-use std::{sync::RwLock, time::Duration};
-
-use actix::Addr;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, RwLock},
+    time::Duration,
+};
 
 use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants, Hash};
-use witnet_net::client::tcp::{Error as TcpError, JsonRpcClient};
+use witnet_net::client::tcp::jsonrpc::Subscribe;
 
-use crate::types;
+use crate::{actors::app::NodeClient, types};
 
 /// Initialization parameters that can be specific for each wallet.
 #[derive(Clone)]
@@ -44,16 +45,16 @@ impl Default for Params {
 
 #[derive(Clone)]
 pub struct NodeParams {
-    /// The IP address and port of the node we are connecting to.
-    pub address: String,
     /// Reference to the JSON-RPC client actor.
-    pub client: Addr<JsonRpcClient>,
+    pub client: Arc<RwLock<NodeClient>>,
     /// A reference to the latest block that the node has consolidated into its block chain.
     pub last_beacon: Arc<RwLock<CheckpointBeacon>>,
     /// The name of the network in which the node is operating.
     pub network: String,
     /// Timeout for JSON-RPC requests sent to the node.
     pub requests_timeout: Duration,
+    /// Subscriptions to real time notifications from the node.
+    pub subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
 }
 
 impl NodeParams {
@@ -67,7 +68,7 @@ impl NodeParams {
     /// Update the `last_beacon` field with the information of the latest block that the node has
     /// consolidated into its block chain.
     /// This is a best-effort method. It will silently do nothing if the write lock on `last_beacon`
-    /// cannot be acquired or if the new beacon looks older than the current one.  
+    /// cannot be acquired or if the new beacon looks older than the current one.
     pub fn update_last_beacon(&self, new_beacon: CheckpointBeacon) {
         let lock = (*self.last_beacon).write();
         if let Ok(mut beacon) = lock {
@@ -77,14 +78,16 @@ impl NodeParams {
         }
     }
 
-    /// Get the address of an existing JsonRpcClient actor, or that of a fresh new actor if the
-    /// existing one had died.  
-    pub fn get_client(&mut self) -> Result<Addr<JsonRpcClient>, TcpError> {
-        if !self.client.connected() {
-            log::warn!("JsonRpcClient actor was dead. Replacing...");
-            self.client = JsonRpcClient::start(&self.address)?;
-        }
+    /// Get the address of an existing JsonRpcClient actor.
+    pub fn get_client(&self) -> NodeClient {
+        let lock = self.client.clone();
+        log::trace!(
+            "Getting JsonRpcClient actor from worker ({} references)",
+            Arc::strong_count(&lock)
+        );
 
-        Ok(self.client.clone())
+        lock.read()
+            .map(|x| x.clone())
+            .expect("Node client lock should never be poisoned")
     }
 }
