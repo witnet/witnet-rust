@@ -2984,8 +2984,15 @@ fn trapezoidal_eligibility(
     }
 
     // Calculate parameters for the curve y = mx + k
-    // k: average of the total active reputation
-    let k = f64::from(total_active_rep) / active_reputed_ids_len as f64;
+    // k: 1'5 * average of the total active reputation
+    let k = 1.5 * f64::from(total_active_rep) / active_reputed_ids_len as f64;
+    let maximum = f64::from(trs.get(&active_reputed_ids.first().unwrap()).0);
+    // The curve can not be higher than the real reputation
+    let k = if OrderedFloat(maximum) < OrderedFloat(k) {
+        maximum
+    } else {
+        k
+    };
     // m: negative slope calculated with the average and the last value
     let minimum = f64::from(trs.get(&active_reputed_ids.last().unwrap()).0);
     let m = (minimum - k) / ((active_reputed_ids_len as f64) - 1_f64);
@@ -4443,7 +4450,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(rep_engine.threshold_factor(1), 1);
-        assert_eq!(rep_engine.threshold_factor(2), 3);
+        assert_eq!(rep_engine.threshold_factor(2), 4);
     }
 
     #[test]
@@ -4526,9 +4533,9 @@ mod tests {
         assert_eq!(rep_engine.threshold_factor(1), 1);
         assert_eq!(rep_engine.threshold_factor(2), 2);
         assert_eq!(rep_engine.threshold_factor(3), 3);
-        assert_eq!(rep_engine.threshold_factor(4), 4);
-        assert_eq!(rep_engine.threshold_factor(5), 6);
-        assert_eq!(rep_engine.threshold_factor(6), 10);
+        assert_eq!(rep_engine.threshold_factor(4), 5);
+        assert_eq!(rep_engine.threshold_factor(5), 7);
+        assert_eq!(rep_engine.threshold_factor(6), 15);
         assert_eq!(rep_engine.threshold_factor(7), 50);
         assert_eq!(rep_engine.threshold_factor(8), 100);
         assert_eq!(rep_engine.threshold_factor(9), u32::max_value());
@@ -4938,12 +4945,12 @@ mod tests {
         let (trapezoid_hm, total) = trapezoidal_eligibility(&ids, rep_engine.trs());
         assert_eq!(total, 92);
 
-        assert_eq!(trapezoid_hm.get(&ids[0]), Some(&23));
-        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&19));
+        assert_eq!(trapezoid_hm.get(&ids[0]), Some(&27));
+        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&23));
         assert_eq!(trapezoid_hm.get(&ids[2]), Some(&17));
-        assert_eq!(trapezoid_hm.get(&ids[3]), Some(&14));
-        assert_eq!(trapezoid_hm.get(&ids[4]), Some(&11));
-        assert_eq!(trapezoid_hm.get(&ids[5]), Some(&8));
+        assert_eq!(trapezoid_hm.get(&ids[3]), Some(&13));
+        assert_eq!(trapezoid_hm.get(&ids[4]), Some(&8));
+        assert_eq!(trapezoid_hm.get(&ids[5]), Some(&4));
         assert_eq!(trapezoid_hm.get(&ids[6]), None);
         assert_eq!(trapezoid_hm.get(&ids[7]), None);
 
@@ -4955,13 +4962,13 @@ mod tests {
         let (trapezoid_hm, total) = trapezoidal_eligibility(&ids, rep_engine.trs());
         assert_eq!(total, 93);
 
-        assert_eq!(trapezoid_hm.get(&ids[0]), Some(&20));
-        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&18));
-        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&15));
+        assert_eq!(trapezoid_hm.get(&ids[0]), Some(&23));
+        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&20));
+        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&17));
         assert_eq!(trapezoid_hm.get(&ids[3]), Some(&13));
-        assert_eq!(trapezoid_hm.get(&ids[4]), Some(&11));
-        assert_eq!(trapezoid_hm.get(&ids[5]), Some(&9));
-        assert_eq!(trapezoid_hm.get(&ids[6]), Some(&7));
+        assert_eq!(trapezoid_hm.get(&ids[4]), Some(&10));
+        assert_eq!(trapezoid_hm.get(&ids[5]), Some(&7));
+        assert_eq!(trapezoid_hm.get(&ids[6]), Some(&3));
         assert_eq!(trapezoid_hm.get(&ids[7]), None);
     }
 }
