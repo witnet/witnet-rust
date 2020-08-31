@@ -2696,9 +2696,21 @@ mod tests {
         assert_eq!((p01 * 100_f64).round() as i128, 50);
     }
 
+    // Auxiliar function to add reputation
+    fn add_rep(rep_engine: &mut ReputationEngine, alpha: u32, pkh: PublicKeyHash, rep: u32) {
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(alpha), vec![(pkh, Reputation(rep))])
+            .unwrap();
+    }
+
     #[test]
     // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-    #[allow(clippy::cast_possible_truncation, clippy::cognitive_complexity)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cognitive_complexity,
+        clippy::cast_sign_loss
+    )]
     fn target_reppoe_specific_example() {
         let mut rep_engine = ReputationEngine::new(1000);
         let mut ids = vec![];
@@ -2707,115 +2719,37 @@ mod tests {
         }
         rep_engine.ars_mut().push_activity(ids.clone());
 
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[0], Reputation(79))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[1], Reputation(9))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[2], Reputation(1))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[3], Reputation(1))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[4], Reputation(1))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[5], Reputation(1))])
-            .unwrap();
+        add_rep(&mut rep_engine, 10, ids[0], 79);
+        add_rep(&mut rep_engine, 10, ids[1], 9);
+        add_rep(&mut rep_engine, 10, ids[2], 1);
+        add_rep(&mut rep_engine, 10, ids[3], 1);
+        add_rep(&mut rep_engine, 10, ids[4], 1);
+        add_rep(&mut rep_engine, 10, ids[5], 1);
 
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 28);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 24);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 18);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 14);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 9);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 5);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 1);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 1);
-        assert_eq!((p00 * 100_f64).round() as i128, 1);
+        let rep_thresholds = |thres| {
+            let mut v = vec![];
+            for id in ids.iter() {
+                v.push(
+                    (calculate_reppoe_threshold(&rep_engine, id, thres).1 * 100_f64).round() as u32,
+                );
+            }
+            v
+        };
 
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 56);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 48);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 36);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 28);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 18);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 10);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 2);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 2);
-        assert_eq!((p00 * 100_f64).round() as i128, 2);
+        let expected_rep_1 = vec![28, 24, 5, 9, 14, 18, 1, 1];
+        assert_eq!(rep_thresholds(1), expected_rep_1);
 
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 84);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 72);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 54);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 42);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 27);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 15);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 3);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 3);
-        assert_eq!((p00 * 100_f64).round() as i128, 3);
+        let expected_rep_1 = vec![56, 48, 10, 18, 28, 36, 2, 2];
+        assert_eq!(rep_thresholds(2), expected_rep_1);
 
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 90);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 70);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 45);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 25);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 5);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 4);
-        assert_eq!((p00 * 100_f64).round() as i128, 5);
+        let expected_rep_1 = vec![84, 72, 15, 27, 42, 54, 3, 3];
+        assert_eq!(rep_thresholds(3), expected_rep_1);
 
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 98);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 63);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 35);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 7);
-        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 5);
-        assert_eq!((p00 * 100_f64).round() as i128, 7);
+        let expected_rep_1 = vec![100, 100, 25, 45, 70, 90, 5, 5];
+        assert_eq!(rep_thresholds(4), expected_rep_1);
+
+        let expected_rep_1 = vec![100, 100, 35, 63, 98, 100, 7, 7];
+        assert_eq!(rep_thresholds(5), expected_rep_1);
     }
 
     // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable

@@ -2913,9 +2913,25 @@ impl ReputationEngine {
         self.ars
             .active_identities()
             .cloned()
-            .sorted_by_key(|&pkh| std::cmp::Reverse((self.trs.get(&pkh), pkh)))
+            .sorted_by(|a, b| compare_reputed_pkh(a, b, &self).reverse())
             .collect()
     }
+}
+/// Compare 2 PublicKeyHashes comparing:
+/// First: reputation
+/// Second: PublicKeyHash bytes from an offset
+fn compare_reputed_pkh(
+    a: &PublicKeyHash,
+    b: &PublicKeyHash,
+    rep_eng: &ReputationEngine,
+) -> Ordering {
+    let rep_a = rep_eng.trs().get(a).0;
+    let rep_b = rep_eng.trs().get(b).0;
+
+    rep_a.cmp(&rep_b).then_with(|| {
+        // FIXME(#1507): implement better tie breaker
+        a.cmp(b)
+    })
 }
 
 /// Calculate the result of `y = mx + K`
@@ -4685,8 +4701,8 @@ mod tests {
         let mut alt_keys = AltKeys::default();
 
         let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
-        let p2 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
-        let p3 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
 
         let p1_bls =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
@@ -4867,6 +4883,14 @@ mod tests {
         assert_eq!(magic_line(8_f64, m, k), 0);
     }
 
+    // Auxiliar function to add reputation
+    fn add_rep(rep_engine: &mut ReputationEngine, alpha: u32, pkh: PublicKeyHash, rep: u32) {
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(alpha), vec![(pkh, Reputation(rep))])
+            .unwrap();
+    }
+
     #[test]
     fn test_trapezoid_reputation_equal_reputation() {
         let mut rep_engine = ReputationEngine::new(1000);
@@ -4876,30 +4900,9 @@ mod tests {
         }
         rep_engine.ars_mut().push_activity(ids.clone());
 
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[0], Reputation(10))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[1], Reputation(10))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[2], Reputation(10))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[3], Reputation(10))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[4], Reputation(10))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[5], Reputation(10))])
-            .unwrap();
+        for id in ids.clone() {
+            add_rep(&mut rep_engine, 10, id, 10);
+        }
 
         let (trapezoid_hm, total) = trapezoidal_eligibility(&ids, rep_engine.trs());
         assert_eq!(total, 60);
@@ -4917,30 +4920,12 @@ mod tests {
         }
         rep_engine.ars_mut().push_activity(ids.clone());
 
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[0], Reputation(79))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[1], Reputation(9))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[2], Reputation(1))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[3], Reputation(1))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[4], Reputation(1))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[5], Reputation(1))])
-            .unwrap();
+        add_rep(&mut rep_engine, 10, ids[0], 79);
+        add_rep(&mut rep_engine, 10, ids[1], 9);
+        add_rep(&mut rep_engine, 10, ids[2], 1);
+        add_rep(&mut rep_engine, 10, ids[3], 1);
+        add_rep(&mut rep_engine, 10, ids[4], 1);
+        add_rep(&mut rep_engine, 10, ids[5], 1);
 
         let (trapezoid_hm, total) = trapezoidal_eligibility(&ids, rep_engine.trs());
         assert_eq!(total, 92);
@@ -4970,5 +4955,38 @@ mod tests {
         assert_eq!(trapezoid_hm.get(&ids[5]), Some(&7));
         assert_eq!(trapezoid_hm.get(&ids[6]), Some(&3));
         assert_eq!(trapezoid_hm.get(&ids[7]), None);
+    }
+
+    #[test]
+    fn test_get_rep_ordered_ars_list() {
+        let pkh_a = PublicKeyHash::from_bytes(&[
+            1, 3, 18, 2, 58, 34, 200, 22, 1, 34, 239, 122, 111, 24, 186, 35, 56, 154, 20, 227,
+        ])
+        .unwrap();
+        let pkh_b = PublicKeyHash::from_bytes(&[
+            2, 33, 59, 141, 206, 133, 65, 87, 149, 222, 13, 181, 41, 22, 109, 39, 76, 125, 250, 232,
+        ])
+        .unwrap();
+        let mut rep_engine = ReputationEngine::new(1000);
+        rep_engine.ars_mut().push_activity(vec![pkh_a, pkh_b]);
+
+        // "a" start with 10 and "b" with 5
+        add_rep(&mut rep_engine, 10, pkh_a, 10);
+        add_rep(&mut rep_engine, 10, pkh_b, 5);
+        rep_engine.current_alpha = Alpha(10);
+        let expected_order = vec![pkh_a, pkh_b];
+        assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
+
+        // "b" get 10 points more
+        add_rep(&mut rep_engine, 11, pkh_b, 10);
+        rep_engine.current_alpha = Alpha(11);
+        let expected_order = vec![pkh_b, pkh_a];
+        assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
+
+        // "a" get 5 points more and there is a tie with "b"
+        add_rep(&mut rep_engine, 12, pkh_a, 5);
+        rep_engine.current_alpha = Alpha(12);
+        let expected_order = vec![pkh_b, pkh_a];
+        assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
     }
 }
