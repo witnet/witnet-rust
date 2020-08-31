@@ -14,7 +14,7 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use actix::prelude::*;
@@ -25,6 +25,7 @@ use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
 use witnet_net::client::tcp::JsonRpcClient;
 
 use crate::actors::app;
+use crate::actors::app::NodeClient;
 
 mod account;
 mod actors;
@@ -77,7 +78,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
 
     // Nicely unwrap the `Option<String>` for `node_url`
-    let node_url = node_url.ok_or_else(|| {
+    let node_client_url = node_url.ok_or_else(|| {
         log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
                         [wallet]\n\
                         node_url = \"{}\"\n", node_jsonrpc_server_address);
@@ -87,12 +88,20 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     // Connecting to a remote node server that is not configured locally is not a deal breaker,
     // but still could mean some misconfiguration, so we print a warning with some help.
-    if node_url != node_jsonrpc_server_address.to_string() {
-        log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, node_url);
+    if node_client_url != node_jsonrpc_server_address.to_string() {
+        log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, node_client_url);
     }
 
-    let client =
-        JsonRpcClient::start(node_url.as_ref()).map_err(|_| app::Error::NodeNotConnected)?;
+    let node_subscriptions = Arc::new(Mutex::new(Default::default()));
+    let node_client_actor = JsonRpcClient::start_with_subscriptions(
+        node_client_url.as_ref(),
+        node_subscriptions.clone(),
+    )
+    .map_err(|_| app::Error::NodeNotConnected)?;
+    let node_client = Arc::new(RwLock::new(NodeClient {
+        actor: node_client_actor,
+        url: node_client_url,
+    }));
 
     let db = Arc::new(
         ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
@@ -118,11 +127,11 @@ pub fn run(conf: Config) -> Result<(), Error> {
     }));
     let network = String::from(if testnet { "Testnet" } else { "Mainnet" });
     let node_params = params::NodeParams {
-        address: node_url,
-        client: client.clone(),
+        client: node_client.clone(),
         last_beacon,
         network,
         requests_timeout,
+        subscriptions: node_subscriptions,
     };
 
     // Start wallet actors
@@ -130,7 +139,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let app = actors::App::start(actors::app::Params {
         testnet,
         worker,
-        client,
+        client: node_client,
         server_addr,
         session_expires_in,
         requests_timeout,
@@ -141,7 +150,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         app.do_send(actors::app::Shutdown);
     });
 
-    system.run()?;
+    futures::future::lazy(|| system.run()).wait()?;
 
     log::info!("Waiting for db to shut down...");
     while Arc::strong_count(&db) > 1 {

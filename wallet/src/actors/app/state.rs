@@ -1,13 +1,20 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::convert::TryFrom;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, RwLock},
+};
+
+use witnet_net::client::tcp::jsonrpc::Subscribe;
+
+use crate::types::SubscriptionId;
 
 use super::*;
-use crate::types::SubscriptionId;
-use std::convert::TryFrom;
 
 /// Struct to manage the App actor state and its invariants.
 #[derive(Default)]
 pub struct State {
-    pub subscriptions: HashMap<types::SessionId, types::DynamicSink>,
+    pub node_subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
+    pub client_subscriptions: HashMap<types::SessionId, types::DynamicSink>,
     pub sessions: HashMap<types::SessionId, Session>,
     pub wallets: HashMap<String, types::SessionWallet>,
 }
@@ -20,7 +27,7 @@ pub struct Session {
 impl State {
     /// Get the subscription sink for a specific session
     pub fn get_sink(&mut self, session_id: &types::SessionId) -> types::DynamicSink {
-        match self.subscriptions.get(session_id) {
+        match self.client_subscriptions.get(session_id) {
             Some(sink) => sink.clone(),
             None => self.set_sink(session_id, None),
         }
@@ -33,7 +40,8 @@ impl State {
         new_sink: Option<types::Sink>,
     ) -> types::DynamicSink {
         let sink = Arc::new(RwLock::new(new_sink));
-        self.subscriptions.insert(session_id.clone(), sink.clone());
+        self.client_subscriptions
+            .insert(session_id.clone(), sink.clone());
 
         sink
     }
@@ -44,7 +52,7 @@ impl State {
         session_id: &types::SessionId,
         new_sink: Option<types::Sink>,
     ) -> types::DynamicSink {
-        match self.subscriptions.get(session_id) {
+        match self.client_subscriptions.get(session_id) {
             Some(sink) => {
                 let mut lock = sink
                     .write()

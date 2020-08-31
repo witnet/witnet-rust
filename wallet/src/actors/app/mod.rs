@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use actix::prelude::*;
 
 use witnet_net::client::tcp::jsonrpc;
@@ -36,8 +34,8 @@ impl Actor for App {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         // Subscribe to new blocks and blocks consolidation notifications from a Witnet node
-        self.jsonrpc_subscribe("newBlocks", ctx);
-        self.jsonrpc_subscribe("consolidatedBlocks", ctx);
+        self.node_subscribe("newBlocks", ctx);
+        self.node_subscribe("consolidatedBlocks", ctx);
 
         let mut handler =
             jsonrpc_pubsub::PubSubHandler::new(jsonrpc_core::MetaIoHandler::default());

@@ -1,14 +1,18 @@
+use std::sync::Arc;
+
 use actix::utils::TimerFunc;
 use futures::future;
 
 use witnet_data_structures::chain::InventoryItem;
 
-use crate::actors::worker::{HandleBlockRequest, NotifyStatus};
-use crate::actors::*;
+use crate::actors::{
+    worker::{HandleBlockRequest, NotifyStatus},
+    *,
+};
+use crate::types::SubscriptionId;
 use crate::{crypto, model, repository};
 
 use super::*;
-use crate::types::SubscriptionId;
 
 impl App {
     /// Start the actor App with the provided parameters
@@ -83,23 +87,6 @@ impl App {
         // Session id and subscription id are currently the same thing. See comment in
         // next_subscription_id method.
         self.state.unsubscribe(id).map(|_| ())
-    }
-
-    /// Subscribe to receiving notifications of a specific type from a Witnet node
-    pub fn jsonrpc_subscribe(&mut self, method: &str, ctx: &mut <Self as Actor>::Context) {
-        let recipient = ctx.address().recipient();
-
-        let request = types::RpcRequest::method("witnet_subscribe")
-            .timeout(self.params.requests_timeout)
-            .value(serde_json::to_value([method]).expect(
-                "Any JSON-RPC method name should be serializable using `serde_json::to_value`",
-            ));
-
-        log::debug!("Subscribing to {} notifications: {:?}", method, request);
-
-        self.params
-            .client
-            .do_send(jsonrpc::Subscribe(request, recipient));
     }
 
     /// Generate a receive address for the wallet's current account.
@@ -231,7 +218,12 @@ impl App {
             .timeout(self.params.requests_timeout)
             .params(params)
             .expect("params failed serialization");
-        let f = self.params.client.send(req).flatten().map_err(From::from);
+        let f = self
+            .get_client()
+            .actor
+            .send(req)
+            .flatten()
+            .map_err(From::from);
 
         Box::new(f)
     }
@@ -512,11 +504,11 @@ impl App {
     }
 
     /// Handle any kind of notifications received from a Witnet node.
-    pub fn handle_notification(&mut self, method: String, value: types::Json) -> Result<()> {
-        match method.as_str() {
+    pub fn handle_notification(&mut self, topic: String, value: types::Json) -> Result<()> {
+        match topic.as_str() {
             "newBlocks" => self.handle_block_notification(value),
             _ => {
-                log::debug!("Unhandled `{}` notification", method);
+                log::debug!("Unhandled `{}` notification", topic);
                 log::trace!("Payload is {:?}", value);
 
                 Ok(())
@@ -575,8 +567,8 @@ impl App {
             .params(params)
             .expect("params failed serialization");
         let f = self
-            .params
-            .client
+            .get_client()
+            .actor
             .send(req)
             .flatten()
             .map_err(From::from)
@@ -646,5 +638,35 @@ impl App {
         self.stop(ctx);
 
         Ok(())
+    }
+
+    /// Get the URL and address of an existing JsonRpcClient actor.
+    pub fn get_client(&self) -> NodeClient {
+        let lock = self.params.client.clone();
+        log::trace!(
+            "Getting JsonRpcClient actor from app ({} references)",
+            Arc::strong_count(&lock)
+        );
+
+        lock.read()
+            .map(|x| x.clone())
+            .expect("Node client lock should never be poisoned")
+    }
+
+    /// Subscribe to receiving real time notifications of a specific type from a Witnet node.
+    pub fn node_subscribe(&self, method: &str, ctx: &mut <Self as Actor>::Context) {
+        let recipient = ctx.address().recipient();
+
+        let request = types::RpcRequest::method("witnet_subscribe")
+            .timeout(self.params.requests_timeout)
+            .value(serde_json::to_value([method]).expect(
+                "Any JSON-RPC method name should be serializable using `serde_json::to_value`",
+            ));
+
+        log::debug!("Subscribing to {} notifications: {:?}", method, request);
+
+        self.get_client()
+            .actor
+            .do_send(jsonrpc::Subscribe(request, recipient));
     }
 }

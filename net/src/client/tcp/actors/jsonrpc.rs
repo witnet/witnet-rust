@@ -1,12 +1,16 @@
 //! Defines a JsonRPC over TCP actor.
 //!
 //! See the `JsonRpcClient` struct for more information.
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use actix::prelude::*;
 use async_jsonrpc_client::{
     transports::{shared::EventLoopHandle, tcp::TcpSocket},
-    DuplexTransport as _, ErrorKind as TransportErrorKind, Transport as _,
+    DuplexTransport, ErrorKind as TransportErrorKind, Transport as _,
 };
 use futures::Future;
 use serde::Serialize;
@@ -20,50 +24,81 @@ use super::Error;
 pub struct JsonRpcClient {
     _handle: EventLoopHandle,
     socket: TcpSocket,
+    active_subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
+    pending_subscriptions: HashMap<String, Subscribe>,
     url: String,
-    retry_connect: bool,
-    subscriptions: HashMap<String, Subscribe>,
 }
 
 impl JsonRpcClient {
-    /// Start Json-RPC async client actor.
+    /// Start JSON-RPC async client actor providing only the URL of the server.
     pub fn start(url: &str) -> Result<Addr<JsonRpcClient>, Error> {
+        let subscriptions = Arc::new(Default::default());
+
+        Self::start_with_subscriptions(url, subscriptions)
+    }
+
+    /// Start JSON-RPC async client actor providing the URL of the server and some subscriptions.
+    pub fn start_with_subscriptions(
+        url: &str,
+        subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
+    ) -> Result<Addr<JsonRpcClient>, Error> {
         log::info!("Connecting client to {}", url);
         let (_handle, socket) = TcpSocket::new(url).map_err(|_| Error::InvalidUrl)?;
         let client = Self {
             _handle,
             socket,
-            url: url.to_owned(),
-            retry_connect: false,
-            subscriptions: Default::default(),
+            active_subscriptions: subscriptions,
+            pending_subscriptions: Default::default(),
+            url: String::from(url),
         };
+        log::info!("TCP socket is now connected to {}", url);
 
-        Ok(client.start())
+        Ok(Actor::start(client))
     }
 
-    /// Renew the connection of the client.
-    pub fn reconnect(&mut self) {
-        log::info!("Reconnecting client to {}", self.url);
-        // The .expect is because the creation of the socket might only fail if the url is invalid,
-        // but since this a reconnection, meaning we were able to correctly parse the url before,
-        // then at this point the url should be the same, hence still valid.
-        let (_handle, socket) = TcpSocket::new(self.url.as_ref()).expect("Unexpected error");
+    /// Replace the TCP connection with a fresh new connection.
+    pub fn reconnect(&mut self, ctx: &mut <Self as Actor>::Context) {
+        log::info!("Reconnecting TCP client to {}", self.url);
+        let (_handle, socket) = TcpSocket::new(self.url.as_str())
+            .map_err(|e| log::error!("Reconnection error: {}", e))
+            .expect("TCP socket reconnection should not panic, as the only possible error is malformed URL");
         self._handle = _handle;
         self.socket = socket;
-        self.retry_connect = false;
-    }
 
-    /// Renew all existing subscriptions.
-    pub fn resubscribe(&mut self, ctx: &mut <Self as Actor>::Context) {
-        log::debug!("Recovering {} subscriptions", self.subscriptions.len());
-        self.subscriptions
-            .clone()
-            .into_iter()
-            .for_each(|(_, subscribe)| {
-                let method = subscription_method_from_request(&subscribe.0);
-                log::debug!("Resubscribing to `{}` notifications", method);
-                <Self as Handler<Subscribe>>::handle(self, subscribe, ctx);
-            })
+        // Recover active subscriptions
+        let mut active_subscriptions = self
+            .active_subscriptions
+            .lock()
+            .map(|x| x.clone())
+            .expect("Active subscriptions Mutex should never be poisoned");
+        log::debug!(
+            "Trying to recover {} active subscriptions",
+            active_subscriptions.len()
+        );
+        active_subscriptions.iter().for_each(|(_, subscribe)| {
+            log::debug!("Resubscribing {:?}", subscribe.0);
+            ctx.notify(subscribe.clone());
+        });
+
+        // Process pending subscriptions
+        log::debug!(
+            "Trying to process {} pending subscriptions",
+            self.pending_subscriptions.len()
+        );
+        self.pending_subscriptions
+            .iter()
+            .for_each(|(topic, subscribe)| {
+                log::debug!(
+                    "Processing pending subscription for topic {}: {:?}",
+                    topic,
+                    subscribe.0
+                );
+                ctx.notify(subscribe.clone());
+            });
+
+        // Clear up all subscriptions (will be pushed again if they keep failing)
+        active_subscriptions.clear();
+        self.pending_subscriptions.clear();
     }
 
     /// Send Json-RPC request.
@@ -93,8 +128,18 @@ impl JsonRpcClient {
 impl Actor for JsonRpcClient {
     type Context = Context<Self>;
 
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        log::debug!("JsonRpcClient actor started!");
+    }
+
+    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
+        log::info!("JsonRpcClient actor was trying to stop for some reason. Refusing to stop!");
+
+        Running::Continue
+    }
+
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::error!("JsonRpcClient actor stopped!")
+        log::info!("JsonRpcClient actor stopped!");
     }
 }
 
@@ -162,21 +207,22 @@ impl Handler<Request> for JsonRpcClient {
             params,
             timeout,
         }: Request,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> Self::Result {
-        if self.retry_connect {
-            self.reconnect();
-            self.resubscribe(ctx);
-        }
-
+        log::trace!(
+            "Handling Request: {}, {:?}, {}",
+            method,
+            params,
+            timeout.as_millis()
+        );
         let fut = self
             .send_request(method, params)
             .into_actor(self)
             .timeout(timeout, Error::RequestTimedOut(timeout.as_millis()))
-            .map_err(move |err, _act, ctx| {
+            .map_err(move |err, act, ctx| {
                 log::error!("JSONRPC Request error: {:?}", err);
                 if is_connection_error(&err) {
-                    ctx.notify(RetryConnect);
+                    act.reconnect(ctx);
                 }
                 err
             });
@@ -202,7 +248,13 @@ impl Handler<Subscribe> for JsonRpcClient {
 
     fn handle(&mut self, subscribe: Subscribe, ctx: &mut Self::Context) -> Self::Result {
         let request = subscribe.0.clone();
-        log::debug!("Handling Subscribe message. Request is {:?}", &request);
+        let topic = subscription_topic_from_request(&request);
+        log::debug!(
+            "Handling Subscribe message for topic {}. Request is {:?}",
+            topic,
+            request
+        );
+
         ctx.address()
             .send(request.clone())
             .map_err(|err| log::error!("Couldn't subscribe: {}", err))
@@ -210,7 +262,10 @@ impl Handler<Subscribe> for JsonRpcClient {
             .map(move |resp, act, ctx| {
                 match resp {
                     Ok(Value::String(id)) => {
-                        act.subscriptions.insert(id.clone(), subscribe.clone());
+                        if let Ok(mut subscriptions) = act.active_subscriptions.lock() {
+                            (*subscriptions).insert(id.clone(), subscribe.clone());
+                        };
+
                         let stream = act
                             .socket
                             .subscribe(&id.clone().into())
@@ -232,28 +287,16 @@ impl Handler<Subscribe> for JsonRpcClient {
                         log::error!("Unsupported subscription id. Subscription cancelled.");
                     }
                     Err(err) => {
-                        log::error!("Couldn't subscribe: {}", err);
+                        log::error!(
+                            "Could not subscribe to topic {}. Delaying subscription. Error was: {}",
+                            topic,
+                            err
+                        );
+                        act.pending_subscriptions.insert(topic, subscribe);
                     }
                 };
             })
             .spawn(ctx);
-    }
-}
-
-struct RetryConnect;
-
-impl Message for RetryConnect {
-    type Result = ();
-}
-
-impl Handler<RetryConnect> for JsonRpcClient {
-    type Result = <RetryConnect as Message>::Result;
-
-    fn handle(&mut self, _msg: RetryConnect, _ctx: &mut Self::Context) -> Self::Result {
-        log::info!(
-            "Client connection has failed, it will retry to re-connect in the next request."
-        );
-        self.retry_connect = true;
     }
 }
 
@@ -263,12 +306,13 @@ impl StreamHandler<Notification, Error> for JsonRpcClient {
         Notification(subscription_id, value): Notification,
         _ctx: &mut Self::Context,
     ) {
-        if let Some(Subscribe(ref request, ref recipient)) =
-            self.subscriptions.get(&subscription_id)
-        {
-            let method = subscription_method_from_request(request);
-            if let Err(err) = recipient.do_send(Notification(method, value)) {
-                log::error!("Client couldn't notify subscriber: {}", err);
+        if let Ok(subscriptions) = (*self.active_subscriptions).lock() {
+            if let Some(Subscribe(ref request, ref recipient)) = subscriptions.get(&subscription_id)
+            {
+                let method = subscription_topic_from_request(request);
+                if let Err(err) = recipient.do_send(Notification(method, value)) {
+                    log::error!("Client couldn't notify subscriber: {}", err);
+                }
             }
         }
     }
@@ -287,13 +331,13 @@ fn is_connection_error(err: &Error) -> bool {
     }
 }
 
-/// Extract a subscription method from a JSONRPC request
-fn subscription_method_from_request(request: &Request) -> String {
+/// Extract a subscription topic from a JSONRPC request
+fn subscription_topic_from_request(request: &Request) -> String {
     request
         .params
         .get(0)
         .cloned()
         .map(serde_json::from_value)
-        .expect("Subscriptions should always have a method")
-        .expect("Subscription methods should always be String")
+        .expect("Subscriptions should always have a topic")
+        .expect("Subscription topics should always be String")
 }
