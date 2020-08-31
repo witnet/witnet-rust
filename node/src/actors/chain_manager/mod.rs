@@ -976,8 +976,9 @@ impl ChainManager {
                     act.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
 
                     // Add valid transaction to transactions_pool
-                    act.transactions_pool.insert(msg.transaction, fee);
-                    log::trace!("Transaction added successfully");
+                    let tx_hash = msg.transaction.hash();
+                    let removed_transactions = act.transactions_pool.insert(msg.transaction, fee);
+                    log_removed_transactions(&removed_transactions, tx_hash);
 
                     actix::fut::ok(())
                 }
@@ -2116,6 +2117,41 @@ pub fn reputed_ars(
             }
         })
         .collect()
+}
+
+/// When the TransactionsPool is full, inserting a transaction can result in removing other
+/// transactions. This will log the removed transactions.
+pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_tx_hash: Hash) {
+    if removed_transactions.is_empty() {
+        log::trace!("Transaction {} added successfully", inserted_tx_hash);
+    } else {
+        let mut removed_tx_hashes: Vec<String> = vec![];
+        // The transaction we tried to insert may be among the removed transactions
+        // In that case, do not log "Transaction {} added successfully"
+        let mut removed_the_one_we_just_inserted = false;
+        for tx in removed_transactions {
+            let removed_tx_hash = tx.hash();
+            removed_tx_hashes.push(removed_tx_hash.to_string());
+
+            if removed_tx_hash == inserted_tx_hash {
+                removed_the_one_we_just_inserted = true;
+            }
+        }
+
+        if removed_the_one_we_just_inserted {
+            log::trace!(
+                "Transaction {} was not added because the TransactionsPool is full",
+                inserted_tx_hash
+            );
+        } else {
+            log::trace!("Transaction {} added successfully", inserted_tx_hash);
+        }
+
+        log::debug!(
+            "TransactionsPool is full! Removed the following transactions: {:?}",
+            removed_tx_hashes
+        );
+    }
 }
 
 #[cfg(test)]

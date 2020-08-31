@@ -1407,7 +1407,7 @@ type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction);
 /// [`Hash`](Hash) and iteration over the
 /// transactions sorted from by transactions with bigger fees to
 /// transactions with smaller fees.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TransactionsPool {
     vt_transactions: HashMap<Hash, PrioritizedVTTransaction>,
     sorted_vt_index: BTreeSet<PrioritizedHash>,
@@ -1426,6 +1426,33 @@ pub struct TransactionsPool {
     pending_transactions: HashSet<Hash>,
     // Map to avoid double spending issues
     output_pointer_map: HashMap<OutputPointer, Vec<Hash>>,
+    // Total size of all value transfer transactions inside the pool in weight units
+    total_vt_size_bytes: u64,
+    // Total size of all data request transactions inside the pool in weight units
+    total_dr_size_bytes: u64,
+    // TransactionsPool size limit in weight units
+    weight_limit: u64,
+}
+
+impl Default for TransactionsPool {
+    fn default() -> Self {
+        Self {
+            vt_transactions: Default::default(),
+            sorted_vt_index: Default::default(),
+            dr_transactions: Default::default(),
+            sorted_dr_index: Default::default(),
+            co_hash_index: Default::default(),
+            co_transactions: Default::default(),
+            re_hash_index: Default::default(),
+            re_transactions: Default::default(),
+            pending_transactions: Default::default(),
+            output_pointer_map: Default::default(),
+            total_vt_size_bytes: 0,
+            total_dr_size_bytes: 0,
+            // Unlimited by default
+            weight_limit: u64::MAX,
+        }
+    }
 }
 
 impl TransactionsPool {
@@ -1461,7 +1488,16 @@ impl TransactionsPool {
             sorted_dr_index: BTreeSet::new(),
             pending_transactions: HashSet::new(),
             output_pointer_map: HashMap::with_capacity(capacity),
+            total_vt_size_bytes: 0,
+            total_dr_size_bytes: 0,
+            weight_limit: u64::MAX,
         }
+    }
+
+    pub fn set_total_weight_limit(&mut self, weight_limit: u64) -> Vec<Transaction> {
+        self.weight_limit = weight_limit;
+
+        self.remove_transactions_for_size_limit()
     }
 
     /// Returns the number of transactions the pool can hold without
@@ -1680,6 +1716,7 @@ impl TransactionsPool {
 
     /// Remove a value transfer transaction from the pool and make sure that other transactions
     /// that may try to spend the same UTXOs are also removed.
+    /// This should be used to remove transactions that got included in a consolidated block.
     ///
     /// Returns an `Option` with the value transfer transaction for the specified hash or `None` if not exist.
     ///
@@ -1735,13 +1772,17 @@ impl TransactionsPool {
         }
     }
 
-    /// Remove a value transfer transaction from the pool without any further guarantee
-    /// about removing other transactions that may try to spend the same UTXOs.
+    /// Remove a value transfer transaction from the pool but do not remove other transactions that
+    /// may try to spend the same UTXOs.
+    /// This should be used to remove transactions that did not get included in a consolidated
+    /// block.
+    /// If the transaction did get included in a consolidated block, use `vt_remove` instead.
     fn vt_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<VTTransaction> {
         self.vt_transactions
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_vt_index.remove(&(weight, *key));
+                self.total_vt_size_bytes -= u64::from(transaction.weight());
                 if !consolidated {
                     self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
                 }
@@ -1751,6 +1792,7 @@ impl TransactionsPool {
 
     /// Remove a data request transaction from the pool and make sure that other transactions
     /// that may try to spend the same UTXOs are also removed.
+    /// This should be used to remove transactions that got included in a consolidated block.
     ///
     /// Returns an `Option` with the data request transaction for the specified hash or `None` if not exist.
     ///
@@ -1783,13 +1825,17 @@ impl TransactionsPool {
         transaction
     }
 
-    /// Remove a data request transaction from the pool without any further guarantee
-    /// about removing other transactions that may try to spend the same UTXOs.
+    /// Remove a data request transaction from the pool but do not remove other transactions that
+    /// may try to spend the same UTXOs.
+    /// This should be used to remove transactions that did not get included in a consolidated
+    /// block.
+    /// If the transaction did get included in a consolidated block, use `dr_remove` instead.
     fn dr_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<DRTransaction> {
         self.dr_transactions
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_dr_index.remove(&(weight, *key));
+                self.total_dr_size_bytes -= u64::from(transaction.weight());
                 if !consolidated {
                     self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
                 }
@@ -1906,7 +1952,52 @@ impl TransactionsPool {
         (reveals_vector, total_fee)
     }
 
+    /// Remove transactions until the size limit is satisfied.
+    /// Returns a list of all the removed transactions.
+    fn remove_transactions_for_size_limit(&mut self) -> Vec<Transaction> {
+        let mut removed_transactions = vec![];
+
+        while self.total_vt_size_bytes + self.total_dr_size_bytes > self.weight_limit {
+            // Try to split the memory between value transfer and data requests using the same
+            // ratio as the one used in blocks
+            // The ratio of vt to dr in blocks is currently 4:1
+            // TODO: calculate this from ConsensusConstants?
+            let vt_to_dr_factor = 80_000.0 / 20_000.0;
+            #[allow(clippy::cast_precision_loss)]
+            let more_vtts_than_drs = self.total_vt_size_bytes as f64 * vt_to_dr_factor
+                >= self.total_dr_size_bytes as f64;
+            if more_vtts_than_drs {
+                // Remove the value transfer transaction with the lowest fee/weight
+                let tx_hash = self
+                    .sorted_vt_index
+                    .iter()
+                    .map(|(_fee_weight, tx_hash)| *tx_hash)
+                    .next()
+                    // There must be at least one transaction because the total weight is not zero
+                    .unwrap();
+                let tx = self.vt_remove_inner(&tx_hash, false).unwrap();
+                removed_transactions.push(Transaction::ValueTransfer(tx));
+            } else {
+                // Remove the data request transaction with the lowest fee/weight
+                let tx_hash = self
+                    .sorted_dr_index
+                    .iter()
+                    .map(|(_fee_weight, tx_hash)| *tx_hash)
+                    .next()
+                    // There must be at least one transaction because the total weight is not zero
+                    .unwrap();
+                let tx = self.dr_remove_inner(&tx_hash, false).unwrap();
+                removed_transactions.push(Transaction::DataRequest(tx));
+            }
+        }
+
+        removed_transactions
+    }
+
     /// Insert a transaction identified by `key` into the pool.
+    ///
+    /// Due to the size limit, inserting a new transaction may result in some older ones being
+    /// removed. This method returns a list of the removed transactions.
     ///
     /// # Examples:
     ///
@@ -1920,13 +2011,15 @@ impl TransactionsPool {
     /// assert!(!pool.is_empty());
     /// ```
     #[allow(clippy::cast_precision_loss)]
-    pub fn insert(&mut self, transaction: Transaction, fee: u64) {
+    pub fn insert(&mut self, transaction: Transaction, fee: u64) -> Vec<Transaction> {
         let key = transaction.hash();
 
         match transaction {
             Transaction::ValueTransfer(vt_tx) => {
                 let weight = f64::from(vt_tx.weight());
                 let priority = OrderedFloat(fee as f64 / weight);
+
+                self.total_vt_size_bytes += u64::from(vt_tx.weight());
 
                 for input in &vt_tx.body.inputs {
                     self.output_pointer_map
@@ -1941,6 +2034,8 @@ impl TransactionsPool {
             Transaction::DataRequest(dr_tx) => {
                 let weight = f64::from(dr_tx.weight());
                 let priority = OrderedFloat(fee as f64 / weight);
+
+                self.total_dr_size_bytes += u64::from(dr_tx.weight());
 
                 for input in &dr_tx.body.inputs {
                     self.output_pointer_map
@@ -1974,8 +2069,15 @@ impl TransactionsPool {
                     .or_default()
                     .insert(pkh, tx_hash);
             }
-            _ => {}
+            tx => {
+                panic!(
+                    "Transaction kind not supported by TransactionsPool: {:?}",
+                    tx
+                );
+            }
         }
+
+        self.remove_transactions_for_size_limit()
     }
 
     /// Insert a pending transaction hash
@@ -2083,12 +2185,14 @@ impl TransactionsPool {
         let TransactionsPool {
             ref mut vt_transactions,
             sorted_vt_index: ref mut sorted_index,
+            ref mut total_vt_size_bytes,
             ..
         } = *self;
 
         vt_transactions.retain(|hash, (weight, vt_transaction)| {
             let retain = f(vt_transaction);
             if !retain {
+                *total_vt_size_bytes -= 1;
                 sorted_index.remove(&(*weight, *hash));
             }
 
