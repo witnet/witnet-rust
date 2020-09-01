@@ -27,6 +27,7 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::timestamp::get_timestamp;
 
+use crate::transaction::TxInclusionProof;
 use crate::{
     chain::Signature::Secp256k1,
     data_request::DataRequestPool,
@@ -635,6 +636,72 @@ impl SuperBlock {
         ]
         .concat()
     }
+
+    /*                           SUPERROOT
+                 ROOT                                   ROOT
+      HASH                    HASH
+    DR1TX - X               DR2TX - Y                DR3TX - Z
+
+
+    10
+    proof for DR2TX
+    01
+     */
+
+    fn dr_proof_of_inclusion(
+        &self,
+        blocks: &[Block],
+        tx: DRTransaction,
+    ) -> Option<TxInclusionProof> {
+        let (mut poi, current_root) = blocks.iter().find_map(|b| {
+            Some((
+                tx.data_proof_of_inclusion(b)?,
+                b.block_header.merkle_roots.dr_hash_merkle_root,
+            ))
+        })?;
+
+        let dr_roots: Vec<Hash> = blocks
+            .iter()
+            .map(|b| b.block_header.merkle_roots.dr_hash_merkle_root)
+            .collect();
+
+        let second_poi = dr_roots
+            .iter()
+            .position(|&x| x == current_root)
+            .map(|dr_root_idx| TxInclusionProof::new_with_hashes(dr_root_idx, dr_roots))?;
+
+
+        poi.concat(second_poi);
+
+        Some(poi)
+    }
+
+    fn tally_proof_of_inclusion(
+        &self,
+        blocks: &[Block],
+        tx: TallyTransaction,
+    ) -> Option<TxInclusionProof> {
+        let (mut poi, current_root) = blocks.iter().find_map(|b| {
+            Some((
+                tx.data_proof_of_inclusion(b)?,
+                b.block_header.merkle_roots.tally_hash_merkle_root,
+            ))
+        })?;
+
+        let tally_roots: Vec<Hash> = blocks
+            .iter()
+            .map(|b| b.block_header.merkle_roots.tally_hash_merkle_root)
+            .collect();
+
+        let second_poi = tally_roots
+            .iter()
+            .position(|&x| x == current_root)
+            .map(|tally_root_idx| TxInclusionProof::new_with_hashes(tally_root_idx, tally_roots))?;
+
+
+        poi.concat(second_poi);
+
+        Some(poi)    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert, Serialize, Deserialize)]
@@ -3586,6 +3653,8 @@ mod tests {
         superblock::ARSIdentities,
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
+    use witnet_crypto::merkle::{merkle_tree_root, InclusionProof};
+    use crate::superblock::mining_build_superblock;
 
     #[test]
     fn test_block_hashable_trait() {
@@ -5427,5 +5496,97 @@ mod tests {
         let (triangle, triangle_rep) = calculate_trapezoid_triangle(total_rep, id_len, minimum);
         assert!(triangle_rep <= total_rep);
         assert_eq!(triangle, vec![22, 17, 13, 9, 4, 0]);
+    }
+
+    #[test]
+    fn merkle_root_superblock() {
+        let input = Input::default();
+        let vt1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input.clone()], vec![]),
+            vec![],
+        ));
+        let vt2 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input.clone()], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
+        assert_ne!(vt1.hash(), vt2.hash());
+        let dr1_tx = DRTransaction::new(
+            DRTransactionBody::new(vec![input.clone()], vec![], DataRequestOutput::default()),
+            vec![],
+        );
+
+        let dr2_tx = DRTransaction::new(
+            DRTransactionBody::new(
+                vec![input.clone()],
+                vec![ValueTransferOutput::default()],
+                DataRequestOutput::default(),
+            ),
+            vec![],
+        );
+
+        let input2 = Input::new(OutputPointer{transaction_id: Hash::default(), output_index: 5});
+        let dr3_tx = DRTransaction::new(
+            DRTransactionBody::new(
+                vec![input2],
+                vec![ValueTransferOutput::default()],
+                DataRequestOutput::default(),
+            ),
+            vec![],
+        );
+
+        let mut b1 = block_example();
+        let mut b2 = block_example();
+
+        let b1_dr_root = merkle_tree_root(&[dr1_tx.clone().hash().into(), dr2_tx.clone().hash().into()]);
+        let b2_dr_root = merkle_tree_root(&[dr3_tx.clone().hash().into()]);
+        b1.block_header.merkle_roots.dr_hash_merkle_root = b1_dr_root.into();
+        b1.txns.data_request_txns = vec![dr1_tx.clone(), dr2_tx.clone()];
+        b2.block_header.merkle_roots.dr_hash_merkle_root = b2_dr_root.into();
+        b2.txns.data_request_txns = vec![dr3_tx.clone()];
+
+
+        let sb = mining_build_superblock(&[b1.block_header.clone(), b2.block_header.clone()], &[Hash::default()], 1, Hash::default());
+        let a = sb.dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr1_tx.clone()).unwrap();
+        let db_body: Hash = dr1_tx.body.dr_output.hash().into();
+        let root: Hash = b1_dr_root.into();
+
+        assert_eq!(a.index, 0);
+        assert_eq!(a.lemma.len(), 3);
+        let lemma = a
+            .lemma
+            .iter()
+            .map(|h| match *h {
+                Hash::SHA256(x) => Sha256(x),
+            })
+            .collect();
+        let proof = InclusionProof::sha256(a.index, lemma);
+        assert!(proof.verify(dr1_tx.body.dr_output.hash().into(), sb.data_request_root.into()));
+
+        let a = sb.dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr2_tx.clone()).unwrap();
+        assert_eq!(a.index, 2);
+        assert_eq!(a.lemma.len(), 3);
+
+        let lemma = a
+            .lemma
+            .iter()
+            .map(|h| match *h {
+                Hash::SHA256(x) => Sha256(x),
+            })
+            .collect();
+        let proof = InclusionProof::sha256(a.index, lemma);
+        assert!(proof.verify(dr2_tx.body.dr_output.hash().into(), sb.data_request_root.into()));
+
+        let a = sb.dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr3_tx.clone()).unwrap();
+        assert_eq!(a.index, 2);
+        assert_eq!(a.lemma.len(), 2);
+        let lemma = a
+            .lemma
+            .iter()
+            .map(|h| match *h {
+                Hash::SHA256(x) => Sha256(x),
+            })
+            .collect();
+        let proof = InclusionProof::sha256(a.index, lemma);
+        assert!(proof.verify(dr3_tx.body.dr_output.hash().into(), sb.data_request_root.into()));
     }
 }
