@@ -15,7 +15,7 @@ use tokio::{sync::mpsc, timer::Interval};
 use web3::{contract, futures::Future, types::U256};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_data_structures::{
-    chain::{DataRequestOutput, Hashable},
+    chain::{DataRequestOutput, Hashable, KeyedSignature},
     proto::ProtobufConvert,
 };
 use witnet_validations::validations::validate_rad_request;
@@ -167,10 +167,20 @@ fn try_to_claim_local_query(
             witnet_client3
                 .execute("sign", hash.to_vec().into())
                 .map_err(|e| log::error!("sign: {:?}", e))
-                .map(|sign_addr| {
+                .and_then(|sign_addr| {
                     log::trace!("sign: {:?}", sign_addr);
-
-                    (vrf, sign_addr, dr_output, last_beacon)
+                    futures::future::result(serde_json::from_value(sign_addr)
+                        .map_err(|e|
+                            log::error!("Error while retrieving signature from json value {:?}", e)
+                        )
+                        .and_then(|signature: KeyedSignature| signature.signature.to_bytes().map_err(|e|
+                            log::error!("Error while retrieving signature bytes {:?}", e)
+                        ))
+                        .and_then(|ref sig| serde_json::to_value(sig as &[u8]).map_err(|e|
+                            log::error!("Error while converting signature to json value {:?}", e)
+                        ))
+                        .map(|sig| (vrf, sig, dr_output, last_beacon))
+                    )
                 })
         })
         .and_then(move |(vrf, sign_addr, dr_output, last_beacon)| {
