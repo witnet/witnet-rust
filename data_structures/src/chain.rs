@@ -4189,6 +4189,68 @@ mod tests {
     }
 
     #[test]
+    fn transactions_pool_size_limit() {
+        let input = Input::default();
+        let vt1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input.clone()], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
+        let vt2 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(
+                vec![input],
+                vec![ValueTransferOutput {
+                    pkh: Default::default(),
+                    value: 1,
+                    time_lock: 0,
+                }],
+            ),
+            vec![],
+        ));
+
+        assert_ne!(vt1, vt2);
+
+        let vt_size = |vt: &Transaction| match vt {
+            Transaction::ValueTransfer(vt) => u64::from(vt.weight()),
+            _ => unreachable!(),
+        };
+
+        let vt1_size = vt_size(&vt1);
+        let vt2_size = vt_size(&vt2);
+        assert_eq!(vt1_size, vt2_size);
+
+        let mut transactions_pool = TransactionsPool::default();
+        let _removed = transactions_pool.set_total_weight_limit(vt1_size);
+        let removed = transactions_pool.insert(vt1.clone(), 1);
+        assert!(removed.is_empty());
+        assert!(transactions_pool.contains(&vt1).unwrap());
+
+        // Inserting a transaction with higher fee removes the older transaction
+        let removed = transactions_pool.insert(vt2.clone(), 2);
+        assert_eq!(removed, vec![vt1.clone()]);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(transactions_pool.contains(&vt2).unwrap());
+        let removed = transactions_pool.insert(vt1.clone(), 1);
+        assert_eq!(removed, vec![vt1.clone()]);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(transactions_pool.contains(&vt2).unwrap());
+
+        // Decreasing the weight limit removes the transaction and makes it impossible to insert
+        // any of this transactions
+        let removed = transactions_pool.set_total_weight_limit(vt1_size - 1);
+        assert_eq!(removed, vec![vt2.clone()]);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(!transactions_pool.contains(&vt2).unwrap());
+        let removed = transactions_pool.insert(vt1.clone(), 1);
+        assert_eq!(removed, vec![vt1.clone()]);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(!transactions_pool.contains(&vt2).unwrap());
+        let removed = transactions_pool.insert(vt2.clone(), 2);
+        assert_eq!(removed, vec![vt2.clone()]);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(!transactions_pool.contains(&vt2).unwrap());
+    }
+
+    #[test]
     fn transactions_pool_contains_commit_same_pkh() {
         let c1 = Hash::SHA256([1; 32]);
         let c2 = Hash::SHA256([2; 32]);
