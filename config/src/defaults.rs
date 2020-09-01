@@ -189,8 +189,14 @@ pub trait Defaults {
 
     /// Mempool size limit in weight units
     fn mining_transactions_pool_total_weight_limit(&self) -> u64 {
-        // Default: no limit
-        u64::MAX
+        // Default limit: enough to fill 24 hours worth of blocks
+        // With max_block_weight = 100_000 and block_period = 45, this is 192_000_000
+        let seconds_in_one_hour = 60 * 60;
+        let block_period = u64::from(self.consensus_constants_checkpoints_period());
+        let max_block_weight = u64::from(
+            self.consensus_constants_max_vt_weight() + self.consensus_constants_max_dr_weight(),
+        );
+        24 * seconds_in_one_hour * max_block_weight / block_period
     }
 
     fn consensus_constants_max_vt_weight(&self) -> u32 {
