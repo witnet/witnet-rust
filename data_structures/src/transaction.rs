@@ -253,10 +253,27 @@ impl TxInclusionProof {
         }
     }
 
+    pub fn new_with_hashes(index: usize, leaves: Vec<Hash>) -> TxInclusionProof {
+        let mt = FullMerkleTree::sha256(leaves.into_iter().map(|t| t.into()).collect());
+
+        // The index is valid, so this operation cannot fail
+        let proof = mt.inclusion_proof(index).unwrap();
+
+        TxInclusionProof {
+            index: proof.proof_index(),
+            lemma: proof.lemma().iter().map(|sha| (*sha).into()).collect(),
+        }
+    }
+
     /// Add a new level in the TxInclusionProof
     pub fn add_leave(&mut self, leave: Hash) {
         self.index <<= 1;
         self.lemma.insert(0, leave);
+    }
+
+    pub fn concat(&mut self, second_poi: TxInclusionProof) {
+        self.index |= second_poi.index << self.lemma.len();
+        self.lemma.extend_from_slice(&second_poi.lemma);
     }
 }
 
