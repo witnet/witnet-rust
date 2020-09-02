@@ -31,7 +31,7 @@ vrf = "0.2.2"
 
 witnet_crypto = { path = "../crypto" }
 witnet_reputation = { path = "../reputation", features = ["serde"] }
-witnet_protected = { path = "../protected" }
+witnet_protected = { path = "../protected", features = ["serde"] }
 witnet_util = { path = "../util" }
 
 [build-dependencies]
