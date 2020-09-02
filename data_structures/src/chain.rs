@@ -1427,11 +1427,17 @@ pub struct TransactionsPool {
     // Map to avoid double spending issues
     output_pointer_map: HashMap<OutputPointer, Vec<Hash>>,
     // Total size of all value transfer transactions inside the pool in weight units
-    total_vt_size_bytes: u64,
+    total_vt_weight: u64,
     // Total size of all data request transactions inside the pool in weight units
-    total_dr_size_bytes: u64,
+    total_dr_weight: u64,
     // TransactionsPool size limit in weight units
     weight_limit: u64,
+    // Ratio of value transfer transaction to data request transaction that should be in the
+    // transactions pool. This is used to decide what type of transaction should be removed when
+    // the transactions pool is full.
+    // Values greater than 1 mean keep more value transfer transactions than data request
+    // transactions.
+    vt_to_dr_factor: f64,
 }
 
 impl Default for TransactionsPool {
@@ -1447,10 +1453,12 @@ impl Default for TransactionsPool {
             re_transactions: Default::default(),
             pending_transactions: Default::default(),
             output_pointer_map: Default::default(),
-            total_vt_size_bytes: 0,
-            total_dr_size_bytes: 0,
+            total_vt_weight: 0,
+            total_dr_weight: 0,
             // Unlimited by default
             weight_limit: u64::MAX,
+            // Try to keep the same amount of value transfer weight and data request weight
+            vt_to_dr_factor: 1.0,
         }
     }
 }
@@ -1468,34 +1476,21 @@ impl TransactionsPool {
         TransactionsPool::default()
     }
 
-    /// Makes a new pool of transactions with the specified capacity.
+    /// Limit the total weight of the transactions that will be stored in the `TransactionsPool`.
     ///
-    /// # Examples:
+    /// The sum of the weights of the transactions will always be below `weight_limit`.
     ///
-    /// ```
-    /// # use witnet_data_structures::chain::TransactionsPool;
-    /// let pool = TransactionsPool::with_capacity(20);
-    /// ```
-    pub fn with_capacity(capacity: usize) -> Self {
-        TransactionsPool {
-            vt_transactions: HashMap::with_capacity(capacity),
-            dr_transactions: HashMap::with_capacity(capacity),
-            co_hash_index: HashMap::with_capacity(capacity),
-            co_transactions: HashMap::with_capacity(capacity),
-            re_hash_index: HashMap::with_capacity(capacity),
-            re_transactions: HashMap::with_capacity(capacity),
-            sorted_vt_index: BTreeSet::new(),
-            sorted_dr_index: BTreeSet::new(),
-            pending_transactions: HashSet::new(),
-            output_pointer_map: HashMap::with_capacity(capacity),
-            total_vt_size_bytes: 0,
-            total_dr_size_bytes: 0,
-            weight_limit: u64::MAX,
-        }
-    }
-
-    pub fn set_total_weight_limit(&mut self, weight_limit: u64) -> Vec<Transaction> {
+    /// `vt_to_dr_factor` sets the preference between value transfer transactions and data request
+    /// transactions. For example, a factor of 4.0 will try to keep 4/5 of the total weight in
+    /// value transfer transactions, and the remaining 1/5 in data request transactions. Note that
+    /// this ratio only applies when the `TransactionsPool` is full.
+    pub fn set_total_weight_limit(
+        &mut self,
+        weight_limit: u64,
+        vt_to_dr_factor: f64,
+    ) -> Vec<Transaction> {
         self.weight_limit = weight_limit;
+        self.vt_to_dr_factor = vt_to_dr_factor;
 
         self.remove_transactions_for_size_limit()
     }
@@ -1764,7 +1759,7 @@ impl TransactionsPool {
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_vt_index.remove(&(weight, *key));
-                self.total_vt_size_bytes -= u64::from(transaction.weight());
+                self.total_vt_weight -= u64::from(transaction.weight());
                 if !consolidated {
                     self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
                 }
@@ -1817,7 +1812,7 @@ impl TransactionsPool {
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_dr_index.remove(&(weight, *key));
-                self.total_dr_size_bytes -= u64::from(transaction.weight());
+                self.total_dr_weight -= u64::from(transaction.weight());
                 if !consolidated {
                     self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
                 }
@@ -1939,15 +1934,13 @@ impl TransactionsPool {
     fn remove_transactions_for_size_limit(&mut self) -> Vec<Transaction> {
         let mut removed_transactions = vec![];
 
-        while self.total_vt_size_bytes + self.total_dr_size_bytes > self.weight_limit {
+        while self.total_vt_weight + self.total_dr_weight > self.weight_limit {
             // Try to split the memory between value transfer and data requests using the same
             // ratio as the one used in blocks
             // The ratio of vt to dr in blocks is currently 4:1
-            // TODO: calculate this from ConsensusConstants?
-            let vt_to_dr_factor = 80_000.0 / 20_000.0;
             #[allow(clippy::cast_precision_loss)]
-            let more_vtts_than_drs = self.total_vt_size_bytes as f64 * vt_to_dr_factor
-                >= self.total_dr_size_bytes as f64;
+            let more_vtts_than_drs =
+                self.total_vt_weight as f64 >= self.total_dr_weight as f64 * self.vt_to_dr_factor;
             if more_vtts_than_drs {
                 // Remove the value transfer transaction with the lowest fee/weight
                 let tx_hash = self
@@ -2001,7 +1994,7 @@ impl TransactionsPool {
                 let weight = f64::from(vt_tx.weight());
                 let priority = OrderedFloat(fee as f64 / weight);
 
-                self.total_vt_size_bytes += u64::from(vt_tx.weight());
+                self.total_vt_weight += u64::from(vt_tx.weight());
 
                 for input in &vt_tx.body.inputs {
                     self.output_pointer_map
@@ -2017,7 +2010,7 @@ impl TransactionsPool {
                 let weight = f64::from(dr_tx.weight());
                 let priority = OrderedFloat(fee as f64 / weight);
 
-                self.total_dr_size_bytes += u64::from(dr_tx.weight());
+                self.total_dr_weight += u64::from(dr_tx.weight());
 
                 for input in &dr_tx.body.inputs {
                     self.output_pointer_map
@@ -2167,14 +2160,14 @@ impl TransactionsPool {
         let TransactionsPool {
             ref mut vt_transactions,
             sorted_vt_index: ref mut sorted_index,
-            ref mut total_vt_size_bytes,
+            ref mut total_vt_weight,
             ..
         } = *self;
 
         vt_transactions.retain(|hash, (weight, vt_transaction)| {
             let retain = f(vt_transaction);
             if !retain {
-                *total_vt_size_bytes -= 1;
+                *total_vt_weight -= 1;
                 sorted_index.remove(&(*weight, *hash));
             }
 
@@ -4219,7 +4212,7 @@ mod tests {
         assert_eq!(vt1_size, vt2_size);
 
         let mut transactions_pool = TransactionsPool::default();
-        let _removed = transactions_pool.set_total_weight_limit(vt1_size);
+        let _removed = transactions_pool.set_total_weight_limit(vt1_size, 1.0);
         let removed = transactions_pool.insert(vt1.clone(), 1);
         assert!(removed.is_empty());
         assert!(transactions_pool.contains(&vt1).unwrap());
@@ -4236,7 +4229,7 @@ mod tests {
 
         // Decreasing the weight limit removes the transaction and makes it impossible to insert
         // any of this transactions
-        let removed = transactions_pool.set_total_weight_limit(vt1_size - 1);
+        let removed = transactions_pool.set_total_weight_limit(vt1_size - 1, 1.0);
         assert_eq!(removed, vec![vt2.clone()]);
         assert!(!transactions_pool.contains(&vt1).unwrap());
         assert!(!transactions_pool.contains(&vt2).unwrap());
@@ -4248,6 +4241,127 @@ mod tests {
         assert_eq!(removed, vec![vt2.clone()]);
         assert!(!transactions_pool.contains(&vt1).unwrap());
         assert!(!transactions_pool.contains(&vt2).unwrap());
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    #[test]
+    fn transactions_pool_size_limit_vt_to_dr_ratio() {
+        // Check that the vt_to_dr_ratio works
+        let gen_vt = |i| {
+            Transaction::ValueTransfer(VTTransaction::new(
+                VTTransactionBody::new(
+                    vec![Input::default()],
+                    vec![ValueTransferOutput {
+                        pkh: Default::default(),
+                        value: i,
+                        time_lock: 0,
+                    }],
+                ),
+                vec![],
+            ))
+        };
+
+        let gen_dr = |i| {
+            Transaction::DataRequest(DRTransaction::new(
+                DRTransactionBody::new(
+                    vec![Input::default()],
+                    vec![ValueTransferOutput {
+                        pkh: Default::default(),
+                        value: i,
+                        time_lock: 0,
+                    }],
+                    DataRequestOutput::default(),
+                ),
+                vec![],
+            ))
+        };
+
+        let vt_size = |vt: &Transaction| match vt {
+            Transaction::ValueTransfer(vt) => u64::from(vt.weight()),
+            _ => unreachable!(),
+        };
+
+        let dr_size = |dr: &Transaction| match dr {
+            Transaction::DataRequest(dr) => u64::from(dr.weight()),
+            _ => unreachable!(),
+        };
+
+        // Generate 10 value transfer transactions and 10 data request transactions
+        let vts: Vec<_> = (0..10).map(gen_vt).collect();
+        let drs: Vec<_> = (0..10).map(gen_dr).collect();
+
+        let one_vt_size = vt_size(&vts[0]);
+        let one_dr_size = dr_size(&drs[0]);
+
+        // Set the weight limit to be enough to hold 100 transactions of each kind
+        let weight_limit = (one_vt_size + one_dr_size) * 100;
+        let vt_to_dr_factor = one_vt_size as f64 / one_dr_size as f64;
+        let mut transactions_pool = TransactionsPool::default();
+        let _removed = transactions_pool.set_total_weight_limit(weight_limit, vt_to_dr_factor);
+
+        // Insert 10 transactions of each kind
+        for (i, vt) in vts.iter().enumerate() {
+            let removed = transactions_pool.insert(vt.clone(), u64::try_from(i).unwrap());
+            assert!(removed.is_empty());
+            assert!(transactions_pool.contains(vt).unwrap());
+        }
+        for (i, dr) in drs.iter().enumerate() {
+            let removed = transactions_pool.insert(dr.clone(), u64::try_from(i).unwrap());
+            assert!(removed.is_empty());
+            assert!(transactions_pool.contains(dr).unwrap());
+        }
+
+        // Backup for later
+        let transactions_pool2 = transactions_pool.clone();
+
+        // Set the weight limit to be enough to hold only 5 transactions of each kind
+        let weight_limit = (one_vt_size + one_dr_size) * 5;
+        // But set the ratio to 1000:1, so all the dr transactions should be removed
+        let vt_to_dr_factor = 1000.0;
+        let removed = transactions_pool.set_total_weight_limit(weight_limit, vt_to_dr_factor);
+        assert!(
+            (transactions_pool.total_vt_weight as f64)
+                >= (transactions_pool.total_dr_weight as f64 * vt_to_dr_factor)
+        );
+        let mut removed_dr_count = 0;
+        for tx in &removed {
+            if let Transaction::DataRequest(_drt) = tx {
+                removed_dr_count += 1
+            }
+        }
+        assert!(removed.len() < 20);
+        if removed.len() <= 10 {
+            // Assert that all the removed transactions are DRTs
+            assert_eq!(removed_dr_count, removed.len());
+        } else {
+            // Assert there are exactly 10 removed DRTs
+            assert_eq!(removed_dr_count, 10);
+        }
+
+        transactions_pool = transactions_pool2;
+        // Set the weight limit to be enough to hold only 5 transactions of each kind
+        let weight_limit = (one_vt_size + one_dr_size) * 5;
+        // But set the ratio to 1:1000, so all the vt transactions should be removed
+        let vt_to_dr_factor = 1.0 / 1000.0;
+        let removed = transactions_pool.set_total_weight_limit(weight_limit, vt_to_dr_factor);
+        assert!(
+            (transactions_pool.total_vt_weight as f64)
+                >= (transactions_pool.total_dr_weight as f64 * vt_to_dr_factor)
+        );
+        let mut removed_vt_count = 0;
+        for tx in &removed {
+            if let Transaction::ValueTransfer(_vtt) = tx {
+                removed_vt_count += 1
+            }
+        }
+        assert!(removed.len() < 20);
+        if removed.len() <= 10 {
+            // Assert that all the removed transactions are VTTs
+            assert_eq!(removed_vt_count, removed.len());
+        } else {
+            // Assert there are exactly 10 removed VTTs
+            assert_eq!(removed_vt_count, 10);
+        }
     }
 
     #[test]
