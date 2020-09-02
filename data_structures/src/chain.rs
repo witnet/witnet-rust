@@ -1500,24 +1500,6 @@ impl TransactionsPool {
         self.remove_transactions_for_size_limit()
     }
 
-    /// Returns the number of transactions the pool can hold without
-    /// reallocating.
-    ///
-    /// This number is a lower bound; the pool might be able to hold
-    /// more, but is guaranteed to be able to hold at least this many.
-    ///
-    /// # Examples:
-    ///
-    /// ```
-    /// # use witnet_data_structures::chain::TransactionsPool;
-    /// let pool = TransactionsPool::with_capacity(20);
-    ///
-    /// assert!(pool.capacity() >= 20);
-    /// ```
-    pub fn capacity(&self) -> usize {
-        self.vt_transactions.capacity()
-    }
-
     /// Returns `true` if the pool contains no transactions.
     ///
     /// # Examples:
