@@ -670,7 +670,6 @@ impl SuperBlock {
             .position(|&x| x == current_root)
             .map(|dr_root_idx| TxInclusionProof::new_with_hashes(dr_root_idx, dr_roots))?;
 
-
         poi.concat(second_poi);
 
         Some(poi)
@@ -698,10 +697,10 @@ impl SuperBlock {
             .position(|&x| x == current_root)
             .map(|tally_root_idx| TxInclusionProof::new_with_hashes(tally_root_idx, tally_roots))?;
 
-
         poi.concat(second_poi);
 
-        Some(poi)    }
+        Some(poi)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert, Serialize, Deserialize)]
@@ -3649,12 +3648,12 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::superblock::mining_build_superblock;
     use crate::{
         superblock::ARSIdentities,
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
     use witnet_crypto::merkle::{merkle_tree_root, InclusionProof};
-    use crate::superblock::mining_build_superblock;
 
     #[test]
     fn test_block_hashable_trait() {
@@ -5524,7 +5523,10 @@ mod tests {
             vec![],
         );
 
-        let input2 = Input::new(OutputPointer{transaction_id: Hash::default(), output_index: 5});
+        let input2 = Input::new(OutputPointer {
+            transaction_id: Hash::default(),
+            output_index: 5,
+        });
         let dr3_tx = DRTransaction::new(
             DRTransactionBody::new(
                 vec![input2],
@@ -5537,16 +5539,23 @@ mod tests {
         let mut b1 = block_example();
         let mut b2 = block_example();
 
-        let b1_dr_root = merkle_tree_root(&[dr1_tx.clone().hash().into(), dr2_tx.clone().hash().into()]);
+        let b1_dr_root =
+            merkle_tree_root(&[dr1_tx.clone().hash().into(), dr2_tx.clone().hash().into()]);
         let b2_dr_root = merkle_tree_root(&[dr3_tx.clone().hash().into()]);
         b1.block_header.merkle_roots.dr_hash_merkle_root = b1_dr_root.into();
         b1.txns.data_request_txns = vec![dr1_tx.clone(), dr2_tx.clone()];
         b2.block_header.merkle_roots.dr_hash_merkle_root = b2_dr_root.into();
         b2.txns.data_request_txns = vec![dr3_tx.clone()];
 
-
-        let sb = mining_build_superblock(&[b1.block_header.clone(), b2.block_header.clone()], &[Hash::default()], 1, Hash::default());
-        let a = sb.dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr1_tx.clone()).unwrap();
+        let sb = mining_build_superblock(
+            &[b1.block_header.clone(), b2.block_header.clone()],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+        let a = sb
+            .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr1_tx.clone())
+            .unwrap();
         let db_body: Hash = dr1_tx.body.dr_output.hash().into();
         let root: Hash = b1_dr_root.into();
 
@@ -5560,9 +5569,14 @@ mod tests {
             })
             .collect();
         let proof = InclusionProof::sha256(a.index, lemma);
-        assert!(proof.verify(dr1_tx.body.dr_output.hash().into(), sb.data_request_root.into()));
+        assert!(proof.verify(
+            dr1_tx.body.dr_output.hash().into(),
+            sb.data_request_root.into()
+        ));
 
-        let a = sb.dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr2_tx.clone()).unwrap();
+        let a = sb
+            .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr2_tx.clone())
+            .unwrap();
         assert_eq!(a.index, 2);
         assert_eq!(a.lemma.len(), 3);
 
@@ -5574,9 +5588,14 @@ mod tests {
             })
             .collect();
         let proof = InclusionProof::sha256(a.index, lemma);
-        assert!(proof.verify(dr2_tx.body.dr_output.hash().into(), sb.data_request_root.into()));
+        assert!(proof.verify(
+            dr2_tx.body.dr_output.hash().into(),
+            sb.data_request_root.into()
+        ));
 
-        let a = sb.dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr3_tx.clone()).unwrap();
+        let a = sb
+            .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr3_tx.clone())
+            .unwrap();
         assert_eq!(a.index, 2);
         assert_eq!(a.lemma.len(), 2);
         let lemma = a
@@ -5587,6 +5606,94 @@ mod tests {
             })
             .collect();
         let proof = InclusionProof::sha256(a.index, lemma);
+<<<<<<< HEAD
         assert!(proof.verify(dr3_tx.body.dr_output.hash().into(), sb.data_request_root.into()));
+=======
+        assert!(proof.verify(
+            dr3_tx.body.dr_output.hash().into(),
+            sb.data_request_root.into()
+        ));
+    }
+
+    #[test]
+    fn merkle_root_superblock_2() {
+        let input1 = Input::default();
+        let inputs: Vec<Input> = (1..9).map(|x|  Input::new(OutputPointer {
+            transaction_id: Hash::default(),
+            output_index: x,
+        })).collect();
+        let dr_txs: Vec<DRTransaction> = inputs.iter().map(|input| DRTransaction::new(
+            DRTransactionBody::new(vec![input.clone()], vec![], DataRequestOutput::default()),
+            vec![],
+        )).collect();
+
+        let vt1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input1.clone()], vec![]),
+            vec![],
+        ));
+        let vt2 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input1.clone()], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
+        assert_ne!(vt1.hash(), vt2.hash());
+
+        let mut b1 = block_example();
+        let mut b2 = block_example();
+        let mut b3 = block_example();
+
+        let b1_dr_root = merkle_tree_root(&[
+            dr_txs[0].clone().hash().into(),
+            dr_txs[1].clone().hash().into(),
+            dr_txs[2].clone().hash().into(),
+        ]);
+        let b2_dr_root = merkle_tree_root(&[
+            dr_txs[3].clone().hash().into(),
+            dr_txs[4].clone().hash().into(),
+            dr_txs[5].clone().hash().into(),
+        ]);
+        let b3_dr_root =
+            merkle_tree_root(&[dr_txs[6].clone().hash().into(), dr_txs[7].clone().hash().into()]);
+
+        b1.block_header.merkle_roots.dr_hash_merkle_root = b1_dr_root.into();
+        b1.txns.data_request_txns = vec![dr_txs[0].clone(), dr_txs[1].clone(), dr_txs[2].clone()];
+        b2.block_header.merkle_roots.dr_hash_merkle_root = b2_dr_root.into();
+        b2.txns.data_request_txns = vec![dr_txs[3].clone(), dr_txs[4].clone(), dr_txs[5].clone()];
+        b3.block_header.merkle_roots.dr_hash_merkle_root = b3_dr_root.into();
+        b3.txns.data_request_txns = vec![dr_txs[6].clone(), dr_txs[7].clone()];
+
+        let sb = mining_build_superblock(
+            &[
+                b1.block_header.clone(),
+                b2.block_header.clone(),
+                b3.block_header.clone(),
+            ],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+
+        let expected_indices =vec![0, 2, 2, 8, 10, 6, 4, 6];
+        let expected_lemma_lengths = vec![5, 5, 4, 5, 5, 4, 3, 3];
+
+        (0..expected_indices.len()).map(|index| {
+            let a = sb
+                .dr_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], dr_txs[index].clone())
+                .unwrap();
+            assert_eq!(a.index, expected_indices[index]);
+            assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = a
+                .lemma
+                .iter()
+                .map(|h| match *h {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+            let proof = InclusionProof::sha256(a.index, lemma);
+            assert!(proof.verify(
+                dr_txs[index].body.dr_output.hash().into(),
+                sb.data_request_root.into()
+            ));
+        });
+>>>>>>> test(data structures): add more test for DR superblock PoI generation
     }
 }
