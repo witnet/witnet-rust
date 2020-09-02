@@ -1703,7 +1703,7 @@ impl TransactionsPool {
     /// assert!(!pool.vt_contains(&transaction.hash()));
     /// ```
     pub fn vt_remove(&mut self, key: &Hash) -> Option<VTTransaction> {
-        let transaction = self.vt_remove_inner(key);
+        let transaction = self.vt_remove_inner(key, true);
 
         if let Some(transaction) = &transaction {
             self.remove_inputs(&transaction.body.inputs);
@@ -1712,13 +1712,39 @@ impl TransactionsPool {
         transaction
     }
 
+    /// After removing a transaction, remove the transaction hash from the output_pointer_map.
+    /// This is not necessary if the transaction was removed because it is consolidated in a block.
+    fn remove_tx_from_output_pointer_map(&mut self, key: &Hash, inputs: &[Input]) {
+        for input in inputs {
+            // It is possible for `get_mut` to return `None` if this transaction tries to spend the
+            // same UTXO as an already consolidated transaction. In that case, the transaction has
+            // already been removed, so no need to remove it again.
+            if let Some(other_transactions_that_spend_this_input) =
+                self.output_pointer_map.get_mut(&input.output_pointer)
+            {
+                let idx = other_transactions_that_spend_this_input
+                    .iter()
+                    .position(|x| x == key)
+                    .expect("Invalid state in output_pointer_map");
+
+                other_transactions_that_spend_this_input.swap_remove(idx);
+                if other_transactions_that_spend_this_input.is_empty() {
+                    self.output_pointer_map.remove(&input.output_pointer);
+                }
+            }
+        }
+    }
+
     /// Remove a value transfer transaction from the pool without any further guarantee
     /// about removing other transactions that may try to spend the same UTXOs.
-    fn vt_remove_inner(&mut self, key: &Hash) -> Option<VTTransaction> {
+    fn vt_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<VTTransaction> {
         self.vt_transactions
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_vt_index.remove(&(weight, *key));
+                if !consolidated {
+                    self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
+                }
                 transaction
             })
     }
@@ -1748,7 +1774,7 @@ impl TransactionsPool {
     /// assert!(!pool.dr_contains(&transaction.hash()));
     /// ```
     pub fn dr_remove(&mut self, key: &Hash) -> Option<DRTransaction> {
-        let transaction = self.dr_remove_inner(key);
+        let transaction = self.dr_remove_inner(key, true);
 
         if let Some(transaction) = &transaction {
             self.remove_inputs(&transaction.body.inputs);
@@ -1759,11 +1785,14 @@ impl TransactionsPool {
 
     /// Remove a data request transaction from the pool without any further guarantee
     /// about removing other transactions that may try to spend the same UTXOs.
-    fn dr_remove_inner(&mut self, key: &Hash) -> Option<DRTransaction> {
+    fn dr_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<DRTransaction> {
         self.dr_transactions
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_dr_index.remove(&(weight, *key));
+                if !consolidated {
+                    self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
+                }
                 transaction
             })
     }
@@ -1773,8 +1802,8 @@ impl TransactionsPool {
         for input in inputs.iter() {
             if let Some(hashes) = self.output_pointer_map.remove(&input.output_pointer) {
                 for hash in hashes.iter() {
-                    self.vt_remove_inner(hash);
-                    self.dr_remove_inner(hash);
+                    self.vt_remove_inner(hash, false);
+                    self.dr_remove_inner(hash, false);
                 }
             }
         }
@@ -3985,6 +4014,76 @@ mod tests {
         assert_eq!(Transaction::DataRequest(t), dr1);
         assert!(!transactions_pool.contains(&dr1).unwrap());
         assert!(transactions_pool.contains(&vt2).unwrap());
+    }
+
+    #[test]
+    fn transactions_pool_clears_output_pointer_map_when_removing_unspendable_vt_transactions() {
+        let input0 = Input::new(OutputPointer {
+            transaction_id: Hash::default(),
+            output_index: 0,
+        });
+        let input1 = Input::new(OutputPointer {
+            transaction_id: Hash::default(),
+            output_index: 1,
+        });
+        assert_ne!(input0, input1);
+
+        let vt1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input0.clone()], vec![]),
+            vec![],
+        ));
+        let vt2 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input0, input1], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
+        assert_ne!(vt1.hash(), vt2.hash());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(vt1.clone(), 1);
+        transactions_pool.insert(vt2.clone(), 1);
+        // Removing vt1 should mark the inputs of vt1 as spent, so vt2 is now invalid and should be
+        // removed
+        let t = transactions_pool.vt_remove(&vt1.hash()).unwrap();
+        assert_eq!(Transaction::ValueTransfer(t), vt1);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(!transactions_pool.contains(&vt2).unwrap());
+        assert!(transactions_pool.sorted_vt_index.is_empty());
+        assert!(transactions_pool.output_pointer_map.is_empty());
+    }
+
+    #[test]
+    fn transactions_pool_clears_output_pointer_map_when_removing_unspendable_dr_transactions() {
+        let input0 = Input::new(OutputPointer {
+            transaction_id: Hash::default(),
+            output_index: 0,
+        });
+        let input1 = Input::new(OutputPointer {
+            transaction_id: Hash::default(),
+            output_index: 1,
+        });
+        assert_ne!(input0, input1);
+
+        let dr1 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(vec![input0.clone()], vec![], DataRequestOutput::default()),
+            vec![],
+        ));
+        let dr2 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(vec![input0, input1], vec![], DataRequestOutput::default()),
+            vec![],
+        ));
+        assert_ne!(dr1.hash(), dr2.hash());
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(dr1.clone(), 1);
+        transactions_pool.insert(dr2.clone(), 1);
+        // Removing dr1 should mark the inputs of dr1 as spent, so dr2 is now invalid and should be
+        // removed
+        let t = transactions_pool.dr_remove(&dr1.hash()).unwrap();
+        assert_eq!(Transaction::DataRequest(t), dr1);
+        assert!(!transactions_pool.contains(&dr1).unwrap());
+        assert!(!transactions_pool.contains(&dr2).unwrap());
+        assert!(transactions_pool.sorted_dr_index.is_empty());
+        assert!(transactions_pool.output_pointer_map.is_empty());
     }
 
     #[test]
