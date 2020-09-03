@@ -765,11 +765,11 @@ impl Worker {
             }));
         }
 
-        // Index the previous stored block in `last_block`
-        let new_last_sync = self.index_block(block.clone(), &wallet, sink)?;
+        // Index incoming block and its transactions
+        let new_last_sync = self.index_block(block, &wallet, sink)?;
 
         // Update wallet state with the last indexed epoch and block hash
-        wallet.update_sync_state(new_last_sync, block)?;
+        wallet.update_sync_state(new_last_sync)?;
 
         Ok(())
     }
