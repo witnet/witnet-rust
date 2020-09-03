@@ -2946,9 +2946,10 @@ impl ReputationEngine {
             .collect()
     }
 }
+
 /// Compare 2 PublicKeyHashes comparing:
 /// First: reputation
-/// Second: PublicKeyHash bytes from an offset
+/// Second: Hashes related to PublicKeyHash and alpha clock || PublicKeyHashes in case of 0 rep
 fn compare_reputed_pkh(
     a: &PublicKeyHash,
     b: &PublicKeyHash,
@@ -2958,8 +2959,23 @@ fn compare_reputed_pkh(
     let rep_b = rep_eng.trs().get(b).0;
 
     rep_a.cmp(&rep_b).then_with(|| {
-        // FIXME(#1507): implement better tie breaker
-        a.cmp(b)
+        if rep_a > 0 {
+            let alpha_bytes: &[u8] = &rep_eng.current_alpha.0.to_be_bytes();
+            let mut a_bytes = a.hash.to_vec();
+            let mut b_bytes = b.hash.to_vec();
+
+            a_bytes.extend(alpha_bytes);
+            b_bytes.extend(alpha_bytes);
+
+            let new_hash_a: Hash = calculate_sha256(&a_bytes).into();
+            let new_hash_b: Hash = calculate_sha256(&b_bytes).into();
+
+            new_hash_a.cmp(&new_hash_b)
+        } else {
+            // If both identities have 0 reputation their ordering is not important because
+            // they will have the same eligibility, so compare them by PublicKeyHash
+            a.cmp(&b)
+        }
     })
 }
 
@@ -4871,7 +4887,7 @@ mod tests {
         rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
         rep_engine.ars_mut().push_activity(vec![p1, p2, p3]);
 
-        let expected_order = vec![p1_bls, p3_bls, p2_bls];
+        let expected_order = vec![p1_bls, p2_bls, p3_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
         let ars_identities = ARSIdentities::new(ordered_identities);
 
@@ -4929,7 +4945,7 @@ mod tests {
         rep_engine.trs_mut().gain(Alpha(4), v4).unwrap();
         rep_engine.ars_mut().push_activity(vec![p1, p2, p3, p4, p5]);
 
-        let expected_order = vec![p1_bls, p5_bls, p4_bls, p3_bls, p2_bls];
+        let expected_order = vec![p1_bls, p2_bls, p4_bls, p5_bls, p3_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
         let ars_identities = ARSIdentities::new(ordered_identities);
 
@@ -5085,6 +5101,11 @@ mod tests {
         // "a" get 5 points more and there is a tie with "b"
         add_rep(&mut rep_engine, 12, pkh_a, 5);
         rep_engine.current_alpha = Alpha(12);
+        let expected_order = vec![pkh_a, pkh_b];
+        assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
+
+        // the tie persist but alpha changes
+        rep_engine.current_alpha = Alpha(13);
         let expected_order = vec![pkh_b, pkh_a];
         assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
     }

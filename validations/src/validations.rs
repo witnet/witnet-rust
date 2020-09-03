@@ -2736,19 +2736,19 @@ mod tests {
             v
         };
 
-        let expected_rep_1 = vec![28, 24, 5, 9, 14, 18, 1, 1];
+        let expected_rep_1 = vec![28, 24, 18, 5, 14, 9, 1, 1];
         assert_eq!(rep_thresholds(1), expected_rep_1);
 
-        let expected_rep_1 = vec![56, 48, 10, 18, 28, 36, 2, 2];
+        let expected_rep_1 = vec![56, 48, 36, 10, 28, 18, 2, 2];
         assert_eq!(rep_thresholds(2), expected_rep_1);
 
-        let expected_rep_1 = vec![84, 72, 15, 27, 42, 54, 3, 3];
+        let expected_rep_1 = vec![84, 72, 54, 15, 42, 27, 3, 3];
         assert_eq!(rep_thresholds(3), expected_rep_1);
 
-        let expected_rep_1 = vec![100, 100, 25, 45, 70, 90, 5, 5];
+        let expected_rep_1 = vec![100, 100, 90, 25, 70, 45, 5, 5];
         assert_eq!(rep_thresholds(4), expected_rep_1);
 
-        let expected_rep_1 = vec![100, 100, 35, 63, 98, 100, 7, 7];
+        let expected_rep_1 = vec![100, 100, 100, 35, 98, 63, 7, 7];
         assert_eq!(rep_thresholds(5), expected_rep_1);
     }
 
