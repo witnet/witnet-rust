@@ -253,6 +253,7 @@ impl TxInclusionProof {
         }
     }
 
+    // Create a TX inclusion proof assuming the inputs are already Hashes
     pub fn new_with_hashes(index: usize, leaves: Vec<Hash>) -> TxInclusionProof {
         let mt = FullMerkleTree::sha256(leaves.into_iter().map(|t| t.into()).collect());
 
@@ -271,6 +272,8 @@ impl TxInclusionProof {
         self.lemma.insert(0, leave);
     }
 
+    /// Concatenate two PoIs by extending the syblings of the first with the second
+    /// The index gets updated as: first_index += second_index * 2**len(first_lemma)
     pub fn concat(&mut self, second_poi: TxInclusionProof) {
         self.index |= second_poi.index << self.lemma.len();
         self.lemma.extend_from_slice(&second_poi.lemma);
