@@ -643,16 +643,14 @@ impl SuperBlock {
     pub fn dr_proof_of_inclusion(
         &self,
         blocks: &[Block],
-        tx: DRTransaction,
+        tx: &DRTransaction,
     ) -> Option<TxInclusionProof> {
         // Get the PoI for the block root, if the data request is found on the list of blocks
-        // Obtain also the tally root of the block containing the Dr TX.
-        let (mut poi, current_root) = blocks.iter().find_map(|b| {
-            Some((
-                tx.data_proof_of_inclusion(b)?,
-                b.block_header.merkle_roots.dr_hash_merkle_root,
-            ))
-        })?;
+        // Obtain also the index of the tally root of the block containing the Dr TX.
+        let (mut poi, dr_root_idx) = blocks
+            .iter()
+            .enumerate()
+            .find_map(|(idx, b)| Some((tx.data_proof_of_inclusion(b)?, idx)))?;
 
         // Collect all DR roots from the blocks
         let dr_roots: Vec<Hash> = blocks
@@ -661,10 +659,7 @@ impl SuperBlock {
             .collect();
 
         // Generate the second PoI, using the block DR root as a leave
-        let second_poi = dr_roots
-            .iter()
-            .position(|&x| x == current_root)
-            .map(|dr_root_idx| TxInclusionProof::new_with_hashes(dr_root_idx, dr_roots))?;
+        let second_poi = TxInclusionProof::new_with_hashes(dr_root_idx, dr_roots);
 
         // Concatenate one PoI with the second. This will update the index and append the syblings
         poi.concat(second_poi);
@@ -678,16 +673,14 @@ impl SuperBlock {
     pub fn tally_proof_of_inclusion(
         &self,
         blocks: &[Block],
-        tx: TallyTransaction,
+        tx: &TallyTransaction,
     ) -> Option<TxInclusionProof> {
         // Get the PoI for the block root, if the tally transaction is found on the list of blocks
-        // Obtain also the tally root of the block containing the tally TX.
-        let (mut poi, current_root) = blocks.iter().find_map(|b| {
-            Some((
-                tx.data_proof_of_inclusion(b)?,
-                b.block_header.merkle_roots.tally_hash_merkle_root,
-            ))
-        })?;
+        // Obtain also the index of the tally root of the block containing the tally TX.
+        let (mut poi, tally_root_idx) = blocks
+            .iter()
+            .enumerate()
+            .find_map(|(idx, b)| Some((tx.data_proof_of_inclusion(b)?, idx)))?;
 
         // Collect all tally roots from the blocks
         let tally_roots: Vec<Hash> = blocks
@@ -696,10 +689,7 @@ impl SuperBlock {
             .collect();
 
         // Generate the second PoI, using the block tally root as a leave
-        let second_poi = tally_roots
-            .iter()
-            .position(|&x| x == current_root)
-            .map(|tally_root_idx| TxInclusionProof::new_with_hashes(tally_root_idx, tally_roots))?;
+        let second_poi = TxInclusionProof::new_with_hashes(tally_root_idx, tally_roots);
 
         // Concatenate one PoI with the second. This will update the index and append the syblings
         poi.concat(second_poi);
@@ -5552,7 +5542,7 @@ mod tests {
 
         for index in 0..expected_indices.len() {
             let a = sb
-                .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr_txs[index].clone())
+                .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], &dr_txs[index])
                 .unwrap();
             assert_eq!(a.index, expected_indices[index]);
             assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
@@ -5637,7 +5627,7 @@ mod tests {
 
         for index in 0..expected_indices.len() {
             let a = sb
-                .dr_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], dr_txs[index].clone())
+                .dr_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], &dr_txs[index])
                 .unwrap();
             assert_eq!(a.index, expected_indices[index]);
             assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
@@ -5697,7 +5687,7 @@ mod tests {
             Hash::default(),
         );
 
-        let a = sb.dr_proof_of_inclusion(&[b1, b2], dr_txs[2].clone());
+        let a = sb.dr_proof_of_inclusion(&[b1, b2], &dr_txs[2]);
         assert!(a.is_none());
     }
     #[test]
@@ -5748,7 +5738,7 @@ mod tests {
 
         for index in 0..expected_indices.len() {
             let a = sb
-                .tally_proof_of_inclusion(&[b1.clone(), b2.clone()], tally_txs[index].clone())
+                .tally_proof_of_inclusion(&[b1.clone(), b2.clone()], &tally_txs[index])
                 .unwrap();
             assert_eq!(a.index, expected_indices[index]);
             assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
@@ -5840,10 +5830,7 @@ mod tests {
 
         for index in 0..expected_indices.len() {
             let a = sb
-                .tally_proof_of_inclusion(
-                    &[b1.clone(), b2.clone(), b3.clone()],
-                    tally_txs[index].clone(),
-                )
+                .tally_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], &tally_txs[index])
                 .unwrap();
             assert_eq!(a.index, expected_indices[index]);
             assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
@@ -5902,7 +5889,7 @@ mod tests {
             Hash::default(),
         );
 
-        let a = sb.tally_proof_of_inclusion(&[b1, b2], tally_txs[2].clone());
+        let a = sb.tally_proof_of_inclusion(&[b1, b2], &tally_txs[2]);
         assert!(a.is_none());
     }
 }

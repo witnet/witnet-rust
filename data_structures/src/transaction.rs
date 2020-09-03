@@ -242,19 +242,14 @@ impl TxInclusionProof {
         index: usize,
         leaves: I,
     ) -> TxInclusionProof {
-        let mt = FullMerkleTree::sha256(leaves.into_iter().map(|t| t.hash().into()).collect());
-
-        // The index is valid, so this operation cannot fail
-        let proof = mt.inclusion_proof(index).unwrap();
-
-        TxInclusionProof {
-            index: proof.proof_index(),
-            lemma: proof.lemma().iter().map(|sha| (*sha).into()).collect(),
-        }
+        Self::new_with_hashes(index, leaves.into_iter().map(|t| t.hash()))
     }
 
     // Create a TX inclusion proof assuming the inputs are already Hashes
-    pub fn new_with_hashes(index: usize, leaves: Vec<Hash>) -> TxInclusionProof {
+    pub fn new_with_hashes<I: IntoIterator<Item = Hash>>(
+        index: usize,
+        leaves: I,
+    ) -> TxInclusionProof {
         let mt = FullMerkleTree::sha256(leaves.into_iter().map(|t| t.into()).collect());
 
         // The index is valid, so this operation cannot fail
