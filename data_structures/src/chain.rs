@@ -5606,9 +5606,6 @@ mod tests {
             })
             .collect();
         let proof = InclusionProof::sha256(a.index, lemma);
-<<<<<<< HEAD
-        assert!(proof.verify(dr3_tx.body.dr_output.hash().into(), sb.data_request_root.into()));
-=======
         assert!(proof.verify(
             dr3_tx.body.dr_output.hash().into(),
             sb.data_request_root.into()
@@ -5616,7 +5613,70 @@ mod tests {
     }
 
     #[test]
-    fn merkle_root_superblock_2() {
+    fn dr_merkle_root_superblock() {
+            let input1 = Input::default();
+            let inputs: Vec<Input> = (1..4).map(|x|  Input::new(OutputPointer {
+                transaction_id: Hash::default(),
+                output_index: x,
+            })).collect();
+            let dr_txs: Vec<DRTransaction> = inputs.iter().map(|input| DRTransaction::new(
+                DRTransactionBody::new(vec![input.clone()], vec![], DataRequestOutput::default()),
+                vec![],
+            )).collect();
+
+
+            let mut b1 = block_example();
+            let mut b2 = block_example();
+
+            let b1_dr_root = merkle_tree_root(&[
+                dr_txs[0].clone().hash().into(),
+                dr_txs[1].clone().hash().into(),
+            ]);
+            let b2_dr_root = merkle_tree_root(&[
+                dr_txs[2].clone().hash().into(),
+            ]);
+
+            b1.block_header.merkle_roots.dr_hash_merkle_root = b1_dr_root.into();
+            b1.txns.data_request_txns = vec![dr_txs[0].clone(), dr_txs[1].clone()];
+            b2.block_header.merkle_roots.dr_hash_merkle_root = b2_dr_root.into();
+            b2.txns.data_request_txns = vec![dr_txs[2].clone()];
+
+            let sb = mining_build_superblock(
+                &[
+                    b1.block_header.clone(),
+                    b2.block_header.clone(),
+                ],
+                &[Hash::default()],
+                1,
+                Hash::default(),
+            );
+
+            let expected_indices =vec![0, 2, 2];
+            let expected_lemma_lengths = vec![3, 3, 2];
+
+            (0..expected_indices.len()).map(|index| {
+                let a = sb
+                    .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], dr_txs[index].clone())
+                    .unwrap();
+                assert_eq!(a.index, expected_indices[index]);
+                assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
+                let lemma = a
+                    .lemma
+                    .iter()
+                    .map(|h| match *h {
+                        Hash::SHA256(x) => Sha256(x),
+                    })
+                    .collect();
+                let proof = InclusionProof::sha256(a.index, lemma);
+                assert!(proof.verify(
+                    dr_txs[index].data_poi_hash.into(),
+                    sb.data_request_root.into()
+                ));
+            });
+    }
+
+    #[test]
+    fn dr_merkle_root_superblock_2() {
         let input1 = Input::default();
         let inputs: Vec<Input> = (1..9).map(|x|  Input::new(OutputPointer {
             transaction_id: Hash::default(),
@@ -5690,10 +5750,154 @@ mod tests {
                 .collect();
             let proof = InclusionProof::sha256(a.index, lemma);
             assert!(proof.verify(
-                dr_txs[index].body.dr_output.hash().into(),
+                dr_txs[index].data_poi_hash().into(),
                 sb.data_request_root.into()
             ));
         });
->>>>>>> test(data structures): add more test for DR superblock PoI generation
+    }
+
+    #[test]
+    fn tally_merkle_root_superblock() {
+        let outputs: Vec<ValueTransferOutput> = (1..4).map(|x|  ValueTransferOutput {
+            pkh: PublicKeyHash::default(),
+            value: x,
+            time_lock: x,
+        }).collect();
+        let tally_txs: Vec<TallyTransaction> = outputs.iter().map(|output| TallyTransaction::new(
+            Hash::default(),
+            vec![],
+            vec![output.clone()],
+            vec![],
+            vec![],
+        )).collect();
+
+
+        let mut b1 = block_example();
+        let mut b2 = block_example();
+
+        let b1_tally_root = merkle_tree_root(&[
+            tally_txs[0].clone().hash().into(),
+            tally_txs[1].clone().hash().into(),
+        ]);
+        let b2_tally_root = merkle_tree_root(&[
+            tally_txs[2].clone().hash().into(),
+        ]);
+
+        b1.block_header.merkle_roots.tally_hash_merkle_root = b1_tally_root.into();
+        b1.txns.tally_txns = vec![tally_txs[0].clone(), tally_txs[1].clone()];
+        b2.block_header.merkle_roots.tally_hash_merkle_root = b2_tally_root.into();
+        b2.txns.tally_txns = vec![tally_txs[2].clone()];
+
+        let sb = mining_build_superblock(
+            &[
+                b1.block_header.clone(),
+                b2.block_header.clone(),
+            ],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+
+        let expected_indices =vec![0, 2, 2];
+        let expected_lemma_lengths = vec![3, 3, 2];
+
+        (0..expected_indices.len()).map(|index| {
+            let a = sb
+                .tally_proof_of_inclusion(&[b1.clone(), b2.clone()], tally_txs[index].clone())
+                .unwrap();
+            assert_eq!(a.index, expected_indices[index]);
+            assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = a
+                .lemma
+                .iter()
+                .map(|h| match *h {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+
+            let proof = InclusionProof::sha256(a.index, lemma);
+            assert!(proof.verify(
+                tally_txs[index].data_poi_hash().into(),
+                sb.tally_root.into()
+            ));
+        });
+    }
+
+    #[test]
+    fn tally_merkle_root_superblock_2() {
+        let outputs: Vec<ValueTransferOutput> = (1..9).map(|x|  ValueTransferOutput {
+            pkh: PublicKeyHash::default(),
+            value: x,
+            time_lock: x,
+        }).collect();
+        let tally_txs: Vec<TallyTransaction> = outputs.iter().map(|output| TallyTransaction::new(
+            Hash::default(),
+            vec![],
+            vec![output.clone()],
+            vec![],
+            vec![],
+        )).collect();
+
+
+        let mut b1 = block_example();
+        let mut b2 = block_example();
+        let mut b3 = block_example();
+
+        let b1_tally_root = merkle_tree_root(&[
+            tally_txs[0].clone().hash().into(),
+            tally_txs[1].clone().hash().into(),
+            tally_txs[2].clone().hash().into(),
+        ]);
+        let b2_tally_root = merkle_tree_root(&[
+            tally_txs[3].clone().hash().into(),
+            tally_txs[4].clone().hash().into(),
+            tally_txs[5].clone().hash().into(),
+        ]);
+        let b3_tally_root = merkle_tree_root(&[
+            tally_txs[6].clone().hash().into(),
+            tally_txs[7].clone().hash().into(),
+        ]);
+
+        b1.block_header.merkle_roots.tally_hash_merkle_root = b1_tally_root.into();
+        b1.txns.tally_txns = vec![tally_txs[0].clone(), tally_txs[1].clone(), tally_txs[2].clone()];
+        b2.block_header.merkle_roots.tally_hash_merkle_root = b2_tally_root.into();
+        b2.txns.tally_txns = vec![tally_txs[3].clone(), tally_txs[4].clone(), tally_txs[5].clone()];
+        b3.block_header.merkle_roots.tally_hash_merkle_root = b3_tally_root.into();
+        b3.txns.tally_txns = vec![tally_txs[6].clone(), tally_txs[7].clone()];
+
+        let sb = mining_build_superblock(
+            &[
+                b1.block_header.clone(),
+                b2.block_header.clone(),
+                b3.block_header.clone(),
+            ],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+
+        let expected_indices =vec![0, 2, 2, 8, 10, 6, 4, 6];
+        let expected_lemma_lengths = vec![5, 5, 4, 5, 5, 4, 3, 3];
+
+        (0..expected_indices.len()).map(|index| {
+            let a = sb
+                .tally_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], tally_txs[index].clone())
+                .unwrap();
+            assert_eq!(a.index, expected_indices[index]);
+            assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = a
+                .lemma
+                .iter()
+                .map(|h| match *h {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+
+            let proof = InclusionProof::sha256(a.index, lemma);
+            assert!(proof.verify(
+                tally_txs[index].data_poi_hash().into(),
+                sb.tally_root.into()
+            ));
+        });
     }
 }
