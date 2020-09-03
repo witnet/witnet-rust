@@ -5655,7 +5655,51 @@ mod tests {
             ));
         }
     }
+    #[test]
+    fn test_dr_merkle_root_none() {
+        let inputs: Vec<Input> = (1..4)
+            .map(|x| {
+                Input::new(OutputPointer {
+                    transaction_id: Hash::default(),
+                    output_index: x,
+                })
+            })
+            .collect();
+        let dr_txs: Vec<DRTransaction> = inputs
+            .iter()
+            .map(|input| {
+                DRTransaction::new(
+                    DRTransactionBody::new(
+                        vec![input.clone()],
+                        vec![],
+                        DataRequestOutput::default(),
+                    ),
+                    vec![],
+                )
+            })
+            .collect();
 
+        let mut b1 = block_example();
+        let mut b2 = block_example();
+
+        let b1_dr_root = merkle_tree_root(&[dr_txs[0].clone().hash().into()]);
+        let b2_dr_root = merkle_tree_root(&[dr_txs[1].clone().hash().into()]);
+
+        b1.block_header.merkle_roots.dr_hash_merkle_root = b1_dr_root.into();
+        b1.txns.data_request_txns = vec![dr_txs[0].clone()];
+        b2.block_header.merkle_roots.dr_hash_merkle_root = b2_dr_root.into();
+        b2.txns.data_request_txns = vec![dr_txs[1].clone()];
+
+        let sb = mining_build_superblock(
+            &[b1.block_header.clone(), b2.block_header.clone()],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+
+        let a = sb.dr_proof_of_inclusion(&[b1, b2], dr_txs[2].clone());
+        assert!(a.is_none());
+    }
     #[test]
     fn test_tally_merkle_root_superblock() {
         let outputs: Vec<ValueTransferOutput> = (1..4)
@@ -5817,5 +5861,48 @@ mod tests {
                 sb.tally_root.into()
             ));
         }
+    }
+    #[test]
+    fn test_tally_merkle_root_none() {
+        let outputs: Vec<ValueTransferOutput> = (1..4)
+            .map(|x| ValueTransferOutput {
+                pkh: PublicKeyHash::default(),
+                value: x,
+                time_lock: x,
+            })
+            .collect();
+        let tally_txs: Vec<TallyTransaction> = outputs
+            .iter()
+            .map(|output| {
+                TallyTransaction::new(
+                    Hash::default(),
+                    vec![],
+                    vec![output.clone()],
+                    vec![],
+                    vec![],
+                )
+            })
+            .collect();
+
+        let mut b1 = block_example();
+        let mut b2 = block_example();
+
+        let b1_tally_root = merkle_tree_root(&[tally_txs[0].clone().hash().into()]);
+        let b2_tally_root = merkle_tree_root(&[tally_txs[1].clone().hash().into()]);
+
+        b1.block_header.merkle_roots.tally_hash_merkle_root = b1_tally_root.into();
+        b1.txns.tally_txns = vec![tally_txs[0].clone()];
+        b2.block_header.merkle_roots.tally_hash_merkle_root = b2_tally_root.into();
+        b2.txns.tally_txns = vec![tally_txs[1].clone()];
+
+        let sb = mining_build_superblock(
+            &[b1.block_header.clone(), b2.block_header.clone()],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+
+        let a = sb.tally_proof_of_inclusion(&[b1, b2], tally_txs[2].clone());
+        assert!(a.is_none());
     }
 }
