@@ -80,7 +80,6 @@ where
                 checkpoint: 0,
                 hash_prev_block: params.genesis_prev_hash,
             });
-        let last_block = None;
 
         let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
@@ -108,7 +107,6 @@ where
             utxo_set,
             epoch_constants,
             last_sync,
-            last_block,
         });
 
         Ok(Self {
@@ -947,11 +945,7 @@ where
     }
 
     /// Update which was the epoch of the last block that was processed by this wallet.
-    pub fn update_sync_state(
-        &self,
-        beacon: CheckpointBeacon,
-        last_block: types::ChainBlock,
-    ) -> Result<()> {
+    pub fn update_sync_state(&self, beacon: CheckpointBeacon) -> Result<()> {
         log::debug!(
             "Setting tip of the chain for wallet {} to {:?}",
             self.id,
@@ -960,7 +954,6 @@ where
 
         if let Ok(mut write_guard) = self.state.write() {
             write_guard.last_sync = beacon;
-            write_guard.last_block = Some(last_block);
         }
 
         self.db
