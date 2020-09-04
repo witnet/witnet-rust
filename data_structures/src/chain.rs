@@ -3096,11 +3096,24 @@ fn filter_reputed_identities(
 /// Calculate the values and the total reputation
 /// for the upper triangle of the trapezoid
 #[allow(clippy::cast_precision_loss)]
-fn calculate_trapezoid_triangle(m: f64, k: f64, identities_len: usize) -> (Vec<u32>, u32) {
+fn calculate_trapezoid_triangle(
+    total_active_rep: u32,
+    active_reputed_ids_len: usize,
+    minimum_rep: u32,
+) -> (Vec<u32>, u32) {
+    let minimum = f64::from(minimum_rep);
+
+    // Calculate parameters for the curve y = mx + k
+    // k: 1'5 * average of the total active reputation without the minimum
+    let average = f64::from(total_active_rep) / active_reputed_ids_len as f64;
+    let k = 1.5 * (average - minimum);
+    // m: negative slope with -k
+    let m = -k / ((active_reputed_ids_len as f64) - 1_f64);
+
     let mut total_triangle_reputation = 0;
     let mut triangle_reputation = vec![];
 
-    for i in 0..identities_len {
+    for i in 0..active_reputed_ids_len {
         let calculated_rep = magic_line(i as f64, m, k);
         total_triangle_reputation += calculated_rep;
         triangle_reputation.push(calculated_rep);
@@ -3122,23 +3135,10 @@ fn trapezoidal_eligibility(
     if active_reputed_ids_len == 0 {
         return (HashMap::default(), 0);
     }
-
-    // Calculate parameters for the curve y = mx + k
-    // k: 1'5 * average of the total active reputation
-    let k = 1.5 * f64::from(total_active_rep) / active_reputed_ids_len as f64;
-    let maximum = f64::from(trs.get(&active_reputed_ids.first().unwrap()).0);
-    // The curve can not be higher than the real reputation
-    let k = if OrderedFloat(maximum) < OrderedFloat(k) {
-        maximum
-    } else {
-        k
-    };
-    // m: negative slope calculated with the average and the last value
-    let minimum = f64::from(trs.get(&active_reputed_ids.last().unwrap()).0);
-    let m = (minimum - k) / ((active_reputed_ids_len as f64) - 1_f64);
-
+    // Calculate upper triangle reputation in the trapezoidal eligibility
+    let minimum_rep = trs.get(&active_reputed_ids.last().unwrap()).0;
     let (triangle_reputation, total_triangle_reputation) =
-        calculate_trapezoid_triangle(m, k, active_reputed_ids_len);
+        calculate_trapezoid_triangle(total_active_rep, active_reputed_ids_len, minimum_rep);
 
     // To complete the trapezoid, an offset needs to be added (the rectangle at the base)
     let remaining_reputation = total_active_rep - total_triangle_reputation;
@@ -4843,7 +4843,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(rep_engine.threshold_factor(1), 1);
-        assert_eq!(rep_engine.threshold_factor(2), 4);
+        assert_eq!(rep_engine.threshold_factor(2), 3);
     }
 
     #[test]
@@ -5308,8 +5308,8 @@ mod tests {
         assert_eq!(total, 92);
 
         assert_eq!(trapezoid_hm.get(&ids[0]), Some(&27));
-        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&23));
-        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&17));
+        assert_eq!(trapezoid_hm.get(&ids[1]), Some(&22));
+        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&18));
         assert_eq!(trapezoid_hm.get(&ids[3]), Some(&13));
         assert_eq!(trapezoid_hm.get(&ids[4]), Some(&8));
         assert_eq!(trapezoid_hm.get(&ids[5]), Some(&4));
@@ -5326,11 +5326,11 @@ mod tests {
 
         assert_eq!(trapezoid_hm.get(&ids[0]), Some(&23));
         assert_eq!(trapezoid_hm.get(&ids[1]), Some(&20));
-        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&17));
+        assert_eq!(trapezoid_hm.get(&ids[2]), Some(&16));
         assert_eq!(trapezoid_hm.get(&ids[3]), Some(&13));
         assert_eq!(trapezoid_hm.get(&ids[4]), Some(&10));
         assert_eq!(trapezoid_hm.get(&ids[5]), Some(&7));
-        assert_eq!(trapezoid_hm.get(&ids[6]), Some(&3));
+        assert_eq!(trapezoid_hm.get(&ids[6]), Some(&4));
         assert_eq!(trapezoid_hm.get(&ids[7]), None);
     }
 
@@ -5370,5 +5370,29 @@ mod tests {
         rep_engine.current_alpha = Alpha(13);
         let expected_order = vec![pkh_b, pkh_a];
         assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
+    }
+
+    #[test]
+    fn test_calculate_trapezoid_triangle() {
+        let total_rep = 150;
+        let minimum = 50;
+        let id_len = 2;
+        let (triangle, triangle_rep) = calculate_trapezoid_triangle(total_rep, id_len, minimum);
+        assert!(triangle_rep <= total_rep);
+        assert_eq!(triangle, vec![38, 0]);
+
+        let total_rep = 12457;
+        let minimum = 4096;
+        let id_len = 3;
+        let (triangle, triangle_rep) = calculate_trapezoid_triangle(total_rep, id_len, minimum);
+        assert!(triangle_rep <= total_rep);
+        assert_eq!(triangle, vec![84, 42, 0]);
+
+        let total_rep = 92;
+        let minimum = 1;
+        let id_len = 6;
+        let (triangle, triangle_rep) = calculate_trapezoid_triangle(total_rep, id_len, minimum);
+        assert!(triangle_rep <= total_rep);
+        assert_eq!(triangle, vec![22, 17, 13, 9, 4, 0]);
     }
 }
