@@ -235,8 +235,8 @@ pub fn jsonrpc_io_handler(
                 };
 
                 match method_name.as_str() {
-                    "newBlocks" => {
-                        add_subscription("newBlocks", subscriber);
+                    "blocks" => {
+                        add_subscription("blocks", subscriber);
                     }
                     "superblocks" => {
                         add_subscription("superblocks", subscriber);
@@ -1358,7 +1358,7 @@ mod tests {
     #[test]
     fn subscribe_new_blocks() {
         // Subscribe to new blocks gives us a SubscriptionId
-        let msg = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["newBlocks"],"id":1}"#;
+        let msg = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["blocks"],"id":1}"#;
         let expected = r#"{"jsonrpc":"2.0","result":"1","id":1}"#.to_string();
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
@@ -1377,8 +1377,8 @@ mod tests {
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions, true);
-        // But first, subscribe to newBlocks
-        let msg1 = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["newBlocks"],"id":1}"#;
+        // But first, subscribe to blocks
+        let msg1 = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["blocks"],"id":1}"#;
         let _response1 = io.handle_request_sync(&msg1, meta.clone());
         let response2 = io.handle_request_sync(&msg2, meta);
         assert_eq!(response2, Some(expected2));
