@@ -5541,19 +5541,19 @@ mod tests {
         let expected_lemma_lengths = vec![3, 3, 2];
 
         for index in 0..expected_indices.len() {
-            let a = sb
+            let result = sb
                 .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], &dr_txs[index])
                 .unwrap();
-            assert_eq!(a.index, expected_indices[index]);
-            assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = a
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
                 .lemma
                 .iter()
                 .map(|h| match *h {
                     Hash::SHA256(x) => Sha256(x),
                 })
                 .collect();
-            let proof = InclusionProof::sha256(a.index, lemma);
+            let proof = InclusionProof::sha256(result.index, lemma);
             assert!(proof.verify(
                 dr_txs[index].body.data_poi_hash().into(),
                 sb.data_request_root.into()
@@ -5626,25 +5626,26 @@ mod tests {
         let expected_lemma_lengths = vec![5, 5, 4, 5, 5, 4, 3, 3];
 
         for index in 0..expected_indices.len() {
-            let a = sb
+            let result = sb
                 .dr_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], &dr_txs[index])
                 .unwrap();
-            assert_eq!(a.index, expected_indices[index]);
-            assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = a
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
                 .lemma
                 .iter()
                 .map(|h| match *h {
                     Hash::SHA256(x) => Sha256(x),
                 })
                 .collect();
-            let proof = InclusionProof::sha256(a.index, lemma);
+            let proof = InclusionProof::sha256(result.index, lemma);
             assert!(proof.verify(
                 dr_txs[index].body.data_poi_hash().into(),
                 sb.data_request_root.into()
             ));
         }
     }
+
     #[test]
     fn test_dr_merkle_root_none() {
         let inputs: Vec<Input> = (1..4)
@@ -5687,9 +5688,105 @@ mod tests {
             Hash::default(),
         );
 
-        let a = sb.dr_proof_of_inclusion(&[b1, b2], &dr_txs[2]);
-        assert!(a.is_none());
+        let result = sb.dr_proof_of_inclusion(&[b1, b2], &dr_txs[2]);
+        assert!(result.is_none());
     }
+
+    #[test]
+    fn test_dr_merkle_root_no_block() {
+        let inputs: Vec<Input> = (1..4)
+            .map(|x| {
+                Input::new(OutputPointer {
+                    transaction_id: Hash::default(),
+                    output_index: x,
+                })
+            })
+            .collect();
+        let dr_txs: Vec<DRTransaction> = inputs
+            .iter()
+            .map(|input| {
+                DRTransaction::new(
+                    DRTransactionBody::new(
+                        vec![input.clone()],
+                        vec![],
+                        DataRequestOutput::default(),
+                    ),
+                    vec![],
+                )
+            })
+            .collect();
+
+        let sb = mining_build_superblock(&[], &[Hash::default()], 1, Hash::default());
+
+        let result = sb.dr_proof_of_inclusion(&[], &dr_txs[2]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_dr_merkle_root_superblock_single_block() {
+        let inputs: Vec<Input> = (1..3)
+            .map(|x| {
+                Input::new(OutputPointer {
+                    transaction_id: Hash::default(),
+                    output_index: x,
+                })
+            })
+            .collect();
+        let dr_txs: Vec<DRTransaction> = inputs
+            .iter()
+            .map(|input| {
+                DRTransaction::new(
+                    DRTransactionBody::new(
+                        vec![input.clone()],
+                        vec![],
+                        DataRequestOutput::default(),
+                    ),
+                    vec![],
+                )
+            })
+            .collect();
+
+        let mut b1 = block_example();
+
+        let b1_dr_root = merkle_tree_root(&[
+            dr_txs[0].clone().hash().into(),
+            dr_txs[1].clone().hash().into(),
+        ]);
+
+        b1.block_header.merkle_roots.dr_hash_merkle_root = b1_dr_root.into();
+        b1.txns.data_request_txns = vec![dr_txs[0].clone(), dr_txs[1].clone()];
+
+        let sb = mining_build_superblock(
+            &[b1.block_header.clone()],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+
+        let expected_indices = vec![0, 2];
+        let expected_lemma_lengths = vec![2, 2];
+
+        for index in 0..expected_indices.len() {
+            let result = sb
+                .dr_proof_of_inclusion(&[b1.clone()], &dr_txs[index])
+                .unwrap();
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
+                .lemma
+                .iter()
+                .map(|h| match *h {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+            let proof = InclusionProof::sha256(result.index, lemma);
+            assert!(proof.verify(
+                dr_txs[index].body.data_poi_hash().into(),
+                sb.data_request_root.into()
+            ));
+        }
+    }
+
     #[test]
     fn test_tally_merkle_root_superblock() {
         let outputs: Vec<ValueTransferOutput> = (1..4)
@@ -5737,12 +5834,12 @@ mod tests {
         let expected_lemma_lengths = vec![3, 3, 2];
 
         for index in 0..expected_indices.len() {
-            let a = sb
+            let result = sb
                 .tally_proof_of_inclusion(&[b1.clone(), b2.clone()], &tally_txs[index])
                 .unwrap();
-            assert_eq!(a.index, expected_indices[index]);
-            assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = a
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
                 .lemma
                 .iter()
                 .map(|h| match *h {
@@ -5750,7 +5847,7 @@ mod tests {
                 })
                 .collect();
 
-            let proof = InclusionProof::sha256(a.index, lemma);
+            let proof = InclusionProof::sha256(result.index, lemma);
             assert!(proof.verify(
                 tally_txs[index].data_poi_hash().into(),
                 sb.tally_root.into()
@@ -5829,12 +5926,12 @@ mod tests {
         let expected_lemma_lengths = vec![5, 5, 4, 5, 5, 4, 3, 3];
 
         for index in 0..expected_indices.len() {
-            let a = sb
+            let result = sb
                 .tally_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], &tally_txs[index])
                 .unwrap();
-            assert_eq!(a.index, expected_indices[index]);
-            assert_eq!(a.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = a
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
                 .lemma
                 .iter()
                 .map(|h| match *h {
@@ -5842,13 +5939,14 @@ mod tests {
                 })
                 .collect();
 
-            let proof = InclusionProof::sha256(a.index, lemma);
+            let proof = InclusionProof::sha256(result.index, lemma);
             assert!(proof.verify(
                 tally_txs[index].data_poi_hash().into(),
                 sb.tally_root.into()
             ));
         }
     }
+
     #[test]
     fn test_tally_merkle_root_none() {
         let outputs: Vec<ValueTransferOutput> = (1..4)
@@ -5889,7 +5987,76 @@ mod tests {
             Hash::default(),
         );
 
-        let a = sb.tally_proof_of_inclusion(&[b1, b2], &tally_txs[2]);
-        assert!(a.is_none());
+        let result = sb.tally_proof_of_inclusion(&[b1, b2], &tally_txs[2]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_tally_merkle_root_superblock_single_block() {
+        let outputs: Vec<ValueTransferOutput> = (1..4)
+            .map(|x| ValueTransferOutput {
+                pkh: PublicKeyHash::default(),
+                value: x,
+                time_lock: x,
+            })
+            .collect();
+        let tally_txs: Vec<TallyTransaction> = outputs
+            .iter()
+            .map(|output| {
+                TallyTransaction::new(
+                    Hash::default(),
+                    vec![],
+                    vec![output.clone()],
+                    vec![],
+                    vec![],
+                )
+            })
+            .collect();
+
+        let mut b1 = block_example();
+
+        let b1_tally_root = merkle_tree_root(&[
+            tally_txs[0].clone().hash().into(),
+            tally_txs[1].clone().hash().into(),
+            tally_txs[2].clone().hash().into(),
+        ]);
+
+        b1.block_header.merkle_roots.tally_hash_merkle_root = b1_tally_root.into();
+        b1.txns.tally_txns = vec![
+            tally_txs[0].clone(),
+            tally_txs[1].clone(),
+            tally_txs[2].clone(),
+        ];
+
+        let sb = mining_build_superblock(
+            &[b1.block_header.clone()],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+        );
+
+        let expected_indices = vec![0, 2, 2];
+        let expected_lemma_lengths = vec![3, 3, 2];
+
+        for index in 0..expected_indices.len() {
+            let result = sb
+                .tally_proof_of_inclusion(&[b1.clone()], &tally_txs[index])
+                .unwrap();
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
+                .lemma
+                .iter()
+                .map(|h| match *h {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+
+            let proof = InclusionProof::sha256(result.index, lemma);
+            assert!(proof.verify(
+                tally_txs[index].data_poi_hash().into(),
+                sb.tally_root.into()
+            ));
+        }
     }
 }
