@@ -506,7 +506,7 @@ impl App {
     /// Handle any kind of notifications received from a Witnet node.
     pub fn handle_notification(&mut self, topic: String, value: types::Json) -> Result<()> {
         match topic.as_str() {
-            "newBlocks" => self.handle_block_notification(value),
+            "blocks" => self.handle_block_notification(value),
             _ => {
                 log::debug!("Unhandled `{}` notification", topic);
                 log::trace!("Payload is {:?}", value);

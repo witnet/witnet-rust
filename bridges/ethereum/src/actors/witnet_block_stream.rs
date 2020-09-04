@@ -32,7 +32,7 @@ pub fn witnet_block_stream(
     let witnet_client1 = witnet_client.clone();
 
     let fut = witnet_client
-        .execute("witnet_subscribe", json!(["newBlocks"]))
+        .execute("witnet_subscribe", json!(["blocks"]))
         .timeout(Duration::from_secs(1))
         .map_err(move |e| {
             if e.is_elapsed() {
@@ -63,12 +63,12 @@ pub fn witnet_block_stream(
                 }
                 Err(_) => {
                     return futures::failed(
-                        "Failed to subscribe to newBlocks from witnet node".to_string(),
+                        "Failed to subscribe to blocks from witnet node".to_string(),
                     );
                 }
             };
             log::info!(
-                "Subscribed to witnet newBlocks with subscription id \"{}\"",
+                "Subscribed to witnet blocks with subscription id \"{}\"",
                 witnet_subscription_id
             );
 

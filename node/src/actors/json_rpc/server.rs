@@ -175,9 +175,9 @@ impl Handler<BlockNotify> for JsonRpcServer {
         if let Ok(subs) = self.subscriptions.lock() {
             let empty_map = HashMap::new();
             for (subscription, (sink, _subscription_params)) in
-                subs.get("newBlocks").unwrap_or(&empty_map)
+                subs.get("blocks").unwrap_or(&empty_map)
             {
-                log::debug!("Sending NewBlock notification!");
+                log::debug!("Sending block notification!");
                 let r = SubscriptionResult {
                     result: block.clone(),
                     subscription: subscription.clone(),
@@ -187,7 +187,7 @@ impl Handler<BlockNotify> for JsonRpcServer {
                         .into_actor(self)
                         .then(move |res, _act, _ctx| {
                             if let Err(e) = res {
-                                log::error!("Failed to send notification: {:?}", e);
+                                log::error!("Failed to send block notification: {:?}", e);
                             }
 
                             actix::fut::ok(())
@@ -195,7 +195,7 @@ impl Handler<BlockNotify> for JsonRpcServer {
                 );
             }
         } else {
-            log::error!("Failed to acquire lock in NewBlock handle");
+            log::error!("Failed to acquire lock in BlockNotify handle");
         }
     }
 }
