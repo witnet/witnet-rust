@@ -111,7 +111,7 @@ pub fn address_pkh(account_index: u32, keychain: u32, key_index: u32) -> String 
     )
 }
 
-/// An address's label.
+/// An address additional information.
 #[inline]
 pub fn address_info(account_index: u32, keychain: u32, key_index: u32) -> String {
     format!(
