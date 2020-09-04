@@ -1,9 +1,3 @@
-use actix::{
-    actors::resolver::ResolverError,
-    dev::{MessageResponse, ResponseChannel, ToEnvelope},
-    Actor, Addr, Handler, Message,
-};
-use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -13,13 +7,21 @@ use std::{
     ops::{Bound, RangeBounds},
     time::Duration,
 };
+
+use actix::{
+    actors::resolver::ResolverError,
+    dev::{MessageResponse, ResponseChannel, ToEnvelope},
+    Actor, Addr, Handler, Message,
+};
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, SuperBlockVote, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
+        RADTally, Reputation, SuperBlock, SuperBlockVote, UtxoInfo, UtxoSelectionStrategy,
+        ValueTransferOutput,
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
@@ -892,17 +894,19 @@ impl Message for SetLastBeacon {
 
 /// New block notification
 #[derive(Message)]
-pub struct NewBlock {
+pub struct BlockNotify {
     /// Block
     pub block: Block,
 }
 
-/// Notification signaling that a block has been consolidated.
+/// Notification signaling that a superblock has been consolidated.
 ///
-/// As per current consensus algorithm, "consolidated" implies that there exists at least one
-/// superblock in the chain that builds upon the superblock where this block was anchored.
-#[derive(Message)]
-pub struct ConsolidatedBlocks {
+/// As per current consensus algorithm, "consolidated blocks" implies that there exists at least one
+/// superblock in the chain that builds upon the superblock where those blocks were anchored.
+#[derive(Message, Serialize)]
+pub struct SuperBlockNotify {
+    /// The superblock that we are signaling as consolidated.
+    pub superblock: SuperBlock,
     /// The hashes of the blocks that we are signaling as consolidated.
-    pub hashes: Vec<Hash>,
+    pub consolidated_block_hashes: Vec<Hash>,
 }

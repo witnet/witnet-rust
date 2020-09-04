@@ -209,6 +209,8 @@ pub struct SuperBlockState {
     ars_current_identities: ARSIdentities,
     // Structure of the previous Active Reputation Set identities
     ars_previous_identities: ARSIdentities,
+    /// The most recently created superblock. This one is yet to be voted and decided upon.
+    current_superblock: Option<SuperBlock>,
     // Current superblock beacon including the superblock hash created by this node
     //and the current superblock index, used to limit the range of broadcasted votes to
     // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
@@ -452,6 +454,16 @@ impl SuperBlockState {
             .iter()
             .map(|pkh| pkh.to_string())
             .collect()
+    }
+
+    /// Put a superblock into the `current_superblock` field, returning the former value if any.
+    pub fn set_current_superblock(&mut self, new: SuperBlock) -> Option<SuperBlock> {
+        self.current_superblock.replace(new)
+    }
+
+    /// Get superblock from `current_superblock` field, if any.
+    pub fn get_current_superblock(&self) -> Option<SuperBlock> {
+        self.current_superblock.clone()
     }
 }
 

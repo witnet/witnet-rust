@@ -17,7 +17,7 @@ use super::{
     SubscriptionResult, Subscriptions,
 };
 use crate::{
-    actors::messages::{ConsolidatedBlocks, InboundTcpConnect, NewBlock},
+    actors::messages::{BlockNotify, InboundTcpConnect, SuperBlockNotify},
     config_mngr,
 };
 use jsonrpc_pubsub::{PubSubHandler, Session};
@@ -166,10 +166,10 @@ impl Handler<Unregister> for JsonRpcServer {
     }
 }
 
-impl Handler<NewBlock> for JsonRpcServer {
+impl Handler<BlockNotify> for JsonRpcServer {
     type Result = ();
 
-    fn handle(&mut self, msg: NewBlock, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: BlockNotify, ctx: &mut Self::Context) -> Self::Result {
         log::debug!("Got NewBlock message, sending notifications...");
         let block = serde_json::to_value(msg.block).unwrap();
         if let Ok(subs) = self.subscriptions.lock() {
@@ -200,27 +200,23 @@ impl Handler<NewBlock> for JsonRpcServer {
     }
 }
 
-impl Handler<ConsolidatedBlocks> for JsonRpcServer {
+impl Handler<SuperBlockNotify> for JsonRpcServer {
     type Result = ();
 
-    fn handle(&mut self, msg: ConsolidatedBlocks, ctx: &mut Self::Context) -> Self::Result {
-        log::debug!("Got ConsolidatedBlocks message, sending notifications...");
+    fn handle(&mut self, msg: SuperBlockNotify, ctx: &mut Self::Context) -> Self::Result {
+        log::debug!("Got SuperBlockNotify message, sending notifications...");
         log::trace!(
-            "Notifying consolidation of {} blocks: {:?}",
-            msg.hashes.len(),
-            msg.hashes
+            "Notifying consolidation of 1 superblock and {} blocks: {:?}",
+            msg.consolidated_block_hashes.len(),
+            msg.consolidated_block_hashes
         );
 
-        let hashes = serde_json::to_value(msg.hashes)
-            .expect("JSON serialization of ConsolidatedBlocks should never fail");
+        let hashes = serde_json::to_value(msg)
+            .expect("JSON serialization of SuperBlockNotify should never fail");
         if let Ok(subscriptions) = self.subscriptions.lock() {
-            if let Some(consolidated_blocks_subscriptions) = subscriptions.get("consolidatedBlocks")
-            {
-                for (subscription, (sink, _params)) in consolidated_blocks_subscriptions {
-                    log::debug!(
-                        "Sending ConsolidatedBlocks notification through sink {:?}",
-                        sink
-                    );
+            if let Some(superblocks_subscriptions) = subscriptions.get("superblocks") {
+                for (subscription, (sink, _params)) in superblocks_subscriptions {
+                    log::debug!("Sending superblock notification through sink {:?}", sink);
                     let params = jsonrpc_core::Params::from(SubscriptionResult {
                         result: hashes.clone(),
                         subscription: subscription.clone(),
@@ -234,10 +230,10 @@ impl Handler<ConsolidatedBlocks> for JsonRpcServer {
                     }));
                 }
             } else {
-                log::warn!("Failed to find a subscription for ConsolidatedBlocks notifications");
+                log::warn!("Failed to find a subscription for superblocks notifications");
             }
         } else {
-            log::error!("Failed to acquire lock in ConsolidatedBlocks handle");
+            log::error!("Failed to acquire lock in SuperBlockNotify handle");
         }
     }
 }

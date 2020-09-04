@@ -10,7 +10,6 @@ use crate::types::{ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParam
 use crate::{account, constants, crypto, db::Database as _, model, params};
 
 use super::*;
-use std::time::Duration;
 
 pub enum IndexTransactionQuery {
     InputTransactions(Vec<types::OutputPointer>),
