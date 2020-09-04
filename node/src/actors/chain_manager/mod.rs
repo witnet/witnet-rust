@@ -69,9 +69,9 @@ use crate::{
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
-            AddItems, AddTransaction, Anycast, Broadcast, ConsolidatedBlocks, GetBlocksEpochRange,
-            GetItemBlock, NewBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote,
-            StoreInventoryItem,
+            AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, GetBlocksEpochRange,
+            GetItemBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote,
+            StoreInventoryItem, SuperBlockNotify,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -676,7 +676,7 @@ impl ChainManager {
                         );
 
                         // Send notification to JsonRpcServer
-                        JsonRpcServer::from_registry().do_send(NewBlock { block })
+                        JsonRpcServer::from_registry().do_send(BlockNotify { block })
                     }
                 }
             }
@@ -1230,15 +1230,15 @@ impl ChainManager {
                         act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
                             act.chain_state.superblock_state.get_beacon();
 
-                        // Let JSON-RPC clients know that the blocks in the previous superblock can now
-                        // be considered consolidated
-                        act.notify_previous_superblock_consolidation(ctx);
-
                         if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                             // Persist previous_chain_state with current superblock_state
                             act.persist_chain_state(voted_superblock_beacon.checkpoint, ctx);
                             act.move_chain_state_forward(superblock_index);
                         }
+
+                        // Let JSON-RPC clients know that the blocks in the previous superblock can now
+                        // be considered consolidated
+                        act.notify_previous_superblock_consolidation(ctx);
 
                         log::info!("Consensus reached for Superblock #{}", voted_superblock_beacon.checkpoint);
                         log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
@@ -1299,6 +1299,11 @@ impl ChainManager {
                         last_hash,
                         &act.chain_state.alt_keys,
                     );
+
+                    // Put the local superblock into chain state
+                    act.chain_state
+                        .superblock_state
+                        .set_current_superblock(superblock.clone());
 
                     actix::fut::ok(superblock)
                 }
@@ -1509,12 +1514,19 @@ impl ChainManager {
             ctx,
         );
 
-        if let Ok(beacons) = beacons {
-            if !beacons.is_empty() {
-                let hashes: Vec<Hash> =
-                    beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
-                JsonRpcServer::from_registry().do_send(ConsolidatedBlocks { hashes })
-            }
+        // Get superblock from chain state snapshot
+        let superblock = self.chain_state.superblock_state.get_current_superblock();
+
+        // If there is a superblock to consolidate, and we got the confirmed block beacons, send
+        // notification
+        if let (Ok(beacons), Some(superblock)) = (beacons, superblock) {
+            let consolidated_block_hashes: Vec<Hash> =
+                beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
+
+            JsonRpcServer::from_registry().do_send(SuperBlockNotify {
+                superblock,
+                consolidated_block_hashes,
+            })
         }
     }
 }

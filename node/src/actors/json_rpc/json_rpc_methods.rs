@@ -238,8 +238,8 @@ pub fn jsonrpc_io_handler(
                     "newBlocks" => {
                         add_subscription("newBlocks", subscriber);
                     }
-                    "consolidatedBlocks" => {
-                        add_subscription("consolidatedBlocks", subscriber);
+                    "superblocks" => {
+                        add_subscription("superblocks", subscriber);
                     }
                     e => {
                         log::debug!("Unknown subscription method: {}", e);
