@@ -238,6 +238,8 @@ impl ChainManager {
                 act.best_candidate = None;
                 act.candidates.clear();
                 act.seen_candidates.clear();
+                // Clear transactions pool because some transactions may be invalid
+                act.transactions_pool.clear();
                 // Delete any saved copies of the old chain state to avoid accidentally persisting
                 // a forked state
                 act.chain_state_snapshot.clear();

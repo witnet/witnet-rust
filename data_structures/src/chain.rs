@@ -1512,6 +1512,39 @@ impl TransactionsPool {
             && self.re_transactions.is_empty()
     }
 
+    /// Remove all the transactions but keep the allocated memory for reuse.
+    pub fn clear(&mut self) {
+        let TransactionsPool {
+            vt_transactions,
+            sorted_vt_index,
+            dr_transactions,
+            sorted_dr_index,
+            co_hash_index,
+            co_transactions,
+            re_hash_index,
+            re_transactions,
+            pending_transactions,
+            output_pointer_map,
+            total_vt_weight,
+            total_dr_weight,
+            weight_limit: _,
+            vt_to_dr_factor: _,
+        } = self;
+
+        vt_transactions.clear();
+        sorted_vt_index.clear();
+        dr_transactions.clear();
+        sorted_dr_index.clear();
+        co_hash_index.clear();
+        co_transactions.clear();
+        re_hash_index.clear();
+        re_transactions.clear();
+        pending_transactions.clear();
+        output_pointer_map.clear();
+        *total_vt_weight = 0;
+        *total_dr_weight = 0;
+    }
+
     /// Returns the number of value transfer transactions in the pool.
     ///
     /// # Examples:
