@@ -15,4 +15,6 @@ pub struct State {
     pub epoch_constants: EpochConstants,
     /// Beacon of the last block received during synchronization.
     pub last_sync: CheckpointBeacon,
+    /// Last block beacon confirmed by superblock (or during sync process)
+    pub last_confirmed: CheckpointBeacon,
 }

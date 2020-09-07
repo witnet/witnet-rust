@@ -13,7 +13,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::types::{signature, ExtendedPK, RadonError};
+use crate::types::{signature, ExtendedPK, Hash, RadonError};
 use state::State;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -43,7 +43,12 @@ impl<T> Wallet<T>
 where
     T: Database,
 {
-    /// Returns superblock period consensus constant
+    /// Returns the bootstrap hash consensus constant
+    pub fn get_bootstrap_hash(&self) -> Hash {
+        self.params.genesis_prev_hash
+    }
+
+    /// Returns the superblock period consensus constant
     pub fn get_superblock_period(&self) -> u16 {
         self.params.superblock_period
     }
@@ -85,6 +90,7 @@ where
                 checkpoint: 0,
                 hash_prev_block: params.genesis_prev_hash,
             });
+        let last_confirmed = last_sync;
 
         let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
@@ -112,6 +118,7 @@ where
             utxo_set,
             epoch_constants,
             last_sync,
+            last_confirmed,
         });
 
         Ok(Self {
@@ -130,6 +137,7 @@ where
         let current_account = state.account;
         let balance = state.balance;
         let last_sync = state.last_sync;
+        let last_confirmed = state.last_confirmed;
 
         Ok(types::WalletData {
             id: self.id.clone(),
@@ -139,6 +147,7 @@ where
             current_account,
             available_accounts: state.available_accounts.clone(),
             last_sync,
+            last_confirmed,
         })
     }
 
