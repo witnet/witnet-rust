@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::{sync::mpsc, sync::oneshot};
 use web3::{contract, futures::Future, types::U256};
 use witnet_data_structures::chain::{Hash, Hashable};
+use async_jsonrpc_client::transports::tcp::TcpSocket;
 
 /// Actor which receives Witnet blocks, posts them to the block relay,
 /// and sends Proofs of Inclusion to Ethereum
@@ -15,11 +16,14 @@ pub fn block_relay_and_poi(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
     wait_for_witnet_block_tx: mpsc::UnboundedSender<(U256, oneshot::Sender<()>)>,
+    witnet_client: Arc<TcpSocket>,
 ) -> (
     mpsc::Sender<WitnetBlock>,
     impl Future<Item = (), Error = ()>,
 ) {
+
     let (tx, rx) = mpsc::channel(16);
+    let _witnet_client = Arc::clone(&witnet_client);
 
     let fut = rx.map_err(|e| log::error!("Failed to receive WitnetBlock message: {:?}", e))
         .for_each(move |msg| {

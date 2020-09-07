@@ -488,21 +488,17 @@ fn claim_and_post_dr(
 pub fn claim_and_post(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
+    witnet_client: Arc<TcpSocket>,
 ) -> (
-    async_jsonrpc_client::transports::shared::EventLoopHandle,
     mpsc::Sender<ClaimMsg>,
     impl Future<Item = (), Error = ()>,
 ) {
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
-    let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-    let (handle, witnet_client) =
-        async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
-    let witnet_client = Arc::new(witnet_client);
+    let witnet_client = Arc::clone(&witnet_client);
     let (tx, rx) = mpsc::channel(16);
 
     (
-        handle,
         tx,
         rx.map_err(|_| ()).for_each(move |msg| {
             if !config.enable_claim_and_inclusion {

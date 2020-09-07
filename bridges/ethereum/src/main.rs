@@ -120,6 +120,11 @@ fn run() -> Result<(), String> {
 
     let eth_state = EthState::create(&config).map(Arc::new)?;
 
+    let witnet_addr = config.witnet_jsonrpc_addr.to_string();
+    let (_handle, witnet_client) =
+        async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
+    let witnet_client = Arc::new(witnet_client);
+
     if app.post_dr {
         // Post example data request to WRB and exit
         let fut = post_example_dr(Arc::clone(&config), Arc::clone(&eth_state));
@@ -127,8 +132,8 @@ fn run() -> Result<(), String> {
             tokio::spawn(fut);
         }));
     } else {
-        let (_handle, claim_and_post_tx, claim_and_post_fut) =
-            claim_and_post(Arc::clone(&config), Arc::clone(&eth_state));
+        let (claim_and_post_tx, claim_and_post_fut) =
+            claim_and_post(Arc::clone(&config), Arc::clone(&eth_state), witnet_client.clone());
         let wrb_requests_initial_sync_fut = get_new_requests(
             Arc::clone(&config),
             Arc::clone(&eth_state),
@@ -146,6 +151,7 @@ fn run() -> Result<(), String> {
                 Arc::clone(&config),
                 Arc::clone(&eth_state),
                 block_relay_check_tx,
+                witnet_client.clone(),
             );
             //let eth_event_fut =
             //    eth_event_stream(&config, Arc::clone(&eth_state), claim_and_post_tx.clone());
@@ -153,10 +159,11 @@ fn run() -> Result<(), String> {
                 witnet_block_stream(Arc::clone(&config), block_relay_and_poi_tx.clone());
             let claim_ticker_fut = claim_ticker(Arc::clone(&config), claim_and_post_tx.clone());
 
-            let (_handle, tally_finder_fut) = tally_finder(
+            let tally_finder_fut = tally_finder(
                 Arc::clone(&config),
                 Arc::clone(&eth_state),
                 block_relay_and_poi_tx,
+                witnet_client,
             );
 
             tokio::run(future::ok(()).map(move |_| {

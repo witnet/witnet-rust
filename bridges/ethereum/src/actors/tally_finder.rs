@@ -12,24 +12,19 @@ use std::{
 use tokio::{sync::mpsc, timer::Interval};
 use web3::futures::Future;
 use witnet_data_structures::{chain::Block, chain::DataRequestInfo};
+use async_jsonrpc_client::transports::tcp::TcpSocket;
 
 /// Periodically ask the Witnet node for resolved data requests
 pub fn tally_finder(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
     tx: mpsc::Sender<WitnetBlock>,
-) -> (
-    async_jsonrpc_client::transports::shared::EventLoopHandle,
-    impl Future<Item = (), Error = ()>,
-) {
-    let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-    // Important: the handle cannot be dropped, otherwise the client stops
-    // processing events
-    let (handle, witnet_client) =
-        async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
-    let witnet_client = Arc::new(witnet_client);
+    witnet_client: Arc<TcpSocket>,
+) ->
+    impl Future<Item = (), Error = ()>
+ {
 
-    (handle, Interval::new(Instant::now(), Duration::from_millis(config.witnet_dr_report_polling_rate_ms))
+    Interval::new(Instant::now(), Duration::from_millis(config.witnet_dr_report_polling_rate_ms))
         .map_err(|e| log::error!("Error creating interval: {:?}", e))
         .and_then(move |x| eth_state.wrb_requests.read().map(move |wrb_requests| (wrb_requests, x)))
         .and_then({
@@ -91,5 +86,5 @@ pub fn tally_finder(
 
         })
         .then(|_| Ok(()))
-        .for_each(|_| Ok(())))
+        .for_each(|_| Ok(()))
 }
