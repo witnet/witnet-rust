@@ -23,6 +23,7 @@ pub struct Params {
     pub epoch_constants: EpochConstants,
     pub node_sync_batch_size: u32,
     pub genesis_prev_hash: Hash,
+    pub superblock_period: u16,
 }
 
 impl Default for Params {
@@ -39,6 +40,7 @@ impl Default for Params {
             epoch_constants: EpochConstants::default(),
             node_sync_batch_size: 100,
             genesis_prev_hash: Hash::default(),
+            superblock_period: 10,
         }
     }
 }
