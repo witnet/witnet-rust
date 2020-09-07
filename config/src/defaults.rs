@@ -138,7 +138,7 @@ pub trait Defaults {
         // Hash::SHA256([1; 32])
 
         // Testnet configuration
-        "2766fb20482b7fc5833b94b4b98596fbde9d7e253ca8628a1cfe070ce733600e"
+        "d103ad5177230297ebe68b276e9e55a6c3abd168f1b671398903819b52f28cc8"
             .parse()
             .unwrap()
     }
