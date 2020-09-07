@@ -265,7 +265,7 @@ impl Handler<AddBlocks> for ChainManager {
         let consensus_constants = self.consensus_constants();
 
         match self.sm_state {
-            StateMachine::WaitingConsensus => {
+            StateMachine::WaitingConsensus | StateMachine::AlmostSynced => {
                 // In WaitingConsensus state, only allow AddBlocks when the argument is
                 // the genesis block
                 if msg.blocks.len() == 1 && msg.blocks[0].hash() == consensus_constants.genesis_hash
@@ -287,9 +287,13 @@ impl Handler<AddBlocks> for ChainManager {
                         }
                         Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
                     }
+                } else {
+                    log::debug!("Unhandled AddBlocks message");
                 }
             }
-            StateMachine::AlmostSynced | StateMachine::Synced => {}
+            StateMachine::Synced => {
+                log::debug!("Unhandled AddBlocks message");
+            }
             StateMachine::Synchronizing => {
                 if self.sync_target.is_none() {
                     log::warn!("Target Beacon is None");
