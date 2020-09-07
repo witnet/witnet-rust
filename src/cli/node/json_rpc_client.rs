@@ -281,7 +281,7 @@ pub fn get_reputation(
     let res = parse_response::<GetReputationResult>(&response)?;
 
     if res.stats.is_empty() {
-        println!("Any identities has reputation yet");
+        println!("No identities have reputation yet");
     }
 
     for (pkh, rep_stats) in res.stats.into_iter().sorted_by_key(|(_, rep_stats)| {
