@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use actix::utils::TimerFunc;
 use futures::future;
 
@@ -641,16 +639,12 @@ impl App {
     }
 
     /// Get the URL and address of an existing JsonRpcClient actor.
+    ///
+    /// This method exists for convenience in case that at some point we decide to allow changing
+    /// the `JsonRpcClient` address by putting `NodeClient` inside an `Arc<RwLock<_>>` or similar.
+    #[inline(always)]
     pub fn get_client(&self) -> NodeClient {
-        let lock = self.params.client.clone();
-        log::trace!(
-            "Getting JsonRpcClient actor from app ({} references)",
-            Arc::strong_count(&lock)
-        );
-
-        lock.read()
-            .map(|x| x.clone())
-            .expect("Node client lock should never be poisoned")
+        self.params.client.clone()
     }
 
     /// Subscribe to receiving real time notifications of a specific type from a Witnet node.

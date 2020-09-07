@@ -98,10 +98,10 @@ pub fn run(conf: Config) -> Result<(), Error> {
         node_subscriptions.clone(),
     )
     .map_err(|_| app::Error::NodeNotConnected)?;
-    let node_client = Arc::new(RwLock::new(NodeClient {
+    let node_client = NodeClient {
         actor: node_client_actor,
         url: node_client_url,
-    }));
+    };
 
     let db = Arc::new(
         ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))

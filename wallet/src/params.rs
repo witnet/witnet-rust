@@ -46,7 +46,7 @@ impl Default for Params {
 #[derive(Clone)]
 pub struct NodeParams {
     /// Reference to the JSON-RPC client actor.
-    pub client: Arc<RwLock<NodeClient>>,
+    pub client: NodeClient,
     /// A reference to the latest block that the node has consolidated into its block chain.
     pub last_beacon: Arc<RwLock<CheckpointBeacon>>,
     /// The name of the network in which the node is operating.
@@ -78,16 +78,12 @@ impl NodeParams {
         }
     }
 
-    /// Get the address of an existing JsonRpcClient actor.
+    /// Get the URL and address of an existing JsonRpcClient actor.
+    ///
+    /// This method exists for convenience in case that at some point we decide to allow changing
+    /// the `JsonRpcClient` address by putting `NodeClient` inside an `Arc<RwLock<_>>` or similar.
+    #[inline(always)]
     pub fn get_client(&self) -> NodeClient {
-        let lock = self.client.clone();
-        log::trace!(
-            "Getting JsonRpcClient actor from worker ({} references)",
-            Arc::strong_count(&lock)
-        );
-
-        lock.read()
-            .map(|x| x.clone())
-            .expect("Node client lock should never be poisoned")
+        self.client.clone()
     }
 }
