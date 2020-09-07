@@ -554,13 +554,15 @@ impl Worker {
 
         let wallet_data = wallet.public_data()?;
 
-        let first_beacon = wallet_data.last_sync;
+        let first_beacon = wallet_data.last_confirmed;
         let mut since_beacon = first_beacon;
         let mut latest_beacon = first_beacon;
 
         // Synchronization bootstrap process to query the last received `last_block`
         // Note: if first sync, the queried block will be the genesis (epoch #0)
-        if wallet_data.last_sync.checkpoint == 0 {
+        if wallet_data.last_confirmed.checkpoint == 0
+            && wallet_data.last_confirmed.hash_prev_block == wallet.get_bootstrap_hash()
+        {
             let gen_fut = self.get_block_chain(0, 1);
             let gen_res: Vec<ChainEntry> = futures03::executor::block_on(gen_fut)?;
             let gen_entry = gen_res
@@ -621,12 +623,23 @@ impl Worker {
             log::debug!("[SU] Received chain: {:?}", block_chain);
 
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
-            for ChainEntry(_epoch, id) in block_chain {
+            for ChainEntry(epoch, id) in block_chain {
                 let get_block_future = self.get_block(id.clone());
                 let block: types::ChainBlock = futures03::executor::block_on(get_block_future)?;
 
-                // Process each block
-                self.handle_block(block.clone(), wallet.clone(), DynamicSink::default())?;
+                // Compute if block should be considered confirmed
+                // Note: blocks confirmed in past superblocks are considered confirmed
+                let superblock_period  = wallet.get_superblock_period() as u32;
+                let tip_superblock_index = tip.checkpoint / superblock_period;
+                let current_superblock_index = epoch / superblock_period;
+                let confirmed = tip_superblock_index - current_superblock_index > 2;
+
+                // Process each block and update latest beacon
+                self.handle_block(
+                    block.clone(),
+                    wallet.clone(),
+                    DynamicSink::default(),
+                )?;
                 latest_beacon = block.block_header.beacon;
             }
 
