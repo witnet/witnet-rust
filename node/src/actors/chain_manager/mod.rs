@@ -1236,16 +1236,18 @@ impl ChainManager {
                             act.move_chain_state_forward(superblock_index);
                         }
 
-                        // Let JSON-RPC clients know that the blocks in the previous superblock can now
-                        // be considered consolidated
-                        act.notify_previous_superblock_consolidation(ctx);
+                        if let Some(consolidated_superblock) = act.chain_state.superblock_state.get_current_superblock() {
+                            // Let JSON-RPC clients know that the blocks in the previous superblock can now
+                            // be considered consolidated
+                            act.notify_superblock_consolidation(consolidated_superblock, ctx);
 
-                        log::info!("Consensus reached for Superblock #{}", voted_superblock_beacon.checkpoint);
-                        log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
-                        log::debug!(
-                            "The last block of the consolidated superblock is {}",
-                            last_hash
-                        );
+                            log::info!("Consensus reached for Superblock #{}", voted_superblock_beacon.checkpoint);
+                            log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                            log::debug!(
+                                "The last block of the consolidated superblock is {}",
+                                last_hash
+                            );
+                        }
 
                         let chain_info = act.chain_state.chain_info.as_ref().unwrap();
                         let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
@@ -1501,25 +1503,25 @@ impl ChainManager {
 
     /// Let JSON-RPC clients know that the blocks in the previous superblock can now
     /// be considered consolidated
-    fn notify_previous_superblock_consolidation(&mut self, ctx: &mut Context<ChainManager>) {
+    fn notify_superblock_consolidation(
+        &mut self,
+        superblock: SuperBlock,
+        ctx: &mut Context<ChainManager>,
+    ) {
         let superblock_period = u32::from(self.consensus_constants().superblock_period);
-        let final_epoch = self
-            .chain_state_snapshot
-            .highest_persisted_superblock
+        let final_epoch = superblock
+            .index
             .checked_mul(superblock_period)
-            .expect("Multiplying a superblock ID by `superblock_period` should never overflow");
+            .expect("Multiplying a superblock index by `superblock_period` should never overflow");
         let initial_epoch = final_epoch.saturating_sub(superblock_period);
         let beacons = self.handle(
             GetBlocksEpochRange::new_with_limit(initial_epoch..final_epoch, 0),
             ctx,
         );
 
-        // Get superblock from chain state snapshot
-        let superblock = self.chain_state.superblock_state.get_current_superblock();
-
         // If there is a superblock to consolidate, and we got the confirmed block beacons, send
         // notification
-        if let (Ok(beacons), Some(superblock)) = (beacons, superblock) {
+        if let Ok(beacons) = beacons {
             let consolidated_block_hashes: Vec<Hash> =
                 beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
 
