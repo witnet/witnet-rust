@@ -43,6 +43,11 @@ impl<T> Wallet<T>
 where
     T: Database,
 {
+    /// Returns superblock period consensus constant
+    pub fn get_superblock_period(&self) -> u16 {
+        self.params.superblock_period
+    }
+
     pub fn unlock(
         id: &str,
         session_id: types::SessionId,

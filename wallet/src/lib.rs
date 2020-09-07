@@ -52,6 +52,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         checkpoints_period: conf.consensus_constants.checkpoints_period,
     };
     let genesis_prev_hash = conf.consensus_constants.bootstrap_hash;
+    let superblock_period = conf.consensus_constants.superblock_period;
 
     // Db-encryption params
     let db_hash_iterations = conf.wallet.db_encrypt_hash_iterations;
@@ -119,6 +120,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         epoch_constants,
         node_sync_batch_size,
         genesis_prev_hash,
+        superblock_period,
     };
 
     let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
