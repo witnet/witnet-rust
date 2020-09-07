@@ -54,26 +54,18 @@ pub fn block_relay_and_poi(
     impl Future<Item = (), Error = ()>,
 ) {
     let (tx, rx) = mpsc::channel(16);
-    let _witnet_client_2 = Arc::clone(&witnet_client);
 
     let fut = rx.map_err(|e| log::error!("Failed to receive WitnetSuperBlock message: {:?}", e))
         .for_each(move |msg| {
             log::debug!("Got ActorMessage: {:?}", msg);
-            let eth_state = eth_state.clone();
-            let eth_state2 = eth_state.clone();
             let eth_account = config.eth_account;
             let wait_for_witnet_block_tx2 = wait_for_witnet_block_tx.clone();
             let enable_claim_and_inclusion = config.enable_claim_and_inclusion;
             let enable_result_reporting = config.enable_result_reporting;
             let wrb_contract = eth_state.wrb_contract.clone();
             let block_relay_contract = eth_state.block_relay_contract.clone();
-            let config2 = config.clone();
-            let config3 = config.clone();
 
-            let config40 = config.clone();
-
-            let witnet_3 = Arc::clone(&witnet_client);
-
+            let witnet_client = Arc::clone(&witnet_client);
             let (superblock_notification, is_new_block) = match msg {
                 WitnetSuperBlock::New(superblock_notification) => (superblock_notification, true),
                 WitnetSuperBlock::Replay(superblock_notification) => (superblock_notification, false),
@@ -89,8 +81,13 @@ pub fn block_relay_and_poi(
 
             // Enable block relay?
 
-            get_blocks(confirmed_block_hashes, witnet_3)
-            .and_then(move |confirmed_blocks| {
+            get_blocks(confirmed_block_hashes, witnet_client)
+            .and_then(                        {
+                                                  let config = Arc::clone(&config);
+                let eth_state = Arc::clone(&eth_state);
+
+
+                move |confirmed_blocks| {
                 // Optimization: do not process empty blocks
                 let is_non_empty = confirmed_blocks.iter().any(|block| {
                     block.block_header.merkle_roots.dr_hash_merkle_root != empty_hash || block.block_header.merkle_roots.tally_hash_merkle_root != empty_hash
@@ -100,7 +97,7 @@ pub fn block_relay_and_poi(
                     return futures::finished(());
                 }
 
-                if (is_new_block && config40.enable_block_relay_new_blocks) || (!is_new_block && config40.enable_block_relay_old_blocks) {
+                if (is_new_block && config.enable_block_relay_new_blocks) || (!is_new_block && config.enable_block_relay_old_blocks) {
                     let superblock_epoch: U256 = superblock.index.into();
                     let dr_merkle_root: U256 =
                         match superblock.data_request_root {
@@ -112,7 +109,6 @@ pub fn block_relay_and_poi(
                         };
 
                     let block_relay_contract2 = block_relay_contract.clone();
-                    //let config2 = config.clone();
 
                     // Post witnet block to BlockRelay wrb_contract
                     tokio::spawn(
@@ -127,7 +123,10 @@ pub fn block_relay_and_poi(
                             .map(move |_: U256| {
                                 log::debug!("Block {:x} was already posted", superblock_hash);
                             })
-                            .or_else(move |_| {
+                            .or_else({
+                                let config = Arc::clone(&config);
+
+                                move |_| {
                                 log::debug!("Trying to relay block {:x}", superblock_hash);
                                 block_relay_contract2
                                     .call_with_confirmations(
@@ -135,7 +134,7 @@ pub fn block_relay_and_poi(
                                         (superblock_hash, superblock_epoch, dr_merkle_root, tally_merkle_root),
                                         eth_account,
                                         contract::Options::with(|opt| {
-                                            opt.gas = config2.gas_limits.post_new_block.map(Into::into);
+                                            opt.gas = config.gas_limits.post_new_block.map(Into::into);
                                         }),
                                         1,
                                     )
@@ -150,7 +149,7 @@ pub fn block_relay_and_poi(
                                     .map(move |()| {
                                         log::info!("Posted block {:x} to block relay", superblock_hash);
                                     })
-                            })
+                            }})
                     );
                 }
 
@@ -167,11 +166,19 @@ pub fn block_relay_and_poi(
                             log::debug!("Failed to receive message through oneshot channel while waiting for block {}: {:x}", e, superblock_hash)
                         })
                     })
-                    .and_then(move |()| {
+                    .and_then({
+                        let eth_state = Arc::clone(&eth_state);
+                        
+                        move |()| {
+                        
                         eth_state.wrb_requests.read()
                          //   .map(|wrb_requests| (confirmed_blocks, wrb_requests))
-                    })
-                    .and_then(move |wrb_requests| {
+                    }})
+                    .and_then({
+                        let config = Arc::clone(&config);
+                        let eth_state = Arc::clone(&eth_state);
+                        
+                        move |wrb_requests| {
                         let block_hash: U256 = match superblock.hash() {
                             Hash::SHA256(x) => x.into(),
                         };
@@ -262,12 +269,11 @@ pub fn block_relay_and_poi(
 
                         // Check if we need to acquire a write lock
                         if !including.is_empty() || !resolving.is_empty() {
-                            Either::A(eth_state2.wrb_requests.write().map(move |mut wrb_requests| {
+                            Either::A(eth_state.wrb_requests.write().map(move |mut wrb_requests| {
                                 for (dr_id, poi, poi_index, block_hash, block_epoch) in including {
                                     if wrb_requests.claimed().contains_left(&dr_id) {
                                         wrb_requests.set_including(dr_id, poi.clone(), poi_index, block_hash, block_epoch);
-                                        let wrb_requests = eth_state2.wrb_requests.clone();
-                                        let config4 = config3.clone();
+                                        let wrb_requests = eth_state.wrb_requests.clone();
                                         let params_str = format!("{:?}", (dr_id, poi.clone(), poi_index, block_hash, block_epoch));
                                         tokio::spawn(
                                             wrb_contract
@@ -276,7 +282,7 @@ pub fn block_relay_and_poi(
                                                     (dr_id, poi, poi_index, block_hash, block_epoch),
                                                     eth_account,
                                                     contract::Options::with(|opt| {
-                                                        opt.gas = config4.gas_limits.report_data_request_inclusion.map(Into::into);
+                                                        opt.gas = config.gas_limits.report_data_request_inclusion.map(Into::into);
                                                     }),
                                                     1,
                                                 )
@@ -299,8 +305,7 @@ pub fn block_relay_and_poi(
                                 for (dr_id, poi, poi_index, block_hash, block_epoch, result) in resolving {
                                     if wrb_requests.included().contains_left(&dr_id) {
                                         wrb_requests.set_resolving(dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone());
-                                        let wrb_requests = eth_state2.wrb_requests.clone();
-                                        let config4 = config3.clone();
+                                        let wrb_requests = eth_state.wrb_requests.clone();
                                         let params_str = format!("{:?}", &(dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone()));
                                         tokio::spawn(
                                             wrb_contract
@@ -309,7 +314,7 @@ pub fn block_relay_and_poi(
                                                     (dr_id, poi, poi_index, block_hash, block_epoch, result),
                                                     eth_account,
                                                     contract::Options::with(|opt| {
-                                                        opt.gas = config4.gas_limits.report_result.map(Into::into);
+                                                        opt.gas = config.gas_limits.report_result.map(Into::into);
                                                     }),
                                                     1,
                                                 )
@@ -332,14 +337,14 @@ pub fn block_relay_and_poi(
                         } else {
                             Either::B(futures::finished(()))
                         }
-                    })
+                    }})
                     // Without this line the actor will panic on the first failure
                     .then(|_| Result::<(), ()>::Ok(()));
 
                 // Process multiple blocks in parallel
                 tokio::spawn(fut);
                 futures::done(Result::<(), ()>::Ok(()))
-            })
+            }})
             //futures::finished(())
         })
         .map(|_| ());

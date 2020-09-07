@@ -170,17 +170,20 @@ fn run() -> Result<(), String> {
                     }
                 };
 
-                let config2 = config.clone();
-                let eth_state2 = eth_state.clone();
                 tokio::spawn(
                     Interval::new(Instant::now(), Duration::from_millis(10_000))
                         .map_err(|e| log::error!("Error creating interval: {:?}", e))
-                        .and_then(move |_| {
-                            get_new_requests(
-                                Arc::clone(&config2),
-                                Arc::clone(&eth_state2),
-                                claim_and_post_tx.clone(),
-                            )
+                        .and_then({
+                            let config = Arc::clone(&config);
+                            let eth_state = Arc::clone(&eth_state);
+
+                            move |_| {
+                                get_new_requests(
+                                    Arc::clone(&config),
+                                    Arc::clone(&eth_state),
+                                    claim_and_post_tx.clone(),
+                                )
+                            }
                         })
                         .then(|_| Ok(()))
                         .for_each(|_| Ok(())),
@@ -188,16 +191,11 @@ fn run() -> Result<(), String> {
                 if config.subscribe_to_witnet_blocks {
                     tokio::spawn(witnet_event_fut);
                 }
-                let config2 = config.clone();
-                let eth_state2 = eth_state.clone();
                 tokio::spawn(
                     Interval::new(Instant::now(), Duration::from_millis(10_000))
                         .map_err(|e| log::error!("Error creating interval: {:?}", e))
                         .and_then(move |_| {
-                            wrb_requests_periodic_sync(
-                                Arc::clone(&config2),
-                                Arc::clone(&eth_state2),
-                            )
+                            wrb_requests_periodic_sync(Arc::clone(&config), Arc::clone(&eth_state))
                         })
                         .then(|_| Ok(()))
                         .for_each(|_| Ok(())),

@@ -1,8 +1,8 @@
 //! Periodically ask the Witnet node for resolved data requests
 
 use crate::{actors::WitnetBlock, config::Config, eth::EthState};
-use async_jsonrpc_client::transports::tcp::TcpSocket;
 use async_jsonrpc_client::{futures::Stream, Transport};
+use async_jsonrpc_client::transports::tcp::TcpSocket;
 use futures::{future::Either, sink::Sink};
 use rand::{thread_rng, Rng};
 use serde_json::json;
@@ -20,29 +20,34 @@ pub fn tally_finder(
     eth_state: Arc<EthState>,
     tx: mpsc::Sender<WitnetBlock>,
     witnet_client: Arc<TcpSocket>,
-) -> impl Future<Item = (), Error = ()> {
-    let witnet_client = Arc::clone(&witnet_client);
-    let witnet_client1 = witnet_client.clone();
+) ->
+    impl Future<Item = (), Error = ()>
+ {
+    let witnet_client = Arc::new(witnet_client);
 
     Interval::new(Instant::now(), Duration::from_millis(config.witnet_dr_report_polling_rate_ms))
         .map_err(|e| log::error!("Error creating interval: {:?}", e))
         .and_then(move |x| eth_state.wrb_requests.read().map(move |wrb_requests| (wrb_requests, x)))
-        .and_then(move |(wrb_requests, _instant)| {
-            log::debug!("Report tick");
-            // Try to get the report of a random data request, maybe it already was resolved
-            let included = wrb_requests.included();
-            log::debug!("Included data requests: {:?}", included);
-            if included.is_empty() {
-                return Either::A(futures::failed(()));
-            }
-            let i = thread_rng().gen_range(0, included.len());
-            let (dr_id, dr_tx_hash) = included.iter().nth(i).unwrap();
-            log::debug!("[{}] Report ticker will check data request {}", dr_id, dr_tx_hash);
+        .and_then({
+            let witnet_client = Arc::clone(&witnet_client);
 
-            Either::B(witnet_client
-                .execute("dataRequestReport", json!([*dr_tx_hash]))
-                .map_err(|e| log::error!("dataRequestReport: {:?}", e))
-            )
+            move |(wrb_requests, _instant)| {
+                log::debug!("Report tick");
+                // Try to get the report of a random data request, maybe it already was resolved
+                let included = wrb_requests.included();
+                log::debug!("Included data requests: {:?}", included);
+                if included.is_empty() {
+                    return Either::A(futures::failed(()));
+                }
+                let i = thread_rng().gen_range(0, included.len());
+                let (dr_id, dr_tx_hash) = included.iter().nth(i).unwrap();
+                log::debug!("[{}] Report ticker will check data request {}", dr_id, dr_tx_hash);
+
+                Either::B(witnet_client
+                    .execute("dataRequestReport", json!([*dr_tx_hash]))
+                    .map_err(|e| log::error!("dataRequestReport: {:?}", e))
+                )
+            }
         })
         .and_then(move |report| {
             log::debug!("dataRequestReport: {}", report);
@@ -50,7 +55,7 @@ pub fn tally_finder(
             match serde_json::from_value::<Option<DataRequestInfo>>(report) {
                 Ok(Some(DataRequestInfo { block_hash_tally_tx: Some(block_hash_tally_tx), .. })) => {
                     log::info!("Found possible tally to be reported from an old witnet block {}", block_hash_tally_tx);
-                    Either::A(witnet_client1.execute("getBlock", json!([block_hash_tally_tx]))
+                    Either::A(witnet_client.execute("getBlock", json!([block_hash_tally_tx]))
                         .map_err(|e| log::error!("getBlock: {:?}", e)))
                 }
                 Ok(..) => {
