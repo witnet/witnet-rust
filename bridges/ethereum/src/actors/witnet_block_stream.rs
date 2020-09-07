@@ -22,14 +22,12 @@ pub fn witnet_block_stream(
     impl Future<Item = impl Future<Item = (), Error = ()>, Error = String>,
 ) {
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-    let witnet_addr1 = witnet_addr.clone();
-    let witnet_addr2 = witnet_addr.clone();
     log::info!("Connecting to witnet node at {}", witnet_addr);
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
     let (handle, witnet_client) =
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
-    let witnet_client1 = witnet_client.clone();
+    let witnet_client = Arc::new(witnet_client);
 
     let fut = witnet_client
         .execute("witnet_subscribe", json!(["newBlocks"]))
@@ -38,20 +36,20 @@ pub fn witnet_block_stream(
             if e.is_elapsed() {
                 log::error!(
                     "Timeout when trying to connect to witnet node at {}",
-                    witnet_addr2
+                    witnet_addr
                 );
                 log::error!("Is the witnet node running?");
             } else if e.is_inner() {
                 log::error!(
                     "Error connecting to witnet node at {}: {:?}",
-                    witnet_addr1,
+                    witnet_addr,
                     e.into_inner()
                 );
             } else {
                 log::error!("Unhandled timeout error: {:?}", e);
             }
         })
-        .then(|witnet_subscription_id_value| {
+        .then(move |witnet_subscription_id_value| {
             // Panic if the subscription wasn't successful
             let witnet_subscription_id = match witnet_subscription_id_value {
                 Ok(serde_json::Value::String(s)) => s,
@@ -72,32 +70,28 @@ pub fn witnet_block_stream(
                 witnet_subscription_id
             );
 
-            let witnet_client = witnet_client1;
-
             futures::finished(
                 witnet_client
                     .subscribe(&witnet_subscription_id.into())
                     .map_err(|e| log::error!("witnet notification error = {:?}", e))
-                    .and_then(move |value| {
-                        let tx1 = tx.clone();
-                        match serde_json::from_value::<Block>(value) {
-                            Ok(block) => {
-                                log::debug!("Got witnet block: {:?}", block);
-                                Either::A(
-                                    tx1.send(WitnetBlock::New(block))
-                                        .map_err(|e| {
-                                            log::error!(
-                                                "Failed to send WitnetBlock::New message: {:?}",
-                                                e
-                                            )
-                                        })
-                                        .map(|_| ()),
-                                )
-                            }
-                            Err(e) => {
-                                log::error!("Error parsing witnet block: {:?}", e);
-                                Either::B(futures::finished(()))
-                            }
+                    .and_then(move |value| match serde_json::from_value::<Block>(value) {
+                        Ok(block) => {
+                            log::debug!("Got witnet block: {:?}", block);
+                            Either::A(
+                                tx.clone()
+                                    .send(WitnetBlock::New(block))
+                                    .map_err(|e| {
+                                        log::error!(
+                                            "Failed to send WitnetBlock::New message: {:?}",
+                                            e
+                                        )
+                                    })
+                                    .map(|_| ()),
+                            )
+                        }
+                        Err(e) => {
+                            log::error!("Error parsing witnet block: {:?}", e);
+                            Either::B(futures::finished(()))
                         }
                     })
                     .for_each(|_| Ok(())),

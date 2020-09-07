@@ -38,18 +38,7 @@ fn try_to_claim_local_query(
 ) -> impl Future<Item = (DataRequestOutput, ClaimDataRequestsParams), Error = ()> {
     let eth_account = config.eth_account;
 
-    let wrb_contract = eth_state.wrb_contract.clone();
-    let wrb_contract2 = wrb_contract.clone();
-    let wrb_contract3 = wrb_contract.clone();
-    let wrb_contract5 = wrb_contract.clone();
-    let wrb_contract6 = wrb_contract.clone();
-    let wrb_contract7 = wrb_contract.clone();
-    let witnet_client = Arc::clone(&witnet_client);
-    let witnet_client2 = Arc::clone(&witnet_client);
-    let witnet_client3 = Arc::clone(&witnet_client);
-    let witnet_client4 = Arc::clone(&witnet_client);
-
-    wrb_contract
+    eth_state.wrb_contract
         .query(
             "checkDataRequestsClaimability",
             (vec![dr_id],),
@@ -58,135 +47,155 @@ fn try_to_claim_local_query(
             None,
         )
         .map_err(|e| log::error!("checkDataRequestsClaimability {:?}", e))
-        .and_then(move |claimable: Vec<bool>| {
-            match claimable.get(0) {
-                Some(true) => {
-                    Either::A(wrb_contract
-                        .query(
-                            "readDataRequest",
-                            (dr_id,),
-                            eth_account,
-                            contract::Options::default(),
-                            None,
-                        ).map_err(|e| log::error!("readDataRequest {:?}", e)))
-                }
-                _ => {
-                    log::debug!("[{}] is not claimable", dr_id);
+        .and_then({
+            let eth_state = Arc::clone(&eth_state);
 
-                    Either::B(futures::failed(()))
+            move |claimable: Vec<bool>| {
+                match claimable.get(0) {
+                    Some(true) => {
+                        Either::A(eth_state.wrb_contract
+                            .query(
+                                "readDataRequest",
+                                (dr_id,),
+                                eth_account,
+                                contract::Options::default(),
+                                None,
+                            ).map_err(|e| log::error!("readDataRequest {:?}", e)))
+                    }
+                    _ => {
+                        log::debug!("[{}] is not claimable", dr_id);
+
+                        Either::B(futures::failed(()))
+                    }
                 }
+
+
             }
-
-
         })
-        .and_then(move |dr_bytes: Bytes| {
-            let eth_state2 = eth_state.clone();
-            let ignore_dr = move |dr_id| {
-                eth_state2.wrb_requests.write().and_then(move |mut wrb_requests| {
-                    wrb_requests.ignore(dr_id);
+        .and_then({
+            let eth_state = Arc::clone(&eth_state);
 
-                    futures::finished(())
-                }).then(|_| {
-                    futures::failed(())
-                })
-            };
-            let dr_output: DataRequestOutput =
-                match ProtobufConvert::from_pb_bytes(&dr_bytes).and_then(|dr: DataRequestOutput| {
-                    validate_rad_request(&dr.data_request)?;
-                    Ok(dr)
-                }) {
-                    Ok(x) => {
-                        log::debug!("{:?}", x);
-                        // TODO: check if we want to claim this data request:
-                        // Is the price ok?
+            move |dr_bytes: Bytes| {
+                let ignore_dr = {
+                    let eth_state = Arc::clone(&eth_state);
 
-                        // Is the data request serialized correctly?
-                        // Check that serializing the deserialized struct results in exactly the same bytes
-                        let witnet_dr_bytes = x.to_pb_bytes();
+                    move |dr_id| {
+                        eth_state.wrb_requests.write().and_then(move |mut wrb_requests| {
+                            wrb_requests.ignore(dr_id);
 
-                        match witnet_dr_bytes {
-                            Ok(witnet_dr_bytes) => if dr_bytes == witnet_dr_bytes {
-                                x
-                            } else {
-                                log::warn!(
-                                    "[{}] uses an invalid serialization, will be ignored.\nETH DR BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
-                                    dr_id, dr_bytes, witnet_dr_bytes
-                                );
-                                log::warn!("This usually happens when some fields are set to 0. \
-                                       The Rust implementation of ProtocolBuffer skips those fields, \
-                                       as missing fields are deserialized with the default value.");
-                                return Either::B(ignore_dr(dr_id));
-                            },
-                            Err(e) => {
-                                log::warn!(
-                                    "[{}] uses an invalid serialization, will be ignored: {:?}",
-                                    dr_id, e
-                                );
-                                return Either::B(ignore_dr(dr_id));
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        log::warn!(
-                            "[{}] uses an invalid serialization, will be ignored: {:?}",
-                            dr_id, e
-                        );
-                        return Either::B(ignore_dr(dr_id));
+                            futures::finished(())
+                        }).then(|_| {
+                            futures::failed(())
+                        })
                     }
                 };
 
-            Either::A(
-                wrb_contract2
-                    .query(
-                        "getLastBeacon",
-                        (),
-                        eth_account,
-                        contract::Options::default(),
-                        None,
-                    )
-                    .map(|x: Bytes| (x, dr_output))
-                    .map_err(|e| log::error!("getLastBeacon {:?}", e)),
-            )
-        })
-        .and_then(move |(vrf_message, dr_output)| {
-            let last_beacon = vrf_message.clone();
+                let dr_output: DataRequestOutput =
+                    match ProtobufConvert::from_pb_bytes(&dr_bytes).and_then(|dr: DataRequestOutput| {
+                        validate_rad_request(&dr.data_request)?;
+                        Ok(dr)
+                    }) {
+                        Ok(x) => {
+                            log::debug!("{:?}", x);
+                            // TODO: check if we want to claim this data request:
+                            // Is the price ok?
 
-            witnet_client2
-                .execute("createVRF", vrf_message.into())
-                .map_err(|e| log::error!("createVRF: {:?}", e))
-                .map(move |vrf| {
-                    log::trace!("createVRF: {:?}", vrf);
+                            // Is the data request serialized correctly?
+                            // Check that serializing the deserialized struct results in exactly the same bytes
+                            let witnet_dr_bytes = x.to_pb_bytes();
 
-                    (vrf, dr_output, last_beacon)
-                })
-        })
-        .and_then(move |(vrf, dr_output, last_beacon)| {
-            // Sign the ethereum account address with the witnet node private key
-            let Sha256(hash) = calculate_sha256(eth_account.as_bytes());
+                            match witnet_dr_bytes {
+                                Ok(witnet_dr_bytes) => if dr_bytes == witnet_dr_bytes {
+                                    x
+                                } else {
+                                    log::warn!(
+                                    "[{}] uses an invalid serialization, will be ignored.\nETH DR BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
+                                    dr_id, dr_bytes, witnet_dr_bytes
+                                );
+                                    log::warn!("This usually happens when some fields are set to 0. \
+                                       The Rust implementation of ProtocolBuffer skips those fields, \
+                                       as missing fields are deserialized with the default value.");
+                                    return Either::B(ignore_dr(dr_id));
+                                },
+                                Err(e) => {
+                                    log::warn!(
+                                    "[{}] uses an invalid serialization, will be ignored: {:?}",
+                                    dr_id, e
+                                );
+                                    return Either::B(ignore_dr(dr_id));
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            log::warn!(
+                            "[{}] uses an invalid serialization, will be ignored: {:?}",
+                            dr_id, e
+                        );
+                            return Either::B(ignore_dr(dr_id));
+                        }
+                    };
 
-            witnet_client3
-                .execute("sign", hash.to_vec().into())
-                .map_err(|e| log::error!("sign: {:?}", e))
-                .and_then(|sign_addr| {
-                    log::trace!("sign: {:?}", sign_addr);
-                    futures::future::result(serde_json::from_value(sign_addr)
-                        .map_err(|e|
-                            log::error!("Error while retrieving signature from json value {:?}", e)
+                Either::A(
+                    eth_state.wrb_contract
+                        .query(
+                            "getLastBeacon",
+                            (),
+                            eth_account,
+                            contract::Options::default(),
+                            None,
                         )
-                        .and_then(|signature: KeyedSignature| signature.signature.to_bytes().map_err(|e|
-                            log::error!("Error while retrieving signature bytes {:?}", e)
-                        ))
-                        .and_then(|ref sig| serde_json::to_value(sig as &[u8]).map_err(|e|
-                            log::error!("Error while converting signature to json value {:?}", e)
-                        ))
-                        .map(|sig| (vrf, sig, dr_output, last_beacon))
-                    )
-                })
+                        .map(|x: Bytes| (x, dr_output))
+                        .map_err(|e| log::error!("getLastBeacon {:?}", e)),
+                )
+            }
+        })
+        .and_then({
+            let witnet_client = Arc::clone(&witnet_client);
+
+            move |(vrf_message, dr_output)| {
+                let last_beacon = vrf_message.clone();
+
+                witnet_client
+                    .execute("createVRF", vrf_message.into())
+                    .map_err(|e| log::error!("createVRF: {:?}", e))
+                    .map(move |vrf| {
+                        log::trace!("createVRF: {:?}", vrf);
+
+                        (vrf, dr_output, last_beacon)
+                    })
+            }
+        })
+        .and_then({
+            let witnet_client = Arc::clone(&witnet_client);
+
+            move |(vrf, dr_output, last_beacon)| {
+                // Sign the ethereum account address with the witnet node private key
+                let Sha256(hash) = calculate_sha256(eth_account.as_bytes());
+
+                witnet_client
+                    .execute("sign", hash.to_vec().into())
+                    .map_err(|e| log::error!("sign: {:?}", e))
+                    .and_then(|sign_addr| {
+                        log::trace!("sign: {:?}", sign_addr);
+                        futures::future::result(serde_json::from_value(sign_addr)
+                            .map_err(|e|
+                                log::error!("Error while retrieving signature from json value {:?}", e)
+                            )
+                            .and_then(|signature: KeyedSignature| signature.signature.to_bytes().map_err(|e|
+                                log::error!("Error while retrieving signature bytes {:?}", e)
+                            ))
+                            .and_then(|ref sig| serde_json::to_value(sig as &[u8]).map_err(|e|
+                                log::error!("Error while converting signature to json value {:?}", e)
+                            ))
+                            .map(|sig| (vrf, sig, dr_output, last_beacon))
+                        )
+                    })
+            }
         })
         .and_then(move |(vrf, sign_addr, dr_output, last_beacon)| {
             // Get the public key of the witnet node
 
-            witnet_client4
+            witnet_client
                 .execute("getPublicKey", json!(null))
                 .map_err(|e| log::error!("getPublicKey: {:?}", e))
                 .map(move |witnet_pk| {
@@ -195,102 +204,113 @@ fn try_to_claim_local_query(
                     (vrf, sign_addr, witnet_pk, dr_output, last_beacon)
                 })
         })
-        .and_then(move |(vrf, sign_addr, witnet_pk, dr_output, last_beacon)| {
+        .and_then({
+            let eth_state = Arc::clone(&eth_state);
 
-            // Locally execute POE verification to check for eligibility
-            // without spending any gas
-            let poe = convert_json_array_to_eth_bytes(vrf);
-            let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
-            let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
+            move |(vrf, sign_addr, witnet_pk, dr_output, last_beacon)| {
 
-            let (poe, witnet_pk, sign_addr) = match (poe, witnet_pk, sign_addr) {
-                (Ok(poe), Ok(witnet_pk), Ok(sign_addr)) => {
-                    (poe, witnet_pk, sign_addr)
-                }
-                e => {
-                    log::error!(
+                // Locally execute POE verification to check for eligibility
+                // without spending any gas
+                let poe = convert_json_array_to_eth_bytes(vrf);
+                let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
+                let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
+
+                let (poe, witnet_pk, sign_addr) = match (poe, witnet_pk, sign_addr) {
+                    (Ok(poe), Ok(witnet_pk), Ok(sign_addr)) => {
+                        (poe, witnet_pk, sign_addr)
+                    }
+                    e => {
+                        log::error!(
                         "Error deserializing value from witnet JSONRPC: {:?}",
                         e
                     );
-                    let fut: Box<
-                        dyn Future<Item = (_, _, _, _, _), Error = ()> + Send,
-                    > = Box::new(futures::failed(()));
-                    return fut;
-                }
-            };
+                        let fut: Box<
+                            dyn Future<Item = (_, _, _, _, _), Error = ()> + Send,
+                        > = Box::new(futures::failed(()));
+                        return fut;
+                    }
+                };
 
-            log::debug!(
+                log::debug!(
                 "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
                 poe, witnet_pk, sign_addr
             );
-            log::info!("[{}] Checking eligibility for claiming dr", dr_id);
+                log::info!("[{}] Checking eligibility for claiming dr", dr_id);
 
-            Box::new(
-                wrb_contract5
-                    .query(
-                        "decodePoint",
-                        witnet_pk,
-                        eth_account,
-                        contract::Options::default(),
-                        None,
-                    )
-                    .map_err(move |e| {
-                        log::warn!(
+                Box::new(
+                    eth_state.wrb_contract
+                        .query(
+                            "decodePoint",
+                            witnet_pk,
+                            eth_account,
+                            contract::Options::default(),
+                            None,
+                        )
+                        .map_err(move |e| {
+                            log::warn!(
                             "[{}] Error decoding public Key:  {}",
                             dr_id, e);
-                    })
-                    .map(move |pk: [U256; 2]| {
-                        log::debug!("Received public key decode Point: {:?}", pk);
+                        })
+                        .map(move |pk: [U256; 2]| {
+                            log::debug!("Received public key decode Point: {:?}", pk);
 
-                        (poe, sign_addr, pk, dr_output, last_beacon)
-                    }),
-            )
+                            (poe, sign_addr, pk, dr_output, last_beacon)
+                        }),
+                )
+            }
         })
-        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+        .and_then({
+            let eth_state = Arc::clone(&eth_state);
 
-            Box::new(
-                wrb_contract6
-                    .query(
-                        "decodeProof",
-                        poe,
-                        eth_account,
-                        contract::Options::default(),
-                        None,
-                    )
-                    .map_err(move |e| {
-                        log::warn!(
+            move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+
+                Box::new(
+                    eth_state.wrb_contract
+                        .query(
+                            "decodeProof",
+                            poe,
+                            eth_account,
+                            contract::Options::default(),
+                            None,
+                        )
+                        .map_err(move |e| {
+                            log::warn!(
                             "[{}] Error decoding proof:  {}",
                             dr_id, e);
-                    })
-                    .map(move |proof: [U256; 4]| {
-                        log::debug!("Received proof decode Point: {:?}", proof);
+                        })
+                        .map(move |proof: [U256; 4]| {
+                            log::debug!("Received proof decode Point: {:?}", proof);
 
-                        (proof, sign_addr, witnet_pk, dr_output, last_beacon)
-                    }),
-            )
+                            (proof, sign_addr, witnet_pk, dr_output, last_beacon)
+                        }),
+                )
+            }
         })
-        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+        .and_then({
+            let eth_state = Arc::clone(&eth_state);
 
-            Box::new(
-                wrb_contract7
-                    .query(
-                        "computeFastVerifyParams",
-                        (witnet_pk, poe, last_beacon),
-                        eth_account,
-                        contract::Options::default(),
-                        None,
-                    )
-                    .map_err(move |e| {
-                        log::warn!(
+            move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+                Box::new(
+                    eth_state.wrb_contract
+                        .query(
+                            "computeFastVerifyParams",
+                            (witnet_pk, poe, last_beacon),
+                            eth_account,
+                            contract::Options::default(),
+                            None,
+                        )
+                        .map_err(move |e| {
+                            log::warn!(
                             "[{}] Error in params reception:  {}",
                             dr_id, e);
-                    })
-                    .map(move |(u_point, v_point): ([U256; 2], [U256; 4])| {
-                        log::debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
+                        })
+                        .map(move |(u_point, v_point): ([U256; 2], [U256; 4])| {
+                            log::debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
 
-                        (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
-                    }),
-            )
+                            (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
+                        }),
+                )
+            }
         })
         .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
             let mut sign_addr2 = sign_addr.clone();
@@ -299,7 +319,7 @@ fn try_to_claim_local_query(
             // we can bruteforce the v value by setting it to 0, and if it
             // fails, setting it to 1.
             sign_addr2.push(0);
-            let fut1 = wrb_contract3
+            let fut1 = eth_state.wrb_contract
                 .query(
                     "claimDataRequests",
                     (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr.clone()),
@@ -310,7 +330,7 @@ fn try_to_claim_local_query(
                 .map(|_: Token| sign_addr);
             // If the query fails, we want to retry it with the signature "v" value flipped.
             *sign_addr2.last_mut().unwrap() ^= 0x01;
-            let fut2 = wrb_contract3
+            let fut2 = eth_state.wrb_contract
                 .query(
                     "claimDataRequests",
                     (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr2.clone()),
@@ -349,62 +369,59 @@ fn claim_and_post_dr(
     witnet_client: Arc<TcpSocket>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
-    let config2 = config.clone();
     let eth_account = config.eth_account;
     let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
 
-    let wrb_contract = eth_state.wrb_contract.clone();
-    let witnet_client = Arc::clone(&witnet_client);
-
-    try_to_claim_local_query(config, Arc::clone(&eth_state), Arc::clone(&witnet_client), dr_id)
+    try_to_claim_local_query(Arc::clone(&config), Arc::clone(&eth_state), Arc::clone(&witnet_client), dr_id)
         .and_then(move |(dr_output, claim_data_requests_params)| {
             // Claim dr
             log::info!("[{}] Claiming dr", dr_id);
             let dr_output_hash = dr_output.hash();
             let dr_output = Arc::new(dr_output);
-            let dr_output2 = Arc::clone(&dr_output);
-            let witnet_client2 = witnet_client.clone();
 
             // Mark the data request as claimed to prevent double claims by other threads
             eth_state.wrb_requests.write()
-                .and_then(move |mut wrb_requests| {
-                    if wrb_requests.posted().contains(&dr_id) {
-                        wrb_requests.set_claiming(dr_id);
-                        Either::A(futures::finished(()))
-                    } else if post_to_witnet_more_than_once && wrb_requests.claimed().contains_left(&dr_id) {
-                        // Post dr in witnet again.
-                        // This may lead to double spending wits.
-                        // This can be useful in the following scenarios:
-                        // * The data request is posted to Witnet, but it
-                        //   is not accepted into a Witnet block
-                        //   (or is invalid because of double-spending).
+                .and_then({
+                    let dr_output = Arc::clone(&dr_output);
+                    let witnet_client = Arc::clone(&witnet_client);
 
-                        log::warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
+                    move |mut wrb_requests| {
+                        if wrb_requests.posted().contains(&dr_id) {
+                            wrb_requests.set_claiming(dr_id);
+                            Either::A(futures::finished(()))
+                        } else if post_to_witnet_more_than_once && wrb_requests.claimed().contains_left(&dr_id) {
+                            // Post dr in witnet again.
+                            // This may lead to double spending wits.
+                            // This can be useful in the following scenarios:
+                            // * The data request is posted to Witnet, but it
+                            //   is not accepted into a Witnet block
+                            //   (or is invalid because of double-spending).
 
-                        let bdr_params = json!({"dro": dr_output2, "fee": 0});
+                            log::warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
 
-                        Either::B(witnet_client2
-                            .execute("sendRequest", bdr_params)
-                            .map_err(|e| log::error!("sendRequest: {:?}", e))
-                            .map(move |bdr_res| {
-                                log::debug!("sendRequest: {:?}", bdr_res);
-                            }).then(|_| futures::failed(())))
-                    } else {
-                        // This data request is not available, abort.
-                        log::debug!("[{}] is not available for claiming, skipping", dr_id);
-                        Either::A(futures::failed(()))
+                            let bdr_params = json!({"dro": dr_output, "fee": 0});
+
+                            Either::B(witnet_client
+                                .execute("sendRequest", bdr_params)
+                                .map_err(|e| log::error!("sendRequest: {:?}", e))
+                                .map(move |bdr_res| {
+                                    log::debug!("sendRequest: {:?}", bdr_res);
+                                }).then(|_| futures::failed(())))
+                        } else {
+                            // This data request is not available, abort.
+                            log::debug!("[{}] is not available for claiming, skipping", dr_id);
+                            Either::A(futures::failed(()))
+                        }
                     }
                 })
                 .and_then(move |()| {
-                    let eth_state2 = eth_state.clone();
-
-                    wrb_contract
+                    eth_state.wrb_contract
                         .call_with_confirmations(
                             "claimDataRequests",
                             claim_data_requests_params,
                             eth_account,
                             contract::Options::with(|opt| {
-                                opt.gas = config2.gas_limits.claim_data_requests.map(Into::into);
+                                opt.gas = config.gas_limits.claim_data_requests.map(Into::into);
                             }),
                             1,
                         )
@@ -423,14 +440,18 @@ fn claim_and_post_dr(
                                 );
                             })
                         })
-                        .and_then(move |()| {
-                            eth_state.wrb_requests.write().map(move |mut wrb_requests| {
-                                wrb_requests.confirm_claim(dr_id, dr_output_hash);
-                            })
+                        .and_then({
+                            let eth_state = Arc::clone(&eth_state);
+
+                            move |()| {
+                                eth_state.wrb_requests.write().map(move |mut wrb_requests| {
+                                    wrb_requests.confirm_claim(dr_id, dr_output_hash);
+                                })
+                            }
                         })
                         .or_else(move |()| {
                             // Undo the claim
-                            eth_state2.wrb_requests.write().map(move |mut wrb_requests| {
+                            eth_state.wrb_requests.write().map(move |mut wrb_requests| {
                                 wrb_requests.undo_claim(dr_id);
                             }).then(|_| {
                                 // Short-circuit the and_then cascade
@@ -481,10 +502,6 @@ pub fn claim_and_post(
             }
             log::debug!("Got PostActorMessage: {:?}", msg);
 
-            let config2 = Arc::clone(&config);
-            let eth_state2 = Arc::clone(&eth_state);
-            let witnet_client2 = Arc::clone(&witnet_client);
-
             let fut = match msg {
                 ClaimMsg::NewDr(dr_id) => Either::A(claim_and_post_dr(
                     config.clone(),
@@ -493,50 +510,56 @@ pub fn claim_and_post(
                     dr_id,
                 )),
                 ClaimMsg::Tick => {
-                    Either::B(eth_state.wrb_requests.read().and_then(move |known_dr_ids| {
-                        let known_dr_ids_posted = known_dr_ids.posted();
-                        let known_dr_ids_claimed = known_dr_ids.claimed();
-                        let sorted_dr_state: BTreeMap<_, _> =
-                            known_dr_ids.requests().iter().collect();
-                        log::debug!("{:?}", sorted_dr_state);
-                        log::debug!(
-                            "Known data requests in WRB: {:?}{:?}",
-                            known_dr_ids_posted,
-                            known_dr_ids_claimed
-                        );
+                    Either::B(eth_state.wrb_requests.read().and_then({
+                        let config = Arc::clone(&config);
+                        let eth_state = Arc::clone(&eth_state);
+                        let witnet_client = Arc::clone(&witnet_client);
 
-                        // Chose a random data request and try to claim and post it.
-                        // Gives preference to newly posted data requests
-                        match (
-                            known_dr_ids_posted.is_empty(),
-                            known_dr_ids_claimed.is_empty(),
-                        ) {
-                            (true, true) => Either::B(futures::finished(())),
-                            (false, _) => {
-                                let i = thread_rng().gen_range(0, known_dr_ids_posted.len());
-                                let dr_id = *known_dr_ids_posted.iter().nth(i).unwrap();
-                                std::mem::drop(known_dr_ids);
+                        move |known_dr_ids| {
+                            let known_dr_ids_posted = known_dr_ids.posted();
+                            let known_dr_ids_claimed = known_dr_ids.claimed();
+                            let sorted_dr_state: BTreeMap<_, _> =
+                                known_dr_ids.requests().iter().collect();
+                            log::debug!("{:?}", sorted_dr_state);
+                            log::debug!(
+                                "Known data requests in WRB: {:?}{:?}",
+                                known_dr_ids_posted,
+                                known_dr_ids_claimed
+                            );
 
-                                Either::A(claim_and_post_dr(
-                                    config2.clone(),
-                                    eth_state2.clone(),
-                                    witnet_client2,
-                                    dr_id,
-                                ))
-                            }
-                            _ => {
-                                // Try to claim already-claimed data request as the claim may
-                                // have expired.
-                                let i = thread_rng().gen_range(0, known_dr_ids_claimed.len());
-                                let dr_id = *known_dr_ids_claimed.iter().nth(i).unwrap().0;
-                                std::mem::drop(known_dr_ids);
+                            // Chose a random data request and try to claim and post it.
+                            // Gives preference to newly posted data requests
+                            match (
+                                known_dr_ids_posted.is_empty(),
+                                known_dr_ids_claimed.is_empty(),
+                            ) {
+                                (true, true) => Either::B(futures::finished(())),
+                                (false, _) => {
+                                    let i = thread_rng().gen_range(0, known_dr_ids_posted.len());
+                                    let dr_id = *known_dr_ids_posted.iter().nth(i).unwrap();
+                                    std::mem::drop(known_dr_ids);
 
-                                Either::A(claim_and_post_dr(
-                                    config2.clone(),
-                                    eth_state2.clone(),
-                                    witnet_client2,
-                                    dr_id,
-                                ))
+                                    Either::A(claim_and_post_dr(
+                                        config.clone(),
+                                        eth_state.clone(),
+                                        witnet_client,
+                                        dr_id,
+                                    ))
+                                }
+                                _ => {
+                                    // Try to claim already-claimed data request as the claim may
+                                    // have expired.
+                                    let i = thread_rng().gen_range(0, known_dr_ids_claimed.len());
+                                    let dr_id = *known_dr_ids_claimed.iter().nth(i).unwrap().0;
+                                    std::mem::drop(known_dr_ids);
+
+                                    Either::A(claim_and_post_dr(
+                                        config.clone(),
+                                        eth_state.clone(),
+                                        witnet_client,
+                                        dr_id,
+                                    ))
+                                }
                             }
                         }
                     }))

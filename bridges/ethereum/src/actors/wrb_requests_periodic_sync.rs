@@ -17,9 +17,8 @@ pub fn get_new_requests(
     eth_state: Arc<EthState>,
     tx: mpsc::Sender<ClaimMsg>,
 ) -> impl Future<Item = (), Error = ()> {
-    let eth_state2 = eth_state.clone();
-    let wrb_contract = eth_state.wrb_contract.clone();
-    wrb_contract
+    eth_state
+        .wrb_contract
         .query(
             "requestsCount",
             (),
@@ -28,12 +27,16 @@ pub fn get_new_requests(
             None,
         )
         .map_err(|e| log::error!("requestsCount: {:?}", e))
-        .and_then(move |new_num_requests: U256| {
-            eth_state2
-                .wrb_requests
-                .read()
-                .map(|wrb_requests| wrb_requests.requests().len())
-                .map(move |old_num_requests| (U256::from(old_num_requests), new_num_requests))
+        .and_then({
+            let eth_state = Arc::clone(&eth_state);
+
+            move |new_num_requests: U256| {
+                eth_state
+                    .wrb_requests
+                    .read()
+                    .map(|wrb_requests| wrb_requests.requests().len())
+                    .map(move |old_num_requests| (U256::from(old_num_requests), new_num_requests))
+            }
         })
         .and_then(move |(old_num_requests, new_num_requests)| {
             log::debug!(
