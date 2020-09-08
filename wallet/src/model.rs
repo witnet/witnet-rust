@@ -5,7 +5,6 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::types;
-use witnet_data_structures::chain::Hash;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
@@ -246,7 +245,7 @@ pub struct KeyBalance {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Beacon {
     pub epoch: u32,
-    pub block_hash: Hash,
+    pub block_hash: types::Hash,
 }
 
 impl fmt::Display for Beacon {
