@@ -12,7 +12,10 @@ use std::{
     },
 };
 
-use witnet_rad::{error::RadError, types::serial_iter_decode};
+use witnet_rad::{
+    error::RadError,
+    types::{serial_iter_decode, RadonTypes},
+};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
@@ -478,7 +481,16 @@ impl ChainManager {
                             timeout: data_request_timeout,
                         })
                         .map(move |result| match result {
-                            Ok(value) => Ok((vrf_proof, collateral, value)),
+                            Ok(value) => {
+                                if let RadonTypes::RadonError(error) = &value.result {
+                                    if error.inner() == &RadError::InconsistentSource {
+                                        log::warn!("Refraining not to commit to data request {} because the sources are apparently inconsistent", dr_pointer);
+                                        return Err(())
+                                    }
+                                }
+
+                                Ok((vrf_proof, collateral, value))
+                            },
                             Err(e) => {
                                 log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
                                 Err(())
