@@ -17,4 +17,10 @@ pub struct State {
     pub last_sync: CheckpointBeacon,
     /// Last block beacon confirmed by superblock (or during sync process)
     pub last_confirmed: CheckpointBeacon,
+    /// List of pending balance movements, waiting to be confirmed with a superblock
+    pub pending_movements: HashMap<String, Vec<model::BalanceMovement>>,
+    /// List of pending address infos, waiting to be confirmed with a superblock
+    pub pending_address_infos: HashMap<String, Vec<model::AddressInfo>>,
+    /// List of pending blocks waiting to be confirmed
+    pub pending_blocks: HashMap<String, model::Beacon>,
 }

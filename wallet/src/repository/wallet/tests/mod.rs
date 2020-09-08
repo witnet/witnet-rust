@@ -127,9 +127,12 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
 fn test_list_external_addresses() {
     let (wallet, _db) = factories::wallet(None);
 
-    let address1 = wallet.gen_external_address(None).unwrap();
-    let address2 = wallet.gen_external_address(None).unwrap();
-    let address3 = wallet.gen_external_address(None).unwrap();
+    let mut address1 = wallet.gen_external_address(None).unwrap();
+    address1.info.db_key = "".to_owned();
+    let mut address2 = wallet.gen_external_address(None).unwrap();
+    address2.info.db_key = "".to_owned();
+    let mut address3 = wallet.gen_external_address(None).unwrap();
+    address3.info.db_key = "".to_owned();
 
     let offset = 0;
     let limit = 10;
@@ -146,7 +149,8 @@ fn test_list_external_addresses_paginated() {
     let (wallet, _db) = factories::wallet(None);
 
     let _ = wallet.gen_external_address(None).unwrap();
-    let address2 = wallet.gen_external_address(None).unwrap();
+    let mut address2 = wallet.gen_external_address(None).unwrap();
+    address2.info.db_key = "".to_owned();
     let _ = wallet.gen_external_address(None).unwrap();
 
     let offset = 1;
