@@ -235,18 +235,20 @@ impl Worker {
     pub fn index_txns(
         &self,
         wallet: &types::Wallet,
-        block: &model::Beacon,
+        block_info: &model::Beacon,
         txns: &[types::Transaction],
+        confirmed: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
         log::info!(
             "Indexing {} wallet transactions from epoch {}",
             &filtered_txns.len(),
-            block.epoch
+            block_info.epoch
         );
         // Extending transactions with metadata queried from the node
         let extended_txns = self.extend_transactions_data(filtered_txns)?;
-        let balance_movements = wallet.index_transactions(block, &extended_txns)?;
+        let balance_movements =
+            wallet.index_block_transactions(block_info, &extended_txns, confirmed)?;
 
         Ok(balance_movements)
     }
@@ -577,8 +579,8 @@ impl Worker {
                 block
             );
 
-            // Process genesis block
-            self.handle_block(block, wallet.clone(), DynamicSink::default())?;
+            // Process genesis block (transactions indexed as confirmed)
+            self.handle_block(block, true, wallet.clone(), DynamicSink::default())?;
         }
 
         // Query the node for the latest block in the chain
@@ -629,7 +631,7 @@ impl Worker {
 
                 // Compute if block should be considered confirmed
                 // Note: blocks confirmed in past superblocks are considered confirmed
-                let superblock_period  = wallet.get_superblock_period() as u32;
+                let superblock_period = wallet.get_superblock_period() as u32;
                 let tip_superblock_index = tip.checkpoint / superblock_period;
                 let current_superblock_index = epoch / superblock_period;
                 let confirmed = tip_superblock_index - current_superblock_index > 2;
@@ -637,6 +639,7 @@ impl Worker {
                 // Process each block and update latest beacon
                 self.handle_block(
                     block.clone(),
+                    confirmed,
                     wallet.clone(),
                     DynamicSink::default(),
                 )?;
@@ -754,6 +757,7 @@ impl Worker {
     pub fn handle_block(
         &self,
         block: types::ChainBlock,
+        confirmed: bool,
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
@@ -779,10 +783,10 @@ impl Worker {
         }
 
         // Index incoming block and its transactions
-        let new_last_sync = self.index_block(block, &wallet, sink)?;
+        let new_last_sync = self.index_block(block, confirmed, &wallet, sink)?;
 
         // Update wallet state with the last indexed epoch and block hash
-        wallet.update_sync_state(new_last_sync)?;
+        wallet.update_sync_state(new_last_sync, confirmed)?;
 
         Ok(())
     }
@@ -790,6 +794,7 @@ impl Worker {
     pub fn index_block(
         &self,
         block: types::ChainBlock,
+        confirmed: bool,
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<CheckpointBeacon> {
@@ -804,7 +809,6 @@ impl Worker {
         // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
         // if this vector results to be too big, problem is that doing so conflicts with the internal
         // Cell of the txns type which cannot be shared between threads.
-        let block_epoch = block.block_header.beacon.checkpoint;
         let block_hash = block.hash();
 
         // Block transactions to be indexed.
@@ -838,11 +842,11 @@ impl Worker {
             .collect::<Vec<types::Transaction>>();
 
         let block_info = model::Beacon {
-            epoch: block_epoch,
             block_hash,
+            epoch: block.block_header.beacon.checkpoint,
         };
         let balance_movements =
-            self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
+            self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref(), confirmed)?;
 
         // Notify about the new block and every single balance movement found within.
         let mut events = vec![types::Event::Block(block_info)];
