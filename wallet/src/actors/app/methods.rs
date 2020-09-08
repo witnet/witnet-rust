@@ -6,10 +6,9 @@ use futures::future;
 use witnet_data_structures::chain::InventoryItem;
 
 use crate::actors::{
-    worker::{HandleBlockRequest, NotifyStatus},
+    worker::{HandleBlockRequest, HandleSuperBlockRequest, NotifyStatus},
     *,
 };
-use crate::types::SubscriptionId;
 use crate::{crypto, model, repository};
 
 use super::*;
@@ -54,7 +53,7 @@ impl App {
         if self.state.is_session_active(session_id) {
             // We are re-using the session id as the subscription id, this is because using a number
             // can let any client call the unsubscribe method for any other session.
-            Ok(SubscriptionId::from(session_id))
+            Ok(types::SubscriptionId::from(session_id))
         } else {
             Err(Error::SessionNotFound)
         }
