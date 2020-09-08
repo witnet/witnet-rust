@@ -42,6 +42,9 @@ pub struct Addresses {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct AddressInfo {
+    /// Database key for storing `AddressInfo` objects
+    #[serde(skip)]
+    pub db_key: String,
     pub label: Option<String>,
     pub received_payments: Vec<String>,
     pub received_amount: u64,
@@ -83,6 +86,9 @@ where
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BalanceMovement {
+    /// Database key for storing `BalanceMovement` objects
+    #[serde(skip)]
+    pub db_key: u32,
     /// Balance movement from the wallet perspective: `value = own_outputs - own_inputs`
     /// - A positive value means that the wallet received WITs from others.
     /// - A negative value means that the wallet sent WITs to others.
@@ -92,7 +98,7 @@ pub struct BalanceMovement {
     pub transaction: Transaction,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum MovementType {
     #[serde(rename = "POSITIVE")]
     Positive,

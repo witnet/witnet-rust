@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use std::{str::FromStr, sync::RwLock};
 
 use super::*;
 use crate::{
@@ -119,6 +119,9 @@ where
             epoch_constants,
             last_sync,
             last_confirmed,
+            pending_movements: Default::default(),
+            pending_address_infos: Default::default(),
+            pending_blocks: Default::default(),
         });
 
         Ok(Self {
@@ -183,6 +186,7 @@ where
             index
         );
         let info = model::AddressInfo {
+            db_key: keys::address_info(account, keychain, index),
             label,
             received_payments: vec![],
             received_amount: 0,
@@ -196,16 +200,16 @@ where
         batch.put(keys::address(account, keychain, index), &address)?;
         batch.put(keys::address_path(account, keychain, index), &path)?;
         batch.put(keys::address_pkh(account, keychain, index), &pkh)?;
-        batch.put(keys::address_info(account, keychain, index), &info)?;
+        batch.put(&info.db_key, &info)?;
         batch.put(
             keys::pkh(&pkh),
-            model::Path {
+            &model::Path {
                 account,
                 keychain,
                 index,
             },
         )?;
-        batch.put(keys::account_next_index(account, keychain), next_index)?;
+        batch.put(keys::account_next_index(account, keychain), &next_index)?;
 
         self.db.write(batch)?;
 
@@ -395,7 +399,10 @@ where
         confirmed: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
         let mut state = self.state.write()?;
+        let mut address_infos = Vec::new();
+        let mut balance_movements = Vec::new();
 
+        // Index all transactions
         for txn in txns {
             // Check if transaction already exists in the database
             let hash = txn.transaction.hash().as_ref().to_vec();
@@ -403,8 +410,11 @@ where
                 .db
                 .get_opt::<_, u32>(&keys::transactions_index(&hash))?
             {
-                None => match self._index_transaction(&mut state, txn, block_info) {
-                    Ok(Some(balance_movement)) => balance_movements.push(balance_movement),
+                None => match self._index_transaction(&mut state, txn, block_info, confirmed) {
+                    Ok(Some((balance_movement, mut addr_infos))) => {
+                        balance_movements.push(balance_movement);
+                        address_infos.append(&mut addr_infos);
+                    }
                     Ok(None) => {}
                     e @ Err(_) => {
                         e?;
@@ -417,7 +427,93 @@ where
             }
         }
 
+        // Persist into database
+        if confirmed {
+            self._persist_block_txns(
+                balance_movements.clone(),
+                address_infos,
+                state.transaction_next_id,
+                state.utxo_set.clone(),
+                state.balance,
+                block_info,
+            )?
+        } else {
+            state
+                .pending_movements
+                .insert(block_info.block_hash.to_string(), balance_movements.clone());
+            state
+                .pending_address_infos
+                .insert(block_info.block_hash.to_string(), address_infos);
+            state
+                .pending_blocks
+                .insert(block_info.block_hash.to_string(), block_info.clone());
+        }
+
         Ok(balance_movements)
+    }
+
+    fn _persist_block_txns(
+        &self,
+        balance_movements: Vec<model::BalanceMovement>,
+        address_infos: Vec<model::AddressInfo>,
+        transaction_next_id: u32,
+        utxo_set: model::UtxoSet,
+        balance: u64,
+        block_info: &model::Beacon,
+    ) -> Result<()> {
+        log::debug!(
+            "Persisting block #{} changes: {} balance movements and {} address changes.",
+            block_info.epoch,
+            balance_movements.len(),
+            address_infos.len(),
+        );
+
+        let account = 0;
+        let mut batch = self.db.batch();
+
+        for mut movement in balance_movements {
+            let txn_hash = types::Hash::from_str(&movement.transaction.hash).unwrap();
+            // Write transaction info
+            movement.transaction.confirmed = true;
+            batch.put(
+                keys::transactions_index(txn_hash.as_ref()),
+                &movement.db_key,
+            )?;
+            batch.put(
+                keys::transaction_hash(account, movement.db_key).into_bytes(),
+                txn_hash.as_ref(),
+            )?;
+            batch.put(
+                keys::transaction_movement(account, movement.db_key).into_bytes(),
+                &movement,
+            )?;
+        }
+
+        // Write account state
+        batch.put(
+            keys::transaction_next_id(account).into_bytes(),
+            transaction_next_id,
+        )?;
+        batch.put(keys::account_utxo_set(account).into_bytes(), utxo_set)?;
+        batch.put(keys::account_balance(account).into_bytes(), balance)?;
+
+        // Write address infos
+        for address_info in address_infos {
+            batch.put(&address_info.db_key, &address_info)?;
+        }
+
+        // Update the last_sync in the database (which corresponds with the last_confirmed in the state)
+        batch.put(
+            &keys::wallet_last_sync(),
+            CheckpointBeacon {
+                checkpoint: block_info.epoch,
+                hash_prev_block: block_info.block_hash,
+            },
+        )?;
+
+        self.db.write(batch)?;
+
+        Ok(())
     }
 
     /// Retrieve the balance for the current wallet account.
@@ -669,174 +765,99 @@ where
             &outputs,
         )?;
 
-        // Option for holding a balance movement potentially derived from the transaction being processed
-        let mut derived_movement = None;
-
-        // If UTXO set has changed, then update memory state and DB
-        if !account_mutation.utxo_inserts.is_empty() || !account_mutation.utxo_removals.is_empty() {
-            let account = 0;
-            let mut db_utxo_set: model::UtxoSet = self
-                .db
-                .get(&keys::account_utxo_set(account))
-                .unwrap_or_default();
-
-            // New account's balance
-            let new_balance = match account_mutation.kind {
-                model::MovementType::Positive => state
-                    .balance
-                    .checked_add(account_mutation.amount)
-                    .ok_or_else(|| Error::TransactionBalanceOverflow)?,
-                model::MovementType::Negative => state
-                    .balance
-                    .checked_sub(account_mutation.amount)
-                    .ok_or_else(|| Error::TransactionBalanceUnderflow)?,
-            };
-
-            // Next transaction ID
-            let txn_id = state.transaction_next_id;
-            let txn_next_id = txn_id
-                .checked_add(1)
-                .ok_or_else(|| Error::TransactionIdOverflow)?;
-
-            // Update memory state
-            for pointer in &account_mutation.utxo_removals {
-                state.utxo_set.remove(pointer);
-                db_utxo_set.remove(pointer);
-            }
-            for (pointer, key_balance) in &account_mutation.utxo_inserts {
-                state.utxo_set.insert(pointer.clone(), key_balance.clone());
-                db_utxo_set.insert(pointer.clone(), key_balance.clone());
-            }
-            state.transaction_next_id = txn_next_id;
-            state.balance = new_balance;
-
-            // DB write batch
-            let mut batch = self.db.batch();
-            let txn_hash = txn.transaction.hash();
-
-            // Transaction indexes
-            batch.put(keys::transactions_index(txn_hash.as_ref()), txn_id)?;
-            batch.put(keys::transaction_hash(account, txn_id), txn_hash.as_ref())?;
-
-            // Miner fee
-            let miner_fee: u64 = match &txn.metadata {
-                Some(model::TransactionMetadata::InputValues(input_values)) => {
-                    let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
-                    let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
-
-                    total_input_amount
-                        .checked_sub(total_output_amount)
-                        .unwrap_or_else(|| {
-                            log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {:?}", txn.transaction);
-
-                            0
-                        })
-                }
-                _ => 0,
-            };
-
-            // Transaction Movement
-            let balance_movement = build_balance_movement(
-                &txn,
-                miner_fee,
-                account_mutation.kind,
-                account_mutation.amount,
-                &block_info,
-                convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
-                confirmed,
-            )?;
-            batch.put(
-                keys::transaction_movement(account, txn_id),
-                balance_movement.clone(),
-            )?;
-            derived_movement = Some(balance_movement);
-
-            // Try to update data request tally report if it was previously indexed
-            if let types::Transaction::Tally(tally) = &txn.transaction {
-                log::debug!(
-                    "Updating data request transaction {} with report from tally transaction {}",
-                    tally.dr_pointer.to_string(),
-                    tally.hash().to_string()
-                );
-                // Try to retrieve data request balance movement
-                let txn_id_opt = self
-                    .db
-                    .get_opt::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
-                    .unwrap_or(None);
-                let dr_movement_opt = txn_id_opt.and_then(|txn_id| {
-                    self.db
-                        .get_opt::<_, model::BalanceMovement>(&keys::transaction_movement(
-                            account, txn_id,
-                        ))
-                        .unwrap_or(None)
-                });
-
-                // Update data request tally report if previously indexed
-                if let Some(dr_movement) = dr_movement_opt {
-                    match &dr_movement.transaction.data {
-                        model::TransactionData::DataRequest(dr_data) => {
-                            let mut new_dr_movement = dr_movement.clone();
-                            new_dr_movement.transaction.data = model::TransactionData::DataRequest(model::DrData {
-                                inputs: dr_data.inputs.clone(),
-                                outputs: dr_data.outputs.clone(),
-                                tally: Some(build_tally_report(tally, &txn.metadata)?)
-                            });
-                            batch.put(
-                                keys::transaction_movement(account, txn_id_opt.unwrap()),
-                                new_dr_movement,
-                            )?;
-                        },
-                        _ => log::warn!("data request tally update failed because wrong stored data type (txn: {})", tally.dr_pointer),
-                    }
-                } else {
-                    log::debug!(
-                        "data request tally update not required it was not indexed (txn: {})",
-                        tally.dr_pointer
-                    )
-                }
-            }
-
-            // Update addresses information if there were payments (new UTXOs)
-            for (output_pointer, key_balance) in account_mutation.utxo_inserts {
-                // Retrieve previous address information
-                let path = self
-                    .db
-                    .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
-                let info = self.db.get::<_, model::AddressInfo>(&keys::address_info(
-                    path.account,
-                    path.keychain,
-                    path.index,
-                ))?;
-
-                // Build the new address information
-                let mut received_payments = info.received_payments;
-                received_payments.push(output_pointer.to_string());
-                let current_timestamp =
-                    convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
-                let first_payment_date = Some(info.first_payment_date.unwrap_or(current_timestamp));
-                let updated_info = model::AddressInfo {
-                    label: info.label,
-                    received_payments,
-                    received_amount: info.received_amount + key_balance.amount,
-                    first_payment_date,
-                    last_payment_date: Some(current_timestamp),
-                };
-
-                self.db.put(
-                    &keys::address_info(path.account, path.keychain, path.index),
-                    updated_info,
-                )?;
-            }
-
-            // Account state
-            batch.put(keys::account_balance(account), new_balance)?;
-            batch.put(keys::account_utxo_set(account), db_utxo_set)?;
-            batch.put(keys::transaction_next_id(account), txn_next_id)?;
-
-            self.db.write(batch)?;
+        // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
+        if account_mutation.utxo_inserts.is_empty() && account_mutation.utxo_removals.is_empty() {
+            return Ok(None);
         }
 
-        Ok(derived_movement)
+        // Build the balance movement, first computing the miner fee
+        let miner_fee: u64 = match &txn.metadata {
+            Some(model::TransactionMetadata::InputValues(input_values)) => {
+                let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
+                let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
+
+                total_input_amount
+                    .checked_sub(total_output_amount)
+                    .unwrap_or_else(|| {
+                        log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {:?}", txn.transaction);
+
+                        0
+                    })
+            }
+            _ => 0,
+        };
+        let balance_movement = build_balance_movement(
+            state.transaction_next_id,
+            &txn,
+            miner_fee,
+            account_mutation.kind,
+            account_mutation.amount,
+            &block_info,
+            convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
+            confirmed,
+        )?;
+
+        // Update memory state: `utxo_set`
+        for pointer in &account_mutation.utxo_removals {
+            state.utxo_set.remove(pointer);
+        }
+        for (pointer, key_balance) in &account_mutation.utxo_inserts {
+            state.utxo_set.insert(pointer.clone(), key_balance.clone());
+        }
+
+        // Update `transaction_next_id`
+        let txn_id = state.transaction_next_id;
+        let txn_next_id = txn_id
+            .checked_add(1)
+            .ok_or_else(|| Error::TransactionIdOverflow)?;
+        state.transaction_next_id = txn_next_id;
+
+        // Update new account `balance`
+        // FIXME(#1481): include pending balance
+        let new_balance = match account_mutation.kind {
+            model::MovementType::Positive => state
+                .balance
+                .checked_add(account_mutation.amount)
+                .ok_or_else(|| Error::TransactionBalanceOverflow)?,
+            model::MovementType::Negative => state
+                .balance
+                .checked_sub(account_mutation.amount)
+                .ok_or_else(|| Error::TransactionBalanceUnderflow)?,
+        };
+        state.balance = new_balance;
+
+        // Update addresses information if there were payments (new UTXOs)
+        let mut address_infos = vec![];
+        for (output_pointer, key_balance) in account_mutation.utxo_inserts {
+            // Retrieve previous address information
+            let path = self
+                .db
+                .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
+            let info = self.db.get::<_, model::AddressInfo>(&keys::address_info(
+                path.account,
+                path.keychain,
+                path.index,
+            ))?;
+
+            // Build the new address information
+            let mut received_payments = info.received_payments;
+            received_payments.push(output_pointer.to_string());
+            let current_timestamp =
+                convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
+            let first_payment_date = Some(info.first_payment_date.unwrap_or(current_timestamp));
+            let updated_info = model::AddressInfo {
+                db_key: keys::address_info(path.account, path.keychain, path.index),
+                label: info.label,
+                received_payments,
+                received_amount: info.received_amount + key_balance.amount,
+                first_payment_date,
+                last_payment_date: Some(current_timestamp),
+            };
+
+            address_infos.push(updated_info);
+        }
+
+        Ok(Some((balance_movement, address_infos)))
     }
 
     fn _get_account_mutation(
@@ -986,10 +1007,6 @@ where
         Ok(())
     }
 
-        self.db
-            .put(&keys::wallet_last_sync(), beacon)
-            .map_err(Error::from)
-    }
 }
 
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> i64 {
@@ -998,7 +1015,9 @@ fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoc
 }
 
 // Balance Movement Factory
+#[allow(clippy::too_many_arguments)]
 fn build_balance_movement(
+    identifier: u32,
     txn: &model::ExtendedTransaction,
     miner_fee: u64,
     kind: model::MovementType,
@@ -1101,6 +1120,7 @@ fn build_balance_movement(
     };
 
     Ok(model::BalanceMovement {
+        db_key: identifier,
         kind,
         amount,
         transaction: model::Transaction {
