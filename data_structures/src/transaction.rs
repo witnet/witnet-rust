@@ -245,7 +245,7 @@ impl TxInclusionProof {
         Self::new_with_hashes(index, leaves.into_iter().map(|t| t.hash()))
     }
 
-    // Create a TX inclusion proof assuming the inputs are already Hashes
+    /// Create a TX inclusion proof assuming the inputs are already Hashes
     pub fn new_with_hashes<I: IntoIterator<Item = Hash>>(
         index: usize,
         leaves: I,
@@ -267,7 +267,7 @@ impl TxInclusionProof {
         self.lemma.insert(0, leave);
     }
 
-    /// Concatenate two PoIs by extending the syblings of the first with the second
+    /// Concatenate two PoIs by extending the siblings of the first with the second
     /// The index gets updated as: first_index += second_index * 2**len(first_lemma)
     pub fn concat(&mut self, second_poi: TxInclusionProof) {
         self.index |= second_poi.index << self.lemma.len();

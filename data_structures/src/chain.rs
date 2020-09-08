@@ -27,7 +27,6 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::timestamp::get_timestamp;
 
-use crate::transaction::TxInclusionProof;
 use crate::{
     chain::Signature::Secp256k1,
     data_request::DataRequestPool,
@@ -40,7 +39,7 @@ use crate::{
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
-        TallyTransaction, Transaction, VTTransaction,
+        TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
@@ -637,31 +636,30 @@ impl SuperBlock {
         .concat()
     }
 
-    /// Generate a Proof of Inclusion for a given Superblock tally root, provided the DR transaction
+    /// Generate a Proof of Inclusion for a given Superblock DR root, provided the DR transaction
     /// and the blocks that the superblock contains
     /// If the DR transaction is not found within those blocks, returns None
     pub fn dr_proof_of_inclusion(
         &self,
         blocks: &[Block],
-        tx: &DRTransaction,
+        dr_tx: &DRTransaction,
     ) -> Option<TxInclusionProof> {
         // Get the PoI for the block root, if the data request is found on the list of blocks
-        // Obtain also the index of the tally root of the block containing the Dr TX.
+        // Obtain also the index of the dr root of the block containing the Dr TX.
         let (mut poi, dr_root_idx) = blocks
             .iter()
             .enumerate()
-            .find_map(|(idx, b)| Some((tx.data_proof_of_inclusion(b)?, idx)))?;
+            .find_map(|(idx, b)| Some((dr_tx.data_proof_of_inclusion(b)?, idx)))?;
 
         // Collect all DR roots from the blocks
-        let dr_roots: Vec<Hash> = blocks
+        let dr_roots = blocks
             .iter()
-            .map(|b| b.block_header.merkle_roots.dr_hash_merkle_root)
-            .collect();
+            .map(|b| b.block_header.merkle_roots.dr_hash_merkle_root);
 
         // Generate the second PoI, using the block DR root as a leave
         let second_poi = TxInclusionProof::new_with_hashes(dr_root_idx, dr_roots);
 
-        // Concatenate one PoI with the second. This will update the index and append the syblings
+        // Concatenate one PoI with the second. This will update the index and append the siblings
         poi.concat(second_poi);
 
         Some(poi)
@@ -673,25 +671,24 @@ impl SuperBlock {
     pub fn tally_proof_of_inclusion(
         &self,
         blocks: &[Block],
-        tx: &TallyTransaction,
+        tally_tx: &TallyTransaction,
     ) -> Option<TxInclusionProof> {
         // Get the PoI for the block root, if the tally transaction is found on the list of blocks
         // Obtain also the index of the tally root of the block containing the tally TX.
         let (mut poi, tally_root_idx) = blocks
             .iter()
             .enumerate()
-            .find_map(|(idx, b)| Some((tx.data_proof_of_inclusion(b)?, idx)))?;
+            .find_map(|(idx, b)| Some((tally_tx.data_proof_of_inclusion(b)?, idx)))?;
 
         // Collect all tally roots from the blocks
-        let tally_roots: Vec<Hash> = blocks
+        let tally_roots = blocks
             .iter()
-            .map(|b| b.block_header.merkle_roots.tally_hash_merkle_root)
-            .collect();
+            .map(|b| b.block_header.merkle_roots.tally_hash_merkle_root);
 
         // Generate the second PoI, using the block tally root as a leave
         let second_poi = TxInclusionProof::new_with_hashes(tally_root_idx, tally_roots);
 
-        // Concatenate one PoI with the second. This will update the index and append the syblings
+        // Concatenate one PoI with the second. This will update the index and append the siblings
         poi.concat(second_poi);
 
         Some(poi)
@@ -3643,12 +3640,113 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::superblock::mining_build_superblock;
     use crate::{
-        superblock::ARSIdentities,
+        superblock::{mining_build_superblock, ARSIdentities},
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
     use witnet_crypto::merkle::{merkle_tree_root, InclusionProof};
+
+    fn dr_root_superblock_loop_test(
+        sb: SuperBlock,
+        expected_indices: Vec<usize>,
+        expected_lemma_lengths: Vec<usize>,
+        blocks: Vec<Block>,
+        dr_txs: Vec<DRTransaction>,
+    ) {
+        for index in 0..expected_indices.len() {
+            let result = sb.dr_proof_of_inclusion(&blocks, &dr_txs[index]).unwrap();
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
+                .lemma
+                .iter()
+                .map(|h| match *h {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+            let proof = InclusionProof::sha256(result.index, lemma);
+            assert!(proof.verify(
+                dr_txs[index].body.data_poi_hash().into(),
+                sb.data_request_root.into()
+            ));
+        }
+    }
+
+    fn tally_root_superblock_loop_test(
+        sb: SuperBlock,
+        expected_indices: Vec<usize>,
+        expected_lemma_lengths: Vec<usize>,
+        blocks: Vec<Block>,
+        tally_txs: Vec<TallyTransaction>,
+    ) {
+        for index in 0..expected_indices.len() {
+            let result = sb
+                .tally_proof_of_inclusion(&blocks, &tally_txs[index])
+                .unwrap();
+            assert_eq!(result.index, expected_indices[index]);
+            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
+            let lemma = result
+                .lemma
+                .iter()
+                .map(|h| match *h {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+            let proof = InclusionProof::sha256(result.index, lemma);
+            assert!(proof.verify(
+                tally_txs[index].data_poi_hash().into(),
+                sb.tally_root.into()
+            ));
+        }
+    }
+
+    fn build_test_dr_txs(length: u32) -> Vec<DRTransaction> {
+        let inputs: Vec<Input> = (1..=length)
+            .map(|x| {
+                Input::new(OutputPointer {
+                    transaction_id: Hash::default(),
+                    output_index: x,
+                })
+            })
+            .collect();
+        let dr_txs: Vec<DRTransaction> = inputs
+            .iter()
+            .map(|input| {
+                DRTransaction::new(
+                    DRTransactionBody::new(
+                        vec![input.clone()],
+                        vec![],
+                        DataRequestOutput::default(),
+                    ),
+                    vec![],
+                )
+            })
+            .collect();
+        dr_txs
+    }
+
+    fn build_test_tally_txs(length: u64) -> Vec<TallyTransaction> {
+        let outputs: Vec<ValueTransferOutput> = (1..=length)
+            .map(|x| ValueTransferOutput {
+                pkh: PublicKeyHash::default(),
+                value: x,
+                time_lock: x,
+            })
+            .collect();
+        let tally_txs: Vec<TallyTransaction> = outputs
+            .iter()
+            .map(|output| {
+                TallyTransaction::new(
+                    Hash::default(),
+                    vec![],
+                    vec![output.clone()],
+                    vec![],
+                    vec![],
+                )
+            })
+            .collect();
+        tally_txs
+    }
 
     #[test]
     fn test_block_hashable_trait() {
@@ -5494,28 +5592,7 @@ mod tests {
 
     #[test]
     fn test_dr_merkle_root_superblock() {
-        let inputs: Vec<Input> = (1..4)
-            .map(|x| {
-                Input::new(OutputPointer {
-                    transaction_id: Hash::default(),
-                    output_index: x,
-                })
-            })
-            .collect();
-        let dr_txs: Vec<DRTransaction> = inputs
-            .iter()
-            .map(|input| {
-                DRTransaction::new(
-                    DRTransactionBody::new(
-                        vec![input.clone()],
-                        vec![],
-                        DataRequestOutput::default(),
-                    ),
-                    vec![],
-                )
-            })
-            .collect();
-
+        let dr_txs = build_test_dr_txs(3);
         let mut b1 = block_example();
         let mut b2 = block_example();
 
@@ -5540,50 +5617,18 @@ mod tests {
         let expected_indices = vec![0, 2, 2];
         let expected_lemma_lengths = vec![3, 3, 2];
 
-        for index in 0..expected_indices.len() {
-            let result = sb
-                .dr_proof_of_inclusion(&[b1.clone(), b2.clone()], &dr_txs[index])
-                .unwrap();
-            assert_eq!(result.index, expected_indices[index]);
-            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = result
-                .lemma
-                .iter()
-                .map(|h| match *h {
-                    Hash::SHA256(x) => Sha256(x),
-                })
-                .collect();
-            let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                dr_txs[index].body.data_poi_hash().into(),
-                sb.data_request_root.into()
-            ));
-        }
+        dr_root_superblock_loop_test(
+            sb,
+            expected_indices,
+            expected_lemma_lengths,
+            vec![b1, b2],
+            dr_txs,
+        );
     }
 
     #[test]
     fn test_dr_merkle_root_superblock_2() {
-        let inputs: Vec<Input> = (1..9)
-            .map(|x| {
-                Input::new(OutputPointer {
-                    transaction_id: Hash::default(),
-                    output_index: x,
-                })
-            })
-            .collect();
-        let dr_txs: Vec<DRTransaction> = inputs
-            .iter()
-            .map(|input| {
-                DRTransaction::new(
-                    DRTransactionBody::new(
-                        vec![input.clone()],
-                        vec![],
-                        DataRequestOutput::default(),
-                    ),
-                    vec![],
-                )
-            })
-            .collect();
+        let dr_txs = build_test_dr_txs(8);
 
         let mut b1 = block_example();
         let mut b2 = block_example();
@@ -5625,50 +5670,18 @@ mod tests {
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
         let expected_lemma_lengths = vec![5, 5, 4, 5, 5, 4, 3, 3];
 
-        for index in 0..expected_indices.len() {
-            let result = sb
-                .dr_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], &dr_txs[index])
-                .unwrap();
-            assert_eq!(result.index, expected_indices[index]);
-            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = result
-                .lemma
-                .iter()
-                .map(|h| match *h {
-                    Hash::SHA256(x) => Sha256(x),
-                })
-                .collect();
-            let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                dr_txs[index].body.data_poi_hash().into(),
-                sb.data_request_root.into()
-            ));
-        }
+        dr_root_superblock_loop_test(
+            sb,
+            expected_indices,
+            expected_lemma_lengths,
+            vec![b1, b2, b3],
+            dr_txs,
+        );
     }
 
     #[test]
     fn test_dr_merkle_root_none() {
-        let inputs: Vec<Input> = (1..4)
-            .map(|x| {
-                Input::new(OutputPointer {
-                    transaction_id: Hash::default(),
-                    output_index: x,
-                })
-            })
-            .collect();
-        let dr_txs: Vec<DRTransaction> = inputs
-            .iter()
-            .map(|input| {
-                DRTransaction::new(
-                    DRTransactionBody::new(
-                        vec![input.clone()],
-                        vec![],
-                        DataRequestOutput::default(),
-                    ),
-                    vec![],
-                )
-            })
-            .collect();
+        let dr_txs = build_test_dr_txs(3);
 
         let mut b1 = block_example();
         let mut b2 = block_example();
@@ -5694,27 +5707,7 @@ mod tests {
 
     #[test]
     fn test_dr_merkle_root_no_block() {
-        let inputs: Vec<Input> = (1..4)
-            .map(|x| {
-                Input::new(OutputPointer {
-                    transaction_id: Hash::default(),
-                    output_index: x,
-                })
-            })
-            .collect();
-        let dr_txs: Vec<DRTransaction> = inputs
-            .iter()
-            .map(|input| {
-                DRTransaction::new(
-                    DRTransactionBody::new(
-                        vec![input.clone()],
-                        vec![],
-                        DataRequestOutput::default(),
-                    ),
-                    vec![],
-                )
-            })
-            .collect();
+        let dr_txs = build_test_dr_txs(3);
 
         let sb = mining_build_superblock(&[], &[Hash::default()], 1, Hash::default());
 
@@ -5724,27 +5717,7 @@ mod tests {
 
     #[test]
     fn test_dr_merkle_root_superblock_single_block() {
-        let inputs: Vec<Input> = (1..3)
-            .map(|x| {
-                Input::new(OutputPointer {
-                    transaction_id: Hash::default(),
-                    output_index: x,
-                })
-            })
-            .collect();
-        let dr_txs: Vec<DRTransaction> = inputs
-            .iter()
-            .map(|input| {
-                DRTransaction::new(
-                    DRTransactionBody::new(
-                        vec![input.clone()],
-                        vec![],
-                        DataRequestOutput::default(),
-                    ),
-                    vec![],
-                )
-            })
-            .collect();
+        let dr_txs = build_test_dr_txs(2);
 
         let mut b1 = block_example();
 
@@ -5766,48 +5739,18 @@ mod tests {
         let expected_indices = vec![0, 2];
         let expected_lemma_lengths = vec![2, 2];
 
-        for index in 0..expected_indices.len() {
-            let result = sb
-                .dr_proof_of_inclusion(&[b1.clone()], &dr_txs[index])
-                .unwrap();
-            assert_eq!(result.index, expected_indices[index]);
-            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = result
-                .lemma
-                .iter()
-                .map(|h| match *h {
-                    Hash::SHA256(x) => Sha256(x),
-                })
-                .collect();
-            let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                dr_txs[index].body.data_poi_hash().into(),
-                sb.data_request_root.into()
-            ));
-        }
+        dr_root_superblock_loop_test(
+            sb,
+            expected_indices,
+            expected_lemma_lengths,
+            vec![b1],
+            dr_txs,
+        );
     }
 
     #[test]
     fn test_tally_merkle_root_superblock() {
-        let outputs: Vec<ValueTransferOutput> = (1..4)
-            .map(|x| ValueTransferOutput {
-                pkh: PublicKeyHash::default(),
-                value: x,
-                time_lock: x,
-            })
-            .collect();
-        let tally_txs: Vec<TallyTransaction> = outputs
-            .iter()
-            .map(|output| {
-                TallyTransaction::new(
-                    Hash::default(),
-                    vec![],
-                    vec![output.clone()],
-                    vec![],
-                    vec![],
-                )
-            })
-            .collect();
+        let tally_txs = build_test_tally_txs(3);
 
         let mut b1 = block_example();
         let mut b2 = block_example();
@@ -5833,49 +5776,18 @@ mod tests {
         let expected_indices = vec![0, 2, 2];
         let expected_lemma_lengths = vec![3, 3, 2];
 
-        for index in 0..expected_indices.len() {
-            let result = sb
-                .tally_proof_of_inclusion(&[b1.clone(), b2.clone()], &tally_txs[index])
-                .unwrap();
-            assert_eq!(result.index, expected_indices[index]);
-            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = result
-                .lemma
-                .iter()
-                .map(|h| match *h {
-                    Hash::SHA256(x) => Sha256(x),
-                })
-                .collect();
-
-            let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                tally_txs[index].data_poi_hash().into(),
-                sb.tally_root.into()
-            ));
-        }
+        tally_root_superblock_loop_test(
+            sb,
+            expected_indices,
+            expected_lemma_lengths,
+            vec![b1, b2],
+            tally_txs,
+        );
     }
 
     #[test]
     fn test_tally_merkle_root_superblock_2() {
-        let outputs: Vec<ValueTransferOutput> = (1..9)
-            .map(|x| ValueTransferOutput {
-                pkh: PublicKeyHash::default(),
-                value: x,
-                time_lock: x,
-            })
-            .collect();
-        let tally_txs: Vec<TallyTransaction> = outputs
-            .iter()
-            .map(|output| {
-                TallyTransaction::new(
-                    Hash::default(),
-                    vec![],
-                    vec![output.clone()],
-                    vec![],
-                    vec![],
-                )
-            })
-            .collect();
+        let tally_txs = build_test_tally_txs(8);
 
         let mut b1 = block_example();
         let mut b2 = block_example();
@@ -5925,49 +5837,18 @@ mod tests {
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
         let expected_lemma_lengths = vec![5, 5, 4, 5, 5, 4, 3, 3];
 
-        for index in 0..expected_indices.len() {
-            let result = sb
-                .tally_proof_of_inclusion(&[b1.clone(), b2.clone(), b3.clone()], &tally_txs[index])
-                .unwrap();
-            assert_eq!(result.index, expected_indices[index]);
-            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = result
-                .lemma
-                .iter()
-                .map(|h| match *h {
-                    Hash::SHA256(x) => Sha256(x),
-                })
-                .collect();
-
-            let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                tally_txs[index].data_poi_hash().into(),
-                sb.tally_root.into()
-            ));
-        }
+        tally_root_superblock_loop_test(
+            sb,
+            expected_indices,
+            expected_lemma_lengths,
+            vec![b1, b2, b3],
+            tally_txs,
+        );
     }
 
     #[test]
     fn test_tally_merkle_root_none() {
-        let outputs: Vec<ValueTransferOutput> = (1..4)
-            .map(|x| ValueTransferOutput {
-                pkh: PublicKeyHash::default(),
-                value: x,
-                time_lock: x,
-            })
-            .collect();
-        let tally_txs: Vec<TallyTransaction> = outputs
-            .iter()
-            .map(|output| {
-                TallyTransaction::new(
-                    Hash::default(),
-                    vec![],
-                    vec![output.clone()],
-                    vec![],
-                    vec![],
-                )
-            })
-            .collect();
+        let tally_txs = build_test_tally_txs(3);
 
         let mut b1 = block_example();
         let mut b2 = block_example();
@@ -5993,25 +5874,7 @@ mod tests {
 
     #[test]
     fn test_tally_merkle_root_superblock_single_block() {
-        let outputs: Vec<ValueTransferOutput> = (1..4)
-            .map(|x| ValueTransferOutput {
-                pkh: PublicKeyHash::default(),
-                value: x,
-                time_lock: x,
-            })
-            .collect();
-        let tally_txs: Vec<TallyTransaction> = outputs
-            .iter()
-            .map(|output| {
-                TallyTransaction::new(
-                    Hash::default(),
-                    vec![],
-                    vec![output.clone()],
-                    vec![],
-                    vec![],
-                )
-            })
-            .collect();
+        let tally_txs = build_test_tally_txs(3);
 
         let mut b1 = block_example();
 
@@ -6038,25 +5901,12 @@ mod tests {
         let expected_indices = vec![0, 2, 2];
         let expected_lemma_lengths = vec![3, 3, 2];
 
-        for index in 0..expected_indices.len() {
-            let result = sb
-                .tally_proof_of_inclusion(&[b1.clone()], &tally_txs[index])
-                .unwrap();
-            assert_eq!(result.index, expected_indices[index]);
-            assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
-            let lemma = result
-                .lemma
-                .iter()
-                .map(|h| match *h {
-                    Hash::SHA256(x) => Sha256(x),
-                })
-                .collect();
-
-            let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                tally_txs[index].data_poi_hash().into(),
-                sb.tally_root.into()
-            ));
-        }
+        tally_root_superblock_loop_test(
+            sb,
+            expected_indices,
+            expected_lemma_lengths,
+            vec![b1],
+            tally_txs,
+        );
     }
 }
