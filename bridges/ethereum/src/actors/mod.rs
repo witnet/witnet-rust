@@ -1,6 +1,7 @@
 use futures::Future;
+use serde::Deserialize;
 use web3::types::{TransactionReceipt, U256};
-use witnet_data_structures::chain::Block;
+use witnet_data_structures::chain::{Block, Hash, SuperBlock};
 
 pub mod block_relay_and_poi;
 pub mod block_relay_check;
@@ -19,7 +20,28 @@ pub enum ClaimMsg {
     Tick,
 }
 
+/// Struct for deserializing the message returned by the superblock notification
+#[derive(Debug, Deserialize)]
+pub struct SuperBlockNotification {
+    /// The superblock that we are signaling as consolidated.
+    pub superblock: SuperBlock,
+    /// The hashes of the blocks that we are signaling as consolidated.
+    pub consolidated_block_hashes: Vec<Hash>,
+}
+
 /// Message to the block_relay_and_poi actor
+#[derive(Debug)]
+pub enum WitnetSuperBlock {
+    /// The subscription to new Witnet blocks just sent us a new block.
+    /// Post it to the block relay, and process data requests and tallies.
+    New(SuperBlockNotification),
+    /// This old block may have tallies for data requests whose inclusion can
+    /// be reported to the WRB.
+    /// Process data requests and tallies.
+    Replay(SuperBlockNotification),
+}
+
+/// Previous message to the block_relay_and_poi actor
 #[derive(Debug)]
 pub enum WitnetBlock {
     /// The subscription to new Witnet blocks just sent us a new block.

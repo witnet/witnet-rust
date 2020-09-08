@@ -489,10 +489,7 @@ pub fn claim_and_post(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
     witnet_client: Arc<TcpSocket>,
-) -> (
-    mpsc::Sender<ClaimMsg>,
-    impl Future<Item = (), Error = ()>,
-) {
+) -> (mpsc::Sender<ClaimMsg>, impl Future<Item = (), Error = ()>) {
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
     let witnet_client = Arc::clone(&witnet_client);

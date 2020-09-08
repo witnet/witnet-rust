@@ -1,13 +1,13 @@
 # Address of the witnet node JSON-RPC server
-witnet_jsonrpc_addr = "127.0.0.1:1234"
+witnet_jsonrpc_addr = "127.0.0.1:21338"
 # Url of the ethereum client
-eth_client_url = "http://127.0.0.1:8545"
+eth_client_url = "http://127.0.0.1:8888"
 # Address of the WitnetRequestsBoard deployed contract
-wrb_contract_addr = "0x49824bd89338C26Ea204F20AcbAd404CFeAB3301"
+wrb_contract_addr = "0x354B08f9fD4b171e774898261908DfeA113b0e14"
 # Address of the BlockRelay deployed contract
-block_relay_contract_addr = "0x1D774D4D7EC51B111EFE48EB5D53022C3e9CC4Af"
+block_relay_contract_addr = "0xEaA9e7Ea612b169f5b41cfF86dA6322f57264a19"
 # Ethereum account used to create the transactions
-eth_account = "0x20E56DAc7582782584c46061F382812D502Dd139"
+eth_account = "0x333b18f64949C59Cd0b84b51C7580f260c563c31"
 # Enable block relay from witnet to ethereum, relay only new blocks
 # (blocks that were recently consolidated)
 enable_block_relay_new_blocks = true
@@ -23,7 +23,7 @@ enable_result_reporting = true
 post_to_witnet_again_after_timeout = 3600 # 1 hour
 # Post data request more than once? Useful to retry if the data request
 # was not included in a block
-post_to_witnet_more_than_once = true
+post_to_witnet_more_than_once = false
 # Subscribe to witnet blocks? This is only necessary for block relay
 subscribe_to_witnet_blocks = true
 # Period to check for new blocks in block relay
@@ -46,8 +46,8 @@ read_dr_hash_interval_ms = 10_000
 # Gas limits for some methods.
 # To let the client estimate, comment out the fields
 [gas_limits]
-claim_data_requests = 500000
-post_data_request = 1000000
-post_new_block = 200000
-report_data_request_inclusion = 200000
-report_result = 200000
+claim_data_requests = 5000000
+post_data_request = 10000000
+post_new_block = 2000000
+report_data_request_inclusion = 2000000
+report_result = 2000000
