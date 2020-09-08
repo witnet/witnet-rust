@@ -4333,6 +4333,7 @@ dependencies = [
  "url 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "witnet_crypto 0.3.2",
  "witnet_data_structures 0.3.2",
+ "witnet_net 0.1.0",
  "witnet_util 0.3.2",
 ]
 

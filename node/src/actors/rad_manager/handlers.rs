@@ -20,16 +20,24 @@ impl Handler<ResolveRA> for RadManager {
 
     fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
         let timeout = msg.timeout;
+        let transports = self.get_http_transports();
+        let settings = RadonScriptExecutionSettings::disable_all();
         // The result of the RAD aggregation is computed asynchronously, because the async block
         // returns a std future. It is called fut03 because it uses the 0.3 version of futures,
         // while most of our codebase is still on 0.1 futures.
-        let fut03 = async {
+        let fut03 = async move {
             let sources = msg.rad_request.retrieve;
             let aggregator = msg.rad_request.aggregate;
+            let tally = msg.rad_request.tally;
 
-            let retrieve_responses_fut = sources
-                .iter()
-                .map(|retrieve| witnet_rad::run_retrieval(retrieve));
+            let retrieve_responses_fut = sources.iter().map(|retrieve| {
+                witnet_rad::run_paranoid_retrieval(
+                    retrieve,
+                    &tally,
+                    transports.as_slice(),
+                    settings,
+                )
+            });
 
             // Perform retrievals in parallel for the sake of synchronization between sources
             //  (increasing the likeliness of multiple sources returning results that are closer to each

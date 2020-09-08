@@ -16,8 +16,8 @@ pub struct WitnetHttpClient {
 
 impl WitnetHttpClient {
     /// Create a new `WitnetHttpClient`
-    pub fn new(proxy: &Option<&str>) -> Self {
-        let proxy_address = proxy.map(|x| Uri::from_str(x).unwrap());
+    pub fn new(proxy: &Option<String>) -> Self {
+        let proxy_address = proxy.as_ref().map(|x| Uri::from_str(x.as_str()).unwrap());
         let client = Arc::new(
             if let Some(proxy_address) = proxy_address {
                 isahc::HttpClient::builder().proxy(proxy_address)
