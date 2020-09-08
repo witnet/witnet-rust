@@ -243,6 +243,12 @@ pub struct Connections {
     /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
     /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
     pub reject_sybil_inbounds: bool,
+
+    /// Addresses to be used as proxies when performing data retrieval. This allows retrieving data
+    /// sources through different transports so as to ensure that the data sources are consistent
+    /// and we are taking as small of a risk as possible when committing to specially crafted data
+    /// requests that may be potentially ill-intended.
+    pub retrieval_proxies: Vec<String>,
 }
 
 fn from_millis<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
@@ -603,6 +609,10 @@ impl Connections {
                 .reject_sybil_inbounds
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_reject_sybil_inbounds()),
+            retrieval_proxies: config
+                .retrieval_proxies
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_retrieval_proxies()),
         }
     }
 }
@@ -927,6 +937,7 @@ mod tests {
             bucketing_ice_period: Some(Duration::from_secs(13200)),
             bucketing_update_period: Some(200),
             reject_sybil_inbounds: Some(false),
+            retrieval_proxies: Some(vec![]),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
 
