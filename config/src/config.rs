@@ -245,6 +245,12 @@ pub struct Connections {
     /// to prevent sybil peers from monopolizing our inbound capacity.
     pub reject_sybil_inbounds: bool,
 
+    /// Addresses to be used as proxies when performing data retrieval. This allows retrieving data
+    /// sources through different transports so as to ensure that the data sources are consistent
+    /// and we are taking as small of a risk as possible when committing to specially crafted data
+    /// requests that may be potentially ill-intended.
+    pub retrieval_proxies: Vec<String>,
+
     /// Limit to reject (tarpit) inbound connections. If the limit is set to 18, the addresses having
     /// the same first 18 bits in the IP will collide, so as to prevent sybil peers from monopolizing our inbound capacity.
     pub reject_sybil_inbounds_range_limit: u8,
@@ -668,6 +674,10 @@ impl Connections {
                 .requested_blocks_batch_limit
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_requested_blocks_batch_limit()),
+            retrieval_proxies: config
+                .retrieval_proxies
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_retrieval_proxies()),
         }
     }
 
@@ -692,6 +702,7 @@ impl Connections {
             reject_sybil_inbounds: Some(self.reject_sybil_inbounds),
             reject_sybil_inbounds_range_limit: Some(self.reject_sybil_inbounds_range_limit),
             requested_blocks_batch_limit: Some(self.requested_blocks_batch_limit),
+            retrieval_proxies: Some(self.retrieval_proxies.clone()),
         }
     }
 }
@@ -1244,6 +1255,7 @@ mod tests {
             reject_sybil_inbounds: Some(true),
             reject_sybil_inbounds_range_limit: Some(14),
             requested_blocks_batch_limit: Some(99),
+            retrieval_proxies: Some(vec![]),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
 

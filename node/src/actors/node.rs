@@ -55,7 +55,8 @@ pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
         SystemRegistry::set(inventory_manager_addr);
 
         // Start RadManager actor
-        let rad_manager_addr = RadManager::default().start();
+        let rad_manager_addr =
+        RadManager::with_proxies(config.connections.retrieval_proxies.clone()).start();
         SystemRegistry::set(rad_manager_addr);
 
         // Start JSON RPC server

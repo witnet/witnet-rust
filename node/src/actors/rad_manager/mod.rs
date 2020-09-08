@@ -22,6 +22,14 @@ pub struct RadManager {
 }
 
 impl RadManager {
+    /// Register a new proxy address to be used for "paranoid retrieval", i.e. retrieving data
+    /// sources through different transports so as to ensure that the data sources are consistent
+    /// and we are taking as small of a risk as possible when committing to specially crafted data
+    /// requests that may be potentially ill-intended.
+    pub fn add_proxy(&mut self, proxy_address: String) {
+        self.proxies.push(proxy_address)
+    }
+
     /// Derive HTTP transports from registered proxies.
     ///
     /// This internally injects a `None` at the beginning, standing for the base "clearnet"
@@ -30,6 +38,13 @@ impl RadManager {
         iter::once(None)
             .chain(self.proxies.iter().cloned().map(Some))
             .collect_vec()
+    }
+
+    /// Construct a `RadManager` with some initial proxy addresses.
+    pub fn with_proxies(proxies: Vec<String>) -> Self {
+        log::debug!("Configuring retrieval proxies: {:?}", proxies);
+
+        Self { proxies }
     }
 }
 

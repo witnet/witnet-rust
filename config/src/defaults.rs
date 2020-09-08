@@ -115,6 +115,12 @@ pub trait Defaults {
         500
     }
 
+    /// Addresses to be used as proxies when performing data retrieval. No proxies are used by
+    /// default.
+    fn connections_retrieval_proxies(&self) -> Vec<String> {
+        vec![]
+    }
+
     /// Timestamp at the start of epoch 0
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64;
 
