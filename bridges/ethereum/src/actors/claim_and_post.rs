@@ -8,6 +8,7 @@ use rand::{thread_rng, Rng};
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
+    convert::TryFrom,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -18,6 +19,7 @@ use witnet_data_structures::{
     chain::{DataRequestOutput, Hashable, KeyedSignature},
     proto::ProtobufConvert,
 };
+use witnet_util::timestamp::get_local_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
 fn convert_json_array_to_eth_bytes(value: Value) -> Result<Bytes, serde_json::Error> {
@@ -370,6 +372,7 @@ fn claim_and_post_dr(
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
     let eth_account = config.eth_account;
+    let post_to_witnet_again_after_timeout = config.post_to_witnet_again_after_timeout;
     let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
 
     try_to_claim_local_query(Arc::clone(&config), Arc::clone(&eth_state), Arc::clone(&witnet_client), dr_id)
@@ -390,12 +393,16 @@ fn claim_and_post_dr(
                             wrb_requests.set_claiming(dr_id);
                             Either::A(futures::finished(()))
                         } else if post_to_witnet_more_than_once && wrb_requests.claimed().contains_left(&dr_id) {
-                            // Post dr in witnet again.
-                            // This may lead to double spending wits.
-                            // This can be useful in the following scenarios:
-                            // * The data request is posted to Witnet, but it
-                            //   is not accepted into a Witnet block
-                            //   (or is invalid because of double-spending).
+                            let claimed_at = wrb_requests.claimed_timestamp(&dr_id).unwrap_or(0);
+                            let timestamp_now = u64::try_from(get_local_timestamp().0).unwrap();
+                            if timestamp_now.saturating_sub(claimed_at) < post_to_witnet_again_after_timeout {
+                                // Do not post this request yet
+                                log::debug!("[{}] Will not post again to witnet because the timeout has not been reached yet", dr_id);
+                                return Either::A(futures::failed(()));
+                            }
+
+                            // Update claimed timestamp
+                            wrb_requests.update_claimed_timestamp(&dr_id, timestamp_now);
 
                             log::warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
 
@@ -445,7 +452,8 @@ fn claim_and_post_dr(
 
                             move |()| {
                                 eth_state.wrb_requests.write().map(move |mut wrb_requests| {
-                                    wrb_requests.confirm_claim(dr_id, dr_output_hash);
+                                    let timestamp_now = u64::try_from(get_local_timestamp().0).unwrap();
+                                    wrb_requests.confirm_claim(dr_id, dr_output_hash, timestamp_now);
                                 })
                             }
                         })
