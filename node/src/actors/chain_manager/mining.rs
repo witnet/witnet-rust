@@ -4,18 +4,16 @@ use std::{
     future,
     future::Future,
     sync::{
-        atomic::{self, AtomicU16},
         Arc,
+        atomic::{self, AtomicU16},
     },
 };
 
 use actix::{
     ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner, SystemService,
-    WrapFuture,
-};
+    WrapFuture};
 use ansi_term::Color::{White, Yellow};
-use futures::future::{try_join_all, FutureExt};
-
+use futures::future::{FutureExt, try_join_all};
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
@@ -28,7 +26,7 @@ use witnet_data_structures::{
     },
     error::TransactionError,
     get_environment,
-    mainnet_validations::{after_second_hard_fork, ActiveWips},
+    mainnet_validations::{ActiveWips, after_second_hard_fork},
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
@@ -39,7 +37,11 @@ use witnet_data_structures::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
 use witnet_futures_utils::TryFutureExt2;
-use witnet_rad::{conditions::radon_report_from_error, error::RadError, types::serial_iter_decode};
+use witnet_rad::{
+    conditions::radon_report_from_error,
+    error::RadError,
+    types::{RadonTypes, serial_iter_decode},
+};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
@@ -548,7 +550,16 @@ impl ChainManager {
                         })
                         .map(move |res|
                             res.map(move |result| match result {
-                                    Ok(value) => Ok((vrf_proof, collateral, value)),
+                                    Ok(value) => {
+                                if let RadonTypes::RadonError(error) = &value.result {
+                                    if error.inner() == &RadError::InconsistentSource {
+                                        log::warn!("Refraining not to commit to data request {} because the sources are apparently inconsistent", dr_pointer);
+                                        return Err(())
+                                    }
+                                }
+
+                                Ok((vrf_proof, collateral, value))
+                            },
                                     Err(e) => {
                                         log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
                                         Err(())
@@ -1002,7 +1013,6 @@ mod tests {
     use witnet_crypto::secp256k1::{
         PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
     };
-
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
     use witnet_protected::Protected;

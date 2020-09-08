@@ -76,6 +76,18 @@ impl Handler<ResolveRA> for RadManager {
                     .map(|result| RadonReport::from_result(result, &ReportContext::default()))
                     .collect();
 
+            // Short-circuit if any of the sources is apparently inconsistent
+            let inconsistent = retrieve_responses.iter().find(|report| {
+                if let RadonTypes::RadonError(error) = &report.result {
+                    error.inner() == &RadError::InconsistentSource
+                } else {
+                    false
+                }
+            });
+            if let Some(report) = inconsistent {
+                return Ok(report.clone());
+            }
+
             // Evaluate tally precondition to ensure that at least 20% of the data sources are not errors.
             // This stage does not need to evaluate the postcondition.
             let clause_result =
