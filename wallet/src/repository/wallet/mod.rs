@@ -388,12 +388,12 @@ where
     }
 
     /// Index transactions in a block received from a node.
-    pub fn index_transactions(
+    pub fn index_block_transactions(
         &self,
         block_info: &model::Beacon,
         txns: &[model::ExtendedTransaction],
+        confirmed: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
-        let mut balance_movements = Vec::new();
         let mut state = self.state.write()?;
 
         for txn in txns {
@@ -638,7 +638,8 @@ where
         state: &mut State,
         txn: &model::ExtendedTransaction,
         block_info: &model::Beacon,
-    ) -> Result<Option<model::BalanceMovement>> {
+        confirmed: bool,
+    ) -> Result<Option<(model::BalanceMovement, Vec<model::AddressInfo>)>> {
         // Inputs and outputs from different transaction types
         let (inputs, outputs) = match &txn.transaction {
             types::Transaction::ValueTransfer(vt) => {
@@ -742,6 +743,7 @@ where
                 account_mutation.amount,
                 &block_info,
                 convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
+                confirmed,
             )?;
             batch.put(
                 keys::transaction_movement(account, txn_id),
@@ -959,7 +961,7 @@ where
     }
 
     /// Update which was the epoch of the last block that was processed by this wallet.
-    pub fn update_sync_state(&self, beacon: CheckpointBeacon) -> Result<()> {
+    pub fn update_sync_state(&self, beacon: CheckpointBeacon, confirmed: bool) -> Result<()> {
         log::debug!(
             "Setting tip of the chain for wallet {} to {:?}",
             self.id,
@@ -968,7 +970,21 @@ where
 
         if let Ok(mut write_guard) = self.state.write() {
             write_guard.last_sync = beacon;
+            if confirmed {
+                write_guard.last_confirmed = beacon;
+            }
         }
+
+        // // Only persist last_sync if block is confirmed
+        // if confirmed {
+        //     // TODO: modify last_sync for last_confirmed?
+        //     self.db
+        //         .put(&keys::wallet_last_sync(), beacon)
+        //         .map_err(Error::from)?
+        // }
+
+        Ok(())
+    }
 
         self.db
             .put(&keys::wallet_last_sync(), beacon)
@@ -989,6 +1005,7 @@ fn build_balance_movement(
     amount: u64,
     block_info: &model::Beacon,
     timestamp: i64,
+    confirmed: bool,
 ) -> Result<model::BalanceMovement> {
     // Input values with their ValueTransferOutput data
     let transaction_inputs = match &txn.metadata {
@@ -1087,11 +1104,8 @@ fn build_balance_movement(
         kind,
         amount,
         transaction: model::Transaction {
-            block: Some(model::Beacon {
-                epoch: block_info.epoch,
-                block_hash: block_info.block_hash,
-            }),
-            confirmed: false,
+            block: Some(block_info.clone()),
+            confirmed,
             data: transaction_data,
             hash: hex::encode(txn.transaction.hash()),
             miner_fee,
