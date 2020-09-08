@@ -18,6 +18,9 @@ enable_block_relay_old_blocks = true
 enable_claim_and_inclusion = true
 # Enable data request result reporting
 enable_result_reporting = true
+# If post_to_witnet_more_than_once is enabled, this is the minimum time in seconds that must
+# elapse before the same data request is created and broadcasted to the Witnet network.
+post_to_witnet_again_after_timeout = 3600 # 1 hour
 # Post data request more than once? Useful to retry if the data request
 # was not included in a block
 post_to_witnet_more_than_once = true
