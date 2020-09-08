@@ -9,7 +9,7 @@ impl Handler<jsonrpc::Notification> for app::App {
 
     fn handle(
         &mut self,
-        jsonrpc::Notification(topic, value): jsonrpc::Notification,
+        jsonrpc::Notification { id: topic, value }: jsonrpc::Notification,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.handle_notification(topic, value).ok();

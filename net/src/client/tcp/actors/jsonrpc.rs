@@ -146,11 +146,12 @@ impl Actor for JsonRpcClient {
 impl Supervised for JsonRpcClient {}
 
 /// JSONRPC notification.
-///
-/// Contains:
-/// 1. Subscription ID
-/// 2. A JSON value
-pub struct Notification(pub String, pub Value);
+pub struct Notification {
+    /// This doubles as subscription ID or subscription topic, depending on where it is used.
+    pub id: String,
+    /// A JSON value.
+    pub value: Value,
+}
 
 impl Message for Notification {
     type Result = ();
@@ -272,7 +273,10 @@ impl Handler<Subscribe> for JsonRpcClient {
                             .map(move |value| {
                                 log::debug!("<< Forwarding notification from node to subscribers",);
                                 log::trace!("<< {:?}", value);
-                                Notification(id.clone(), value)
+                                Notification {
+                                    id: id.clone(),
+                                    value,
+                                }
                             })
                             .map_err(|err| Error::RequestFailed {
                                 message: err.to_string(),
@@ -303,14 +307,17 @@ impl Handler<Subscribe> for JsonRpcClient {
 impl StreamHandler<Notification, Error> for JsonRpcClient {
     fn handle(
         &mut self,
-        Notification(subscription_id, value): Notification,
+        Notification {
+            id: subscription_id,
+            value,
+        }: Notification,
         _ctx: &mut Self::Context,
     ) {
         if let Ok(subscriptions) = (*self.active_subscriptions).lock() {
             if let Some(Subscribe(ref request, ref recipient)) = subscriptions.get(&subscription_id)
             {
                 let method = subscription_topic_from_request(request);
-                if let Err(err) = recipient.do_send(Notification(method, value)) {
+                if let Err(err) = recipient.do_send(Notification { id: method, value }) {
                     log::error!("Client couldn't notify subscriber: {}", err);
                 }
             }
