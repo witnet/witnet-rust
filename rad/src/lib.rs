@@ -1,31 +1,35 @@
 //! # RAD Engine
 
+extern crate surf;
+extern crate witnet_data_structures;
+
+use std::str::FromStr;
+
+use surf::http::headers::{HeaderName, HeaderValues, ToHeaderValues};
+use surf::RequestBuilder;
+
 use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
-use std::str::FromStr;
-use surf::{
-    http::headers::{HeaderName, HeaderValues, ToHeaderValues},
-    RequestBuilder,
-};
-
-#[cfg(test)]
-use witnet_data_structures::mainnet_validations::all_wips_active;
 use witnet_data_structures::{
     chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
-    mainnet_validations::{current_active_wips, ActiveWips},
+    mainnet_validations::{ActiveWips, current_active_wips},
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
 };
+#[cfg(test)]
+use witnet_data_structures::mainnet_validations::all_wips_active;
+use witnet_data_structures::radon_error::RadonError;
+use witnet_net::client::http::WitnetHttpClient;
 
 use crate::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
     error::RadError,
     script::{
-        create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
-        RadonScriptExecutionSettings,
+        create_radon_script_from_filters_and_reducer, execute_radon_script, RadonScriptExecutionSettings,
+        unpack_radon_script,
     },
-    types::{array::RadonArray, bytes::RadonBytes, string::RadonString, RadonTypes},
+    types::{array::RadonArray, bytes::RadonBytes, RadonTypes, string::RadonString},
     user_agents::UserAgent,
 };
 
@@ -83,7 +87,7 @@ pub fn try_data_request(
             request
                 .retrieve
                 .iter()
-                .map(|retrieve| run_retrieval_report(retrieve, settings, active_wips.clone()))
+                .map(|retrieve| run_retrieval_report(retrieve, settings, &active_wips, None))
                 .collect::<Vec<_>>(),
         ))
     };
@@ -116,7 +120,7 @@ pub fn try_data_request(
             // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
             // failures.
             let (aggregation_result, aggregation_context) =
-                run_aggregation_report(values, &request.aggregate, settings, active_wips.clone());
+                run_aggregation_report(values, &request.aggregate, settings, &active_wips);
 
             aggregation_result
                 .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context))
@@ -137,7 +141,7 @@ pub fn try_data_request(
         None,
         None,
         settings,
-        active_wips,
+        &active_wips,
     );
     let tally_report =
         tally_result.unwrap_or_else(|error| RadonReport::from_result(Err(error), &tally_context));
@@ -208,6 +212,7 @@ async fn http_response(
     retrieve: &RADRetrieve,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
+    client: Option<WitnetHttpClient>,
 ) -> Result<RadonReport<RadonTypes>> {
     // Validate URL because surf::get panics on invalid URL
     // It could still panic if surf gets updated and changes their URL parsing library
@@ -217,11 +222,14 @@ async fn http_response(
         url: retrieve.url.clone(),
     })?;
 
+    // Use the provided HTTP client, or instantiate a new one if none
+    let client = client.unwrap_or_default().as_surf_client();
+
     let request = match retrieve.kind {
-        RADType::HttpGet => surf::get(&retrieve.url),
+        RADType::HttpGet => client.get(&retrieve.url),
         RADType::HttpPost => {
             // The call to `.body` sets the content type header to `application/octet-stream`
-            surf::post(&retrieve.url).body(retrieve.body.clone())
+            client.post(&retrieve.url).body(retrieve.body.clone())
         }
         _ => panic!(
             "Called http_response with invalid retrieval kind {:?}",
@@ -349,29 +357,101 @@ fn add_http_headers(
 pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
-    active_wips: ActiveWips,
+    active_wips: &ActiveWips,
+    client: Option<WitnetHttpClient>,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
-    context.set_active_wips(active_wips);
+    context.set_active_wips(active_wips.clone());
 
     match retrieve.kind {
-        RADType::HttpGet => http_response(retrieve, context, settings).await,
+        RADType::HttpGet => http_response(retrieve, context, settings, client).await,
         RADType::Rng => rng_response(context, settings).await,
-        RADType::HttpPost => http_response(retrieve, context, settings).await,
+        RADType::HttpPost => http_response(retrieve, context, settings, client).await,
         _ => Err(RadError::UnknownRetrieval),
     }
 }
 
 /// Run retrieval stage of a data request, return `Result<RadonTypes>`.
-pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: ActiveWips) -> Result<RadonTypes> {
+pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: &ActiveWips) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     run_retrieval_report(
         retrieve,
         RadonScriptExecutionSettings::disable_all(),
         active_wips,
+        None,
     )
     .await
     .map(RadonReport::into_inner)
+}
+
+/// Run retrieval using multiple transports, and only produce a positive result if the retrieved
+/// values pass the filter function from the tally stage.
+///
+/// The idea behind this is to avoid producing commitments for data requests with sources that act
+/// in an inconsistent way, i.e. they return very different values when queried through different
+/// HTTP transports at once.
+pub async fn run_paranoid_retrieval(
+    retrieve: &RADRetrieve,
+    tally: &RADTally,
+    settings: RadonScriptExecutionSettings,
+    active_wips: &ActiveWips,
+    transports: &[Option<String>],
+) -> Result<RadonTypes> {
+    let futures: Result<Vec<_>> = transports
+        .iter()
+        .map(|transport| {
+            WitnetHttpClient::new(transport).map_err(|err| RadError::HttpOther { message: err.to_string() }).map(|client| run_retrieval_report(
+                retrieve,
+                RadonScriptExecutionSettings::disable_all(),
+                active_wips,
+                Some(client),
+            ))
+        })
+        .collect();
+
+    let values = join_all(futures?).await;
+
+    evaluate_paranoid_retrieval(values, tally, settings)
+}
+
+/// Evaluate whether the values obtained when retrieving a data source through multiple transports
+/// are consistent, i.e. they all pass the filters from the tally stage.
+fn evaluate_paranoid_retrieval(
+    data: Vec<Result<RadonReport<RadonTypes>>>,
+    tally: &RADTally,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonTypes> {
+    let mut values = vec![];
+
+    // Turn the reports into values, short-circuiting if any retrieval inevitably failed.
+    for each in data {
+        let report = each?;
+        let result = report.into_inner();
+        values.push(result);
+    }
+
+    // If there was only one retrieved value, there's no actual need to run the tally, as this means
+    // that only one transport was used and therefore the node is not in paranoid mode.
+    if values.len() > 1 {
+        let mut context = ReportContext::from_stage(Stage::Tally(TallyMetaData::default()));
+        let _tally = run_tally_with_context_report(values.clone(), tally, &mut context, settings);
+
+        // If at least one of the retrieved values is marked as an outlier, resolve to the
+        // `InconsistentSource` error.
+        if let Stage::Tally(TallyMetaData { liars, .. }) = context.stage {
+            if !liars.is_empty() {
+                return Ok(RadonTypes::RadonError(RadonError::<RadError>::new(
+                    RadError::InconsistentSource,
+                )));
+            }
+        }
+    }
+
+    // If all values pass the filters, return the first value (any of them will work, actually)
+    Ok(values
+        .get(0)
+        .expect("At least one value must have been received")
+        .clone())
 }
 
 /// Run aggregate stage of a data request, return a tuple of `Result<RadonReport>` and `ReportContext`
@@ -379,10 +459,10 @@ pub fn run_aggregation_report(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
     settings: RadonScriptExecutionSettings,
-    active_wips: ActiveWips,
+    active_wips: &ActiveWips,
 ) -> (Result<RadonReport<RadonTypes>>, ReportContext<RadonTypes>) {
     let mut context = ReportContext::from_stage(Stage::Aggregation);
-    context.set_active_wips(active_wips);
+    context.set_active_wips(active_wips.clone());
 
     let aux =
         run_aggregation_with_context_report(radon_types_vec, aggregate, &mut context, settings);
@@ -418,7 +498,7 @@ pub fn run_aggregation_with_context_report(
 pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
-    active_wips: ActiveWips,
+    active_wips: &ActiveWips,
 ) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     let (res, _) = run_aggregation_report(
@@ -438,7 +518,7 @@ pub fn run_tally_report(
     liars: Option<Vec<bool>>,
     errors: Option<Vec<bool>>,
     settings: RadonScriptExecutionSettings,
-    active_wips: ActiveWips,
+    active_wips: &ActiveWips,
 ) -> (Result<RadonReport<RadonTypes>>, ReportContext<RadonTypes>) {
     let mut metadata = TallyMetaData::default();
     if let Some(liars) = liars {
@@ -453,7 +533,7 @@ pub fn run_tally_report(
     }
     let mut context = ReportContext {
         stage: Stage::Tally(metadata),
-        active_wips: Some(active_wips),
+        active_wips: Some(active_wips.clone()),
         ..Default::default()
     };
 
@@ -494,7 +574,7 @@ pub fn run_tally_with_context_report(
 pub fn run_tally(
     radon_types_vec: Vec<RadonTypes>,
     consensus: &RADTally,
-    active_wips: ActiveWips,
+    active_wips: &ActiveWips,
 ) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     let settings = RadonScriptExecutionSettings::disable_all();
@@ -515,7 +595,6 @@ mod tests {
     use std::convert::TryFrom;
 
     use serde_cbor::Value;
-
     use witnet_data_structures::{
         chain::RADFilter,
         radon_error::{RadonError, RadonErrors},

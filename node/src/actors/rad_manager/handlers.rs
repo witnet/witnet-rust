@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use actix::{Handler, ResponseFuture};
 use futures::FutureExt;
-
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 use witnet_rad::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
@@ -27,6 +26,9 @@ impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<Result<RadonReport<RadonTypes>, RadError>>;
 
     fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
+        // Fetching the HTTP transports this early makes lifetimes easier for the fut block below
+        let transports = self.get_http_transports();
+
         // The result of the RAD aggregation is computed asynchronously, because the async block
         // returns a future
         let fut = async move {
@@ -45,16 +47,24 @@ impl Handler<ResolveRA> for RadManager {
                     std::cmp::min(timeout_from_config, MAX_RETRIEVAL_TIMEOUT)
                 }
             };
+            let tally = msg.rad_request.tally;
 
-            let retrieve_responses_fut = sources
-                .iter()
-                .map(|retrieve| witnet_rad::run_retrieval(retrieve, active_wips.clone()))
-                .map(|fut| {
-                    tokio::time::timeout(timeout, fut).map(|response| {
-                        // In case of timeout, set response to "RetrieveTimeout" error
-                        response.unwrap_or(Err(RadError::RetrieveTimeout))
-                    })
-                });
+            let settings = RadonScriptExecutionSettings::disable_all();
+
+            let retrieve_responses_fut = sources.iter().map(|retrieve| {
+                witnet_rad::run_paranoid_retrieval(
+                    retrieve,
+                    &tally,
+                    settings,
+                    &active_wips,
+                    transports.as_slice(),
+                )
+            }).map(|fut| {
+                tokio::time::timeout(timeout, fut).map(|response| {
+                    // In case of timeout, set response to "RetrieveTimeout" error
+                    response.unwrap_or(Err(RadError::RetrieveTimeout))
+                })
+            });
 
             // Perform retrievals in parallel for the sake of synchronization between sources
             //  (increasing the likeliness of multiple sources returning results that are closer to each
@@ -83,7 +93,7 @@ impl Handler<ResolveRA> for RadManager {
                         values,
                         &aggregator,
                         RadonScriptExecutionSettings::all_but_partial_results(),
-                        msg.active_wips,
+                        &msg.active_wips,
                     );
 
                     res

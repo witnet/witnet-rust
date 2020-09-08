@@ -5842,6 +5842,7 @@ dependencies = [
  "url 2.2.2",
  "witnet_crypto",
  "witnet_data_structures",
+ "witnet_net",
  "witnet_util",
 ]
 

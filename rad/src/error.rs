@@ -365,6 +365,9 @@ pub enum RadError {
         value: String,
         error: String,
     },
+    /// Source looks inconsistent when queried through multiple transports at once.
+    #[fail(display = "Source looks inconsistent when queried through multiple transports at once")]
+    InconsistentSource,
 }
 
 impl RadError {

@@ -2973,12 +2973,13 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
     // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
     // This does not validate other data request parameters such as number of witnesses, weight, or
     // collateral, so it is still possible that this request is considered invalid by miners.
-    validate_rad_request(&dr.data_request, &current_active_wips())?;
+    let active_wips = current_active_wips();
+    validate_rad_request(&dr.data_request, &active_wips)?;
 
     // TODO: remove blocking calls, this code is no longer part of the CLI
     // Block on data request retrieval because the CLI application blocks everywhere anyway
     let run_retrieval_blocking = |retrieve| {
-        futures::executor::block_on(witnet_rad::run_retrieval(retrieve, current_active_wips()))
+        futures::executor::block_on(witnet_rad::run_retrieval(retrieve, &active_wips))
     };
 
     let mut retrieval_results = vec![];
@@ -2991,7 +2992,7 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
         &dr.data_request.aggregate,
-        current_active_wips(),
+        &active_wips,
     )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
@@ -3005,7 +3006,7 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
     let tally_result = witnet_rad::run_tally(
         reported_values?,
         &dr.data_request.tally,
-        current_active_wips(),
+        &active_wips,
     )?;
     log::info!("Tally result: {:?}", tally_result);
 

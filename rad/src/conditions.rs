@@ -256,7 +256,7 @@ pub fn construct_report_from_clause_result(
                 Some(liars),
                 Some(errors),
                 RadonScriptExecutionSettings::all_but_partial_results(),
-                active_wips.clone(),
+                &active_wips,
             ) {
                 (Ok(x), _) => x,
                 (Err(e), _) => {

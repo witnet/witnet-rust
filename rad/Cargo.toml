@@ -30,4 +30,5 @@ url = "2.1.1"
 
 witnet_crypto = { path = "../crypto" }
 witnet_data_structures = { path = "../data_structures" }
+witnet_net = { path = "../net" }
 witnet_util = { path = "../util" }

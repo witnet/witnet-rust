@@ -70,12 +70,12 @@ pub enum WitnetHttpError {
 
 impl WitnetHttpClient {
     /// Create a new `WitnetHttpClient`
-    pub fn new(proxy: Option<String>) -> Result<Self, WitnetHttpError> {
+    pub fn new(proxy: &Option<String>) -> Result<Self, WitnetHttpError> {
         // Try to parse the provided proxy address, if any, and fail if the address is not a valid URI
         let proxy_uri = if let Some(address) = proxy {
-            Some(isahc::http::Uri::from_str(address.as_str()).map_err(|err| {
+            Some(isahc::http::Uri::from_str(address.as_ref()).map_err(|err| {
                 WitnetHttpError::InvalidProxyUri {
-                    address,
+                    address: address.clone(),
                     msg: err.to_string(),
                 }
             })?)
@@ -99,6 +99,12 @@ impl WitnetHttpClient {
     /// Turn this `WitnetHttpClient` into a `surf`-compatible client
     pub fn as_surf_client(&self) -> surf::Client {
         surf::Client::with_http_client(self.clone())
+    }
+}
+
+impl Default for WitnetHttpClient {
+    fn default() -> Self {
+        Self::new(&None).unwrap()
     }
 }
 
