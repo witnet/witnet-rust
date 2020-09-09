@@ -472,6 +472,8 @@ pub enum StoreInventoryItem {
     Block(Box<Block>),
     /// Transactions are stored as pointers to blocks
     Transaction(Hash, PointerToBlock),
+    /// Superblocks are stored as the list of block hashes
+    Superblock((u32, Vec<Hash>)),
 }
 
 /// Add a new item
@@ -522,6 +524,16 @@ pub struct GetItemTransaction {
 
 impl Message for GetItemTransaction {
     type Result = Result<(Transaction, PointerToBlock), InventoryManagerError>;
+}
+
+/// Ask for a superblock identified by its index
+pub struct GetItemSuperblock {
+    /// item hash
+    pub superblock_index: u32,
+}
+
+impl Message for GetItemSuperblock {
+    type Result = Result<Vec<Hash>, InventoryManagerError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

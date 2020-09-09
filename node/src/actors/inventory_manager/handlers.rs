@@ -3,7 +3,8 @@ use actix::{ActorFuture, Context, Handler, ResponseActFuture, WrapFuture};
 
 use super::{InventoryManager, InventoryManagerError};
 use crate::actors::messages::{
-    AddItem, AddItems, GetItem, GetItemBlock, GetItemTransaction, StoreInventoryItem,
+    AddItem, AddItems, GetItem, GetItemBlock, GetItemSuperblock, GetItemTransaction,
+    StoreInventoryItem,
 };
 use crate::storage_mngr;
 use witnet_data_structures::chain::{
@@ -37,6 +38,7 @@ impl Handler<AddItems> for InventoryManager {
     fn handle(&mut self, msg: AddItems, _ctx: &mut Context<Self>) -> Self::Result {
         let mut blocks_to_add = vec![];
         let mut transactions_to_add = vec![];
+        let mut superblocks_to_add = vec![];
 
         for item in msg.items {
             match item {
@@ -65,11 +67,16 @@ impl Handler<AddItems> for InventoryManager {
 
                     transactions_to_add.push((key, pointer_to_block));
                 }
+                StoreInventoryItem::Superblock((superblock_index, block_hashes)) => {
+                    let key = key_superblock(superblock_index);
+                    superblocks_to_add.push((key, block_hashes));
+                }
             }
         }
 
         let block_len = blocks_to_add.len();
         let tx_len = transactions_to_add.len();
+        let superblock_len = superblocks_to_add.len();
 
         log::trace!("Persisting {} blocks to storage", block_len);
 
@@ -93,14 +100,25 @@ impl Handler<AddItems> for InventoryManager {
 
                             InventoryManagerError::MailBoxError(e)
                         })
-                        .and_then(move |(), _, _| {
-                            log::trace!(
-                                "Successfully persisted {} transactions to storage",
-                                tx_len
-                            );
+                })
+                .and_then(move |(), act, _| {
+                    log::trace!("Successfully persisted {} transactions to storage", tx_len);
 
-                            actix::fut::ok(())
+                    storage_mngr::put_batch(&superblocks_to_add)
+                        .into_actor(act)
+                        .map_err(|e, _, _| {
+                            log::error!("Error when writing superblocks to storage: {}", e);
+
+                            InventoryManagerError::MailBoxError(e)
                         })
+                })
+                .and_then(move |(), _, _| {
+                    log::trace!(
+                        "Successfully persisted {} superblocks to storage",
+                        superblock_len
+                    );
+
+                    actix::fut::ok(())
                 }),
         )
     }
@@ -214,6 +232,37 @@ impl Handler<GetItemTransaction> for InventoryManager {
                     let fut: Self::Result =
                         Box::new(fut::err(InventoryManagerError::MailBoxError(e)));
                     fut
+                }
+            });
+
+        Box::new(fut)
+    }
+}
+
+fn key_superblock(superblock_index: u32) -> Vec<u8> {
+    // Add 0 padding to the left of the superblock index to make sorted keys represent consecutive
+    // indexes
+    format!("SUPERBLOCK-{:010}", superblock_index).into()
+}
+
+/// Handler for GetItemSuperblock message
+impl Handler<GetItemSuperblock> for InventoryManager {
+    type Result = ResponseActFuture<Self, Vec<Hash>, InventoryManagerError>;
+
+    fn handle(&mut self, msg: GetItemSuperblock, _ctx: &mut Context<Self>) -> Self::Result {
+        let key = key_superblock(msg.superblock_index);
+
+        let fut = storage_mngr::get::<_, Vec<Hash>>(&key)
+            .into_actor(self)
+            .then(move |res, _, _| match res {
+                Ok(opt) => match opt {
+                    None => fut::err(InventoryManagerError::ItemNotFound),
+                    Some(superblock) => fut::ok(superblock),
+                },
+                Err(e) => {
+                    log::error!("Couldn't get item from storage: {}", e);
+
+                    fut::err(InventoryManagerError::MailBoxError(e))
                 }
             });
 
