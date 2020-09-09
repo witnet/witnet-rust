@@ -16,10 +16,10 @@ pub use witnet_crypto::{
 };
 pub use witnet_data_structures::{
     chain::{
-        Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Hash, Hashable,
-        Input as TransactionInput, KeyedSignature, OutputPointer, PublicKey, PublicKeyHash,
-        PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve, RADTally,
-        ValueTransferOutput as VttOutput,
+        Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Hash,
+        HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer,
+        PublicKey, PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve,
+        RADTally, SuperBlock, ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
     radon_error::{RadonError, RadonErrors},
@@ -251,4 +251,16 @@ pub struct GetTransactionResponse {
     /// Hash of the block that contains this transaction in hex format,
     /// or "pending" if the transaction has not been included in any block yet
     pub block_hash: String,
+}
+
+/// Notification signaling that a superblock has been consolidated.
+///
+/// As per current consensus algorithm, "consolidated blocks" implies that there exists at least one
+/// superblock in the chain that builds upon the superblock where those blocks were anchored.
+#[derive(Clone, Deserialize)]
+pub struct SuperBlockNotification {
+    /// The superblock that we are signaling as consolidated.
+    pub superblock: SuperBlock,
+    /// The hashes of the blocks that we are signaling as consolidated.
+    pub consolidated_block_hashes: Vec<String>,
 }
