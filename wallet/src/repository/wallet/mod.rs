@@ -265,23 +265,37 @@ where
     pub fn transactions(&self, offset: u32, limit: u32) -> Result<model::Transactions> {
         let state = self.state.read()?;
         let account = state.account;
+
+        // Total amount of state and db transactions
         let total = state.transaction_next_id;
+        let mut transactions = Vec::with_capacity(total as usize);
 
-        let end = total.saturating_sub(offset);
-        let start = end.saturating_sub(limit);
-        let range = start..end;
-        let mut transactions = Vec::with_capacity(range.len());
+        let db_total = self.get_transactions_total(account)?;
+        if db_total > 0 {
+            let end = db_total.saturating_sub(offset);
+            let start = end.saturating_sub(limit);
+            let range = start..end;
 
-        for index in range.rev() {
-            match self.get_transaction(account, index) {
-                Ok(transaction) => {
-                    transactions.push(transaction);
-                }
-                Err(e) => {
-                    log::error!("transactions: {}", e);
+            for index in range.rev() {
+                match self.get_transaction(account, index) {
+                    Ok(transaction) => {
+                        transactions.push(transaction);
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Error while retrieving transaction with index {}: {}",
+                            index,
+                            e
+                        );
+                    }
                 }
             }
         }
+
+        // Append balance movements of pending blocks
+        state.pending_movements.values().for_each(|x| {
+            transactions.extend_from_slice(x);
+        });
 
         Ok(model::Transactions {
             transactions,
@@ -305,6 +319,13 @@ where
             keychain,
             info,
         })
+    }
+
+    /// Get the total amount of transactions stored in the database.
+    pub fn get_transactions_total(&self, account: u32) -> Result<u32> {
+        Ok(self
+            .db
+            .get_or_default(&keys::transaction_next_id(account))?)
     }
 
     /// Get a transaction if exists.
