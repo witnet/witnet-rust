@@ -34,8 +34,9 @@ use crate::{
         messages::{
             AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, GetBalance,
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestReport, GetEpoch,
-            GetHighestCheckpointBeacon, GetItemBlock, GetItemTransaction, GetKnownPeers,
-            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState, GetUtxoInfo,
+            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
+            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
+            GetUtxoInfo,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -79,6 +80,9 @@ pub fn jsonrpc_io_handler(
     io.add_method("getMempool", |params: Params| get_mempool(params.parse()));
     io.add_method("getConsensusConstants", |params: Params| {
         get_consensus_constants(params.parse())
+    });
+    io.add_method("getSuperblockBlocks", |params: Params| {
+        get_superblock_blocks(params.parse())
     });
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
@@ -1218,6 +1222,32 @@ pub fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) -> JsonR
     Box::new(fut)
 }
 
+/// Get the blocks that pertain to the superblock index
+pub fn get_superblock_blocks(params: Result<(u32,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let superblock_index = match params {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let inventory_manager_addr = InventoryManager::from_registry();
+
+    let fut = inventory_manager_addr
+        .send(GetItemSuperblock { superblock_index })
+        .map_err(internal_error)
+        .and_then(|dr_info| match dr_info {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -1516,6 +1546,7 @@ mod tests {
                 "getPublicKey",
                 "getReputation",
                 "getReputationAll",
+                "getSuperblockBlocks",
                 "getTransaction",
                 "getUtxoInfo",
                 "inventory",
