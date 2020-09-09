@@ -1,6 +1,9 @@
 //! Stream of Witnet events
 
-use crate::{actors::{WitnetSuperBlock, SuperBlockNotification}, config::Config};
+use crate::{
+    actors::{SuperBlockNotification, WitnetSuperBlock},
+    config::Config,
+};
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use futures::{future::Either, sink::Sink};
 use serde_json::json;
@@ -81,7 +84,10 @@ pub fn witnet_block_stream(
                         let tx1 = tx.clone();
                         match serde_json::from_value::<SuperBlockNotification>(value) {
                             Ok(superblock_notification) => {
-                                log::debug!("Got witnet superblock: {:?}", superblock_notification.superblock);
+                                log::debug!(
+                                    "Got witnet superblock: {:?}",
+                                    superblock_notification.superblock
+                                );
                                 Either::A(
                                     tx1.send(WitnetSuperBlock::New(superblock_notification))
                                         .map_err(|e| {

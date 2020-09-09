@@ -1,7 +1,7 @@
 use futures::Future;
-use web3::types::{TransactionReceipt, U256};
-use witnet_data_structures::chain::{Block, SuperBlock, Hash};
 use serde::Deserialize;
+use web3::types::{TransactionReceipt, U256};
+use witnet_data_structures::chain::{Block, Hash, SuperBlock};
 
 pub mod block_relay_and_poi;
 pub mod block_relay_check;
@@ -22,7 +22,7 @@ pub enum ClaimMsg {
 
 /// Struct for deserializing the message returned by the superblock notification
 #[derive(Debug, Deserialize)]
-pub struct SuperBlockNotification{
+pub struct SuperBlockNotification {
     /// The superblock that we are signaling as consolidated.
     pub superblock: SuperBlock,
     /// The hashes of the blocks that we are signaling as consolidated.

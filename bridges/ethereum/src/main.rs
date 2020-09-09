@@ -131,8 +131,11 @@ fn run() -> Result<(), String> {
             tokio::spawn(fut);
         }));
     } else {
-        let (claim_and_post_tx, claim_and_post_fut) =
-            claim_and_post(Arc::clone(&config), Arc::clone(&eth_state), witnet_client.clone());
+        let (claim_and_post_tx, claim_and_post_fut) = claim_and_post(
+            Arc::clone(&config),
+            Arc::clone(&eth_state),
+            witnet_client.clone(),
+        );
         let wrb_requests_initial_sync_fut = get_new_requests(
             Arc::clone(&config),
             Arc::clone(&eth_state),

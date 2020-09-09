@@ -1,6 +1,7 @@
 //! Periodically ask the Witnet node for resolved data requests
 
 use crate::{actors::WitnetBlock, config::Config, eth::EthState};
+use async_jsonrpc_client::transports::tcp::TcpSocket;
 use async_jsonrpc_client::{futures::Stream, Transport};
 use futures::{future::Either, sink::Sink};
 use rand::{thread_rng, Rng};
@@ -12,7 +13,6 @@ use std::{
 use tokio::{sync::mpsc, timer::Interval};
 use web3::futures::Future;
 use witnet_data_structures::{chain::Block, chain::DataRequestInfo};
-use async_jsonrpc_client::transports::tcp::TcpSocket;
 
 /// Periodically ask the Witnet node for resolved data requests
 pub fn tally_finder(
@@ -20,12 +20,9 @@ pub fn tally_finder(
     eth_state: Arc<EthState>,
     tx: mpsc::Sender<WitnetBlock>,
     witnet_client: Arc<TcpSocket>,
-) ->
-    impl Future<Item = (), Error = ()>
- {
+) -> impl Future<Item = (), Error = ()> {
     let witnet_client = Arc::clone(&witnet_client);
     let witnet_client1 = witnet_client.clone();
-
 
     Interval::new(Instant::now(), Duration::from_millis(config.witnet_dr_report_polling_rate_ms))
         .map_err(|e| log::error!("Error creating interval: {:?}", e))
