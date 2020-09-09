@@ -345,6 +345,15 @@ impl Handler<AddBlocks> for ChainManager {
                             return;
                         }
 
+                        // Persist blocks batch when target not reached
+                        // FIXME(#1437): this blocks should be marked as "pending" because we don't
+                        // know if they are valid yet. We can mark them as valid after verifying
+                        // that the top blocks pertain to the target superblock.
+                        self.persist_blocks_batch(ctx, blocks);
+                        let to_be_stored =
+                            self.chain_state.data_request_pool.finished_data_requests();
+                        self.persist_data_requests(ctx, to_be_stored);
+
                         log::debug!("TargetNotReached: superblock target #{} not reached, requesting more blocks. ({} processed blocks)",
                             sync_target.superblock.checkpoint, num_processed_blocks);
                         self.request_blocks_batch(ctx);
