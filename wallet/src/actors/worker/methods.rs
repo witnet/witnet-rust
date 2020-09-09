@@ -241,9 +241,11 @@ impl Worker {
     ) -> Result<Vec<model::BalanceMovement>> {
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
         log::info!(
-            "Indexing {} wallet transactions from epoch {}",
+            "Indexing block #{} ({}) with {} ({}) transactions",
+            block_info.epoch,
+            block_info.block_hash,
             &filtered_txns.len(),
-            block_info.epoch
+            if confirmed { "confirmed" } else { "pending" },
         );
         // Extending transactions with metadata queried from the node
         let extended_txns = self.extend_transactions_data(filtered_txns)?;
@@ -787,6 +789,27 @@ impl Worker {
 
         // Update wallet state with the last indexed epoch and block hash
         wallet.update_sync_state(new_last_sync, confirmed)?;
+
+        Ok(())
+    }
+
+    /// Handle superblock notification by confirming the transactions of the consolidated blocks
+    pub fn handle_superblock(
+        &self,
+        block_notification: types::SuperBlockNotification,
+        wallet: types::SessionWallet,
+        sink: types::DynamicSink,
+    ) -> Result<()> {
+        log::info!(
+            "Superblock #{} notification received. Consolidating {} pending blocks...",
+            block_notification.superblock.index,
+            block_notification.consolidated_block_hashes.len()
+        );
+
+        log::debug!(
+            "Blocks to consolidate: {:?}",
+            block_notification.consolidated_block_hashes
+        );
 
         Ok(())
     }

@@ -506,6 +506,7 @@ impl App {
     pub fn handle_notification(&mut self, topic: String, value: types::Json) -> Result<()> {
         match topic.as_str() {
             "blocks" => self.handle_block_notification(value),
+            "superblocks" => self.handle_superblock_notification(value),
             _ => {
                 log::debug!("Unhandled `{}` notification", topic);
                 log::trace!("Payload is {:?}", value);
@@ -535,6 +536,31 @@ impl App {
         Ok(())
     }
 
+    /// Handle superblock notifications received from a Witnet node.
+    pub fn handle_superblock_notification(&mut self, value: types::Json) -> Result<()> {
+        let superblock_notification =
+            serde_json::from_value::<types::SuperBlockNotification>(value).map_err(node_error)?;
+
+        // This iterator is collected early so as to free the immutable reference to `self`.
+        let wallets: Vec<types::SessionWallet> = self
+            .state
+            .wallets
+            .iter()
+            .map(|(_, wallet)| wallet.clone())
+            .collect();
+
+        for wallet in wallets.iter() {
+            let sink = self.state.get_sink(&wallet.session_id);
+            self.handle_superblock_in_worker(
+                superblock_notification.clone(),
+                wallet.clone(),
+                sink.clone(),
+            );
+        }
+
+        Ok(())
+    }
+
     /// Offload block processing into a worker that operates on a different Arbiter than the main
     /// server thread, so as not to lock the rest of the application.
     pub fn handle_block_in_worker(
@@ -549,6 +575,21 @@ impl App {
         self.params.worker.do_send(HandleBlockRequest {
             block: block.clone(),
             wallet: wallet.clone(),
+            sink,
+        });
+    }
+
+    /// Offload superblock processing into a worker that operates on a different Arbiter than the main
+    /// server thread, so as not to lock the rest of the application.
+    pub fn handle_superblock_in_worker(
+        &self,
+        superblock_notification: types::SuperBlockNotification,
+        wallet: types::SessionWallet,
+        sink: types::DynamicSink,
+    ) {
+        self.params.worker.do_send(HandleSuperBlockRequest {
+            superblock_notification,
+            wallet,
             sink,
         });
     }

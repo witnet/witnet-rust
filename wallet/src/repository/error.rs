@@ -37,6 +37,10 @@ pub enum Error {
     RevealRadDecode(String),
     #[fail(display = "transaction metadata type is wrong: {}", _0)]
     WrongMetadataType(String),
+    #[fail(display = "block consolidation failed: {}", _0)]
+    BlockConsolidation(String),
+    #[fail(display = "hash parsing failed: {}", _0)]
+    HashParseError(#[cause] types::HashParseError),
 }
 
 impl From<failure::Error> for Error {
@@ -72,5 +76,11 @@ impl From<types::KeyDerivationError> for Error {
 impl From<types::PublicKeyHashParseError> for Error {
     fn from(err: types::PublicKeyHashParseError) -> Self {
         Error::Pkh(err)
+    }
+}
+
+impl From<types::HashParseError> for Error {
+    fn from(err: types::HashParseError) -> Self {
+        Error::HashParseError(err)
     }
 }
