@@ -69,9 +69,9 @@ use crate::{
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
-            AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, GetBlocksEpochRange,
-            GetItemBlock, SendInventoryItem, SendLastBeacon, SendSuperBlockVote,
-            StoreInventoryItem, SuperBlockNotify,
+            AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast,
+            GetBlocksEpochRange, GetItemBlock, SendInventoryItem, SendLastBeacon,
+            SendSuperBlockVote, StoreInventoryItem, SuperBlockNotify,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -1530,10 +1530,18 @@ impl ChainManager {
             let consolidated_block_hashes: Vec<Hash> =
                 beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
 
+            // Store the list of block hashes that pertain to this superblock
+            InventoryManager::from_registry().do_send(AddItem {
+                item: StoreInventoryItem::Superblock((
+                    superblock.index,
+                    consolidated_block_hashes.clone(),
+                )),
+            });
+
             JsonRpcServer::from_registry().do_send(SuperBlockNotify {
                 superblock,
                 consolidated_block_hashes,
-            })
+            });
         }
     }
 }
