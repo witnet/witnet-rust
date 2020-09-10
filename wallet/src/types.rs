@@ -16,11 +16,12 @@ pub use witnet_crypto::{
 };
 pub use witnet_data_structures::{
     chain::{
-        Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Hash,
+        Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
         HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer,
         PublicKey, PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve,
         RADTally, SuperBlock, ValueTransferOutput as VttOutput,
     },
+    error::EpochCalculationError,
     proto::ProtobufConvert,
     radon_error::{RadonError, RadonErrors},
     radon_report::RadonReport,

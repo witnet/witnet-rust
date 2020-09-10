@@ -33,6 +33,8 @@ pub enum Error {
     OutputIndexNotFound(u32, String),
     #[fail(display = "transaction type not supported")]
     TransactionTypeNotSupported,
+    #[fail(display = "epoch calculation error {}", _0)]
+    EpochCalculation(#[cause] witnet_data_structures::error::EpochCalculationError),
 }
 
 #[derive(Debug, Fail)]
@@ -109,5 +111,11 @@ impl From<tcp::Error> for Error {
 impl From<witnet_data_structures::chain::HashParseError> for Error {
     fn from(err: witnet_data_structures::chain::HashParseError) -> Self {
         block_error(err)
+    }
+}
+
+impl From<witnet_data_structures::error::EpochCalculationError> for Error {
+    fn from(err: witnet_data_structures::error::EpochCalculationError) -> Self {
+        Error::EpochCalculation(err)
     }
 }

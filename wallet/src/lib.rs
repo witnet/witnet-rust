@@ -51,6 +51,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         checkpoint_zero_timestamp: conf.consensus_constants.checkpoint_zero_timestamp,
         checkpoints_period: conf.consensus_constants.checkpoints_period,
     };
+    let genesis_hash = conf.consensus_constants.genesis_hash;
     let genesis_prev_hash = conf.consensus_constants.bootstrap_hash;
     let superblock_period = conf.consensus_constants.superblock_period;
 
@@ -119,6 +120,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         db_salt_length,
         epoch_constants,
         node_sync_batch_size,
+        genesis_hash,
         genesis_prev_hash,
         superblock_period,
     };
