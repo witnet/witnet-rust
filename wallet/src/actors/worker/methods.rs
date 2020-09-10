@@ -811,6 +811,18 @@ impl Worker {
             block_notification.consolidated_block_hashes
         );
 
+        let _consolidated = block_notification
+            .consolidated_block_hashes
+            .iter()
+            .try_for_each(|block_hash| {
+                // Genesis block is always confirmed
+                if block_hash == &self.params.genesis_hash.to_string() {
+                    Ok(())
+                } else {
+                    wallet.try_consolidate_block(block_hash)
+                }
+            });
+
         Ok(())
     }
 

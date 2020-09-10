@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::RwLock};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, sync::RwLock};
 
 use super::*;
 use crate::{
@@ -6,17 +6,14 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    types::{self, Hashable as _},
+    types::{self, signature, ExtendedPK, Hash, Hashable as _, RadonError},
 };
 
 mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::types::{signature, ExtendedPK, Hash, RadonError};
 use state::State;
-use std::collections::HashMap;
-use std::convert::TryFrom;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
     CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash,
@@ -482,7 +479,7 @@ where
         balance: u64,
         block_info: &model::Beacon,
     ) -> Result<()> {
-        log::debug!(
+        log::trace!(
             "Persisting block #{} changes: {} balance movements and {} address changes.",
             block_info.epoch,
             balance_movements.len(),
@@ -492,9 +489,9 @@ where
         let account = 0;
         let mut batch = self.db.batch();
 
+        // Write transactional data (index, hash and balance movement)
         for mut movement in balance_movements {
-            let txn_hash = types::Hash::from_str(&movement.transaction.hash).unwrap();
-            // Write transaction info
+            let txn_hash = types::Hash::from_str(&movement.transaction.hash)?;
             movement.transaction.confirmed = true;
             batch.put(
                 keys::transactions_index(txn_hash.as_ref()),
@@ -1028,6 +1025,48 @@ where
         Ok(())
     }
 
+    /// Try to consolidate a block by persisting all changes into the database.
+    pub fn try_consolidate_block(&self, block_hash: &str) -> Result<()> {
+        let mut state = self.state.write()?;
+
+        // Retrieve and remove pending changes of the block
+        let block_info = state.pending_blocks.remove(block_hash).ok_or_else(|| {
+            Error::BlockConsolidation(format!("beacon not found for pending block {}", block_hash))
+        })?;
+        let movements = state.pending_movements.remove(block_hash).ok_or_else(|| {
+            Error::BlockConsolidation(format!(
+                "balance movements not found for pending block {}",
+                block_hash
+            ))
+        })?;
+        let address_infos = state
+            .pending_address_infos
+            .remove(block_hash)
+            .ok_or_else(|| {
+                Error::BlockConsolidation(format!(
+                    "address infos not found for pending block {}",
+                    block_hash
+                ))
+            })?;
+
+        // Try to persist block transaction changes
+        self._persist_block_txns(
+            movements,
+            address_infos,
+            state.transaction_next_id,
+            state.utxo_set.clone(),
+            state.balance,
+            &block_info,
+        )?;
+
+        // If erything was OK, update `last_confirmed` beacon
+        state.last_confirmed = CheckpointBeacon {
+            checkpoint: block_info.epoch,
+            hash_prev_block: block_info.block_hash,
+        };
+
+        Ok(())
+    }
 }
 
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> i64 {
