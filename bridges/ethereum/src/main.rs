@@ -19,6 +19,7 @@ use witnet_ethereum_bridge::{
         block_relay_and_poi::block_relay_and_poi,
         block_relay_check::block_relay_check,
         claim_and_post::{claim_and_post, claim_ticker},
+        tally_finder::tally_finder,
         witnet_block_stream::witnet_block_stream,
         wrb_requests_periodic_sync::{get_new_requests, wrb_requests_periodic_sync},
     },
@@ -156,8 +157,15 @@ fn run() -> Result<(), String> {
                 Arc::clone(&witnet_client),
             );
             let (_handle, witnet_block_fut) =
-                witnet_block_stream(Arc::clone(&config), block_relay_and_poi_tx);
+                witnet_block_stream(Arc::clone(&config), block_relay_and_poi_tx.clone());
             let claim_ticker_fut = claim_ticker(Arc::clone(&config), claim_and_post_tx.clone());
+
+            let tally_finder_fut = tally_finder(
+                Arc::clone(&config),
+                Arc::clone(&eth_state),
+                block_relay_and_poi_tx,
+                Arc::clone(&witnet_client),
+            );
 
             tokio::run(future::ok(()).map(move |_| {
                 // Wait here to ensure that the Witnet node is running before starting
@@ -204,6 +212,7 @@ fn run() -> Result<(), String> {
                 tokio::spawn(block_relay_and_poi_fut);
                 tokio::spawn(claim_ticker_fut);
                 tokio::spawn(block_relay_check_fut);
+                tokio::spawn(tally_finder_fut);
             }));
         }
     }

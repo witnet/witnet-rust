@@ -29,6 +29,15 @@ pub struct SuperBlockNotification {
     pub consolidated_block_hashes: Vec<Hash>,
 }
 
+/// Struct for deserializing the message returned by the getSuperblockBlocks client response
+#[derive(Debug, Deserialize)]
+pub struct SuperblockIndex {
+    /// The hashes of the blocks that we are willing to retrieve.
+    pub block_hashes: Vec<Hash>,
+    /// The index of the superblock containing the aforementioned hashes.
+    pub superblock_index: u32,
+}
+
 /// Message to the block_relay_and_poi actor
 #[derive(Debug)]
 pub enum WitnetSuperBlock {

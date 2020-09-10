@@ -1,8 +1,8 @@
 //! Periodically ask the Witnet node for resolved data requests
 
-use crate::{actors::WitnetBlock, config::Config, eth::EthState};
-use async_jsonrpc_client::transports::tcp::TcpSocket;
-use async_jsonrpc_client::{futures::Stream, Transport};
+use crate::actors::{SuperBlockNotification, WitnetSuperBlock};
+use crate::{config::Config, eth::EthState};
+use async_jsonrpc_client::{futures::Stream, transports::tcp::TcpSocket, Transport};
 use futures::{future::Either, sink::Sink};
 use rand::{thread_rng, Rng};
 use serde_json::json;
@@ -18,11 +18,9 @@ use witnet_data_structures::{chain::Block, chain::DataRequestInfo};
 pub fn tally_finder(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
-    tx: mpsc::Sender<WitnetBlock>,
+    tx: mpsc::Sender<WitnetSuperBlock>,
     witnet_client: Arc<TcpSocket>,
 ) -> impl Future<Item = (), Error = ()> {
-    let witnet_client = Arc::new(witnet_client);
-
     Interval::new(Instant::now(), Duration::from_millis(config.witnet_dr_report_polling_rate_ms))
         .map_err(|e| log::error!("Error creating interval: {:?}", e))
         .and_then(move |x| eth_state.wrb_requests.read().map(move |wrb_requests| (wrb_requests, x)))
@@ -47,38 +45,58 @@ pub fn tally_finder(
                 )
             }
         })
-        .and_then(move |report| {
-            log::debug!("dataRequestReport: {}", report);
+        .and_then({
+            let witnet_client = Arc::clone(&witnet_client);
+            move |report| {
+                log::debug!("dataRequestReport: {}", report);
 
-            match serde_json::from_value::<Option<DataRequestInfo>>(report) {
-                Ok(Some(DataRequestInfo { block_hash_tally_tx: Some(block_hash_tally_tx), .. })) => {
-                    log::info!("Found possible tally to be reported from an old witnet block {}", block_hash_tally_tx);
-                    Either::A(witnet_client.execute("getBlock", json!([block_hash_tally_tx]))
-                        .map_err(|e| log::error!("getBlock: {:?}", e)))
-                }
-                Ok(..) => {
-                    // No problem, this means the data request has not been resolved yet
-                    log::debug!("Data request not resolved yet");
-                    Either::B(futures::failed(()))
-                }
-                Err(e) => {
-                    log::error!("dataRequestReport deserialize error: {:?}", e);
-                    Either::B(futures::failed(()))
+                match serde_json::from_value::<Option<DataRequestInfo>>(report) {
+                    Ok(Some(DataRequestInfo { block_hash_tally_tx: Some(block_hash_tally_tx), .. })) => {
+                        log::info!("Found possible tally to be reported from an old witnet block {}", block_hash_tally_tx);
+                        Either::A(witnet_client.execute("getBlock", json!([block_hash_tally_tx]))
+                            .map_err(|e| log::error!("getBlock: {:?}", e)))
+                    }
+                    Ok(..) => {
+                        // No problem, this means the data request has not been resolved yet
+                        log::debug!("Data request not resolved yet");
+                        Either::B(futures::failed(()))
+                    }
+                    Err(e) => {
+                        log::error!("dataRequestReport deserialize error: {:?}", e);
+                        Either::B(futures::failed(()))
+                    }
                 }
             }
         })
-        .and_then(move |value| {
-            match serde_json::from_value::<Block>(value) {
-                Ok(block) => {
-                    log::debug!("Replaying an old witnet block so that we can report the resolved data requests: {:?}", block);
+        .and_then({
+            let witnet_client = Arc::clone(&witnet_client);
+            move |value| {
+                match serde_json::from_value::<Block>(value) {
+                    Ok(block) => {
+                        let block_epoch = block.block_header.beacon.checkpoint;
+                        log::info!("Retrieving superblock index for block {}", block_epoch);
+                        Either::A(witnet_client.execute("getSuperblock", json!({"block_epoch": block_epoch}))
+                            .map_err(|e| log::error!("getSuperblock: {:?}", e)))
+                    }
+                    Err(e) => {
+                        log::error!("getSuperblock deserialize error: {:?}", e);
+                        Either::B(futures::failed(()))
+                    }
+                }
+            }
+        })
+        .and_then(move |response| {
+            match serde_json::from_value::<SuperBlockNotification>(response) {
+                Ok(superblock_notification) => {
+                    log::debug!("Replaying an old witnet superblock so that we can report the resolved data requests: {:?}", superblock_notification.superblock);
                     Either::A(
-                        tx.clone().send(WitnetBlock::Replay(block))
+                        tx.clone().send(WitnetSuperBlock::Replay(superblock_notification))
                             .map_err(|e| log::error!("Failed to send WitnetBlock::Replay: {:?}", e))
                             .map(|_| ()),
                     )
-                }
+                    }
                 Err(e) => {
-                    log::error!("Error parsing witnet block: {:?}", e);
+                    log::error!("Error parsing witnet superblock: {:?}", e);
                     Either::B(futures::finished(()))
                 }
             }

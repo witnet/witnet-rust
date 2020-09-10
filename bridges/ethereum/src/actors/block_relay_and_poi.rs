@@ -1,4 +1,4 @@
-//! Actor which receives Witnet blocks, posts them to the block relay,
+//! Actor which receives Witnet superblocks, posts them to the block relay,
 //! and sends proofs of inclusion to Ethereum
 
 use crate::{actors::handle_receipt, actors::WitnetSuperBlock, config::Config, eth::EthState};
@@ -10,8 +10,10 @@ use serde_json::json;
 use std::sync::Arc;
 use tokio::{sync::mpsc, sync::oneshot};
 use web3::{contract, futures::Future, types::U256};
-use witnet_data_structures::chain::{Block, Hash, Hashable};
-use witnet_data_structures::transaction::{DRTransaction, TallyTransaction};
+use witnet_data_structures::{
+    chain::{Block, Hash, Hashable},
+    transaction::{DRTransaction, TallyTransaction},
+};
 
 /// Function to get blocks from the witnet client provided an array of block hashes
 pub fn get_blocks(
@@ -39,10 +41,8 @@ pub fn get_blocks(
         }
     })
     .collect()
-    //  .then(|_| Ok(()))
-    //  .for_each(|_| Ok(()))
 }
-/// Actor which receives Witnet blocks, posts them to the block relay,
+/// Actor which receives Witnet superblocks, posts them to the block relay,
 /// and sends Proofs of Inclusion to Ethereum
 pub fn block_relay_and_poi(
     config: Arc<Config>,
@@ -79,8 +79,6 @@ pub fn block_relay_and_poi(
                 Hash::SHA256(x) => x.into(),
             };
 
-            // Enable block relay?
-
             get_blocks(confirmed_block_hashes, witnet_client)
             .and_then(                        {
                                                   let config = Arc::clone(&config);
@@ -110,7 +108,7 @@ pub fn block_relay_and_poi(
 
                     let block_relay_contract2 = block_relay_contract.clone();
 
-                    // Post witnet block to BlockRelay wrb_contract
+                    // Post witnet superblock to BlockRelay wrb_contract
                     tokio::spawn(
                         block_relay_contract
                             .query(
@@ -121,13 +119,13 @@ pub fn block_relay_and_poi(
                                 None,
                             )
                             .map(move |_: U256| {
-                                log::debug!("Block {:x} was already posted", superblock_hash);
+                                log::debug!("Superblock {:x} was already posted", superblock_hash);
                             })
                             .or_else({
                                 let config = Arc::clone(&config);
 
                                 move |_| {
-                                log::debug!("Trying to relay block {:x}", superblock_hash);
+                                log::debug!("Trying to relay superblock {:x}", superblock_hash);
                                 block_relay_contract2
                                     .call_with_confirmations(
                                         "postNewBlock",
@@ -143,11 +141,11 @@ pub fn block_relay_and_poi(
                                         log::debug!("postNewBlock: {:?}", tx);
 
                                         handle_receipt(tx).map_err(move |()| {
-                                            log::warn!("Failed to post block {:x} to block relay, maybe it was already posted?", superblock_hash)
+                                            log::warn!("Failed to post superblock {:x} to block relay, maybe it was already posted?", superblock_hash)
                                         })
                                     })
                                     .map(move |()| {
-                                        log::info!("Posted block {:x} to block relay", superblock_hash);
+                                        log::info!("Posted superblock {:x} to block relay", superblock_hash);
                                     })
                             }})
                     );
@@ -163,14 +161,13 @@ pub fn block_relay_and_poi(
                         // In that case, since there already is another future waiting for the
                         // same block, we can exit this one
                         wbrx.map_err(move |e| {
-                            log::debug!("Failed to receive message through oneshot channel while waiting for block {}: {:x}", e, superblock_hash)
+                            log::debug!("Failed to receive message through oneshot channel while waiting for superblock {}: {:x}", e, superblock_hash)
                         })
                     })
                     .and_then({
                         let eth_state = Arc::clone(&eth_state);
                         move |()| {
                         eth_state.wrb_requests.read()
-                         //   .map(|wrb_requests| (confirmed_blocks, wrb_requests))
                     }})
                     .and_then({
                         let config = Arc::clone(&config);
@@ -342,7 +339,6 @@ pub fn block_relay_and_poi(
                 tokio::spawn(fut);
                 futures::done(Result::<(), ()>::Ok(()))
             }})
-            //futures::finished(())
         })
         .map(|_| ());
 
