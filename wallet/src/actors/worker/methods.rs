@@ -825,7 +825,7 @@ impl Worker {
             block_notification.consolidated_block_hashes
         );
 
-        let _consolidated = block_notification
+        let consolidated = block_notification
             .consolidated_block_hashes
             .iter()
             .try_for_each(|block_hash| {
@@ -836,6 +836,15 @@ impl Worker {
                     wallet.try_consolidate_block(block_hash)
                 }
             });
+
+        if consolidated.is_err() {
+            log::error!(
+                "Error while persisting blocks confirmed by superblock #{}... trying to re-sync with node",
+                block_notification.superblock.index,
+            );
+
+            self.sync(&wallet.id, wallet.clone(), sink)?
+        }
 
         Ok(())
     }
