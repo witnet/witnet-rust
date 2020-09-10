@@ -81,8 +81,8 @@ pub fn jsonrpc_io_handler(
     io.add_method("getConsensusConstants", |params: Params| {
         get_consensus_constants(params.parse())
     });
-    io.add_method("getSuperblockBlocks", |params: Params| {
-        get_superblock_blocks(params.parse())
+    io.add_method("getSuperblock", |params: Params| {
+        get_superblock(params.parse())
     });
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
@@ -1222,30 +1222,73 @@ pub fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) -> JsonR
     Box::new(fut)
 }
 
+/// Parameter of getSuperblock: can be either block epoch or superblock index
+#[derive(Deserialize)]
+pub enum GetSuperblockBlocksParams {
+    /// Get superblock by block epoch
+    #[serde(rename = "block_epoch")]
+    BlockEpoch(u32),
+    /// Get superblock by superblock index
+    #[serde(rename = "superblock_index")]
+    SuperblockIndex(u32),
+}
+
 /// Get the blocks that pertain to the superblock index
-pub fn get_superblock_blocks(params: Result<(u32,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
-    let superblock_index = match params {
-        Ok(x) => x.0,
+pub fn get_superblock(
+    params: Result<GetSuperblockBlocksParams, jsonrpc_core::Error>,
+) -> JsonRpcResultAsync {
+    let params = match params {
+        Ok(x) => x,
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let inventory_manager_addr = InventoryManager::from_registry();
+    match params {
+        GetSuperblockBlocksParams::SuperblockIndex(superblock_index) => {
+            let inventory_manager_addr = InventoryManager::from_registry();
 
-    let fut = inventory_manager_addr
-        .send(GetItemSuperblock { superblock_index })
-        .map_err(internal_error)
-        .and_then(|dr_info| match dr_info {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
+            let fut = inventory_manager_addr
+                .send(GetItemSuperblock { superblock_index })
+                .map_err(internal_error)
+                .and_then(|dr_info| match dr_info {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => futures::finished(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            futures::failed(err)
+                        }
+                    },
+                    Err(e) => futures::failed(internal_error_s(e)),
+                });
 
-    Box::new(fut)
+            Box::new(fut)
+        }
+        GetSuperblockBlocksParams::BlockEpoch(block_epoch) => {
+            let fut = config_mngr::get()
+                .map_err(internal_error)
+                .and_then(move |config| {
+                    let superblock_period = u32::from(config.consensus_constants.superblock_period);
+                    let superblock_index = (block_epoch / superblock_period) + 1;
+
+                    let inventory_manager_addr = InventoryManager::from_registry();
+
+                    inventory_manager_addr
+                        .send(GetItemSuperblock { superblock_index })
+                        .map_err(internal_error)
+                        .and_then(|dr_info| match dr_info {
+                            Ok(x) => match serde_json::to_value(&x) {
+                                Ok(x) => futures::finished(x),
+                                Err(e) => {
+                                    let err = internal_error_s(e);
+                                    futures::failed(err)
+                                }
+                            },
+                            Err(e) => futures::failed(internal_error_s(e)),
+                        })
+                });
+
+            Box::new(fut)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1546,7 +1589,7 @@ mod tests {
                 "getPublicKey",
                 "getReputation",
                 "getReputationAll",
-                "getSuperblockBlocks",
+                "getSuperblock",
                 "getTransaction",
                 "getUtxoInfo",
                 "inventory",

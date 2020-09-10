@@ -1529,19 +1529,17 @@ impl ChainManager {
         if let Ok(beacons) = beacons {
             let consolidated_block_hashes: Vec<Hash> =
                 beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
+            let superblock_notify = SuperBlockNotify {
+                superblock,
+                consolidated_block_hashes,
+            };
 
             // Store the list of block hashes that pertain to this superblock
             InventoryManager::from_registry().do_send(AddItem {
-                item: StoreInventoryItem::Superblock((
-                    superblock.index,
-                    consolidated_block_hashes.clone(),
-                )),
+                item: StoreInventoryItem::Superblock(superblock_notify.clone()),
             });
 
-            JsonRpcServer::from_registry().do_send(SuperBlockNotify {
-                superblock,
-                consolidated_block_hashes,
-            });
+            JsonRpcServer::from_registry().do_send(superblock_notify);
         }
     }
 }

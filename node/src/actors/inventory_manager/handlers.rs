@@ -4,7 +4,7 @@ use actix::{ActorFuture, Context, Handler, ResponseActFuture, WrapFuture};
 use super::{InventoryManager, InventoryManagerError};
 use crate::actors::messages::{
     AddItem, AddItems, GetItem, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-    StoreInventoryItem,
+    StoreInventoryItem, SuperBlockNotify,
 };
 use crate::storage_mngr;
 use witnet_data_structures::chain::{
@@ -67,9 +67,10 @@ impl Handler<AddItems> for InventoryManager {
 
                     transactions_to_add.push((key, pointer_to_block));
                 }
-                StoreInventoryItem::Superblock((superblock_index, block_hashes)) => {
+                StoreInventoryItem::Superblock(superblock_notify) => {
+                    let superblock_index = superblock_notify.superblock.index;
                     let key = key_superblock(superblock_index);
-                    superblocks_to_add.push((key, block_hashes));
+                    superblocks_to_add.push((key, superblock_notify));
                 }
             }
         }
@@ -247,12 +248,12 @@ fn key_superblock(superblock_index: u32) -> Vec<u8> {
 
 /// Handler for GetItemSuperblock message
 impl Handler<GetItemSuperblock> for InventoryManager {
-    type Result = ResponseActFuture<Self, Vec<Hash>, InventoryManagerError>;
+    type Result = ResponseActFuture<Self, SuperBlockNotify, InventoryManagerError>;
 
     fn handle(&mut self, msg: GetItemSuperblock, _ctx: &mut Context<Self>) -> Self::Result {
         let key = key_superblock(msg.superblock_index);
 
-        let fut = storage_mngr::get::<_, Vec<Hash>>(&key)
+        let fut = storage_mngr::get::<_, SuperBlockNotify>(&key)
             .into_actor(self)
             .then(move |res, _, _| match res {
                 Ok(opt) => match opt {

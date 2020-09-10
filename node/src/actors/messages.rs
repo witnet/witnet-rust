@@ -473,7 +473,7 @@ pub enum StoreInventoryItem {
     /// Transactions are stored as pointers to blocks
     Transaction(Hash, PointerToBlock),
     /// Superblocks are stored as the list of block hashes
-    Superblock((u32, Vec<Hash>)),
+    Superblock(SuperBlockNotify),
 }
 
 /// Add a new item
@@ -533,7 +533,7 @@ pub struct GetItemSuperblock {
 }
 
 impl Message for GetItemSuperblock {
-    type Result = Result<Vec<Hash>, InventoryManagerError>;
+    type Result = Result<SuperBlockNotify, InventoryManagerError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -915,7 +915,7 @@ pub struct BlockNotify {
 ///
 /// As per current consensus algorithm, "consolidated blocks" implies that there exists at least one
 /// superblock in the chain that builds upon the superblock where those blocks were anchored.
-#[derive(Message, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Message, Serialize, Deserialize)]
 pub struct SuperBlockNotify {
     /// The superblock that we are signaling as consolidated.
     pub superblock: SuperBlock,
