@@ -303,9 +303,6 @@ impl Handler<AddBlocks> for ChainManager {
                 if msg.blocks.is_empty() {
                     log::debug!("Received an empty AddBlocks message");
                     self.update_state_machine(StateMachine::WaitingConsensus);
-                    self.initialize_from_storage(ctx);
-                    log::info!("Restored chain state from storage");
-
                     return;
                 }
 
