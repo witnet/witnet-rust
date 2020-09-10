@@ -50,6 +50,16 @@ where
         self.params.superblock_period
     }
 
+    /// Return all non-sensitive data regarding the wallet.
+    pub fn clear_pending_state(&self) -> Result<()> {
+        let mut state = self.state.write()?;
+        state.pending_blocks.clear();
+        state.pending_movements.clear();
+        state.pending_address_infos.clear();
+
+        Ok(())
+    }
+
     pub fn unlock(
         id: &str,
         session_id: types::SessionId,

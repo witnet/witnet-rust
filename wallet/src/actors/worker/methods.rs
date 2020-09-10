@@ -546,6 +546,16 @@ impl Worker {
         Compat01As03::new(f).await
     }
 
+    // Calculate the last checkpoint (current epoch)
+    // FIXME(#1437): not needed if resolved
+    fn current_epoch(&self) -> Result<types::Epoch> {
+        let (now, _) = witnet_util::timestamp::get_local_timestamp();
+        self.params
+            .epoch_constants
+            .epoch_at(now)
+            .map_err(Into::into)
+    }
+
     /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet
     /// chain.
     pub fn sync(
@@ -555,6 +565,10 @@ impl Worker {
         sink: types::DynamicSink,
     ) -> Result<()> {
         let limit = i64::from(self.params.node_sync_batch_size);
+        let superblock_period = wallet.get_superblock_period() as u32;
+
+        // Clear wallet pending state before sync (e.g. locked wallet)
+        wallet.clear_pending_state()?;
 
         let wallet_data = wallet.public_data()?;
 
@@ -633,10 +647,10 @@ impl Worker {
 
                 // Compute if block should be considered confirmed
                 // Note: blocks confirmed in past superblocks are considered confirmed
-                let superblock_period = wallet.get_superblock_period() as u32;
-                let tip_superblock_index = tip.checkpoint / superblock_period;
+                // FIXME(#1437): best approach would be the node signaling if blocks are confirmed
+                let tip_superblock_index = self.current_epoch()? / superblock_period;
                 let current_superblock_index = epoch / superblock_period;
-                let confirmed = tip_superblock_index - current_superblock_index > 2;
+                let confirmed = tip_superblock_index - current_superblock_index > 1;
 
                 // Process each block and update latest beacon
                 self.handle_block(
