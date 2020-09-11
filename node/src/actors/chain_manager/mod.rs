@@ -1452,15 +1452,20 @@ impl ChainManager {
         let mut num_processed_blocks = 0;
 
         for block in blocks.iter() {
-            num_processed_blocks += 1;
-
             if let Err(e) = self.process_requested_block(ctx, block.clone()) {
                 log::error!("Error processing block: {}", e);
-                self.initialize_from_storage(ctx);
-                log::info!("Restored chain state from storage");
+                if num_processed_blocks > 0 {
+                    // Restore only in case there were several blocks consolidated before
+                    // This is not needed if the error is in the first block because
+                    // the state has not been mutated yet
+                    self.initialize_from_storage(ctx);
+                    log::info!("Restored chain state from storage");
+                }
                 batch_succeeded = false;
                 break;
             }
+
+            num_processed_blocks += 1;
 
             let beacon = self.get_chain_beacon();
             show_sync_progress(beacon, &sync_target, self.epoch_constants.unwrap());
