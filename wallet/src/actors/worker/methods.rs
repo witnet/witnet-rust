@@ -778,31 +778,70 @@ impl Worker {
         sink: types::DynamicSink,
     ) -> Result<()> {
         let block_beacon = block.block_header.beacon;
-        let current_last_sync = wallet.public_data()?.last_sync;
+        let wallet_data = wallet.public_data()?;
+        let last_sync = wallet_data.last_sync;
+        let last_confirmed = wallet_data.last_confirmed;
 
-        // Check if new pushed block is valid given the wallet state:
-        // stop processing the block if it does not directly build on top of our tip of the chain
-        if block_beacon.hash_prev_block != current_last_sync.hash_prev_block
-            || block_beacon.checkpoint < current_last_sync.checkpoint
+        let (needs_clear_pending, needs_indexing) = if block_beacon.hash_prev_block
+            == last_sync.hash_prev_block
+            && (block_beacon.checkpoint == 0 || block_beacon.checkpoint > last_sync.checkpoint)
         {
-            log::warn!(
-                "Tried to process a block #{} that does not build directly on top of our tip of the chain #{}. ({:?} != {:?})",
+            log::debug!(
+                "Processing block #{} that builds directly on top of our tip of the chain #{}",
                 block_beacon.checkpoint,
-                current_last_sync.checkpoint,
-                block_beacon.hash_prev_block,
-                current_last_sync.hash_prev_block,
+                last_sync.checkpoint,
             );
+
+            (false, true)
+        } else if block_beacon.checkpoint > last_confirmed.checkpoint
+            && block_beacon.hash_prev_block == last_confirmed.hash_prev_block
+        {
+            log::debug!(
+                "Processing block #{} that builds directly on top of our confirmed tip of the chain #{} (cleaning pending state)",
+                block_beacon.checkpoint,
+                last_confirmed.checkpoint,
+            );
+
+            // New block does not follow our pending tip of the chain (e.g. reorgs)
+            // Wallet pending state should be cleared and new block indexed
+            (true, true)
+        } else if block_beacon.checkpoint == last_confirmed.checkpoint
+            && block.hash() == last_confirmed.hash_prev_block
+        {
+            log::debug!(
+                "Tried to process a block #{} that was already confirmed in our chain #{} (cleaning pending state)",
+                block_beacon.checkpoint,
+                last_confirmed.checkpoint,
+            );
+
+            // Wallet pending state might be invalid and it should be cleared for future blocks
+            (true, false)
+        } else {
+            log::warn!(
+                "Tried to process a block #{} that does not build directly on top our local (#{}) or confirmed tip (#{})",
+                block_beacon.checkpoint,
+                last_sync.checkpoint,
+                last_confirmed.checkpoint,
+            );
+
             return Err(block_error(BlockError::NotConnectedToLocalChainTip {
                 block_previous_beacon: block_beacon.hash_prev_block,
-                local_chain_tip: current_last_sync.hash_prev_block,
+                local_chain_tip: last_sync.hash_prev_block,
             }));
+        };
+
+        if needs_clear_pending {
+            // Clears pending state: blocks, movements, addresses, utxo_set, balances and last_sync
+            wallet.clear_pending_state()?;
         }
 
-        // Index incoming block and its transactions
-        let new_last_sync = self.index_block(block, confirmed, &wallet, sink)?;
+        if needs_indexing {
+            // Index incoming block and its transactions
+            let new_last_sync = self.index_block(block, confirmed, &wallet, sink)?;
 
-        // Update wallet state with the last indexed epoch and block hash
-        wallet.update_sync_state(new_last_sync, confirmed)?;
+            // Update wallet state with the last indexed epoch and block hash
+            wallet.update_sync_state(new_last_sync, confirmed)?;
+        }
 
         Ok(())
     }
