@@ -541,6 +541,8 @@ where
             batch.put(&address_info.db_key, &address_info)?;
         }
 
+        // FIXME(#1539): persist update of DR movements (because of tally txn)
+
         // Update the last_sync in the database (which corresponds with the last_confirmed in the state)
         batch.put(
             &keys::wallet_last_sync(),
@@ -872,6 +874,8 @@ where
             let path = self
                 .db
                 .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
+
+            // FIXME(#1540): get `address_info` from memory (or DB if it doesn't exist)
             let info = self.db.get::<_, model::AddressInfo>(&keys::address_info(
                 path.account,
                 path.keychain,
@@ -895,6 +899,8 @@ where
 
             address_infos.push(updated_info);
         }
+
+        // FIXME(#1539): if tally txn, compute update of data request balance movement
 
         Ok(Some((balance_movement, address_infos)))
     }
