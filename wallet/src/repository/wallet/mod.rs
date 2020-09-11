@@ -500,8 +500,8 @@ where
         balance: u64,
         block_info: &model::Beacon,
     ) -> Result<()> {
-        log::trace!(
-            "Persisting block #{} changes: {} balance movements and {} address changes.",
+        log::debug!(
+            "Persisting block #{} changes: {} balance movements and {} address changes",
             block_info.epoch,
             balance_movements.len(),
             address_infos.len(),
@@ -1023,9 +1023,10 @@ where
     /// Update which was the epoch of the last block that was processed by this wallet.
     pub fn update_sync_state(&self, beacon: CheckpointBeacon, confirmed: bool) -> Result<()> {
         log::debug!(
-            "Setting tip of the chain for wallet {} to {:?}",
+            "Setting {} tip of the chain for wallet {} to {:?}",
+            if confirmed { "confirmed" } else { "pending " },
             self.id,
-            beacon
+            beacon,
         );
 
         if let Ok(mut write_guard) = self.state.write() {
@@ -1105,11 +1106,17 @@ where
             &block_info,
         )?;
 
-        // If erything was OK, update `last_confirmed` beacon
+        // If everything was OK, update `last_confirmed` beacon
         state.last_confirmed = CheckpointBeacon {
             checkpoint: block_info.epoch,
             hash_prev_block: block_info.block_hash,
         };
+
+        log::debug!(
+            "Block #{} ({}) was successfully consolidated",
+            state.last_confirmed.checkpoint,
+            state.last_confirmed.hash_prev_block,
+        );
 
         Ok(())
     }

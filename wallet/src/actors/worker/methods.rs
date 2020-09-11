@@ -241,7 +241,7 @@ impl Worker {
     ) -> Result<Vec<model::BalanceMovement>> {
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
         log::info!(
-            "Indexing block #{} ({}) with {} ({}) transactions",
+            "Indexing block #{} ({}) with {} transactions ({})",
             block_info.epoch,
             block_info.block_hash,
             &filtered_txns.len(),
