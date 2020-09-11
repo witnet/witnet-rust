@@ -821,21 +821,12 @@ impl Worker {
         );
 
         log::debug!(
-            "Blocks to consolidate: {:?}",
+            "Superblock #{} consolidated block hashes: {:?}",
+            block_notification.superblock.index,
             block_notification.consolidated_block_hashes
         );
 
-        let consolidated = block_notification
-            .consolidated_block_hashes
-            .iter()
-            .try_for_each(|block_hash| {
-                // Genesis block is always confirmed
-                if block_hash == &self.params.genesis_hash.to_string() {
-                    Ok(())
-                } else {
-                    wallet.try_consolidate_block(block_hash)
-                }
-            });
+        let consolidated = wallet.handle_superblock(&block_notification.consolidated_block_hashes);
 
         if consolidated.is_err() {
             log::error!(

@@ -1046,6 +1046,31 @@ where
         Ok(())
     }
 
+    /// Handle superblock in wallet by confirming pending block changes
+    pub fn handle_superblock(&self, block_hashes: &[String]) -> Result<()> {
+        if let Some(last_confirmed_hash) = block_hashes.last() {
+            let state = self.state.read()?;
+            if last_confirmed_hash == &state.last_confirmed.hash_prev_block.to_string() {
+                log::debug!(
+                    "Superblock notification was previously handled (Block #{}: {} is already confirmed)",
+                    state.last_confirmed.checkpoint,
+                    last_confirmed_hash
+                );
+
+                return Ok(());
+            }
+        }
+
+        block_hashes.iter().try_for_each(|block_hash| {
+            // Genesis block is always confirmed
+            if block_hash == &self.params.genesis_hash.to_string() {
+                Ok(())
+            } else {
+                self.try_consolidate_block(block_hash)
+            }
+        })
+    }
+
     /// Try to consolidate a block by persisting all changes into the database.
     pub fn try_consolidate_block(&self, block_hash: &str) -> Result<()> {
         let mut state = self.state.write()?;
