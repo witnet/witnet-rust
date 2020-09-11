@@ -50,12 +50,23 @@ where
         self.params.superblock_period
     }
 
-    /// Return all non-sensitive data regarding the wallet.
+    /// Clears local pending wallet state to match the persisted state in database
     pub fn clear_pending_state(&self) -> Result<()> {
+        let account = 0;
+
         let mut state = self.state.write()?;
+
+        state.last_sync = state.last_confirmed;
         state.pending_blocks.clear();
         state.pending_movements.clear();
         state.pending_address_infos.clear();
+
+        // Restore state from database
+        state.next_external_index = self
+            .db
+            .get_or_default(&keys::transaction_next_id(account))?;
+        state.utxo_set = self.db.get_or_default(&keys::account_utxo_set(account))?;
+        state.balance = self.db.get_or_default(&keys::account_balance(account))?;
 
         Ok(())
     }
