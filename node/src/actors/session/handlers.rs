@@ -10,7 +10,8 @@ use futures::future;
 use witnet_data_structures::{
     builders::from_address,
     chain::{
-        Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, SuperBlockVote,
+        Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, SuperBlock,
+        SuperBlockVote,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -31,7 +32,8 @@ use crate::actors::{
         CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
         GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
         RemoveAddressesFromTried, RequestPeers, SendGetPeers, SendInventoryAnnouncement,
-        SendInventoryItem, SendLastBeacon, SendSuperBlockVote, SessionUnitResult,
+        SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
+        SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -261,6 +263,13 @@ impl StreamHandler<BytesMut, Error> for Session {
                                                         hash
                                                     );
                                                 }
+                                                InventoryEntry::SuperBlock(index) => {
+                                                    log::warn!(
+                                                        "Inventory request: {}: superblock {}",
+                                                        e,
+                                                        index
+                                                    );
+                                                }
                                             }
                                             // Stop block sending if an error occurs
                                             break;
@@ -315,6 +324,14 @@ impl StreamHandler<BytesMut, Error> for Session {
                     // Handle Block
                     (_, SessionStatus::Consolidated, Command::Block(block)) => {
                         inventory_process_block(self, ctx, block);
+                    }
+
+                    /////////////////////////
+                    // SUPERBLOCK RECEIVED //
+                    /////////////////////////
+                    // Handle Block
+                    (_, SessionStatus::Consolidated, Command::SuperBlock(superblock)) => {
+                        inventory_process_superblock(self, ctx, superblock);
                     }
 
                     /////////////////
@@ -381,7 +398,7 @@ impl Handler<SendGetPeers> for Session {
     }
 }
 
-/// Handler for AnnounceItems message (sent by other actors)
+/// Handler for SendInventoryAnnouncement message (sent by other actors)
 impl Handler<SendInventoryAnnouncement> for Session {
     type Result = SessionUnitResult;
 
@@ -397,6 +414,26 @@ impl Handler<SendInventoryAnnouncement> for Session {
             // Send message through the session network connection
             self.send_message(announce_items_msg);
         };
+    }
+}
+
+/// Handler for SendInventoryRequest message (sent by other actors)
+impl Handler<SendInventoryRequest> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: SendInventoryRequest, _: &mut Context<Self>) {
+        log::trace!(
+            "Sending SendInventoryRequest message to peer at {:?}",
+            self.remote_addr
+        );
+
+        // Try to create InventoryRequest protocol message to request missing inventory vectors
+        if let Ok(inv_req_msg) =
+            WitnetMessage::build_inventory_request(self.magic_number, msg.items)
+        {
+            // Send InventoryRequest message through the session network connection
+            self.send_message(inv_req_msg);
+        }
     }
 }
 
@@ -629,6 +666,19 @@ fn inventory_process_transaction(
     chain_manager_addr.do_send(AddTransaction { transaction });
 }
 
+/// Function called when SuperBlock message is received
+fn inventory_process_superblock(
+    _session: &mut Session,
+    _ctx: &mut Context<Session>,
+    superblock: SuperBlock,
+) {
+    // Get ChainManager address
+    let chain_manager_addr = ChainManager::from_registry();
+
+    // Send a message to the ChainManager to try to add a new superblock
+    chain_manager_addr.do_send(AddSuperBlock { superblock });
+}
+
 /// Function to process an InventoryAnnouncement message
 fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
     // Check how many of the received inventory vectors need to be requested
@@ -640,8 +690,9 @@ fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
 
     session.requested_block_hashes = inv_entries
         .iter()
-        .map(|inv_entry| match inv_entry.clone() {
-            InventoryEntry::Block(hash) | InventoryEntry::Tx(hash) => hash,
+        .filter_map(|inv_entry| match inv_entry.clone() {
+            InventoryEntry::Block(hash) => Some(hash),
+            _ => None,
         })
         .collect();
 
@@ -792,6 +843,12 @@ fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
                 WitnetMessage::build_transaction(session.magic_number, transaction);
             // Send Transaction msg
             session.send_message(transaction_msg);
+        }
+        InventoryItem::SuperBlock(superblock) => {
+            // Build Transaction msg
+            let superblock_msg = WitnetMessage::build_superblock(session.magic_number, superblock);
+            // Send Transaction msg
+            session.send_message(superblock_msg);
         }
     }
 }

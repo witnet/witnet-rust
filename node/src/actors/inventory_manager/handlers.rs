@@ -139,6 +139,12 @@ impl Handler<GetItem> for InventoryManager {
                 self.handle(GetItemBlock { hash }, ctx)
                     .map(|block, _, _| InventoryItem::Block(block)),
             ),
+            InventoryEntry::SuperBlock(superblock_index) => Box::new(
+                self.handle(GetItemSuperblock { superblock_index }, ctx)
+                    .map(|superblock_notify, _, _| {
+                        InventoryItem::SuperBlock(superblock_notify.superblock)
+                    }),
+            ),
         };
 
         fut
