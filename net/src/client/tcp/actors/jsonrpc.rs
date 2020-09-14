@@ -145,15 +145,27 @@ impl Actor for JsonRpcClient {
 
 impl Supervised for JsonRpcClient {}
 
-/// JSONRPC notification.
-pub struct Notification {
-    /// This doubles as subscription ID or subscription topic, depending on where it is used.
+/// JSONRPC notification, paired with a subscription ID.
+pub struct NotifySubscriptionId {
+    /// Subscription ID.
     pub id: String,
     /// A JSON value.
     pub value: Value,
 }
 
-impl Message for Notification {
+impl Message for NotifySubscriptionId {
+    type Result = ();
+}
+
+/// JSONRPC notification, paired with a subscription topic.
+pub struct NotifySubscriptionTopic {
+    /// Subscription topic.
+    pub topic: String,
+    /// A JSON value.
+    pub value: Value,
+}
+
+impl Message for NotifySubscriptionTopic {
     type Result = ();
 }
 
@@ -238,7 +250,7 @@ impl Handler<Request> for JsonRpcClient {
 /// - The JSONRPC request that needs to be sent to the server for initiating the subscription.
 /// - A `Recipient` for JSONRPC notifications.
 #[derive(Clone)]
-pub struct Subscribe(pub Request, pub Recipient<Notification>);
+pub struct Subscribe(pub Request, pub Recipient<NotifySubscriptionTopic>);
 
 impl Message for Subscribe {
     type Result = ();
@@ -273,7 +285,7 @@ impl Handler<Subscribe> for JsonRpcClient {
                             .map(move |value| {
                                 log::debug!("<< Forwarding notification from node to subscribers",);
                                 log::trace!("<< {:?}", value);
-                                Notification {
+                                NotifySubscriptionId {
                                     id: id.clone(),
                                     value,
                                 }
@@ -304,20 +316,20 @@ impl Handler<Subscribe> for JsonRpcClient {
     }
 }
 
-impl StreamHandler<Notification, Error> for JsonRpcClient {
+impl StreamHandler<NotifySubscriptionId, Error> for JsonRpcClient {
     fn handle(
         &mut self,
-        Notification {
+        NotifySubscriptionId {
             id: subscription_id,
             value,
-        }: Notification,
+        }: NotifySubscriptionId,
         _ctx: &mut Self::Context,
     ) {
         if let Ok(subscriptions) = (*self.active_subscriptions).lock() {
             if let Some(Subscribe(ref request, ref recipient)) = subscriptions.get(&subscription_id)
             {
-                let method = subscription_topic_from_request(request);
-                if let Err(err) = recipient.do_send(Notification { id: method, value }) {
+                let topic = subscription_topic_from_request(request);
+                if let Err(err) = recipient.do_send(NotifySubscriptionTopic { topic, value }) {
                     log::error!("Client couldn't notify subscriber: {}", err);
                 }
             }
