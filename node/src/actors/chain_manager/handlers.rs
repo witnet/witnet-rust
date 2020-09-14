@@ -1,6 +1,8 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::future::Future;
-use std::{collections::BTreeMap, collections::HashSet, convert::TryFrom, net::SocketAddr};
+use std::{
+    collections::BTreeMap, collections::HashSet, convert::TryFrom, net::SocketAddr, time::Duration,
+};
 
 use witnet_data_structures::{
     chain::{
@@ -19,12 +21,12 @@ use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlockVote, AddTransaction,
-            Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
-            GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
-            GetMempoolResult, GetNodeStats, GetReputation, GetReputationResult, GetState,
-            GetSuperBlockVotes, GetUtxoInfo, PeersBeacons, ReputationStats, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, TryMineBlock,
+            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
+            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
+            GetBlocksEpochRange, GetDataRequestReport, GetHighestCheckpointBeacon,
+            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
+            GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, PeersBeacons,
+            ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -309,6 +311,31 @@ impl Handler<AddBlocks> for ChainManager {
                 let sync_target = self
                     .sync_target
                     .expect("The sync target should be defined for synchronizing");
+
+                let sync_superblock =
+                    self.sync_superblock
+                        .as_ref()
+                        .and_then(|(hash, superblock)| {
+                            if hash == &sync_target.superblock.hash_prev_block {
+                                Some(superblock)
+                            } else {
+                                None
+                            }
+                        });
+
+                if sync_superblock.is_none() {
+                    log::debug!("Received blocks before superblock");
+                    // Received the `AddBlocks` message before the `AddSuperBlock` message.
+                    // We cannot finish the synchronization without the sync_superblock, so in that
+                    // case, ask for the sync_superblock again, and try to handle the `AddBlocks`
+                    // message later
+                    self.request_sync_target_superblock(ctx, sync_target.superblock);
+                    ctx.notify_later(msg, Duration::from_secs(6));
+                    return;
+                }
+
+                let _sync_superblock = sync_superblock.unwrap();
+
                 let superblock_period = u32::from(consensus_constants.superblock_period);
 
                 // TODO: Review this hack
@@ -1051,6 +1078,14 @@ impl Handler<PeersBeacons> for ChainManager {
         };
 
         if self.sm_state == StateMachine::Synchronizing {
+            // Request target superblock from a random peer
+            let superblock_consensus = self
+                .sync_target
+                .as_ref()
+                .expect("sync_target must be always set in Synchronizing state")
+                .superblock;
+            self.request_sync_target_superblock(ctx, superblock_consensus);
+
             if let Some(sync_start_epoch) = self.sync_waiting_for_add_blocks_since {
                 let current_epoch = self.current_epoch.unwrap();
                 let how_many_epochs_are_we_willing_to_wait_for_one_block_batch = 10;
@@ -1407,6 +1442,32 @@ impl Handler<GetMempool> for ChainManager {
         };
 
         Ok(res)
+    }
+}
+
+impl Handler<AddSuperBlock> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddSuperBlock, _ctx: &mut Self::Context) -> Self::Result {
+        let received_superblock_hash = msg.superblock.hash();
+        if let Some(sync_target) = &self.sync_target {
+            let target_superblock_hash = sync_target.superblock.hash_prev_block;
+
+            if target_superblock_hash == received_superblock_hash {
+                self.sync_superblock = Some((received_superblock_hash, msg.superblock));
+            } else {
+                log::debug!(
+                    "Received superblock {} when expecting superblock {}",
+                    received_superblock_hash,
+                    target_superblock_hash
+                );
+            }
+        } else {
+            log::debug!(
+                "Received superblock {} when expecting no superblock",
+                received_superblock_hash
+            );
+        }
     }
 }
 
