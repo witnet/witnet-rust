@@ -690,7 +690,7 @@ impl ChainManager {
 
     /// Create a superblock, sign a superblock vote and broadcast it
     fn create_and_broadcast_superblock(&mut self, ctx: &mut Context<Self>, current_epoch: u32) {
-        self.construct_superblock(ctx, current_epoch)
+        self.construct_superblock(ctx, current_epoch, None)
             .and_then(move |superblock, act, _ctx| {
                 let superblock_hash = superblock.hash();
                 log::debug!(
@@ -1019,8 +1019,9 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         superblock_epoch: u32,
     ) -> ResponseActFuture<Self, (), ()> {
-        let fut = self.construct_superblock(ctx, superblock_epoch).and_then(
-            move |superblock, act, _ctx| {
+        let fut = self
+            .construct_superblock(ctx, superblock_epoch, None)
+            .and_then(move |superblock, act, _ctx| {
                 let superblock_hash = superblock.hash();
                 log::debug!(
                     "Local SUPERBLOCK #{} {}: {:?}",
@@ -1065,8 +1066,7 @@ impl ChainManager {
                             actix::fut::err(())
                         }
                     })
-            },
-        );
+            });
 
         Box::new(fut)
     }
@@ -1078,46 +1078,47 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block_epoch: u32,
         sync_target: SyncTarget,
+        sync_superblock_committee_size: u32,
     ) -> ResponseActFuture<Self, (), ()> {
-        let fut =
-            self.construct_superblock(ctx, block_epoch)
-                .and_then(move |superblock, act, ctx| {
-                    if superblock.hash() == sync_target.superblock.hash_prev_block {
-                        // In synchronizing state, the consensus beacon is the one we just created
-                        act.chain_state
-                            .chain_info
-                            .as_mut()
-                            .unwrap()
-                            .highest_superblock_checkpoint =
-                            act.chain_state.superblock_state.get_beacon();
-                        log::info!(
-                            "Consensus while sync! Superblock {:?}",
-                            act.get_superblock_beacon()
-                        );
+        let fut = self
+            .construct_superblock(ctx, block_epoch, Some(sync_superblock_committee_size))
+            .and_then(move |superblock, act, ctx| {
+                if superblock.hash() == sync_target.superblock.hash_prev_block {
+                    // In synchronizing state, the consensus beacon is the one we just created
+                    act.chain_state
+                        .chain_info
+                        .as_mut()
+                        .unwrap()
+                        .highest_superblock_checkpoint =
+                        act.chain_state.superblock_state.get_beacon();
+                    log::info!(
+                        "Consensus while sync! Superblock {:?}",
+                        act.get_superblock_beacon()
+                    );
 
-                        // Copy current chain state into previous chain state, and persist it
-                        act.move_chain_state_forward(sync_target.superblock.checkpoint);
-                        act.persist_chain_state(sync_target.superblock.checkpoint, ctx);
+                    // Copy current chain state into previous chain state, and persist it
+                    act.move_chain_state_forward(sync_target.superblock.checkpoint);
+                    act.persist_chain_state(sync_target.superblock.checkpoint, ctx);
 
-                        actix::fut::ok(())
-                    } else {
-                        // The superblock hash is different from what it should be.
-                        log::error!(
-                            "Mismatching superblock. Target: {:?} Created #{} {} {:?}",
-                            sync_target,
-                            superblock.index,
-                            superblock.hash(),
-                            superblock
-                        );
-                        act.update_state_machine(StateMachine::WaitingConsensus);
-                        act.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
+                    actix::fut::ok(())
+                } else {
+                    // The superblock hash is different from what it should be.
+                    log::error!(
+                        "Mismatching superblock. Target: {:?} Created #{} {} {:?}",
+                        sync_target,
+                        superblock.index,
+                        superblock.hash(),
+                        superblock
+                    );
+                    act.update_state_machine(StateMachine::WaitingConsensus);
+                    act.initialize_from_storage(ctx);
+                    log::info!("Restored chain state from storage");
 
-                        // If we are not synchronizing, forget about when we started synchronizing
-                        act.sync_waiting_for_add_blocks_since = None;
-                        actix::fut::err(())
-                    }
-                });
+                    // If we are not synchronizing, forget about when we started synchronizing
+                    act.sync_waiting_for_add_blocks_since = None;
+                    actix::fut::err(())
+                }
+            });
 
         Box::new(fut)
     }
@@ -1128,6 +1129,7 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<Self>,
         block_epoch: u32,
+        force_committee_size: Option<u32>,
     ) -> ResponseActFuture<Self, SuperBlock, ()> {
         let consensus_constants = self.consensus_constants();
 
@@ -1284,15 +1286,23 @@ impl ChainManager {
                     // the list itself is ordered by decreasing reputation
                     let reputed_ars = ARSIdentities::new(reputed_ars_members);
 
-                    // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
-                    let committee_size = current_committee_size_requirement(
-                        consensus_constants.superblock_signing_committee_size,
-                        act.chain_state.superblock_state.get_committee_length(),
-                        consensus_constants.superblock_committee_decreasing_period,
-                        consensus_constants.superblock_committee_decreasing_step,
-                        chain_info.highest_superblock_checkpoint.checkpoint,
-                        superblock_index,
-                    );
+                    // The force_committee_size variable can be used to overwrite the committee size
+                    // while synchronizing. This is because when synchronizing,
+                    // act.chain_state.superblock_state.get_committee_length() may not return the
+                    // previous committee size.
+                    let committee_size = if let Some(committee_size) = force_committee_size {
+                        committee_size
+                    } else {
+                        // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
+                        current_committee_size_requirement(
+                            consensus_constants.superblock_signing_committee_size,
+                            act.chain_state.superblock_state.get_committee_length(),
+                            consensus_constants.superblock_committee_decreasing_period,
+                            consensus_constants.superblock_committee_decreasing_step,
+                            chain_info.highest_superblock_checkpoint.checkpoint,
+                            superblock_index,
+                        )
+                    };
                     log::debug!("The current signing committee size is {}", committee_size);
 
                     let superblock = act.chain_state.superblock_state.build_superblock(
