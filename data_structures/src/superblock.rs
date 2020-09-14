@@ -304,15 +304,13 @@ impl SuperBlockState {
                 self.signing_committee
                     .contains(&sbv.secp256k1_signature.public_key.pkh()),
             )
-        } else if ((superblock_index.saturating_sub(1))..=superblock_index.saturating_add(1))
-            .contains(&sbv.superblock_index)
-        {
-            // If the index is not the same as the current one, but it is within an acceptable range
-            // of [x-1, x+1], broadcast the vote without checking if it is a member of the ARS, as
-            // the ARS may have changed and we do not keep older copies of the ARS in memory
+        } else if sbv.superblock_index == superblock_index.saturating_add(1) {
+            // If the index is not the same as the current one, but it is a checkpoint later, x+1,
+            // broadcast the vote without checking if it is a member of the ARS, as the ARS
+            // may have changed
             None
         } else {
-            // If the index is outside the [x-1, x+1] range, it is considered not valid
+            // If the index is different from x or x+1, it is considered not valid
             Some(false)
         }
     }
@@ -1263,9 +1261,9 @@ mod tests {
         v2.secp256k1_signature.public_key = p2.clone();
 
         // let x be the current superblock index, when voting for an index grater than x + 1,
-        // or smaller than x -1 the funciton should detected as InvalidIndex
+        // or smaller than x the function should detected as InvalidIndex
         assert_eq!(sbs.add_vote(&v1), AddSuperBlockVote::InvalidIndex);
-        // when voting for a different index but in [x-1, x+1], it should set the vote as MaybeValid
+        // when voting for a different index but equal to x+1, it should set the vote as MaybeValid
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::MaybeValid);
     }
 
@@ -1432,8 +1430,8 @@ mod tests {
         hh.entry(sb2_hash).or_default().push(v2);
         assert_eq!(sbs.votes_mempool.get_valid_votes(), hh);
 
-        // But if we are in index 2 and receive a vote for index 1, the votes are simply marked as
-        // "MaybeValid", they are not included in votes_on_local_superlock
+        // But if we are in index 2 and receive a vote for index 1, the vote is
+        // set as "InvalidIndex"
         let _sb3 = sbs.build_superblock(
             &block_headers,
             ars_identities,
@@ -1446,7 +1444,7 @@ mod tests {
         assert_eq!(sbs.votes_mempool.get_valid_votes(), HashMap::new());
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
         v3.secp256k1_signature.public_key = p3;
-        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::MaybeValid);
+        assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::InvalidIndex);
         assert_eq!(sbs.votes_mempool.get_valid_votes(), HashMap::new());
     }
 
