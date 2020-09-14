@@ -338,6 +338,13 @@ impl Message for GetMemoryTransaction {
     type Result = Result<Transaction, ()>;
 }
 
+/// Used to set the target superblock needed for synchronization
+#[derive(Message)]
+pub struct AddSuperBlock {
+    /// Superblock
+    pub superblock: SuperBlock,
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

@@ -45,9 +45,9 @@ use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestReport, Epoch, EpochConstants, Hash, Hashable, InventoryItem, NodeStats,
-        OwnUnspentOutputsPool, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify,
-        SuperBlock, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
+        DataRequestReport, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
+        NodeStats, OwnUnspentOutputsPool, PublicKeyHash, Reputation, ReputationEngine,
+        SignaturesToVerify, SuperBlock, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -70,8 +70,8 @@ use crate::{
         json_rpc::JsonRpcServer,
         messages::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast,
-            GetBlocksEpochRange, GetItemBlock, SendInventoryItem, SendLastBeacon,
-            SendSuperBlockVote, StoreInventoryItem, SuperBlockNotify,
+            GetBlocksEpochRange, GetItemBlock, SendInventoryItem, SendInventoryRequest,
+            SendLastBeacon, SendSuperBlockVote, StoreInventoryItem, SuperBlockNotify,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -182,6 +182,8 @@ pub struct ChainManager {
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
     sync_target: Option<SyncTarget>,
+    /// The superblock hash and superblock according to a majority of peers
+    sync_superblock: Option<(Hash, SuperBlock)>,
     /// The node asked for a batch of blocks on this epoch. This is used to implement a timeout
     /// that will move the node back to WaitingConsensus state if it does not receive any AddBlocks
     /// message after a certain number of epochs
@@ -1440,6 +1442,50 @@ impl ChainManager {
             .spawn(ctx);
         let epoch = self.current_epoch.unwrap();
         self.sync_waiting_for_add_blocks_since = Some(epoch);
+    }
+
+    fn request_sync_target_superblock(
+        &mut self,
+        ctx: &mut Context<Self>,
+        superblock_beacon: CheckpointBeacon,
+    ) {
+        let CheckpointBeacon {
+            checkpoint: superblock_index,
+            hash_prev_block: superblock_hash,
+        } = superblock_beacon;
+
+        let already_have_this_superblock = self
+            .sync_superblock
+            .as_ref()
+            .map(|(hash, _superblock)| hash == &superblock_hash)
+            .unwrap_or(false);
+
+        if !already_have_this_superblock {
+            // Reset the old superblock, if any
+            self.sync_superblock = None;
+
+            SessionsManager::from_registry()
+                .send(Anycast {
+                    command: SendInventoryRequest {
+                        items: vec![InventoryEntry::SuperBlock(superblock_index)],
+                    },
+                    safu: true,
+                })
+                .into_actor(self)
+                .then(move |res, _act, ctx| match res {
+                    Ok(Ok(())) => actix::fut::ok(()),
+                    _ => {
+                        // On error case go back to WaitingConsensus state
+                        log::debug!("Failed to send InventoryRequest(Superblock) to random peer, retrying...");
+                        ctx.run_later(Duration::from_secs(1), move |act, ctx| {
+                            act.request_sync_target_superblock(ctx, superblock_beacon)
+                        });
+
+                        actix::fut::err(())
+                    }
+                })
+                .spawn(ctx);
+        }
     }
 
     fn process_blocks_batch(

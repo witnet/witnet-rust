@@ -28,8 +28,8 @@ use crate::actors::{
     codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
-        AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlockVote, AddTransaction,
-        CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
+        AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlock, AddSuperBlockVote,
+        AddTransaction, CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
         GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
         RemoveAddressesFromTried, RequestPeers, SendGetPeers, SendInventoryAnnouncement,
         SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
