@@ -1242,53 +1242,42 @@ pub fn get_superblock(
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    match params {
+    let fut = match params {
         GetSuperblockBlocksParams::SuperblockIndex(superblock_index) => {
-            let inventory_manager_addr = InventoryManager::from_registry();
-
-            let fut = inventory_manager_addr
-                .send(GetItemSuperblock { superblock_index })
-                .map_err(internal_error)
-                .and_then(|dr_info| match dr_info {
-                    Ok(x) => match serde_json::to_value(&x) {
-                        Ok(x) => futures::finished(x),
-                        Err(e) => {
-                            let err = internal_error_s(e);
-                            futures::failed(err)
-                        }
-                    },
-                    Err(e) => futures::failed(internal_error_s(e)),
-                });
-
-            Box::new(fut)
+            futures::future::Either::A(futures::finished(superblock_index))
         }
         GetSuperblockBlocksParams::BlockEpoch(block_epoch) => {
-            let fut = config_mngr::get()
-                .map_err(internal_error)
-                .and_then(move |config| {
+            futures::future::Either::B(config_mngr::get().map_err(internal_error).map(
+                move |config| {
                     let superblock_period = u32::from(config.consensus_constants.superblock_period);
-                    let superblock_index = (block_epoch / superblock_period) + 1;
-
-                    let inventory_manager_addr = InventoryManager::from_registry();
-
-                    inventory_manager_addr
-                        .send(GetItemSuperblock { superblock_index })
-                        .map_err(internal_error)
-                        .and_then(|dr_info| match dr_info {
-                            Ok(x) => match serde_json::to_value(&x) {
-                                Ok(x) => futures::finished(x),
-                                Err(e) => {
-                                    let err = internal_error_s(e);
-                                    futures::failed(err)
-                                }
-                            },
-                            Err(e) => futures::failed(internal_error_s(e)),
-                        })
-                });
-
-            Box::new(fut)
+                    // Calculate the superblock_index that contains the block_epoch.
+                    // The +1 is needed because block_epoch/superblock_period will be the current
+                    // top superblock, and we want the next one because that's the one that
+                    // consolidates this block.
+                    (block_epoch / superblock_period) + 1
+                },
+            ))
         }
     }
+    .and_then(|superblock_index| {
+        let inventory_manager_addr = InventoryManager::from_registry();
+
+        inventory_manager_addr
+            .send(GetItemSuperblock { superblock_index })
+            .map_err(internal_error)
+    })
+    .and_then(|dr_info| match dr_info {
+        Ok(x) => match serde_json::to_value(&x) {
+            Ok(x) => futures::finished(x),
+            Err(e) => {
+                let err = internal_error_s(e);
+                futures::failed(err)
+            }
+        },
+        Err(e) => futures::failed(internal_error_s(e)),
+    });
+
+    Box::new(fut)
 }
 
 #[cfg(test)]

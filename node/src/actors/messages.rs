@@ -915,7 +915,7 @@ pub struct BlockNotify {
 ///
 /// As per current consensus algorithm, "consolidated blocks" implies that there exists at least one
 /// superblock in the chain that builds upon the superblock where those blocks were anchored.
-#[derive(Clone, Debug, PartialEq, Eq, Message, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Message, PartialEq, Serialize)]
 pub struct SuperBlockNotify {
     /// The superblock that we are signaling as consolidated.
     pub superblock: SuperBlock,
