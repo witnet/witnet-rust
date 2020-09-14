@@ -230,7 +230,7 @@ impl Handler<SuperBlockNotify> for JsonRpcServer {
                     }));
                 }
             } else {
-                log::warn!("Failed to find a subscription for superblocks notifications");
+                log::debug!("No subscriptions for superblocks notifications");
             }
         } else {
             log::error!("Failed to acquire lock in SuperBlockNotify handle");
