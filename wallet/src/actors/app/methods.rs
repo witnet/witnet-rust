@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix::utils::TimerFunc;
 use futures::future;
 
@@ -643,7 +645,7 @@ impl App {
     /// This method exists for convenience in case that at some point we decide to allow changing
     /// the `JsonRpcClient` address by putting `NodeClient` inside an `Arc<RwLock<_>>` or similar.
     #[inline(always)]
-    pub fn get_client(&self) -> NodeClient {
+    pub fn get_client(&self) -> Arc<NodeClient> {
         self.params.client.clone()
     }
 
