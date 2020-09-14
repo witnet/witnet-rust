@@ -15,6 +15,7 @@ message Message {
             LastBeacon LastBeacon = 8;
             Transaction Transaction = 9;
             SuperBlockVote SuperBlockVote = 10;
+            SuperBlock SuperBlock = 11;
         }
     }
 
@@ -77,6 +78,16 @@ message Block {
     BlockHeader block_header = 1;
     KeyedSignature block_sig = 2;
     BlockTransactions txns = 3;
+}
+
+message SuperBlock {
+    uint64 ars_length = 1;
+    Hash ars_root = 2;
+    Hash data_request_root = 3;
+    uint32 index = 4;
+    Hash last_block = 5;
+    Hash last_block_in_previous_superblock = 6;
+    Hash tally_root = 7;
 }
 
 message InventoryAnnouncement {
@@ -278,6 +289,7 @@ message InventoryEntry {
     oneof kind {
         Hash Block = 1;
         Hash Tx = 2;
+        uint32 SuperBlock = 3;
     }
 }
 

@@ -594,7 +594,8 @@ pub struct BlockMerkleRoots {
 /// as of the last block in that period.
 /// This is needed to ensure that the security and trustlessness properties of Witnet will
 /// be relayed to bridges with other block chains.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, ProtobufConvert, Serialize)]
+#[protobuf_convert(pb = "witnet::SuperBlock")]
 pub struct SuperBlock {
     /// Number of ars members,
     pub ars_length: u64,
@@ -2357,6 +2358,7 @@ impl PartialOrd for OutputPointer {
 pub enum InventoryEntry {
     Tx(Hash),
     Block(Hash),
+    SuperBlock(u32),
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
@@ -2384,6 +2386,8 @@ pub enum InventoryItem {
     Transaction(Transaction),
     #[serde(rename = "block")]
     Block(Block),
+    #[serde(rename = "superBlock")]
+    SuperBlock(SuperBlock),
 }
 
 /// Data request report to be persisted into Storage and

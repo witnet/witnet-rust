@@ -697,6 +697,19 @@ impl fmt::Display for SendInventoryAnnouncement {
     }
 }
 
+/// Message to request new inventory entries through the network
+#[derive(Clone, Debug, Message)]
+pub struct SendInventoryRequest {
+    /// Inventory entries
+    pub items: Vec<InventoryEntry>,
+}
+
+impl fmt::Display for SendInventoryRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SendInventoryRequest")
+    }
+}
+
 /// Message to send inventory items through the network
 #[derive(Clone, Debug, Message)]
 pub struct SendInventoryItem {

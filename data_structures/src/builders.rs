@@ -6,7 +6,8 @@ use witnet_util::timestamp::get_timestamp;
 
 use crate::{
     chain::{
-        Block, BlockHeader, BlockTransactions, InventoryEntry, KeyedSignature, SuperBlockVote,
+        Block, BlockHeader, BlockTransactions, InventoryEntry, KeyedSignature, SuperBlock,
+        SuperBlockVote,
     },
     error::BuildersError,
     transaction::Transaction,
@@ -134,6 +135,11 @@ impl Message {
                 txns,
             }),
         )
+    }
+
+    /// Function to build SuperBlock message
+    pub fn build_superblock(magic: u16, superblock: SuperBlock) -> Message {
+        Message::build_message(magic, Command::SuperBlock(superblock))
     }
 
     /// Function to build Transaction message
