@@ -334,7 +334,9 @@ impl Handler<AddBlocks> for ChainManager {
                     return;
                 }
 
-                let _sync_superblock = sync_superblock.unwrap();
+                let sync_superblock = sync_superblock.unwrap();
+                let sync_superblock_committee_size =
+                    u32::try_from(sync_superblock.ars_length).unwrap();
 
                 let superblock_period = u32::from(consensus_constants.superblock_period);
 
@@ -410,7 +412,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, consolidate_epoch, sync_target)
+                                self.try_consolidate_superblock(ctx, consolidate_epoch, sync_target, sync_superblock_committee_size)
                             )
                         } else {
                             // No need to construct a superblock again,
@@ -462,7 +464,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target)
+                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target, sync_superblock_committee_size)
                             )
                         } else {
                             // No need to construct a superblock again,
