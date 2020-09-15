@@ -81,7 +81,7 @@ message Block {
 }
 
 message SuperBlock {
-    uint64 ars_length = 1;
+    uint32 signing_committee_length = 1;
     Hash ars_root = 2;
     Hash data_request_root = 3;
     uint32 index = 4;

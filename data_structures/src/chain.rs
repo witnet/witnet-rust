@@ -597,8 +597,8 @@ pub struct BlockMerkleRoots {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, ProtobufConvert, Serialize)]
 #[protobuf_convert(pb = "witnet::SuperBlock")]
 pub struct SuperBlock {
-    /// Number of ars members,
-    pub ars_length: u64,
+    /// Number of signing committee members,
+    pub signing_committee_length: u32,
     /// Merkle root of the Active Reputation Set members included into the previous SuperBlock
     pub ars_root: Hash,
     /// Merkle root of the data requests in the blocks created since the last SuperBlock
@@ -626,7 +626,7 @@ impl SuperBlock {
     /// Note that both the node and Ethereum smart contracts need to hash identical superblocks
     fn serialize_as_bytes(&self) -> Vec<u8> {
         [
-            &self.ars_length.to_be_bytes()[..],
+            &self.signing_committee_length.to_be_bytes()[..],
             self.ars_root.as_ref(),
             self.data_request_root.as_ref(),
             &self.index.to_be_bytes()[..],
@@ -3774,7 +3774,7 @@ mod tests {
     #[test]
     fn test_superblock_hashable_trait() {
         let superblock = SuperBlock {
-            ars_length: 3,
+            signing_committee_length: 3,
             ars_root: Hash::SHA256([1; 32]),
             data_request_root: Hash::SHA256([2; 32]),
             index: 1,
@@ -3782,14 +3782,14 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256([4; 32]),
             tally_root: Hash::SHA256([5; 32]),
         };
-        let expected = "abbe7475bbf814e266d295473928ab30f9c2c97da092a5d3162704fc19403925";
+        let expected = "c9a800eb2c8047b05b660137771ccda4fa34e02fb7bc8d178747b0b3ae987875";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
     #[test]
     fn test_superblock_hashable_trait_2() {
         let superblock = SuperBlock {
-            ars_length: 0x0fff_ffff_ffff,
+            signing_committee_length: 0x0fff_ffff,
             ars_root: Hash::SHA256([1; 32]),
             data_request_root: Hash::SHA256([2; 32]),
             index: 0x0020_2020,
@@ -3797,14 +3797,14 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256([4; 32]),
             tally_root: Hash::SHA256([5; 32]),
         };
-        let expected = "15ac1620ee1a0743e99d9a415c7c77de6935f778189597c699c2126b1d52229b";
+        let expected = "244961e865ad0e295184912cfd90032e3c400c08c959b49fda51e05eae1a7c66";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
     #[test]
     fn test_superblock_hashable_trait_3() {
         let superblock = SuperBlock {
-            ars_length: 0x000a_456b_32c7,
+            signing_committee_length: 0x000a_456b,
             ars_root: Hash::SHA256([1; 32]),
             data_request_root: Hash::SHA256([2; 32]),
             index: 0x20a6_b256,
@@ -3812,7 +3812,7 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256([4; 32]),
             tally_root: Hash::SHA256([5; 32]),
         };
-        let expected = "7a2426b925203c9e8b514fadf3b689ce3f01a98698e992b70aec4dd286590b62";
+        let expected = "e70684a7f72668a7b77fe2d9add8f798b012efd8a551bd37167d02b345ecb2fa";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
@@ -3850,7 +3850,7 @@ mod tests {
                 .unwrap();
 
         let superblock = SuperBlock {
-            ars_length: 0x000a_456b_32c7,
+            signing_committee_length: 0x000a_456b,
             ars_root: Hash::SHA256(ars_root),
             data_request_root: Hash::SHA256(dr_root),
             index: 0x0020_a6b2,
@@ -3858,7 +3858,7 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
             tally_root: Hash::SHA256(tally_root),
         };
-        let expected = "0a76ac7744694ebec75b56674056b8b8e08903d02f0b467e0f5ea5770718188b";
+        let expected = "329349f85dd42d0b59c014a6f859b26185c488dc3ca13c036ddc751916220c77";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
@@ -3896,7 +3896,7 @@ mod tests {
                 .unwrap();
 
         let superblock = SuperBlock {
-            ars_length: 0x0012_34ad_3e5f,
+            signing_committee_length: 0x0012_34ad,
             ars_root: Hash::SHA256(ars_root),
             data_request_root: Hash::SHA256(dr_root),
             index: 0x0765_64fd,
@@ -3904,7 +3904,7 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
             tally_root: Hash::SHA256(tally_root),
         };
-        let expected = "c4c70a789723ce620241ccbb2cac5c533195df32f7182e34e4a02fd5e92d8a23";
+        let expected = "4afd32e477049920cc70dd223657c0574a700ee18aad2463a4b528bfa8de6d99";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
@@ -3942,7 +3942,7 @@ mod tests {
                 .unwrap();
 
         let superblock = SuperBlock {
-            ars_length: 0x0fff_ffff_ffff,
+            signing_committee_length: 0x0fff_ffff,
             ars_root: Hash::SHA256(ars_root),
             data_request_root: Hash::SHA256(dr_root),
             index: 0x00ff_ffff,
@@ -3950,7 +3950,7 @@ mod tests {
             last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
             tally_root: Hash::SHA256(tally_root),
         };
-        let expected = "493837a41d3c53be420213398f9d42c949ad5cc7f8680cf40a691fd85fa552d6";
+        let expected = "c87b63079813d3eca051f11f07ad555280ff9a7e44f3b1d42c1d309d25392327";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
@@ -5616,6 +5616,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let expected_indices = vec![0, 2, 2];
@@ -5669,6 +5670,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
@@ -5703,6 +5705,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let result = sb.dr_proof_of_inclusion(&[b1, b2], &dr_txs[2]);
@@ -5713,7 +5716,7 @@ mod tests {
     fn test_dr_merkle_root_no_block() {
         let dr_txs = build_test_dr_txs(3);
 
-        let sb = mining_build_superblock(&[], &[Hash::default()], 1, Hash::default());
+        let sb = mining_build_superblock(&[], &[Hash::default()], 1, Hash::default(), 1);
 
         let result = sb.dr_proof_of_inclusion(&[], &dr_txs[2]);
         assert!(result.is_none());
@@ -5738,6 +5741,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let expected_indices = vec![0, 2];
@@ -5775,6 +5779,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let expected_indices = vec![0, 2, 2];
@@ -5836,6 +5841,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
@@ -5870,6 +5876,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let result = sb.tally_proof_of_inclusion(&[b1, b2], &tally_txs[2]);
@@ -5900,6 +5907,7 @@ mod tests {
             &[Hash::default()],
             1,
             Hash::default(),
+            1,
         );
 
         let expected_indices = vec![0, 2, 2];

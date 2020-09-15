@@ -379,6 +379,7 @@ impl SuperBlockState {
     /// next superblock. The votes for the current superblock must be validated using them
     /// to calculate the superblock_signing_committee.
     /// The ordered bn256 keys will be merkelized and appended to the superblock
+    #[allow(clippy::cast_possible_truncation)]
     pub fn build_superblock(
         &mut self,
         block_headers: &[BlockHeader],
@@ -390,13 +391,6 @@ impl SuperBlockState {
     ) -> SuperBlock {
         let key_leaves = hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(alt_keys));
 
-        let superblock = mining_build_superblock(
-            block_headers,
-            &key_leaves,
-            superblock_index,
-            last_block_in_previous_superblock,
-        );
-
         self.update_ars_identities(ars_identities);
 
         // Before updating the superblock_beacon, calculate the signing committee
@@ -405,6 +399,14 @@ impl SuperBlockState {
             signing_committee_size,
             superblock_index,
             self.current_superblock_beacon.hash_prev_block,
+        );
+
+        let superblock = mining_build_superblock(
+            block_headers,
+            &key_leaves,
+            superblock_index,
+            last_block_in_previous_superblock,
+            self.signing_committee.len() as u32,
         );
 
         // update the superblock_beacon
@@ -532,6 +534,7 @@ pub fn mining_build_superblock(
     ars_ordered_hash_leaves: &[Hash],
     index: u32,
     last_block_in_previous_superblock: Hash,
+    signing_committee_length: u32,
 ) -> SuperBlock {
     let last_block = block_headers.last();
     match last_block {
@@ -546,7 +549,7 @@ pub fn mining_build_superblock(
                 ars_root,
             );
             SuperBlock {
-                ars_length: ars_ordered_hash_leaves.len() as u64,
+                signing_committee_length,
                 ars_root,
                 index,
                 last_block: last_block_in_previous_superblock,
@@ -579,7 +582,7 @@ pub fn mining_build_superblock(
             );
 
             SuperBlock {
-                ars_length: ars_ordered_hash_leaves.len() as u64,
+                signing_committee_length,
                 data_request_root: hash_merkle_tree_root(&merkle_drs),
                 tally_root: hash_merkle_tree_root(&merkle_tallies),
                 ars_root,
@@ -620,10 +623,10 @@ mod tests {
     #[test]
     fn test_superblock_creation_no_blocks() {
         let default_hash = Hash::default();
-        let superblock = mining_build_superblock(&[], &[], 0, default_hash);
+        let superblock = mining_build_superblock(&[], &[], 0, default_hash, 0);
 
         let expected = SuperBlock {
-            ars_length: 0,
+            signing_committee_length: 0,
             ars_root: Hash::from(EMPTY_SHA256),
             data_request_root: default_hash,
             index: 0,
@@ -667,7 +670,7 @@ mod tests {
         };
 
         let expected_superblock = SuperBlock {
-            ars_length: 1,
+            signing_committee_length: 1,
             ars_root: default_hash,
             data_request_root: dr_merkle_root_1,
             index: 0,
@@ -676,7 +679,7 @@ mod tests {
             tally_root: tally_merkle_root_1,
         };
 
-        let superblock = mining_build_superblock(&[block], &[default_hash], 0, default_hash);
+        let superblock = mining_build_superblock(&[block], &[default_hash], 0, default_hash, 1);
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -731,7 +734,7 @@ mod tests {
         };
 
         let expected_superblock = SuperBlock {
-            ars_length: 1,
+            signing_committee_length: 1,
             ars_root: default_hash,
             data_request_root: expected_superblock_dr_root,
             index: 0,
@@ -741,7 +744,7 @@ mod tests {
         };
 
         let superblock =
-            mining_build_superblock(&[block_1, block_2], &[default_hash], 0, default_hash);
+            mining_build_superblock(&[block_1, block_2], &[default_hash], 0, default_hash, 1);
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -860,7 +863,7 @@ mod tests {
         );
 
         let expected_superblock = SuperBlock {
-            ars_length: 1,
+            signing_committee_length: 0,
             ars_root: hash_merkle_tree_root(&hash_key_leaves(
                 &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
             )),
@@ -873,7 +876,7 @@ mod tests {
         assert_eq!(first_superblock, expected_superblock);
 
         let expected_superblock_hash =
-            "bcbead467194d639bc8162725db72495056b65c4ff8caf033f86f76c118874c9"
+            "c336c5d7c36b6f98bb5f4b3851e6f54e33a0f726f884d73480e002f2370679be"
                 .parse()
                 .unwrap();
 
@@ -912,7 +915,7 @@ mod tests {
         );
 
         let expected_second_superblock = SuperBlock {
-            ars_length: 1,
+            signing_committee_length: 1,
             ars_root: hash_merkle_tree_root(&hash_key_leaves(
                 &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
             )),
@@ -1398,6 +1401,7 @@ mod tests {
             &hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(&alt_keys)),
             1,
             genesis_hash,
+            3,
         );
         let sb2_hash = expected_sb2.hash();
 
@@ -1475,7 +1479,7 @@ mod tests {
             &alt_keys,
         );
         // superblock with index 1
-        let _sb2 = sbs.build_superblock(
+        let sb2 = sbs.build_superblock(
             &block_headers,
             ars_identities.clone(),
             2,
@@ -1489,7 +1493,10 @@ mod tests {
             &hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(&alt_keys)),
             1,
             genesis_hash,
+            2,
         );
+
+        assert_eq!(sb2, expected_sb2);
         let sb2_hash = expected_sb2.hash();
 
         // Receive three superblock votes for index 1
@@ -1502,14 +1509,14 @@ mod tests {
             Some((sb2_hash, 1))
         );
         let mut v2 = SuperBlockVote::new_unsigned(sb2_hash, 1);
-        v2.secp256k1_signature.public_key = p2;
+        v2.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v2), AddSuperBlockVote::ValidWithSameHash);
         assert_eq!(
             sbs.votes_mempool.most_voted_superblock(),
             Some((sb2_hash, 2))
         );
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
-        v3.secp256k1_signature.public_key = p1;
+        v3.secp256k1_signature.public_key = p2;
         assert_eq!(sbs.add_vote(&v3), AddSuperBlockVote::NotInSigningCommittee);
         assert_eq!(
             sbs.votes_mempool.most_voted_superblock(),
@@ -1599,14 +1606,11 @@ mod tests {
             sbs.current_superblock_beacon.hash_prev_block,
         );
 
-        // The members of the signing_committee should be p4, p6, p8 and p2
-        assert_eq!(subset.contains(&p4.pkh()), true);
-
-        assert_eq!(subset.contains(&p6.pkh()), true);
-
-        assert_eq!(subset.contains(&p8.pkh()), true);
-
-        assert_eq!(subset.contains(&p2.pkh()), true);
+        // The members of the signing_committee should be p1, p3, p5, p7
+        assert!(subset.contains(&p1.pkh()));
+        assert!(subset.contains(&p3.pkh()));
+        assert!(subset.contains(&p5.pkh()));
+        assert!(subset.contains(&p7.pkh()));
 
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
     }
@@ -1643,10 +1647,9 @@ mod tests {
             sbs.current_superblock_beacon.hash_prev_block,
         );
 
-        // The members of the signing_committee should be p4, p6, p8 and p2
-        assert_eq!(subset.contains(&p1.pkh()), true);
-
-        assert_eq!(subset.contains(&p2.pkh()), true);
+        // The members of the signing_committee should be p1, p3
+        assert!(subset.contains(&p1.pkh()));
+        assert!(subset.contains(&p3.pkh()));
 
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
 
@@ -1655,14 +1658,13 @@ mod tests {
         let subset_2 = calculate_superblock_signing_committee(
             sbs.ars_previous_identities.clone(),
             committee_size,
-            9,
+            1,
             sbs.current_superblock_beacon.hash_prev_block,
         );
 
-        // The members of the signing_committee should be p4, p6, p8 and p2
-        assert_eq!(subset_2.contains(&p3.pkh()), true);
-
-        assert_eq!(subset_2.contains(&p2.pkh()), true);
+        // The members of the signing_committee should be p1, p2
+        assert!(subset_2.contains(&p2.pkh()));
+        assert!(subset_2.contains(&p3.pkh()));
 
         assert_eq!(usize::try_from(committee_size).unwrap(), subset_2.len());
     }
