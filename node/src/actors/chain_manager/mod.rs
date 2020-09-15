@@ -2121,7 +2121,6 @@ fn show_sync_progress(
     );
 }
 
-// TODO: handle recovery cases after reduction
 // Returns the committee size to be applied given the default committee size, decreasing period
 // and  step, last consolidated epoch and the current checkpoint
 fn current_committee_size_requirement(
@@ -2140,7 +2139,7 @@ fn current_committee_size_requirement(
         // If this difference exceeds the decreasing_period, reduce the committee size by decreasing_step * difference
         // The minimum committee size is 1
         max(
-            default_committee_size.saturating_sub(
+            last_committee_size.saturating_sub(
                 (current_checkpoint.saturating_sub(last_consolidated_checkpoint)
                     / decreasing_period)
                     * decreasing_step,
@@ -2391,6 +2390,161 @@ mod tests {
         size = current_committee_size_requirement(100, 100, 5, 5, 5, 6);
 
         assert_eq!(size, 100);
+    }
+
+    #[test]
+    fn test_current_committee_size_requirement_sequence() {
+        let default_size = 100;
+        let decreasing_period = 5;
+        let decreasing_step = 2;
+        let mut last_consolidated_checkpoint = 0;
+        let mut current_checkpoint = 0;
+        let mut size = 0;
+
+        let mut next_size = |has_superblock| {
+            let s = current_committee_size_requirement(
+                default_size,
+                size,
+                decreasing_period,
+                decreasing_step,
+                last_consolidated_checkpoint,
+                current_checkpoint,
+            );
+            if has_superblock {
+                last_consolidated_checkpoint = current_checkpoint;
+                size = s;
+            };
+            current_checkpoint += 1;
+            s
+        };
+
+        // Check that the committee size is 100 during the first epochs if there are superblocks
+        let mut initial = vec![];
+        for _ in 0..10 {
+            initial.push(next_size(true));
+        }
+        assert_eq!(initial, vec![100; 10]);
+
+        // Check the decreasing pattern from 100 with period 5 and step 2
+        let mut decreasing = vec![];
+        for _ in 0..30 {
+            decreasing.push(next_size(false));
+        }
+        assert_eq!(
+            decreasing,
+            vec![
+                100, 100, 100, 100, 98, 98, 98, 98, 98, 96, 96, 96, 96, 96, 94, 94, 94, 94, 94, 92,
+                92, 92, 92, 92, 90, 90, 90, 90, 90, 88
+            ]
+        );
+
+        // Set the current committee size back to 1
+        for i in 0.. {
+            if next_size(false) == 1 {
+                break;
+            }
+
+            if i == 1000 {
+                panic!("Never reached commitee size 1");
+            }
+        }
+
+        // Check the increasing pattern from 1 to 100 with step 2
+        let mut increasing = vec![];
+        for _ in 0..55 {
+            increasing.push(next_size(true));
+        }
+        assert_eq!(
+            increasing,
+            vec![
+                1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43,
+                45, 47, 49, 51, 53, 55, 57, 59, 61, 63, 65, 67, 69, 71, 73, 75, 77, 79, 81, 83, 85,
+                87, 89, 91, 93, 95, 97, 99, 100, 100, 100, 100, 100
+            ]
+        );
+
+        // Set the current committee size back to 1
+        for i in 0.. {
+            if next_size(false) == 1 {
+                break;
+            }
+
+            if i == 1000 {
+                panic!("Never reached commitee size 1");
+            }
+        }
+
+        // Check the sequence when there is 1 superblock and 5 missing in circle
+        let mut circular_1 = vec![];
+        for _ in 0..3 {
+            circular_1.push(next_size(true));
+            for _ in 0..decreasing_period {
+                circular_1.push(next_size(false));
+            }
+        }
+        assert_eq!(
+            circular_1,
+            vec![1, 3, 3, 3, 3, 1, 1, 3, 3, 3, 3, 1, 1, 3, 3, 3, 3, 1]
+        );
+
+        // Check the sequence when there is 1 missing superblock and 5 superblocks in circle
+        let mut circular_2 = vec![];
+        for _ in 0..3 {
+            circular_2.push(next_size(false));
+            for _ in 0..decreasing_period {
+                circular_2.push(next_size(true));
+            }
+        }
+        assert_eq!(
+            circular_2,
+            vec![1, 1, 3, 5, 7, 9, 11, 11, 13, 15, 17, 19, 21, 21, 23, 25, 27, 29]
+        );
+
+        // Set the current committee size back to 1
+        for i in 0.. {
+            if next_size(false) == 1 {
+                break;
+            }
+
+            if i == 1000 {
+                panic!("Never reached commitee size 1");
+            }
+        }
+
+        // Check the sequence when there is 1 missing superblock and 3 superblocks in circle
+        let mut circular_3 = vec![];
+        for _ in 0..3 {
+            circular_3.push(next_size(false));
+            for _ in 2..decreasing_period {
+                circular_3.push(next_size(true));
+            }
+        }
+        assert_eq!(circular_3, vec![1, 1, 3, 5, 7, 7, 9, 11, 13, 13, 15, 17]);
+
+        // Set the current committee size back to 1
+        for i in 0.. {
+            if next_size(false) == 1 {
+                break;
+            }
+
+            if i == 1000 {
+                panic!("Never reached commitee size 1");
+            }
+        }
+
+        // Check the sequence when there is 1 superblock, 6 superblocks missing and then 2 superblocks
+        let mut sequence = vec![];
+        for _ in 0..3 {
+            sequence.push(next_size(true));
+        }
+        for _ in 3..9 {
+            sequence.push(next_size(false));
+        }
+
+        for _ in 9..11 {
+            sequence.push(next_size(true));
+        }
+        assert_eq!(sequence, vec![1, 3, 5, 7, 7, 7, 7, 3, 3, 3, 5]);
     }
 
     #[test]
