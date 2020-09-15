@@ -330,8 +330,7 @@ impl Handler<AddBlocks> for ChainManager {
                 // superblock n + 1, using the current_committee_size_requirement function
                 let sync_superblock_committee_size = if let Some(sync_superblock) = sync_superblock
                 {
-                    // TODO: this should not be ars_length, but signing_committee_length
-                    u32::try_from(sync_superblock.ars_length).unwrap()
+                    sync_superblock.signing_committee_length
                 } else if sync_target.superblock.checkpoint == 0 {
                     // If the target superblock is 0, we can safely set the committee size to
                     // 1 because nobody needs to sign the superblock 0, it is valid by consensus.
