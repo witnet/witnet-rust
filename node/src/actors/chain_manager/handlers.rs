@@ -479,7 +479,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                     // Update ARS if there were no blocks right before the epoch during
                                     // which we should construct the target superblock
-                                    let candidate_superblock_epoch = (act.current_epoch.unwrap() / superblock_period) * superblock_period;
+                                    let candidate_superblock_checkpoint = act.current_epoch.unwrap() / superblock_period;
 
                                     // We need to persist blocks in order to be able to construct the
                                     // superblock
@@ -494,19 +494,24 @@ impl Handler<AddBlocks> for ChainManager {
 
                                     // We must construct the second superblock in order to be able
                                     // to validate the votes for this superblock later
-                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, candidate_superblock_epoch);
+                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, candidate_superblock_checkpoint * superblock_period);
 
-                                    actix::fut::ok(candidate_superblock_epoch)
+                                    actix::fut::ok(candidate_superblock_checkpoint)
                                 }
                             })
-                            .and_then(move |candidate_superblock_epoch, act, ctx| {
-                                act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch).map(move |_, _, _| candidate_superblock_epoch)
+                            .and_then(move |candidate_superblock_checkpoint, act, ctx| {
+                                if let Some(candidate_superblock_epoch) = act.superblock_candidate_is_needed(candidate_superblock_checkpoint, superblock_period) {
+                                    actix::fut::Either::A(act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch).map(move |_, act, _| {
+                                        let superblock_index = candidate_superblock_epoch / superblock_period;
+                                        // Copy current chain state into previous chain state, but do not persist it yet
+                                        act.move_chain_state_forward(superblock_index);
+                                    }))
+                                }
+                                else{
+                                    actix::fut::Either::B(actix::fut::ok(()))
+                                }
                             })
-                            .and_then(move |candidate_superblock_epoch, act, ctx| {
-                                // Store chain state at candidate superblock, but do not persist it yet
-                                let superblock_index = candidate_superblock_epoch / superblock_period;
-                                act.move_chain_state_forward(superblock_index);
-
+                            .and_then(move |_, act, ctx| {
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
@@ -517,11 +522,9 @@ impl Handler<AddBlocks> for ChainManager {
                                     return actix::fut::err(());
                                 }
                                 log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
-
                                 log::info!("Block sync target achieved");
                                 // Target achieved, go back to state 1
                                 act.update_state_machine(StateMachine::WaitingConsensus);
-
                                 actix::fut::ok(())
                             })
                             .wait(ctx);

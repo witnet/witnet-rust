@@ -1584,11 +1584,23 @@ impl ChainManager {
         superblock_period: u32,
     ) -> Option<u32> {
         if sync_target.superblock.checkpoint
-            == self.chain_state.superblock_state.get_beacon().checkpoint
+            <= self.chain_state.superblock_state.get_beacon().checkpoint
         {
             None
         } else {
             Some(sync_target.superblock.checkpoint * superblock_period)
+        }
+    }
+
+    fn superblock_candidate_is_needed(
+        &self,
+        candidate_superblock_epoch: u32,
+        superblock_period: u32,
+    ) -> Option<u32> {
+        if candidate_superblock_epoch <= self.chain_state.superblock_state.get_beacon().checkpoint {
+            None
+        } else {
+            Some(candidate_superblock_epoch * superblock_period)
         }
     }
 
