@@ -507,9 +507,9 @@ impl Handler<AddBlocks> for ChainManager {
                         current_superblock_index,
                     }) => {
                         log::warn!("Received unexpected block {} for superblock index (consolidated: {}, current {}). Delaying synchronization until next epoch.",
+                            wrong_index,
                             consolidated_superblock_index,
                             current_superblock_index,
-                            wrong_index,
 
                         );
                         self.update_state_machine(StateMachine::WaitingConsensus);
