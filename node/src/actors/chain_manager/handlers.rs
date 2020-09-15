@@ -454,7 +454,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                     // Update ARS if there were no blocks right before the epoch during
                                     // which we should construct the target superblock
-                                    let candidate_superblock_epoch = (act.current_epoch.unwrap() / superblock_period) * superblock_period;
+                                    let candidate_superblock_checkpoint = act.current_epoch.unwrap() / superblock_period;
 
                                     // We need to persist blocks in order to be able to construct the
                                     // superblock
@@ -469,13 +469,18 @@ impl Handler<AddBlocks> for ChainManager {
 
                                     // We must construct the second superblock in order to be able
                                     // to validate the votes for this superblock later
-                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, candidate_superblock_epoch);
+                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, candidate_superblock_checkpoint * superblock_period);
 
-                                    actix::fut::ok(candidate_superblock_epoch)
+                                    actix::fut::ok(candidate_superblock_checkpoint)
                                 }
                             })
-                            .and_then(move |candidate_superblock_epoch, act, ctx| {
-                                act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch).map(move |_, _, _| candidate_superblock_epoch)
+                            .and_then(move |candidate_superblock_checkpoint, act, ctx| {
+                                if let Some(candidate_superblock_epoch) = act.superblock_candidate_is_needed(candidate_superblock_checkpoint, superblock_period) {
+                                    actix::fut::Either::A(act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch).map(move |_, _, _| candidate_superblock_epoch))
+                                }
+                                else{
+                                    actix::fut::Either::B(actix::fut::ok(candidate_superblock_checkpoint*superblock_period))
+                                }
                             })
                             .and_then(move |candidate_superblock_epoch, act, ctx| {
                                 // Process remaining blocks
