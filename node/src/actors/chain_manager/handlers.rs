@@ -323,7 +323,22 @@ impl Handler<AddBlocks> for ChainManager {
                             }
                         });
 
-                if sync_superblock.is_none() {
+                // Size of the committee that must sign the target superblock n. During the
+                // synchronization process, the target superblock n is assumed to be valid so we do
+                // not need to validate any votes. However, we need to know the size of the
+                // committee because it is needed to calculate the size of the next committee for
+                // superblock n + 1, using the current_committee_size_requirement function
+                let sync_superblock_committee_size = if let Some(sync_superblock) = sync_superblock
+                {
+                    // TODO: this should not be ars_length, but signing_committee_length
+                    u32::try_from(sync_superblock.ars_length).unwrap()
+                } else if sync_target.superblock.checkpoint == 0 {
+                    // If the target superblock is 0, we can safely set the committee size to
+                    // 1 because nobody needs to sign the superblock 0, it is valid by consensus.
+                    // Important: never set the signing committee size to 0 because it will panic
+                    // the calculate_superblock_signing_committee function
+                    1
+                } else {
                     log::debug!("Received blocks before superblock");
                     // Received the `AddBlocks` message before the `AddSuperBlock` message.
                     // We cannot finish the synchronization without the sync_superblock, so in that
@@ -332,11 +347,7 @@ impl Handler<AddBlocks> for ChainManager {
                     self.request_sync_target_superblock(ctx, sync_target.superblock);
                     ctx.notify_later(msg, Duration::from_secs(6));
                     return;
-                }
-
-                let sync_superblock = sync_superblock.unwrap();
-                let sync_superblock_committee_size =
-                    u32::try_from(sync_superblock.ars_length).unwrap();
+                };
 
                 let superblock_period = u32::from(consensus_constants.superblock_period);
 

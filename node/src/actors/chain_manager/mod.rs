@@ -1464,6 +1464,11 @@ impl ChainManager {
             hash_prev_block: superblock_hash,
         } = superblock_beacon;
 
+        if superblock_index == 0 {
+            // No need to request the bootstrap superblock, because it does not exist
+            return;
+        }
+
         let already_have_this_superblock = self
             .sync_superblock
             .as_ref()
