@@ -215,6 +215,8 @@ pub struct SuperBlockState {
     //and the current superblock index, used to limit the range of broadcasted votes to
     // [index - 1, index + 1]. So if index is 10, only votes with index 9, 10, 11 will be broadcasted
     current_superblock_beacon: CheckpointBeacon,
+    // Flag to avoid validating the votes of the target superblock
+    pub current_superblock_is_sync_target: bool,
     // Subset of ARS in charge of signing the next superblock
     signing_committee: HashSet<PublicKeyHash>,
     // Signing committee length

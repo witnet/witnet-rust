@@ -1084,6 +1084,10 @@ impl ChainManager {
             .construct_superblock(ctx, block_epoch, Some(sync_superblock_committee_size))
             .and_then(move |superblock, act, ctx| {
                 if superblock.hash() == sync_target.superblock.hash_prev_block {
+                    // Set this flag to true to avoid counting the votes for the target superblock
+                    act.chain_state
+                        .superblock_state
+                        .current_superblock_is_sync_target = true;
                     // In synchronizing state, the consensus beacon is the one we just created
                     act.chain_state
                         .chain_info
@@ -1210,7 +1214,12 @@ impl ChainManager {
             })
             .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
             .and_then(move |(block_headers, last_hash), act, ctx| {
-                let consensus = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
+                let consensus = if act.chain_state.superblock_state.current_superblock_is_sync_target {
+                    act.chain_state.superblock_state.current_superblock_is_sync_target = false;
+                    log::debug!("Superblock {:?} is assumed to be in consensus because it is the sync target", voted_superblock_beacon);
+
+                    SuperBlockConsensus::SameAsLocal
+                } else if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                     if voted_superblock_beacon.checkpoint + 1 != superblock_index {
                         // Warn when there is are missing superblocks between the one that will be
                         // consolidated and the one that will be created
