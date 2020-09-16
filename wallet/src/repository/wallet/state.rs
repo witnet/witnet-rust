@@ -1,9 +1,11 @@
 use super::*;
+use std::sync::Arc;
 use witnet_data_structures::chain::EpochConstants;
 
 /// A single wallet state. It includes:
 ///  - fields required to operate wallet accounts (e.g. derive addresses)
 ///  - on-memory state after indexing pending block transactions
+#[derive(Debug)]
 pub struct State {
     /// Current account index
     pub account: u32,
@@ -28,7 +30,8 @@ pub struct State {
     /// Next internal index used to derive addresses
     pub next_internal_index: u32,
     /// List of pending address infos, waiting to be confirmed with a superblock
-    pub pending_address_infos: HashMap<String, Vec<model::AddressInfo>>,
+    pub pending_addresses_by_block: HashMap<String, Vec<Arc<model::Address>>>,
+    pub pending_addresses_by_path: HashMap<String, Arc<model::Address>>,
     /// List of pending blocks waiting to be confirmed
     pub pending_blocks: HashMap<String, model::Beacon>,
     /// List of pending balance movements, waiting to be confirmed with a superblock

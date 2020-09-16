@@ -1,10 +1,10 @@
 //! Types that are serializable and can be returned as a response.
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
+use failure::_core::fmt::Formatter;
 use serde::{Deserialize, Serialize};
 
-use crate::types;
+use crate::{account, types};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
@@ -22,7 +22,7 @@ pub struct UnlockedWallet {
     pub available_accounts: Vec<u32>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Address {
     pub address: String,
     pub index: u32,
@@ -40,7 +40,7 @@ pub struct Addresses {
     pub total: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct AddressInfo {
     /// Database key for storing `AddressInfo` objects
     #[serde(skip)]
@@ -268,6 +268,18 @@ pub struct Path {
     pub account: u32,
     pub keychain: u32,
     pub index: u32,
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}/{}/{}",
+            account::account_keypath(self.account),
+            self.keychain,
+            self.index
+        )
+    }
 }
 
 pub struct ExtendedTransaction {
