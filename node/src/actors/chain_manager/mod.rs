@@ -1303,7 +1303,7 @@ impl ChainManager {
                             superblock_index,
                         )
                     };
-                    log::debug!("The current signing committee size is {}", committee_size);
+                    log::debug!("The current signing committee size is {} and the ars len is {}", committee_size, reputed_ars.ordered_identities.len());
 
                     let superblock = act.chain_state.superblock_state.build_superblock(
                         &block_headers,
@@ -1313,6 +1313,10 @@ impl ChainManager {
                         last_hash,
                         &act.chain_state.alt_keys,
                     );
+
+                    if let Some(committee_size) = force_committee_size {
+                        act.chain_state.superblock_state.signing_committee_length = committee_size;
+                    }
 
                     // Put the local superblock into chain state
                     act.chain_state

@@ -52,7 +52,7 @@ pub struct ARSIdentities {
     // HashSet of the identities in a specific ARS
     identities: HashSet<PublicKeyHash>,
     // Ordered vector of the identities in a specific ARS
-    ordered_identities: Vec<PublicKeyHash>,
+    pub ordered_identities: Vec<PublicKeyHash>,
 }
 
 impl ARSIdentities {
@@ -217,6 +217,8 @@ pub struct SuperBlockState {
     current_superblock_beacon: CheckpointBeacon,
     // Subset of ARS in charge of signing the next superblock
     signing_committee: HashSet<PublicKeyHash>,
+    // Signing committee length
+    pub signing_committee_length: u32,
     // SuperBlockMempool
     votes_mempool: SuperBlockVotesMempool,
 }
@@ -391,6 +393,14 @@ impl SuperBlockState {
     ) -> SuperBlock {
         let key_leaves = hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(alt_keys));
 
+        let superblock = mining_build_superblock(
+            block_headers,
+            &key_leaves,
+            superblock_index,
+            last_block_in_previous_superblock,
+            signing_committee_size,
+        );
+
         self.update_ars_identities(ars_identities);
 
         // Before updating the superblock_beacon, calculate the signing committee
@@ -401,13 +411,7 @@ impl SuperBlockState {
             self.current_superblock_beacon.hash_prev_block,
         );
 
-        let superblock = mining_build_superblock(
-            block_headers,
-            &key_leaves,
-            superblock_index,
-            last_block_in_previous_superblock,
-            self.signing_committee.len() as u32,
-        );
+        self.signing_committee_length = signing_committee_size;
 
         // update the superblock_beacon
         self.current_superblock_beacon = CheckpointBeacon {
@@ -441,7 +445,7 @@ impl SuperBlockState {
     #[allow(clippy::cast_possible_truncation)]
     /// Returns the length of the current committee
     pub fn get_committee_length(&self) -> u32 {
-        self.signing_committee.len() as u32
+        self.signing_committee_length
     }
 
     /// Check if we had already received this superblock vote
@@ -574,10 +578,11 @@ pub fn mining_build_superblock(
                 .map(|b| format!("#{}: {}", b.beacon.checkpoint, b.hash()))
                 .collect();
             log::debug!(
-                "Created superblock #{} with hash_prev_block {}, ARS {}, blocks {:?}",
+                "Created superblock #{} with hash_prev_block {}, ARS {}, signing_committee_length: {}, blocks {:?}",
                 index,
                 last_block_in_previous_superblock,
                 ars_root,
+                signing_committee_length,
                 blocks
             );
 
@@ -863,7 +868,7 @@ mod tests {
         );
 
         let expected_superblock = SuperBlock {
-            signing_committee_length: 0,
+            signing_committee_length: 100,
             ars_root: hash_merkle_tree_root(&hash_key_leaves(
                 &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
             )),
@@ -876,13 +881,14 @@ mod tests {
         assert_eq!(first_superblock, expected_superblock);
 
         let expected_superblock_hash =
-            "c336c5d7c36b6f98bb5f4b3851e6f54e33a0f726f884d73480e002f2370679be"
+            "7fd7fd143619a4a825620e296bc45c0874a4189183aed5b6b6c22fec29d8868b"
                 .parse()
                 .unwrap();
 
         let expected_sbs = SuperBlockState {
             ars_current_identities: ars_identities,
             signing_committee: HashSet::new(),
+            signing_committee_length: 100,
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: expected_superblock_hash,
@@ -915,7 +921,7 @@ mod tests {
         );
 
         let expected_second_superblock = SuperBlock {
-            signing_committee_length: 1,
+            signing_committee_length: 100,
             ars_root: hash_merkle_tree_root(&hash_key_leaves(
                 &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
             )),
@@ -1401,7 +1407,7 @@ mod tests {
             &hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(&alt_keys)),
             1,
             genesis_hash,
-            3,
+            100,
         );
         let sb2_hash = expected_sb2.hash();
 
@@ -1606,11 +1612,13 @@ mod tests {
             sbs.current_superblock_beacon.hash_prev_block,
         );
 
-        // The members of the signing_committee should be p1, p3, p5, p7
-        assert!(subset.contains(&p1.pkh()));
-        assert!(subset.contains(&p3.pkh()));
-        assert!(subset.contains(&p5.pkh()));
-        assert!(subset.contains(&p7.pkh()));
+        // The members of the signing_committee should be p2, p4, p6, p8
+        assert_eq!(
+            subset,
+            vec![p2.pkh(), p4.pkh(), p6.pkh(), p8.pkh()]
+                .into_iter()
+                .collect()
+        );
 
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
     }
@@ -1647,10 +1655,8 @@ mod tests {
             sbs.current_superblock_beacon.hash_prev_block,
         );
 
-        // The members of the signing_committee should be p1, p3
-        assert!(subset.contains(&p1.pkh()));
-        assert!(subset.contains(&p3.pkh()));
-
+        // The members of the signing_committee should be p1, p2
+        assert_eq!(subset, vec![p1.pkh(), p2.pkh()].into_iter().collect());
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
 
         sbs.ars_previous_identities = ars_identities;
@@ -1658,14 +1664,12 @@ mod tests {
         let subset_2 = calculate_superblock_signing_committee(
             sbs.ars_previous_identities.clone(),
             committee_size,
-            1,
+            9,
             sbs.current_superblock_beacon.hash_prev_block,
         );
 
-        // The members of the signing_committee should be p1, p2
-        assert!(subset_2.contains(&p2.pkh()));
-        assert!(subset_2.contains(&p3.pkh()));
-
+        // The members of the signing_committee should be p2, p3
+        assert_eq!(subset_2, vec![p2.pkh(), p3.pkh()].into_iter().collect());
         assert_eq!(usize::try_from(committee_size).unwrap(), subset_2.len());
     }
 

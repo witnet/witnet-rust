@@ -1468,14 +1468,14 @@ impl Handler<AddSuperBlock> for ChainManager {
             if target_superblock_hash == received_superblock_hash {
                 self.sync_superblock = Some((received_superblock_hash, msg.superblock));
             } else {
-                log::debug!(
+                log::error!(
                     "Received superblock {} when expecting superblock {}",
                     received_superblock_hash,
                     target_superblock_hash
                 );
             }
         } else {
-            log::debug!(
+            log::error!(
                 "Received superblock {} when expecting no superblock",
                 received_superblock_hash
             );
