@@ -34,8 +34,7 @@ pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
 pub use witnet_rad::{error::RadError, types::RadonTypes, RADRequestExecutionReport};
 
-use crate::model;
-use crate::types::signature::Signature;
+use crate::{model, types::signature::Signature};
 
 use super::{db, repository};
 
@@ -231,8 +230,13 @@ pub type DynamicSink = Arc<RwLock<Option<Sink>>>;
 /// activity related to their wallets.
 #[derive(Debug, Serialize)]
 pub enum Event {
-    /// The basic information of a new block that has already been processed
+    /// The basic information of a new block that has already been processed but is pending
+    /// consolidation (anchoring into a future superblock).
     Block(model::Beacon),
+    /// A list of hashes of blocks that are now considered final.
+    BlocksConsolidate(Vec<String>),
+    /// A list of hashes of blocks that are now considered orphaned.
+    BlocksOrphan(Vec<String>),
     /// A new movement (transaction) affecting balance.
     Movement(model::BalanceMovement),
     /// The end of a synchronization progress.

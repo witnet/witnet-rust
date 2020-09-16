@@ -873,7 +873,27 @@ impl Worker {
                 block_notification.superblock.index,
             );
 
+            // Notify orphaning of the blocks that could not be persisted
+            self.notify_client(
+                &wallet,
+                sink.clone(),
+                Some(vec![types::Event::BlocksOrphan(
+                    block_notification.consolidated_block_hashes,
+                )]),
+            )
+            .ok();
+
             self.sync(&wallet.id, wallet.clone(), sink)?
+        } else {
+            // Notify consolidation of the persisted blocks
+            self.notify_client(
+                &wallet,
+                sink,
+                Some(vec![types::Event::BlocksConsolidate(
+                    block_notification.consolidated_block_hashes,
+                )]),
+            )
+            .ok();
         }
 
         Ok(())
