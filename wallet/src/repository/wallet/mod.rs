@@ -1,23 +1,28 @@
 use std::{collections::HashMap, convert::TryFrom, str::FromStr, sync::RwLock};
 
-use super::*;
+use state::State;
+use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::chain::{
+    CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash,
+};
+
 use crate::{
-    account, constants,
+    constants,
     db::{Database, WriteBatch as _},
     model,
     params::Params,
     types::{self, signature, ExtendedPK, Hash, Hashable as _, RadonError},
 };
 
+use super::*;
+use crate::constants::{EXTERNAL_KEYCHAIN, INTERNAL_KEYCHAIN};
+use crate::model::AddressInfo;
+use std::sync::Arc;
+use witnet_data_structures::get_environment;
+
 mod state;
 #[cfg(test)]
 mod tests;
-
-use state::State;
-use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{
-    CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash,
-};
 
 /// Internal structure used to gather state mutations while indexing block transactions
 struct AccountMutation {
@@ -59,12 +64,16 @@ where
         state.last_sync = state.last_confirmed;
         state.pending_blocks.clear();
         state.pending_movements.clear();
-        state.pending_address_infos.clear();
+        state.pending_addresses_by_path.clear();
+        state.pending_addresses_by_block.clear();
 
         // Restore state from database
         state.next_external_index = self
             .db
-            .get_or_default(&keys::transaction_next_id(account))?;
+            .get_or_default(&keys::account_next_index(account, EXTERNAL_KEYCHAIN))?;
+        state.next_internal_index = self
+            .db
+            .get_or_default(&keys::account_next_index(account, INTERNAL_KEYCHAIN))?;
         state.utxo_set = self.db.get_or_default(&keys::account_utxo_set(account))?;
         state.balance = self.db.get_or_default(&keys::account_balance(account))?;
 
@@ -138,7 +147,8 @@ where
             last_sync,
             last_confirmed,
             pending_movements: Default::default(),
-            pending_address_infos: Default::default(),
+            pending_addresses_by_block: Default::default(),
+            pending_addresses_by_path: Default::default(),
             pending_blocks: Default::default(),
         });
 
@@ -183,7 +193,7 @@ where
         account: u32,
         keychain: u32,
         index: u32,
-    ) -> Result<(model::Address, u32)> {
+    ) -> Result<(Arc<model::Address>, u32)> {
         let next_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
 
         let extended_sk =
@@ -192,17 +202,13 @@ where
             types::ExtendedPK::from_secret_key(&self.engine, &extended_sk);
 
         let pkh = witnet_data_structures::chain::PublicKey::from(key).pkh();
-        let address = pkh.bech32(if self.params.testnet {
-            Environment::Testnet
-        } else {
-            Environment::Mainnet
-        });
-        let path = format!(
-            "{}/{}/{}",
-            account::account_keypath(account),
+        let address = pkh.bech32(get_environment());
+        let path = model::Path {
+            account,
             keychain,
-            index
-        );
+            index,
+        }
+        .to_string();
         let info = model::AddressInfo {
             db_key: keys::address_info(account, keychain, index),
             label,
@@ -241,11 +247,11 @@ where
             pkh,
         };
 
-        Ok((address, next_index))
+        Ok((Arc::new(address), next_index))
     }
 
     /// Generate an address in the external keychain (WIP-0001).
-    pub fn gen_external_address(&self, label: Option<String>) -> Result<model::Address> {
+    pub fn gen_external_address(&self, label: Option<String>) -> Result<Arc<model::Address>> {
         let mut state = self.state.write()?;
 
         self._gen_external_address(&mut state, label)
@@ -253,7 +259,7 @@ where
 
     /// Generate an address in the internal keychain (WIP-0001).
     #[cfg(test)]
-    pub fn gen_internal_address(&self, label: Option<String>) -> Result<model::Address> {
+    pub fn gen_internal_address(&self, label: Option<String>) -> Result<Arc<model::Address>> {
         let mut state = self.state.write()?;
 
         self._gen_internal_address(&mut state, label)
@@ -271,9 +277,16 @@ where
         let range = start..end;
         let mut addresses = Vec::with_capacity(range.len());
 
+        log::debug!(
+            "Retrieving addresses in range {:?}. Start({}), End({}), Total({})",
+            range,
+            start,
+            end,
+            total
+        );
         for index in range.rev() {
             let address = self.get_address(account, keychain, index)?;
-            addresses.push(address);
+            addresses.push((*address).clone());
         }
 
         Ok(model::Addresses { addresses, total })
@@ -287,6 +300,11 @@ where
         // Total amount of state and db transactions
         let total = state.transaction_next_id;
         let mut transactions = Vec::with_capacity(total as usize);
+
+        // Prepend balance movements of pending blocks
+        state.pending_movements.values().for_each(|x| {
+            transactions.extend_from_slice(x);
+        });
 
         let db_total = self.get_transactions_total(account)?;
         if db_total > 0 {
@@ -310,33 +328,62 @@ where
             }
         }
 
-        // Append balance movements of pending blocks
-        state.pending_movements.values().for_each(|x| {
-            transactions.extend_from_slice(x);
-        });
-
         Ok(model::Transactions {
             transactions,
             total,
         })
     }
 
-    /// Get and address if exists.
-    pub fn get_address(&self, account: u32, keychain: u32, index: u32) -> Result<model::Address> {
-        let address = self.db.get(&keys::address(account, keychain, index))?;
-        let path = self.db.get(&keys::address_path(account, keychain, index))?;
-        let pkh = self.db.get(&keys::address_pkh(account, keychain, index))?;
-        let info = self.db.get(&keys::address_info(account, keychain, index))?;
+    /// Get an address if it exists in memory or storage.
+    pub fn get_address(
+        &self,
+        account: u32,
+        keychain: u32,
+        index: u32,
+    ) -> Result<Arc<model::Address>> {
+        let state = self.state.read()?;
 
-        Ok(model::Address {
-            address,
-            path,
-            pkh,
-            index,
+        self._get_address(&state, account, keychain, index)
+    }
+
+    /// Non-locking version of `get_address` (requires a reference to `State` to be passed as
+    /// argument instead of taking a read lock on `self.state`, so as to avoid deadlocks).
+    pub fn _get_address(
+        &self,
+        state: &State,
+        account: u32,
+        keychain: u32,
+        index: u32,
+    ) -> Result<Arc<model::Address>> {
+        let path = model::Path {
             account,
             keychain,
-            info,
-        })
+            index,
+        }
+        .to_string();
+
+        if let Some(address) = state.pending_addresses_by_path.get(&path) {
+            log::trace!("Address {} found in memory", path);
+            Ok(address.clone())
+        } else {
+            log::trace!(
+                "Address {} not found in memory, looking for it in storage...",
+                path,
+            );
+            let address = self.db.get(&keys::address(account, keychain, index))?;
+            let pkh = self.db.get(&keys::address_pkh(account, keychain, index))?;
+            let info = self.db.get(&keys::address_info(account, keychain, index))?;
+
+            Ok(Arc::new(model::Address {
+                address,
+                path,
+                pkh,
+                index,
+                account,
+                keychain,
+                info,
+            }))
+        }
     }
 
     /// Get the total amount of transactions stored in the database.
@@ -438,7 +485,7 @@ where
         confirmed: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
         let mut state = self.state.write()?;
-        let mut address_infos = Vec::new();
+        let mut addresses = Vec::new();
         let mut balance_movements = Vec::new();
 
         // Index all transactions
@@ -450,9 +497,9 @@ where
                 .get_opt::<_, u32>(&keys::transactions_index(&hash))?
             {
                 None => match self._index_transaction(&mut state, txn, block_info, confirmed) {
-                    Ok(Some((balance_movement, mut addr_infos))) => {
+                    Ok(Some((balance_movement, mut new_addresses))) => {
                         balance_movements.push(balance_movement);
-                        address_infos.append(&mut addr_infos);
+                        addresses.append(&mut new_addresses);
                     }
                     Ok(None) => {}
                     e @ Err(_) => {
@@ -470,32 +517,44 @@ where
         if confirmed {
             self._persist_block_txns(
                 balance_movements.clone(),
-                address_infos,
+                addresses,
                 state.transaction_next_id,
+                state.next_external_index,
+                state.next_internal_index,
                 state.utxo_set.clone(),
                 state.balance,
                 block_info,
             )?
         } else {
+            for address in &addresses {
+                let path = address.path.clone();
+                state
+                    .pending_addresses_by_path
+                    .insert(path, address.clone());
+            }
+
+            state
+                .pending_blocks
+                .insert(block_info.block_hash.to_string(), block_info.clone());
             state
                 .pending_movements
                 .insert(block_info.block_hash.to_string(), balance_movements.clone());
             state
-                .pending_address_infos
-                .insert(block_info.block_hash.to_string(), address_infos);
-            state
-                .pending_blocks
-                .insert(block_info.block_hash.to_string(), block_info.clone());
+                .pending_addresses_by_block
+                .insert(block_info.block_hash.to_string(), addresses);
         }
 
         Ok(balance_movements)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn _persist_block_txns(
         &self,
         balance_movements: Vec<model::BalanceMovement>,
-        address_infos: Vec<model::AddressInfo>,
+        addresses: Vec<Arc<model::Address>>,
         transaction_next_id: u32,
+        next_external_address_index: u32,
+        next_internal_address_index: u32,
         utxo_set: model::UtxoSet,
         balance: u64,
         block_info: &model::Beacon,
@@ -504,7 +563,7 @@ where
             "Persisting block #{} changes: {} balance movements and {} address changes",
             block_info.epoch,
             balance_movements.len(),
-            address_infos.len(),
+            addresses.len(),
         );
 
         let account = 0;
@@ -535,10 +594,30 @@ where
         )?;
         batch.put(keys::account_utxo_set(account).into_bytes(), utxo_set)?;
         batch.put(keys::account_balance(account).into_bytes(), balance)?;
+        batch.put(
+            keys::account_next_index(account, EXTERNAL_KEYCHAIN),
+            next_external_address_index,
+        )?;
+        batch.put(
+            keys::account_next_index(account, INTERNAL_KEYCHAIN),
+            next_internal_address_index,
+        )?;
 
-        // Write address infos
-        for address_info in address_infos {
-            batch.put(&address_info.db_key, &address_info)?;
+        // Persist addresses
+        for address in addresses {
+            batch.put(&address.info.db_key, &address.info)?;
+            batch.put(
+                keys::address(account, address.keychain, address.index),
+                &address.address,
+            )?;
+            batch.put(
+                keys::address_path(account, address.keychain, address.index),
+                &address.path,
+            )?;
+            batch.put(
+                keys::address_pkh(account, address.keychain, address.index),
+                &address.pkh,
+            )?;
         }
 
         // FIXME(#1539): persist update of DR movements (because of tally txn)
@@ -756,7 +835,7 @@ where
         &self,
         state: &mut State,
         label: Option<String>,
-    ) -> Result<model::Address> {
+    ) -> Result<Arc<model::Address>> {
         let keychain = constants::INTERNAL_KEYCHAIN;
         let account = state.account;
         let index = state.next_internal_index;
@@ -776,7 +855,7 @@ where
         txn: &model::ExtendedTransaction,
         block_info: &model::Beacon,
         confirmed: bool,
-    ) -> Result<Option<(model::BalanceMovement, Vec<model::AddressInfo>)>> {
+    ) -> Result<Option<(model::BalanceMovement, Vec<Arc<model::Address>>)>> {
         // Inputs and outputs from different transaction types
         let (inputs, outputs) = match &txn.transaction {
             types::Transaction::ValueTransfer(vt) => {
@@ -847,11 +926,10 @@ where
         }
 
         // Update `transaction_next_id`
-        let txn_id = state.transaction_next_id;
-        let txn_next_id = txn_id
+        state.transaction_next_id = state
+            .transaction_next_id
             .checked_add(1)
             .ok_or_else(|| Error::TransactionIdOverflow)?;
-        state.transaction_next_id = txn_next_id;
 
         // Update new account `balance`
         // FIXME(#1481): include pending balance
@@ -867,42 +945,54 @@ where
         };
         state.balance = new_balance;
 
-        // Update addresses information if there were payments (new UTXOs)
-        let mut address_infos = vec![];
+        // Update addresses and their information if there were payments (new UTXOs)
+        let mut addresses = vec![];
+
         for (output_pointer, key_balance) in account_mutation.utxo_inserts {
             // Retrieve previous address information
             let path = self
                 .db
                 .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
 
-            // FIXME(#1540): get `address_info` from memory (or DB if it doesn't exist)
-            let info = self.db.get::<_, model::AddressInfo>(&keys::address_info(
-                path.account,
-                path.keychain,
-                path.index,
-            ))?;
+            // Get address from memory or DB
+            let old_address = self._get_address(state, path.account, path.keychain, path.index)?;
 
             // Build the new address information
-            let mut received_payments = info.received_payments;
+            let info = &old_address.info;
+            let mut received_payments = info.received_payments.clone();
             received_payments.push(output_pointer.to_string());
             let current_timestamp =
                 convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
             let first_payment_date = Some(info.first_payment_date.unwrap_or(current_timestamp));
-            let updated_info = model::AddressInfo {
-                db_key: keys::address_info(path.account, path.keychain, path.index),
-                label: info.label,
-                received_payments,
-                received_amount: info.received_amount + key_balance.amount,
-                first_payment_date,
-                last_payment_date: Some(current_timestamp),
+            let updated_address = model::Address {
+                address: old_address.address.clone(),
+                index: old_address.index,
+                keychain: old_address.keychain,
+                account: old_address.account,
+                path: old_address.path.clone(),
+                info: AddressInfo {
+                    db_key: keys::address_info(path.account, path.keychain, path.index),
+                    label: info.label.clone(),
+                    received_payments,
+                    received_amount: info.received_amount + key_balance.amount,
+                    first_payment_date,
+                    last_payment_date: Some(current_timestamp),
+                },
+                pkh: old_address.pkh,
             };
 
-            address_infos.push(updated_info);
+            log::trace!(
+                "Updating address:\nOld: {:?}\nNew: {:?}",
+                old_address,
+                updated_address
+            );
+
+            addresses.push(Arc::new(updated_address));
         }
 
         // FIXME(#1539): if tally txn, compute update of data request balance movement
 
-        Ok(Some((balance_movement, address_infos)))
+        Ok(Some((balance_movement, addresses)))
     }
 
     fn _get_account_mutation(
@@ -974,7 +1064,7 @@ where
         &self,
         state: &mut State,
         label: Option<String>,
-    ) -> Result<model::Address> {
+    ) -> Result<Arc<model::Address>> {
         let keychain = constants::EXTERNAL_KEYCHAIN;
         let account = state.account;
         let index = state.next_external_index;
@@ -983,7 +1073,17 @@ where
         let (address, next_index) =
             self.gen_address(label, parent_key, account, keychain, index)?;
 
+        let path = model::Path {
+            account,
+            keychain,
+            index,
+        }
+        .to_string();
         state.next_external_index = next_index;
+        state
+            .pending_addresses_by_path
+            .entry(path)
+            .or_insert_with(|| address.clone());
 
         Ok(address)
     }
@@ -1092,8 +1192,8 @@ where
                 block_hash
             ))
         })?;
-        let address_infos = state
-            .pending_address_infos
+        let addresses = state
+            .pending_addresses_by_block
             .remove(block_hash)
             .ok_or_else(|| {
                 Error::BlockConsolidation(format!(
@@ -1105,8 +1205,10 @@ where
         // Try to persist block transaction changes
         self._persist_block_txns(
             movements,
-            address_infos,
+            addresses,
             state.transaction_next_id,
+            state.next_external_index,
+            state.next_external_index,
             state.utxo_set.clone(),
             state.balance,
             &block_info,

@@ -184,7 +184,7 @@ impl Worker {
         &mut self,
         wallet: &types::Wallet,
         label: Option<String>,
-    ) -> Result<model::Address> {
+    ) -> Result<Arc<model::Address>> {
         let address = wallet.gen_external_address(label)?;
 
         Ok(address)
@@ -565,7 +565,7 @@ impl Worker {
         sink: types::DynamicSink,
     ) -> Result<()> {
         let limit = i64::from(self.params.node_sync_batch_size);
-        let superblock_period = wallet.get_superblock_period() as u32;
+        let superblock_period = u32::from(wallet.get_superblock_period());
 
         // Clear wallet pending state before sync (e.g. locked wallet)
         wallet.clear_pending_state()?;
@@ -886,18 +886,18 @@ impl Worker {
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<CheckpointBeacon> {
-        // Immediately update the local reference to the node's last beacon
-        let block_own_beacon = CheckpointBeacon {
-            checkpoint: block.block_header.beacon.checkpoint,
-            hash_prev_block: block.hash(),
-        };
-        self.node.update_last_beacon(block_own_beacon);
-
         // NOTE: Possible enhancement.
         // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
         // if this vector results to be too big, problem is that doing so conflicts with the internal
         // Cell of the txns type which cannot be shared between threads.
         let block_hash = block.hash();
+
+        // Immediately update the local reference to the node's last beacon
+        let block_own_beacon = CheckpointBeacon {
+            checkpoint: block.block_header.beacon.checkpoint,
+            hash_prev_block: block_hash,
+        };
+        self.node.update_last_beacon(block_own_beacon);
 
         // Block transactions to be indexed.
         // Note: reveal transactions do not change wallet balances

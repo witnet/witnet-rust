@@ -18,5 +18,6 @@ impl Handler<GenAddress> for worker::Worker {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.gen_address(&wallet, label)
+            .map(|address| (*address).clone())
     }
 }
