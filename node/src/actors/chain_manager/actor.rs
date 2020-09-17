@@ -90,6 +90,8 @@ impl ChainManager {
                 // Get consensus parameter from config
                 act.consensus_c = config.connections.consensus_c;
 
+                act.chain_state_snapshot.superblock_period = consensus_constants.superblock_period;
+
                 // Set weight limit of transactions pool
                 let vt_to_dr_factor = f64::from(config.consensus_constants.max_vt_weight) / f64::from(config.consensus_constants.max_dr_weight);
                 let _removed_transactions = act.transactions_pool.set_total_weight_limit(config.mining.transactions_pool_total_weight_limit, vt_to_dr_factor);
