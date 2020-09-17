@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, io::Error, net::SocketAddr};
+use std::{cmp::Ordering, convert::TryFrom, io::Error, net::SocketAddr};
 
 use actix::{
     io::WriteHandler, ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler,
@@ -681,19 +681,31 @@ fn inventory_process_superblock(
 
 /// Function to process an InventoryAnnouncement message
 fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
-    // Check how many of the received inventory vectors need to be requested
-    let inv_entries = &inv.inventory;
-
     if !session.requested_block_hashes.is_empty() {
         log::warn!("Received InventoryAnnouncement message while processing an older InventoryAnnouncement. Will stop processing the old one.");
     }
 
-    session.requested_block_hashes = inv_entries
+    let limit = match usize::try_from(session.config.connections.requested_blocks_batch_limit) {
+        // Greater than usize::MAX: set to usize::MAX
+        Err(_) => usize::MAX,
+        // 0 means unlimited
+        Ok(0) => usize::MAX,
+        Ok(limit) => {
+            // Small limits break the synchronization, so force a minimum value of 2 times the
+            // superblock period
+            let min_limit = 2 * usize::from(session.config.consensus_constants.superblock_period);
+            std::cmp::max(limit, min_limit)
+        }
+    };
+
+    session.requested_block_hashes = inv
+        .inventory
         .iter()
-        .filter_map(|inv_entry| match inv_entry.clone() {
-            InventoryEntry::Block(hash) => Some(hash),
+        .filter_map(|inv_entry| match inv_entry {
+            InventoryEntry::Block(hash) => Some(*hash),
             _ => None,
         })
+        .take(limit)
         .collect();
 
     // Clear requested block structures. If a different block download was already in process, we
@@ -702,9 +714,14 @@ fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
     session.blocks_timestamp = get_timestamp();
 
     // Try to create InventoryRequest protocol message to request missing inventory vectors
-    if let Ok(inv_req_msg) =
-        WitnetMessage::build_inventory_request(session.magic_number, inv_entries.to_vec())
-    {
+    if let Ok(inv_req_msg) = WitnetMessage::build_inventory_request(
+        session.magic_number,
+        session
+            .requested_block_hashes
+            .iter()
+            .map(|hash| InventoryEntry::Block(*hash))
+            .collect(),
+    ) {
         // Send InventoryRequest message through the session network connection
         session.send_message(inv_req_msg);
     }
