@@ -845,9 +845,9 @@ fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
             session.send_message(transaction_msg);
         }
         InventoryItem::SuperBlock(superblock) => {
-            // Build Transaction msg
+            // Build SuperBlock msg
             let superblock_msg = WitnetMessage::build_superblock(session.magic_number, superblock);
-            // Send Transaction msg
+            // Send SuperBlock msg
             session.send_message(superblock_msg);
         }
     }

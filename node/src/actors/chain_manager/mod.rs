@@ -1216,14 +1216,13 @@ impl ChainManager {
                     if voted_superblock_beacon.checkpoint == last_consolidated_beacon.checkpoint {
                         log::debug!("Counting votes for a already consolidated superblock index {}", superblock_index);
                         SuperBlockConsensus::SameAsLocal
-                    }
-                    else if voted_superblock_beacon.checkpoint + 1 != superblock_index {
-                        // Warn when there is are missing superblocks between the one that will be
-                        // consolidated and the one that will be created
-                        log::warn!("Counting votes for Superblock {:?} when the current superblock index is {}", voted_superblock_beacon, superblock_index);
-                        act.chain_state.superblock_state.has_consensus()
-                    }
-                    else{
+                    } else {
+                        if voted_superblock_beacon.checkpoint + 1 != superblock_index {
+                            // Warn when there is are missing superblocks between the one that will be
+                            // consolidated and the one that will be created
+                            log::warn!("Counting votes for Superblock {:?} when the current superblock index is {}", voted_superblock_beacon, superblock_index);
+                        }
+
                         act.chain_state.superblock_state.has_consensus()
                     }
 
@@ -1292,7 +1291,7 @@ impl ChainManager {
                             };
 
                     // Get the list of members of the ARS with reputation greater than 0
-                        // the list itself is ordered by decreasing reputation
+                    // the list itself is ordered by decreasing reputation
                     let reputed_ars = ARSIdentities::new(reputed_ars_members);
 
                     // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock

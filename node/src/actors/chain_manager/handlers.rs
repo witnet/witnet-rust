@@ -323,11 +323,7 @@ impl Handler<AddBlocks> for ChainManager {
                             }
                         });
 
-                let sync_superblock = if let Some(sync_superblock) = sync_superblock {
-                    Some(sync_superblock)
-                } else if sync_target.superblock.checkpoint == 0 {
-                    None
-                } else {
+                if sync_superblock.is_none() && sync_target.superblock.checkpoint != 0 {
                     log::debug!("Received blocks before superblock");
                     // Received the `AddBlocks` message before the `AddSuperBlock` message.
                     // We cannot finish the synchronization without the sync_superblock, so in that
@@ -336,7 +332,7 @@ impl Handler<AddBlocks> for ChainManager {
                     self.request_sync_target_superblock(ctx, sync_target.superblock);
                     ctx.notify_later(msg, Duration::from_secs(6));
                     return;
-                };
+                }
 
                 let superblock_period = u32::from(consensus_constants.superblock_period);
 
