@@ -757,6 +757,10 @@ impl ChainManager {
     }
 
     fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) -> Result<(), failure::Error> {
+        let consensus_constants = self.consensus_constants();
+
+        let superblock_period = u32::from(consensus_constants.superblock_period);
+
         for superblock_vote in std::mem::take(&mut self.temp_superblock_votes) {
             log::debug!("add_temp_superblock_votes {:?}", superblock_vote);
             // Check if we already received this vote
@@ -778,7 +782,10 @@ impl ChainManager {
                 if act.chain_state.superblock_state.contains(&superblock_vote) {
                     return actix::fut::ok(());
                 }
-                act.chain_state.superblock_state.add_vote(&superblock_vote);
+                act.chain_state.superblock_state.add_vote(
+                    &superblock_vote,
+                    act.current_epoch.unwrap_or(0) / superblock_period,
+                );
 
                 actix::fut::ok(())
             })
@@ -797,6 +804,9 @@ impl ChainManager {
             "AddSuperBlockVote received while StateMachine is in state {:?}",
             self.sm_state
         );
+        let consensus_constants = self.consensus_constants();
+
+        let superblock_period = u32::from(consensus_constants.superblock_period);
 
         if self.sm_state != StateMachine::Synced {
             self.temp_superblock_votes.push(superblock_vote.clone());
@@ -827,8 +837,10 @@ impl ChainManager {
             // of the ARS, even if the superblock hash is different from our local superblock hash.
             // If the superblock index is different from the current one we cannot check ARS membership,
             // so we broadcast it if the index is within an acceptable range (not too old).
-            let should_broadcast = match act.chain_state.superblock_state.add_vote(&superblock_vote)
-            {
+            let should_broadcast = match act.chain_state.superblock_state.add_vote(
+                &superblock_vote,
+                act.current_epoch.unwrap_or(0) / superblock_period,
+            ) {
                 AddSuperBlockVote::AlreadySeen => false,
                 AddSuperBlockVote::DoubleVote => {
                     // We must forward double votes to make sure all the nodes are aware of them
