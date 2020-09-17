@@ -507,6 +507,10 @@ impl Handler<AddBlocks> for ChainManager {
                                 act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch).map(move |_, _, _| candidate_superblock_epoch)
                             })
                             .and_then(move |candidate_superblock_epoch, act, ctx| {
+                                // Store chain state at candidate superblock, but do not persist it yet
+                                let superblock_index = candidate_superblock_epoch / superblock_period;
+                                act.move_chain_state_forward(superblock_index);
+
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
@@ -517,10 +521,6 @@ impl Handler<AddBlocks> for ChainManager {
                                     return actix::fut::err(());
                                 }
                                 log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
-
-                                let superblock_index = candidate_superblock_epoch / superblock_period;
-                                // Copy current chain state into previous chain state, but do not persist it yet
-                                act.move_chain_state_forward(superblock_index);
 
                                 log::info!("Block sync target achieved");
                                 // Target achieved, go back to state 1

@@ -1612,6 +1612,8 @@ struct ChainStateSnapshot {
     // The ChainState at this superblock index is already persisted in the storage
     // Used to detect code that tries to persist old state
     highest_persisted_superblock: u32,
+    /// Superblock period, used for debugging
+    pub superblock_period: u16,
 }
 
 impl ChainStateSnapshot {
@@ -1628,6 +1630,13 @@ impl ChainStateSnapshot {
             chain_beacon,
             superblock_beacon
         );
+
+        let last_block_according_to_superblock =
+            (superblock_index * u32::from(self.superblock_period)).saturating_sub(1);
+        if chain_beacon.checkpoint > last_block_according_to_superblock {
+            panic!("Invalid snapshot: superblock #{} can only consolidate blocks up to #{}, but this chain state has block #{}",
+            superblock_index, last_block_according_to_superblock, chain_beacon.checkpoint);
+        }
 
         if let Some((prev_chain_state, prev_super_epoch)) = self.previous_chain_state.as_mut() {
             if *prev_super_epoch == superblock_index {
