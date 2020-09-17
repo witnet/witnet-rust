@@ -317,26 +317,16 @@ impl Handler<AddBlocks> for ChainManager {
                         .as_ref()
                         .and_then(|(hash, superblock)| {
                             if hash == &sync_target.superblock.hash_prev_block {
-                                Some(superblock)
+                                Some(superblock.clone())
                             } else {
                                 None
                             }
                         });
 
-                // Size of the committee that must sign the target superblock n. During the
-                // synchronization process, the target superblock n is assumed to be valid so we do
-                // not need to validate any votes. However, we need to know the size of the
-                // committee because it is needed to calculate the size of the next committee for
-                // superblock n + 1, using the current_committee_size_requirement function
-                let sync_superblock_committee_size = if let Some(sync_superblock) = sync_superblock
-                {
-                    sync_superblock.signing_committee_length
+                let sync_superblock = if let Some(sync_superblock) = sync_superblock {
+                    Some(sync_superblock)
                 } else if sync_target.superblock.checkpoint == 0 {
-                    // If the target superblock is 0, we can safely set the committee size to
-                    // 1 because nobody needs to sign the superblock 0, it is valid by consensus.
-                    // Important: never set the signing committee size to 0 because it will panic
-                    // the calculate_superblock_signing_committee function
-                    1
+                    None
                 } else {
                     log::debug!("Received blocks before superblock");
                     // Received the `AddBlocks` message before the `AddSuperBlock` message.
@@ -422,7 +412,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, consolidate_epoch, sync_target, sync_superblock_committee_size)
+                                self.try_consolidate_superblock(ctx, consolidate_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,
@@ -474,7 +464,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target, sync_superblock_committee_size)
+                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,

@@ -1078,10 +1078,10 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block_epoch: u32,
         sync_target: SyncTarget,
-        sync_superblock_committee_size: u32,
+        sync_superblock: Option<SuperBlock>,
     ) -> ResponseActFuture<Self, (), ()> {
         let fut = self
-            .construct_superblock(ctx, block_epoch, Some(sync_superblock_committee_size))
+            .construct_superblock(ctx, block_epoch, sync_superblock)
             .and_then(move |superblock, act, ctx| {
                 if superblock.hash() == sync_target.superblock.hash_prev_block {
                     // In synchronizing state, the consensus beacon is the one we just created
@@ -1129,7 +1129,7 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<Self>,
         block_epoch: u32,
-        force_committee_size: Option<u32>,
+        sync_superblock: Option<SuperBlock>,
     ) -> ResponseActFuture<Self, SuperBlock, ()> {
         let consensus_constants = self.consensus_constants();
 
@@ -1286,13 +1286,7 @@ impl ChainManager {
                     // the list itself is ordered by decreasing reputation
                     let reputed_ars = ARSIdentities::new(reputed_ars_members);
 
-                    // The force_committee_size variable can be used to overwrite the committee size
-                    // while synchronizing. This is because when synchronizing,
-                    // act.chain_state.superblock_state.get_committee_length() may not return the
-                    // previous committee size.
-                    let committee_size = if let Some(committee_size) = force_committee_size {
-                        committee_size
-                    } else {
+                    let committee_size =
                         // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
                         current_committee_size_requirement(
                             consensus_constants.superblock_signing_committee_size,
@@ -1301,8 +1295,7 @@ impl ChainManager {
                             consensus_constants.superblock_committee_decreasing_step,
                             chain_info.highest_superblock_checkpoint.checkpoint,
                             superblock_index,
-                        )
-                    };
+                        );
                     log::debug!("The current signing committee size is {}", committee_size);
 
                     let superblock = act.chain_state.superblock_state.build_superblock(
@@ -1312,7 +1305,10 @@ impl ChainManager {
                         superblock_index,
                         last_hash,
                         &act.chain_state.alt_keys,
+                        sync_superblock,
                     );
+
+                    log::debug!("CREATED SUPERBLOCK #{}: {} -> size: {}", superblock.index, superblock.hash(), superblock.signing_committee_length);
 
                     // Put the local superblock into chain state
                     act.chain_state
