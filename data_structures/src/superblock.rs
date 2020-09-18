@@ -224,8 +224,10 @@ pub struct SuperBlockState {
 impl SuperBlockState {
     // Initialize the superblock state
     pub fn new(superblock_genesis_hash: Hash, bootstrap_committee: Vec<PublicKeyHash>) -> Self {
+        let ars_current_identities = ARSIdentities::new(bootstrap_committee);
         Self {
-            ars_current_identities: ARSIdentities::new(bootstrap_committee),
+            ars_previous_identities: ars_current_identities.clone(),
+            ars_current_identities,
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: superblock_genesis_hash,
@@ -267,6 +269,7 @@ impl SuperBlockState {
         sbv: &SuperBlockVote,
         current_superblock_index: u32,
     ) -> AddSuperBlockVote {
+        assert_ne!(sbv.superblock_index, 0, "votes for bootstrap superblock are not allowed");
         let r = if self.votes_mempool.contains(sbv) {
             // Already processed before
             AddSuperBlockVote::AlreadySeen
@@ -274,20 +277,27 @@ impl SuperBlockState {
             // Insert to avoid validating again
             self.votes_mempool.insert(sbv);
 
-            let valid = self.is_valid(sbv, current_superblock_index);
-
-            match valid {
-                Some(true) => self.insert_vote(sbv.clone()),
-                Some(false) => {
-                    if sbv.superblock_index == current_superblock_index
-                        || self.ars_previous_identities.is_empty()
-                    {
-                        AddSuperBlockVote::NotInSigningCommittee
-                    } else {
-                        AddSuperBlockVote::InvalidIndex
-                    }
+            if self.ars_previous_identities.is_empty() {
+                // Check if vote is part of bootstrap committee, and if so return MaybeValid
+                if self.ars_current_identities.identities.contains(&sbv.secp256k1_signature.public_key.pkh()) {
+                    AddSuperBlockVote::MaybeValid
+                } else {
+                    AddSuperBlockVote::NotInSigningCommittee
                 }
-                None => AddSuperBlockVote::MaybeValid,
+            } else {
+                let valid = self.is_valid(sbv, current_superblock_index);
+
+                match valid {
+                    Some(true) => self.insert_vote(sbv.clone()),
+                    Some(false) => {
+                        if sbv.superblock_index == current_superblock_index {
+                            AddSuperBlockVote::NotInSigningCommittee
+                        } else {
+                            AddSuperBlockVote::InvalidIndex
+                        }
+                    }
+                    None => AddSuperBlockVote::MaybeValid,
+                }
             }
         };
         // TODO: delete this log after testing
@@ -777,7 +787,7 @@ mod tests {
         let v1 = SuperBlockVote::new_unsigned(Hash::SHA256([1; 32]), 0);
         assert_eq!(
             sbs.add_vote(&v1, 0),
-            AddSuperBlockVote::NotInSigningCommittee
+            AddSuperBlockVote::MaybeValid
         );
 
         let v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 0);
@@ -807,6 +817,11 @@ mod tests {
         let ars1 = vec![p1.pkh()];
         let ars2 = vec![p2.pkh()];
         let mut sbs = SuperBlockState::new(Hash::default(), ars1);
+
+        let mut vote_before_first_superblock = SuperBlockVote::new_unsigned(Hash::default(), 0);
+        vote_before_first_superblock.secp256k1_signature.public_key = p1.clone();
+
+        assert_eq!(sbs.add_vote(&vote_before_first_superblock, 0), AddSuperBlockVote::MaybeValid);
 
         let sb1 = sbs.build_superblock(
             &block_headers,
@@ -998,7 +1013,7 @@ mod tests {
         let v0 = SuperBlockVote::new_unsigned(Hash::SHA256([1; 32]), 0);
         assert_eq!(
             sbs.add_vote(&v0, 0),
-            AddSuperBlockVote::NotInSigningCommittee
+            AddSuperBlockVote::MaybeValid
         );
         assert_eq!(sbs.add_vote(&v0, 0), AddSuperBlockVote::AlreadySeen);
 
