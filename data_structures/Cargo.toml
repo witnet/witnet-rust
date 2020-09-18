@@ -10,7 +10,7 @@ workspace = ".."
 bls-signatures-rs = "0.1.0"
 bech32 = "0.7.2"
 byteorder = "1.3.4"
-cbor-codec = "0.7.1"
+cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/ldexpf-shim" }
 chrono = "0.4.10"
 failure = "0.1.8"
 hex = "0.4.1"

@@ -7,7 +7,7 @@ workspace = ".."
 description = "RAD component"
 
 [dependencies]
-cbor-codec = "0.7.1"
+cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/ldexpf-shim" }
 failure = "0.1.8"
 futures = "0.3.4"
 hex = "0.4.1"

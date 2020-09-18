@@ -60,3 +60,10 @@ opt-level = 0
 
 [profile.release]
 opt-level = 3
+
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "4c1db68"
+
+[package.metadata.vcpkg.target]
+x86_64-pc-windows-msvc = { triplet = "x64-windows-static", install = ["openssl"] }
