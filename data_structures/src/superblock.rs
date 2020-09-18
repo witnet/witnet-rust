@@ -225,6 +225,8 @@ impl SuperBlockState {
     // Initialize the superblock state
     pub fn new(superblock_genesis_hash: Hash, bootstrap_committee: Vec<PublicKeyHash>) -> Self {
         Self {
+            signing_committee: bootstrap_committee.clone().into_iter().collect(),
+            ars_previous_identities: ARSIdentities::new(bootstrap_committee.clone()),
             ars_current_identities: ARSIdentities::new(bootstrap_committee),
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 0,
@@ -808,6 +810,14 @@ mod tests {
         let ars2 = vec![p2.pkh()];
         let mut sbs = SuperBlockState::new(Hash::default(), ars1);
 
+        let mut vote_before_first_superblock = SuperBlockVote::new_unsigned(Hash::default(), 1);
+        vote_before_first_superblock.secp256k1_signature.public_key = p1.clone();
+
+        assert_eq!(
+            sbs.add_vote(&vote_before_first_superblock, 0),
+            AddSuperBlockVote::MaybeValid
+        );
+
         let sb1 = sbs.build_superblock(
             &block_headers,
             ARSIdentities::new(ars2),
@@ -817,17 +827,17 @@ mod tests {
             &AltKeys::default(),
             None,
         );
-        let mut v0 = SuperBlockVote::new_unsigned(sb1.hash(), 0);
+        let mut v0 = SuperBlockVote::new_unsigned(sb1.hash(), 1);
 
         v0.secp256k1_signature.public_key = p1;
 
-        assert_eq!(sbs.add_vote(&v0, 0), AddSuperBlockVote::ValidWithSameHash);
+        assert_eq!(sbs.add_vote(&v0, 1), AddSuperBlockVote::ValidWithSameHash);
 
-        let mut v1 = SuperBlockVote::new_unsigned(Hash::default(), 0);
+        let mut v1 = SuperBlockVote::new_unsigned(Hash::default(), 1);
         v1.secp256k1_signature.public_key = p2;
 
         assert_eq!(
-            sbs.add_vote(&v1, 0),
+            sbs.add_vote(&v1, 1),
             AddSuperBlockVote::NotInSigningCommittee
         );
     }
