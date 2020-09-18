@@ -1,11 +1,19 @@
-use std::{collections::HashMap, convert::TryFrom, str::FromStr, sync::RwLock};
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    str::FromStr,
+    sync::{Arc, RwLock},
+};
 
 use state::State;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
     CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash,
 };
+use witnet_data_structures::get_environment;
 
+use crate::constants::{EXTERNAL_KEYCHAIN, INTERNAL_KEYCHAIN};
+use crate::model::AddressInfo;
 use crate::{
     constants,
     db::{Database, WriteBatch as _},
@@ -15,10 +23,6 @@ use crate::{
 };
 
 use super::*;
-use crate::constants::{EXTERNAL_KEYCHAIN, INTERNAL_KEYCHAIN};
-use crate::model::AddressInfo;
-use std::sync::Arc;
-use witnet_data_structures::get_environment;
 
 mod state;
 #[cfg(test)]

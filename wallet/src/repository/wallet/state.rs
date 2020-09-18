@@ -29,8 +29,10 @@ pub struct State {
     pub next_external_index: u32,
     /// Next internal index used to derive addresses
     pub next_internal_index: u32,
-    /// List of pending address infos, waiting to be confirmed with a superblock
+    /// Accumulator for pending addresses waiting to be confirmed, listed by the block they were
+    /// found in.
     pub pending_addresses_by_block: HashMap<String, Vec<Arc<model::Address>>>,
+    /// Accumulator for pending addresses waiting to be confirmed, listed by their derivation path.
     pub pending_addresses_by_path: HashMap<String, Arc<model::Address>>,
     /// List of pending blocks waiting to be confirmed
     pub pending_blocks: HashMap<String, model::Beacon>,

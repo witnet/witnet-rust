@@ -22,7 +22,7 @@ pub struct UnlockedWallet {
     pub available_accounts: Vec<u32>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Address {
     pub address: String,
     pub index: u32,

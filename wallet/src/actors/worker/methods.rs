@@ -849,28 +849,28 @@ impl Worker {
     /// Handle superblock notification by confirming the transactions of the consolidated blocks
     pub fn handle_superblock(
         &self,
-        block_notification: types::SuperBlockNotification,
+        notification: types::SuperBlockNotification,
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
         log::info!(
             "Superblock #{} notification received. Consolidating {} pending blocks...",
-            block_notification.superblock.index,
-            block_notification.consolidated_block_hashes.len()
+            notification.superblock.index,
+            notification.consolidated_block_hashes.len()
         );
 
         log::debug!(
             "Superblock #{} consolidated block hashes: {:?}",
-            block_notification.superblock.index,
-            block_notification.consolidated_block_hashes
+            notification.superblock.index,
+            notification.consolidated_block_hashes
         );
 
-        let consolidated = wallet.handle_superblock(&block_notification.consolidated_block_hashes);
+        let consolidated = wallet.handle_superblock(&notification.consolidated_block_hashes);
 
         if consolidated.is_err() {
             log::error!(
                 "Error while persisting blocks confirmed by superblock #{}... trying to re-sync with node",
-                block_notification.superblock.index,
+                notification.superblock.index,
             );
 
             // Notify orphaning of the blocks that could not be persisted
@@ -878,7 +878,7 @@ impl Worker {
                 &wallet,
                 sink.clone(),
                 Some(vec![types::Event::BlocksOrphan(
-                    block_notification.consolidated_block_hashes,
+                    notification.consolidated_block_hashes,
                 )]),
             )
             .ok();
@@ -890,7 +890,7 @@ impl Worker {
                 &wallet,
                 sink,
                 Some(vec![types::Event::BlocksConsolidate(
-                    block_notification.consolidated_block_hashes,
+                    notification.consolidated_block_hashes,
                 )]),
             )
             .ok();
