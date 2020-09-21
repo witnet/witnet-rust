@@ -293,7 +293,11 @@ impl SuperBlockState {
             }
         };
         // TODO: delete this log after testing
-        log::debug!("Add vote: {:?}", r);
+        log::debug!(
+            "Add vote: {:?} {}",
+            r,
+            crate::types::Command::SuperBlockVote(sbv.clone())
+        );
 
         r
     }

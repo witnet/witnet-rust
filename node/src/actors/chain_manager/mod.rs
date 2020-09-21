@@ -731,16 +731,22 @@ impl ChainManager {
                             })
                     })
                     .into_actor(act)
-                    .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
-                        Ok(()) => actix::fut::ok(()),
-                        Err(e) => {
-                            log::error!(
-                                "Error when broadcasting recently created superblock: {}",
-                                e
-                            );
-
-                            actix::fut::err(())
-                        }
+                    .map(|res, act, ctx| {
+                        // Broadcast vote one epoch checkpoint later.
+                        // This is used to prevent the race condition described in issue #1573
+                        let checkpoints_period = act.consensus_constants().checkpoints_period;
+                        ctx.run_later(
+                            Duration::from_secs(u64::from(checkpoints_period)),
+                            |act, ctx| match act.add_superblock_vote(res, ctx) {
+                                Ok(()) => (),
+                                Err(e) => {
+                                    log::error!(
+                                        "Error when broadcasting recently created superblock: {}",
+                                        e
+                                    );
+                                }
+                            },
+                        );
                     })
             })
             .wait(ctx)
