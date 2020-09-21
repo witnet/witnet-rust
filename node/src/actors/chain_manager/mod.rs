@@ -422,7 +422,10 @@ impl ChainManager {
                 if self.sm_state == StateMachine::WaitingConsensus
                     || self.sm_state == StateMachine::Synchronizing
                 {
-                    self.candidates.insert(hash_block, block);
+                    self.candidates.insert(hash_block, block.clone());
+
+                    // If the node is not synced, broadcast candidates without validating them
+                    self.broadcast_item(InventoryItem::Block(block));
 
                     return;
                 }
