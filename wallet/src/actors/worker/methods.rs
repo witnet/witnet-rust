@@ -648,9 +648,9 @@ impl Worker {
                 // Compute if block should be considered confirmed
                 // Note: blocks confirmed in past superblocks are considered confirmed
                 // FIXME(#1437): best approach would be the node signaling if blocks are confirmed
-                let tip_superblock_index = self.current_epoch()? / superblock_period;
-                let current_superblock_index = epoch / superblock_period;
-                let confirmed = tip_superblock_index - current_superblock_index > 1;
+                let node_tip_superblock_index = self.current_epoch()? / superblock_period;
+                let local_tip_superblock_index = epoch / superblock_period;
+                let confirmed = node_tip_superblock_index - local_tip_superblock_index > 1;
 
                 // Process each block and update latest beacon
                 self.handle_block(
