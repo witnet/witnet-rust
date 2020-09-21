@@ -310,14 +310,26 @@ where
             transactions.extend_from_slice(x);
         });
 
-        let db_total = self.get_transactions_total(account)?;
+        // Query database `transaction_next_id` to compute total amount of transactions
+        let db_total = self
+            .db
+            .get_or_default::<_, u32>(&keys::transaction_next_id(account))?
+            .saturating_sub(1);
+
         if db_total > 0 {
             let end = db_total.saturating_sub(offset);
             let start = end.saturating_sub(limit);
             let range = start..end;
 
+            log::debug!(
+                "Retrieving transactions in range {:?}. Start({}), End({}), Total({})",
+                range,
+                start,
+                end,
+                db_total
+            );
             for index in range.rev() {
-                match self.get_transaction(account, index) {
+                match self.get_transaction(account, index + 1) {
                     Ok(transaction) => {
                         transactions.push(transaction);
                     }
@@ -388,13 +400,6 @@ where
                 info,
             }))
         }
-    }
-
-    /// Get the total amount of transactions stored in the database.
-    pub fn get_transactions_total(&self, account: u32) -> Result<u32> {
-        Ok(self
-            .db
-            .get_or_default(&keys::transaction_next_id(account))?)
     }
 
     /// Get a transaction if exists.
