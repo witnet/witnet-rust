@@ -3,7 +3,7 @@
 /// Bounded sessions module
 pub mod bounded_sessions;
 
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 
 use rand::{thread_rng, Rng};
 
@@ -40,12 +40,6 @@ pub struct Sessions<T>
 where
     T: Clone,
 {
-    /// Timeout for requested blocks
-    pub blocks_timeout: i64,
-    /// Handshake maximum timestamp difference
-    pub handshake_max_ts_diff: i64,
-    /// Handshake timeout
-    pub handshake_timeout: Duration,
     /// Inbound consolidated sessions: __known__ peers sessions that connect to the server
     pub inbound_consolidated: BoundedSessions<T>,
     /// Keeps track of network ranges for inbound connections so as to prevent sybils from
@@ -67,9 +61,6 @@ where
     pub outbound_unconsolidated: BoundedSessions<T>,
     /// Server public address listening to incoming connections
     pub public_address: Option<SocketAddr>,
-    /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
-    /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
-    pub reject_sybil_inbounds: bool,
 }
 
 /// Default trait implementation
@@ -79,9 +70,6 @@ where
 {
     fn default() -> Self {
         Self {
-            blocks_timeout: 0 as i64,
-            handshake_max_ts_diff: 0 as i64,
-            handshake_timeout: Duration::default(),
             inbound_consolidated: BoundedSessions::default(),
             inbound_network_ranges: Default::default(),
             inbound_unconsolidated: BoundedSessions::default(),
@@ -90,7 +78,6 @@ where
             outbound_consolidated_consensus: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),
             public_address: None,
-            reject_sybil_inbounds: true,
         }
     }
 }
@@ -129,21 +116,9 @@ where
         self.outbound_consolidated_consensus
             .set_limit(outbound_consolidated_limit);
     }
-    /// Method to set the handshake timeout
-    pub fn set_handshake_timeout(&mut self, handshake_timeout: Duration) {
-        self.handshake_timeout = handshake_timeout;
-    }
-    /// Method to set the handshake maximum timestamp difference
-    pub fn set_handshake_max_ts_diff(&mut self, ts_diff: i64) {
-        self.handshake_max_ts_diff = ts_diff;
-    }
     /// Method to set the magic number to build messages
     pub fn set_magic_number(&mut self, magic_number: u16) {
         self.magic_number = magic_number;
-    }
-    /// Method to set the timout for waiting requested blocks
-    pub fn set_blocks_timeout(&mut self, blocks_timeout: i64) {
-        self.blocks_timeout = blocks_timeout;
     }
     /// Method to check if a socket address is eligible as outbound peer
     pub fn is_outbound_address_eligible(&self, candidate_addr: SocketAddr) -> bool {

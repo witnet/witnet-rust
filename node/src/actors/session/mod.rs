@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use actix::{io::FramedWrite, SystemService};
 
@@ -6,6 +6,7 @@ use ansi_term::Color::Green;
 
 use tokio::{io::WriteHalf, net::TcpStream};
 
+use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{Block, Epoch, Hash},
     proto::ProtobufConvert,
@@ -54,9 +55,6 @@ pub struct Session {
     /// Framed wrapper to send messages through the TCP connection
     framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
 
-    /// Handshake timeout
-    handshake_timeout: Duration,
-
     /// Session status
     status: SessionStatus,
 
@@ -81,14 +79,11 @@ pub struct Session {
     /// HashMap with requested blocks
     requested_blocks: HashMap<Hash, Block>,
 
-    /// Timeout for requested blocks
-    blocks_timeout: i64,
-
     /// Timestamp for requested blocks
     blocks_timestamp: i64,
 
-    /// Handshake maximum timestamp difference
-    handshake_max_ts_diff: i64,
+    /// Reference to config
+    config: Arc<Config>,
 }
 
 /// Session helper methods
@@ -100,19 +95,16 @@ impl Session {
         remote_addr: SocketAddr,
         session_type: SessionType,
         framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
-        handshake_timeout: Duration,
         magic_number: u16,
-        blocks_timeout: i64,
-        handshake_max_ts_diff: i64,
         current_epoch: Epoch,
         last_beacon: LastBeacon,
+        config: Arc<Config>,
     ) -> Session {
         Session {
             public_addr,
             remote_addr,
             session_type,
             framed,
-            handshake_timeout,
             status: SessionStatus::Unconsolidated,
             handshake_flags: HandshakeFlags::default(),
             remote_sender_addr: None,
@@ -121,9 +113,8 @@ impl Session {
             last_beacon,
             requested_block_hashes: vec![],
             requested_blocks: HashMap::new(),
-            blocks_timeout,
             blocks_timestamp: 0,
-            handshake_max_ts_diff,
+            config,
         }
     }
     /// Method to send a Witnet message to the remote peer

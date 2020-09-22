@@ -34,20 +34,16 @@ impl Handler<Create> for SessionsManager {
     type Result = ();
 
     fn handle(&mut self, msg: Create, _ctx: &mut Context<Self>) {
-        // Get handshake timeout
-        let handshake_timeout = self.sessions.handshake_timeout;
-
         // Get server address
         let public_address = self.sessions.public_address;
 
         // Get magic number
         let magic_number = self.sessions.magic_number;
 
-        // Get blocks timeout
-        let blocks_timeout = self.sessions.blocks_timeout;
-
         // Get current epoch
         let current_epoch = self.current_epoch;
+
+        let config = self.config.as_ref().expect("Config should be set");
 
         // Get last beacon
         let last_beacon = match self.last_beacon.as_ref() {
@@ -57,9 +53,6 @@ impl Handler<Create> for SessionsManager {
                 return;
             }
         };
-
-        // Get maximum timestamp difference for handshaking
-        let handshake_max_ts_diff = self.sessions.handshake_max_ts_diff;
 
         // Get remote peer address
         let remote_addr = match msg.stream.peer_addr() {
@@ -77,12 +70,15 @@ impl Handler<Create> for SessionsManager {
         // Refuse creating multiple inbound sessions for similar IP ranges
         // This is guarded once here and again when consolidating, just to mitigate a possible race
         // condition
-        if self.sessions.reject_sybil_inbounds && msg.session_type == SessionType::Inbound {
+        if config.connections.reject_sybil_inbounds && msg.session_type == SessionType::Inbound {
             if let Some(range) = self.sessions.is_similar_to_inbound_session(&remote_addr) {
                 log::trace!("Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}", remote_addr, ip_range_string(range));
                 return;
             }
         };
+
+        // Clone the reference to config
+        let config = config.clone();
 
         // Create a Session actor
         Session::create(move |ctx| {
@@ -101,12 +97,10 @@ impl Handler<Create> for SessionsManager {
                 remote_addr,
                 msg.session_type,
                 FramedWrite::new(w, P2PCodec, ctx),
-                handshake_timeout,
                 magic_number,
-                blocks_timeout,
-                handshake_max_ts_diff,
                 current_epoch,
                 last_beacon,
+                config,
             )
         });
     }

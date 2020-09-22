@@ -17,10 +17,12 @@ impl Actor for SessionsManager {
         config_mngr::get()
             .into_actor(self)
             .and_then(|config, act, ctx| {
+                // Store a reference to config
+                act.config = Some(config.clone());
+
                 // Get periods for peers bootstrapping and discovery tasks
                 let bootstrap_peers_period = config.connections.bootstrap_peers_period;
                 let discovery_peers_period = config.connections.discovery_peers_period;
-                let consensus_constants = config.consensus_constants.clone();
 
                 // Set server address, connections limits, handshake timeout and optional features
                 act.sessions
@@ -29,13 +31,6 @@ impl Actor for SessionsManager {
                     config.connections.inbound_limit,
                     config.connections.outbound_limit,
                 );
-                act.sessions
-                    .set_handshake_timeout(config.connections.handshake_timeout);
-                act.sessions
-                    .set_handshake_max_ts_diff(config.connections.handshake_max_ts_diff);
-                act.sessions
-                    .set_blocks_timeout(config.connections.blocks_timeout);
-                act.sessions.reject_sybil_inbounds = config.connections.reject_sybil_inbounds;
 
                 // Initialized epoch from config
                 let mut checkpoints_period = config.consensus_constants.checkpoints_period;
@@ -54,7 +49,7 @@ impl Actor for SessionsManager {
                     .unwrap_or_default();
 
                 act.sessions
-                    .set_magic_number(consensus_constants.get_magic());
+                    .set_magic_number(config.consensus_constants.get_magic());
 
                 // The peers bootstrapping process begins upon SessionsManager's start
                 act.bootstrap_peers(ctx, bootstrap_peers_period);
