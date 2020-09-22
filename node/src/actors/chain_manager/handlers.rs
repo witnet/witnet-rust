@@ -210,6 +210,12 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             }
         }
 
+        // After block consolidation, commits and reveals that arrive in an incorrect moment
+        // are processed now
+        for transaction in self.temp_commits_and_reveals.drain(..) {
+            ctx.notify(AddTransaction { transaction });
+        }
+
         self.peers_beacons_received = false;
     }
 }

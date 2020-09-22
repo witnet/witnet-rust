@@ -223,6 +223,8 @@ pub struct ChainManager {
     external_percentage: u8,
     /// List of superblock votes received while we are synchronizing
     temp_superblock_votes: Vec<SuperBlockVote>,
+    /// Commits and reveals to process later
+    temp_commits_and_reveals: Vec<Transaction>,
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding
@@ -956,15 +958,14 @@ impl ChainManager {
             self.current_epoch,
             self.epoch_constants,
         ) {
-            if let Transaction::Commit(_commit) = &msg.transaction {
+            if let Transaction::Commit(_) | Transaction::Reveal(_) = &msg.transaction {
                 let timestamp_mining = epoch_constants
                     .block_mining_timestamp(current_epoch)
                     .unwrap();
 
                 if timestamp_now > timestamp_mining {
-                    let e = ChainManagerError::TooLateToCommit;
-                    log::debug!("{}", e);
-                    return Box::new(actix::fut::err(e.into()));
+                    self.temp_commits_and_reveals.push(msg.transaction);
+                    return Box::new(actix::fut::ok(()));
                 }
             }
 
