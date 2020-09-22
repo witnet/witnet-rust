@@ -4,11 +4,14 @@ use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
+use surf::Client;
 
 use witnet_data_structures::{
     chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
+    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
 };
+use witnet_net::client::http::WitnetHttpClient;
 
 use crate::{
     error::RadError,
@@ -69,7 +72,7 @@ pub fn try_data_request(
             request
                 .retrieve
                 .iter()
-                .map(|retrieve| run_retrieval_report(retrieve, settings))
+                .map(|retrieve| run_retrieval_report(retrieve, settings, None))
                 .collect::<Vec<_>>(),
         ))
     };
@@ -144,6 +147,7 @@ pub fn run_retrieval_with_data(
 pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
+    client: Option<Client<WitnetHttpClient>>,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
 
@@ -157,8 +161,11 @@ pub async fn run_retrieval_report(
                     url: retrieve.url.clone(),
                 })?;
 
-            // Set a random user-agent from the list
-            let mut response = surf::get(&retrieve.url)
+            let client = client.unwrap_or_else(|| WitnetHttpClient::new(&None).as_surf_client());
+
+            let mut response = client
+                .get(&retrieve.url)
+                // Set a random user-agent from the list
                 .set_header("User-Agent", UserAgent::random())
                 .await
                 .map_err(|x| RadError::HttpOther {
@@ -201,9 +208,79 @@ pub async fn run_retrieval_report(
 /// Run retrieval stage of a data request, return `RadonTypes`.
 pub async fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
-    run_retrieval_report(retrieve, RadonScriptExecutionSettings::disable_all())
+    run_retrieval_report(retrieve, RadonScriptExecutionSettings::disable_all(), None)
         .await
         .map(RadonReport::into_inner)
+}
+
+/// Run retrieval using multiple transports, and only produce a positive result if the retrieved
+/// values pass the filter function from the tally stage.
+///
+/// The idea behind this is to avoid producing commitments for data requests with sources that act
+/// in an inconsistent way, i.e. they return very different values when queried through different
+/// HTTP transports at once.
+pub async fn run_paranoid_retrieval(
+    retrieve: &RADRetrieve,
+    tally: &RADTally,
+    transports: &[Option<String>],
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonTypes> {
+    let futures: Vec<_> = transports
+        .iter()
+        .map(|transport| {
+            let client = WitnetHttpClient::new(transport).as_surf_client();
+
+            run_retrieval_report(
+                retrieve,
+                RadonScriptExecutionSettings::disable_all(),
+                Some(client),
+            )
+        })
+        .collect();
+
+    let values = join_all(futures).await;
+
+    evaluate_paranoid_retrieval(values, tally, settings)
+}
+
+/// Evaluate whether the values obtained when retrieving a data source through multiple transports
+/// are consistent, i.e. they all pass the filters from the tally stage.
+fn evaluate_paranoid_retrieval(
+    data: Vec<Result<RadonReport<RadonTypes>>>,
+    tally: &RADTally,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonTypes> {
+    let mut values = vec![];
+
+    // Turn the reports into values, short-circuiting if any retrieval inevitably failed.
+    for each in data {
+        let report = each?;
+        let result = report.into_inner();
+        values.push(result);
+    }
+
+    // If there was only one retrieved value, there's no actual need to run the tally, as this means
+    // that only one transport was used and therefore the node is not in paranoid mode.
+    if values.len() > 1 {
+        let mut context = ReportContext::from_stage(Stage::Tally(TallyMetaData::default()));
+        let _tally = run_tally_with_context_report(values.clone(), tally, &mut context, settings);
+
+        // If at least one of the retrieved values is marked as an outlier, resolve to the
+        // `InconsistentSource` error.
+        if let Stage::Tally(TallyMetaData { liars, .. }) = context.stage {
+            if !liars.is_empty() {
+                return Ok(RadonTypes::RadonError(RadonError::<RadError>::new(
+                    RadError::InconsistentSource,
+                )));
+            }
+        }
+    }
+
+    // If all values pass the filters, return the first value (any of them will work, actually)
+    Ok(values
+        .get(0)
+        .expect("At least one value must have been received")
+        .clone())
 }
 
 /// Run aggregate stage of a data request, return `RadonReport`.

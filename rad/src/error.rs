@@ -337,6 +337,9 @@ pub enum RadError {
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     #[fail(display = "The reveal was not serialized correctly")]
     MalformedReveal,
+    /// Source looks inconsistent when queried through multiple transports at once.
+    #[fail(display = "Source looks inconsistent when queried through multiple transports at once")]
+    InconsistentSource,
 }
 
 impl RadError {
