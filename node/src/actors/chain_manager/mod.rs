@@ -1554,7 +1554,12 @@ impl ChainManager {
             num_processed_blocks += 1;
 
             let beacon = self.get_chain_beacon();
-            show_sync_progress(beacon, &sync_target, self.epoch_constants.unwrap());
+            show_sync_progress(
+                beacon,
+                &sync_target,
+                self.epoch_constants.unwrap(),
+                self.current_epoch.unwrap(),
+            );
         }
 
         (batch_succeeded, num_processed_blocks)
@@ -2201,6 +2206,7 @@ fn show_sync_progress(
     beacon: CheckpointBeacon,
     sync_target: &SyncTarget,
     epoch_constants: EpochConstants,
+    current_epoch: u32,
 ) {
     let target_checkpoint = sync_target.block.checkpoint;
     // Show progress log
@@ -2215,8 +2221,8 @@ fn show_sync_progress(
 
     // Block age is actually the difference in age: it assumes that the last
     // block is 0 seconds old
-    let block_age =
-        (target_checkpoint - beacon.checkpoint) * u32::from(epoch_constants.checkpoints_period);
+    let block_age = current_epoch.saturating_sub(beacon.checkpoint)
+        * u32::from(epoch_constants.checkpoints_period);
 
     let human_age = seconds_to_human_string(u64::from(block_age));
     log::info!(
