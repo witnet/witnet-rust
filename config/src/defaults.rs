@@ -406,8 +406,8 @@ impl Defaults for Development {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Tuesday, 22-Sept-2020, 09:00 UTC
-        1_600_765_200
+        // Wednesday, 23-Sept-2020, 09:00 UTC
+        1_600_851_600
     }
 
     fn connections_reject_sybil_inbounds(&self) -> bool {
@@ -453,7 +453,7 @@ impl Defaults for Testnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Tuesday, 22-Sept-2020, 09:00 UTC
-        1_600_765_200
+        // Wednesday, 23-Sept-2020, 09:00 UTC
+        1_600_851_600
     }
 }
