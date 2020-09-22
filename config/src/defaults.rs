@@ -98,6 +98,12 @@ pub trait Defaults {
         true
     }
 
+    /// Limit the number of requested blocks that will be processed as one batch
+    fn connections_requested_blocks_batch_limit(&self) -> u32 {
+        // Default: 500 blocks
+        500
+    }
+
     /// Timestamp at the start of epoch 0
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64;
 

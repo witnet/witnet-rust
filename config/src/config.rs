@@ -276,6 +276,9 @@ pub struct Connections {
     /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
     /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
     pub reject_sybil_inbounds: bool,
+
+    /// Limit the number of requested blocks that will be processed as one batch
+    pub requested_blocks_batch_limit: u32,
 }
 
 fn to_millis<S>(val: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
@@ -724,6 +727,10 @@ impl Connections {
                 .reject_sybil_inbounds
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_reject_sybil_inbounds()),
+            requested_blocks_batch_limit: config
+                .requested_blocks_batch_limit
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_requested_blocks_batch_limit()),
         }
     }
 
@@ -746,6 +753,7 @@ impl Connections {
             bucketing_ice_period: Some(self.bucketing_ice_period),
             bucketing_update_period: Some(self.bucketing_update_period),
             reject_sybil_inbounds: Some(self.reject_sybil_inbounds),
+            requested_blocks_batch_limit: Some(self.requested_blocks_batch_limit),
         }
     }
 }
@@ -1145,6 +1153,7 @@ mod tests {
             bucketing_ice_period: Some(Duration::from_secs(13200)),
             bucketing_update_period: Some(200),
             reject_sybil_inbounds: Some(false),
+            requested_blocks_batch_limit: Some(99),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
 
@@ -1165,6 +1174,7 @@ mod tests {
         assert_eq!(config.bucketing_ice_period, Duration::from_secs(13200));
         assert_eq!(config.bucketing_update_period, 200);
         assert_eq!(config.reject_sybil_inbounds, false);
+        assert_eq!(config.requested_blocks_batch_limit, 99);
     }
 
     #[test]
