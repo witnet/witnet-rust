@@ -20,4 +20,10 @@ pub trait Storage {
 
     /// Delete a value from the storage
     fn delete(&self, key: &[u8]) -> Result<()>;
+
+    /// Create an iterator over all the keys that start with the given prefix
+    fn prefix_iterator<'a, 'b: 'a>(&'a self, prefix: &'b [u8]) -> Result<StorageIterator<'a>>;
 }
+
+/// Iterator over key-value pairs
+pub type StorageIterator<'a> = Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
