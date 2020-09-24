@@ -2,7 +2,8 @@
 //!
 //! High-order storage backend that hashes the key and
 //! encrypts/decrypts the value when putting/getting it.
-use crate::storage::{Result, Storage};
+use crate::storage::{Result, Storage, StorageIterator};
+use failure::bail;
 use witnet_crypto::{cipher, hash::calculate_sha256, pbkdf2::pbkdf2_sha256};
 use witnet_protected::Protected;
 
@@ -68,6 +69,10 @@ impl<T: Storage> Storage for Backend<T> {
     fn delete(&self, key: &[u8]) -> Result<()> {
         let hash_key = calculate_sha256(key);
         self.backend.delete(hash_key.as_ref())
+    }
+
+    fn prefix_iterator<'a, 'b: 'a>(&'a self, _prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
+        bail!("Iteration is not supported when using encrypted storage")
     }
 }
 

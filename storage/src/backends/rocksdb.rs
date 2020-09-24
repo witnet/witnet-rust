@@ -5,7 +5,7 @@ use failure::Fail;
 #[cfg(test)]
 use rocksdb_mock as rocksdb;
 
-use crate::storage::{Result, Storage};
+use crate::storage::{Result, Storage, StorageIterator};
 
 /// Rocksdb backend
 pub type Backend = rocksdb::DB;
@@ -30,6 +30,12 @@ impl Storage for Backend {
     fn delete(&self, key: &[u8]) -> Result<()> {
         Backend::delete(self, &key).map_err(Error)?;
         Ok(())
+    }
+
+    fn prefix_iterator<'a, 'b: 'a>(&'a self, prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
+        Ok(Box::new(
+            Backend::prefix_iterator(self, prefix).map(|(k, v)| (k.into(), v.into())),
+        ))
     }
 }
 
@@ -56,7 +62,7 @@ mod tests {
 #[cfg(test)]
 mod rocksdb_mock {
     use super::*;
-    use std::sync::RwLock;
+    use std::sync::{RwLock, RwLockReadGuard};
 
     pub type Error = failure::Error;
 
@@ -101,6 +107,50 @@ mod rocksdb_mock {
             self.search(key)
                 .map(|idx| self.data.write().unwrap().remove(idx));
             Ok(())
+        }
+
+        pub fn prefix_iterator<'a, 'b: 'a, P: AsRef<[u8]> + ?Sized>(
+            &'a self,
+            prefix: &'b P,
+        ) -> DBIterator<'a, 'b> {
+            DBIterator {
+                data: self.data.read().unwrap(),
+                prefix: prefix.as_ref(),
+                skip: 0,
+            }
+        }
+    }
+
+    pub struct DBIterator<'a, 'b> {
+        data: RwLockReadGuard<'a, Vec<(Vec<u8>, Vec<u8>)>>,
+        prefix: &'b [u8],
+        skip: usize,
+    }
+
+    impl<'a, 'b> Iterator for DBIterator<'a, 'b> {
+        type Item = (Box<[u8]>, Box<[u8]>);
+
+        fn next(&mut self) -> Option<Self::Item> {
+            // TODO: is this even used somewhere?
+            let mut skip = self.skip;
+            let res = self
+                .data
+                .iter()
+                .skip(skip)
+                .map(|x| {
+                    skip += 1;
+                    x
+                })
+                .filter_map(|(k, v)| {
+                    if k.starts_with(self.prefix.as_ref()) {
+                        Some((k.clone().into_boxed_slice(), v.clone().into_boxed_slice()))
+                    } else {
+                        None
+                    }
+                })
+                .next();
+            self.skip = skip;
+            res
         }
     }
 }
