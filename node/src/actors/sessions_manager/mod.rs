@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
 use actix::{
     ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, MailboxError, SystemService,
@@ -22,7 +22,7 @@ use crate::actors::{
     session::Session,
 };
 use failure::Fail;
-use std::collections::HashSet;
+use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
     types::LastBeacon,
@@ -48,6 +48,8 @@ pub struct SessionsManager {
     last_beacon: Option<LastBeacon>,
     // Logging message hashset
     logging_messages: HashSet<String>,
+    // Reference to config
+    config: Option<Arc<Config>>,
 }
 
 #[derive(Debug, Fail)]

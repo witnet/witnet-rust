@@ -21,4 +21,5 @@ tokio-core = "0.1.17"
 web3 = "0.10.0"
 witnet_data_structures = { path = "../../data_structures" }
 witnet_crypto = { path = "../../crypto" }
+witnet_util = { path = "../../util" }
 witnet_validations = { path = "../../validations" }

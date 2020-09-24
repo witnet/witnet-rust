@@ -104,7 +104,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
         self.current_epoch = msg.checkpoint;
 
         if self.blocks_timestamp != 0
-            && current_timestamp - self.blocks_timestamp > self.blocks_timeout
+            && current_timestamp - self.blocks_timestamp > self.config.connections.blocks_timeout
         {
             // Get ChainManager address
             let chain_manager_addr = ChainManager::from_registry();
@@ -772,9 +772,8 @@ fn handshake_version(
 ) -> Result<Vec<WitnetMessage>, HandshakeError> {
     // Check timestamp drift
     let received_ts = command_version.timestamp;
-    if session.handshake_max_ts_diff != 0
-        && (current_ts - received_ts).abs() > session.handshake_max_ts_diff
-    {
+    let max_ts_diff = session.config.connections.handshake_max_ts_diff;
+    if max_ts_diff != 0 && (current_ts - received_ts).abs() > max_ts_diff {
         return Err(HandshakeError::DifferentTimestamp {
             current_ts,
             timestamp_diff: received_ts - current_ts,

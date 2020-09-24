@@ -23,7 +23,7 @@ impl Actor for Session {
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
         // Set Handshake timeout for stopping actor if session is still unconsolidated after given period of time
-        ctx.run_later(self.handshake_timeout, |act, ctx| {
+        ctx.run_later(self.config.connections.handshake_timeout, |act, ctx| {
             if act.status != SessionStatus::Consolidated {
                 log::info!(
                     "Handshake timeout expired, disconnecting session with peer {:?}",

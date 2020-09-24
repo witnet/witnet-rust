@@ -144,11 +144,6 @@ impl SuperBlockVotesMempool {
         }
     }
 
-    fn get_received_votes(&self) -> HashSet<SuperBlockVote> {
-        self.received_votes.clone()
-    }
-
-    #[cfg(test)]
     fn get_valid_votes(&self) -> HashMap<Hash, Vec<SuperBlockVote>> {
         self.votes_on_each_superblock.clone()
     }
@@ -458,9 +453,14 @@ impl SuperBlockState {
         self.current_superblock_beacon
     }
 
-    /// Returns the current superblock votes.
+    /// Returns the current valid superblock votes.
     pub fn get_current_superblock_votes(&self) -> HashSet<SuperBlockVote> {
-        self.votes_mempool.get_received_votes()
+        self.votes_mempool
+            .get_valid_votes()
+            .values()
+            .flatten()
+            .cloned()
+            .collect()
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -1749,6 +1749,91 @@ mod tests {
         // To avoid "AlreadySeen"
         sbs.votes_mempool.clear_and_remove_votes();
         assert_eq!(sbs.add_vote(&v0, 9), AddSuperBlockVote::InvalidIndex);
+    }
+
+    #[test]
+    fn test_get_current_superblock_votes() {
+        // When adding a superblock vote, it should be valid only by members of the
+        // superblock signing committee.
+        let mut sbs = SuperBlockState::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+        let p4 = PublicKey::from_bytes([4; 33]);
+
+        let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh(), p4.pkh()];
+        let keys = vec![
+            create_bn256(1),
+            create_bn256(2),
+            create_bn256(3),
+            create_bn256(4),
+        ];
+        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let alt_keys = create_alt_keys(pkhs, keys);
+
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+        // superblock with index 0.
+        let _sb1 = sbs.build_superblock(
+            &block_headers,
+            ars_identities.clone(),
+            2,
+            0,
+            genesis_hash,
+            &alt_keys,
+            None,
+        );
+        // superblock with index 1
+        let sb2 = sbs.build_superblock(
+            &block_headers,
+            ars_identities.clone(),
+            2,
+            1,
+            genesis_hash,
+            &alt_keys,
+            None,
+        );
+
+        let expected_sb2 = mining_build_superblock(
+            &block_headers,
+            &hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(&alt_keys)),
+            1,
+            genesis_hash,
+            2,
+        );
+
+        assert_eq!(sb2, expected_sb2);
+        let sb2_hash = expected_sb2.hash();
+
+        // Receive four superblock votes for index 1
+        // Since the signing_committee_size is 2, two of the votes will not be valid
+        let mut v1 = SuperBlockVote::new_unsigned(sb2_hash, 1);
+        v1.secp256k1_signature.public_key = p1;
+        assert_eq!(
+            sbs.add_vote(&v1, 1),
+            AddSuperBlockVote::NotInSigningCommittee
+        );
+        let mut v2 = SuperBlockVote::new_unsigned(sb2_hash, 1);
+        v2.secp256k1_signature.public_key = p3;
+        assert_eq!(
+            sbs.add_vote(&v2, 1),
+            AddSuperBlockVote::NotInSigningCommittee
+        );
+        let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
+        v3.secp256k1_signature.public_key = p2;
+        assert_eq!(sbs.add_vote(&v3, 1), AddSuperBlockVote::ValidWithSameHash);
+        // If we change the index of the vote to x+1 it should be set as MaybeValid
+        let mut v4 = SuperBlockVote::new_unsigned(sb2_hash, 2);
+        v4.secp256k1_signature.public_key = p4;
+        assert_eq!(sbs.add_vote(&v4, 1), AddSuperBlockVote::MaybeValid);
+
+        // The function get_current_<<superblock_votes should return only the vote v3
+        // and exclude the rest of the votes
+        assert_eq!(
+            sbs.get_current_superblock_votes(),
+            vec![v3].into_iter().collect()
+        );
     }
 
     #[test]

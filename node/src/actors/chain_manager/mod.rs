@@ -223,6 +223,8 @@ pub struct ChainManager {
     external_percentage: u8,
     /// List of superblock votes received while we are synchronizing
     temp_superblock_votes: Vec<SuperBlockVote>,
+    /// Commits and reveals to process later
+    temp_commits_and_reveals: Vec<Transaction>,
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding
@@ -956,15 +958,14 @@ impl ChainManager {
             self.current_epoch,
             self.epoch_constants,
         ) {
-            if let Transaction::Commit(_commit) = &msg.transaction {
+            if let Transaction::Commit(_) | Transaction::Reveal(_) = &msg.transaction {
                 let timestamp_mining = epoch_constants
                     .block_mining_timestamp(current_epoch)
                     .unwrap();
 
                 if timestamp_now > timestamp_mining {
-                    let e = ChainManagerError::TooLateToCommit;
-                    log::debug!("{}", e);
-                    return Box::new(actix::fut::err(e.into()));
+                    self.temp_commits_and_reveals.push(msg.transaction);
+                    return Box::new(actix::fut::ok(()));
                 }
             }
 
@@ -1554,7 +1555,12 @@ impl ChainManager {
             num_processed_blocks += 1;
 
             let beacon = self.get_chain_beacon();
-            show_sync_progress(beacon, &sync_target, self.epoch_constants.unwrap());
+            show_sync_progress(
+                beacon,
+                &sync_target,
+                self.epoch_constants.unwrap(),
+                self.current_epoch.unwrap(),
+            );
         }
 
         (batch_succeeded, num_processed_blocks)
@@ -2201,6 +2207,7 @@ fn show_sync_progress(
     beacon: CheckpointBeacon,
     sync_target: &SyncTarget,
     epoch_constants: EpochConstants,
+    current_epoch: u32,
 ) {
     let target_checkpoint = sync_target.block.checkpoint;
     // Show progress log
@@ -2215,8 +2222,8 @@ fn show_sync_progress(
 
     // Block age is actually the difference in age: it assumes that the last
     // block is 0 seconds old
-    let block_age =
-        (target_checkpoint - beacon.checkpoint) * u32::from(epoch_constants.checkpoints_period);
+    let block_age = current_epoch.saturating_sub(beacon.checkpoint)
+        * u32::from(epoch_constants.checkpoints_period);
 
     let human_age = seconds_to_human_string(u64::from(block_age));
     log::info!(

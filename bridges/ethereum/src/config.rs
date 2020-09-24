@@ -30,6 +30,9 @@ pub struct Config {
     pub enable_claim_and_inclusion: bool,
     /// Enable data request result reporting
     pub enable_result_reporting: bool,
+    /// If post_to_witnet_more_than_once is enabled, this is the minimum time in seconds that must
+    /// elapse before the same data request is created and broadcasted to the Witnet network.
+    pub post_to_witnet_again_after_timeout: u64,
     /// Post data request more than once? Useful to retry if the data request
     /// was not included in a block
     pub post_to_witnet_more_than_once: bool,

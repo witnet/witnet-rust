@@ -1,13 +1,15 @@
 //! Stream of Witnet events
 
-use crate::{actors::WitnetBlock, config::Config};
+use crate::{
+    actors::{SuperBlockNotification, WitnetSuperBlock},
+    config::Config,
+};
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use futures::{future::Either, sink::Sink};
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
 use tokio::{prelude::FutureExt, sync::mpsc};
 use web3::futures::Future;
-use witnet_data_structures::chain::Block;
 
 /// Stream of Witnet events
 /// This function returns a future which has a nested future inside.
@@ -16,7 +18,7 @@ use witnet_data_structures::chain::Block;
 /// the error case we exit the main function.
 pub fn witnet_block_stream(
     config: Arc<Config>,
-    tx: mpsc::Sender<WitnetBlock>,
+    tx: mpsc::Sender<WitnetSuperBlock>,
 ) -> (
     async_jsonrpc_client::transports::shared::EventLoopHandle,
     impl Future<Item = impl Future<Item = (), Error = ()>, Error = String>,
@@ -30,7 +32,7 @@ pub fn witnet_block_stream(
     let witnet_client = Arc::new(witnet_client);
 
     let fut = witnet_client
-        .execute("witnet_subscribe", json!(["blocks"]))
+        .execute("witnet_subscribe", json!(["superblocks"]))
         .timeout(Duration::from_secs(1))
         .map_err(move |e| {
             if e.is_elapsed() {
@@ -74,24 +76,29 @@ pub fn witnet_block_stream(
                 witnet_client
                     .subscribe(&witnet_subscription_id.into())
                     .map_err(|e| log::error!("witnet notification error = {:?}", e))
-                    .and_then(move |value| match serde_json::from_value::<Block>(value) {
-                        Ok(block) => {
-                            log::debug!("Got witnet block: {:?}", block);
-                            Either::A(
-                                tx.clone()
-                                    .send(WitnetBlock::New(block))
-                                    .map_err(|e| {
-                                        log::error!(
-                                            "Failed to send WitnetBlock::New message: {:?}",
-                                            e
-                                        )
-                                    })
-                                    .map(|_| ()),
-                            )
-                        }
-                        Err(e) => {
-                            log::error!("Error parsing witnet block: {:?}", e);
-                            Either::B(futures::finished(()))
+                    .and_then(move |value| {
+                        match serde_json::from_value::<SuperBlockNotification>(value) {
+                            Ok(superblock_notification) => {
+                                log::debug!(
+                                    "Got witnet superblock: {:?}",
+                                    superblock_notification.superblock
+                                );
+                                Either::A(
+                                    tx.clone()
+                                        .send(WitnetSuperBlock::New(superblock_notification))
+                                        .map_err(|e| {
+                                            log::error!(
+                                                "Failed to send WitnetBlock::New message: {:?}",
+                                                e
+                                            )
+                                        })
+                                        .map(|_| ()),
+                                )
+                            }
+                            Err(e) => {
+                                log::error!("Error parsing witnet superblock: {:?}", e);
+                                Either::B(futures::finished(()))
+                            }
                         }
                     })
                     .for_each(|_| Ok(())),

@@ -24,7 +24,11 @@ pub enum DrState {
     /// The data request was claimed by this node.
     /// Data requests claimed by other nodes are in `Posted` state, so we can
     /// try to claim it in the future.
-    Claimed,
+    Claimed {
+        /// The approximate timestamp at which the request has been claimed.
+        /// This is used as a timeout to avoid posting the same request to Witnet multiple times.
+        timestamp: u64,
+    },
     /// The data request was included in a Witnet block, and the proof of inclusion
     /// was sent to Ethereum, but it was not yet included in an Ethereum block.
     Including {
@@ -73,6 +77,7 @@ pub struct WrbRequests {
     // Claimed by our node, used to reportInclusion
     // dr_output_hash: Hash
     claimed: MultiBiMap<U256, Hash>,
+    claimed_timestamp: HashMap<U256, u64>,
     including: HashSet<U256>,
     // dr_tx_hash: Hash
     included: MultiBiMap<U256, Hash>,
@@ -85,6 +90,7 @@ impl WrbRequests {
         self.posted.remove(&dr_id);
         self.claiming.remove(&dr_id);
         self.claimed.remove_by_left(&dr_id);
+        self.claimed_timestamp.remove(&dr_id);
         self.including.remove(&dr_id);
         self.included.remove_by_left(&dr_id);
         self.resolving.remove(&dr_id);
@@ -128,7 +134,7 @@ impl WrbRequests {
             | Some(DrState::Posted)
             | Some(DrState::Ignored)
             | Some(DrState::Claiming)
-            | Some(DrState::Claimed)
+            | Some(DrState::Claimed { .. })
             | Some(DrState::Including { .. }) => {
                 self.remove_from_all_helper_maps(dr_id);
                 self.requests.insert(dr_id, DrState::Included);
@@ -243,11 +249,12 @@ impl WrbRequests {
     }
     /// If the data request is in claiming state, confirm the claim.
     /// Otherwise, do nothing.
-    pub fn confirm_claim(&mut self, dr_id: U256, dr_output_hash: Hash) {
+    pub fn confirm_claim(&mut self, dr_id: U256, dr_output_hash: Hash, now: u64) {
         // If the data request is in claiming state, confirm the claim
         // Otherwise, do nothing
         if self.claiming.remove(&dr_id) {
-            self.requests.insert(dr_id, DrState::Claimed);
+            self.requests
+                .insert(dr_id, DrState::Claimed { timestamp: now });
             self.claimed.insert(dr_id, dr_output_hash);
         }
     }
@@ -255,6 +262,22 @@ impl WrbRequests {
     pub fn ignore(&mut self, dr_id: U256) {
         self.remove_from_all_helper_maps(dr_id);
         self.requests.insert(dr_id, DrState::Ignored);
+    }
+    /// Get the timestamp at which the data request has been claimed
+    pub fn claimed_timestamp(&self, dr_id: &U256) -> Option<u64> {
+        self.requests
+            .get(dr_id)
+            .and_then(|dr_state| match dr_state {
+                DrState::Claimed { timestamp } => Some(*timestamp),
+                _ => None,
+            })
+    }
+    /// If the data request is in claimed state, update the timestamp.
+    /// Otherwise, do nothing.
+    pub fn update_claimed_timestamp(&mut self, dr_id: &U256, new_timestamp: u64) {
+        if let Some(DrState::Claimed { timestamp }) = self.requests.get_mut(dr_id) {
+            *timestamp = new_timestamp
+        }
     }
     /// View of all the data requests in `Posted` state.
     pub fn posted(&self) -> &HashSet<U256> {
