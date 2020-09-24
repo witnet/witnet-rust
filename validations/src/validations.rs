@@ -19,7 +19,7 @@ use witnet_data_structures::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, DataRequestOutput,
         DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input,
         KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation,
-        ReputationEngine, SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
+        ReputationEngine, SignaturesToVerify, ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
@@ -31,6 +31,7 @@ use witnet_data_structures::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
         Transaction, VTTransaction,
     },
+    utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
 use witnet_rad::{
@@ -2097,153 +2098,6 @@ pub fn total_block_reward() -> u64 {
     }
 
     total_reward
-}
-
-/// Diffs to apply to an utxo set. This type does not contains a
-/// reference to the original utxo set.
-#[derive(Debug)]
-pub struct Diff {
-    utxos_to_add: UnspentOutputsPool,
-    utxos_to_remove: HashSet<OutputPointer>,
-    utxos_to_remove_dr: Vec<OutputPointer>,
-    block_number: u32,
-}
-
-impl Diff {
-    pub fn new(block_number: u32) -> Self {
-        Self {
-            utxos_to_add: Default::default(),
-            utxos_to_remove: Default::default(),
-            utxos_to_remove_dr: vec![],
-            block_number,
-        }
-    }
-
-    pub fn apply(mut self, utxo_set: &mut UnspentOutputsPool) {
-        for (output_pointer, (output, block_number)) in self.utxos_to_add.drain() {
-            utxo_set.insert(output_pointer, output, block_number);
-        }
-
-        for output_pointer in self.utxos_to_remove.iter() {
-            utxo_set.remove(output_pointer);
-        }
-
-        for output_pointer in self.utxos_to_remove_dr.iter() {
-            utxo_set.remove(output_pointer);
-        }
-    }
-    /// Iterate over all the utxos_to_add and utxos_to_remove while applying a function.
-    ///
-    /// Any shared mutable state used by `F1` and `F2` can be used as the first argument:
-    ///
-    /// ```
-    /// use std::collections::HashMap;
-    /// use witnet_validations::validations::Diff;
-    ///
-    /// let block_number = 0;
-    /// let diff = Diff::new(block_number);
-    /// let mut hashmap = HashMap::new();
-    /// diff.visit(&mut hashmap, |hashmap, output_pointer, output| {
-    ///     hashmap.insert(output_pointer.clone(), output.clone());
-    /// }, |hashmap, output_pointer| {
-    ///     hashmap.remove(output_pointer);
-    /// });
-    /// ```
-    pub fn visit<A, F1, F2>(&self, args: &mut A, fn_add: F1, fn_remove: F2)
-    where
-        F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput),
-        F2: Fn(&mut A, &OutputPointer),
-    {
-        for (output_pointer, (output, _)) in self.utxos_to_add.iter() {
-            fn_add(args, output_pointer, output);
-        }
-
-        for output_pointer in self.utxos_to_remove.iter() {
-            fn_remove(args, output_pointer);
-        }
-    }
-}
-
-/// Contains a reference to an UnspentOutputsPool plus subsequent
-/// insertions and deletions to performed on that pool.
-/// Use `.take_diff()` to obtain an instance of the `Diff` type.
-pub struct UtxoDiff<'a> {
-    diff: Diff,
-    utxo_set: &'a UnspentOutputsPool,
-}
-
-impl<'a> UtxoDiff<'a> {
-    /// Create a new UtxoDiff without additional insertions or deletions
-    pub fn new(utxo_set: &'a UnspentOutputsPool, block_number: u32) -> Self {
-        UtxoDiff {
-            utxo_set,
-            diff: Diff::new(block_number),
-        }
-    }
-
-    /// Record an insertion to perform on the utxo set
-    pub fn insert_utxo(
-        &mut self,
-        output_pointer: OutputPointer,
-        output: ValueTransferOutput,
-        block_number: Option<u32>,
-    ) {
-        self.diff.utxos_to_add.insert(
-            output_pointer,
-            output,
-            block_number.unwrap_or(self.diff.block_number),
-        );
-    }
-
-    /// Record a deletion to perform on the utxo set
-    pub fn remove_utxo(&mut self, output_pointer: OutputPointer) {
-        if self.diff.utxos_to_add.remove(&output_pointer).is_none() {
-            self.diff.utxos_to_remove.insert(output_pointer);
-        }
-    }
-
-    /// Record a deletion to perform on the utxo set but that it
-    /// doesn't count when getting an utxo with `get` method.
-    pub fn remove_utxo_dr(&mut self, output_pointer: OutputPointer) {
-        self.diff.utxos_to_remove_dr.push(output_pointer);
-    }
-
-    /// Get an utxo from the original utxo set or one that has been
-    /// recorded as inserted later. If the same utxo has been recorded
-    /// as removed, None will be returned.
-    pub fn get(&self, output_pointer: &OutputPointer) -> Option<&ValueTransferOutput> {
-        self.utxo_set
-            .get(output_pointer)
-            .or_else(|| self.diff.utxos_to_add.get(output_pointer))
-            .and_then(|output| {
-                if self.diff.utxos_to_remove.contains(output_pointer) {
-                    None
-                } else {
-                    Some(output)
-                }
-            })
-    }
-
-    /// Consumes the UtxoDiff and returns only the diffs, without the
-    /// reference to the utxo set.
-    pub fn take_diff(self) -> Diff {
-        self.diff
-    }
-
-    /// Returns the number of the block that included the transaction referenced
-    /// by this OutputPointer. The difference between that number and the
-    /// current number of consolidated blocks is the "collateral age".
-    pub fn included_in_block_number(&self, output_pointer: &OutputPointer) -> Option<Epoch> {
-        self.utxo_set
-            .included_in_block_number(output_pointer)
-            .and_then(|output| {
-                if self.diff.utxos_to_remove.contains(output_pointer) {
-                    None
-                } else {
-                    Some(output)
-                }
-            })
-    }
 }
 
 /// Compare block candidates.

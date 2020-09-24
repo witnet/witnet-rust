@@ -6,12 +6,13 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        get_utxo_info, Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport,
-        Epoch, Hash, Hashable, NodeStats, SuperBlockVote, UtxoInfo,
+        Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch, Hash,
+        Hashable, NodeStats, SuperBlockVote,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
     types::LastBeacon,
+    utxo_pool::{get_utxo_info, UtxoInfo},
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;

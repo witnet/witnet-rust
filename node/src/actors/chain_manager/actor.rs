@@ -14,12 +14,13 @@ use crate::{
 use witnet_crypto::key::CryptoEngine;
 use witnet_data_structures::{
     chain::{
-        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo,
-        OwnUnspentOutputsPool, PublicKeyHash, ReputationEngine,
+        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo, PublicKeyHash,
+        ReputationEngine,
     },
     data_request::DataRequestPool,
     superblock::SuperBlockState,
     types::LastBeacon,
+    utxo_pool::OwnUnspentOutputsPool,
     vrf::VrfCtx,
 };
 use witnet_util::timestamp::pretty_print;

@@ -33,6 +33,9 @@ pub mod superblock;
 /// Module containing transaction structures
 pub mod transaction;
 
+/// Module containing UnspentOutputsPool and related structures
+pub mod utxo_pool;
+
 /// Module containing VRF-related structures
 pub mod vrf;
 

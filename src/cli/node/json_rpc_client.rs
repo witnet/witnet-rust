@@ -22,11 +22,11 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature,
-        NodeStats, OutputPointer, PublicKey, PublicKeyHash, UtxoInfo, UtxoSelectionStrategy,
-        ValueTransferOutput,
+        NodeStats, OutputPointer, PublicKey, PublicKeyHash, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
+    utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
 use witnet_node::actors::{
     json_rpc::json_rpc_methods::{

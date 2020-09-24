@@ -17,7 +17,7 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
     calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, update_utxo_diff,
-    vt_transaction_fee, UtxoDiff,
+    vt_transaction_fee,
 };
 
 use crate::{
@@ -35,7 +35,7 @@ use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, DataRequestOutput, EpochConstants, Hashable, Input, PublicKeyHash,
-        ReputationEngine, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        ReputationEngine, TransactionsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -44,6 +44,7 @@ use witnet_data_structures::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
     },
+    utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
 

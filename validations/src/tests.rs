@@ -20,6 +20,7 @@ use witnet_data_structures::{
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
+    utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
 use witnet_protected::Protected;

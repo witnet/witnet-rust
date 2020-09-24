@@ -2,11 +2,12 @@ use crate::signature_mngr;
 use futures::Future;
 use witnet_data_structures::{
     chain::{
-        DataRequestOutput, Hashable, Input, KeyedSignature, OutputPointer, OwnUnspentOutputsPool,
-        PublicKeyHash, UnspentOutputsPool, UtxoSelectionStrategy, ValueTransferOutput,
+        DataRequestOutput, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+        ValueTransferOutput,
     },
     error::TransactionError,
     transaction::{DRTransactionBody, MemoizedHashable, VTTransactionBody},
+    utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool, UtxoSelectionStrategy},
 };
 use witnet_validations::validations::transaction_outputs_sum;
 

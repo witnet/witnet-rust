@@ -20,12 +20,12 @@ use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, SuperBlock, SuperBlockVote, UtxoInfo, UtxoSelectionStrategy,
-        ValueTransferOutput,
+        RADTally, Reputation, SuperBlock, SuperBlockVote, ValueTransferOutput,
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
     types::LastBeacon,
+    utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
 use witnet_p2p::{
     error::SessionsError,

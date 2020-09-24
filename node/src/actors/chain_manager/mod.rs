@@ -46,21 +46,22 @@ use witnet_data_structures::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
         DataRequestReport, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
-        NodeStats, OwnUnspentOutputsPool, PublicKeyHash, Reputation, ReputationEngine,
-        SignaturesToVerify, SuperBlock, SuperBlockVote, TransactionsPool, UnspentOutputsPool,
+        NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlock,
+        SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
     types::LastBeacon,
+    utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::VrfCtx,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
     compare_block_candidates, validate_block, validate_block_transactions,
-    validate_new_transaction, verify_signatures, Diff, VrfSlots,
+    validate_new_transaction, verify_signatures, VrfSlots,
 };
 
 use crate::{
