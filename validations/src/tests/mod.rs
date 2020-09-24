@@ -9872,7 +9872,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
     };
 
     // The original UTXO set contained one mint transaction
-    assert_eq!(utxo_set.iter().len(), 1);
+    assert_eq!(utxo_set.iter().count(), 1);
     // Apply the UTXO diff to the original UTXO set
     let mut utxo_set = utxo_set;
     utxo_diff.apply(&mut utxo_set);
@@ -9893,7 +9893,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
     expected_utxo_set.insert(change_output_pointer, change_vto, 0);
 
     // In total, 2 outputs
-    assert_eq!(expected_utxo_set.iter().len(), 2);
+    assert_eq!(expected_utxo_set.iter().count(), 2);
 
     assert_eq!(utxo_set, expected_utxo_set);
 }

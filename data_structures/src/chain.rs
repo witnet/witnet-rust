@@ -3213,6 +3213,7 @@ pub struct ChainState {
     /// Blockchain information data structure
     pub chain_info: Option<ChainInfo>,
     /// Unspent Outputs Pool
+    #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,
     /// Collection of state structures for active data requests
     pub data_request_pool: DataRequestPool,
@@ -5857,7 +5858,7 @@ mod tests {
         ));
 
         let utxo_pool = generate_unspent_outputs_pool(&UnspentOutputsPool::in_memory(), &[vt], 0);
-        assert_eq!(utxo_pool.iter().len(), 4);
+        assert_eq!(utxo_pool.iter().count(), 4);
 
         let mut own_utxos = OwnUnspentOutputsPool::default();
         for (o, _) in utxo_pool.iter() {
