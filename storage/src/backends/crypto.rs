@@ -66,7 +66,8 @@ impl<T: Storage> Storage for Backend<T> {
     }
 
     fn delete(&mut self, key: &[u8]) -> Result<()> {
-        self.backend.delete(key)
+        let hash_key = calculate_sha256(key);
+        self.backend.delete(hash_key.as_ref())
     }
 }
 
@@ -104,5 +105,17 @@ mod tests {
             backend2.get(b"name").unwrap_or(None),
             Some(b"johnny".to_vec())
         );
+    }
+
+    #[test]
+    fn test_delete() {
+        let password = "".into();
+        let mut backend = Backend::new(password, hashmap::Backend::new());
+
+        assert_eq!(None, backend.get(b"name").unwrap());
+        backend.put("name".into(), "johnny".into()).unwrap();
+        assert_eq!(Some("johnny".into()), backend.get(b"name").unwrap());
+        backend.delete(b"name").unwrap();
+        assert_eq!(None, backend.get(b"name").unwrap());
     }
 }
