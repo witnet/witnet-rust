@@ -147,7 +147,8 @@ pub fn exec_cmd(
         } => rpc::send_dr(node.unwrap_or(config.jsonrpc.server_address), hex, fee, run),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
-            // TODO: Implementation requires to make Config serializable
+            let serialized = toml::to_string(&config.to_partial()).unwrap();
+            println!("{}", serialized);
             Ok(())
         }
         Command::Run(params) => {
