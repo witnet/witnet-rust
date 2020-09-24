@@ -1357,7 +1357,15 @@ impl Handler<GetReputation> for ChainManager {
         };
 
         let identities = if all {
-            rep_eng.trs().identities().map(|(k, _v)| k).collect()
+            // Add identities with reputation > 0
+            let mut identities: Vec<_> = rep_eng.trs().identities().map(|(k, _v)| k).collect();
+            // Add identitities active but with 0 reputation
+            for pkh in rep_eng.ars().active_identities() {
+                if rep_eng.trs().get(pkh).0 == 0 {
+                    identities.push(pkh);
+                }
+            }
+            identities
         } else {
             vec![&pkh]
         };

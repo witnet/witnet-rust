@@ -276,26 +276,31 @@ pub fn get_reputation(
             serde_json::to_string(&pkh)?,
         )
     };
-
     let response = send_request(&mut stream, &request)?;
     let res = parse_response::<GetReputationResult>(&response)?;
 
     if res.stats.is_empty() {
         println!("No identities have reputation yet");
     }
-
     for (pkh, rep_stats) in res.stats.into_iter().sorted_by_key(|(_, rep_stats)| {
         std::cmp::Reverse((rep_stats.reputation.0, rep_stats.eligibility))
     }) {
-        let active = if rep_stats.is_active { 'A' } else { ' ' };
         let eligibility = f64::from(rep_stats.eligibility) / res.total_reputation as f64;
-        println!(
-            "    [{}] {} -> Reputation: {}, Eligibility: {:.6}%",
-            active,
-            pkh,
-            rep_stats.reputation.0,
-            eligibility * 100_f64
-        );
+        let active = if rep_stats.is_active { 'A' } else { ' ' };
+        if rep_stats.is_active || !all {
+            println!(
+                "    [{}] {} -> Reputation: {}, Eligibility: {:.6}%",
+                active,
+                pkh,
+                rep_stats.reputation.0,
+                eligibility * 100_f64
+            );
+        } else {
+            println!(
+                "    [{}] {} -> Reputation: {}",
+                active, pkh, rep_stats.reputation.0
+            );
+        }
     }
 
     Ok(())
