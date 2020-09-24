@@ -3,6 +3,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::str::FromStr;
 use std::sync::Arc;
 use witnet_storage::storage::Storage;
 use witnet_util::timestamp::get_timestamp;
@@ -111,6 +112,24 @@ impl UnspentOutputsPool {
                 self.get_map(output_pointer).unwrap(),
             )
         })
+    }
+
+    pub fn db_iter(
+        &self,
+    ) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+        self.db
+            .as_ref()
+            .unwrap()
+            .prefix_iterator(b"UTXO-")
+            .unwrap()
+            .map(|(k, v)| {
+                let key_string = String::from_utf8(k).unwrap();
+                let output_pointer_str = key_string.strip_prefix("UTXO-").unwrap();
+                let key = OutputPointer::from_str(output_pointer_str).unwrap();
+                let value = bincode::deserialize(&v).unwrap();
+
+                (key, value)
+            })
     }
 
     /// Returns the number of the block that included the transaction referenced
