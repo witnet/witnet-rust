@@ -13,7 +13,7 @@ use witnet_data_structures::chain::{
 use witnet_data_structures::get_environment;
 
 use crate::constants::{EXTERNAL_KEYCHAIN, INTERNAL_KEYCHAIN};
-use crate::model::AddressInfo;
+use crate::model::{AddressInfo, BalanceMovement};
 use crate::{
     constants,
     db::{Database, WriteBatch as _},
@@ -30,10 +30,9 @@ mod tests;
 
 /// Internal structure used to gather state mutations while indexing block transactions
 struct AccountMutation {
-    kind: model::MovementType,
-    amount: u64,
-    utxo_removals: Vec<model::OutPtr>,
+    balance_movement: BalanceMovement,
     utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)>,
+    utxo_removals: Vec<model::OutPtr>,
 }
 
 pub struct Wallet<T> {
@@ -865,66 +864,13 @@ where
         block_info: &model::Beacon,
         confirmed: bool,
     ) -> Result<Option<(model::BalanceMovement, Vec<Arc<model::Address>>)>> {
-        // Inputs and outputs from different transaction types
-        let (inputs, outputs) = match &txn.transaction {
-            types::Transaction::ValueTransfer(vt) => {
-                (vt.body.inputs.clone(), vt.body.outputs.clone())
-            }
-            types::Transaction::DataRequest(dr) => {
-                (dr.body.inputs.clone(), dr.body.outputs.clone())
-            }
-            types::Transaction::Commit(commit) => {
-                (commit.body.collateral.clone(), commit.body.outputs.clone())
-            }
-            types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
-            types::Transaction::Mint(mint) => (vec![], mint.outputs.clone()),
-            _ => {
-                return Err(Error::UnsupportedTransactionType(format!(
-                    "{:?}",
-                    txn.transaction
-                )));
-            }
-        };
-
-        // Wallet's account mutation (utxo set + balance changes)
-        let account_mutation = self._get_account_mutation(
-            &state.utxo_set,
-            txn.transaction.hash().as_ref(),
-            &inputs,
-            &outputs,
-        )?;
-
-        // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
-        if account_mutation.utxo_inserts.is_empty() && account_mutation.utxo_removals.is_empty() {
-            return Ok(None);
-        }
-
-        // Build the balance movement, first computing the miner fee
-        let miner_fee: u64 = match &txn.metadata {
-            Some(model::TransactionMetadata::InputValues(input_values)) => {
-                let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
-                let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
-
-                total_input_amount
-                    .checked_sub(total_output_amount)
-                    .unwrap_or_else(|| {
-                        log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {:?}", txn.transaction);
-
-                        0
-                    })
-            }
-            _ => 0,
-        };
-        let balance_movement = build_balance_movement(
-            state.transaction_next_id,
-            &txn,
-            miner_fee,
-            account_mutation.kind,
-            account_mutation.amount,
-            &block_info,
-            convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
-            confirmed,
-        )?;
+        // Wallet's account mutation (utxo set changes + balance movement)
+        let account_mutation =
+            match self._get_account_mutation(&state, &txn, &block_info, confirmed)? {
+                // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
+                None => return Ok(None),
+                Some(account_mutation) => account_mutation,
+            };
 
         // Update memory state: `utxo_set`
         for pointer in &account_mutation.utxo_removals {
@@ -942,14 +888,14 @@ where
 
         // Update new account `balance`
         // FIXME(#1481): include pending balance
-        let new_balance = match account_mutation.kind {
+        let new_balance = match account_mutation.balance_movement.kind {
             model::MovementType::Positive => state
                 .balance
-                .checked_add(account_mutation.amount)
+                .checked_add(account_mutation.balance_movement.amount)
                 .ok_or_else(|| Error::TransactionBalanceOverflow)?,
             model::MovementType::Negative => state
                 .balance
-                .checked_sub(account_mutation.amount)
+                .checked_sub(account_mutation.balance_movement.amount)
                 .ok_or_else(|| Error::TransactionBalanceUnderflow)?,
         };
         state.balance = new_balance;
@@ -1001,16 +947,38 @@ where
 
         // FIXME(#1539): if tally txn, compute update of data request balance movement
 
-        Ok(Some((balance_movement, addresses)))
+        Ok(Some((account_mutation.balance_movement, addresses)))
+    }
     }
 
     fn _get_account_mutation(
         &self,
-        utxo_set: &model::UtxoSet,
-        txn_hash: &[u8],
-        inputs: &[types::TransactionInput],
-        outputs: &[types::VttOutput],
-    ) -> Result<AccountMutation> {
+        state: &State,
+        txn: &model::ExtendedTransaction,
+        block_info: &model::Beacon,
+        confirmed: bool,
+    ) -> Result<Option<AccountMutation>> {
+        // Inputs and outputs from different transaction types
+        let (inputs, outputs) = match &txn.transaction {
+            types::Transaction::ValueTransfer(vt) => {
+                (vt.body.inputs.clone(), vt.body.outputs.clone())
+            }
+            types::Transaction::DataRequest(dr) => {
+                (dr.body.inputs.clone(), dr.body.outputs.clone())
+            }
+            types::Transaction::Commit(commit) => {
+                (commit.body.collateral.clone(), commit.body.outputs.clone())
+            }
+            types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
+            types::Transaction::Mint(mint) => (vec![], mint.outputs.clone()),
+            _ => {
+                return Err(Error::UnsupportedTransactionType(format!(
+                    "{:?}",
+                    txn.transaction
+                )));
+            }
+        };
+
         let mut utxo_removals: Vec<model::OutPtr> = vec![];
         let mut utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)> = vec![];
 
@@ -1018,7 +986,7 @@ where
         for input in inputs.iter() {
             let out_ptr: model::OutPtr = input.output_pointer().into();
 
-            if let Some(model::KeyBalance { amount, .. }) = utxo_set.get(&out_ptr) {
+            if let Some(model::KeyBalance { amount, .. }) = state.utxo_set.get(&out_ptr) {
                 input_amount = input_amount
                     .checked_add(*amount)
                     .ok_or_else(|| Error::TransactionBalanceOverflow)?;
@@ -1030,7 +998,7 @@ where
         for (index, output) in outputs.iter().enumerate() {
             if let Some(model::Path { .. }) = self.db.get_opt(&keys::pkh(&output.pkh))? {
                 let out_ptr = model::OutPtr {
-                    txn_hash: txn_hash.to_vec(),
+                    txn_hash: txn.transaction.hash().as_ref().to_vec(),
                     output_index: u32::try_from(index).unwrap(),
                 };
                 let key_balance = model::KeyBalance {
@@ -1061,12 +1029,44 @@ where
             (input_amount - output_amount, model::MovementType::Negative)
         };
 
-        Ok(AccountMutation {
+        // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
+        if utxo_inserts.is_empty() && utxo_removals.is_empty() {
+            return Ok(None);
+        }
+
+        // Build the balance movement, first computing the miner fee
+        let miner_fee: u64 = match &txn.metadata {
+            Some(model::TransactionMetadata::InputValues(input_values)) => {
+                let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
+                let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
+
+                total_input_amount
+                    .checked_sub(total_output_amount)
+                    .unwrap_or_else(|| {
+                        log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {:?}", txn.transaction);
+
+                        0
+                    })
+            }
+            _ => 0,
+        };
+
+        let balance_movement = build_balance_movement(
+            state.transaction_next_id,
+            &txn,
+            miner_fee,
             kind,
             amount,
-            utxo_removals,
+            &block_info,
+            convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
+            confirmed,
+        )?;
+
+        Ok(Some(AccountMutation {
+            balance_movement,
             utxo_inserts,
-        })
+            utxo_removals,
+        }))
     }
 
     fn _gen_external_address(
