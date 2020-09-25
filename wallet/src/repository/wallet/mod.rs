@@ -6,11 +6,13 @@ use std::{
 };
 
 use state::State;
+
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{
-    CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash,
+use witnet_data_structures::{
+    chain::{CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash},
+    get_environment,
 };
-use witnet_data_structures::get_environment;
+use witnet_util::timestamp::get_timestamp;
 
 use crate::constants::{EXTERNAL_KEYCHAIN, INTERNAL_KEYCHAIN};
 use crate::model::{AddressInfo, BalanceMovement};
@@ -149,6 +151,7 @@ where
             epoch_constants,
             last_sync,
             last_confirmed,
+            local_movements: Default::default(),
             pending_movements: Default::default(),
             pending_addresses_by_block: Default::default(),
             pending_addresses_by_path: Default::default(),
@@ -872,6 +875,17 @@ where
                 Some(account_mutation) => account_mutation,
             };
 
+        // If exists, remove transaction from local pending movements
+        let txn_hash = txn.transaction.hash();
+        if state.local_movements.contains_key(&txn_hash) {
+            log::debug!(
+                "Updating local pending movement (txn id: {}) because it has been included in block #{}",
+                txn_hash,
+                block_info.epoch,
+            );
+            state.local_movements.remove(&txn_hash);
+        }
+
         // Update memory state: `utxo_set`
         for pointer in &account_mutation.utxo_removals {
             state.utxo_set.remove(pointer);
@@ -949,6 +963,26 @@ where
 
         Ok(Some((account_mutation.balance_movement, addresses)))
     }
+
+    /// Add local pending balance movement submitted by wallet client
+    pub fn add_local_movement(&self, txn: &model::ExtendedTransaction) -> Result<()> {
+        let mut state = self.state.write()?;
+
+        if let Some(mut account_mutation) =
+            self._get_account_mutation(&state, txn, &model::Beacon::default(), false)?
+        {
+            account_mutation.balance_movement.transaction.timestamp = get_timestamp();
+            let txn_hash = txn.transaction.hash();
+            state
+                .local_movements
+                .insert(txn_hash, account_mutation.balance_movement);
+            log::debug!(
+                "Local pending movement added for transaction id: {})",
+                txn_hash
+            );
+        }
+
+        Ok(())
     }
 
     fn _get_account_mutation(

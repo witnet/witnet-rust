@@ -624,6 +624,8 @@ impl App {
         Box::new(f)
     }
 
+    /// Send a transaction to the node as inventory item broadcast
+    /// and add a local pending balance movement to the wallet state.
     pub fn send_transaction(
         &self,
         session_id: &types::SessionId,
@@ -634,7 +636,17 @@ impl App {
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
         )
-        .and_then(move |_wallet, slf: &mut Self, _| slf.send_inventory_transaction(transaction));
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.send_inventory_transaction(transaction.clone())
+                .and_then(move |value, _slf, _ctx| {
+                    let _ = wallet.add_local_movement(&model::ExtendedTransaction {
+                        transaction,
+                        metadata: None,
+                    });
+
+                    actix::fut::ok(value)
+                })
+        });
 
         Box::new(f)
     }

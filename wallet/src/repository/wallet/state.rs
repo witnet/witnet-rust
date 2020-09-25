@@ -23,14 +23,18 @@ pub struct State {
     pub last_confirmed: CheckpointBeacon,
     /// Beacon of the last block received during synchronization
     pub last_sync: CheckpointBeacon,
+    /// List of local pending balance movements derived from transaction submissions by wallet clients
+    /// (they have not yet been indexed in blocks)
+    pub local_movements: HashMap<types::Hash, model::BalanceMovement>,
     /// Wallet name
     pub name: Option<String>,
     /// Next external index used to derive addresses
     pub next_external_index: u32,
     /// Next internal index used to derive addresses
     pub next_internal_index: u32,
-    /// List of pending address infos, waiting to be confirmed with a superblock
+    /// List of pending address infos indexed by block hash, waiting to be confirmed with a superblock
     pub pending_addresses_by_block: HashMap<String, Vec<Arc<model::Address>>>,
+    /// List of pending address infos indexed by key path, waiting to be confirmed with a superblock
     pub pending_addresses_by_path: HashMap<String, Arc<model::Address>>,
     /// List of pending blocks waiting to be confirmed
     pub pending_blocks: HashMap<String, model::Beacon>,
