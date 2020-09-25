@@ -232,7 +232,7 @@ impl SuperBlockState {
     }
 
     fn insert_vote(&mut self, sbv: SuperBlockVote) -> AddSuperBlockVote {
-        log::debug!("Superblock insert vote {:?}", sbv);
+        log::trace!("Superblock insert vote {:?}", sbv);
         // If the superblock vote is valid, store it
         let pkh = sbv.secp256k1_signature.public_key.pkh();
 
