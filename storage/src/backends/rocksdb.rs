@@ -34,7 +34,12 @@ impl Storage for Backend {
 
     fn prefix_iterator<'a, 'b: 'a>(&'a self, prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
         Ok(Box::new(
-            Backend::prefix_iterator(self, prefix).map(|(k, v)| (k.into(), v.into())),
+            Backend::iterator(
+                self,
+                rocksdb::IteratorMode::From(prefix, rocksdb::Direction::Forward),
+            )
+            .take_while(move |(k, _v)| k.starts_with(prefix))
+            .map(|(k, v)| (k.into(), v.into())),
         ))
     }
 }
@@ -65,6 +70,17 @@ mod rocksdb_mock {
     use std::sync::{RwLock, RwLockReadGuard};
 
     pub type Error = failure::Error;
+
+    pub enum IteratorMode<'a> {
+        Start,
+        End,
+        From(&'a [u8], Direction),
+    }
+
+    pub enum Direction {
+        Forward,
+        Reverse,
+    }
 
     #[derive(Default)]
     pub struct DB {
@@ -107,6 +123,17 @@ mod rocksdb_mock {
             self.search(key)
                 .map(|idx| self.data.write().unwrap().remove(idx));
             Ok(())
+        }
+
+        pub fn iterator<'a, 'b: 'a>(
+            &'a self,
+            iterator_mode: IteratorMode<'b>,
+        ) -> DBIterator<'a, 'b> {
+            match iterator_mode {
+                IteratorMode::Start => unimplemented!(),
+                IteratorMode::End => unimplemented!(),
+                IteratorMode::From(prefix, _direction) => self.prefix_iterator(prefix),
+            }
         }
 
         pub fn prefix_iterator<'a, 'b: 'a, P: AsRef<[u8]> + ?Sized>(
