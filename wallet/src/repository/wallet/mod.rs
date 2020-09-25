@@ -547,9 +547,18 @@ where
                     .insert(path, address.clone());
             }
 
+            // Build wallet state after block index
+            let block_state = state::StateSnapshot {
+                balance: state.balance,
+                beacon: block_info.clone(),
+                transaction_next_id: state.transaction_next_id,
+                utxo_set: state.utxo_set.clone(),
+            };
+
             state
                 .pending_blocks
-                .insert(block_info.block_hash.to_string(), block_info.clone());
+                .insert(block_info.block_hash.to_string(), block_state);
+
             state
                 .pending_movements
                 .insert(block_info.block_hash.to_string(), balance_movements.clone());
@@ -1229,7 +1238,7 @@ where
         let mut state = self.state.write()?;
 
         // Retrieve and remove pending changes of the block
-        let block_info = state.pending_blocks.remove(block_hash).ok_or_else(|| {
+        let block_state = state.pending_blocks.remove(block_hash).ok_or_else(|| {
             Error::BlockConsolidation(format!("beacon not found for pending block {}", block_hash))
         })?;
         let movements = state.pending_movements.remove(block_hash).ok_or_else(|| {
@@ -1252,18 +1261,18 @@ where
         self._persist_block_txns(
             movements,
             addresses,
-            state.transaction_next_id,
+            block_state.transaction_next_id,
             state.next_external_index,
-            state.next_external_index,
-            state.utxo_set.clone(),
-            state.balance,
-            &block_info,
+            state.next_internal_index,
+            block_state.utxo_set.clone(),
+            block_state.balance,
+            &block_state.beacon,
         )?;
 
         // If everything was OK, update `last_confirmed` beacon
         state.last_confirmed = CheckpointBeacon {
-            checkpoint: block_info.epoch,
-            hash_prev_block: block_info.block_hash,
+            checkpoint: block_state.beacon.epoch,
+            hash_prev_block: block_state.beacon.block_hash,
         };
 
         log::debug!(

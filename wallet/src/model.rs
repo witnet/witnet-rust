@@ -248,7 +248,7 @@ pub struct KeyBalance {
     pub amount: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Beacon {
     pub epoch: u32,
     pub block_hash: types::Hash,
