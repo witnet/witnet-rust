@@ -427,7 +427,8 @@ pub fn evaluate_tally_precondition_clause(
 
     // Compute ratio of type consensus amongst reveals (percentage of reveals that have same type
     // as the frequent type).
-    let achieved_consensus = f64::from(counter.max_val) / f64::from(reveals_len);
+    let achieved_consensus =
+        f64::from(counter.max_val) / f64::from(u32::try_from(num_commits).unwrap());
 
     // If the achieved consensus is over the user-defined threshold, continue.
     // Otherwise, return `RadError::InsufficientConsensus`.

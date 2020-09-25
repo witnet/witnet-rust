@@ -4143,8 +4143,8 @@ fn tally_invalid_consensus() {
 
     let dr_output = example_data_request_output(5, 200, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
+        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -4156,6 +4156,21 @@ fn tally_invalid_consensus() {
         pkh: rewarded[0],
         value: reward,
     };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[3],
+        value: reward,
+    };
     let vt_change = ValueTransferOutput {
         time_lock: 0,
         pkh: PublicKeyHash::default(),
@@ -4165,7 +4180,7 @@ fn tally_invalid_consensus() {
     let tally_transaction = TallyTransaction::new(
         dr_pointer,
         fake_tally_value.clone(),
-        vec![vt0, vt_change],
+        vec![vt0, vt1, vt2, vt3, vt_change],
         slashed,
         error_witnesses,
     );
@@ -4180,16 +4195,27 @@ fn tally_invalid_consensus() {
 }
 
 #[test]
-fn tally_valid() {
+fn tally_valid_insufficient_consensus() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
 
-    // Tally value: integer(0)
-    let tally_value = vec![0x00];
+    let dr_output = example_data_request_output(5, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, _error_witnesses, dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT + 4 * ONE_WIT);
+
+    let tally_value = RadonReport::from_result(
+        Ok(RadonTypes::from(
+            RadonError::try_from(RadError::InsufficientConsensus {
+                achieved: 0.2,
+                required: 0.51,
+            })
+            .unwrap(),
+        )),
+        &ReportContext::default(),
+    );
+    let tally_bytes = tally_value.into_inner().encode().unwrap();
+
     let vt0 = ValueTransferOutput {
         time_lock: 0,
         pkh: rewarded[0],
@@ -4200,12 +4226,13 @@ fn tally_valid() {
         pkh: dr_pkh,
         value: change,
     };
+
     let tally_transaction = TallyTransaction::new(
         dr_pointer,
-        tally_value,
+        tally_bytes,
         vec![vt0, vt_change],
         slashed,
-        error_witnesses,
+        vec![rewarded[0]],
     );
 
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
@@ -4213,13 +4240,13 @@ fn tally_valid() {
 }
 
 #[test]
-fn tally_too_many_outputs() {
+fn tally_valid() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, 200, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
+        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -4230,17 +4257,17 @@ fn tally_too_many_outputs() {
     };
     let vt1 = ValueTransferOutput {
         time_lock: 0,
-        pkh: rewarded[0],
+        pkh: rewarded[1],
         value: reward,
     };
     let vt2 = ValueTransferOutput {
         time_lock: 0,
-        pkh: rewarded[0],
+        pkh: rewarded[2],
         value: reward,
     };
     let vt3 = ValueTransferOutput {
         time_lock: 0,
-        pkh: rewarded[0],
+        pkh: rewarded[3],
         value: reward,
     };
     let vt_change = ValueTransferOutput {
@@ -4255,12 +4282,50 @@ fn tally_too_many_outputs() {
         slashed,
         error_witnesses,
     );
+
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_too_many_outputs() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+    let dr_output = example_data_request_output(5, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
+
+    // Tally value: integer(0)
+    let tally_value = vec![0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt_change = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt_change],
+        slashed,
+        error_witnesses,
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
             outputs: tally_transaction.outputs.len(),
-            expected_outputs: 2
+            expected_outputs: 5
         },
     );
 }
@@ -4300,14 +4365,29 @@ fn tally_invalid_change() {
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, 200, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT * 4);
+        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
     let vt0 = ValueTransferOutput {
         time_lock: 0,
         pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[3],
         value: reward,
     };
     let invalid_change = 1000;
@@ -4319,7 +4399,7 @@ fn tally_invalid_change() {
     let tally_transaction = TallyTransaction::new(
         dr_pointer,
         tally_value,
-        vec![vt0, vt_change],
+        vec![vt0, vt1, vt2, vt3, vt_change],
         slashed,
         error_witnesses,
     );
