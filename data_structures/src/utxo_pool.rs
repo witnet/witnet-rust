@@ -19,7 +19,7 @@ pub struct UnspentOutputsPool {
     // * The number of the block that included the transaction
     //   (how many blocks were consolidated before this one).
     //map: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
-    diff: Diff,
+    pub diff: Diff,
     /// Database
     pub db: Option<Arc<dyn Storage + Send + Sync>>,
 }
@@ -191,6 +191,26 @@ impl UnspentOutputsPool {
 
     pub fn restore(&mut self) {
         self.diff = Diff::new();
+    }
+
+    pub fn remove_persisted_from_memory(&mut self, persisted: &Diff) {
+        for k in persisted.utxos_to_add.keys() {
+            self.diff.utxos_to_add.remove(k).unwrap();
+        }
+
+        for k in &persisted.utxos_to_remove {
+            assert!(self.diff.utxos_to_remove.remove(k));
+        }
+
+        for k in &persisted.utxos_to_remove_dr {
+            let pos = self
+                .diff
+                .utxos_to_remove_dr
+                .iter()
+                .position(|x| x == k)
+                .unwrap();
+            self.diff.utxos_to_remove_dr.remove(pos);
+        }
     }
 }
 

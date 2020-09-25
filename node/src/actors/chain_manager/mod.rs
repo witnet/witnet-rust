@@ -277,7 +277,7 @@ impl ChainManager {
         // When updating the chain state, we need to update the highest superblock checkpoint.
         // This is the highest superblock that obtained a majority of votes and we do not want to
         // lose it when restoring the state.
-        let state = ChainState {
+        let mut state = ChainState {
             chain_info: Some(ChainInfo {
                 highest_superblock_checkpoint: self.get_superblock_beacon(),
                 ..previous_chain_state.chain_info.as_ref().unwrap().clone()
@@ -304,6 +304,14 @@ impl ChainManager {
                 chain_beacon
             );
         }
+
+        // Update UTXO set:
+        // * Remove from memory the UTXOs that will be persisted
+        // * Persist the consolidated UTXOs to the database
+        self.chain_state
+            .unspent_outputs_pool
+            .remove_persisted_from_memory(&state.unspent_outputs_pool.diff);
+        state.unspent_outputs_pool.persist();
 
         storage_mngr::put_chain_state(&storage_keys::chain_state_key(self.get_magic()), &state)
             .into_actor(self)
