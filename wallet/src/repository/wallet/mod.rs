@@ -304,8 +304,12 @@ where
         let account = state.account;
 
         // Total amount of state and db transactions
-        let total = state.transaction_next_id;
-        let mut transactions = Vec::with_capacity(total as usize);
+        let total = state.transaction_next_id + u32::try_from(state.local_movements.len()).unwrap();
+        let mut transactions: Vec<BalanceMovement> = Vec::with_capacity(100);
+
+        // Prepend local pending balance movements (not yet included in blocks)
+        let local_movements = state.local_movements.values().cloned().collect::<Vec<_>>();
+        transactions.extend_from_slice(&local_movements);
 
         // Prepend balance movements of pending blocks
         state.pending_movements.values().for_each(|x| {
@@ -315,8 +319,7 @@ where
         // Query database `transaction_next_id` to compute total amount of transactions
         let db_total = self
             .db
-            .get_or_default::<_, u32>(&keys::transaction_next_id(account))?
-            .saturating_sub(1);
+            .get_or_default::<_, u32>(&keys::transaction_next_id(account))?;
 
         if db_total > 0 {
             let end = db_total.saturating_sub(offset);
@@ -324,14 +327,14 @@ where
             let range = start..end;
 
             log::debug!(
-                "Retrieving transactions in range {:?}. Start({}), End({}), Total({})",
+                "Retrieving database transactions in range {:?}. Start({}), End({}), Total({})",
                 range,
                 start,
                 end,
-                db_total
+                db_total,
             );
             for index in range.rev() {
-                match self.get_transaction(account, index + 1) {
+                match self.get_transaction(account, index) {
                     Ok(transaction) => {
                         transactions.push(transaction);
                     }
