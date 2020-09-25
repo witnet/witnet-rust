@@ -166,8 +166,8 @@ impl UnspentOutputsPool {
         utxo_set
     }
 
-    pub fn persist(&mut self, new_block_number: u32) {
-        let mut diff = std::mem::replace(&mut self.diff, Diff::new(new_block_number));
+    pub fn persist(&mut self) {
+        let mut diff = std::mem::replace(&mut self.diff, Diff::new());
         for (k, (v, block_number)) in diff.utxos_to_add.drain() {
             self.db_insert(k, v, block_number);
         }
@@ -181,8 +181,8 @@ impl UnspentOutputsPool {
         }
     }
 
-    pub fn restore(&mut self, new_block_number: u32) {
-        self.diff = Diff::new(new_block_number);
+    pub fn restore(&mut self) {
+        self.diff = Diff::new();
     }
 }
 
@@ -375,16 +375,14 @@ pub struct Diff {
     utxos_to_remove: HashSet<OutputPointer>,
     // TODO: we need utxos_to_remove_dr.contains(), change to HashSet or combine with utxos_to_remove?
     utxos_to_remove_dr: Vec<OutputPointer>,
-    block_number: u32,
 }
 
 impl Diff {
-    pub fn new(block_number: u32) -> Self {
+    pub fn new() -> Self {
         Self {
             utxos_to_add: Default::default(),
             utxos_to_remove: Default::default(),
             utxos_to_remove_dr: vec![],
-            block_number,
         }
     }
 
@@ -409,8 +407,7 @@ impl Diff {
     /// use std::collections::HashMap;
     /// use witnet_data_structures::utxo_pool::Diff;
     ///
-    /// let block_number = 0;
-    /// let diff = Diff::new(block_number);
+    /// let diff = Diff::new();
     /// let mut hashmap = HashMap::new();
     /// diff.visit(&mut hashmap, |hashmap, output_pointer, output| {
     ///     hashmap.insert(output_pointer.clone(), output.clone());
@@ -439,6 +436,7 @@ impl Diff {
 pub struct UtxoDiff<'a> {
     diff: Diff,
     utxo_set: &'a UnspentOutputsPool,
+    block_number: u32,
 }
 
 impl<'a> UtxoDiff<'a> {
@@ -446,7 +444,8 @@ impl<'a> UtxoDiff<'a> {
     pub fn new(utxo_set: &'a UnspentOutputsPool, block_number: u32) -> Self {
         UtxoDiff {
             utxo_set,
-            diff: Diff::new(block_number),
+            diff: Diff::new(),
+            block_number,
         }
     }
 
@@ -460,7 +459,7 @@ impl<'a> UtxoDiff<'a> {
         // TODO: this assumes that we never insert-remove-insert again
         self.diff.utxos_to_add.insert(
             output_pointer,
-            (output, block_number.unwrap_or(self.diff.block_number)),
+            (output, block_number.unwrap_or(self.block_number)),
         );
     }
 
