@@ -631,20 +631,28 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         transaction: types::Transaction,
-    ) -> ResponseActFuture<serde_json::Value> {
+    ) -> ResponseActFuture<SendTransactionResponse> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
         )
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.send_inventory_transaction(transaction.clone())
-                .and_then(move |value, _slf, _ctx| {
-                    let _ = wallet.add_local_movement(&model::ExtendedTransaction {
+                .and_then(move |jsonrpc_result, _slf, _ctx| {
+                    match wallet.add_local_movement(&model::ExtendedTransaction {
                         transaction,
                         metadata: None,
-                    });
+                    }) {
+                        Ok(balance_movement) => actix::fut::ok(SendTransactionResponse {
+                            jsonrpc_result,
+                            balance_movement,
+                        }),
+                        Err(e) => {
+                            log::error!("Error while adding local pending movement: {}", e);
 
-                    actix::fut::ok(value)
+                            actix::fut::err(Error::Internal(failure::Error::from(e)))
+                        }
+                    }
                 })
         });
 

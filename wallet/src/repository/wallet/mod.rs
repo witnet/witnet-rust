@@ -977,7 +977,10 @@ where
     }
 
     /// Add local pending balance movement submitted by wallet client
-    pub fn add_local_movement(&self, txn: &model::ExtendedTransaction) -> Result<()> {
+    pub fn add_local_movement(
+        &self,
+        txn: &model::ExtendedTransaction,
+    ) -> Result<Option<BalanceMovement>> {
         let mut state = self.state.write()?;
 
         if let Some(mut account_mutation) =
@@ -987,14 +990,16 @@ where
             let txn_hash = txn.transaction.hash();
             state
                 .local_movements
-                .insert(txn_hash, account_mutation.balance_movement);
+                .insert(txn_hash, account_mutation.balance_movement.clone());
             log::debug!(
                 "Local pending movement added for transaction id: {})",
                 txn_hash
             );
+
+            return Ok(Some(account_mutation.balance_movement));
         }
 
-        Ok(())
+        Ok(None)
     }
 
     fn _get_account_mutation(

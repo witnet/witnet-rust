@@ -1,8 +1,11 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::app;
-use crate::types;
+use crate::{
+    {actors::app},
+    model,
+    types,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SendTransactionRequest {
@@ -11,12 +14,18 @@ pub struct SendTransactionRequest {
     transaction: types::Transaction,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SendTransactionResponse {
+    pub jsonrpc_result: serde_json::Value,
+    pub balance_movement: Option<model::BalanceMovement>,
+}
+
 impl Message for SendTransactionRequest {
-    type Result = app::Result<serde_json::Value>;
+    type Result = app::Result<SendTransactionResponse>;
 }
 
 impl Handler<SendTransactionRequest> for app::App {
-    type Result = app::ResponseActFuture<serde_json::Value>;
+    type Result = app::ResponseActFuture<SendTransactionResponse>;
 
     fn handle(&mut self, msg: SendTransactionRequest, _ctx: &mut Self::Context) -> Self::Result {
         self.send_transaction(&msg.session_id, &msg.wallet_id, msg.transaction)
