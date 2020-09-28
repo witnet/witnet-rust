@@ -6,7 +6,7 @@ edition = "2018"
 workspace = ".."
 
 [dependencies]
-actix = "0.8.3"
+actix = { version = "0.8.3", default-features = false }
 async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"] }
 failure = "0.1.8"
 futures = "0.1.29"
