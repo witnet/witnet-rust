@@ -202,7 +202,7 @@ pub struct Transactions {
     pub total: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct OutPtr {
     pub txn_hash: Vec<u8>,
     pub output_index: u32,
@@ -240,7 +240,7 @@ impl fmt::Display for OutPtr {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeyBalance {
     /// PKH receiving this balance
     pub pkh: types::PublicKeyHash,
@@ -248,7 +248,7 @@ pub struct KeyBalance {
     pub amount: u64,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Beacon {
     pub epoch: u32,
     pub block_hash: types::Hash,

@@ -14,8 +14,6 @@ use witnet_data_structures::{
 };
 use witnet_util::timestamp::get_timestamp;
 
-use crate::constants::{EXTERNAL_KEYCHAIN, INTERNAL_KEYCHAIN};
-use crate::model::{AddressInfo, BalanceMovement};
 use crate::{
     constants,
     db::{Database, WriteBatch as _},
@@ -32,7 +30,7 @@ mod tests;
 
 /// Internal structure used to gather state mutations while indexing block transactions
 struct AccountMutation {
-    balance_movement: BalanceMovement,
+    balance_movement: model::BalanceMovement,
     utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)>,
     utxo_removals: Vec<model::OutPtr>,
 }
@@ -73,12 +71,14 @@ where
         state.pending_addresses_by_block.clear();
 
         // Restore state from database
-        state.next_external_index = self
-            .db
-            .get_or_default(&keys::account_next_index(account, EXTERNAL_KEYCHAIN))?;
-        state.next_internal_index = self
-            .db
-            .get_or_default(&keys::account_next_index(account, INTERNAL_KEYCHAIN))?;
+        state.next_external_index = self.db.get_or_default(&keys::account_next_index(
+            account,
+            constants::EXTERNAL_KEYCHAIN,
+        ))?;
+        state.next_internal_index = self.db.get_or_default(&keys::account_next_index(
+            account,
+            constants::INTERNAL_KEYCHAIN,
+        ))?;
         state.utxo_set = self.db.get_or_default(&keys::account_utxo_set(account))?;
         state.balance = self.db.get_or_default(&keys::account_balance(account))?;
 
@@ -305,7 +305,7 @@ where
 
         // Total amount of state and db transactions
         let total = state.transaction_next_id + u32::try_from(state.local_movements.len()).unwrap();
-        let mut transactions: Vec<BalanceMovement> = Vec::with_capacity(100);
+        let mut transactions: Vec<model::BalanceMovement> = Vec::with_capacity(total as usize);
 
         // Prepend local pending balance movements (not yet included in blocks)
         let local_movements = state.local_movements.values().cloned().collect::<Vec<_>>();
@@ -618,11 +618,11 @@ where
         batch.put(keys::account_utxo_set(account).into_bytes(), utxo_set)?;
         batch.put(keys::account_balance(account).into_bytes(), balance)?;
         batch.put(
-            keys::account_next_index(account, EXTERNAL_KEYCHAIN),
+            keys::account_next_index(account, constants::EXTERNAL_KEYCHAIN),
             next_external_address_index,
         )?;
         batch.put(
-            keys::account_next_index(account, INTERNAL_KEYCHAIN),
+            keys::account_next_index(account, constants::INTERNAL_KEYCHAIN),
             next_internal_address_index,
         )?;
 
@@ -951,7 +951,7 @@ where
                 keychain: old_address.keychain,
                 account: old_address.account,
                 path: old_address.path.clone(),
-                info: AddressInfo {
+                info: model::AddressInfo {
                     db_key: keys::address_info(path.account, path.keychain, path.index),
                     label: info.label.clone(),
                     received_payments,
@@ -976,11 +976,12 @@ where
         Ok(Some((account_mutation.balance_movement, addresses)))
     }
 
+    // TODO: notify client of new local pending transaction
     /// Add local pending balance movement submitted by wallet client
     pub fn add_local_movement(
         &self,
         txn: &model::ExtendedTransaction,
-    ) -> Result<Option<BalanceMovement>> {
+    ) -> Result<Option<model::BalanceMovement>> {
         let mut state = self.state.write()?;
 
         if let Some(mut account_mutation) =
@@ -1074,16 +1075,16 @@ where
             }
         }
 
+        // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
+        if utxo_inserts.is_empty() && utxo_removals.is_empty() {
+            return Ok(None);
+        }
+
         let (amount, kind) = if output_amount >= input_amount {
             (output_amount - input_amount, model::MovementType::Positive)
         } else {
             (input_amount - output_amount, model::MovementType::Negative)
         };
-
-        // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
-        if utxo_inserts.is_empty() && utxo_removals.is_empty() {
-            return Ok(None);
-        }
 
         // Build the balance movement, first computing the miner fee
         let miner_fee: u64 = match &txn.metadata {
