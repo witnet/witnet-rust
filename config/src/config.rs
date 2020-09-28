@@ -47,6 +47,7 @@ use crate::{
     dirs,
 };
 use partial_struct::PartialStruct;
+use std::convert::TryFrom;
 use witnet_crypto::hash::HashFunction;
 use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
 use witnet_protected::{Protected, ProtectedString};
@@ -54,7 +55,7 @@ use witnet_protected::{Protected, ProtectedString};
 /// The total configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Config {
     /// The "environment" in which the protocol will be deployed, eg:
     /// mainnet, testnet, etc.
@@ -115,13 +116,38 @@ pub struct Config {
 
 /// Log-specific configuration.
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Log {
     /// Level for the log messages.
-    #[partial_struct(serde(deserialize_with = "as_log_filter"))]
+    #[partial_struct(serde(
+        deserialize_with = "as_log_filter",
+        serialize_with = "as_log_filter_string"
+    ))]
     pub level: log::LevelFilter,
     /// Automated bug reporting (helps the community improve the software)
     pub sentry_telemetry: bool,
+}
+
+fn as_log_filter_string<S>(
+    level: &Option<log::LevelFilter>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(level_unwrapped) = level {
+        let result = match level_unwrapped {
+            log::LevelFilter::Off => "off",
+            log::LevelFilter::Error => "error",
+            log::LevelFilter::Warn => "warn",
+            log::LevelFilter::Debug => "debug",
+            log::LevelFilter::Trace => "trace",
+            _ => "info",
+        };
+        serializer.serialize_str(result)
+    } else {
+        serializer.serialize_str("info")
+    }
 }
 
 fn as_log_filter<'de, D>(deserializer: D) -> Result<Option<log::LevelFilter>, D::Error>
@@ -143,7 +169,7 @@ where
 
 /// Connection-specific configuration.
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Connections {
     /// Server address, that is, the socket address (interface ip and
     /// port) to which the server accepting connections from other
@@ -173,6 +199,7 @@ pub struct Connections {
     /// Period of the bootstrap peers task
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "bootstrap_peers_period_seconds"
     ))]
@@ -181,6 +208,7 @@ pub struct Connections {
     /// Period of the persist peers task
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "storage_peers_period_seconds"
     ))]
@@ -189,6 +217,7 @@ pub struct Connections {
     /// Period of the peers discovery task
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "discovery_peers_period_seconds"
     ))]
@@ -197,6 +226,7 @@ pub struct Connections {
     /// Period of the peers melt task
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "check_melted_peers_period_seconds"
     ))]
@@ -205,6 +235,7 @@ pub struct Connections {
     /// Period of the feeler task (try_peer)
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "feeler_peers_period_seconds"
     ))]
@@ -213,6 +244,7 @@ pub struct Connections {
     /// Handshake timeout
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "handshake_timeout_seconds"
     ))]
@@ -235,6 +267,7 @@ pub struct Connections {
     /// again before that amount of time.
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "bucketing_ice_period_seconds"
     ))]
@@ -245,6 +278,18 @@ pub struct Connections {
     pub reject_sybil_inbounds: bool,
 }
 
+fn to_millis<S>(val: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(duration) = val {
+        serializer
+            .serialize_u64(u64::try_from(duration.as_millis()).map_err(serde::ser::Error::custom)?)
+    } else {
+        serializer.serialize_none()
+    }
+}
+
 fn from_millis<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
@@ -253,6 +298,16 @@ where
         Ok(secs) => Some(Duration::from_millis(secs)),
         Err(_) => None,
     })
+}
+fn to_secs<S>(val: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(duration) = val {
+        serializer.serialize_u64(duration.as_secs())
+    } else {
+        serializer.serialize_none()
+    }
 }
 
 fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
@@ -266,7 +321,7 @@ where
 }
 
 /// Available storage backends
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum StorageBackend {
     #[serde(rename = "hashmap")]
     HashMap,
@@ -282,7 +337,7 @@ impl Default for StorageBackend {
 
 /// Storage-specific configuration
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Storage {
     /// Storage backend to use
     #[partial_struct(skip)]
@@ -292,7 +347,10 @@ pub struct Storage {
     /// being stored with this password
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
-    #[partial_struct(serde(deserialize_with = "as_protected_string"))]
+    #[partial_struct(serde(
+        serialize_with = "to_protected_string",
+        deserialize_with = "as_protected_string"
+    ))]
     pub password: Option<Protected>,
     /// Path to the directory that will contain the database. Used
     /// only if backend is RocksDB.
@@ -301,6 +359,16 @@ pub struct Storage {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub master_key_import_path: Option<PathBuf>,
+}
+
+fn to_protected_string<S>(val: &Option<Protected>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match val {
+        Some(_) => serializer.serialize_str("**** REDACTED ****"),
+        None => serializer.serialize_none(),
+    }
 }
 
 fn as_protected_string<'de, D>(deserializer: D) -> Result<Option<Protected>, D::Error>
@@ -313,7 +381,7 @@ where
 
 /// JsonRPC API configuration
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct JsonRPC {
     /// Binary flag telling whether to enable the JSON-RPC interface or not
     pub enabled: bool,
@@ -326,7 +394,7 @@ pub struct JsonRPC {
 
 /// Mining-related configuration
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Mining {
     /// Binary flag telling whether to enable the MiningManager or not
     pub enabled: bool,
@@ -341,6 +409,7 @@ pub struct Mining {
     #[partial_struct(serde(
         default,
         deserialize_with = "from_millis",
+        serialize_with = "to_millis",
         rename = "data_request_timeout_milliseconds"
     ))]
     pub data_request_timeout: Duration,
@@ -358,11 +427,12 @@ pub struct Mining {
 
 /// NTP-related configuration
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Ntp {
     /// Period that indicate the validity of a ntp timestamp
     #[partial_struct(serde(
         default,
+        serialize_with = "to_secs",
         deserialize_with = "from_secs",
         rename = "update_period_seconds"
     ))]
@@ -377,10 +447,38 @@ pub struct Ntp {
 
 /// Mempool-related configuration
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Mempool {
     /// Timeout to use again an UTXO spent by a pending transaction
     pub tx_pending_timeout: u64,
+}
+
+fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusConstants {
+    PartialConsensusConstants {
+        checkpoint_zero_timestamp: Some(c.checkpoint_zero_timestamp),
+        checkpoints_period: Some(c.checkpoints_period),
+        bootstrap_hash: Some(c.bootstrap_hash),
+        genesis_hash: Some(c.genesis_hash),
+        max_vt_weight: Some(c.max_vt_weight),
+        max_dr_weight: Some(c.max_dr_weight),
+        activity_period: Some(c.activity_period),
+        reputation_expire_alpha_diff: Some(c.reputation_expire_alpha_diff),
+        reputation_issuance: Some(c.reputation_issuance),
+        reputation_issuance_stop: Some(c.reputation_issuance_stop),
+        reputation_penalization_factor: Some(c.reputation_penalization_factor),
+        mining_backup_factor: Some(c.mining_backup_factor),
+        mining_replication_factor: Some(c.mining_replication_factor),
+        collateral_minimum: Some(c.collateral_minimum),
+        collateral_age: Some(c.collateral_age),
+        superblock_period: Some(c.superblock_period),
+        extra_rounds: Some(c.extra_rounds),
+        initial_difficulty: Some(c.initial_difficulty),
+        epochs_with_initial_difficulty: Some(c.epochs_with_initial_difficulty),
+        bootstrapping_committee: Some(c.bootstrapping_committee.clone()),
+        superblock_signing_committee_size: Some(c.superblock_signing_committee_size),
+        superblock_committee_decreasing_period: Some(c.superblock_committee_decreasing_period),
+        superblock_committee_decreasing_step: Some(c.superblock_committee_decreasing_step),
+    }
 }
 
 impl Config {
@@ -411,6 +509,22 @@ impl Config {
             rocksdb: Rocksdb::from_partial(&config.rocksdb, defaults),
             ntp: Ntp::from_partial(&config.ntp, defaults),
             mempool: Mempool::from_partial(&config.mempool, defaults),
+        }
+    }
+
+    pub fn to_partial(&self) -> PartialConfig {
+        PartialConfig {
+            environment: self.environment,
+            connections: self.connections.to_partial(),
+            storage: self.storage.to_partial(),
+            log: self.log.to_partial(),
+            consensus_constants: to_partial_consensus_constants(&self.consensus_constants),
+            jsonrpc: self.jsonrpc.to_partial(),
+            mining: self.mining.to_partial(),
+            wallet: self.wallet.to_partial(),
+            rocksdb: self.rocksdb.to_partial(),
+            ntp: self.ntp.to_partial(),
+            mempool: self.mempool.to_partial(),
         }
     }
 }
@@ -533,6 +647,13 @@ impl Log {
             sentry_telemetry: config.sentry_telemetry.unwrap_or_else(|| false),
         }
     }
+
+    pub fn to_partial(&self) -> PartialLog {
+        PartialLog {
+            level: Some(self.level),
+            sentry_telemetry: Some(self.sentry_telemetry),
+        }
+    }
 }
 
 impl Connections {
@@ -605,6 +726,28 @@ impl Connections {
                 .unwrap_or_else(|| defaults.connections_reject_sybil_inbounds()),
         }
     }
+
+    pub fn to_partial(&self) -> PartialConnections {
+        PartialConnections {
+            server_addr: Some(self.server_addr),
+            public_addr: self.public_addr,
+            inbound_limit: Some(self.inbound_limit),
+            outbound_limit: Some(self.outbound_limit),
+            known_peers: self.known_peers.clone(),
+            bootstrap_peers_period: Some(self.bootstrap_peers_period),
+            storage_peers_period: Some(self.storage_peers_period),
+            discovery_peers_period: Some(self.discovery_peers_period),
+            check_melted_peers_period: Some(self.check_melted_peers_period),
+            feeler_peers_period: Some(self.feeler_peers_period),
+            handshake_timeout: Some(self.handshake_timeout),
+            handshake_max_ts_diff: Some(self.handshake_max_ts_diff),
+            blocks_timeout: Some(self.blocks_timeout),
+            consensus_c: Some(self.consensus_c),
+            bucketing_ice_period: Some(self.bucketing_ice_period),
+            bucketing_update_period: Some(self.bucketing_update_period),
+            reject_sybil_inbounds: Some(self.reject_sybil_inbounds),
+        }
+    }
 }
 
 impl Storage {
@@ -617,6 +760,16 @@ impl Storage {
                 .to_owned()
                 .unwrap_or_else(|| defaults.storage_db_path()),
             master_key_import_path: config.master_key_import_path.clone(),
+        }
+    }
+
+    pub fn to_partial(&self) -> PartialStorage {
+        PartialStorage {
+            backend: self.backend.clone(),
+            // password should not be exported
+            password: None,
+            db_path: Some(self.db_path.clone()),
+            master_key_import_path: self.master_key_import_path.clone(),
         }
     }
 }
@@ -636,6 +789,14 @@ impl JsonRPC {
                 .enable_sensitive_methods
                 .to_owned()
                 .unwrap_or_else(|| defaults.jsonrpc_enable_sensitive_methods()),
+        }
+    }
+
+    pub fn to_partial(&self) -> PartialJsonRPC {
+        PartialJsonRPC {
+            enabled: Some(self.enabled),
+            server_address: Some(self.server_address),
+            enable_sensitive_methods: Some(self.enable_sensitive_methods),
         }
     }
 }
@@ -670,6 +831,18 @@ impl Mining {
                 .unwrap_or_else(|| defaults.mining_transactions_pool_total_weight_limit()),
         }
     }
+
+    pub fn to_partial(&self) -> PartialMining {
+        PartialMining {
+            enabled: Some(self.enabled),
+            data_request_timeout: Some(self.data_request_timeout),
+            data_request_max_retrievals_per_epoch: Some(self.data_request_max_retrievals_per_epoch),
+            genesis_path: Some(self.genesis_path.clone()),
+            mint_external_percentage: Some(self.mint_external_percentage),
+            mint_external_address: self.mint_external_address.clone(),
+            transactions_pool_total_weight_limit: Some(self.transactions_pool_total_weight_limit),
+        }
+    }
 }
 
 impl Ntp {
@@ -689,6 +862,14 @@ impl Ntp {
                 .unwrap_or_else(|| defaults.ntp_enabled()),
         }
     }
+
+    pub fn to_partial(&self) -> PartialNtp {
+        PartialNtp {
+            update_period: Some(self.update_period),
+            servers: Some(self.servers.clone()),
+            enabled: Some(self.enabled),
+        }
+    }
 }
 
 impl Mempool {
@@ -700,11 +881,17 @@ impl Mempool {
                 .unwrap_or_else(|| defaults.mempool_tx_pending_timeout()),
         }
     }
+
+    pub fn to_partial(&self) -> PartialMempool {
+        PartialMempool {
+            tx_pending_timeout: Some(self.tx_pending_timeout),
+        }
+    }
 }
 
 /// Wallet-specific configuration.
 #[derive(PartialStruct, Serialize, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Wallet {
     /// Whether or not this wallet will comunicate with a testnet node.
     #[partial_struct(skip)]
@@ -789,11 +976,32 @@ impl Wallet {
                 .unwrap_or_else(|| defaults.wallet_id_hash_function()),
         }
     }
+
+    pub fn to_partial(&self) -> PartialWallet {
+        PartialWallet {
+            testnet: self.testnet,
+            server_addr: Some(self.server_addr),
+            node_url: self.node_url.clone(),
+            node_sync_batch_size: Some(self.node_sync_batch_size),
+            concurrency: self.concurrency,
+            db_path: Some(self.db_path.clone()),
+            db_file_name: Some(self.db_file_name.clone()),
+            db_encrypt_hash_iterations: Some(self.db_encrypt_hash_iterations),
+            db_encrypt_iv_length: Some(self.db_encrypt_iv_length),
+            db_encrypt_salt_length: Some(self.db_encrypt_salt_length),
+            seed_password: None,   // seed_password should not be exported
+            master_key_salt: None, // master_key_salt should not be exported
+            id_hash_iterations: Some(self.id_hash_iterations),
+            id_hash_function: Some(self.id_hash_function.clone()),
+            session_expires_in: Some(self.session_expires_in),
+            requests_timeout: Some(self.requests_timeout),
+        }
+    }
 }
 
 /// Rocksdb-specific configuration
 #[derive(PartialStruct, Serialize, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 pub struct Rocksdb {
     /// By default, RocksDB uses only one background thread for flush and compaction. Calling this
     /// function will set it up such that total of total_threads is used. Good value for
@@ -833,6 +1041,16 @@ impl Rocksdb {
         }
     }
 
+    pub fn to_partial(&self) -> PartialRocksdb {
+        PartialRocksdb {
+            increase_parallelism: self.increase_parallelism,
+            create_if_missing: Some(self.create_if_missing),
+            compaction_readahead_size: Some(self.compaction_readahead_size),
+            use_fsync: Some(self.use_fsync),
+            enable_statistics: Some(self.enable_statistics),
+        }
+    }
+
     #[cfg(feature = "rocksdb")]
     pub fn to_rocksdb_options(&self) -> rocksdb::Options {
         let mut opts = rocksdb::Options::default();
@@ -868,7 +1086,7 @@ mod tests {
     fn test_storage_from_partial() {
         let partial_config = PartialStorage {
             backend: StorageBackend::RocksDB,
-            password: None,
+            password: None, // password should not be exported
             db_path: Some(PathBuf::from("other")),
             master_key_import_path: None,
         };

@@ -123,7 +123,7 @@ impl Environment {
 #[derive(
     PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize, ProtobufConvert, Default,
 )]
-#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
 #[protobuf_convert(pb = "witnet::ConsensusConstants")]
 pub struct ConsensusConstants {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
