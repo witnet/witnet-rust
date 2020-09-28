@@ -881,3 +881,78 @@ fn test_get_transaction() {
         .unwrap();
     assert!(wallet.get_transaction(0, 1).is_ok());
 }
+
+#[test]
+fn test_get_transactions() {
+    let (wallet, _db) = factories::wallet(None);
+
+    let no_transactions = crate::model::Transactions {
+        transactions: vec![],
+        total: 0,
+    };
+    assert_eq!(wallet.transactions(0, 0).unwrap(), no_transactions);
+    assert_eq!(wallet.transactions(0, 1).unwrap(), no_transactions);
+    assert_eq!(wallet.transactions(1, 0).unwrap(), no_transactions);
+    assert_eq!(wallet.transactions(1, 1).unwrap(), no_transactions);
+
+    let a_block = factories::BlockInfo::default().create();
+    let our_address = wallet.gen_external_address(None).unwrap();
+    let their_pkh = factories::pkh();
+    // index transaction to receive funds
+    wallet
+        .index_block_transactions(
+            &a_block,
+            &[factories::vtt_from_body(types::VTTransactionBody::new(
+                vec![factories::Input::default().create()],
+                vec![factories::VttOutput::default()
+                    .with_pkh(our_address.pkh)
+                    .with_value(2)
+                    .create()],
+            ))],
+            true,
+        )
+        .unwrap();
+
+    // The total returned by wallet.transactions() will now always be 1, regardless of limit
+    let no_transactions = crate::model::Transactions {
+        transactions: vec![],
+        total: 1,
+    };
+    assert_eq!(wallet.transactions(0, 0).unwrap(), no_transactions);
+    let x = wallet.transactions(0, 1).unwrap();
+    assert_eq!(x.transactions.len(), 1);
+    assert_eq!(x.total, 1);
+    let first_tx = x.transactions[0].clone();
+    assert_eq!(wallet.transactions(1, 0).unwrap(), no_transactions);
+    assert_eq!(wallet.transactions(1, 1).unwrap(), no_transactions);
+
+    // spend those funds to create a new transaction which is pending (it has no block)
+    let vtt = wallet
+        .create_vtt(types::VttParams {
+            pkh: their_pkh,
+            value: 1,
+            fee: 0,
+            time_lock: 0,
+        })
+        .unwrap();
+    // the wallet does not store created VTT transactions until confirmation
+    let x = wallet.transactions(0, 1).unwrap();
+    assert_eq!(x.transactions.len(), 1);
+    assert_eq!(x.total, 1);
+
+    // index another block confirming the previously created vtt
+    wallet
+        .index_block_transactions(&a_block, &[factories::vtt_from_body(vtt.body)], true)
+        .unwrap();
+    let x = wallet.transactions(0, 2).unwrap();
+    assert_eq!(x.transactions.len(), 2);
+    assert_eq!(x.total, 2);
+    // The older transaction has index 1 now
+    assert_eq!(x.transactions[1], first_tx);
+
+    let x = wallet.transactions(1, 2).unwrap();
+    assert_eq!(x.transactions.len(), 1);
+    assert_eq!(x.total, 2);
+    // The older transaction has index 0 now, because we used offset 1
+    assert_eq!(x.transactions[0], first_tx);
+}

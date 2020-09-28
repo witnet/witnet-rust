@@ -84,7 +84,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BalanceMovement {
     /// Database key for storing `BalanceMovement` objects
     #[serde(skip)]
@@ -98,7 +98,7 @@ pub struct BalanceMovement {
     pub transaction: Transaction,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MovementType {
     #[serde(rename = "POSITIVE")]
     Positive,
@@ -116,7 +116,7 @@ impl fmt::Display for MovementType {
 }
 
 /// Transaction linked to a balance movement in a wallet
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Transaction {
     /// Block in which the transaction is included
     pub block: Option<Beacon>,
@@ -132,7 +132,7 @@ pub struct Transaction {
     pub timestamp: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TransactionData {
     #[serde(rename = "value_transfer")]
     ValueTransfer(VtData),
@@ -146,57 +146,57 @@ pub enum TransactionData {
     Commit(VtData),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct VtData {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DrData {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
     pub tally: Option<TallyReport>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TallyData {
     pub request_transaction_hash: String,
     pub outputs: Vec<Output>,
     pub tally: TallyReport,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MintData {
     pub outputs: Vec<Output>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Input {
     pub address: String,
     pub value: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Output {
     pub address: String,
     pub time_lock: u64,
     pub value: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TallyReport {
     pub result: String,
     pub reveals: Vec<Reveal>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Reveal {
     pub value: String,
     pub in_consensus: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Eq, PartialEq, Serialize)]
 pub struct Transactions {
     pub transactions: Vec<BalanceMovement>,
     pub total: u32,
@@ -248,7 +248,7 @@ pub struct KeyBalance {
     pub amount: u64,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct Beacon {
     pub epoch: u32,
     pub block_hash: types::Hash,
