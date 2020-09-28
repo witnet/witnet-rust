@@ -45,7 +45,7 @@ use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestReport, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
+        DataRequestInfo, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
         NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlock,
         SuperBlockVote, TransactionsPool,
     },
@@ -327,14 +327,14 @@ impl ChainManager {
     }
 
     /// Method to persist a Data Request into the Storage
-    fn persist_data_requests(&self, ctx: &mut Context<Self>, dr_reports: Vec<DataRequestReport>) {
-        let kvs: Vec<_> = dr_reports
+    fn persist_data_requests(&self, ctx: &mut Context<Self>, dr_infos: Vec<DataRequestInfo>) {
+        let kvs: Vec<_> = dr_infos
             .into_iter()
-            .map(|dr_report| {
-                let dr_pointer = &dr_report.tally.dr_pointer;
+            .map(|dr_info| {
+                let dr_pointer = &dr_info.tally.as_ref().unwrap().dr_pointer;
                 let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
 
-                (dr_pointer_string, dr_report)
+                (dr_pointer_string, dr_info)
             })
             .collect();
         let kvs_len = kvs.len();
@@ -647,8 +647,8 @@ impl ChainManager {
                         // Persist finished data requests into storage
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
-                        for dr_report in &to_be_stored {
-                            show_tally_info(&dr_report.tally, block_epoch);
+                        for dr_info in &to_be_stored {
+                            show_tally_info(&dr_info.tally.as_ref().unwrap(), block_epoch);
                         }
                         self.persist_data_requests(ctx, to_be_stored);
 

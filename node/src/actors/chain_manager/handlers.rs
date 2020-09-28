@@ -6,8 +6,8 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch, Hash,
-        Hashable, NodeStats, SuperBlockVote,
+        Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, NodeStats,
+        SuperBlockVote,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -24,7 +24,7 @@ use crate::{
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
-            GetBlocksEpochRange, GetDataRequestReport, GetHighestCheckpointBeacon,
+            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, PeersBeacons,
             ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon, TryMineBlock,
@@ -1252,10 +1252,10 @@ impl Handler<GetState> for ChainManager {
     }
 }
 
-impl Handler<GetDataRequestReport> for ChainManager {
+impl Handler<GetDataRequestInfo> for ChainManager {
     type Result = ResponseFuture<DataRequestInfo, failure::Error>;
 
-    fn handle(&mut self, msg: GetDataRequestReport, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: GetDataRequestInfo, _ctx: &mut Self::Context) -> Self::Result {
         let dr_pointer = msg.dr_pointer;
 
         // First, try to get it from memory
@@ -1270,9 +1270,9 @@ impl Handler<GetDataRequestReport> for ChainManager {
         } else {
             let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
             // Otherwise, try to get it from storage
-            let fut = storage_mngr::get::<_, DataRequestReport>(&dr_pointer_string).and_then(
-                move |dr_report| match dr_report {
-                    Some(x) => futures::finished(DataRequestInfo::from(x)),
+            let fut = storage_mngr::get::<_, DataRequestInfo>(&dr_pointer_string).and_then(
+                move |dr_info| match dr_info {
+                    Some(x) => futures::finished(x),
                     None => futures::failed(DataRequestNotFound { hash: dr_pointer }.into()),
                 },
             );

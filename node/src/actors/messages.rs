@@ -222,14 +222,14 @@ impl Message for GetState {
     type Result = Result<StateMachine, ()>;
 }
 
-/// Get Data Request Report
+/// Get Data Request Info
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct GetDataRequestReport {
+pub struct GetDataRequestInfo {
     /// `DataRequest` transaction hash
     pub dr_pointer: Hash,
 }
 
-impl Message for GetDataRequestReport {
+impl Message for GetDataRequestInfo {
     type Result = Result<DataRequestInfo, failure::Error>;
 }
 

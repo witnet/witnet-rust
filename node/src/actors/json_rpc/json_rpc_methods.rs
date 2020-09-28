@@ -33,7 +33,7 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
             AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, GetBalance,
-            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestReport, GetEpoch,
+            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
             GetUtxoInfo,
@@ -899,7 +899,7 @@ pub fn create_vrf(params: Result<Vec<u8>, jsonrpc_core::Error>) -> JsonRpcResult
     Box::new(fut)
 }
 
-/// Data request report
+/// Data request info
 pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
     let dr_pointer = match params {
         Ok(x) => x.0,
@@ -909,7 +909,7 @@ pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> Json
     let chain_manager_addr = ChainManager::from_registry();
 
     let fut = chain_manager_addr
-        .send(GetDataRequestReport { dr_pointer })
+        .send(GetDataRequestInfo { dr_pointer })
         .map_err(internal_error)
         .and_then(|dr_info| match dr_info {
             Ok(x) => match serde_json::to_value(&x) {

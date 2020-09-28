@@ -2390,52 +2390,6 @@ pub enum InventoryItem {
     SuperBlock(SuperBlock),
 }
 
-/// Data request report to be persisted into Storage and
-/// using as index the Data Request OutputPointer
-// FIXME (#792): Review if this struct is needed
-// It is not needed, we just need to store the transaction hash for all the commits, reveals, and
-// tally. All the information can then be retrieved from the database. The data request transaction
-// hash is used as the key.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DataRequestReport {
-    /// List of commitment output pointers to resolve the data request
-    pub commits: Vec<CommitTransaction>,
-    /// List of reveal output pointers to the commitments (contains the data request result of the witnet)
-    pub reveals: Vec<RevealTransaction>,
-    /// Tally output pointer (contains final result)
-    pub tally: TallyTransaction,
-    /// Hash of the block with the DataRequestTransaction
-    pub block_hash_dr_tx: Hash,
-    /// Hash of the block with the TallyTransaction
-    pub block_hash_tally_tx: Hash,
-    /// Current commit round starting from 1
-    pub current_commit_round: u16,
-    /// Current reveal round starting from 1
-    pub current_reveal_round: u16,
-}
-
-impl TryFrom<DataRequestInfo> for DataRequestReport {
-    type Error = failure::Error;
-
-    fn try_from(x: DataRequestInfo) -> Result<Self, failure::Error> {
-        if let (Some(tally), Some(block_hash_dr_tx), Some(block_hash_tally_tx)) =
-            (x.tally, x.block_hash_dr_tx, x.block_hash_tally_tx)
-        {
-            Ok(DataRequestReport {
-                commits: x.commits.values().cloned().collect(),
-                reveals: x.reveals.values().cloned().collect(),
-                tally,
-                block_hash_dr_tx,
-                block_hash_tally_tx,
-                current_commit_round: x.current_commit_round,
-                current_reveal_round: x.current_reveal_round,
-            })
-        } else {
-            Err(DataRequestError::UnfinishedDataRequest.into())
-        }
-    }
-}
-
 /// List of outputs related to a data request
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestInfo {
@@ -2468,25 +2422,6 @@ impl Default for DataRequestInfo {
             current_commit_round: 0,
             current_reveal_round: 0,
             current_stage: Some(DataRequestStage::COMMIT),
-        }
-    }
-}
-
-impl From<DataRequestReport> for DataRequestInfo {
-    fn from(x: DataRequestReport) -> Self {
-        Self {
-            commits: x
-                .commits
-                .into_iter()
-                .map(|c| (c.body.proof.proof.pkh(), c))
-                .collect(),
-            reveals: x.reveals.into_iter().map(|r| (r.body.pkh, r)).collect(),
-            tally: Some(x.tally),
-            block_hash_dr_tx: Some(x.block_hash_dr_tx),
-            block_hash_tally_tx: Some(x.block_hash_tally_tx),
-            current_commit_round: x.current_commit_round,
-            current_reveal_round: x.current_reveal_round,
-            current_stage: None,
         }
     }
 }
@@ -2566,15 +2501,13 @@ impl DataRequestState {
         mut self,
         tally: TallyTransaction,
         block_hash_tally_tx: &Hash,
-    ) -> Result<DataRequestReport, failure::Error> {
+    ) -> Result<DataRequestInfo, failure::Error> {
         if let DataRequestStage::TALLY = self.stage {
             self.info.tally = Some(tally);
             self.info.block_hash_tally_tx = Some(*block_hash_tally_tx);
+            self.info.current_stage = None;
 
-            // This try_from can only fail if the tally is None, and we have just set it to Some
-            let data_request_report = DataRequestReport::try_from(self.info)?;
-
-            Ok(data_request_report)
+            Ok(self.info)
         } else {
             Err(DataRequestError::NotTallyStage.into())
         }

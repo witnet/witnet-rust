@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{
-        DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
+        DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
         EpochConstants, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
@@ -24,7 +24,7 @@ pub struct DataRequestPool {
     /// List of active data requests indexed by output pointer
     pub data_request_pool: HashMap<Hash, DataRequestState>,
     /// List of data requests that should be persisted into storage
-    pub to_be_stored: Vec<DataRequestReport>,
+    pub to_be_stored: Vec<DataRequestInfo>,
     /// Extra rounds for commitments and reveals
     pub extra_rounds: u16,
 }
@@ -181,11 +181,11 @@ impl DataRequestPool {
         tally: TallyTransaction,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
-        let dr_report = Self::resolve_data_request(&mut self.data_request_pool, tally, block_hash)?;
+        let dr_info = Self::resolve_data_request(&mut self.data_request_pool, tally, block_hash)?;
 
         // Since this method does not have access to the storage, we save the
         // "to be stored" inside a vector and provide another method to store them
-        self.to_be_stored.push(dr_report);
+        self.to_be_stored.push(dr_info);
 
         Ok(())
     }
@@ -196,7 +196,7 @@ impl DataRequestPool {
         data_request_pool: &mut HashMap<Hash, DataRequestState>,
         tally_tx: TallyTransaction,
         block_hash: &Hash,
-    ) -> Result<DataRequestReport, failure::Error> {
+    ) -> Result<DataRequestInfo, failure::Error> {
         let dr_pointer = tally_tx.dr_pointer;
 
         let dr_state: Result<DataRequestState, failure::Error> =
@@ -357,7 +357,7 @@ impl DataRequestPool {
     }
 
     /// Get the data request info of the finished data requests, to be persisted to the storage
-    pub fn finished_data_requests(&mut self) -> Vec<DataRequestReport> {
+    pub fn finished_data_requests(&mut self) -> Vec<DataRequestInfo> {
         std::mem::replace(&mut self.to_be_stored, vec![])
     }
 }
@@ -782,7 +782,10 @@ mod tests {
         assert!(p.update_data_request_stages().is_empty());
 
         assert_eq!(p.to_be_stored.len(), 1);
-        assert_eq!(p.to_be_stored[0].tally.dr_pointer, dr_pointer);
+        assert_eq!(
+            p.to_be_stored[0].tally.as_ref().unwrap().dr_pointer,
+            dr_pointer
+        );
     }
 
     #[test]
