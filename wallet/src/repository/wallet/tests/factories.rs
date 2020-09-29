@@ -104,6 +104,7 @@ impl Input {
 pub struct VttOutput {
     pkh: Option<types::PublicKeyHash>,
     value: Option<u64>,
+    time_lock: Option<u64>,
 }
 
 impl VttOutput {
@@ -117,10 +118,15 @@ impl VttOutput {
         self
     }
 
+    pub fn with_time_lock(mut self, value: u64) -> Self {
+        self.time_lock = Some(value);
+        self
+    }
+
     pub fn create(self) -> types::VttOutput {
         let pkh = self.pkh.unwrap_or_else(pkh);
-        let value = self.value.unwrap_or_else(rand::random);
-        let time_lock = rand::random();
+        let value = self.value.unwrap_or(1u64);
+        let time_lock = self.time_lock.unwrap_or(0u64);
 
         types::VttOutput {
             pkh,
