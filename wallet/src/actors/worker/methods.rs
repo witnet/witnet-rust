@@ -201,12 +201,10 @@ impl Worker {
         Ok(addresses)
     }
 
-    pub fn balance(&mut self, wallet: &types::Wallet) -> Result<model::Balance> {
+    pub fn balance(&mut self, wallet: &types::Wallet) -> Result<model::WalletBalance> {
         let balance = wallet.balance()?;
 
-        Ok(model::Balance {
-            total: balance.amount.to_string(),
-        })
+        Ok(balance)
     }
 
     pub fn transactions(
@@ -277,8 +275,8 @@ impl Worker {
                 "events": events.unwrap_or_default(),
                 "status": {
                     "account": {
-                        "id": balance.account,
-                        "balance": balance.amount,
+                        "id": wallet_data.current_account,
+                        "balance": balance,
                     },
                     "node": {
                         "address": client.url,

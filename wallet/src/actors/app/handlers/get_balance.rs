@@ -10,7 +10,7 @@ pub struct GetBalanceRequest {
     wallet_id: String,
 }
 
-pub type GetBalanceResponse = model::Balance;
+pub type GetBalanceResponse = model::WalletBalance;
 
 impl Message for GetBalanceRequest {
     type Result = app::Result<GetBalanceResponse>;

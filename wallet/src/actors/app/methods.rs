@@ -140,7 +140,7 @@ impl App {
         &mut self,
         session_id: types::SessionId,
         wallet_id: String,
-    ) -> ResponseActFuture<model::Balance> {
+    ) -> ResponseActFuture<model::WalletBalance> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),

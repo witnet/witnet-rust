@@ -6,7 +6,7 @@ use witnet_data_structures::chain::EpochConstants;
 #[derive(Clone, Debug)]
 pub struct StateSnapshot {
     /// Current wallet balance (including pending movements)
-    pub balance: u64,
+    pub balance: model::BalanceInfo,
     /// Block beacon
     pub beacon: model::Beacon,
     /// Next transaction identifier of the wallet
@@ -25,7 +25,7 @@ pub struct State {
     /// Available account indices
     pub available_accounts: Vec<u32>,
     /// Current wallet balance (including pending movements)
-    pub balance: u64,
+    pub balance: model::WalletBalance,
     /// Wallet caption
     pub caption: Option<String>,
     /// Epoch constants

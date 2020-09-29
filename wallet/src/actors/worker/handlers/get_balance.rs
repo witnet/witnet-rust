@@ -6,7 +6,7 @@ use crate::{model, types};
 pub struct GetBalance(pub types::SessionWallet);
 
 impl Message for GetBalance {
-    type Result = worker::Result<model::Balance>;
+    type Result = worker::Result<model::WalletBalance>;
 }
 
 impl Handler<GetBalance> for worker::Worker {

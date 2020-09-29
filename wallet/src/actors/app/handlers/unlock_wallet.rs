@@ -1,8 +1,7 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::app;
-use crate::types;
+use crate::{actors::app, model, types};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UnlockWalletRequest {
@@ -17,7 +16,7 @@ pub struct UnlockWalletResponse {
     caption: Option<String>,
     available_accounts: Vec<u32>,
     current_account: u32,
-    account_balance: u64,
+    account_balance: model::WalletBalance,
     session_expiration_secs: u64,
 }
 

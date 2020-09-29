@@ -52,9 +52,24 @@ pub struct AddressInfo {
     pub last_payment_date: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct Balance {
-    pub total: String,
+/// A balance with a distinction between UTXOs that are expendable or time-locked
+#[derive(Copy, Clone, Debug, Eq, Default, Deserialize, PartialEq, Serialize)]
+pub struct BalanceInfo {
+    /// Expendable funds
+    pub available: u64,
+    /// Time-locked funds
+    pub locked: u64,
+}
+
+/// List of wallet balances (confirmed, unconfirmed and pending)
+#[derive(Copy, Clone, Debug, Eq, Default, Deserialize, PartialEq, Serialize)]
+pub struct WalletBalance {
+    /// Total amount of wallet's funds after last confirmed superblock
+    pub confirmed: BalanceInfo,
+    /// Amount of local pending movements not yet indexed in a block
+    pub local_movements: u64,
+    /// Total amount of wallet's funds after last block
+    pub unconfirmed: BalanceInfo,
 }
 
 #[derive(Debug, Serialize)]

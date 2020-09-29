@@ -80,7 +80,8 @@ where
             constants::INTERNAL_KEYCHAIN,
         ))?;
         state.utxo_set = self.db.get_or_default(&keys::account_utxo_set(account))?;
-        state.balance = self.db.get_or_default(&keys::account_balance(account))?;
+        state.balance.confirmed = self.db.get_or_default(&keys::account_balance(account))?;
+        state.balance.unconfirmed = state.balance.confirmed;
 
         Ok(())
     }
@@ -102,7 +103,8 @@ where
 
         let transaction_next_id = db.get_or_default(&keys::transaction_next_id(account))?;
         let utxo_set: model::UtxoSet = db.get_or_default(&keys::account_utxo_set(account))?;
-        let balance = db
+        let timestamp = get_timestamp() as u64;
+        let balance_info = db
             .get_opt(&keys::account_balance(account))?
             .unwrap_or_else(|| {
                 // compute balance from utxo set if is not cached in the
@@ -110,11 +112,27 @@ where
                 // checks are enabled
                 utxo_set
                     .iter()
-                    .map(|(_, balance)| balance.amount)
-                    .fold(0u64, |acc, amount| {
-                        acc.checked_add(amount).expect("balance overflow")
-                    })
+                    .map(|(_, balance)| (balance.amount, balance.time_lock))
+                    .fold(
+                        model::BalanceInfo::default(),
+                        |mut acc, (amount, time_lock)| {
+                            if timestamp >= time_lock {
+                                acc.available =
+                                    acc.available.checked_add(amount).expect("balance overflow");
+                            } else {
+                                acc.locked =
+                                    acc.locked.checked_add(amount).expect("balance overflow");
+                            }
+
+                            acc
+                        },
+                    )
             });
+        let balance = model::WalletBalance {
+            local_movements: 0,
+            unconfirmed: balance_info,
+            confirmed: balance_info,
+        };
 
         let last_sync = db
             .get(&keys::wallet_last_sync())
@@ -527,6 +545,26 @@ where
             }
         }
 
+        let timestamp =
+            convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch) as u64;
+        state.balance.unconfirmed = state
+            .utxo_set
+            .iter()
+            .map(|(_, balance)| (balance.amount, balance.time_lock))
+            .fold(
+                model::BalanceInfo::default(),
+                |mut acc, (amount, time_lock)| {
+                    if timestamp > time_lock {
+                        acc.available =
+                            acc.available.checked_add(amount).expect("balance overflow");
+                    } else {
+                        acc.locked = acc.locked.checked_add(amount).expect("balance overflow");
+                    }
+
+                    acc
+                },
+            );
+
         // Persist into database
         if confirmed {
             self._persist_block_txns(
@@ -536,7 +574,7 @@ where
                 state.next_external_index,
                 state.next_internal_index,
                 state.utxo_set.clone(),
-                state.balance,
+                &state.balance.unconfirmed,
                 block_info,
             )?
         } else {
@@ -549,7 +587,7 @@ where
 
             // Build wallet state after block index
             let block_state = state::StateSnapshot {
-                balance: state.balance,
+                balance: state.balance.unconfirmed,
                 beacon: block_info.clone(),
                 transaction_next_id: state.transaction_next_id,
                 utxo_set: state.utxo_set.clone(),
@@ -579,7 +617,7 @@ where
         next_external_address_index: u32,
         next_internal_address_index: u32,
         utxo_set: model::UtxoSet,
-        balance: u64,
+        balance: &model::BalanceInfo,
         block_info: &model::Beacon,
     ) -> Result<()> {
         log::debug!(
@@ -660,12 +698,11 @@ where
     }
 
     /// Retrieve the balance for the current wallet account.
-    pub fn balance(&self) -> Result<types::Balance> {
+    pub fn balance(&self) -> Result<model::WalletBalance> {
         let state = self.state.read()?;
-        let account = state.account;
-        let amount = state.balance;
+        let balance = state.balance;
 
-        Ok(types::Balance { account, amount })
+        Ok(balance)
     }
 
     /// Create a new value transfer transaction using available UTXOs.
@@ -815,7 +852,9 @@ where
             payment = payment
                 .checked_add(key_balance.amount)
                 .ok_or_else(|| Error::TransactionValueOverflow)?;
-            balance = balance
+            balance.unconfirmed.available = balance
+                .unconfirmed
+                .available
                 .checked_sub(key_balance.amount)
                 .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
             inputs.push(input);
@@ -844,7 +883,7 @@ where
 
             Ok(types::TransactionComponents {
                 value,
-                balance,
+                balance: balance.unconfirmed,
                 change,
                 inputs,
                 outputs,
@@ -911,20 +950,6 @@ where
             .transaction_next_id
             .checked_add(1)
             .ok_or_else(|| Error::TransactionIdOverflow)?;
-
-        // Update new account `balance`
-        // FIXME(#1481): include pending balance
-        let new_balance = match account_mutation.balance_movement.kind {
-            model::MovementType::Positive => state
-                .balance
-                .checked_add(account_mutation.balance_movement.amount)
-                .ok_or_else(|| Error::TransactionBalanceOverflow)?,
-            model::MovementType::Negative => state
-                .balance
-                .checked_sub(account_mutation.balance_movement.amount)
-                .ok_or_else(|| Error::TransactionBalanceUnderflow)?,
-        };
-        state.balance = new_balance;
 
         // Update addresses and their information if there were payments (new UTXOs)
         let mut addresses = vec![];
@@ -1271,7 +1296,7 @@ where
             state.next_external_index,
             state.next_internal_index,
             block_state.utxo_set.clone(),
-            block_state.balance,
+            &block_state.balance,
             &block_state.beacon,
         )?;
 
@@ -1280,6 +1305,7 @@ where
             checkpoint: block_state.beacon.epoch,
             hash_prev_block: block_state.beacon.block_hash,
         };
+        state.balance.confirmed = block_state.balance;
 
         log::debug!(
             "Block #{} ({}) was successfully consolidated",

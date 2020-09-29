@@ -130,7 +130,7 @@ pub struct WalletData {
     pub id: String,
     pub name: Option<String>,
     pub caption: Option<String>,
-    pub balance: u64,
+    pub balance: model::WalletBalance,
     pub current_account: u32,
     pub available_accounts: Vec<u32>,
     pub last_sync: CheckpointBeacon,
@@ -158,16 +158,11 @@ pub struct DataReqParams {
     pub request: DataRequestOutput,
 }
 
-pub struct Balance {
-    pub account: u32,
-    pub amount: u64,
-}
-
 #[derive(Debug)]
 pub struct TransactionComponents {
     pub value: u64,
     pub change: u64,
-    pub balance: u64,
+    pub balance: model::BalanceInfo,
     pub inputs: Vec<TransactionInput>,
     pub outputs: Vec<VttOutput>,
     pub sign_keys: Vec<SK>,
