@@ -932,13 +932,17 @@ where
 
         // If exists, remove transaction from local pending movements
         let txn_hash = txn.transaction.hash();
-        if state.local_movements.contains_key(&txn_hash) {
+        if let Some(local_movement) = state.local_movements.remove(&txn_hash) {
             log::debug!(
                 "Updating local pending movement (txn id: {}) because it has been included in block #{}",
                 txn_hash,
                 block_info.epoch,
             );
-            state.local_movements.remove(&txn_hash);
+            state.balance.local_movements = state
+                .balance
+                .local_movements
+                .checked_sub(local_movement.amount)
+                .ok_or_else(|| Error::TransactionValueOverflow)?;
         }
 
         // Update memory state: `utxo_set`
@@ -1025,6 +1029,11 @@ where
                 "Local pending movement added for transaction id: {})",
                 txn_hash
             );
+            state.balance.local_movements = state
+                .balance
+                .local_movements
+                .checked_add(account_mutation.balance_movement.amount)
+                .ok_or_else(|| Error::TransactionValueOverflow)?;
 
             return Ok(Some(account_mutation.balance_movement));
         }
