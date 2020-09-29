@@ -15,7 +15,11 @@ fn test_wallet_public_data() {
 
     assert!(data.name.is_none());
     assert!(data.caption.is_none());
-    assert_eq!(0, data.balance);
+    assert_eq!(0, data.balance.local_movements);
+    assert_eq!(0, data.balance.unconfirmed.available);
+    assert_eq!(0, data.balance.unconfirmed.locked);
+    assert_eq!(0, data.balance.confirmed.available);
+    assert_eq!(0, data.balance.confirmed.locked);
     assert_eq!(0, data.current_account);
     assert_eq!(vec![0], data.available_accounts);
 }
@@ -298,17 +302,27 @@ fn test_custom_kv() {
 fn test_balance() {
     let (wallet, _db) = factories::wallet(None);
 
-    assert_eq!(0, wallet.balance().unwrap().amount);
+    let balance = wallet.balance().unwrap();
+    assert_eq!(0, balance.local_movements);
+    assert_eq!(0, balance.unconfirmed.available);
+    assert_eq!(0, balance.unconfirmed.locked);
+    assert_eq!(0, balance.confirmed.available);
+    assert_eq!(0, balance.confirmed.locked);
 
     let mut db = HashMap::new();
+    let new_balance = model::BalanceInfo {
+        available: 99u64,
+        locked: 0u64,
+    };
     db.insert(
         keys::account_balance(0).as_bytes().to_vec(),
-        bincode::serialize(&99u64).unwrap(),
+        bincode::serialize(&new_balance).unwrap(),
     );
 
     let (wallet, _db) = factories::wallet(Some(db));
 
-    assert_eq!(99, wallet.balance().unwrap().amount);
+    assert_eq!(99, wallet.balance().unwrap().confirmed.available);
+    assert_eq!(0, wallet.balance().unwrap().confirmed.locked);
 }
 
 #[test]
@@ -338,7 +352,11 @@ fn test_create_transaction_components_without_a_change_address() {
     };
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance { pkh, amount: 1 },
+        model::KeyBalance {
+            pkh,
+            amount: 1,
+            time_lock: 0,
+        },
     )]);
     let path = model::Path {
         account: 0,
@@ -378,8 +396,14 @@ fn test_create_transaction_components_whith_a_change_address() {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
-        HashMap::from_iter(vec![(out_pointer, model::KeyBalance { pkh, amount: 2 })]);
+    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
+        out_pointer,
+        model::KeyBalance {
+            pkh,
+            amount: 2,
+            time_lock: 0,
+        },
+    )]);
     let path = model::Path {
         account: 0,
         keychain: constants::EXTERNAL_KEYCHAIN,
@@ -424,7 +448,11 @@ fn test_create_transaction_components_which_value_overflows() {
                 txn_hash: vec![0; 32],
                 output_index: 0,
             },
-            model::KeyBalance { pkh, amount: 2 },
+            model::KeyBalance {
+                pkh,
+                amount: 2,
+                time_lock: 0,
+            },
         ),
         (
             model::OutPtr {
@@ -434,6 +462,7 @@ fn test_create_transaction_components_which_value_overflows() {
             model::KeyBalance {
                 pkh,
                 amount: std::u64::MAX - 1,
+                time_lock: 0,
             },
         ),
     ]);
@@ -442,6 +471,10 @@ fn test_create_transaction_components_which_value_overflows() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
+    let new_balance = model::BalanceInfo {
+        available: std::u64::MAX,
+        locked: 0u64,
+    };
     let db = HashMap::from_iter(vec![
         (
             keys::account_utxo_set(0).as_bytes().to_vec(),
@@ -449,7 +482,7 @@ fn test_create_transaction_components_which_value_overflows() {
         ),
         (
             keys::account_balance(0).as_bytes().to_vec(),
-            bincode::serialize(&std::u64::MAX).unwrap(),
+            bincode::serialize(&new_balance).unwrap(),
         ),
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
@@ -479,12 +512,20 @@ fn test_create_vtt_does_not_spend_utxos() {
     };
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance { pkh, amount: 1 },
+        model::KeyBalance {
+            pkh,
+            amount: 1,
+            time_lock: 0,
+        },
     )]);
     let path = model::Path {
         account: 0,
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
+    };
+    let new_balance = model::BalanceInfo {
+        available: 1u64,
+        locked: 0u64,
     };
     let db = HashMap::from_iter(vec![
         (
@@ -493,7 +534,7 @@ fn test_create_vtt_does_not_spend_utxos() {
         ),
         (
             keys::account_balance(0).as_bytes().to_vec(),
-            bincode::serialize(&1u64).unwrap(),
+            bincode::serialize(&new_balance).unwrap(),
         ),
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
@@ -508,7 +549,8 @@ fn test_create_vtt_does_not_spend_utxos() {
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
-    assert_eq!(1, wallet.balance().unwrap().amount);
+    assert_eq!(1, wallet.balance().unwrap().confirmed.available);
+    assert_eq!(0, wallet.balance().unwrap().confirmed.locked);
     assert!(utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
@@ -529,7 +571,8 @@ fn test_create_vtt_does_not_spend_utxos() {
     assert!(new_utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
-    assert_eq!(1, wallet.balance().unwrap().amount);
+    assert_eq!(1, wallet.balance().unwrap().confirmed.available);
+    assert_eq!(0, wallet.balance().unwrap().confirmed.locked);
     assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
 
     assert!(db
@@ -546,12 +589,20 @@ fn test_create_data_request_does_not_spend_utxos() {
     };
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance { pkh, amount: 1 },
+        model::KeyBalance {
+            pkh,
+            amount: 1,
+            time_lock: 0,
+        },
     )]);
     let path = model::Path {
         account: 0,
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
+    };
+    let new_balance = model::BalanceInfo {
+        available: 1u64,
+        locked: 0u64,
     };
     let db = HashMap::from_iter(vec![
         (
@@ -560,7 +611,7 @@ fn test_create_data_request_does_not_spend_utxos() {
         ),
         (
             keys::account_balance(0).as_bytes().to_vec(),
-            bincode::serialize(&1u64).unwrap(),
+            bincode::serialize(&new_balance).unwrap(),
         ),
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
@@ -571,7 +622,8 @@ fn test_create_data_request_does_not_spend_utxos() {
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
-    assert_eq!(1, wallet.balance().unwrap().amount);
+    assert_eq!(1, wallet.balance().unwrap().confirmed.available);
+    assert_eq!(0, wallet.balance().unwrap().confirmed.locked);
     assert!(utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
@@ -593,8 +645,14 @@ fn test_create_data_request_does_not_spend_utxos() {
     assert!(new_utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
-    assert_eq!(1, wallet.balance().unwrap().amount);
-    assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
+    assert_eq!(1, wallet.balance().unwrap().confirmed.available);
+    assert_eq!(0, wallet.balance().unwrap().confirmed.locked);
+
+    let db_balance = db
+        .get::<_, model::BalanceInfo>(&keys::account_balance(0))
+        .unwrap();
+    assert_eq!(1, db_balance.available);
+    assert_eq!(0, db_balance.locked);
 
     assert!(db
         .get::<_, u32>(&keys::transactions_index(data_req.hash().as_ref()))
@@ -860,8 +918,13 @@ fn test_get_transaction() {
         )
         .unwrap();
 
+    assert_eq!(1, wallet.state.read().unwrap().utxo_set.len());
+
     assert!(wallet.get_transaction(0, 0).is_ok());
     assert!(wallet.get_transaction(0, 1).is_err());
+
+    assert_eq!(2, wallet.balance().unwrap().unconfirmed.available);
+    assert_eq!(0, wallet.balance().unwrap().unconfirmed.locked);
 
     // spend those funds to create a new transaction which is pending (it has no block)
     let vtt = wallet
