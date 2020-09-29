@@ -1019,3 +1019,52 @@ fn test_get_transactions() {
     // The older transaction has index 0 now, because we used offset 1
     assert_eq!(x.transactions[0], first_tx);
 }
+
+#[test]
+fn test_create_vtt_with_locked_balance() {
+    let (wallet, _db) = factories::wallet(None);
+
+    let a_block = factories::BlockInfo::default().create();
+    let our_address = wallet.gen_external_address(None).unwrap();
+    let their_pkh = factories::pkh();
+
+    assert!(wallet.get_transaction(0, 0).is_err());
+    // index transaction to receive funds
+    wallet
+        .index_block_transactions(
+            &a_block,
+            &[factories::vtt_from_body(types::VTTransactionBody::new(
+                vec![factories::Input::default().create()],
+                vec![factories::VttOutput::default()
+                    .with_pkh(our_address.pkh)
+                    .with_value(2)
+                    .with_time_lock(u64::MAX)
+                    .create()],
+            ))],
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(1, wallet.state.read().unwrap().utxo_set.len());
+
+    assert!(wallet.get_transaction(0, 0).is_ok());
+    assert!(wallet.get_transaction(0, 1).is_err());
+
+    assert_eq!(0, wallet.balance().unwrap().unconfirmed.available);
+    assert_eq!(2, wallet.balance().unwrap().unconfirmed.locked);
+
+    // try to spend locked funds to create a new transaction
+    let err = wallet
+        .create_vtt(types::VttParams {
+            pkh: their_pkh,
+            value: 1,
+            fee: 0,
+            time_lock: 0,
+        })
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::InsufficientBalance),
+        mem::discriminant(&err)
+    );
+}
