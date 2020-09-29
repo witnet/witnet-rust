@@ -26,6 +26,7 @@ pub struct VttMetadata {
     to: String,
     value: u64,
     fee: u64,
+    time_lock: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -47,7 +48,7 @@ impl Handler<CreateVttRequest> for app::App {
         let testnet = self.params.testnet;
         let validated = validate(testnet, &msg.address).map_err(app::validation_error);
 
-        let f = fut::result(validated).and_then(move |pkh, slf: &mut Self, _ctx| {
+        let f = fut::result(validated).and_then(move |pkh, act: &mut Self, _ctx| {
             let params = types::VttParams {
                 pkh,
                 value: msg.amount,
@@ -55,7 +56,7 @@ impl Handler<CreateVttRequest> for app::App {
                 time_lock: msg.time_lock,
             };
 
-            slf.create_vtt(&msg.session_id, &msg.wallet_id, params)
+            act.create_vtt(&msg.session_id, &msg.wallet_id, params)
                 .map(|transaction, _, _| {
                     let transaction_id = hex::encode(transaction.hash().as_ref());
                     let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
@@ -69,6 +70,7 @@ impl Handler<CreateVttRequest> for app::App {
                             to: msg.address,
                             value: msg.amount,
                             fee,
+                            time_lock: msg.time_lock,
                         },
                     }
                 })

@@ -636,8 +636,8 @@ impl App {
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
         )
-        .and_then(move |wallet, slf: &mut Self, _| {
-            slf.send_inventory_transaction(transaction.clone())
+        .and_then(move |wallet, act: &mut Self, _| {
+            act.send_inventory_transaction(transaction.clone())
                 .and_then(move |jsonrpc_result, _slf, _ctx| {
                     match wallet.add_local_movement(&model::ExtendedTransaction {
                         transaction,
