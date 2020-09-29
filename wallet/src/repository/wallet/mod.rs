@@ -69,8 +69,12 @@ where
         state.pending_movements.clear();
         state.pending_addresses_by_path.clear();
         state.pending_addresses_by_block.clear();
+        state.local_movements.clear();
 
         // Restore state from database
+        state.transaction_next_id = self
+            .db
+            .get_or_default::<_, u32>(&keys::transaction_next_id(account))?;
         state.next_external_index = self.db.get_or_default(&keys::account_next_index(
             account,
             constants::EXTERNAL_KEYCHAIN,
