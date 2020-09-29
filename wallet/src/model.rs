@@ -255,12 +255,15 @@ impl fmt::Display for OutPtr {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+/// UTXO information including amount, address and time lock
+#[derive(Clone, Debug, Eq, Deserialize, PartialEq, Serialize)]
 pub struct KeyBalance {
-    /// PKH receiving this balance
-    pub pkh: types::PublicKeyHash,
     /// Amount of the UTXO
     pub amount: u64,
+    /// PKH receiving this balance
+    pub pkh: types::PublicKeyHash,
+    /// Timestamp in which UTXO is unlocked
+    pub time_lock: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]

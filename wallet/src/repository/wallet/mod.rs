@@ -826,9 +826,12 @@ where
         }
 
         let mut first_pkh = None;
+        let timestamp = get_timestamp() as u64;
         for (out_ptr, key_balance) in state.utxo_set.iter() {
             if payment >= target {
                 break;
+            } else if key_balance.time_lock > timestamp {
+                continue;
             }
 
             let input = types::TransactionInput::new(types::OutputPointer {
@@ -1092,8 +1095,9 @@ where
                     output_index: u32::try_from(index).unwrap(),
                 };
                 let key_balance = model::KeyBalance {
-                    pkh: output.pkh,
                     amount: output.value,
+                    pkh: output.pkh,
+                    time_lock: output.time_lock,
                 };
                 output_amount = output_amount
                     .checked_add(output.value)
