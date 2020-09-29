@@ -45,9 +45,9 @@ use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestInfo, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
-        NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, SuperBlock,
-        SuperBlockVote, TransactionsPool,
+        DataRequestInfo, DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry,
+        InventoryItem, NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify,
+        SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -2174,14 +2174,32 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
         .data_request_pool
         .iter()
         .fold(String::new(), |acc, (k, v)| {
-            format!(
-                "{}\n\t* {} Stage: {}, Commits: {}, Reveals: {}",
-                acc,
-                White.bold().paint(k.to_string()),
-                White.bold().paint(format!("{:?}", v.stage)),
-                v.info.commits.len(),
-                v.info.reveals.len()
-            )
+            if v.stage == DataRequestStage::COMMIT || v.stage == DataRequestStage::REVEAL {
+                let current_round = if v.stage == DataRequestStage::COMMIT {
+                    v.info.current_commit_round
+                } else {
+                    v.info.current_reveal_round
+                };
+                format!(
+                    "{}\n\t* {} Stage: {} ({}/{}), Commits: {}, Reveals: {}",
+                    acc,
+                    White.bold().paint(k.to_string()),
+                    White.bold().paint(format!("{:?}", v.stage)),
+                    current_round,
+                    data_request_pool.extra_rounds + 1,
+                    v.info.commits.len(),
+                    v.info.reveals.len()
+                )
+            } else {
+                format!(
+                    "{}\n\t* {} Stage: {}, Commits: {}, Reveals: {}",
+                    acc,
+                    White.bold().paint(k.to_string()),
+                    White.bold().paint(format!("{:?}", v.stage)),
+                    v.info.commits.len(),
+                    v.info.reveals.len()
+                )
+            }
         });
 
     if info.is_empty() {
