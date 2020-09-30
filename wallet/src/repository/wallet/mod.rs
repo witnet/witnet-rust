@@ -134,7 +134,7 @@ where
                     )
             });
         let balance = model::WalletBalance {
-            local_movements: 0,
+            local: 0,
             unconfirmed: balance_info,
             confirmed: balance_info,
         };
@@ -942,9 +942,9 @@ where
                 txn_hash,
                 block_info.epoch,
             );
-            state.balance.local_movements = state
+            state.balance.local = state
                 .balance
-                .local_movements
+                .local
                 .checked_sub(local_movement.amount)
                 .ok_or_else(|| Error::TransactionValueOverflow)?;
         }
@@ -1035,9 +1035,9 @@ where
                 "Local pending movement added for transaction id: {})",
                 txn_hash
             );
-            state.balance.local_movements = state
+            state.balance.local = state
                 .balance
-                .local_movements
+                .local
                 .checked_add(account_mutation.balance_movement.amount)
                 .ok_or_else(|| Error::TransactionValueOverflow)?;
 

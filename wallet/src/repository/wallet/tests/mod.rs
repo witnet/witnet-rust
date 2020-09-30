@@ -15,7 +15,7 @@ fn test_wallet_public_data() {
 
     assert!(data.name.is_none());
     assert!(data.caption.is_none());
-    assert_eq!(0, data.balance.local_movements);
+    assert_eq!(0, data.balance.local);
     assert_eq!(0, data.balance.unconfirmed.available);
     assert_eq!(0, data.balance.unconfirmed.locked);
     assert_eq!(0, data.balance.confirmed.available);
@@ -303,7 +303,7 @@ fn test_balance() {
     let (wallet, _db) = factories::wallet(None);
 
     let balance = wallet.balance().unwrap();
-    assert_eq!(0, balance.local_movements);
+    assert_eq!(0, balance.local);
     assert_eq!(0, balance.unconfirmed.available);
     assert_eq!(0, balance.unconfirmed.locked);
     assert_eq!(0, balance.confirmed.available);
@@ -1065,6 +1065,8 @@ fn test_create_vtt_with_locked_balance() {
 
     assert_eq!(
         mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err)
+        mem::discriminant(&err),
+        "{:?}",
+        err,
     );
 }

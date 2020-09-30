@@ -67,7 +67,7 @@ pub struct WalletBalance {
     /// Total amount of wallet's funds after last confirmed superblock
     pub confirmed: BalanceInfo,
     /// Amount of local pending movements not yet indexed in a block
-    pub local_movements: u64,
+    pub local: u64,
     /// Total amount of wallet's funds after last block
     pub unconfirmed: BalanceInfo,
 }
