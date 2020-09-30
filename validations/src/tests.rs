@@ -98,9 +98,7 @@ fn build_utxo_set_with_mint<T: Into<Option<UnspentOutputsPool>>>(
         ))
     }));
 
-    let all_utxos = all_utxos
-        .into()
-        .unwrap_or_else(UnspentOutputsPool::in_memory);
+    let all_utxos = all_utxos.into().unwrap_or_else(UnspentOutputsPool::default);
     let block_number = 0;
 
     generate_unspent_outputs_pool(&all_utxos, &txns, block_number)
@@ -251,7 +249,7 @@ fn mint_valid() {
 #[test]
 fn vtt_no_inputs_no_outputs() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
@@ -276,7 +274,7 @@ fn vtt_no_inputs_no_outputs() {
 #[test]
 fn vtt_no_inputs_zero_output() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
@@ -309,7 +307,7 @@ fn vtt_no_inputs_zero_output() {
 #[test]
 fn vtt_no_inputs() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
@@ -342,7 +340,7 @@ fn vtt_no_inputs() {
 #[test]
 fn vtt_no_inputs_but_one_signature() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
@@ -377,7 +375,7 @@ fn vtt_no_inputs_but_one_signature() {
 #[test]
 fn vtt_one_input_but_no_signature() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(
@@ -542,7 +540,7 @@ fn vtt_one_input_signatures() {
 #[test]
 fn vtt_input_not_in_utxo() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(
@@ -1284,7 +1282,7 @@ fn data_request_no_inputs() {
     // This is mitigated by checking that there is at least one input, and returning ZeroAmount
     // error if there are no inputs
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
@@ -1317,7 +1315,7 @@ fn data_request_no_inputs() {
 #[test]
 fn data_request_no_inputs_but_one_signature() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
@@ -1482,7 +1480,7 @@ fn data_request_input_double_spend() {
 #[test]
 fn data_request_input_not_in_utxo() {
     let mut signatures_to_verify = vec![];
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(
@@ -2261,7 +2259,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let dr_pool = DataRequestPool::default();
     let vrf_input = CheckpointVRF::default();
     let rep_eng = ReputationEngine::new(100);
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let collateral_minimum = 1;
     let collateral_age = 1;
     let block_number = 0;
@@ -2768,7 +2766,7 @@ fn commitment_proof_lower_than_target() {
 
 #[test]
 fn commitment_dr_in_reveal_stage() {
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let collateral_minimum = 1;
     let collateral_age = 1;
@@ -3013,7 +3011,7 @@ fn commitment_collateral_not_mature() {
             time_lock: 0,
         }],
     ))];
-    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::in_memory(), &mint_txns, 1);
+    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 1);
     let output = utxo_set.iter().next().unwrap().0;
     let vti = Input::new(output.clone());
 
@@ -3039,7 +3037,7 @@ fn commitment_collateral_genesis_always_mature() {
             time_lock: 0,
         }],
     ))];
-    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::in_memory(), &mint_txns, 0);
+    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 0);
     let output = utxo_set.iter().next().unwrap().0;
     let vti = Input::new(output);
 
@@ -5438,7 +5436,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     mut_block: F,
     dr_pool: DataRequestPool,
 ) -> Result<(), failure::Error> {
-    test_block_with_drpool_and_utxo_set(mut_block, dr_pool, UnspentOutputsPool::in_memory())
+    test_block_with_drpool_and_utxo_set(mut_block, dr_pool, UnspentOutputsPool::default())
 }
 
 fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
@@ -5712,7 +5710,7 @@ fn block_difficult_proof() {
     rep_eng
         .ars_mut()
         .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
-    let mut utxo_set = UnspentOutputsPool::in_memory();
+    let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
 
     let consensus_constants = ConsensusConstants {
@@ -6308,7 +6306,7 @@ fn test_blocks_with_limits(
     let dr_pool = DataRequestPool::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
-    let mut utxo_set = UnspentOutputsPool::in_memory();
+    let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
 
     let consensus_constants = ConsensusConstants {
@@ -6947,7 +6945,7 @@ fn genesis_block_value_overflow() {
 
     let dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -7030,7 +7028,7 @@ fn genesis_block_full_validate() {
 
     let dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
-    let utxo_set = UnspentOutputsPool::in_memory();
+    let utxo_set = UnspentOutputsPool::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -7134,7 +7132,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         let dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
-        let utxo_set = UnspentOutputsPool::in_memory();
+        let utxo_set = UnspentOutputsPool::default();
 
         let secret_key = SecretKey {
             bytes: Protected::from(PRIV_KEY_1.to_vec()),
@@ -7186,7 +7184,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
     };
 
     // Apply the UTXO diff to an empty UTXO set
-    let mut utxo_set = UnspentOutputsPool::in_memory();
+    let mut utxo_set = UnspentOutputsPool::default();
     utxo_diff.apply(&mut utxo_set);
 
     // This will only check one transaction: the mint transaction
@@ -7395,7 +7393,7 @@ fn validate_required_tally_not_found() {
     let b = Block::default();
 
     let e = validate_block_transactions(
-        &UnspentOutputsPool::in_memory(),
+        &UnspentOutputsPool::default(),
         &dr_pool,
         &b,
         CheckpointVRF::default(),
