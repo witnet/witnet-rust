@@ -52,6 +52,8 @@ pub struct State {
     /// List of pending blocks with state snapshots waiting to be confirmed
     pub pending_blocks: HashMap<String, StateSnapshot>,
     /// List of pending balance movements, waiting to be confirmed with a superblock
+    pub pending_dr_movements: HashMap<types::Hash, (Hash, usize)>,
+    /// List of pending balance movements, waiting to be confirmed with a superblock
     pub pending_movements: HashMap<String, Vec<model::BalanceMovement>>,
     /// Next transaction identifier of the wallet
     pub transaction_next_id: u32,

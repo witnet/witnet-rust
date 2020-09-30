@@ -179,6 +179,7 @@ where
             pending_addresses_by_block: Default::default(),
             pending_addresses_by_path: Default::default(),
             pending_blocks: Default::default(),
+            pending_dr_movements: Default::default(),
         });
 
         Ok(Self {
@@ -495,6 +496,38 @@ where
                 _ => continue,
             };
 
+            // Check if tally txn corresponds to a wallet sent data request
+            if let types::Transaction::Tally(tally) = &txn {
+                if self
+                    .db
+                    .get::<_, model::Path>(&keys::transactions_index(tally.dr_pointer.as_ref()))
+                    .is_ok()
+                {
+                    filtered_txns.push(txn.clone());
+                    continue;
+                }
+                else if let Some(_dr_tx) = state.pending_dr_movements.get(&tally.dr_pointer) {
+                        filtered_txns.push(txn.clone());
+                        continue;
+                }
+                /*else {
+                    let push_needed = state.pending_blocks.iter().any(|&(block_hash, _)| {
+                        if let Some(balance_m{ovements) = state.pending_movements.get(block_hash) {
+                            balance_movements.iter().any(|&balance_movement| {
+                                balance_movement.transaction.hash == tally.dr_pointer.to_string()
+                            })
+                        }
+                        else {
+                            false
+                        }
+                    });
+                    if push_needed {
+                        filtered_txns.push(txn.clone());
+                        continue;
+                    }
+                }*/
+            }
+
             let check_db = |output: &types::VttOutput| {
                 self.db
                     .get::<_, model::Path>(&keys::pkh(&output.pkh))
@@ -523,6 +556,7 @@ where
         let mut state = self.state.write()?;
         let mut addresses = Vec::new();
         let mut balance_movements = Vec::new();
+        let mut dr_balance_movements = HashMap::new();
 
         // Index all transactions
         for txn in txns {
@@ -534,6 +568,9 @@ where
             {
                 None => match self._index_transaction(&mut state, txn, block_info, confirmed) {
                     Ok(Some((balance_movement, mut new_addresses))) => {
+                        if let types::Transaction::DataRequest(dr_tx) = &txn.transaction {
+                            dr_balance_movements.insert(dr_tx.hash(),(block_info.block_hash, balance_movements.len()));
+                        }
                         balance_movements.push(balance_movement);
                         addresses.append(&mut new_addresses);
                     }
@@ -546,6 +583,56 @@ where
                     "The transaction {} already exists in the database",
                     txn.transaction.hash()
                 ),
+            }
+            if let types::Transaction::Tally(tally) = &txn.transaction {
+                // esta en la base de datos
+                if let Ok((dr_movement, txn_id)) = self
+                    .db
+                    .get::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
+                    .and_then(|txn_id| {
+                        self.db
+                            .get::<_, model::BalanceMovement>(&keys::transaction_movement(
+                                state.account,
+                                txn_id,
+                            ))
+                            .map(|dr_movement| (dr_movement, txn_id))
+                    })
+                {
+                    match &dr_movement.transaction.data {
+                        model::TransactionData::DataRequest(dr_data) => {
+                            let mut updated_dr_movement = dr_movement.clone();
+                            updated_dr_movement.transaction.data = model::TransactionData::DataRequest(model::DrData {
+                                inputs: dr_data.inputs.clone(),
+                                outputs: dr_data.outputs.clone(),
+                                tally: Some(build_tally_report(tally, &txn.metadata)?),
+                            });updated_dr_movement.db_key = txn_id;
+                            balance_movements.push(updated_dr_movement);
+                        }
+                        _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
+                    }
+                }
+                    else if let Some((pending_block_hash, index)) = state.pending_dr_movements.get(&tally.dr_pointer).cloned() {
+                        let dr_movement = state.pending_movements.get(&pending_block_hash.to_string()).unwrap()[index].clone();
+                        match &dr_movement.transaction.data {
+                            model::TransactionData::DataRequest(dr_data) => {
+                                let mut updated_dr_movement = dr_movement.clone();
+                                updated_dr_movement.transaction.data = model::TransactionData::DataRequest(model::DrData {
+                                    inputs: dr_data.inputs.clone(),
+                                    outputs: dr_data.outputs.clone(),
+                                    tally: Some(build_tally_report(tally, &txn.metadata)?),
+                                });
+                                state.pending_movements.get_mut(&pending_block_hash.to_string()).unwrap()[index] = updated_dr_movement;
+                                state.pending_dr_movements.remove(&tally.dr_pointer);
+                            }
+                            _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
+                        }
+                    }
+                else {
+                    log::debug!(
+                        "data request tally update not required it was not found (txn: {})",
+                        tally.dr_pointer
+                    )
+                }
             }
         }
 
@@ -603,6 +690,9 @@ where
             state
                 .pending_movements
                 .insert(block_info.block_hash.to_string(), balance_movements.clone());
+            state
+                .pending_dr_movements
+                .extend(dr_balance_movements);
             state
                 .pending_addresses_by_block
                 .insert(block_info.block_hash.to_string(), addresses);
