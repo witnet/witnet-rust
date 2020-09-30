@@ -1025,7 +1025,7 @@ mod tests {
         ));
         transaction_pool.insert(transaction.clone(), 0);
 
-        let unspent_outputs_pool = UnspentOutputsPool::in_memory();
+        let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
 
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
@@ -1083,7 +1083,7 @@ mod tests {
         ));
         transaction_pool.insert(transaction, 0);
 
-        let unspent_outputs_pool = UnspentOutputsPool::in_memory();
+        let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
 
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
@@ -1213,7 +1213,7 @@ mod tests {
         transaction_pool.insert(transaction_3, 10);
         assert_eq!(transaction_pool.vt_len(), 3);
 
-        let mut unspent_outputs_pool = UnspentOutputsPool::in_memory();
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
         let output1 = ValueTransferOutput {
             time_lock: 0,
             pkh: MY_PKH_1.parse().unwrap(),
@@ -1308,7 +1308,7 @@ mod tests {
         transaction_pool.insert(transaction_3, 10);
         assert_eq!(transaction_pool.vt_len(), 3);
 
-        let mut unspent_outputs_pool = UnspentOutputsPool::in_memory();
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
         let output1 = ValueTransferOutput {
             time_lock: 0,
             pkh: MY_PKH_1.parse().unwrap(),
@@ -1417,7 +1417,7 @@ mod tests {
         transaction_pool.insert(transaction_3, 10);
         assert_eq!(transaction_pool.dr_len(), 3);
 
-        let mut unspent_outputs_pool = UnspentOutputsPool::in_memory();
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
         let output1 = ValueTransferOutput {
             time_lock: 0,
             pkh: MY_PKH_1.parse().unwrap(),
@@ -1509,7 +1509,7 @@ mod tests {
         transaction_pool.insert(transaction_3, 10);
         assert_eq!(transaction_pool.dr_len(), 3);
 
-        let mut unspent_outputs_pool = UnspentOutputsPool::in_memory();
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
         let output1 = ValueTransferOutput {
             time_lock: 0,
             pkh: MY_PKH_1.parse().unwrap(),

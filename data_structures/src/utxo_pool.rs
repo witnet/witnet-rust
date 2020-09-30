@@ -21,6 +21,9 @@ pub struct UnspentOutputsPool {
     //map: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
     pub diff: Diff,
     /// Database
+    // If the database is set to None, all reads will return "not found", but all writes will panic
+    // This ensures that we can use an UnspentOutputsPool with no database in tests, and it will
+    // work fine as long as we don't try to persist it
     pub db: Option<Arc<dyn Storage + Send + Sync>>,
 }
 
@@ -80,8 +83,7 @@ impl UnspentOutputsPool {
         let key_string = format!("UTXO-{}", k);
         log::debug!("GET {}", key_string);
         self.db
-            .as_ref()
-            .expect("no db")
+            .as_ref()?
             .get(key_string.as_bytes())
             .expect("db fail")
             .map(|bytes| {
@@ -101,7 +103,7 @@ impl UnspentOutputsPool {
         log::debug!("PUT {}", key_string);
         self.db
             .as_mut()
-            .unwrap()
+            .expect("no db")
             .put(
                 key_string.into_bytes(),
                 bincode::serialize(&(v, block_number)).unwrap(),
@@ -118,24 +120,18 @@ impl UnspentOutputsPool {
         log::debug!("REMOVE {}", key_string);
         self.db
             .as_mut()
-            .unwrap()
+            .expect("no db")
             .delete(key_string.as_bytes())
             .unwrap();
 
         old_vto
     }
 
-    /// Iterate over all the unspent outputs
-    pub fn iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
-        self.diff
-            .utxos_to_add
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .chain(
-                self.db
-                    .as_ref()
-                    .unwrap()
-                    .prefix_iterator(b"UTXO-")
+    fn db_iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+        self.db
+            .as_ref()
+            .map(|db| {
+                db.prefix_iterator(b"UTXO-")
                     .unwrap()
                     .map(|(k, v)| {
                         let key_string = String::from_utf8(k).unwrap();
@@ -153,8 +149,21 @@ impl UnspentOutputsPool {
                         } else {
                             Some((k, v))
                         }
-                    }),
-            )
+                    })
+            })
+            // Transform `Option<impl Iterator>` into `impl Iterator`, with 0 elements in
+            // None case
+            .into_iter()
+            .flatten()
+    }
+
+    /// Iterate over all the unspent outputs
+    pub fn iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+        self.diff
+            .utxos_to_add
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .chain(self.db_iter())
     }
 
     /// Returns the number of the block that included the transaction referenced
@@ -162,16 +171,6 @@ impl UnspentOutputsPool {
     /// current number of consolidated blocks is the "collateral age".
     pub fn included_in_block_number(&self, k: &OutputPointer) -> Option<u32> {
         self.get_map(k).map(|(_vt, n)| n)
-    }
-
-    /// Create a in-memory UnspentOutputsPool, used in tests
-    pub fn in_memory() -> Self {
-        Self {
-            db: Some(Arc::new(
-                witnet_storage::backends::hashmap::Backend::default(),
-            )),
-            ..Default::default()
-        }
     }
 
     pub fn persist(&mut self) {
