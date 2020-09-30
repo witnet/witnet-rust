@@ -35,20 +35,31 @@ pub fn parse_json_array(input: &RadonString) -> Result<RadonArray, RadError> {
     item.try_into()
 }
 
+pub fn radon_trim(input: &RadonString) -> String {
+    if input.value().ends_with('\n') {
+        input.value()[..input.value().len() - 1].to_string()
+    } else {
+        input.value()
+    }
+}
+
 pub fn to_float(input: &RadonString) -> Result<RadonFloat, RadError> {
-    f64::from_str(&input.value())
+    let str_value = radon_trim(input);
+    f64::from_str(&str_value)
         .map(RadonFloat::from)
         .map_err(Into::into)
 }
 
 pub fn to_int(input: &RadonString) -> Result<RadonInteger, RadError> {
-    i128::from_str(&input.value())
+    let str_value = radon_trim(input);
+    i128::from_str(&str_value)
         .map(RadonInteger::from)
         .map_err(Into::into)
 }
 
 pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
-    bool::from_str(&input.value())
+    let str_value = radon_trim(input);
+    bool::from_str(&str_value)
         .map(RadonBoolean::from)
         .map_err(Into::into)
 }
