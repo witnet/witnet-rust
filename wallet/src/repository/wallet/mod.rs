@@ -107,7 +107,8 @@ where
 
         let transaction_next_id = db.get_or_default(&keys::transaction_next_id(account))?;
         let utxo_set: model::UtxoSet = db.get_or_default(&keys::account_utxo_set(account))?;
-        let timestamp = get_timestamp() as u64;
+        let timestamp =
+            u64::try_from(get_timestamp()).expect("Get timestamp should return a positive value");
         let balance_info = db
             .get_opt(&keys::account_balance(account))?
             .unwrap_or_else(|| {
@@ -549,8 +550,7 @@ where
             }
         }
 
-        let timestamp =
-            convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch) as u64;
+        let timestamp = convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
         state.balance.unconfirmed = state
             .utxo_set
             .iter()
@@ -826,7 +826,8 @@ where
         }
 
         let mut first_pkh = None;
-        let timestamp = get_timestamp() as u64;
+        let timestamp =
+            u64::try_from(get_timestamp()).expect("Get timestamp should return a positive value");
         for (out_ptr, key_balance) in state.utxo_set.iter() {
             if payment >= target {
                 break;
@@ -1023,7 +1024,9 @@ where
         if let Some(mut account_mutation) =
             self._get_account_mutation(&state, txn, &model::Beacon::default(), false)?
         {
-            account_mutation.balance_movement.transaction.timestamp = get_timestamp();
+            account_mutation.balance_movement.transaction.timestamp =
+                u64::try_from(get_timestamp())
+                    .expect("Get timestamp should return a positive value");
             let txn_hash = txn.transaction.hash();
             state
                 .local_movements
@@ -1334,9 +1337,10 @@ where
     }
 }
 
-fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> i64 {
+fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> u64 {
     // In case of error, return timestamp 0
-    epoch_constants.epoch_timestamp(epoch).unwrap_or(0)
+    u64::try_from(epoch_constants.epoch_timestamp(epoch).unwrap_or(0))
+        .expect("Epoch timestamp should return a positive value")
 }
 
 // Balance Movement Factory
@@ -1348,7 +1352,7 @@ fn build_balance_movement(
     kind: model::MovementType,
     amount: u64,
     block_info: &model::Beacon,
-    timestamp: i64,
+    timestamp: u64,
     confirmed: bool,
 ) -> Result<model::BalanceMovement> {
     // Input values with their ValueTransferOutput data

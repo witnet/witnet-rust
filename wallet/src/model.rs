@@ -48,8 +48,8 @@ pub struct AddressInfo {
     pub label: Option<String>,
     pub received_payments: Vec<String>,
     pub received_amount: u64,
-    pub first_payment_date: Option<i64>,
-    pub last_payment_date: Option<i64>,
+    pub first_payment_date: Option<u64>,
+    pub last_payment_date: Option<u64>,
 }
 
 /// A balance with a distinction between UTXOs that are expendable or time-locked
@@ -144,7 +144,7 @@ pub struct Transaction {
     /// Reward to miner for including transaction in the block
     pub miner_fee: u64,
     /// Date when transaction was included a block (same as block date)
-    pub timestamp: i64,
+    pub timestamp: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
