@@ -46,14 +46,18 @@ pub struct State {
     /// Next internal index used to derive addresses
     pub next_internal_index: u32,
     /// List of pending address infos indexed by block hash, waiting to be confirmed with a superblock
+    ///  This is a hashmap from pending_block_hash to Vec<addresses>.
     pub pending_addresses_by_block: HashMap<String, Vec<Arc<model::Address>>>,
     /// List of pending address infos indexed by key path, waiting to be confirmed with a superblock
     pub pending_addresses_by_path: HashMap<String, Arc<model::Address>>,
     /// List of pending blocks with state snapshots waiting to be confirmed
+    ///  This is a hashmap from pending_block_hash to StateSnapshoht.
     pub pending_blocks: HashMap<String, StateSnapshot>,
-    /// List of pending balance movements, waiting to be confirmed with a superblock
+    /// List of pending dr movements, waiting to be confirmed with a superblock
+    /// This is a hashmap from dr_pointer to (pending_block_hash, index).
     pub pending_dr_movements: HashMap<types::Hash, (Hash, usize)>,
     /// List of pending balance movements, waiting to be confirmed with a superblock
+    ///  This is a hashmap from pending_block_hash to (Vec<BalanceMovement).
     pub pending_movements: HashMap<String, Vec<model::BalanceMovement>>,
     /// Next transaction identifier of the wallet
     pub transaction_next_id: u32,
