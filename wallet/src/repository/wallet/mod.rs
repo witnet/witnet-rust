@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     convert::TryFrom,
     str::FromStr,
     sync::{Arc, RwLock},
@@ -328,16 +328,9 @@ where
 
         // Total amount of state and db transactions
         let total = state.transaction_next_id + u32::try_from(state.local_movements.len()).unwrap();
-        let mut transactions: Vec<model::BalanceMovement> = Vec::with_capacity(total as usize);
+        // let mut transactions: Vec<model::BalanceMovement> = Vec::with_capacity(total as usize);
 
-        // Prepend local pending balance movements (not yet included in blocks)
-        let local_movements = state.local_movements.values().cloned().collect::<Vec<_>>();
-        transactions.extend_from_slice(&local_movements);
-
-        // Prepend balance movements of pending blocks
-        state.pending_movements.values().for_each(|x| {
-            transactions.extend_from_slice(x);
-        });
+        let mut keyed_transactions: BTreeMap<u32, model::BalanceMovement> = BTreeMap::new();
 
         // Query database `transaction_next_id` to compute total amount of transactions
         let db_total = self
@@ -359,7 +352,8 @@ where
             for index in range.rev() {
                 match self.get_transaction(account, index) {
                     Ok(transaction) => {
-                        transactions.push(transaction);
+                        // transactions.push(transaction);
+                        keyed_transactions.insert(index, transaction);
                     }
                     Err(e) => {
                         log::error!(
@@ -372,8 +366,26 @@ where
             }
         }
 
+        // Append balance movements of pending blocks
+        state.pending_movements.values().for_each(|x| {
+            // transactions.extend_from_slice(x);
+            keyed_transactions.extend(x.iter().map(|movement| (movement.db_key, movement.clone())));
+        });
+
+        let total_txns = keyed_transactions.len();
+        // Append local pending balance movements (not yet included in blocks)
+        let local_movements = state.local_movements.values().cloned().collect::<Vec<_>>();
+        // transactions.extend_from_slice(&local_movements);
+        keyed_transactions.extend(local_movements.iter().enumerate().map(|(index, movement)| {
+            (
+                u32::try_from(total_txns + index)
+                    .expect("Transaction length should be convertible to u32"),
+                movement.clone(),
+            )
+        }));
+
         Ok(model::Transactions {
-            transactions,
+            transactions: keyed_transactions.values().cloned().rev().collect(),
             total,
         })
     }
@@ -498,17 +510,19 @@ where
 
             // Check if tally txn corresponds to a wallet sent data request
             if let types::Transaction::Tally(tally) = &txn {
+                log::error!("--FILTER--> Checking if it is our Tally");
                 if self
                     .db
                     .get::<_, model::Path>(&keys::transactions_index(tally.dr_pointer.as_ref()))
                     .is_ok()
                 {
                     filtered_txns.push(txn.clone());
+                    log::error!("--FILTER--> FOUND in CONFIRMED");
                     continue;
-                }
-                else if let Some(_dr_tx) = state.pending_dr_movements.get(&tally.dr_pointer) {
-                        filtered_txns.push(txn.clone());
-                        continue;
+                } else if let Some(_dr_tx) = state.pending_dr_movements.get(&tally.dr_pointer) {
+                    filtered_txns.push(txn.clone());
+                    log::error!("--FILTER--> FOUND in PENDING");
+                    continue;
                 }
                 /*else {
                     let push_needed = state.pending_blocks.iter().any(|&(block_hash, _)| {
@@ -569,7 +583,11 @@ where
                 None => match self._index_transaction(&mut state, txn, block_info, confirmed) {
                     Ok(Some((balance_movement, mut new_addresses))) => {
                         if let types::Transaction::DataRequest(dr_tx) = &txn.transaction {
-                            dr_balance_movements.insert(dr_tx.hash(),(block_info.block_hash, balance_movements.len()));
+                            log::error!("--INDEX--> Adding DR: {}", dr_tx.hash().to_string());
+                            dr_balance_movements.insert(
+                                dr_tx.hash(),
+                                (block_info.block_hash, balance_movements.len()),
+                            );
                         }
                         balance_movements.push(balance_movement);
                         addresses.append(&mut new_addresses);
@@ -585,6 +603,11 @@ where
                 ),
             }
             if let types::Transaction::Tally(tally) = &txn.transaction {
+                log::error!(
+                    "--INDEX--> Tally transaction pointing to DR {}",
+                    tally.dr_pointer.to_string()
+                );
+
                 // esta en la base de datos
                 if let Ok((dr_movement, txn_id)) = self
                     .db
@@ -598,6 +621,11 @@ where
                             .map(|dr_movement| (dr_movement, txn_id))
                     })
                 {
+                    log::error!(
+                        "--INDEX--> DR in CONFIRMED {}",
+                        tally.dr_pointer.to_string()
+                    );
+
                     match &dr_movement.transaction.data {
                         model::TransactionData::DataRequest(dr_data) => {
                             let mut updated_dr_movement = dr_movement.clone();
@@ -610,10 +638,17 @@ where
                         }
                         _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
                     }
-                }
-                    else if let Some((pending_block_hash, index)) = state.pending_dr_movements.get(&tally.dr_pointer).cloned() {
-                        let dr_movement = state.pending_movements.get(&pending_block_hash.to_string()).unwrap()[index].clone();
-                        match &dr_movement.transaction.data {
+                } else if let Some((pending_block_hash, index)) =
+                    state.pending_dr_movements.get(&tally.dr_pointer).cloned()
+                {
+                    log::error!("--INDEX--> DR in PENDING {}", tally.dr_pointer.to_string());
+
+                    let dr_movement = state
+                        .pending_movements
+                        .get(&pending_block_hash.to_string())
+                        .unwrap()[index]
+                        .clone();
+                    match &dr_movement.transaction.data {
                             model::TransactionData::DataRequest(dr_data) => {
                                 let mut updated_dr_movement = dr_movement.clone();
                                 updated_dr_movement.transaction.data = model::TransactionData::DataRequest(model::DrData {
@@ -626,8 +661,7 @@ where
                             }
                             _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
                         }
-                    }
-                else {
+                } else {
                     log::debug!(
                         "data request tally update not required it was not found (txn: {})",
                         tally.dr_pointer
@@ -690,9 +724,7 @@ where
             state
                 .pending_movements
                 .insert(block_info.block_hash.to_string(), balance_movements.clone());
-            state
-                .pending_dr_movements
-                .extend(dr_balance_movements);
+            state.pending_dr_movements.extend(dr_balance_movements);
             state
                 .pending_addresses_by_block
                 .insert(block_info.block_hash.to_string(), addresses);
