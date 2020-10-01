@@ -114,12 +114,6 @@ where
         M: IntoIterator<Item = K>,
     {
         let identities: HashSet<K> = identities.into_iter().collect();
-        // Push activity with no entries is not allowed
-        // Note: at least the node's miner activity should be pushed
-        assert!(
-            !identities.is_empty(),
-            "push activity with no entries is not allowed"
-        );
 
         if self.queue.len() >= self.capacity {
             self.queue.pop_front().unwrap().into_iter().for_each(|id| {
@@ -142,6 +136,17 @@ where
         M: IntoIterator<Item = K>,
     {
         if block_epoch > self.last_update {
+            // In order that activity period correspond to epoch instead of blocks
+            // empty vectors has to be added to the ARS when there are holes between blocks
+            let difference = (block_epoch - self.last_update) as usize;
+            if difference >= self.capacity {
+                self.clear();
+            } else if difference > 1 {
+                for _i in 0..(difference - 1) {
+                    self.push_activity(vec![]);
+                }
+            }
+
             self.push_activity(identities);
             self.last_update = block_epoch;
 
@@ -289,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn update_ars_test_no_empty_epochs() {
+    fn update_ars_test_empty_epochs() {
         let mut ars = ActiveReputationSet::new(3);
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
@@ -315,18 +320,18 @@ mod tests {
         assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id3.clone()], 10);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), true);
+        assert_eq!(ars.contains(&id1), false);
+        assert_eq!(ars.contains(&id2), false);
         assert_eq!(ars.contains(&id3), true);
         assert_eq!(ars.last_update, 10);
-        assert_eq!(ars.active_identities_number(), 3);
+        assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id3.clone()], 20);
         assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), true);
+        assert_eq!(ars.contains(&id2), false);
         assert_eq!(ars.contains(&id3), true);
         assert_eq!(ars.last_update, 20);
-        assert_eq!(ars.active_identities_number(), 2);
+        assert_eq!(ars.active_identities_number(), 1);
     }
 
     #[test]
@@ -349,11 +354,11 @@ mod tests {
         assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id2.clone()], 10);
-        assert_eq!(ars.contains(&id1), true);
+        assert_eq!(ars.contains(&id1), false);
         assert_eq!(ars.contains(&id2), true);
         assert_eq!(ars.contains(&id3), false);
         assert_eq!(ars.last_update, 10);
-        assert_eq!(ars.active_identities_number(), 2);
+        assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id3.clone()], 11);
         let _res = ars.update(vec![id3.clone()], 12);
@@ -431,11 +436,11 @@ mod tests {
         assert_eq!(ars.last_update, 10);
         assert_eq!(ars.active_identities_number(), 1);
 
-        let _res = ars.update(vec![id2.clone()], 17);
+        let _res = ars.update(vec![id2.clone()], 11);
         assert_eq!(ars.contains(&id1), true);
         assert_eq!(ars.contains(&id2), true);
         assert_eq!(ars.contains(&id3), false);
-        assert_eq!(ars.last_update, 17);
+        assert_eq!(ars.last_update, 11);
         assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id2.clone()], 21);
@@ -446,14 +451,5 @@ mod tests {
         assert_eq!(ars.contains(&id3), false);
         assert_eq!(ars.last_update, 24);
         assert_eq!(ars.active_identities_number(), 1);
-    }
-
-    #[test]
-    #[should_panic]
-    fn update_ars_empty_should_fail() {
-        let mut ars = ActiveReputationSet::new(3);
-        let id1 = "Alice".to_string();
-        assert_eq!(ars.contains(&id1), false);
-        let _ = ars.update(vec![], 1);
     }
 }
