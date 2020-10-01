@@ -9,7 +9,7 @@ workspace = ".."
 async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"] }
 bincode = "1.2.1"
 log = "0.4.8"
-jsonrpc-core = "14.0.5"
+jsonrpc-core = "15.1.0"
 futures = "0.1.29"
 futures-util = "0.3.4"
 futures03 = { package = "futures", version = "0.3.1" }
@@ -18,7 +18,7 @@ serde_json = "1.0.47"
 rocksdb = "0.13.0"
 rayon = "1.3.0"
 num_cpus = "1.12.0"
-jsonrpc-pubsub = "14.0.6"
+jsonrpc-pubsub = "15.1.0"
 actix = { version = "0.8.3", default-features = false }
 tokio-signal = "0.2.9"
 failure = "0.1.8"

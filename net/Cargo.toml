@@ -10,9 +10,9 @@ actix = { version = "0.8.3", default-features = false }
 async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"] }
 failure = "0.1.8"
 futures = "0.1.29"
-jsonrpc-core = "14.0.5"
-jsonrpc-pubsub = "14.0.6"
-jsonrpc-ws-server = "14.0.6"
+jsonrpc-core = "15.1.0"
+jsonrpc-pubsub = "15.1.0"
+jsonrpc-ws-server = "15.1.0"
 log = "0.4.8"
 tokio = "0.2.11"
 serde_json = "1.0.47"
