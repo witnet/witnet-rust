@@ -9,6 +9,22 @@ use crate::{
     },
 };
 
+pub fn replace_separators(
+    value: RadonTypes,
+    thousand_separator: serde_cbor::Value,
+    decimal_separator: serde_cbor::Value,
+) -> RadonTypes {
+    let rad_str_value: RadonString = value.try_into().unwrap();
+    let thousand = from_value::<String>(thousand_separator).unwrap_or_else(|_| "".to_string());
+    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
+    RadonTypes::from(RadonString::from(
+        rad_str_value
+            .value()
+            .replace(&thousand, "")
+            .replace(&decimal, "."),
+    ))
+}
+
 pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonMap::radon_type_name(),
@@ -40,11 +56,21 @@ pub fn get_bytes(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadErro
 }
 pub fn get_integer(input: &RadonMap, args: &[Value]) -> Result<RadonInteger, RadError> {
     let item = get(input, args)?;
-    item.try_into()
+    let value = if args.len() == 3 {
+        replace_separators(item, args[1].clone(), args[2].clone())
+    } else {
+        item
+    };
+    value.try_into()
 }
 pub fn get_float(input: &RadonMap, args: &[Value]) -> Result<RadonFloat, RadError> {
     let item = get(input, args)?;
-    item.try_into()
+    let value = if args.len() == 3 {
+        replace_separators(item, args[1].clone(), args[2].clone())
+    } else {
+        item
+    };
+    value.try_into()
 }
 pub fn get_map(input: &RadonMap, args: &[Value]) -> Result<RadonMap, RadError> {
     let item = get(input, args)?;
