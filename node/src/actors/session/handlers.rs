@@ -904,7 +904,8 @@ fn session_last_beacon_inbound(
                             log::info!("Our chain is on par with our peer's",);
                         }
                         Ordering::Less => {
-                            let range = received_checkpoint..=chain_beacon.checkpoint;
+                            let init = received_checkpoint + 1;
+                            let range = init..=chain_beacon.checkpoint;
 
                             chain_manager_addr
                                 .send(GetBlocksEpochRange::new_with_const_limit(range))

@@ -265,7 +265,7 @@ impl Handler<GetNodeStats> for ChainManager {
 impl Handler<AddBlocks> for ChainManager {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, mut msg: AddBlocks, ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: AddBlocks, ctx: &mut Context<Self>) {
         log::debug!(
             "AddBlocks received while StateMachine is in state {:?}",
             self.sm_state
@@ -342,12 +342,6 @@ impl Handler<AddBlocks> for ChainManager {
                 }
 
                 let superblock_period = u32::from(consensus_constants.superblock_period);
-
-                // TODO: Review this hack
-                // Hack: remove first block
-                // For some reason the other node sends one extra block, and we cannot consolidate
-                // it because it is our top block.
-                msg.blocks.remove(0);
 
                 // Split received blocks into batches according to 3 different cases:
                 // 1. TargetNotReached: superblock target not reachable with the received block batch.
