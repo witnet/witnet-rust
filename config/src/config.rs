@@ -43,7 +43,7 @@ use std::{collections::HashSet, net::SocketAddr, path::PathBuf, time::Duration};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    defaults::{Defaults, Development, Testnet},
+    defaults::{Defaults, Development, Mainnet, Testnet},
     dirs,
 };
 use partial_struct::PartialStruct;
@@ -488,9 +488,7 @@ impl Config {
     pub fn from_partial(config: &PartialConfig) -> Self {
         let defaults: &dyn Defaults = match config.environment {
             Environment::Development => &Development,
-            Environment::Mainnet => {
-                panic!("Config with mainnet environment is currently not allowed");
-            }
+            Environment::Mainnet => &Mainnet,
             Environment::Testnet => &Testnet,
         };
 
@@ -1203,59 +1201,59 @@ mod tests {
         let partial_config = PartialConfig::default();
         let config = Config::from_partial(&partial_config);
 
-        assert_eq!(config.environment, Environment::Testnet);
+        assert_eq!(config.environment, Environment::Mainnet);
         assert_eq!(
             config.connections.server_addr,
-            Testnet.connections_server_addr()
+            Mainnet.connections_server_addr()
         );
         assert_eq!(
             config.connections.inbound_limit,
-            Testnet.connections_inbound_limit()
+            Mainnet.connections_inbound_limit()
         );
         assert_eq!(
             config.connections.outbound_limit,
-            Testnet.connections_outbound_limit()
+            Mainnet.connections_outbound_limit()
         );
         assert_eq!(
             config.connections.known_peers,
-            Testnet.connections_known_peers()
+            Mainnet.connections_known_peers()
         );
         assert_eq!(
             config.connections.bootstrap_peers_period,
-            Testnet.connections_bootstrap_peers_period()
+            Mainnet.connections_bootstrap_peers_period()
         );
         assert_eq!(
             config.connections.storage_peers_period,
-            Testnet.connections_storage_peers_period()
+            Mainnet.connections_storage_peers_period()
         );
         assert_eq!(
             config.connections.discovery_peers_period,
-            Testnet.connections_discovery_peers_period()
+            Mainnet.connections_discovery_peers_period()
         );
         assert_eq!(
             config.connections.feeler_peers_period,
-            Testnet.connections_feeler_peers_period()
+            Mainnet.connections_feeler_peers_period()
         );
         assert_eq!(
             config.connections.handshake_timeout,
-            Testnet.connections_handshake_timeout()
+            Mainnet.connections_handshake_timeout()
         );
-        assert_eq!(config.storage.db_path, Testnet.storage_db_path());
+        assert_eq!(config.storage.db_path, Mainnet.storage_db_path());
         assert_eq!(
             config.jsonrpc.server_address,
-            Testnet.jsonrpc_server_address()
+            Mainnet.jsonrpc_server_address()
         );
         assert_eq!(
             config.connections.blocks_timeout,
-            Testnet.connections_blocks_timeout()
+            Mainnet.connections_blocks_timeout()
         );
         assert_eq!(
             config.connections.consensus_c,
-            Testnet.connections_consensus_c()
+            Mainnet.connections_consensus_c()
         );
         assert_eq!(
             config.connections.bucketing_update_period,
-            Testnet.connections_bucketing_update_period()
+            Mainnet.connections_bucketing_update_period()
         );
     }
 }

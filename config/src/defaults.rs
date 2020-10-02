@@ -128,23 +128,17 @@ pub trait Defaults {
     }
 
     /// Default Hash value for the auxiliary bootstrap block
-    // TODO Decide an appropriate default value
     fn consensus_constants_bootstrap_hash(&self) -> Hash {
-        // Hash::SHA256([0; 32])
-
-        // Testnet configuration
+        // FIXME(#1615) Decide an appropriate default value for Mainnet
         "00000000000000000000000000000000000000007769746e65742d302e392e33"
             .parse()
             .unwrap()
     }
 
     /// Default Hash value for the genesis block
-    // TODO Decide an appropriate default value
     fn consensus_constants_genesis_hash(&self) -> Hash {
-        // Hash::SHA256([1; 32])
-
-        // Testnet configuration
-        "d103ad5177230297ebe68b276e9e55a6c3abd168f1b671398903819b52f28cc8"
+        // FIXME(#1615) Decide an appropriate default value for Mainnet
+        "8b5bcbca3cf45943b550e16b901ad68d2887ee5198e39331c173593e57e0a857"
             .parse()
             .unwrap()
     }
@@ -284,10 +278,7 @@ pub trait Defaults {
 
     /// Minimum input age of an UTXO for being a valid collateral
     fn consensus_constants_collateral_age(&self) -> u32 {
-        // FIXME(#1114): Choose a properly value
-        // 2000 blocks
-
-        // Testnet configuration
+        // FIXME(#1615) Decide an appropriate default value for Mainnet
         1000
     }
 
@@ -298,15 +289,8 @@ pub trait Defaults {
 
     /// First superblocks signing committee
     fn consensus_constants_bootstrapping_committee(&self) -> Vec<String> {
-        // FIXME(#1114): Choose a proper value for the committee
-        // [] pkhs
-
-        // Testnet configuration
-        vec![
-            "twit1fulan0j78dmdfa3gx0779kszj5sc5j35feljv5".to_string(),
-            "twit1zutan0dwtfmfcnv34epvjyhwamny20vkx09zjc".to_string(),
-            "twit1mengan0dvms7tzcul9epxmat8dh6temdunwkm5".to_string(),
-        ]
+        // FIXME(#1615) Decide an appropriate default value for Mainnet
+        vec!["wit1mengan0dvms7tzcul9epxmat8dh6temdjx8jm9".to_string()]
     }
 
     /// Wallet server address
@@ -434,10 +418,14 @@ impl Defaults for Mainnet {
         PathBuf::from(".witnet")
     }
 
+    fn connections_bootstrap_peers_period(&self) -> Duration {
+        Duration::from_secs(15)
+    }
+
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // A point far in the future, so the `EpochManager` will return an error
-        // `EpochZeroInTheFuture`
-        19_999_999_999_999
+        // FIXME(#1615) Decide an appropriate default value for Mainnet
+        // Wednesday, 23-Sept-2020, 09:00 UTC
+        1_600_851_600
     }
 }
 

@@ -97,7 +97,5 @@ genesis_path = ".witnet/config/genesis_block.json"
 level = "info"
 
 [wallet]
-# Tell the wallet component whether it is running on a testnet environment.
-testnet = true
 # The address (IP and port) of a Witnet node's JSON-RPC server. This should normally match `json_rpc.server_address`.
 node_url = "127.0.0.1:21338"

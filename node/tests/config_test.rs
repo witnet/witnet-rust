@@ -11,7 +11,7 @@ fn test_get_config() {
 
         let fut = config_mngr::get()
             .and_then(|config| {
-                assert_eq!(Environment::Testnet, config.environment);
+                assert_eq!(Environment::Mainnet, config.environment);
 
                 Ok(())
             })
