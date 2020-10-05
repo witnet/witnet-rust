@@ -93,6 +93,7 @@ impl App {
         &mut self,
         session_id: types::SessionId,
         wallet_id: String,
+        external: bool,
         label: Option<String>,
     ) -> ResponseActFuture<model::Address> {
         let f = fut::result(
@@ -102,7 +103,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::GenAddress(wallet, label))
+                .send(worker::GenAddress(wallet, external, label))
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)

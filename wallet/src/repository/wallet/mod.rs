@@ -287,7 +287,6 @@ where
     }
 
     /// Generate an address in the internal keychain (WIP-0001).
-    #[cfg(test)]
     pub fn gen_internal_address(&self, label: Option<String>) -> Result<Arc<model::Address>> {
         let mut state = self.state.write()?;
 

@@ -8,6 +8,7 @@ use crate::{model, types};
 pub struct GenerateAddressRequest {
     session_id: types::SessionId,
     wallet_id: String,
+    external: Option<bool>,
     label: Option<String>,
 }
 
@@ -26,7 +27,12 @@ impl Handler<GenerateAddressRequest> for app::App {
 
     fn handle(&mut self, msg: GenerateAddressRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
-            .generate_address(msg.session_id, msg.wallet_id, msg.label)
+            .generate_address(
+                msg.session_id,
+                msg.wallet_id,
+                msg.external.unwrap_or(true),
+                msg.label,
+            )
             .map(
                 |model::Address { address, path, .. }, _, _| GenerateAddressResponse {
                     address,

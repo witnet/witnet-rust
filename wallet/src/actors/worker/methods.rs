@@ -183,9 +183,14 @@ impl Worker {
     pub fn gen_address(
         &mut self,
         wallet: &types::Wallet,
+        external: bool,
         label: Option<String>,
     ) -> Result<Arc<model::Address>> {
-        let address = wallet.gen_external_address(label)?;
+        let address = if external {
+            wallet.gen_external_address(label)?
+        } else {
+            wallet.gen_internal_address(label)?
+        };
 
         Ok(address)
     }

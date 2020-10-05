@@ -3,7 +3,7 @@ use actix::prelude::*;
 use crate::actors::worker;
 use crate::{model, types};
 
-pub struct GenAddress(pub types::SessionWallet, pub Option<String>);
+pub struct GenAddress(pub types::SessionWallet, pub bool, pub Option<String>);
 
 impl Message for GenAddress {
     type Result = worker::Result<model::Address>;
@@ -14,10 +14,10 @@ impl Handler<GenAddress> for worker::Worker {
 
     fn handle(
         &mut self,
-        GenAddress(wallet, label): GenAddress,
+        GenAddress(wallet, external, label): GenAddress,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.gen_address(&wallet, label)
+        self.gen_address(&wallet, external, label)
             .map(|address| (*address).clone())
     }
 }
