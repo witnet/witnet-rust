@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     convert::TryFrom,
     str::FromStr,
     sync::{Arc, RwLock},
@@ -23,6 +23,8 @@ use crate::{
 };
 
 use super::*;
+use std::cmp::min;
+use std::ops::Range;
 
 mod state;
 #[cfg(test)]
@@ -328,29 +330,71 @@ where
 
         // Total amount of state and db transactions
         let total = state.transaction_next_id + u32::try_from(state.local_movements.len()).unwrap();
-        let mut keyed_transactions: BTreeMap<u32, model::BalanceMovement> = BTreeMap::new();
+        let mut keyed_transactions: Vec<model::BalanceMovement> = Vec::new();
 
         // Query database `transaction_next_id` to compute total amount of transactions
         let db_total = self
             .db
             .get_or_default::<_, u32>(&keys::transaction_next_id(account))?;
 
-        if db_total > 0 {
-            let end = db_total.saturating_sub(offset);
-            let start = end.saturating_sub(limit);
-            let range = start..end;
+        // get number of non-repated pending movements.
+        let pending_length = {
+            let mut glob_acc: usize = 0;
+            state.pending_movements.values().for_each(|x| {
+                glob_acc = glob_acc.saturating_add(x.len());
+            });
+            glob_acc
+        };
+        let total_local = state.local_movements.len();
 
-            log::debug!(
-                "Retrieving database transactions in range {:?}. Start({}), End({}), Total({})",
-                range,
-                start,
-                end,
-                db_total,
-            );
-            for index in range.rev() {
+        // Lets get the ranges for pending and db transactions
+        let (range_local, range_pending, range_db) = calculate_transaction_ranges(
+            offset as usize,
+            limit as usize,
+            total_local,
+            pending_length,
+            db_total as usize,
+        );
+
+        // Append local movements if any
+        if let Some(range_local) = range_local {
+            // Append local pending balance movements (not yet included in blocks)
+            let mut local_movements: Vec<model::BalanceMovement> =
+                state.local_movements.values().cloned().collect();
+            local_movements.sort_by(|a, b| a.db_key.cmp(&b.db_key));
+            keyed_transactions.extend_from_slice(&local_movements[range_local]);
+        }
+
+        // Append balance movements of pending blocks
+        if let Some(range_pending) = range_pending {
+            // We need to order transaction by beacon
+            let mut beacon_list: Vec<model::Beacon> = state
+                .pending_blocks
+                .values()
+                .map(|state| state.beacon.clone())
+                .collect();
+            beacon_list.sort_by(|a, b| a.epoch.cmp(&b.epoch));
+
+            // Get all pending movements in a vec
+            let mut all_pending_movements: Vec<model::BalanceMovement> = vec![];
+            beacon_list.iter().for_each(|beacon| {
+                all_pending_movements.extend_from_slice(
+                    state
+                        .pending_movements
+                        .get(&beacon.block_hash.to_string())
+                        .unwrap_or(&vec![]),
+                );
+            });
+
+            keyed_transactions.extend_from_slice(&all_pending_movements[range_pending]);
+        }
+
+        if let Some(range_db) = range_db {
+            for index in range_db.rev() {
+                let index = u32::try_from(index).unwrap();
                 match self.get_transaction(account, index) {
                     Ok(transaction) => {
-                        keyed_transactions.insert(index, transaction);
+                        keyed_transactions.push(transaction);
                     }
                     Err(e) => {
                         log::error!(
@@ -363,36 +407,8 @@ where
             }
         }
 
-        // Append balance movements of pending blocks
-        state.pending_movements.values().for_each(|x| {
-            keyed_transactions.extend(x.iter().map(|movement| (movement.db_key, movement.clone())));
-        });
-
-        // Last index known from the DB transactions
-        let last_index = {
-            if let Some(balance_movement) = keyed_transactions.values().rev().next() {
-                balance_movement.db_key
-            } else {
-                0
-            }
-        };
-        // Append local pending balance movements (not yet included in blocks)
-        let local_movements = state.local_movements.values();
-        keyed_transactions.extend(local_movements.enumerate().map(|(index, movement)| {
-            (
-                last_index
-                    + u32::try_from(index)
-                        .expect("Transaction length should be convertible to u32"),
-                movement.clone(),
-            )
-        }));
-
         Ok(model::Transactions {
-            transactions: keyed_transactions
-                .into_iter()
-                .map(|(_k, v)| v)
-                .rev()
-                .collect(),
+            transactions: keyed_transactions,
             total,
         })
     }
@@ -1300,7 +1316,6 @@ where
         extended_pk: bool,
     ) -> Result<model::ExtendedKeyedSignature> {
         let state = self.state.read()?;
-
         let keychain = constants::EXTERNAL_KEYCHAIN;
         let parent_key = &state.keychains[keychain as usize];
 
@@ -1625,6 +1640,70 @@ fn build_updated_dr_transaction_data(
     }))
 }
 
+#[allow(clippy::type_complexity)]
+fn calculate_transaction_ranges(
+    offset: usize,
+    limit: usize,
+    total_local: usize,
+    total_pending: usize,
+    total_db: usize,
+) -> (
+    Option<Range<usize>>,
+    Option<Range<usize>>,
+    Option<Range<usize>>,
+) {
+    let mut limit = limit;
+
+    let max_local = std::cmp::min(limit, total_local);
+    let local = std::cmp::min(total_local.saturating_sub(offset), max_local);
+
+    limit = limit.saturating_sub(local);
+
+    let max_pending = min(limit, total_pending);
+    let total_local_pending = total_local + total_pending;
+    let pending = min(total_local_pending.saturating_sub(offset), max_pending);
+    limit = limit.saturating_sub(pending);
+
+    let max_db = min(limit, total_db);
+    let total = total_local + total_pending + total_db;
+    let db = min(total.saturating_sub(offset), max_db);
+
+    log::debug!(
+        "Will retrieve {} from local, {} from pending and {} from DB",
+        local,
+        pending,
+        db
+    );
+
+    let local_range = if local > 0 {
+        let init = total_local - offset;
+        let end = init - local;
+
+        Some(end..init)
+    } else {
+        None
+    };
+
+    let pending_range = if pending > 0 {
+        let init = total_local_pending - local - offset;
+        let end = init - pending;
+
+        Some(end..init)
+    } else {
+        None
+    };
+
+    let db_range = if db > 0 {
+        let init = total - local - pending - offset;
+        let end = init - db;
+
+        Some(end..init)
+    } else {
+        None
+    };
+
+    (local_range, pending_range, db_range)
+}
 #[cfg(test)]
 impl<T> Wallet<T>
 where
@@ -1635,4 +1714,77 @@ where
 
         Ok(state.utxo_set.clone())
     }
+}
+
+#[test]
+fn test_get_tx_ranges_inner_range() {
+    let local_total = 10;
+    let pending_total = 10;
+    let db_total = 10;
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 4, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(1..5));
+    assert_eq!(pending_range, None);
+    assert_eq!(db_range, None);
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(15, 4, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, Some(1..5));
+    assert_eq!(db_range, None);
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(25, 4, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, None);
+    assert_eq!(db_range, Some(1..5));
+}
+#[test]
+fn test_get_tx_ranges_overlap() {
+    let local_total = 10;
+    let pending_total = 10;
+    let db_total = 10;
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 10, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(0..5));
+    assert_eq!(pending_range, Some(5..10));
+    assert_eq!(db_range, None);
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(15, 10, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, Some(0..5));
+    assert_eq!(db_range, Some(5..10));
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 20, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(0..5));
+    assert_eq!(pending_range, Some(0..10));
+    assert_eq!(db_range, Some(5..10));
+}
+#[test]
+fn test_get_tx_ranges_exceed() {
+    let local_total = 10;
+    let pending_total = 10;
+    let db_total = 10;
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 40, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(0..5));
+    assert_eq!(pending_range, Some(0..10));
+    assert_eq!(db_range, Some(0..10));
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(15, 40, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, Some(0..5));
+    assert_eq!(db_range, Some(0..10));
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(25, 40, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, None);
+    assert_eq!(db_range, Some(0..5));
 }
