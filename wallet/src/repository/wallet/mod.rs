@@ -391,19 +391,32 @@ where
             keyed_transactions.extend_from_slice(&all_pending_movements[range_pending]);
         }
 
+        // Build a HashMap<transaction_index, balance_movement>
+        let mut db_movements_to_update: HashMap<u32, model::BalanceMovement> = HashMap::new();
+        state.db_movements_to_update.values().for_each(|movements| {
+            db_movements_to_update.extend(movements.iter().map(|x| (x.db_key, x.clone())))
+        });
+
         if let Some(range_db) = range_db {
             for index in range_db.rev() {
                 let index = u32::try_from(index).unwrap();
-                match self.get_transaction(account, index) {
-                    Ok(transaction) => {
-                        keyed_transactions.push(transaction);
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Error while retrieving transaction with index {}: {}",
-                            index,
-                            e
-                        );
+
+                // Check if there is a pending update for the queried balance movement,
+                // otherwise query the database
+                if let Some(transaction) = db_movements_to_update.get(&index) {
+                    keyed_transactions.push(transaction.clone());
+                } else {
+                    match self.get_transaction(account, index) {
+                        Ok(transaction) => {
+                            keyed_transactions.push(transaction);
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Error while retrieving transaction with index {}: {}",
+                                index,
+                                e
+                            );
+                        }
                     }
                 }
             }
