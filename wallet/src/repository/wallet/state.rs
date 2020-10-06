@@ -54,11 +54,11 @@ pub struct State {
     /// List of pending address infos indexed by key path, waiting to be confirmed with a superblock
     pub pending_addresses_by_path: HashMap<String, Arc<model::Address>>,
     /// List of pending blocks with state snapshots waiting to be confirmed
-    ///  This is a hashmap from pending_block_hash to StateSnapshoht.
+    ///  This is a hashmap from pending_block_hash to StateSnapshot.
     pub pending_blocks: HashMap<String, StateSnapshot>,
     /// List of pending dr movements, waiting to be confirmed with a superblock
     /// This is a hashmap from dr_pointer to (pending_block_hash, index).
-    pub pending_dr_movements: HashMap<types::Hash, (Hash, usize)>,
+    pub pending_dr_movements: HashMap<String, (Hash, usize)>,
     /// List of pending balance movements, waiting to be confirmed with a superblock
     ///  This is a hashmap from pending_block_hash to (Vec<BalanceMovement).
     pub pending_movements: HashMap<String, Vec<model::BalanceMovement>>,

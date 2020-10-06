@@ -554,7 +554,9 @@ where
                     .db
                     .get::<_, model::Path>(&keys::transactions_index(tally.dr_pointer.as_ref()))
                     .is_ok()
-                    || state.pending_dr_movements.contains_key(&tally.dr_pointer)
+                    || state
+                        .pending_dr_movements
+                        .contains_key(&tally.dr_pointer.to_string())
                 {
                     filtered_txns.push(txn.clone());
                     continue;
@@ -604,7 +606,7 @@ where
                     Ok(Some((balance_movement, mut new_addresses))) => {
                         if let types::Transaction::DataRequest(dr_tx) = &txn.transaction {
                             dr_balance_movements.insert(
-                                dr_tx.hash(),
+                                dr_tx.hash().to_string(),
                                 (block_info.block_hash, block_balance_movements.len()),
                             );
                         }
@@ -623,8 +625,10 @@ where
             }
             if let types::Transaction::Tally(tally) = &txn.transaction {
                 // The DR transaction is in pending state
-                if let Some((pending_block_hash, index)) =
-                    state.pending_dr_movements.get(&tally.dr_pointer).cloned()
+                if let Some((pending_block_hash, index)) = state
+                    .pending_dr_movements
+                    .get(&tally.dr_pointer.to_string())
+                    .cloned()
                 {
                     let dr_movement = state
                         .pending_movements
@@ -636,7 +640,7 @@ where
                             let mut updated_dr_movement = dr_movement.clone();
                             updated_dr_movement.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
                             state.pending_movements.get_mut(&pending_block_hash.to_string()).unwrap()[index] = updated_dr_movement;
-                            state.pending_dr_movements.remove(&tally.dr_pointer);
+                            state.pending_dr_movements.remove(&tally.dr_pointer.to_string());
                         }
                         _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
                     }
@@ -660,7 +664,6 @@ where
                             dr_movement_to_update.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
                             dr_movement_to_update.db_key = txn_id;
                             db_movements_to_update.push(dr_movement_to_update);
-                            state.pending_dr_movements.remove(&tally.dr_pointer);
                         }
                         _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
                     }
@@ -698,7 +701,7 @@ where
             balance_movements_to_persist.extend_from_slice(&db_movements_to_update);
 
             self._persist_block_txns(
-                balance_movements_to_persist,
+                balance_movements_to_persist.clone(),
                 addresses,
                 state.transaction_next_id,
                 state.next_external_index,
@@ -706,7 +709,13 @@ where
                 state.utxo_set.clone(),
                 &state.balance.unconfirmed,
                 block_info,
-            )?
+            )?;
+
+            // Update pending DR movements if they were persisted
+            // balance_movements_to_persist.
+            balance_movements_to_persist.iter().for_each(|x| {
+                state.pending_dr_movements.remove(&x.transaction.hash);
+            });
         } else {
             for address in &addresses {
                 let path = address.path.clone();
