@@ -72,6 +72,7 @@ where
         state.pending_addresses_by_path.clear();
         state.pending_addresses_by_block.clear();
         state.local_movements.clear();
+        state.db_movements_to_update.clear();
 
         // Restore state from database
         state.transaction_next_id = self
@@ -182,6 +183,7 @@ where
             pending_addresses_by_path: Default::default(),
             pending_blocks: Default::default(),
             pending_dr_movements: Default::default(),
+            db_movements_to_update: Default::default(),
         });
 
         Ok(Self {
@@ -573,8 +575,9 @@ where
     ) -> Result<Vec<model::BalanceMovement>> {
         let mut state = self.state.write()?;
         let mut addresses = Vec::new();
-        let mut balance_movements = Vec::new();
+        let mut block_balance_movements = Vec::new();
         let mut dr_balance_movements = HashMap::new();
+        let mut db_movements_to_update = Vec::new();
 
         // Index all transactions
         for txn in txns {
@@ -589,10 +592,10 @@ where
                         if let types::Transaction::DataRequest(dr_tx) = &txn.transaction {
                             dr_balance_movements.insert(
                                 dr_tx.hash(),
-                                (block_info.block_hash, balance_movements.len()),
+                                (block_info.block_hash, block_balance_movements.len()),
                             );
                         }
-                        balance_movements.push(balance_movement);
+                        block_balance_movements.push(balance_movement);
                         addresses.append(&mut new_addresses);
                     }
                     Ok(None) => {}
@@ -625,7 +628,7 @@ where
                         _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
                     }
                 }
-                // The DR transaction was confirmed but the tally wasnt. Fetch the dr from DB.
+                // The DR transaction was confirmed but the tally wasn't. Fetch the dr from DB.
                 else if let Ok((dr_movement, txn_id)) = self
                     .db
                     .get::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
@@ -640,10 +643,10 @@ where
                 {
                     match &dr_movement.transaction.data {
                         model::TransactionData::DataRequest(dr_data) => {
-                            let mut updated_dr_movement = dr_movement.clone();
-                            updated_dr_movement.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
-                            updated_dr_movement.db_key = txn_id;
-                            balance_movements.push(updated_dr_movement);
+                            let mut dr_movement_to_update = dr_movement.clone();
+                            dr_movement_to_update.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
+                            dr_movement_to_update.db_key = txn_id;
+                            db_movements_to_update.push(dr_movement_to_update);
                             state.pending_dr_movements.remove(&tally.dr_pointer);
                         }
                         _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
@@ -678,8 +681,11 @@ where
 
         // Persist into database
         if confirmed {
+            let mut balance_movements_to_persist = block_balance_movements.clone();
+            balance_movements_to_persist.extend_from_slice(&db_movements_to_update);
+
             self._persist_block_txns(
-                balance_movements.clone(),
+                balance_movements_to_persist,
                 addresses,
                 state.transaction_next_id,
                 state.next_external_index,
@@ -708,16 +714,20 @@ where
                 .pending_blocks
                 .insert(block_info.block_hash.to_string(), block_state);
 
-            state
-                .pending_movements
-                .insert(block_info.block_hash.to_string(), balance_movements.clone());
+            state.pending_movements.insert(
+                block_info.block_hash.to_string(),
+                block_balance_movements.clone(),
+            );
             state.pending_dr_movements.extend(dr_balance_movements);
+            state
+                .db_movements_to_update
+                .insert(block_info.block_hash.to_string(), db_movements_to_update);
             state
                 .pending_addresses_by_block
                 .insert(block_info.block_hash.to_string(), addresses);
         }
 
-        Ok(balance_movements)
+        Ok(block_balance_movements)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1399,12 +1409,24 @@ where
         let block_state = state.pending_blocks.remove(block_hash).ok_or_else(|| {
             Error::BlockConsolidation(format!("beacon not found for pending block {}", block_hash))
         })?;
-        let movements = state.pending_movements.remove(block_hash).ok_or_else(|| {
+        let mut movements = state.pending_movements.remove(block_hash).ok_or_else(|| {
             Error::BlockConsolidation(format!(
                 "balance movements not found for pending block {}",
                 block_hash
             ))
         })?;
+        movements.extend(
+            state
+                .db_movements_to_update
+                .remove(block_hash)
+                .ok_or_else(|| {
+                    Error::BlockConsolidation(format!(
+                        "balance movements not found for pending block {}",
+                        block_hash
+                    ))
+                })?,
+        );
+
         let addresses = state
             .pending_addresses_by_block
             .remove(block_hash)
@@ -1704,6 +1726,7 @@ fn calculate_transaction_ranges(
 
     (local_range, pending_range, db_range)
 }
+
 #[cfg(test)]
 impl<T> Wallet<T>
 where
@@ -1740,6 +1763,7 @@ fn test_get_tx_ranges_inner_range() {
     assert_eq!(pending_range, None);
     assert_eq!(db_range, Some(1..5));
 }
+
 #[test]
 fn test_get_tx_ranges_overlap() {
     let local_total = 10;
@@ -1764,6 +1788,7 @@ fn test_get_tx_ranges_overlap() {
     assert_eq!(pending_range, Some(0..10));
     assert_eq!(db_range, Some(5..10));
 }
+
 #[test]
 fn test_get_tx_ranges_exceed() {
     let local_total = 10;

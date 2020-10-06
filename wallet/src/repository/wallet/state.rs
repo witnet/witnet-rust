@@ -28,6 +28,9 @@ pub struct State {
     pub balance: model::WalletBalance,
     /// Wallet caption
     pub caption: Option<String>,
+    /// List of already existing DB balance movements that need to be updated upon superblock
+    /// confirmation
+    pub db_movements_to_update: HashMap<String, Vec<model::BalanceMovement>>,
     /// Epoch constants
     pub epoch_constants: EpochConstants,
     /// Keychains used to derive addresses
