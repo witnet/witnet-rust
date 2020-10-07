@@ -256,6 +256,7 @@ where
         index: u32,
     ) -> Result<(Option<Arc<model::Address>>, u32)> {
         let mut state = self.state.write()?;
+
         self._gen_address(&mut state, label, parent_key, account, keychain, index)
     }
 
@@ -1149,14 +1150,19 @@ where
 
             // Get address from memory or DB
             let old_address = self._get_address(state, path.account, path.keychain, path.index)?;
+            let old_info = &old_address.info;
+
+            // Generate new external address if received payment is payed to an unused external address
+            if old_info.received_payments.is_empty() {
+                self._gen_external_address(state, None)?;
+            }
 
             // Build the new address information
-            let info = &old_address.info;
-            let mut received_payments = info.received_payments.clone();
+            let mut received_payments = old_info.received_payments.clone();
             received_payments.push(output_pointer.to_string());
             let current_timestamp =
                 convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
-            let first_payment_date = Some(info.first_payment_date.unwrap_or(current_timestamp));
+            let first_payment_date = Some(old_info.first_payment_date.unwrap_or(current_timestamp));
             let updated_address = model::Address {
                 address: old_address.address.clone(),
                 index: old_address.index,
@@ -1165,9 +1171,9 @@ where
                 path: old_address.path.clone(),
                 info: model::AddressInfo {
                     db_key: keys::address_info(path.account, path.keychain, path.index),
-                    label: info.label.clone(),
+                    label: old_info.label.clone(),
                     received_payments,
-                    received_amount: info.received_amount + key_balance.amount,
+                    received_amount: old_info.received_amount + key_balance.amount,
                     first_payment_date,
                     last_payment_date: Some(current_timestamp),
                 },
