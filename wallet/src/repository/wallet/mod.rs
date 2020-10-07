@@ -332,7 +332,7 @@ where
 
         // Total amount of state and db transactions
         let total = state.transaction_next_id + u32::try_from(state.local_movements.len()).unwrap();
-        let mut keyed_transactions: Vec<model::BalanceMovement> = Vec::new();
+        let mut transactions: Vec<model::BalanceMovement> = Vec::new();
 
         // Query database `transaction_next_id` to compute total amount of transactions
         let db_total = self
@@ -340,13 +340,10 @@ where
             .get_or_default::<_, u32>(&keys::transaction_next_id(account))?;
 
         // get number of non-repated pending movements.
-        let pending_length = {
-            let mut glob_acc: usize = 0;
-            state.pending_movements.values().for_each(|x| {
-                glob_acc = glob_acc.saturating_add(x.len());
-            });
-            glob_acc
-        };
+        let pending_length = state
+            .pending_movements
+            .values()
+            .fold(0, |acc: usize, x| acc.saturating_add(x.len()));
         let total_local = state.local_movements.len();
 
         // Lets get the ranges for pending and db transactions
@@ -364,7 +361,7 @@ where
             let mut local_movements: Vec<model::BalanceMovement> =
                 state.local_movements.values().cloned().collect();
             local_movements.sort_by(|a, b| a.db_key.cmp(&b.db_key));
-            keyed_transactions.extend_from_slice(&local_movements[range_local]);
+            transactions.extend_from_slice(local_movements.drain(range_local).as_slice());
         }
 
         // Append balance movements of pending blocks
@@ -388,7 +385,7 @@ where
                 );
             });
 
-            keyed_transactions.extend_from_slice(&all_pending_movements[range_pending]);
+            transactions.extend_from_slice(&all_pending_movements[range_pending]);
         }
 
         // Build a HashMap<transaction_index, balance_movement>
@@ -397,10 +394,6 @@ where
             db_movements_to_update.extend(movements.iter().map(|x| (x.db_key, x.clone())))
         });
 
-        log::error!(
-            "These are the movements pending to be updated {:?}",
-            db_movements_to_update
-        );
         if let Some(range_db) = range_db {
             for index in range_db.rev() {
                 let index = u32::try_from(index).unwrap();
@@ -408,12 +401,15 @@ where
                 // Check if there is a pending update for the queried balance movement,
                 // otherwise query the database
                 if let Some(transaction) = db_movements_to_update.get(&index) {
-                    log::error!("Updating ------->{:?}", transaction);
-                    keyed_transactions.push(transaction.clone());
+                    log::debug!(
+                        "Updating transaction {:?} with pending tally found",
+                        transaction.transaction.hash
+                    );
+                    transactions.push(transaction.clone());
                 } else {
                     match self.get_transaction(account, index) {
                         Ok(transaction) => {
-                            keyed_transactions.push(transaction);
+                            transactions.push(transaction);
                         }
                         Err(e) => {
                             log::error!(
@@ -428,7 +424,7 @@ where
         }
 
         Ok(model::Transactions {
-            transactions: keyed_transactions,
+            transactions,
             total,
         })
     }
@@ -555,13 +551,13 @@ where
             if let types::Transaction::Tally(tally) = &txn {
                 // There is a DR transaction persisted in database whose tally was found or
                 // there is a DR transaction in pending state whose tally was found
-                if self
-                    .db
-                    .get::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
-                    .is_ok()
-                    || state
-                        .pending_dr_movements
-                        .contains_key(&tally.dr_pointer.to_string())
+                if state
+                    .pending_dr_movements
+                    .contains_key(&tally.dr_pointer.to_string())
+                    || self
+                        .db
+                        .get::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
+                        .is_ok()
                 {
                     filtered_txns.push(txn.clone());
                     continue;
@@ -645,9 +641,9 @@ where
                         .unwrap()[index]
                         .clone();
 
-                    match &dr_movement.transaction.data {
+                    match &dr_movement.transaction.data.clone() {
                         model::TransactionData::DataRequest(dr_data) => {
-                            let mut updated_dr_movement = dr_movement.clone();
+                            let mut updated_dr_movement = dr_movement;
                             updated_dr_movement.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
                             state.pending_movements.get_mut(&pending_block_hash.to_string()).unwrap()[index] = updated_dr_movement;
                             state.pending_dr_movements.remove(&tally.dr_pointer.to_string());
@@ -669,9 +665,9 @@ where
                     })
                 {
                     log::debug!("Found a tally for data request {:?} that was in DB", txn_id);
-                    match &dr_movement.transaction.data {
+                    match &dr_movement.transaction.data.clone() {
                         model::TransactionData::DataRequest(dr_data) => {
-                            let mut dr_movement_to_update = dr_movement.clone();
+                            let mut dr_movement_to_update = dr_movement;
                             dr_movement_to_update.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
                             dr_movement_to_update.db_key = txn_id;
                             db_movements_to_update.push(dr_movement_to_update);
