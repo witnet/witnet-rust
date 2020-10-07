@@ -78,14 +78,6 @@ where
         state.transaction_next_id = self
             .db
             .get_or_default::<_, u32>(&keys::transaction_next_id(account))?;
-        state.next_external_index = self.db.get_or_default(&keys::account_next_index(
-            account,
-            constants::EXTERNAL_KEYCHAIN,
-        ))?;
-        state.next_internal_index = self.db.get_or_default(&keys::account_next_index(
-            account,
-            constants::INTERNAL_KEYCHAIN,
-        ))?;
         state.utxo_set = self.db.get_or_default(&keys::account_utxo_set(account))?;
         state.balance.confirmed = self.db.get_or_default(&keys::account_balance(account))?;
         state.balance.unconfirmed = state.balance.confirmed;
@@ -459,6 +451,7 @@ where
 
         if let Some(address) = state.pending_addresses_by_path.get(&path) {
             log::trace!("Address {} found in memory", path);
+
             Ok(address.clone())
         } else {
             log::trace!(
@@ -711,8 +704,6 @@ where
                 balance_movements_to_persist.clone(),
                 addresses,
                 state.transaction_next_id,
-                state.next_external_index,
-                state.next_internal_index,
                 state.utxo_set.clone(),
                 &state.balance.unconfirmed,
                 block_info,
@@ -759,14 +750,11 @@ where
         Ok(block_balance_movements)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn _persist_block_txns(
         &self,
         balance_movements: Vec<model::BalanceMovement>,
         addresses: Vec<Arc<model::Address>>,
         transaction_next_id: u32,
-        next_external_address_index: u32,
-        next_internal_address_index: u32,
         utxo_set: model::UtxoSet,
         balance: &model::BalanceInfo,
         block_info: &model::Beacon,
@@ -806,14 +794,6 @@ where
         )?;
         batch.put(keys::account_utxo_set(account).into_bytes(), utxo_set)?;
         batch.put(keys::account_balance(account).into_bytes(), balance)?;
-        batch.put(
-            keys::account_next_index(account, constants::EXTERNAL_KEYCHAIN),
-            next_external_address_index,
-        )?;
-        batch.put(
-            keys::account_next_index(account, constants::INTERNAL_KEYCHAIN),
-            next_internal_address_index,
-        )?;
 
         // Persist addresses
         for address in addresses {
@@ -831,8 +811,6 @@ where
                 &address.pkh,
             )?;
         }
-
-        // FIXME(#1539): persist update of DR movements (because of tally txn)
 
         // Update the last_sync in the database (which corresponds with the last_confirmed in the state)
         batch.put(
@@ -1326,17 +1304,7 @@ where
         let (address, next_index) =
             self.gen_address(label, parent_key, account, keychain, index)?;
 
-        let path = model::Path {
-            account,
-            keychain,
-            index,
-        }
-        .to_string();
         state.next_external_index = next_index;
-        state
-            .pending_addresses_by_path
-            .entry(path)
-            .or_insert_with(|| address.clone());
 
         Ok(address)
     }
@@ -1471,8 +1439,6 @@ where
             movements.clone(),
             addresses,
             block_state.transaction_next_id,
-            state.next_external_index,
-            state.next_internal_index,
             block_state.utxo_set.clone(),
             &block_state.balance,
             &block_state.beacon,
