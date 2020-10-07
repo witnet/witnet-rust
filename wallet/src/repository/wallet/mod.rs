@@ -397,6 +397,10 @@ where
             db_movements_to_update.extend(movements.iter().map(|x| (x.db_key, x.clone())))
         });
 
+        log::error!(
+            "These are the movements pending to be updated {:?}",
+            db_movements_to_update
+        );
         if let Some(range_db) = range_db {
             for index in range_db.rev() {
                 let index = u32::try_from(index).unwrap();
@@ -404,6 +408,7 @@ where
                 // Check if there is a pending update for the queried balance movement,
                 // otherwise query the database
                 if let Some(transaction) = db_movements_to_update.get(&index) {
+                    log::error!("Updating ------->{:?}", transaction);
                     keyed_transactions.push(transaction.clone());
                 } else {
                     match self.get_transaction(account, index) {
@@ -552,7 +557,7 @@ where
                 // there is a DR transaction in pending state whose tally was found
                 if self
                     .db
-                    .get::<_, model::Path>(&keys::transactions_index(tally.dr_pointer.as_ref()))
+                    .get::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
                     .is_ok()
                     || state
                         .pending_dr_movements
@@ -630,11 +635,16 @@ where
                     .get(&tally.dr_pointer.to_string())
                     .cloned()
                 {
+                    log::debug!(
+                        "Found a tally for data request {:?} that was in pending state",
+                        tally.dr_pointer.to_string()
+                    );
                     let dr_movement = state
                         .pending_movements
                         .get(&pending_block_hash.to_string())
                         .unwrap()[index]
                         .clone();
+
                     match &dr_movement.transaction.data {
                         model::TransactionData::DataRequest(dr_data) => {
                             let mut updated_dr_movement = dr_movement.clone();
@@ -658,6 +668,7 @@ where
                             .map(|dr_movement| (dr_movement, txn_id))
                     })
                 {
+                    log::debug!("Found a tally for data request {:?} that was in DB", txn_id);
                     match &dr_movement.transaction.data {
                         model::TransactionData::DataRequest(dr_data) => {
                             let mut dr_movement_to_update = dr_movement.clone();
@@ -1461,7 +1472,7 @@ where
 
         // Try to persist block transaction changes
         self._persist_block_txns(
-            movements,
+            movements.clone(),
             addresses,
             block_state.transaction_next_id,
             state.next_external_index,
@@ -1470,6 +1481,12 @@ where
             &block_state.balance,
             &block_state.beacon,
         )?;
+
+        // Update pending DR movements if they were persisted
+        // balance_movements_to_persist.
+        movements.iter().for_each(|x| {
+            state.pending_dr_movements.remove(&x.transaction.hash);
+        });
 
         // If everything was OK, update `last_confirmed` beacon
         state.last_confirmed = CheckpointBeacon {
