@@ -185,7 +185,7 @@ impl Worker {
         wallet: &types::Wallet,
         external: bool,
         label: Option<String>,
-    ) -> Result<Arc<model::Address>> {
+    ) -> Result<Option<Arc<model::Address>>> {
         let address = if external {
             wallet.gen_external_address(label)?
         } else {

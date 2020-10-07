@@ -19,7 +19,7 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    types::{self, signature, ExtendedPK, Hash, Hashable as _, RadonError},
+    types::{self, signature, Hash, Hashable as _, RadonError},
 };
 
 use super::*;
@@ -219,9 +219,21 @@ where
         account: u32,
         keychain: u32,
         index: u32,
-    ) -> Result<(Arc<model::Address>, u32)> {
-        let next_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
+    ) -> Result<(Option<Arc<model::Address>>, u32)> {
+        let mut state = self.state.write()?;
+        self._gen_address(&mut state, label, parent_key, account, keychain, index)
+    }
 
+    /// Non-locking version of `gen_address`
+    pub fn _gen_address(
+        &self,
+        state: &mut State,
+        label: Option<String>,
+        parent_key: &types::ExtendedSK,
+        account: u32,
+        keychain: u32,
+        index: u32,
+    ) -> Result<(Option<Arc<model::Address>>, u32)> {
         let extended_sk =
             parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
         let types::ExtendedPK { key, .. } =
@@ -259,32 +271,33 @@ where
                 index,
             },
         )?;
+
+        let next_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
         batch.put(keys::account_next_index(account, keychain), &next_index)?;
 
         self.db.write(batch)?;
 
-        let address = model::Address {
-            address,
-            path,
-            info,
-            index,
-            account,
-            keychain,
-            pkh,
-        };
+        // Return previous address index (always 1 address ahead)
+        let address = self._get_address(state, account, keychain, index).ok();
 
-        Ok((Arc::new(address), next_index))
+        Ok((address, next_index))
     }
 
     /// Generate an address in the external keychain (WIP-0001).
-    pub fn gen_external_address(&self, label: Option<String>) -> Result<Arc<model::Address>> {
+    pub fn gen_external_address(
+        &self,
+        label: Option<String>,
+    ) -> Result<Option<Arc<model::Address>>> {
         let mut state = self.state.write()?;
 
         self._gen_external_address(&mut state, label)
     }
 
     /// Generate an address in the internal keychain (WIP-0001).
-    pub fn gen_internal_address(&self, label: Option<String>) -> Result<Arc<model::Address>> {
+    pub fn gen_internal_address(
+        &self,
+        label: Option<String>,
+    ) -> Result<Option<Arc<model::Address>>> {
         let mut state = self.state.write()?;
 
         self._gen_internal_address(&mut state, label)
@@ -1004,7 +1017,9 @@ where
                 let change_pkh = if let Some(pkh) = first_pkh {
                     pkh
                 } else {
-                    self._gen_internal_address(state, None)?.pkh
+                    self._gen_internal_address(state, None)?
+                        .expect("Address cannot be generated if wallet was never unlocked")
+                        .pkh
                 };
 
                 outputs.push(types::VttOutput {
@@ -1030,7 +1045,7 @@ where
         &self,
         state: &mut State,
         label: Option<String>,
-    ) -> Result<Arc<model::Address>> {
+    ) -> Result<Option<Arc<model::Address>>> {
         let keychain = constants::INTERNAL_KEYCHAIN;
         let account = state.account;
         let index = state.next_internal_index;
@@ -1295,15 +1310,14 @@ where
         &self,
         state: &mut State,
         label: Option<String>,
-    ) -> Result<Arc<model::Address>> {
+    ) -> Result<Option<Arc<model::Address>>> {
         let keychain = constants::EXTERNAL_KEYCHAIN;
         let account = state.account;
         let index = state.next_external_index;
-        let parent_key = &state.keychains[keychain as usize];
+        let parent_key = state.keychains[keychain as usize].clone();
 
         let (address, next_index) =
-            self.gen_address(label, parent_key, account, keychain, index)?;
-
+            self._gen_address(state, label, &parent_key, account, keychain, index)?;
         state.next_external_index = next_index;
 
         Ok(address)
@@ -1331,7 +1345,7 @@ where
         } else {
             "".to_string()
         };
-        let public_key = ExtendedPK::from_secret_key(&self.engine, &parent_key)
+        let public_key = types::ExtendedPK::from_secret_key(&self.engine, &parent_key)
             .key
             .to_string();
 

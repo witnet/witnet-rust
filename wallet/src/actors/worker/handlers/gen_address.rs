@@ -17,7 +17,8 @@ impl Handler<GenAddress> for worker::Worker {
         GenAddress(wallet, external, label): GenAddress,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.gen_address(&wallet, external, label)
-            .map(|address| (*address).clone())
+        self.gen_address(&wallet, external, label).map(|address| {
+            (*address.expect("Address cannot be generated if wallet was never unlocked")).clone()
+        })
     }
 }
