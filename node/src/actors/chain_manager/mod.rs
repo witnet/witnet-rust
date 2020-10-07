@@ -1288,22 +1288,14 @@ impl ChainManager {
                         let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
                         let last_superblock_signed_by_bootstrap = last_superblock_signed_by_bootstrap(&chain_info.consensus_constants);
 
-                        let reputed_ars_members =
+                        let ars_members =
                             // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
                             // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                             // the bootstrap committee signs is at least epoch activity_period + collateral_age
                             if superblock_index
                                 >= last_superblock_signed_by_bootstrap
                             {
-                                let ars_members = reputation_engine.get_rep_ordered_ars_list();
-                                let reputed = reputed_ars(&ars_members, &reputation_engine);
-
-                                // In case of no reputed nodes, return all active nodes
-                                if reputed.is_empty() {
-                                    ars_members
-                                } else {
-                                    reputed
-                                }
+                                reputation_engine.get_rep_ordered_ars_list()
                             } else {
                                 chain_info
                                     .consensus_constants
@@ -1315,7 +1307,7 @@ impl ChainManager {
 
                     // Get the list of members of the ARS with reputation greater than 0
                     // the list itself is ordered by decreasing reputation
-                    let reputed_ars = ARSIdentities::new(reputed_ars_members);
+                    let ars_identities = ARSIdentities::new(ars_members);
 
                     // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
                     let committee_size = current_committee_size_requirement(
@@ -1331,7 +1323,7 @@ impl ChainManager {
 
                     let superblock = act.chain_state.superblock_state.build_superblock(
                         &block_headers,
-                        reputed_ars,
+                        ars_identities,
                         committee_size,
                         superblock_index,
                         last_hash,
@@ -2295,22 +2287,6 @@ fn current_committee_size_requirement(
     }
 }
 
-/// Get the identities of all ARS members with non-neutral reputation
-pub fn reputed_ars(
-    v: &[PublicKeyHash],
-    reputation_engine: &ReputationEngine,
-) -> Vec<PublicKeyHash> {
-    v.iter()
-        .filter_map(|pkh| {
-            if reputation_engine.trs().get(pkh).0 > 0 {
-                Some(*pkh)
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
 /// When the TransactionsPool is full, inserting a transaction can result in removing other
 /// transactions. This will log the removed transactions.
 pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_tx_hash: Hash) {
@@ -2760,72 +2736,5 @@ mod tests {
                 94, 92, 92, 92, 92, 92, 90, 90, 90, 90, 90, 88
             ]
         );
-    }
-
-    #[test]
-    fn test_reputed_ars() {
-        // Set a reputation engine with 6 members of the ARS
-        let mut rep_engine = ReputationEngine::new(1000);
-        let mut ids = vec![];
-        for i in 0..6 {
-            ids.push(PublicKeyHash::from_bytes(&[i; 20]).unwrap());
-        }
-        rep_engine.ars_mut().push_activity(ids.clone());
-
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[0], Reputation(79))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[1], Reputation(9))])
-            .unwrap();
-
-        // The reputed ars should be the vector of the first two members
-        // (with reputation greater than 0)
-        let rep_ars = reputed_ars(&rep_engine.get_rep_ordered_ars_list(), &rep_engine);
-        assert_eq!(rep_ars.len(), 2);
-        assert_eq!(rep_ars, [ids[0], ids[1]]);
-    }
-
-    #[test]
-    fn test_reputed_ars_2() {
-        let mut rep_engine = ReputationEngine::new(1000);
-        let mut ids = vec![];
-        for i in 0..6 {
-            ids.push(PublicKeyHash::from_bytes(&[i; 20]).unwrap());
-        }
-        rep_engine.ars_mut().push_activity(ids.clone());
-
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[0], Reputation(7))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[1], Reputation(6))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[2], Reputation(5))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[3], Reputation(4))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[4], Reputation(3))])
-            .unwrap();
-        rep_engine
-            .trs_mut()
-            .gain(Alpha(10), vec![(ids[5], Reputation(2))])
-            .unwrap();
-
-        // The size of the reputed_ars list should equal that of the ARS as all
-        // the nodes in the example ARS have reputation greater than 0
-        let rep_ars = reputed_ars(&rep_engine.get_rep_ordered_ars_list(), &rep_engine);
-        assert_eq!(rep_ars.len(), 6);
-        assert_eq!(rep_ars, [ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]]);
     }
 }
