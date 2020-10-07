@@ -142,18 +142,32 @@ where
             });
         let last_confirmed = last_sync;
 
-        let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
+        let external_key: types::ExtendedSK =
+            db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
             account,
             constants::EXTERNAL_KEYCHAIN,
         ))?;
-        let internal_key = db.get(&keys::account_key(account, constants::INTERNAL_KEYCHAIN))?;
+        let internal_key: types::ExtendedSK =
+            db.get(&keys::account_key(account, constants::INTERNAL_KEYCHAIN))?;
         let next_internal_index = db.get_or_default(&keys::account_next_index(
             account,
             constants::INTERNAL_KEYCHAIN,
         ))?;
-        let keychains = [external_key, internal_key];
+        let keychains = [external_key.clone(), internal_key.clone()];
         let epoch_constants = params.epoch_constants;
+
+        // Check if first time unlocking wallet
+        let (next_external_index, external_init) = if next_external_index == 0u32 {
+            (1, true)
+        } else {
+            (next_external_index, false)
+        };
+        let (next_internal_index, internal_init) = if next_internal_index == 0u32 {
+            (1, true)
+        } else {
+            (next_internal_index, false)
+        };
 
         let state = RwLock::new(State {
             name,
@@ -178,14 +192,35 @@ where
             db_movements_to_update: Default::default(),
         });
 
-        Ok(Self {
+        let wallet = Self {
             id,
             session_id,
             db,
             params,
             engine,
             state,
-        })
+        };
+
+        if external_init {
+            wallet.gen_address(
+                None,
+                &external_key,
+                account,
+                constants::EXTERNAL_KEYCHAIN,
+                0,
+            )?;
+        }
+        if internal_init {
+            wallet.gen_address(
+                None,
+                &internal_key,
+                account,
+                constants::INTERNAL_KEYCHAIN,
+                0,
+            )?;
+        }
+
+        Ok(wallet)
     }
 
     /// Return all non-sensitive data regarding the wallet.
