@@ -947,6 +947,9 @@ pub struct Wallet {
     pub session_expires_in: u64,
     /// Duration in milliseconds after which outgoing request should timeout.
     pub requests_timeout: u64,
+    /// Length of the batch of transient addresses to be used for synchronization purposes
+    /// (e.g. for re-importing a wallet with seed words).
+    pub sync_address_batch_length: u16,
 }
 
 impl Wallet {
@@ -990,6 +993,10 @@ impl Wallet {
                 .id_hash_function
                 .clone()
                 .unwrap_or_else(|| defaults.wallet_id_hash_function()),
+            sync_address_batch_length: config
+                .sync_address_batch_length
+                .clone()
+                .unwrap_or_else(|| defaults.wallet_sync_address_batch_length()),
         }
     }
 
@@ -1011,6 +1018,7 @@ impl Wallet {
             id_hash_function: Some(self.id_hash_function.clone()),
             session_expires_in: Some(self.session_expires_in),
             requests_timeout: Some(self.requests_timeout),
+            sync_address_batch_length: Some(self.sync_address_batch_length),
         }
     }
 }
