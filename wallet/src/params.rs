@@ -25,6 +25,7 @@ pub struct Params {
     pub genesis_hash: Hash,
     pub genesis_prev_hash: Hash,
     pub superblock_period: u16,
+    pub sync_address_batch_length: u16,
 }
 
 impl Default for Params {
@@ -43,6 +44,7 @@ impl Default for Params {
             genesis_hash: Hash::default(),
             genesis_prev_hash: Hash::default(),
             superblock_period: 10,
+            sync_address_batch_length: 10,
         }
     }
 }

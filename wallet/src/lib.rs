@@ -75,6 +75,9 @@ pub fn run(conf: Config) -> Result<(), Error> {
     // How many blocks to ask a Witnet node for when synchronizing
     let node_sync_batch_size = conf.wallet.node_sync_batch_size;
 
+    // Size of the address synchronization batch
+    let sync_address_batch_length = conf.wallet.sync_address_batch_length;
+
     let system = System::new("witnet-wallet");
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
@@ -123,6 +126,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         genesis_hash,
         genesis_prev_hash,
         superblock_period,
+        sync_address_batch_length,
     };
 
     let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
