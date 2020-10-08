@@ -198,6 +198,12 @@ pub struct ConsensusConstants {
 
     /// Step by which the committee should be reduced after superblock_agreement_decreasing_period
     pub superblock_committee_decreasing_step: u32,
+
+    /// Initial block reward
+    pub initial_block_reward: u64,
+
+    /// Halving period
+    pub halving_period: u32,
 }
 
 impl ConsensusConstants {

@@ -127,6 +127,22 @@ pub trait Defaults {
         5
     }
 
+    /// Default initial block reward
+    fn consensus_constants_initial_block_reward(&self) -> u64 {
+        // 250 wits
+        250 * 1_000_000_000
+    }
+
+    /// Default halving period
+    fn consensus_constants_halving_period(&self) -> u32 {
+        // 3.5M epochs * (45 secs/epoch) ~> 5 years
+        // This will be the first timestamp with halved reward:
+        // 3_500_000 * 45 + 1_602_666_000 = 1_760_166_000
+        // 2025-10-11 @ 7:00am (UTC)
+
+        3_500_000
+    }
+
     /// Default Hash value for the auxiliary bootstrap block
     fn consensus_constants_bootstrap_hash(&self) -> Hash {
         // FIXME(#1615) Decide an appropriate default value for Mainnet

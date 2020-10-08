@@ -42,6 +42,8 @@ fn chain_state() {
             superblock_signing_committee_size: 100,
             superblock_committee_decreasing_period: 100,
             superblock_committee_decreasing_step: 5,
+            initial_block_reward: 250 * 1_000_000_000,
+            halving_period: 3_500_000,
         },
         highest_block_checkpoint: CheckpointBeacon {
             checkpoint: 0,

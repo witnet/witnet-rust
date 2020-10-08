@@ -34,6 +34,8 @@ use witnet_rad::{
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
+const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
+const HALVING_PERIOD: u32 = 3_500_000;
 
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
@@ -106,7 +108,7 @@ fn build_utxo_set_with_mint<T: Into<Option<UnspentOutputsPool>>>(
 fn mint_mismatched_reward() {
     let epoch = 0;
     let total_fees = 100;
-    let reward = block_reward(epoch);
+    let reward = block_reward(epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD);
     // Build mint without the block reward
     let output = ValueTransferOutput {
         pkh: Default::default(),
@@ -114,7 +116,13 @@ fn mint_mismatched_reward() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let x = validate_mint_transaction(
+        &mint_tx,
+        total_fees,
+        epoch,
+        INITIAL_BLOCK_REWARD,
+        HALVING_PERIOD,
+    );
     // Error: block reward mismatch
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -129,7 +137,7 @@ fn mint_mismatched_reward() {
 #[test]
 fn mint_invalid_epoch() {
     let epoch = 0;
-    let reward = block_reward(epoch);
+    let reward = block_reward(epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD);
     let total_fees = 100;
     let output = ValueTransferOutput {
         pkh: Default::default(),
@@ -138,7 +146,13 @@ fn mint_invalid_epoch() {
     };
     // Build a mint for the next epoch
     let mint_tx = MintTransaction::new(epoch + 1, vec![output]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let x = validate_mint_transaction(
+        &mint_tx,
+        total_fees,
+        epoch,
+        INITIAL_BLOCK_REWARD,
+        HALVING_PERIOD,
+    );
     // Error: invalid mint epoch
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -152,7 +166,7 @@ fn mint_invalid_epoch() {
 #[test]
 fn mint_multiple_split() {
     let epoch = 0;
-    let reward = block_reward(epoch);
+    let reward = block_reward(epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD);
     let total_fees = 100;
     let output1 = ValueTransferOutput {
         pkh: Default::default(),
@@ -170,7 +184,13 @@ fn mint_multiple_split() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output1, output2, output3]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let x = validate_mint_transaction(
+        &mint_tx,
+        total_fees,
+        epoch,
+        INITIAL_BLOCK_REWARD,
+        HALVING_PERIOD,
+    );
     // Error: Mint outputs smaller than collateral minimum
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -181,7 +201,7 @@ fn mint_multiple_split() {
 #[test]
 fn mint_split_valid() {
     let epoch = 0;
-    let reward = block_reward(epoch);
+    let reward = block_reward(epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD);
     let total_fees = 100;
     let output1 = ValueTransferOutput {
         pkh: Default::default(),
@@ -194,14 +214,20 @@ fn mint_split_valid() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let x = validate_mint_transaction(
+        &mint_tx,
+        total_fees,
+        epoch,
+        INITIAL_BLOCK_REWARD,
+        HALVING_PERIOD,
+    );
     x.unwrap();
 }
 
 #[test]
 fn mint_valid() {
     let epoch = 0;
-    let reward = block_reward(epoch);
+    let reward = block_reward(epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD);
     let total_fees = 100;
     let output = ValueTransferOutput {
         pkh: Default::default(),
@@ -209,7 +235,13 @@ fn mint_valid() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output]);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let x = validate_mint_transaction(
+        &mint_tx,
+        total_fees,
+        epoch,
+        INITIAL_BLOCK_REWARD,
+        HALVING_PERIOD,
+    );
     x.unwrap();
 }
 
@@ -5439,6 +5471,8 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
+        initial_block_reward: INITIAL_BLOCK_REWARD,
+        halving_period: HALVING_PERIOD,
     };
 
     // Insert output to utxo
@@ -5480,7 +5514,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         vec![ValueTransferOutput {
             time_lock: 0,
             pkh: my_pkh,
-            value: block_reward(current_epoch),
+            value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
         }],
     );
 
@@ -5702,6 +5736,8 @@ fn block_difficult_proof() {
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
+        initial_block_reward: INITIAL_BLOCK_REWARD,
+        halving_period: HALVING_PERIOD,
     };
 
     // Insert output to utxo
@@ -5744,7 +5780,7 @@ fn block_difficult_proof() {
         vec![ValueTransferOutput {
             time_lock: 0,
             pkh: my_pkh,
-            value: block_reward(current_epoch),
+            value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
         }],
     );
 
@@ -6296,6 +6332,8 @@ fn test_blocks_with_limits(
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
+        initial_block_reward: INITIAL_BLOCK_REWARD,
+        halving_period: HALVING_PERIOD,
     };
 
     // Insert output to utxo
@@ -6326,7 +6364,7 @@ fn test_blocks_with_limits(
             vec![ValueTransferOutput {
                 time_lock: 0,
                 pkh: my_pkh,
-                value: block_reward(current_epoch) + fees,
+                value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD) + fees,
             }],
         );
 
@@ -6861,6 +6899,8 @@ fn genesis_block_after_not_bootstrap_hash() {
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
+        initial_block_reward: INITIAL_BLOCK_REWARD,
+        halving_period: HALVING_PERIOD,
     };
     let mut signatures_to_verify = vec![];
 
@@ -6937,6 +6977,8 @@ fn genesis_block_value_overflow() {
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
+        initial_block_reward: INITIAL_BLOCK_REWARD,
+        halving_period: HALVING_PERIOD,
     };
     let vrf_input = CheckpointVRF::default();
     let mut signatures_to_verify = vec![];
@@ -6971,7 +7013,8 @@ fn genesis_block_value_overflow() {
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::GenesisValueOverflow {
-            max_total_value: u64::max_value() - total_block_reward(),
+            max_total_value: u64::max_value()
+                - total_block_reward(INITIAL_BLOCK_REWARD, HALVING_PERIOD),
         },
     );
 }
@@ -7018,6 +7061,8 @@ fn genesis_block_full_validate() {
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
+        initial_block_reward: INITIAL_BLOCK_REWARD,
+        halving_period: HALVING_PERIOD,
     };
 
     // Validate block
@@ -7080,6 +7125,8 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             superblock_signing_committee_size: 100,
             superblock_committee_decreasing_period: 100,
             superblock_committee_decreasing_step: 5,
+            initial_block_reward: INITIAL_BLOCK_REWARD,
+            halving_period: HALVING_PERIOD,
         };
         let dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -7104,7 +7151,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             vec![ValueTransferOutput {
                 time_lock: 0,
                 pkh: my_pkh,
-                value: block_reward(current_epoch),
+                value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
             }],
         );
 
@@ -7229,7 +7276,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         mint_vto = ValueTransferOutput {
             time_lock: 0,
             pkh: my_pkh,
-            value: block_reward(current_epoch),
+            value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
         };
         txns.mint = MintTransaction::new(current_epoch, vec![mint_vto.clone()]);
         mint_tx_hash = txns.mint.hash();
@@ -7264,6 +7311,8 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             superblock_signing_committee_size: 100,
             superblock_committee_decreasing_period: 100,
             superblock_committee_decreasing_step: 5,
+            initial_block_reward: INITIAL_BLOCK_REWARD,
+            halving_period: HALVING_PERIOD,
         };
 
         let (inputs, outputs) = (vec![vti], vec![change_vto.clone()]);

@@ -102,6 +102,8 @@ impl ChainManager {
         let mining_rf = chain_info.consensus_constants.mining_replication_factor;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
         let initial_difficulty = chain_info.consensus_constants.initial_difficulty;
+        let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
+        let halving_period = chain_info.consensus_constants.halving_period;
         let epochs_with_initial_difficulty = chain_info
             .consensus_constants
             .epochs_with_initial_difficulty;
@@ -205,6 +207,8 @@ impl ChainManager {
                     bn256_public_key,
                     act.external_address,
                     act.external_percentage,
+                    initial_block_reward,
+                    halving_period,
                 );
 
                 // Sign the block hash
@@ -702,6 +706,8 @@ fn build_block(
     bn256_public_key: Option<Bn256PublicKey>,
     external_address: Option<PublicKeyHash>,
     external_percentage: u8,
+    initial_block_reward: u64,
+    halving_period: u32,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -830,7 +836,7 @@ fn build_block(
     transaction_fees += reveals_fees;
 
     // Include Mint Transaction by miner
-    let reward = block_reward(epoch) + transaction_fees;
+    let reward = block_reward(epoch, initial_block_reward, halving_period) + transaction_fees;
     let mint = MintTransaction::with_external_address(
         epoch,
         reward,
@@ -968,6 +974,9 @@ mod tests {
         PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
     };
 
+    const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
+    const HALVING_PERIOD: u32 = 3_500_000;
+
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
     use witnet_protected::Protected;
@@ -1014,6 +1023,8 @@ mod tests {
             None,
             None,
             0,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
         );
         let block = Block {
             block_header,
@@ -1083,6 +1094,8 @@ mod tests {
             None,
             None,
             0,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
         );
 
         // Create a KeyedSignature
@@ -1203,6 +1216,8 @@ mod tests {
             None,
             None,
             0,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
         );
         let block = Block {
             block_header,
@@ -1299,6 +1314,8 @@ mod tests {
             None,
             None,
             0,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
         );
         let block = Block {
             block_header,
@@ -1390,6 +1407,8 @@ mod tests {
             None,
             None,
             0,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
         );
         let block = Block {
             block_header,
@@ -1483,6 +1502,8 @@ mod tests {
             None,
             None,
             0,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
         );
         let block = Block {
             block_header,

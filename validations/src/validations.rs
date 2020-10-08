@@ -252,6 +252,8 @@ pub fn validate_mint_transaction(
     mint_tx: &MintTransaction,
     total_fees: u64,
     block_epoch: Epoch,
+    initial_block_reward: u64,
+    halving_period: u32,
 ) -> Result<(), failure::Error> {
     // Mint epoch must be equal to block epoch
     if mint_tx.epoch != block_epoch {
@@ -263,7 +265,7 @@ pub fn validate_mint_transaction(
     }
 
     let mint_value = transaction_outputs_sum(&mint_tx.outputs)?;
-    let block_reward_value = block_reward(mint_tx.epoch);
+    let block_reward_value = block_reward(mint_tx.epoch, initial_block_reward, halving_period);
     // Mint value must be equal to block_reward + transaction fees
     if mint_value != total_fees + block_reward_value {
         return Err(BlockError::MismatchedMintValue {
@@ -1495,7 +1497,11 @@ pub fn validate_block_transactions(
     // When validating genesis block, keep track of total value created
     // The value created in the genesis block cannot be greater than 2^64 - the total block reward,
     // So the total amount is always representable by a u64
-    let max_total_value_genesis = u64::max_value() - total_block_reward();
+    let max_total_value_genesis = u64::max_value()
+        - total_block_reward(
+            consensus_constants.initial_block_reward,
+            consensus_constants.halving_period,
+        );
     let mut genesis_value_available = max_total_value_genesis;
 
     // TODO: replace for loop with a try_fold
@@ -1701,7 +1707,13 @@ pub fn validate_block_transactions(
 
     if !is_genesis {
         // Validate mint
-        validate_mint_transaction(&block.txns.mint, total_fee, block_beacon.checkpoint)?;
+        validate_mint_transaction(
+            &block.txns.mint,
+            total_fee,
+            block_beacon.checkpoint,
+            consensus_constants.initial_block_reward,
+            consensus_constants.halving_period,
+        )?;
 
         // Insert mint in utxo
         update_utxo_diff(
@@ -2074,14 +2086,11 @@ impl fmt::Display for Wit {
     }
 }
 
-const INITIAL_BLOCK_REWARD: u64 = 250 * NANOWITS_PER_WIT;
-const HALVING_PERIOD: Epoch = 1_750_000;
-
 /// Calculate the block mining reward.
 /// Returns nanowits.
-pub fn block_reward(epoch: Epoch) -> u64 {
-    let initial_reward: u64 = INITIAL_BLOCK_REWARD;
-    let halvings = epoch / HALVING_PERIOD;
+pub fn block_reward(epoch: Epoch, initial_block_reward: u64, halving_period: u32) -> u64 {
+    let initial_reward: u64 = initial_block_reward;
+    let halvings = epoch / halving_period;
     if halvings < 64 {
         initial_reward >> halvings
     } else {
@@ -2090,11 +2099,14 @@ pub fn block_reward(epoch: Epoch) -> u64 {
 }
 
 /// Calculate the total amount of wits that will be rewarded to miners.
-pub fn total_block_reward() -> u64 {
-    let mut total_reward = 0;
-    let mut base_reward = INITIAL_BLOCK_REWARD;
+pub fn total_block_reward(initial_block_reward: u64, halving_period: u32) -> u64 {
+    let mut total_reward = 0u64;
+    let mut base_reward = initial_block_reward;
     while base_reward != 0 {
-        total_reward += base_reward * u64::from(HALVING_PERIOD);
+        let new_reward = base_reward
+            .checked_mul(u64::from(halving_period))
+            .expect("overflow");
+        total_reward = total_reward.checked_add(new_reward).expect("overflow");
         base_reward >>= 1;
     }
 
@@ -2246,6 +2258,9 @@ mod tests {
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
     use super::*;
+
+    const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
+    const HALVING_PERIOD: u32 = 3_500_000;
 
     #[test]
     fn test_compare_candidate_same_section() {
@@ -2430,20 +2445,21 @@ mod tests {
     fn test_block_reward() {
         // 1 wit = 10^9 nanowits, block_reward returns nanowits
         let wit = 1_000_000_000;
+        let reward = |epoch| block_reward(epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD);
 
-        assert_eq!(block_reward(0), 250 * wit);
-        assert_eq!(block_reward(1), 250 * wit);
-        assert_eq!(block_reward(1_749_999), 250 * wit);
-        assert_eq!(block_reward(1_750_000), 125 * wit);
-        assert_eq!(block_reward(3_499_999), 125 * wit);
-        assert_eq!(block_reward(3_500_000), (62.5 * wit as f64).floor() as u64);
-        assert_eq!(block_reward(1_750_000 * 36), 3);
-        assert_eq!(block_reward(1_750_000 * 37), 1);
-        assert_eq!(block_reward(1_750_000 * 38), 0);
-        assert_eq!(block_reward(1_750_000 * 63), 0);
-        assert_eq!(block_reward(1_750_000 * 64), 0);
-        assert_eq!(block_reward(1_750_000 * 65), 0);
-        assert_eq!(block_reward(1_750_000 * 100), 0);
+        assert_eq!(reward(0), 250 * wit);
+        assert_eq!(reward(1), 250 * wit);
+        assert_eq!(reward(3_500_000 - 1), 250 * wit);
+        assert_eq!(reward(3_500_000), 125 * wit);
+        assert_eq!(reward((3_500_000 * 2) - 1), 125 * wit);
+        assert_eq!(reward(3_500_000 * 2), (62.5 * wit as f64).floor() as u64);
+        assert_eq!(reward(3_500_000 * 36), 3);
+        assert_eq!(reward(3_500_000 * 37), 1);
+        assert_eq!(reward(3_500_000 * 38), 0);
+        assert_eq!(reward(3_500_000 * 63), 0);
+        assert_eq!(reward(3_500_000 * 64), 0);
+        assert_eq!(reward(3_500_000 * 65), 0);
+        assert_eq!(reward(3_500_000 * 100), 0);
     }
 
     // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable

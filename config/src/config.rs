@@ -481,6 +481,8 @@ fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusCon
         superblock_signing_committee_size: Some(c.superblock_signing_committee_size),
         superblock_committee_decreasing_period: Some(c.superblock_committee_decreasing_period),
         superblock_committee_decreasing_step: Some(c.superblock_committee_decreasing_step),
+        initial_block_reward: Some(c.initial_block_reward),
+        halving_period: Some(c.halving_period),
     }
 }
 
@@ -629,6 +631,14 @@ pub fn consensus_constants_from_partial(
             .superblock_committee_decreasing_step
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_superblock_committee_decreasing_step()),
+        initial_block_reward: config
+            .initial_block_reward
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_initial_block_reward()),
+        halving_period: config
+            .halving_period
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_halving_period()),
     }
 }
 

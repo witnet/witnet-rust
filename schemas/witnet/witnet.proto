@@ -317,6 +317,8 @@ message ConsensusConstants {
     uint32 superblock_signing_committee_size = 21;
     uint32 superblock_committee_decreasing_period = 22;
     uint32 superblock_committee_decreasing_step = 23;
+    uint64 initial_block_reward = 24;
+    uint32 halving_period = 25;
 }
 
 message VrfProof {
