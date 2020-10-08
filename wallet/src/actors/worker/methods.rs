@@ -868,35 +868,46 @@ impl Worker {
             notification.consolidated_block_hashes
         );
 
-        let consolidated = wallet.handle_superblock(&notification.consolidated_block_hashes);
+        let consolidated = wallet
+            .handle_superblock(&notification.consolidated_block_hashes)
+            .map_err(|error| error.into());
 
-        if consolidated.is_err() {
-            log::error!(
-                "Error while persisting blocks confirmed by superblock #{}... trying to re-sync with node",
-                notification.superblock.index,
-            );
+        match consolidated {
+            Ok(_) => {
+                // Notify consolidation of the persisted blocks
+                self.notify_client(
+                    &wallet,
+                    sink,
+                    Some(vec![types::Event::BlocksConsolidate(
+                        notification.consolidated_block_hashes,
+                    )]),
+                )
+                .ok();
+            }
+            Err(Error::StillSyncing(_e)) => {
+                log::warn!(
+                    "Superblock #{} notification received. Ignoring superblock because the wallet is still synchronizing...",
+                    notification.superblock.index,
+                );
+            }
+            Err(_) => {
+                log::error!(
+                    "Error while persisting blocks confirmed by superblock #{}... trying to re-sync with node",
+                    notification.superblock.index,
+                );
 
-            // Notify orphaning of the blocks that could not be persisted
-            self.notify_client(
-                &wallet,
-                sink.clone(),
-                Some(vec![types::Event::BlocksOrphan(
-                    notification.consolidated_block_hashes,
-                )]),
-            )
-            .ok();
+                // Notify orphaning of the blocks that could not be persisted
+                self.notify_client(
+                    &wallet,
+                    sink.clone(),
+                    Some(vec![types::Event::BlocksOrphan(
+                        notification.consolidated_block_hashes,
+                    )]),
+                )
+                .ok();
 
-            self.sync(&wallet.id, wallet.clone(), sink)?
-        } else {
-            // Notify consolidation of the persisted blocks
-            self.notify_client(
-                &wallet,
-                sink,
-                Some(vec![types::Event::BlocksConsolidate(
-                    notification.consolidated_block_hashes,
-                )]),
-            )
-            .ok();
+                self.sync(&wallet.id, wallet.clone(), sink)?
+            }
         }
 
         Ok(())
