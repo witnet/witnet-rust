@@ -28,13 +28,16 @@ fn test_wallet_public_data() {
 fn test_gen_external_address() {
     let (wallet, _db) = factories::wallet(None);
     let label = "address label".to_string();
-    let address = wallet.gen_external_address(Some(label.clone())).unwrap();
+    let address = wallet
+        .gen_external_address(Some(label.clone()))
+        .unwrap()
+        .unwrap();
 
     assert!(address.address.starts_with("wit"));
     assert_eq!("m/3'/4919'/0'/0/0", &address.path);
     assert_eq!(Some(label), address.info.label);
 
-    let address_no_label = wallet.gen_external_address(None).unwrap();
+    let address_no_label = wallet.gen_external_address(None).unwrap().unwrap();
 
     assert_eq!(None, address_no_label.info.label);
 }
@@ -42,12 +45,12 @@ fn test_gen_external_address() {
 #[test]
 fn test_gen_external_address_creates_different_addresses() {
     let (wallet, _db) = factories::wallet(None);
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
 
     assert_eq!("m/3'/4919'/0'/0/0", &address.path);
     assert_eq!(0, address.index);
 
-    let new_address = wallet.gen_external_address(None).unwrap();
+    let new_address = wallet.gen_external_address(None).unwrap().unwrap();
 
     assert_eq!("m/3'/4919'/0'/0/1", &new_address.path);
     assert_eq!(1, new_address.index);
@@ -62,7 +65,7 @@ fn test_gen_external_address_stores_next_address_index_in_db() {
     wallet.gen_external_address(None).unwrap();
 
     assert_eq!(
-        1,
+        2,
         db.get::<_, u32>(&keys::account_next_index(account, keychain))
             .unwrap()
     );
@@ -70,7 +73,7 @@ fn test_gen_external_address_stores_next_address_index_in_db() {
     wallet.gen_external_address(None).unwrap();
 
     assert_eq!(
-        2,
+        3,
         db.get::<_, u32>(&keys::account_next_index(account, keychain))
             .unwrap()
     );
@@ -83,7 +86,10 @@ fn test_gen_external_address_saves_details_in_db() {
     let keychain = constants::EXTERNAL_KEYCHAIN;
     let index = 0;
     let label = "address label".to_string();
-    let address = wallet.gen_external_address(Some(label.clone())).unwrap();
+    let address = wallet
+        .gen_external_address(Some(label.clone()))
+        .unwrap()
+        .unwrap();
 
     assert_eq!(
         address.address,
@@ -117,7 +123,7 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
     let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::EXTERNAL_KEYCHAIN;
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
     let pkh = &address.pkh;
 
     let path: model::Path = db.get(&keys::pkh(pkh)).unwrap();
@@ -131,18 +137,18 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
 fn test_list_external_addresses() {
     let (wallet, _db) = factories::wallet(None);
 
-    let address1 = wallet.gen_external_address(None).unwrap();
-    let address2 = wallet.gen_external_address(None).unwrap();
-    let address3 = wallet.gen_external_address(None).unwrap();
+    let address1 = wallet.gen_external_address(None).unwrap().unwrap();
+    let address2 = wallet.gen_external_address(None).unwrap().unwrap();
+    let address3 = wallet.gen_external_address(None).unwrap().unwrap();
 
     let offset = 0;
     let limit = 10;
     let addresses = wallet.external_addresses(offset, limit).unwrap();
 
-    assert_eq!(3, addresses.total);
-    assert_eq!(*address3, addresses[0]);
-    assert_eq!(*address2, addresses[1]);
-    assert_eq!(*address1, addresses[2]);
+    assert_eq!(4, addresses.total);
+    assert_eq!(*address3, addresses[1]);
+    assert_eq!(*address2, addresses[2]);
+    assert_eq!(*address1, addresses[3]);
 }
 
 #[test]
@@ -150,16 +156,16 @@ fn test_list_external_addresses_paginated() {
     let (wallet, _db) = factories::wallet(None);
 
     let _ = wallet.gen_external_address(None).unwrap();
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
     let _ = wallet.gen_external_address(None).unwrap();
 
     let offset = 1;
-    let limit = 1;
+    let limit = 2;
     let addresses = wallet.external_addresses(offset, limit).unwrap();
 
-    assert_eq!(3, addresses.total);
-    assert_eq!(1, addresses.len());
-    assert_eq!(*address, addresses[0]);
+    assert_eq!(4, addresses.total);
+    assert_eq!(2, addresses.len());
+    assert_eq!(*address, addresses[1]);
 }
 
 #[test]
@@ -171,9 +177,9 @@ fn test_get_address() {
 
     let res = wallet.get_address(account, keychain, index);
 
-    assert!(res.is_err());
+    assert!(res.is_ok());
 
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
     let res = wallet.get_address(account, keychain, index);
 
     assert!(res.is_ok());
@@ -184,13 +190,16 @@ fn test_get_address() {
 fn test_gen_internal_address() {
     let (wallet, _db) = factories::wallet(None);
     let label = "address label".to_string();
-    let address = wallet.gen_internal_address(Some(label.clone())).unwrap();
+    let address = wallet
+        .gen_internal_address(Some(label.clone()))
+        .unwrap()
+        .unwrap();
 
     assert!(address.address.starts_with("wit"));
     assert_eq!("m/3'/4919'/0'/1/0", &address.path);
     assert_eq!(Some(label), address.info.label);
 
-    let address_no_label = wallet.gen_internal_address(None).unwrap();
+    let address_no_label = wallet.gen_internal_address(None).unwrap().unwrap();
 
     assert_eq!(None, address_no_label.info.label);
 }
@@ -198,12 +207,12 @@ fn test_gen_internal_address() {
 #[test]
 fn test_gen_internal_address_creates_different_addresses() {
     let (wallet, _db) = factories::wallet(None);
-    let address = wallet.gen_internal_address(None).unwrap();
+    let address = wallet.gen_internal_address(None).unwrap().unwrap();
 
     assert_eq!("m/3'/4919'/0'/1/0", &address.path);
     assert_eq!(0, address.index);
 
-    let new_address = wallet.gen_internal_address(None).unwrap();
+    let new_address = wallet.gen_internal_address(None).unwrap().unwrap();
 
     assert_eq!("m/3'/4919'/0'/1/1", &new_address.path);
     assert_eq!(1, new_address.index);
@@ -217,7 +226,7 @@ fn test_gen_internal_address_stores_next_address_index_in_db() {
     wallet.gen_internal_address(None).unwrap();
 
     assert_eq!(
-        1,
+        2,
         db.get::<_, u32>(&keys::account_next_index(account, keychain,))
             .unwrap()
     );
@@ -225,7 +234,7 @@ fn test_gen_internal_address_stores_next_address_index_in_db() {
     wallet.gen_internal_address(None).unwrap();
 
     assert_eq!(
-        2,
+        3,
         db.get::<_, u32>(&keys::account_next_index(account, keychain))
             .unwrap()
     );
@@ -238,7 +247,10 @@ fn test_gen_internal_address_saves_details_in_db() {
     let keychain = constants::INTERNAL_KEYCHAIN;
     let index = 0;
     let label = "address label".to_string();
-    let address = wallet.gen_internal_address(Some(label.clone())).unwrap();
+    let address = wallet
+        .gen_internal_address(Some(label.clone()))
+        .unwrap()
+        .unwrap();
 
     assert_eq!(
         address.address,
@@ -269,7 +281,7 @@ fn test_gen_internal_address_associates_pkh_to_account_in_db() {
     let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::INTERNAL_KEYCHAIN;
-    let address = wallet.gen_internal_address(None).unwrap();
+    let address = wallet.gen_internal_address(None).unwrap().unwrap();
     let pkh = &address.pkh;
 
     let path: model::Path = db.get(&keys::pkh(pkh)).unwrap();
@@ -670,7 +682,7 @@ fn test_index_transaction_output_affects_balance() {
     );
 
     let value = 1u64;
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
     let block = factories::BlockInfo::default().create();
     let inputs = vec![factories::Input::default().create()];
     let outputs = vec![factories::VttOutput::default()
@@ -696,7 +708,7 @@ fn test_index_transaction_input_affects_balance() {
             .unwrap()
     );
 
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
 
     let a_block = factories::BlockInfo::default().create();
 
@@ -743,7 +755,7 @@ fn test_index_transaction_does_not_duplicate_transactions() {
     );
 
     let value = 1u64;
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
     let block = factories::BlockInfo::default().create();
     let inputs = vec![factories::Input::default().create()];
     let outputs = vec![factories::VttOutput::default()
@@ -770,7 +782,7 @@ fn test_index_transaction_does_not_duplicate_transactions() {
 fn test_index_transaction_errors_if_balance_overflow() {
     let (wallet, _db) = factories::wallet(None);
 
-    let address = wallet.gen_external_address(None).unwrap();
+    let address = wallet.gen_external_address(None).unwrap().unwrap();
     let block = factories::BlockInfo::default().create();
     let inputs = vec![factories::Input::default().create()];
     let outputs = vec![
@@ -800,7 +812,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
     let (wallet, db) = factories::wallet(None);
 
     let a_block = factories::BlockInfo::default().create();
-    let our_address = wallet.gen_external_address(None).unwrap();
+    let our_address = wallet.gen_external_address(None).unwrap().unwrap();
     let their_pkh = factories::pkh();
 
     // index transaction to receive funds
@@ -899,7 +911,7 @@ fn test_get_transaction() {
     let (wallet, _db) = factories::wallet(None);
 
     let a_block = factories::BlockInfo::default().create();
-    let our_address = wallet.gen_external_address(None).unwrap();
+    let our_address = wallet.gen_external_address(None).unwrap().unwrap();
     let their_pkh = factories::pkh();
 
     assert!(wallet.get_transaction(0, 0).is_err());
@@ -959,7 +971,7 @@ fn test_get_transactions() {
     assert_eq!(wallet.transactions(1, 1).unwrap(), no_transactions);
 
     let a_block = factories::BlockInfo::default().create();
-    let our_address = wallet.gen_external_address(None).unwrap();
+    let our_address = wallet.gen_external_address(None).unwrap().unwrap();
     let their_pkh = factories::pkh();
     // index transaction to receive funds
     wallet
@@ -1025,7 +1037,7 @@ fn test_create_vtt_with_locked_balance() {
     let (wallet, _db) = factories::wallet(None);
 
     let a_block = factories::BlockInfo::default().create();
-    let our_address = wallet.gen_external_address(None).unwrap();
+    let our_address = wallet.gen_external_address(None).unwrap().unwrap();
     let their_pkh = factories::pkh();
 
     assert!(wallet.get_transaction(0, 0).is_err());
