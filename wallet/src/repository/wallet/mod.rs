@@ -285,7 +285,7 @@ where
         .to_string();
         let info = model::AddressInfo {
             db_key: keys::address_info(account, keychain, index),
-            label,
+            label: None,
             received_payments: vec![],
             received_amount: 0,
             first_payment_date: None,
@@ -298,7 +298,7 @@ where
         batch.put(keys::address(account, keychain, index), &address)?;
         batch.put(keys::address_path(account, keychain, index), &path)?;
         batch.put(keys::address_pkh(account, keychain, index), &pkh)?;
-        batch.put(&info.db_key, &info)?;
+        batch.put(keys::address_info(account, keychain, index), &info)?;
         batch.put(
             keys::pkh(&pkh),
             &model::Path {
@@ -314,7 +314,19 @@ where
         self.db.write(batch)?;
 
         // Return previous address index (always 1 address ahead)
-        let address = self._get_address(state, account, keychain, index).ok();
+        let address = if index != 0 {
+            let mut new_info: model::AddressInfo =
+                self.db
+                    .get(&keys::address_info(account, keychain, index - 1))?;
+            new_info.label = label;
+            self.db
+                .put(keys::address_info(account, keychain, index - 1), &new_info)?;
+            let db_address = self._get_address(state, account, keychain, index - 1)?;
+
+            Some(db_address)
+        } else {
+            None
+        };
 
         Ok((address, next_index))
     }
@@ -1054,7 +1066,12 @@ where
                     pkh
                 } else {
                     self._gen_internal_address(state, None)?
-                        .expect("Address cannot be generated if wallet was never unlocked")
+                        .ok_or_else(|| {
+                            Error::AddressGeneration(
+                                "Address cannot be generated if wallet was never unlocked"
+                                    .to_string(),
+                            )
+                        })?
                         .pkh
                 };
 
@@ -1085,10 +1102,10 @@ where
         let keychain = constants::INTERNAL_KEYCHAIN;
         let account = state.account;
         let index = state.next_internal_index;
-        let parent_key = &state.keychains[keychain as usize];
+        let parent_key = &state.keychains[keychain as usize].clone();
 
         let (address, next_index) =
-            self.gen_address(label, parent_key, account, keychain, index)?;
+            self._gen_address(state, label, parent_key, account, keychain, index)?;
 
         state.next_internal_index = next_index;
 

@@ -34,6 +34,8 @@ pub enum Error {
     TransactionTypeNotSupported,
     #[fail(display = "epoch calculation error {}", _0)]
     EpochCalculation(#[cause] witnet_data_structures::error::EpochCalculationError),
+    #[fail(display = "address generation failed: {}", _0)]
+    AddressGeneration(String),
 }
 
 #[derive(Debug, Fail)]

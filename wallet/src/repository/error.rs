@@ -41,6 +41,8 @@ pub enum Error {
     BlockConsolidation(String),
     #[fail(display = "hash parsing failed: {}", _0)]
     HashParseError(#[cause] types::HashParseError),
+    #[fail(display = "address generation failed: {}", _0)]
+    AddressGeneration(String),
 }
 
 impl From<failure::Error> for Error {
