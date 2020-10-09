@@ -82,7 +82,7 @@ where
             let parent_key = &state.keychains[keychain as usize].clone();
 
             let (address, _) =
-                self.gen_address(None, parent_key, account, keychain, index, false)?;
+                self.derive_and_persist_address(None, parent_key, account, keychain, index, false)?;
             state
                 .transient_external_addresses
                 .insert(address.pkh, (*address).clone());
@@ -95,7 +95,7 @@ where
             let parent_key = &state.keychains[keychain as usize].clone();
 
             let (address, _) =
-                self.gen_address(None, parent_key, account, keychain, index, false)?;
+                self.derive_and_persist_address(None, parent_key, account, keychain, index, false)?;
             state
                 .transient_internal_addresses
                 .insert(address.pkh, (*address).clone());
@@ -279,11 +279,8 @@ where
         })
     }
 
-    /// Generic method for generating an address.
-    ///
-    /// See `gen_internal_address` and `gen_external_address` for more
-    /// concrete implementations.
-    pub fn gen_address(
+    /// Generic method for deriving an address and persist it in the DB.
+    pub fn derive_and_persist_address(
         &self,
         label: Option<String>,
         parent_key: &types::ExtendedSK,
@@ -635,14 +632,8 @@ where
                 self.db
                     .get::<_, model::Path>(&keys::pkh(&output.pkh))
                     .is_ok()
-                    || state
-                        .transient_external_addresses
-                        .get(&output.pkh)
-                        .is_some()
-                    || state
-                        .transient_internal_addresses
-                        .get(&output.pkh)
-                        .is_some()
+                    || state.transient_external_addresses.contains_key(&output.pkh)
+                    || state.transient_internal_addresses.contains_key(&output.pkh)
             };
             // Check if any input or output is from the wallet (input is an UTXO or output points to any wallet's pkh)
             if inputs
@@ -1120,7 +1111,7 @@ where
         let parent_key = &state.keychains[keychain as usize];
 
         let (address, next_index) =
-            self.gen_address(label, parent_key, account, keychain, index, true)?;
+            self.derive_and_persist_address(label, parent_key, account, keychain, index, true)?;
 
         state.next_internal_index = next_index;
 
@@ -1443,7 +1434,7 @@ where
         let parent_key = state.keychains[keychain as usize].clone();
 
         let (address, next_index) =
-            self.gen_address(label, &parent_key, account, keychain, index, true)?;
+            self.derive_and_persist_address(label, &parent_key, account, keychain, index, true)?;
         state.next_external_index = next_index;
 
         Ok(address)

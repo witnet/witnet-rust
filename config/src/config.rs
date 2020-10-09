@@ -948,7 +948,7 @@ pub struct Wallet {
     /// Duration in milliseconds after which outgoing request should timeout.
     pub requests_timeout: u64,
     /// Length of the batch of transient addresses to be used for synchronization purposes
-    /// (e.g. for re-importing a wallet with seed words).
+    /// (e.g. for re-importing a wallet with seed phrase).
     pub sync_address_batch_length: u16,
 }
 

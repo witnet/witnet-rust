@@ -180,6 +180,7 @@ impl Worker {
         })
     }
 
+    /// Generate a wallet's address specifying if it should be external or internal
     pub fn gen_address(
         &mut self,
         wallet: &types::Wallet,
