@@ -50,6 +50,75 @@ impl<T> Wallet<T>
 where
     T: Database,
 {
+    /// Generate transient addresses for synchronization purposes
+    /// This function only creates and inserts addreses
+    pub fn generate_transient_addresses(
+        &self,
+        external_addresses: u16,
+        internal_addresses: u16,
+    ) -> Result<()> {
+        let mut state = self.state.write()?;
+
+        self._generate_transient_addresses(&mut state, external_addresses, internal_addresses)
+    }
+
+    /// Non-locking version of `generate_transient_addresses`
+    pub fn _generate_transient_addresses(
+        &self,
+        state: &mut State,
+        external_addresses: u16,
+        internal_addresses: u16,
+    ) -> Result<()> {
+        // Compute ranges for external and internal addresses
+        let external_range =
+            state.next_external_index..state.next_external_index + u32::from(external_addresses);
+        let internal_range =
+            state.next_internal_index..state.next_internal_index + u32::from(internal_addresses);
+
+        // Generate external addresses
+        for index in external_range {
+            let account = state.account;
+            let keychain = constants::EXTERNAL_KEYCHAIN;
+            let parent_key = &state.keychains[keychain as usize].clone();
+
+            let (address, _) =
+                self._gen_address(None, parent_key, account, keychain, index, false)?;
+            state
+                .transient_external_addresses
+                .insert(address.pkh, (*address).clone());
+        }
+
+        // Generate internal addresses
+        for index in internal_range {
+            let account = state.account;
+            let keychain = constants::INTERNAL_KEYCHAIN;
+            let parent_key = &state.keychains[keychain as usize].clone();
+
+            let (address, _) =
+                self._gen_address(None, parent_key, account, keychain, index, false)?;
+            state
+                .transient_internal_addresses
+                .insert(address.pkh, (*address).clone());
+        }
+
+        Ok(())
+    }
+
+    /// Clear the transient address generated for synchronization purposes
+    pub fn clear_transient_addresses(&self) -> Result<()> {
+        let mut state = self.state.write()?;
+
+        self._clear_transient_addresses(&mut state)
+    }
+
+    /// Non-locking version of `clear_transient_addresses`
+    pub fn _clear_transient_addresses(&self, state: &mut State) -> Result<()> {
+        state.transient_internal_addresses.clear();
+        state.transient_external_addresses.clear();
+
+        Ok(())
+    }
+
     /// Returns the bootstrap hash consensus constant
     pub fn get_bootstrap_hash(&self) -> Hash {
         self.params.genesis_prev_hash
@@ -176,6 +245,8 @@ where
             pending_blocks: Default::default(),
             pending_dr_movements: Default::default(),
             db_movements_to_update: Default::default(),
+            transient_external_addresses: Default::default(),
+            transient_internal_addresses: Default::default(),
         });
 
         Ok(Self {
