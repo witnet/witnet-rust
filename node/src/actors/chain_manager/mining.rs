@@ -555,6 +555,7 @@ impl ChainManager {
         }
     }
 
+    #[allow(clippy::needless_collect)]
     fn create_tally_transactions(
         &mut self,
     ) -> impl Future<Item = Vec<TallyTransaction>, Error = ()> {
@@ -653,16 +654,14 @@ impl ChainManager {
                                         Yellow
                                             .bold()
                                             .paint(format!("{}", &tally_result.into_inner())),
-                                        White.bold().paint(
-                                            reports.into_iter().map(|result| result).fold(
-                                                String::from("Reveals:"),
-                                                |acc, item| format!(
-                                                    "{}\n\t* {}",
-                                                    acc,
-                                                    item.into_inner()
-                                                )
+                                        White.bold().paint(reports.into_iter().fold(
+                                            String::from("Reveals:"),
+                                            |acc, item| format!(
+                                                "{}\n\t* {}",
+                                                acc,
+                                                item.into_inner()
                                             )
-                                        ),
+                                        )),
                                     );
 
                                     futures::future::ok(t)

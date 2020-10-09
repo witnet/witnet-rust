@@ -198,11 +198,7 @@ mod tests {
         let call = (RadonOpCodes::Fail, None);
         let result = input.operate(&call);
 
-        assert!(if let Err(_error) = result {
-            true
-        } else {
-            false
-        });
+        assert!(result.is_err());
     }
 
     #[test]

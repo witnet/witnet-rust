@@ -112,10 +112,7 @@ impl Environment {
     /// Returns true if the consensus constants can be overriden in this environment.
     /// This is only allowed in a development environment.
     pub fn can_override_consensus_constants(self) -> bool {
-        match self {
-            Environment::Development => true,
-            _ => false,
-        }
+        matches!(self, Environment::Development)
     }
 }
 
