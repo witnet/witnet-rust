@@ -570,11 +570,13 @@ impl Worker {
         let limit = i64::from(self.params.node_sync_batch_size);
         let superblock_period = u32::from(wallet.get_superblock_period());
 
-        // Clear wallet pending state before sync (e.g. locked wallet)
-        wallet.clear_pending_state()?;
+        // Generate transient addresses for sync purposes
+        wallet.generate_transient_addresses(
+            self.params.sync_address_batch_length,
+            self.params.sync_address_batch_length,
+        )?;
 
         let wallet_data = wallet.public_data()?;
-
         let first_beacon = wallet_data.last_confirmed;
         let mut since_beacon = first_beacon;
         let mut latest_beacon = first_beacon;
@@ -697,6 +699,9 @@ impl Worker {
             wallet_id,
             latest_beacon
         );
+
+        // Clear transient created addresses
+        wallet.clear_transient_addresses()?;
 
         Ok(())
     }
