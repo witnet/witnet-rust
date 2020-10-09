@@ -631,16 +631,24 @@ where
                 }
             }
 
-            let check_db = |output: &types::VttOutput| {
+            let check_db_and_transient = |output: &types::VttOutput| {
                 self.db
                     .get::<_, model::Path>(&keys::pkh(&output.pkh))
                     .is_ok()
+                    || state
+                        .transient_external_addresses
+                        .get(&output.pkh)
+                        .is_some()
+                    || state
+                        .transient_internal_addresses
+                        .get(&output.pkh)
+                        .is_some()
             };
             // Check if any input or output is from the wallet (input is an UTXO or output points to any wallet's pkh)
             if inputs
                 .iter()
                 .any(|input| state.utxo_set.get(&input.output_pointer().into()).is_some())
-                || outputs.iter().any(check_db)
+                || outputs.iter().any(check_db_and_transient)
             {
                 filtered_txns.push(txn.clone());
             }
@@ -1133,6 +1141,54 @@ where
                 Some(account_mutation) => account_mutation,
             };
 
+        // If syncing, then re-generate transient addresses if needed
+        // Note: this code can be further refactored by only updating the transient addresses
+        if !state.transient_internal_addresses.is_empty()
+            && !state.transient_external_addresses.is_empty()
+        {
+            let (new_external_index, new_internal_index) =
+                account_mutation.utxo_inserts.iter().fold(
+                    (state.next_external_index, state.next_internal_index),
+                    |mut acc, (_output, key_balance)| {
+                        if let Some(address) =
+                            state.transient_external_addresses.get(&key_balance.pkh)
+                        {
+                            if address.keychain == constants::EXTERNAL_KEYCHAIN
+                                && address.index >= state.next_external_index
+                            {
+                                acc.0 = address.index + 1;
+                            }
+                        } else if let Some(address) =
+                            state.transient_internal_addresses.get(&key_balance.pkh)
+                        {
+                            if address.keychain == constants::INTERNAL_KEYCHAIN
+                                && address.index >= state.next_internal_index
+                            {
+                                acc.1 = address.index + 1;
+                            }
+                        }
+
+                        acc
+                    },
+                );
+
+            // Generate and persist addresses that need to be indexed
+            for _ in state.next_external_index..new_external_index {
+                self._gen_external_address(state, None)?;
+            }
+            for _ in state.next_internal_index..new_internal_index {
+                self._gen_internal_address(state, None)?;
+            }
+
+            // Clear and re-generate new transient addresses
+            self._clear_transient_addresses(state)?;
+            self._generate_transient_addresses(
+                state,
+                self.params.sync_address_batch_length,
+                self.params.sync_address_batch_length,
+            )?;
+        }
+
         // If exists, remove transaction from local pending movements
         let txn_hash = txn.transaction.hash();
         if let Some(local_movement) = state.local_movements.remove(&txn_hash) {
@@ -1289,7 +1345,19 @@ where
 
         let mut output_amount: u64 = 0;
         for (index, output) in outputs.iter().enumerate() {
-            if let Some(model::Path { .. }) = self.db.get_opt(&keys::pkh(&output.pkh))? {
+            if self
+                .db
+                .get_opt::<_, model::Path>(&keys::pkh(&output.pkh))?
+                .is_some()
+                || state
+                    .transient_external_addresses
+                    .get(&output.pkh)
+                    .is_some()
+                || state
+                    .transient_internal_addresses
+                    .get(&output.pkh)
+                    .is_some()
+            {
                 let out_ptr = model::OutPtr {
                     txn_hash: txn.transaction.hash().as_ref().to_vec(),
                     output_index: u32::try_from(index).unwrap(),
