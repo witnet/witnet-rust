@@ -145,16 +145,15 @@ pub trait Defaults {
 
     /// Default Hash value for the auxiliary bootstrap block
     fn consensus_constants_bootstrap_hash(&self) -> Hash {
-        // FIXME(#1615) Decide an appropriate default value for Mainnet
-        "00000000000000000000000000000000000000007769746e65742d302e392e33"
+        // Brrr
+        "666564676f6573627272727c2f3030312f3738392f3432382f6130312e676966"
             .parse()
             .unwrap()
     }
 
     /// Default Hash value for the genesis block
     fn consensus_constants_genesis_hash(&self) -> Hash {
-        // FIXME(#1615) Decide an appropriate default value for Mainnet
-        "8b5bcbca3cf45943b550e16b901ad68d2887ee5198e39331c173593e57e0a857"
+        "6ca267d9accde3336739331d42d63509b799c6431e8d02b2d2cc9d3943d7ab02"
             .parse()
             .unwrap()
     }
@@ -256,12 +255,12 @@ pub trait Defaults {
 
     /// Reputation issuance
     fn consensus_constants_initial_difficulty(&self) -> u32 {
-        1000
+        2000
     }
 
     /// Reputation issuance
     fn consensus_constants_epochs_with_initial_difficulty(&self) -> u32 {
-        1000
+        2000
     }
 
     /// When to stop issuing new reputation
@@ -294,7 +293,6 @@ pub trait Defaults {
 
     /// Minimum input age of an UTXO for being a valid collateral
     fn consensus_constants_collateral_age(&self) -> u32 {
-        // FIXME(#1615) Decide an appropriate default value for Mainnet
         1000
     }
 
@@ -305,8 +303,20 @@ pub trait Defaults {
 
     /// First superblocks signing committee
     fn consensus_constants_bootstrapping_committee(&self) -> Vec<String> {
-        // FIXME(#1615) Decide an appropriate default value for Mainnet
-        vec!["wit1mengan0dvms7tzcul9epxmat8dh6temdjx8jm9".to_string()]
+        vec![
+            "wit1g0rkajsgwqux9rnmkfca5tz6djg0f87x7ms5qx".to_string(),
+            "wit1cyrlc64hyu0rux7hclmg9rxwxpa0v9pevyaj2c".to_string(),
+            "wit1asdpcspwysf0hg5kgwvgsp2h6g65y5kg9gj5dz".to_string(),
+            "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty".to_string(),
+            "wit17nnjuxmfuu92l6rxhque2qc3u2kvmx2fske4l9".to_string(),
+            "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z".to_string(),
+            "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq".to_string(),
+            "wit1gxf0ca67vxtg27kkmgezg7dd84hwmzkxn7c62x".to_string(),
+            "wit1hujx8v0y8rzqchmmagh8yw95r943cdddnegtgc".to_string(),
+            "wit1yd97y52ezvhq4kzl6rph6d3v6e9yya3n0kwjyr".to_string(),
+            "wit1fn5yxmgkphnnuu6347s2dlqpyrm4am280s6s9t".to_string(),
+            "wit12khyjjk0s2hyuzyyhv5v2d5y5snws7l58z207g".to_string(),
+        ]
     }
 
     /// Wallet server address
@@ -443,9 +453,8 @@ impl Defaults for Mainnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // FIXME(#1615) Decide an appropriate default value for Mainnet
-        // Wednesday, 23-Sept-2020, 09:00 UTC
-        1_600_851_600
+        // Wednesday, 14-Oct-2020, 09:00 UTC
+        1_602_666_000
     }
 }
 
