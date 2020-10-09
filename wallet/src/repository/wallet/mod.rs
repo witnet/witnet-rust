@@ -19,7 +19,7 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    types::{self, signature, ExtendedPK, Hash, Hashable as _, RadonError},
+    types::{self, signature, Hash, Hashable as _, RadonError},
 };
 
 use super::*;
@@ -82,7 +82,7 @@ where
             let parent_key = &state.keychains[keychain as usize].clone();
 
             let (address, _) =
-                self._gen_address(None, parent_key, account, keychain, index, false)?;
+                self.gen_address(None, parent_key, account, keychain, index, false)?;
             state
                 .transient_external_addresses
                 .insert(address.pkh, (*address).clone());
@@ -95,7 +95,7 @@ where
             let parent_key = &state.keychains[keychain as usize].clone();
 
             let (address, _) =
-                self._gen_address(None, parent_key, account, keychain, index, false)?;
+                self.gen_address(None, parent_key, account, keychain, index, false)?;
             state
                 .transient_internal_addresses
                 .insert(address.pkh, (*address).clone());
@@ -290,9 +290,8 @@ where
         account: u32,
         keychain: u32,
         index: u32,
+        persist_db: bool,
     ) -> Result<(Arc<model::Address>, u32)> {
-        let next_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
-
         let extended_sk =
             parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
         let types::ExtendedPK { key, .. } =
@@ -315,24 +314,28 @@ where
             last_payment_date: None,
         };
 
-        // Persist changes and new address in database
-        let mut batch = self.db.batch();
+        let next_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
+        if persist_db {
+            // Persist changes and new address in database
+            let mut batch = self.db.batch();
 
-        batch.put(keys::address(account, keychain, index), &address)?;
-        batch.put(keys::address_path(account, keychain, index), &path)?;
-        batch.put(keys::address_pkh(account, keychain, index), &pkh)?;
-        batch.put(&info.db_key, &info)?;
-        batch.put(
-            keys::pkh(&pkh),
-            &model::Path {
-                account,
-                keychain,
-                index,
-            },
-        )?;
-        batch.put(keys::account_next_index(account, keychain), &next_index)?;
+            batch.put(keys::address(account, keychain, index), &address)?;
+            batch.put(keys::address_path(account, keychain, index), &path)?;
+            batch.put(keys::address_pkh(account, keychain, index), &pkh)?;
+            batch.put(&info.db_key, &info)?;
+            batch.put(
+                keys::pkh(&pkh),
+                &model::Path {
+                    account,
+                    keychain,
+                    index,
+                },
+            )?;
 
-        self.db.write(batch)?;
+            batch.put(keys::account_next_index(account, keychain), &next_index)?;
+
+            self.db.write(batch)?;
+        }
 
         let address = model::Address {
             address,
@@ -1108,7 +1111,7 @@ where
         let parent_key = &state.keychains[keychain as usize];
 
         let (address, next_index) =
-            self.gen_address(label, parent_key, account, keychain, index)?;
+            self.gen_address(label, parent_key, account, keychain, index, true)?;
 
         state.next_internal_index = next_index;
 
@@ -1203,8 +1206,6 @@ where
 
             addresses.push(Arc::new(updated_address));
         }
-
-        // FIXME(#1539): if tally txn, compute update of data request balance movement
 
         Ok(Some((account_mutation.balance_movement, addresses)))
     }
@@ -1370,11 +1371,10 @@ where
         let keychain = constants::EXTERNAL_KEYCHAIN;
         let account = state.account;
         let index = state.next_external_index;
-        let parent_key = &state.keychains[keychain as usize];
+        let parent_key = state.keychains[keychain as usize].clone();
 
         let (address, next_index) =
-            self.gen_address(label, parent_key, account, keychain, index)?;
-
+            self.gen_address(label, &parent_key, account, keychain, index, true)?;
         state.next_external_index = next_index;
 
         Ok(address)
@@ -1402,7 +1402,7 @@ where
         } else {
             "".to_string()
         };
-        let public_key = ExtendedPK::from_secret_key(&self.engine, &parent_key)
+        let public_key = types::ExtendedPK::from_secret_key(&self.engine, &parent_key)
             .key
             .to_string();
 
