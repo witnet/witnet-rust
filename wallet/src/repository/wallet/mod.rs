@@ -691,6 +691,7 @@ where
                     }
                     Ok(None) => {}
                     e @ Err(_) => {
+                        log::error!("Error while indexing transaction: {:?}", e);
                         e?;
                     }
                 },
