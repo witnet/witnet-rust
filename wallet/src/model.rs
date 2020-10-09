@@ -197,6 +197,7 @@ pub struct Output {
     pub address: String,
     pub time_lock: u64,
     pub value: u64,
+    pub output_type: OutputType,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -255,9 +256,20 @@ impl fmt::Display for OutPtr {
     }
 }
 
+/// Distinguish between own internal, own external and other output types
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum OutputType {
+    #[serde(rename = "EXTERNAL")]
+    External,
+    #[serde(rename = "INTERNAL")]
+    Internal,
+    #[serde(rename = "OTHER")]
+    Other,
+}
+
 /// UTXO information including amount, address and time lock
 #[derive(Clone, Debug, Eq, Deserialize, PartialEq, Serialize)]
-pub struct KeyBalance {
+pub struct OutputInfo {
     /// Amount of the UTXO
     pub amount: u64,
     /// PKH receiving this balance
@@ -279,7 +291,7 @@ impl fmt::Display for Beacon {
     }
 }
 
-pub type UtxoSet = HashMap<OutPtr, KeyBalance>;
+pub type UtxoSet = HashMap<OutPtr, OutputInfo>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Path {

@@ -33,7 +33,7 @@ mod tests;
 /// Internal structure used to gather state mutations while indexing block transactions
 struct AccountMutation {
     balance_movement: model::BalanceMovement,
-    utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)>,
+    utxo_inserts: Vec<(model::OutPtr, model::OutputInfo)>,
     utxo_removals: Vec<model::OutPtr>,
 }
 
@@ -1321,13 +1321,13 @@ where
         };
 
         let mut utxo_removals: Vec<model::OutPtr> = vec![];
-        let mut utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)> = vec![];
+        let mut utxo_inserts: Vec<(model::OutPtr, model::OutputInfo)> = vec![];
 
         let mut input_amount: u64 = 0;
         for input in inputs.iter() {
             let out_ptr: model::OutPtr = input.output_pointer().into();
 
-            if let Some(model::KeyBalance { amount, .. }) = state.utxo_set.get(&out_ptr) {
+            if let Some(model::OutputInfo { amount, .. }) = state.utxo_set.get(&out_ptr) {
                 input_amount = input_amount
                     .checked_add(*amount)
                     .ok_or_else(|| Error::TransactionBalanceOverflow)?;
@@ -1336,25 +1336,34 @@ where
         }
 
         let mut output_amount: u64 = 0;
+        let mut own_outputs: HashMap<PublicKeyHash, model::OutputType> = HashMap::new();
         for (index, output) in outputs.iter().enumerate() {
-            if self
-                .db
-                .get_opt::<_, model::Path>(&keys::pkh(&output.pkh))?
-                .is_some()
-                || state
-                    .transient_external_addresses
-                    .get(&output.pkh)
-                    .is_some()
-                || state
-                    .transient_internal_addresses
-                    .get(&output.pkh)
-                    .is_some()
-            {
+            if let Some(path) = self.db.get_opt::<_, model::Path>(&keys::pkh(&output.pkh))? {
+                match path.keychain {
+                    x if x == constants::EXTERNAL_KEYCHAIN => {
+                        own_outputs.insert(output.pkh, model::OutputType::External);
+                    }
+                    x if x == constants::INTERNAL_KEYCHAIN => {
+                        own_outputs.insert(output.pkh, model::OutputType::Internal);
+                    }
+                    _ => {
+                        log::warn!(
+                            "Output found in DB but keychain is not known: {}",
+                            output.pkh
+                        );
+                    }
+                }
+            } else if state.transient_external_addresses.contains_key(&output.pkh) {
+                own_outputs.insert(output.pkh, model::OutputType::External);
+            } else if state.transient_internal_addresses.contains_key(&output.pkh) {
+                own_outputs.insert(output.pkh, model::OutputType::Internal);
+            }
+            if own_outputs.contains_key(&output.pkh) {
                 let out_ptr = model::OutPtr {
                     txn_hash: txn.transaction.hash().as_ref().to_vec(),
                     output_index: u32::try_from(index).unwrap(),
                 };
-                let key_balance = model::KeyBalance {
+                let output_info = model::OutputInfo {
                     amount: output.value,
                     pkh: output.pkh,
                     time_lock: output.time_lock,
@@ -1373,7 +1382,7 @@ where
                     address,
                     output.value
                 );
-                utxo_inserts.push((out_ptr, key_balance));
+                utxo_inserts.push((out_ptr, output_info));
             }
         }
 
@@ -1414,6 +1423,7 @@ where
             &block_info,
             convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
             confirmed,
+            own_outputs,
         )?;
 
         Ok(Some(AccountMutation {
@@ -1615,6 +1625,7 @@ fn build_balance_movement(
     block_info: &model::Beacon,
     timestamp: u64,
     confirmed: bool,
+    own_outputs: HashMap<PublicKeyHash, model::OutputType>,
 ) -> Result<model::BalanceMovement> {
     // Input values with their ValueTransferOutput data
     let transaction_inputs = match &txn.metadata {
@@ -1633,72 +1644,24 @@ fn build_balance_movement(
         types::Transaction::ValueTransfer(vtt) => {
             model::TransactionData::ValueTransfer(model::VtData {
                 inputs: transaction_inputs,
-                outputs: vtt
-                    .body
-                    .outputs
-                    .clone()
-                    .into_iter()
-                    .map(|output| model::Output {
-                        address: output.pkh.to_string(),
-                        time_lock: output.time_lock,
-                        value: output.value,
-                    })
-                    .collect::<Vec<model::Output>>(),
+                outputs: vtt_to_outputs(&vtt.body.outputs, &own_outputs),
             })
         }
         types::Transaction::DataRequest(dr) => model::TransactionData::DataRequest(model::DrData {
             inputs: transaction_inputs,
-            outputs: dr
-                .body
-                .outputs
-                .clone()
-                .into_iter()
-                .map(|output| model::Output {
-                    address: output.pkh.to_string(),
-                    time_lock: output.time_lock,
-                    value: output.value,
-                })
-                .collect::<Vec<model::Output>>(),
+            outputs: vtt_to_outputs(&dr.body.outputs, &own_outputs),
             tally: None,
         }),
         types::Transaction::Commit(commit) => model::TransactionData::Commit(model::VtData {
             inputs: transaction_inputs,
-            outputs: commit
-                .body
-                .outputs
-                .clone()
-                .into_iter()
-                .map(|output| model::Output {
-                    address: output.pkh.to_string(),
-                    time_lock: output.time_lock,
-                    value: output.value,
-                })
-                .collect::<Vec<model::Output>>(),
+            outputs: vtt_to_outputs(&commit.body.outputs, &own_outputs),
         }),
         types::Transaction::Mint(mint) => model::TransactionData::Mint(model::MintData {
-            outputs: mint
-                .outputs
-                .clone()
-                .into_iter()
-                .map(|output| model::Output {
-                    address: output.pkh.to_string(),
-                    time_lock: output.time_lock,
-                    value: output.value,
-                })
-                .collect::<Vec<model::Output>>(),
+            outputs: vtt_to_outputs(&mint.outputs, &own_outputs),
         }),
         types::Transaction::Tally(tally) => model::TransactionData::Tally(model::TallyData {
             request_transaction_hash: tally.dr_pointer.to_string(),
-            outputs: tally
-                .outputs
-                .clone()
-                .into_iter()
-                .map(|output| model::Output {
-                    address: output.pkh.to_string(),
-                    time_lock: output.time_lock,
-                    value: output.value,
-                })
-                .collect::<Vec<model::Output>>(),
+            outputs: vtt_to_outputs(&tally.outputs, &own_outputs),
             tally: build_tally_report(tally, &txn.metadata)?,
         }),
         _ => {
@@ -1857,6 +1820,23 @@ fn calculate_transaction_ranges(
     };
 
     (local_range, pending_range, db_range)
+}
+
+// Map vtt to output vec
+fn vtt_to_outputs(
+    vtt: &[types::VttOutput],
+    own_outputs: &HashMap<PublicKeyHash, model::OutputType>,
+) -> Vec<model::Output> {
+    vtt.iter()
+        .map(|output| model::Output {
+            address: output.pkh.to_string(),
+            time_lock: output.time_lock,
+            value: output.value,
+            output_type: *own_outputs
+                .get(&output.pkh)
+                .unwrap_or(&model::OutputType::Other),
+        })
+        .collect::<Vec<model::Output>>()
 }
 
 #[cfg(test)]

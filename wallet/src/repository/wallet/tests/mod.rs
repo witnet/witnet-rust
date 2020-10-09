@@ -354,9 +354,9 @@ fn test_create_transaction_components_without_a_change_address() {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance {
+        model::OutputInfo {
             pkh,
             amount: 1,
             time_lock: 0,
@@ -400,9 +400,9 @@ fn test_create_transaction_components_whith_a_change_address() {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
         out_pointer,
-        model::KeyBalance {
+        model::OutputInfo {
             pkh,
             amount: 2,
             time_lock: 0,
@@ -446,13 +446,13 @@ fn test_create_transaction_components_whith_a_change_address() {
 #[test]
 fn test_create_transaction_components_which_value_overflows() {
     let pkh = factories::pkh();
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![
         (
             model::OutPtr {
                 txn_hash: vec![0; 32],
                 output_index: 0,
             },
-            model::KeyBalance {
+            model::OutputInfo {
                 pkh,
                 amount: 2,
                 time_lock: 0,
@@ -463,7 +463,7 @@ fn test_create_transaction_components_which_value_overflows() {
                 txn_hash: vec![0; 32],
                 output_index: 1,
             },
-            model::KeyBalance {
+            model::OutputInfo {
                 pkh,
                 amount: std::u64::MAX - 1,
                 time_lock: 0,
@@ -514,9 +514,9 @@ fn test_create_vtt_does_not_spend_utxos() {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance {
+        model::OutputInfo {
             pkh,
             amount: 1,
             time_lock: 0,
@@ -550,7 +550,7 @@ fn test_create_vtt_does_not_spend_utxos() {
     let time_lock = 0;
 
     let state_utxo_set = wallet.utxo_set().unwrap();
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
     assert_eq!(1, wallet.balance().unwrap().confirmed.available);
@@ -568,7 +568,7 @@ fn test_create_vtt_does_not_spend_utxos() {
         .unwrap();
 
     let state_utxo_set = wallet.utxo_set().unwrap();
-    let new_utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
+    let new_utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
     // nothing should change because VTT is only created but not yet confirmed (sent!)
@@ -591,9 +591,9 @@ fn test_create_data_request_does_not_spend_utxos() {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance {
+        model::OutputInfo {
             pkh,
             amount: 1,
             time_lock: 0,
@@ -623,7 +623,7 @@ fn test_create_data_request_does_not_spend_utxos() {
     let (wallet, db) = factories::wallet(Some(db));
 
     let state_utxo_set = wallet.utxo_set().unwrap();
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
     assert_eq!(1, wallet.balance().unwrap().confirmed.available);
@@ -642,7 +642,7 @@ fn test_create_data_request_does_not_spend_utxos() {
         .unwrap();
 
     let state_utxo_set = wallet.utxo_set().unwrap();
-    let new_utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
+    let new_utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
     // nothing should change because DR is only created but not yet confirmed (sent!)
