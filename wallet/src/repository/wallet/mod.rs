@@ -52,29 +52,28 @@ where
 {
     /// Generate transient addresses for synchronization purposes
     /// This function only creates and inserts addreses
-    pub fn generate_transient_addresses(
+    pub fn initialize_transient_addresses(
         &self,
         external_addresses: u16,
         internal_addresses: u16,
     ) -> Result<()> {
         let mut state = self.state.write()?;
 
-        self._generate_transient_addresses(&mut state, external_addresses, internal_addresses)
-    }
-
-    /// Non-locking version of `generate_transient_addresses`
-    pub fn _generate_transient_addresses(
-        &self,
-        state: &mut State,
-        external_addresses: u16,
-        internal_addresses: u16,
-    ) -> Result<()> {
-        // Compute ranges for external and internal addresses
         let external_range =
             state.next_external_index..state.next_external_index + u32::from(external_addresses);
         let internal_range =
             state.next_internal_index..state.next_internal_index + u32::from(internal_addresses);
 
+        self._generate_transient_address_ranges(&mut state, external_range, internal_range)
+    }
+
+    /// Non-locking transient address generation by defining the ranges for external and internal
+    pub fn _generate_transient_address_ranges(
+        &self,
+        state: &mut State,
+        external_range: Range<u32>,
+        internal_range: Range<u32>,
+    ) -> Result<()> {
         // Generate external addresses
         for index in external_range {
             let account = state.account;

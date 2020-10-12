@@ -572,7 +572,7 @@ impl Worker {
         let superblock_period = u32::from(wallet.get_superblock_period());
 
         // Generate transient addresses for sync purposes
-        wallet.generate_transient_addresses(
+        wallet.initialize_transient_addresses(
             self.params.sync_address_batch_length,
             self.params.sync_address_batch_length,
         )?;
