@@ -1124,61 +1124,22 @@ where
         block_info: &model::Beacon,
         confirmed: bool,
     ) -> Result<Option<(model::BalanceMovement, Vec<Arc<model::Address>>)>> {
-        // Wallet's account mutation (utxo set changes + balance movement)
-        let account_mutation =
-            match self._get_account_mutation(&state, &txn, &block_info, confirmed)? {
-                // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
-                None => return Ok(None),
-                Some(account_mutation) => account_mutation,
-            };
-
         // If syncing, then re-generate transient addresses if needed
         // Note: this code can be further refactored by only updating the transient addresses
         if !state.transient_internal_addresses.is_empty()
             && !state.transient_external_addresses.is_empty()
         {
-            let (new_external_index, new_internal_index) =
-                account_mutation.utxo_inserts.iter().fold(
-                    (state.next_external_index, state.next_internal_index),
-                    |mut acc, (_output, key_balance)| {
-                        if let Some(address) =
-                            state.transient_external_addresses.get(&key_balance.pkh)
-                        {
-                            if address.keychain == constants::EXTERNAL_KEYCHAIN
-                                && address.index >= state.next_external_index
-                            {
-                                acc.0 = address.index + 1;
-                            }
-                        } else if let Some(address) =
-                            state.transient_internal_addresses.get(&key_balance.pkh)
-                        {
-                            if address.keychain == constants::INTERNAL_KEYCHAIN
-                                && address.index >= state.next_internal_index
-                            {
-                                acc.1 = address.index + 1;
-                            }
-                        }
-
-                        acc
-                    },
-                );
-
-            // Generate and persist addresses that need to be indexed
-            for _ in state.next_external_index..new_external_index {
-                self._gen_external_address(state, None)?;
-            }
-            for _ in state.next_internal_index..new_internal_index {
-                self._gen_internal_address(state, None)?;
-            }
-
-            // Clear and re-generate new transient addresses
-            self._clear_transient_addresses(state)?;
-            self._generate_transient_addresses(
-                state,
-                self.params.sync_address_batch_length,
-                self.params.sync_address_batch_length,
-            )?;
+            let (_, outputs) = extract_inputs_and_outputs(&txn.transaction)?;
+            self._sync_address_generation(state, &outputs)?;
         }
+
+        // Wallet's account mutation (utxo set changes + balance movement)
+        let account_mutation =
+            match self._get_account_mutation(state, &txn, &block_info, confirmed)? {
+                // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
+                None => return Ok(None),
+                Some(account_mutation) => account_mutation,
+            };
 
         // If exists, remove transaction from local pending movements
         let txn_hash = txn.transaction.hash();
@@ -1289,6 +1250,78 @@ where
         }
 
         Ok(None)
+    }
+
+    // During wallet synchronization, generate external and internal addresses
+    // if transaction outputs are pointing to transient addresses
+    fn _sync_address_generation(
+        &self,
+        state: &mut State,
+        outputs: &[types::VttOutput],
+    ) -> Result<()> {
+        loop {
+            let (new_external_index, new_internal_index) = outputs.iter().fold(
+                (state.next_external_index, state.next_internal_index),
+                |mut acc, output| {
+                    if let Some(address) = state.transient_external_addresses.get(&output.pkh) {
+                        if address.keychain == constants::EXTERNAL_KEYCHAIN
+                            && address.index >= state.next_external_index
+                        {
+                            acc.0 = address.index + 1;
+                        }
+                    } else if let Some(address) =
+                        state.transient_internal_addresses.get(&output.pkh)
+                    {
+                        if address.keychain == constants::INTERNAL_KEYCHAIN
+                            && address.index >= state.next_internal_index
+                        {
+                            acc.1 = address.index + 1;
+                        }
+                    }
+
+                    acc
+                },
+            );
+
+            if new_external_index == state.next_external_index
+                && new_internal_index == state.next_internal_index
+            {
+                break;
+            }
+
+            // Generate and persist addresses that need to be indexed
+            log::debug!(
+                "Generating external addresses from index {} to {}",
+                state.next_external_index,
+                new_external_index
+            );
+            log::debug!(
+                "Generating internal addresses from index {} to {}",
+                state.next_internal_index,
+                new_internal_index
+            );
+            for _ in state.next_external_index..new_external_index {
+                let addr = self._gen_external_address(state, None)?;
+                state.transient_external_addresses.remove(&addr.pkh);
+            }
+            for _ in state.next_internal_index..new_internal_index {
+                let addr = self._gen_internal_address(state, None)?;
+                state.transient_internal_addresses.remove(&addr.pkh);
+            }
+
+            // Generate new transient addresses if needed
+            let transient_external_range = state.next_external_index
+                ..state.next_external_index + u32::from(self.params.sync_address_batch_length);
+            let transient_internal_range = state.next_internal_index
+                ..state.next_internal_index + u32::from(self.params.sync_address_batch_length);
+            self._generate_transient_address_ranges(
+                state,
+                transient_external_range,
+                transient_internal_range,
+            )?;
+        }
+
+        Ok(())
     }
 
     // Returns the account mutation in terms of changes to the UTXO set and balance
