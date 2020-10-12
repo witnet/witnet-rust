@@ -1291,6 +1291,7 @@ where
         Ok(None)
     }
 
+    // Returns the account mutation in terms of changes to the UTXO set and balance
     fn _get_account_mutation(
         &self,
         state: &State,
@@ -1299,25 +1300,7 @@ where
         confirmed: bool,
     ) -> Result<Option<AccountMutation>> {
         // Inputs and outputs from different transaction types
-        let (inputs, outputs) = match &txn.transaction {
-            types::Transaction::ValueTransfer(vt) => {
-                (vt.body.inputs.clone(), vt.body.outputs.clone())
-            }
-            types::Transaction::DataRequest(dr) => {
-                (dr.body.inputs.clone(), dr.body.outputs.clone())
-            }
-            types::Transaction::Commit(commit) => {
-                (commit.body.collateral.clone(), commit.body.outputs.clone())
-            }
-            types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
-            types::Transaction::Mint(mint) => (vec![], mint.outputs.clone()),
-            _ => {
-                return Err(Error::UnsupportedTransactionType(format!(
-                    "{:?}",
-                    txn.transaction
-                )));
-            }
-        };
+        let (inputs, outputs) = extract_inputs_and_outputs(&txn.transaction)?;
 
         let mut utxo_removals: Vec<model::OutPtr> = vec![];
         let mut utxo_inserts: Vec<(model::OutPtr, model::OutputInfo)> = vec![];
@@ -1352,10 +1335,6 @@ where
                         );
                     }
                 }
-            } else if state.transient_external_addresses.contains_key(&output.pkh) {
-                own_outputs.insert(output.pkh, model::OutputType::External);
-            } else if state.transient_internal_addresses.contains_key(&output.pkh) {
-                own_outputs.insert(output.pkh, model::OutputType::Internal);
             }
             if own_outputs.contains_key(&output.pkh) {
                 let out_ptr = model::OutPtr {
@@ -1611,6 +1590,30 @@ fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoc
     // In case of error, return timestamp 0
     u64::try_from(epoch_constants.epoch_timestamp(epoch).unwrap_or(0))
         .expect("Epoch timestamp should return a positive value")
+}
+
+// Extract inputs and output from a transaction
+fn extract_inputs_and_outputs(
+    transaction: &types::Transaction,
+) -> Result<(Vec<types::TransactionInput>, Vec<types::VttOutput>)> {
+    // Inputs and outputs from different transaction types
+    let (inputs, outputs) = match transaction {
+        types::Transaction::ValueTransfer(vt) => (vt.body.inputs.clone(), vt.body.outputs.clone()),
+        types::Transaction::DataRequest(dr) => (dr.body.inputs.clone(), dr.body.outputs.clone()),
+        types::Transaction::Commit(commit) => {
+            (commit.body.collateral.clone(), commit.body.outputs.clone())
+        }
+        types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
+        types::Transaction::Mint(mint) => (vec![], mint.outputs.clone()),
+        _ => {
+            return Err(Error::UnsupportedTransactionType(format!(
+                "{:?}",
+                transaction
+            )));
+        }
+    };
+
+    Ok((inputs, outputs))
 }
 
 // Balance Movement Factory
