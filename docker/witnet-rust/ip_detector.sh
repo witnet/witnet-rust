@@ -20,7 +20,7 @@ function read_public_addr_from_config {
 function guess_public_addr {
     log "Trying to guess 'public_addr'";
     API_URL="http://bot.whatismyipaddress.com/";
-    PUBLIC_ADDR_FROM_API="$(curl $API_URL 2>/dev/null || log $DEFAULT_IP):${LISTENING_PORT_FROM_CONFIG:-$DEFAULT_PORT}";
+    PUBLIC_ADDR_FROM_API="$(curl --ipv4 $API_URL 2>/dev/null || log $DEFAULT_IP):${LISTENING_PORT_FROM_CONFIG:-$DEFAULT_PORT}";
 }
 
 function replace_ip_in_config_if_not_set {
