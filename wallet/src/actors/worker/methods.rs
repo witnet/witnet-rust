@@ -243,6 +243,10 @@ impl Worker {
         txns: &[types::Transaction],
         confirmed: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
+        // If syncing, then re-generate transient addresses if needed
+        // Note: this code can be further refactored by only updating the transient addresses
+        wallet._sync_address_generation(txns)?;
+
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
         log::info!(
             "Indexing block #{} ({}) with {} transactions ({})",

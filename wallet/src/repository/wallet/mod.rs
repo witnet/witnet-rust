@@ -1124,15 +1124,6 @@ where
         block_info: &model::Beacon,
         confirmed: bool,
     ) -> Result<Option<(model::BalanceMovement, Vec<Arc<model::Address>>)>> {
-        // If syncing, then re-generate transient addresses if needed
-        // Note: this code can be further refactored by only updating the transient addresses
-        if !state.transient_internal_addresses.is_empty()
-            && !state.transient_external_addresses.is_empty()
-        {
-            let (_, outputs) = extract_inputs_and_outputs(&txn.transaction)?;
-            self._sync_address_generation(state, &outputs)?;
-        }
-
         // Wallet's account mutation (utxo set changes + balance movement)
         let account_mutation =
             match self._get_account_mutation(state, &txn, &block_info, confirmed)? {
@@ -1254,71 +1245,79 @@ where
 
     // During wallet synchronization, generate external and internal addresses
     // if transaction outputs are pointing to transient addresses
-    fn _sync_address_generation(
-        &self,
-        state: &mut State,
-        outputs: &[types::VttOutput],
-    ) -> Result<()> {
-        loop {
-            let (new_external_index, new_internal_index) = outputs.iter().fold(
-                (state.next_external_index, state.next_internal_index),
-                |mut acc, output| {
-                    if let Some(address) = state.transient_external_addresses.get(&output.pkh) {
-                        if address.keychain == constants::EXTERNAL_KEYCHAIN
-                            && address.index >= state.next_external_index
+    pub fn _sync_address_generation(&self, txns: &[types::Transaction]) -> Result<()> {
+        let mut state = self.state.write()?;
+
+        if state.transient_internal_addresses.is_empty()
+            && state.transient_external_addresses.is_empty()
+        {
+            return Ok(());
+        }
+
+        for txn in txns {
+            let (_, outputs) = extract_inputs_and_outputs(&txn)?;
+
+            loop {
+                let (new_external_index, new_internal_index) = outputs.iter().fold(
+                    (state.next_external_index, state.next_internal_index),
+                    |mut acc, output| {
+                        if let Some(address) = state.transient_external_addresses.get(&output.pkh) {
+                            if address.keychain == constants::EXTERNAL_KEYCHAIN
+                                && address.index >= state.next_external_index
+                            {
+                                acc.0 = address.index + 1;
+                            }
+                        } else if let Some(address) =
+                            state.transient_internal_addresses.get(&output.pkh)
                         {
-                            acc.0 = address.index + 1;
+                            if address.keychain == constants::INTERNAL_KEYCHAIN
+                                && address.index >= state.next_internal_index
+                            {
+                                acc.1 = address.index + 1;
+                            }
                         }
-                    } else if let Some(address) =
-                        state.transient_internal_addresses.get(&output.pkh)
-                    {
-                        if address.keychain == constants::INTERNAL_KEYCHAIN
-                            && address.index >= state.next_internal_index
-                        {
-                            acc.1 = address.index + 1;
-                        }
-                    }
 
-                    acc
-                },
-            );
+                        acc
+                    },
+                );
 
-            if new_external_index == state.next_external_index
-                && new_internal_index == state.next_internal_index
-            {
-                break;
+                if new_external_index == state.next_external_index
+                    && new_internal_index == state.next_internal_index
+                {
+                    break;
+                }
+
+                // Generate and persist addresses that need to be indexed
+                log::debug!(
+                    "Generating external addresses from index {} to {}",
+                    state.next_external_index,
+                    new_external_index
+                );
+                log::debug!(
+                    "Generating internal addresses from index {} to {}",
+                    state.next_internal_index,
+                    new_internal_index
+                );
+                for _ in state.next_external_index..new_external_index {
+                    let addr = self._gen_external_address(&mut state, None)?;
+                    state.transient_external_addresses.remove(&addr.pkh);
+                }
+                for _ in state.next_internal_index..new_internal_index {
+                    let addr = self._gen_internal_address(&mut state, None)?;
+                    state.transient_internal_addresses.remove(&addr.pkh);
+                }
+
+                // Generate new transient addresses if needed
+                let transient_external_range = state.next_external_index
+                    ..state.next_external_index + u32::from(self.params.sync_address_batch_length);
+                let transient_internal_range = state.next_internal_index
+                    ..state.next_internal_index + u32::from(self.params.sync_address_batch_length);
+                self._generate_transient_address_ranges(
+                    &mut state,
+                    transient_external_range,
+                    transient_internal_range,
+                )?;
             }
-
-            // Generate and persist addresses that need to be indexed
-            log::debug!(
-                "Generating external addresses from index {} to {}",
-                state.next_external_index,
-                new_external_index
-            );
-            log::debug!(
-                "Generating internal addresses from index {} to {}",
-                state.next_internal_index,
-                new_internal_index
-            );
-            for _ in state.next_external_index..new_external_index {
-                let addr = self._gen_external_address(state, None)?;
-                state.transient_external_addresses.remove(&addr.pkh);
-            }
-            for _ in state.next_internal_index..new_internal_index {
-                let addr = self._gen_internal_address(state, None)?;
-                state.transient_internal_addresses.remove(&addr.pkh);
-            }
-
-            // Generate new transient addresses if needed
-            let transient_external_range = state.next_external_index
-                ..state.next_external_index + u32::from(self.params.sync_address_batch_length);
-            let transient_internal_range = state.next_internal_index
-                ..state.next_internal_index + u32::from(self.params.sync_address_batch_length);
-            self._generate_transient_address_ranges(
-                state,
-                transient_external_range,
-                transient_internal_range,
-            )?;
         }
 
         Ok(())
