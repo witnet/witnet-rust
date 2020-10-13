@@ -348,7 +348,7 @@ pub trait Defaults {
     }
 
     fn wallet_sync_address_batch_length(&self) -> u16 {
-        10
+        20
     }
 
     fn rocksdb_create_if_missing(&self) -> bool {
