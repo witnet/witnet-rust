@@ -1412,15 +1412,21 @@ where
         let miner_fee: u64 = match &txn.metadata {
             Some(model::TransactionMetadata::InputValues(input_values)) => {
                 let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
-                let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
 
-                total_input_amount
-                    .checked_sub(total_output_amount)
-                    .unwrap_or_else(|| {
-                        log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {:?}", txn.transaction);
+                // Genesis block (no inputs) or empty block with only `MintTransaction`
+                if total_input_amount == 0 {
+                    0u64
+                } else {
+                    let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
 
-                        0
-                    })
+                    total_input_amount
+                        .checked_sub(total_output_amount)
+                        .unwrap_or_else(|| {
+                            log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {}", txn.transaction.hash().to_string());
+
+                            0
+                        })
+                }
             }
             _ => 0,
         };
