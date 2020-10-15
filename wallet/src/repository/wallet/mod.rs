@@ -362,10 +362,23 @@ where
 
     /// Return a list of the generated external addresses that.
     pub fn external_addresses(&self, offset: u32, limit: u32) -> Result<model::Addresses> {
-        let keychain = constants::EXTERNAL_KEYCHAIN;
+        self.addresses(constants::EXTERNAL_KEYCHAIN, offset, limit)
+    }
+
+    /// Return a list of the generated internal addresses that.
+    pub fn internal_addresses(&self, offset: u32, limit: u32) -> Result<model::Addresses> {
+        self.addresses(constants::INTERNAL_KEYCHAIN, offset, limit)
+    }
+
+    /// Return a list of internal or external addresses.
+    fn addresses(&self, keychain: u32, offset: u32, limit: u32) -> Result<model::Addresses> {
         let state = self.state.read()?;
         let account = state.account;
-        let total = state.next_external_index;
+        let total = if keychain == constants::EXTERNAL_KEYCHAIN {
+            state.next_external_index
+        } else {
+            state.next_internal_index
+        };
 
         let end = total.saturating_sub(offset);
         let start = end.saturating_sub(limit);
@@ -373,7 +386,7 @@ where
         let mut addresses = Vec::with_capacity(range.len());
 
         log::debug!(
-            "Retrieving addresses in range {:?}. Start({}), End({}), Total({})",
+            "Retrieving external addresses in range {:?}. Start({}), End({}), Total({})",
             range,
             start,
             end,

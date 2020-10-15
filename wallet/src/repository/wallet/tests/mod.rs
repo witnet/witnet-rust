@@ -128,19 +128,19 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
 }
 
 #[test]
-fn test_list_external_addresses() {
+fn test_list_internal_addresses() {
     let (wallet, _db) = factories::wallet(None);
 
-    let mut address1 = (*wallet.gen_external_address(None).unwrap()).clone();
+    let mut address1 = (*wallet.gen_internal_address(None).unwrap()).clone();
     address1.info.db_key = "".to_string();
-    let mut address2 = (*wallet.gen_external_address(None).unwrap()).clone();
+    let mut address2 = (*wallet.gen_internal_address(None).unwrap()).clone();
     address2.info.db_key = "".to_string();
-    let mut address3 = (*wallet.gen_external_address(None).unwrap()).clone();
+    let mut address3 = (*wallet.gen_internal_address(None).unwrap()).clone();
     address3.info.db_key = "".to_string();
 
     let offset = 0;
     let limit = 10;
-    let addresses = wallet.external_addresses(offset, limit).unwrap();
+    let addresses = wallet.internal_addresses(offset, limit).unwrap();
 
     assert_eq!(3, addresses.total);
     assert_eq!(address3, addresses[0]);
@@ -149,17 +149,17 @@ fn test_list_external_addresses() {
 }
 
 #[test]
-fn test_list_external_addresses_paginated() {
+fn test_list_internal_addresses_paginated() {
     let (wallet, _db) = factories::wallet(None);
 
-    let _ = wallet.gen_external_address(None).unwrap();
-    let mut address = (*wallet.gen_external_address(None).unwrap()).clone();
+    let _ = wallet.gen_internal_address(None).unwrap();
+    let mut address = (*wallet.gen_internal_address(None).unwrap()).clone();
     address.info.db_key = "".to_string();
-    let _ = wallet.gen_external_address(None).unwrap();
+    let _ = wallet.gen_internal_address(None).unwrap();
 
     let offset = 1;
     let limit = 1;
-    let addresses = wallet.external_addresses(offset, limit).unwrap();
+    let addresses = wallet.internal_addresses(offset, limit).unwrap();
 
     assert_eq!(3, addresses.total);
     assert_eq!(1, addresses.len());

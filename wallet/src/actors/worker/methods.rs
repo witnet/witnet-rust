@@ -201,8 +201,13 @@ impl Worker {
         wallet: &types::Wallet,
         offset: u32,
         limit: u32,
+        external: bool,
     ) -> Result<model::Addresses> {
-        let addresses = wallet.external_addresses(offset, limit)?;
+        let addresses = if external {
+            wallet.external_addresses(offset, limit)?
+        } else {
+            wallet.internal_addresses(offset, limit)?
+        };
 
         Ok(addresses)
     }

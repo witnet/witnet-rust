@@ -10,6 +10,7 @@ pub struct GetAddressesRequest {
     wallet_id: String,
     offset: Option<u32>,
     limit: Option<u32>,
+    external: Option<bool>,
 }
 
 pub type GetAddressesResponse = model::Addresses;
@@ -28,7 +29,8 @@ impl Handler<GetAddressesRequest> for app::App {
         let limit = msg
             .limit
             .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT);
-        let f = self.get_addresses(msg.session_id, msg.wallet_id, offset, limit);
+        let external = msg.external.unwrap_or(true);
+        let f = self.get_addresses(msg.session_id, msg.wallet_id, offset, limit, external);
 
         Box::new(f)
     }

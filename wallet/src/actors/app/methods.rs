@@ -119,6 +119,7 @@ impl App {
         wallet_id: String,
         offset: u32,
         limit: u32,
+        external: bool,
     ) -> ResponseActFuture<model::Addresses> {
         let f = fut::result(
             self.state
@@ -127,7 +128,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::GetAddresses(wallet, offset, limit))
+                .send(worker::GetAddresses(wallet, offset, limit, external))
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)

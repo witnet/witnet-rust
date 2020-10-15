@@ -9,6 +9,8 @@ pub struct GetAddresses(
     pub u32,
     /// Limit
     pub u32,
+    /// External
+    pub bool,
 );
 
 impl Message for GetAddresses {
@@ -20,9 +22,9 @@ impl Handler<GetAddresses> for worker::Worker {
 
     fn handle(
         &mut self,
-        GetAddresses(wallet, offset, limit): GetAddresses,
+        GetAddresses(wallet, offset, limit, external): GetAddresses,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.addresses(&wallet, offset, limit)
+        self.addresses(&wallet, offset, limit, external)
     }
 }
