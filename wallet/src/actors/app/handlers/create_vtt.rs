@@ -1,6 +1,5 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 
 use crate::actors::app;
 use crate::types;
@@ -60,7 +59,6 @@ impl Handler<CreateVttRequest> for app::App {
                 .map(|transaction, _, _| {
                     let transaction_id = hex::encode(transaction.hash().as_ref());
                     let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
-                    let fee = msg.fee * u64::try_from(bytes.len()).unwrap();
 
                     CreateVttResponse {
                         transaction_id,
@@ -69,7 +67,7 @@ impl Handler<CreateVttRequest> for app::App {
                         metadata: VttMetadata {
                             to: msg.address,
                             value: msg.amount,
-                            fee,
+                            fee: msg.fee,
                             time_lock: msg.time_lock,
                         },
                     }
