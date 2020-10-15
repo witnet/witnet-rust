@@ -9,7 +9,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
     match command {
         Command::Run(params) => {
             if let Some(node) = params.node {
-                config.wallet.node_url = Some(node);
+                config.wallet.node_url = vec![node];
             }
             if let Some(db) = params.db {
                 config.wallet.db_path = db;

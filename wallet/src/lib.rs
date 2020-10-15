@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use actix::prelude::*;
 use failure::Error;
+use rand::seq::SliceRandom;
 
 use witnet_config::config::Config;
 use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
@@ -82,8 +83,8 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
 
-    // Nicely unwrap the `Option<String>` for `node_url`
-    let node_client_url = node_url.ok_or_else(|| {
+    // Select random node from list
+    let node_client_url = node_url.choose(&mut rand::thread_rng()).ok_or_else(|| {
         log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
                         [wallet]\n\
                         node_url = \"{}\"\n", node_jsonrpc_server_address);
@@ -93,7 +94,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     // Connecting to a remote node server that is not configured locally is not a deal breaker,
     // but still could mean some misconfiguration, so we print a warning with some help.
-    if node_client_url != node_jsonrpc_server_address.to_string() {
+    if node_client_url != &node_jsonrpc_server_address.to_string() {
         log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, node_client_url);
     }
 
@@ -105,7 +106,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     .map_err(|_| app::Error::NodeNotConnected)?;
     let node_client = Arc::new(NodeClient {
         actor: node_client_actor,
-        url: node_client_url,
+        url: node_client_url.clone(),
     });
 
     let db = Arc::new(

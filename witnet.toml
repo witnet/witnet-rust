@@ -98,4 +98,5 @@ level = "info"
 
 [wallet]
 # The address (IP and port) of a Witnet node's JSON-RPC server. This should normally match `json_rpc.server_address`.
+# If more than one address is provided, the wallet will choose one at random.
 node_url = "127.0.0.1:21338"

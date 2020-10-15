@@ -38,9 +38,11 @@
 //! // Default config for mainnet
 //! // Config::from_partial(&PartialConfig::default_mainnet());
 //! ```
-use std::{collections::HashSet, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{
+    collections::HashSet, fmt, marker::PhantomData, net::SocketAddr, path::PathBuf, time::Duration,
+};
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 use crate::{
     defaults::{Defaults, Development, Mainnet, Testnet},
@@ -817,9 +819,11 @@ pub struct Wallet {
     /// Websockets server address.
     pub server_addr: SocketAddr,
     /// Witnet node server address.
+    /// If more than one address is provided, will choose one at random.
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
-    pub node_url: Option<String>,
+    #[partial_struct(serde(deserialize_with = "deserialize_one_or_many"))]
+    pub node_url: Vec<String>,
     /// How many blocks to ask a Witnet node for when synchronizing.
     pub node_sync_batch_size: u32,
     /// How many worker threads the wallet uses.
@@ -1094,6 +1098,38 @@ where
 {
     let passwd = String::deserialize(deserializer)?;
     Ok(Some(passwd.into()))
+}
+
+// https://stackoverflow.com/a/43627388
+fn deserialize_one_or_many<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct StringOrVec(PhantomData<Vec<String>>);
+
+    impl<'de> de::Visitor<'de> for StringOrVec {
+        type Value = Vec<String>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("string or list of strings")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(vec![value.to_owned()])
+        }
+
+        fn visit_seq<S>(self, visitor: S) -> Result<Self::Value, S::Error>
+        where
+            S: de::SeqAccess<'de>,
+        {
+            Deserialize::deserialize(de::value::SeqAccessDeserializer::new(visitor))
+        }
+    }
+
+    deserializer.deserialize_any(StringOrVec(PhantomData))
 }
 
 #[cfg(test)]
