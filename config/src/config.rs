@@ -128,45 +128,6 @@ pub struct Log {
     pub sentry_telemetry: bool,
 }
 
-fn as_log_filter_string<S>(
-    level: &Option<log::LevelFilter>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if let Some(level_unwrapped) = level {
-        let result = match level_unwrapped {
-            log::LevelFilter::Off => "off",
-            log::LevelFilter::Error => "error",
-            log::LevelFilter::Warn => "warn",
-            log::LevelFilter::Debug => "debug",
-            log::LevelFilter::Trace => "trace",
-            _ => "info",
-        };
-        serializer.serialize_str(result)
-    } else {
-        serializer.serialize_str("info")
-    }
-}
-
-fn as_log_filter<'de, D>(deserializer: D) -> Result<Option<log::LevelFilter>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let level_string = String::deserialize(deserializer)?;
-    let level = match level_string.as_ref() {
-        "off" => log::LevelFilter::Off,
-        "error" => log::LevelFilter::Error,
-        "warn" => log::LevelFilter::Warn,
-        "debug" => log::LevelFilter::Debug,
-        "trace" => log::LevelFilter::Trace,
-        _ => log::LevelFilter::Info,
-    };
-
-    Ok(Some(level))
-}
-
 /// Connection-specific configuration.
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
 #[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
@@ -281,48 +242,6 @@ pub struct Connections {
     pub requested_blocks_batch_limit: u32,
 }
 
-fn to_millis<S>(val: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if let Some(duration) = val {
-        serializer
-            .serialize_u64(u64::try_from(duration.as_millis()).map_err(serde::ser::Error::custom)?)
-    } else {
-        serializer.serialize_none()
-    }
-}
-
-fn from_millis<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(match u64::deserialize(deserializer) {
-        Ok(secs) => Some(Duration::from_millis(secs)),
-        Err(_) => None,
-    })
-}
-fn to_secs<S>(val: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if let Some(duration) = val {
-        serializer.serialize_u64(duration.as_secs())
-    } else {
-        serializer.serialize_none()
-    }
-}
-
-fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(match u64::deserialize(deserializer) {
-        Ok(secs) => Some(Duration::from_secs(secs)),
-        Err(_) => None,
-    })
-}
-
 /// Available storage backends
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum StorageBackend {
@@ -362,24 +281,6 @@ pub struct Storage {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub master_key_import_path: Option<PathBuf>,
-}
-
-fn to_protected_string<S>(val: &Option<Protected>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    match val {
-        Some(_) => serializer.serialize_str("**** REDACTED ****"),
-        None => serializer.serialize_none(),
-    }
-}
-
-fn as_protected_string<'de, D>(deserializer: D) -> Result<Option<Protected>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let passwd = String::deserialize(deserializer)?;
-    Ok(Some(passwd.into()))
 }
 
 /// JsonRPC API configuration
@@ -1092,6 +993,107 @@ impl Rocksdb {
 
         opts
     }
+}
+
+// Serialization helpers
+
+fn as_log_filter_string<S>(
+    level: &Option<log::LevelFilter>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(level_unwrapped) = level {
+        let result = match level_unwrapped {
+            log::LevelFilter::Off => "off",
+            log::LevelFilter::Error => "error",
+            log::LevelFilter::Warn => "warn",
+            log::LevelFilter::Debug => "debug",
+            log::LevelFilter::Trace => "trace",
+            _ => "info",
+        };
+        serializer.serialize_str(result)
+    } else {
+        serializer.serialize_str("info")
+    }
+}
+
+fn as_log_filter<'de, D>(deserializer: D) -> Result<Option<log::LevelFilter>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let level_string = String::deserialize(deserializer)?;
+    let level = match level_string.as_ref() {
+        "off" => log::LevelFilter::Off,
+        "error" => log::LevelFilter::Error,
+        "warn" => log::LevelFilter::Warn,
+        "debug" => log::LevelFilter::Debug,
+        "trace" => log::LevelFilter::Trace,
+        _ => log::LevelFilter::Info,
+    };
+
+    Ok(Some(level))
+}
+
+fn to_millis<S>(val: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(duration) = val {
+        serializer
+            .serialize_u64(u64::try_from(duration.as_millis()).map_err(serde::ser::Error::custom)?)
+    } else {
+        serializer.serialize_none()
+    }
+}
+
+fn from_millis<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(match u64::deserialize(deserializer) {
+        Ok(secs) => Some(Duration::from_millis(secs)),
+        Err(_) => None,
+    })
+}
+fn to_secs<S>(val: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(duration) = val {
+        serializer.serialize_u64(duration.as_secs())
+    } else {
+        serializer.serialize_none()
+    }
+}
+
+fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(match u64::deserialize(deserializer) {
+        Ok(secs) => Some(Duration::from_secs(secs)),
+        Err(_) => None,
+    })
+}
+
+fn to_protected_string<S>(val: &Option<Protected>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match val {
+        Some(_) => serializer.serialize_str("**** REDACTED ****"),
+        None => serializer.serialize_none(),
+    }
+}
+
+fn as_protected_string<'de, D>(deserializer: D) -> Result<Option<Protected>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let passwd = String::deserialize(deserializer)?;
+    Ok(Some(passwd.into()))
 }
 
 #[cfg(test)]
