@@ -78,6 +78,16 @@ impl Worker {
             self.params.id_hash_iterations,
         );
 
+        // If wallet ID already exists, return Err
+        if self
+            .wallets
+            .infos()?
+            .into_iter()
+            .any(|wallet| wallet.id == id)
+        {
+            return Err(Error::WalletAlreadyExists(id));
+        };
+
         let default_account_index = 0;
         let default_account =
             account::gen_account(&self.engine, default_account_index, &master_key)?;

@@ -36,6 +36,8 @@ pub enum Error {
     EpochCalculation(#[cause] witnet_data_structures::error::EpochCalculationError),
     #[fail(display = "failed because wallet is still syncing: {}", _0)]
     StillSyncing(String),
+    #[fail(display = "wallet with id {} already exists", _0)]
+    WalletAlreadyExists(String),
 }
 
 #[derive(Debug, Fail)]
