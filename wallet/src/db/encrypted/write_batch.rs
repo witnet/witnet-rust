@@ -17,14 +17,15 @@ impl EncryptedWriteBatch {
 }
 
 impl WriteBatch for EncryptedWriteBatch {
-    fn put<K, V>(&mut self, key: K, value: V) -> Result<()>
+    fn put<K, V, Vref>(&mut self, key: &Key<K, V>, value: Vref) -> Result<()>
     where
         K: AsRef<[u8]>,
-        V: serde::Serialize,
+        V: serde::Serialize + ?Sized,
+        Vref: Borrow<V>,
     {
         let prefix_key = self.prefixer.prefix(key.as_ref());
         let enc_key = self.engine.encrypt(&prefix_key)?;
-        let enc_val = self.engine.encrypt(&value)?;
+        let enc_val = self.engine.encrypt(value.borrow())?;
 
         self.batch.put(enc_key, enc_val)?;
 

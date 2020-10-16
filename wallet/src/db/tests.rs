@@ -24,37 +24,38 @@ impl std::iter::FromIterator<(Bytes, Bytes)> for HashMapDb {
 impl Database for HashMapDb {
     type WriteBatch = HashMapWriteBatch;
 
-    fn get_opt<K, V>(&self, key: &K) -> Result<Option<V>>
+    fn get_opt<K, V>(&self, key: &Key<K, V>) -> Result<Option<V>>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]>,
         V: serde::de::DeserializeOwned,
     {
         let k = key.as_ref().to_vec();
-        let res = match self.rc.borrow().get(&k) {
-            Some(value) => Some(bincode::deserialize(value)?),
+        let res = match RefCell::borrow(&self.rc).get(&k) {
+            Some(value) => Some(bincode::deserialize(value.as_ref())?),
             None => None,
         };
 
         Ok(res)
     }
 
-    fn contains<K>(&self, key: &K) -> Result<bool>
+    fn contains<K, V>(&self, key: &Key<K, V>) -> Result<bool>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]>,
     {
         let k = key.as_ref().to_vec();
-        let res = self.rc.borrow().contains_key(&k);
+        let res = RefCell::borrow(&self.rc).contains_key(&k);
 
         Ok(res)
     }
 
-    fn put<K, V>(&self, key: K, value: V) -> Result<()>
+    fn put<K, V, Vref>(&self, key: &Key<K, V>, value: Vref) -> Result<()>
     where
         K: AsRef<[u8]>,
-        V: serde::Serialize,
+        V: serde::Serialize + ?Sized,
+        Vref: Borrow<V>,
     {
         let k = key.as_ref().to_vec();
-        let v = bincode::serialize(&value)?;
+        let v = bincode::serialize(value.borrow())?;
 
         self.rc.borrow_mut().insert(k, v);
 
@@ -86,13 +87,14 @@ pub struct HashMapWriteBatch {
 }
 
 impl WriteBatch for HashMapWriteBatch {
-    fn put<K, V>(&mut self, key: K, value: V) -> Result<()>
+    fn put<K, V, Vref>(&mut self, key: &Key<K, V>, value: Vref) -> Result<()>
     where
         K: AsRef<[u8]>,
-        V: serde::Serialize,
+        V: serde::Serialize + ?Sized,
+        Vref: Borrow<V>,
     {
         let k = key.as_ref().to_vec();
-        let v = bincode::serialize(&value)?;
+        let v = bincode::serialize(value.borrow())?;
 
         self.data.insert(k, v);
 
@@ -113,29 +115,33 @@ impl IntoIterator for HashMapWriteBatch {
 
 #[test]
 fn test_hashmap_db() {
-    let storage: Rc<RefCell<HashMap<Bytes, Bytes>>> = Default::default();
-    let db = HashMapDb::new(storage);
+    let db = HashMapDb::default();
+    let key: Key<_, Vec<u8>> = Key::new(b"key");
+    let value = b"value".to_vec();
 
-    assert!(!db.contains(b"key").unwrap());
-    assert!(db.get_opt::<_, Bytes>(b"key").unwrap().is_none());
+    assert!(!db.contains(&key).unwrap());
+    assert!(db.get_opt(&key).unwrap().is_none());
 
-    db.put(b"key", b"value".to_vec()).unwrap();
+    db.put(&key, &value).unwrap();
 
-    assert!(db.contains(b"key").unwrap());
-    assert_eq!(b"value".to_vec(), db.get::<_, Bytes>(b"key").unwrap());
+    assert!(db.contains(&key).unwrap());
+    assert_eq!(value, db.get(&key).unwrap());
 }
 
 #[test]
 fn test_hashmap_writebatch() {
-    let storage: Rc<RefCell<HashMap<Bytes, Bytes>>> = Default::default();
-    let db = HashMapDb::new(storage);
+    let db = HashMapDb::default();
     let mut batch = db.batch();
+    let key1: Key<_, Vec<u8>> = Key::new(b"key1");
+    let key2: Key<_, Vec<u8>> = Key::new(b"key2");
+    let value1 = b"value1".to_vec();
+    let value2 = b"value2".to_vec();
 
-    batch.put(b"key1", b"value1".to_vec()).unwrap();
-    batch.put(b"key2", b"value2".to_vec()).unwrap();
+    batch.put(&key1, &value1).unwrap();
+    batch.put(&key2, &value2).unwrap();
 
     db.write(batch).unwrap();
 
-    assert_eq!(b"value1".to_vec(), db.get::<_, Bytes>(b"key1").unwrap());
-    assert_eq!(b"value2".to_vec(), db.get::<_, Bytes>(b"key2").unwrap());
+    assert_eq!(value1, db.get(&key1).unwrap());
+    assert_eq!(value2, db.get(&key2).unwrap());
 }

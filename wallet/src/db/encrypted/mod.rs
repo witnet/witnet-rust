@@ -39,9 +39,9 @@ impl AsRef<rocksdb::DB> for EncryptedDb {
 impl Database for EncryptedDb {
     type WriteBatch = EncryptedWriteBatch;
 
-    fn get_opt<K, V>(&self, key: &K) -> Result<Option<V>>
+    fn get_opt<K, V>(&self, key: &Key<K, V>) -> Result<Option<V>>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]>,
         V: serde::de::DeserializeOwned,
     {
         let prefix_key = self.prefixer.prefix(key);
@@ -58,9 +58,9 @@ impl Database for EncryptedDb {
         }
     }
 
-    fn contains<K>(&self, key: &K) -> Result<bool>
+    fn contains<K, V>(&self, key: &Key<K, V>) -> Result<bool>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]>,
     {
         let prefix_key = self.prefixer.prefix(key);
         let enc_key = self.engine.encrypt(&prefix_key)?;
@@ -72,14 +72,15 @@ impl Database for EncryptedDb {
         }
     }
 
-    fn put<K, V>(&self, key: K, value: V) -> Result<()>
+    fn put<K, V, Vref>(&self, key: &Key<K, V>, value: Vref) -> Result<()>
     where
         K: AsRef<[u8]>,
-        V: serde::Serialize,
+        V: serde::Serialize + ?Sized,
+        Vref: Borrow<V>,
     {
-        let prefix_key = self.prefixer.prefix(&key);
+        let prefix_key = self.prefixer.prefix(key);
         let enc_key = self.engine.encrypt(&prefix_key)?;
-        let enc_val = self.engine.encrypt(&value)?;
+        let enc_val = self.engine.encrypt(value.borrow())?;
 
         self.as_ref().put(enc_key, enc_val)?;
 

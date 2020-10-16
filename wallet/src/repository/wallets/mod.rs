@@ -31,7 +31,7 @@ impl<T: Database> Wallets<T> {
 
     /// Retrieve public information of wallets stored in the wallets DB
     pub fn infos(&self) -> Result<Vec<model::Wallet>> {
-        let ids: Vec<String> = self.db.get_or_default(keys::wallet_ids())?;
+        let ids: Vec<String> = self.db.get_or_default(&keys::wallet_ids())?;
         let mut wallets = Vec::with_capacity(ids.len());
 
         for id in ids {
@@ -48,7 +48,7 @@ impl<T: Database> Wallets<T> {
         let mut batch = self.db.batch();
 
         if let Some(name) = name {
-            batch.put(keys::wallet_id_name(&id), name)?;
+            batch.put(&keys::wallet_id_name(&id), name)?;
         }
 
         self.db.write(batch)?;
@@ -76,28 +76,28 @@ impl<T: Database> Wallets<T> {
 
         // We first write name and description into private wallet DB
         if let Some(name) = name.as_ref() {
-            wbatch.put(keys::wallet_name(), name.clone())?;
-            batch.put(keys::wallet_id_name(&id), name.clone())?;
+            wbatch.put(&keys::wallet_name(), name.clone())?;
+            batch.put(&keys::wallet_id_name(&id), name.clone())?;
         }
 
         if let Some(description) = description {
-            wbatch.put(keys::wallet_description(), description)?;
+            wbatch.put(&keys::wallet_description(), description)?;
         }
 
-        wbatch.put(keys::wallet_default_account(), account.index)?;
+        wbatch.put(&keys::wallet_default_account(), account.index)?;
         wbatch.put(
-            keys::account_key(account.index, constants::EXTERNAL_KEYCHAIN),
+            &keys::account_key(account.index, constants::EXTERNAL_KEYCHAIN),
             &account.external,
         )?;
         wbatch.put(
-            keys::account_key(account.index, constants::INTERNAL_KEYCHAIN),
+            &keys::account_key(account.index, constants::INTERNAL_KEYCHAIN),
             &account.internal,
         )?;
 
         wallet_db.write(wbatch)?;
 
-        batch.put(keys::wallet_id_salt(&id), &salt)?;
-        batch.put(keys::wallet_id_iv(&id), &iv)?;
+        batch.put(&keys::wallet_id_salt(&id), &salt)?;
+        batch.put(&keys::wallet_id_iv(&id), &iv)?;
 
         // FIXME: Use merge operator or a transaction when available in rocksdb crate
         let wallet_id = id.to_string();
@@ -105,7 +105,7 @@ impl<T: Database> Wallets<T> {
         let mut ids: Vec<String> = self.db.get_or_default(&keys::wallet_ids())?;
         if !ids.contains(&wallet_id) {
             ids.push(wallet_id);
-            batch.put(keys::wallet_ids(), ids)?;
+            batch.put(&keys::wallet_ids(), ids)?;
         }
         self.db.write(batch)?;
         drop(lock);

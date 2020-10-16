@@ -26,9 +26,9 @@ impl AsRef<rocksdb::DB> for PlainDb {
 impl Database for PlainDb {
     type WriteBatch = PlainWriteBatch;
 
-    fn get_opt<K, V>(&self, key: &K) -> Result<Option<V>>
+    fn get_opt<K, V>(&self, key: &Key<K, V>) -> Result<Option<V>>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]>,
         V: serde::de::DeserializeOwned,
     {
         let res = self.as_ref().get(key)?;
@@ -41,9 +41,9 @@ impl Database for PlainDb {
         }
     }
 
-    fn contains<K>(&self, key: &K) -> Result<bool>
+    fn contains<K, V>(&self, key: &Key<K, V>) -> Result<bool>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]>,
     {
         let res = self.as_ref().get(key)?;
         match res {
@@ -52,12 +52,13 @@ impl Database for PlainDb {
         }
     }
 
-    fn put<K, V>(&self, key: K, value: V) -> Result<()>
+    fn put<K, V, Vref>(&self, key: &Key<K, V>, value: Vref) -> Result<()>
     where
         K: AsRef<[u8]>,
-        V: serde::Serialize,
+        V: serde::Serialize + ?Sized,
+        Vref: Borrow<V>,
     {
-        let bytes = bincode::serialize(&value)?;
+        let bytes = bincode::serialize(value.borrow())?;
 
         self.as_ref().put(key, bytes)?;
 

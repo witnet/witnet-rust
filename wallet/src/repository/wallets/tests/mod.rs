@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::iter::FromIterator;
 
 use super::*;
 use crate::*;
@@ -17,11 +16,9 @@ fn test_wallet_infos_when_no_wallets() {
 
 #[test]
 fn test_wallet_infos_when_wallets() {
-    let data = HashMap::from_iter(vec![(
-        keys::wallet_ids().as_bytes().to_vec(),
-        bincode::serialize(&vec!["a-wallet-id".to_string()]).unwrap(),
-    )]);
-    let (wallets, _db) = factories::wallets(Some(data));
+    let (wallets, db) = factories::wallets(Some(HashMap::new()));
+    db.put(&keys::wallet_ids(), vec!["a-wallet-id".to_string()])
+        .unwrap();
 
     let infos = wallets.infos().unwrap();
 
@@ -31,11 +28,8 @@ fn test_wallet_infos_when_wallets() {
 #[test]
 fn test_update_wallet_info() {
     let id = "a-wallet-id".to_string();
-    let data = HashMap::from_iter(vec![(
-        keys::wallet_ids().as_bytes().to_vec(),
-        bincode::serialize(&vec![id.clone()]).unwrap(),
-    )]);
-    let (wallets, db) = factories::wallets(Some(data));
+    let (wallets, db) = factories::wallets(Some(HashMap::new()));
+    db.put(&keys::wallet_ids(), vec![id.clone()]).unwrap();
 
     let wallet_info = &wallets.infos().unwrap()[0];
 
@@ -49,8 +43,5 @@ fn test_update_wallet_info() {
     let wallet_info = &wallets.infos().unwrap()[0];
 
     assert_eq!(name, wallet_info.name);
-    assert_eq!(
-        name,
-        db.get_opt::<_, String>(&keys::wallet_id_name(&id)).unwrap()
-    );
+    assert_eq!(name, db.get_opt(&keys::wallet_id_name(&id)).unwrap());
 }

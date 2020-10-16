@@ -1,6 +1,7 @@
 use std::{collections::HashMap, iter::FromIterator as _, mem};
 
 use super::*;
+use crate::db::HashMapDb;
 use crate::repository::wallet::tests::factories::vtt_from_body;
 use crate::types::Hashable;
 use crate::*;
@@ -63,7 +64,7 @@ fn test_gen_external_address_stores_next_address_index_in_db() {
 
     assert_eq!(
         1,
-        db.get::<_, u32>(&keys::account_next_index(account, keychain))
+        db.get(&keys::account_next_index(account, keychain))
             .unwrap()
     );
 
@@ -71,7 +72,7 @@ fn test_gen_external_address_stores_next_address_index_in_db() {
 
     assert_eq!(
         2,
-        db.get::<_, u32>(&keys::account_next_index(account, keychain))
+        db.get(&keys::account_next_index(account, keychain))
             .unwrap()
     );
 }
@@ -87,17 +88,16 @@ fn test_gen_external_address_saves_details_in_db() {
 
     assert_eq!(
         address.address,
-        db.get::<_, String>(&keys::address(account, keychain, index))
-            .unwrap()
+        db.get(&keys::address(account, keychain, index)).unwrap()
     );
     assert_eq!(
         address.path,
-        db.get::<_, String>(&keys::address_path(account, keychain, index))
+        db.get(&keys::address_path(account, keychain, index))
             .unwrap()
     );
     assert_eq!(
         address.pkh,
-        db.get::<_, types::PublicKeyHash>(&keys::address_pkh(account, keychain, index))
+        db.get(&keys::address_pkh(account, keychain, index))
             .unwrap()
     );
 
@@ -132,11 +132,11 @@ fn test_list_internal_addresses() {
     let (wallet, _db) = factories::wallet(None);
 
     let mut address1 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address1.info.db_key = "".to_string();
+    address1.info.db_key = Default::default();
     let mut address2 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address2.info.db_key = "".to_string();
+    address2.info.db_key = Default::default();
     let mut address3 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address3.info.db_key = "".to_string();
+    address3.info.db_key = Default::default();
 
     let offset = 0;
     let limit = 10;
@@ -154,7 +154,7 @@ fn test_list_internal_addresses_paginated() {
 
     let _ = wallet.gen_internal_address(None).unwrap();
     let mut address = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address.info.db_key = "".to_string();
+    address.info.db_key = Default::default();
     let _ = wallet.gen_internal_address(None).unwrap();
 
     let offset = 1;
@@ -222,7 +222,7 @@ fn test_gen_internal_address_stores_next_address_index_in_db() {
 
     assert_eq!(
         1,
-        db.get::<_, u32>(&keys::account_next_index(account, keychain,))
+        db.get(&keys::account_next_index(account, keychain,))
             .unwrap()
     );
 
@@ -230,7 +230,7 @@ fn test_gen_internal_address_stores_next_address_index_in_db() {
 
     assert_eq!(
         2,
-        db.get::<_, u32>(&keys::account_next_index(account, keychain))
+        db.get(&keys::account_next_index(account, keychain))
             .unwrap()
     );
 }
@@ -246,22 +246,21 @@ fn test_gen_internal_address_saves_details_in_db() {
 
     assert_eq!(
         address.address,
-        db.get::<_, String>(&keys::address(account, keychain, index))
-            .unwrap()
+        db.get(&keys::address(account, keychain, index)).unwrap()
     );
     assert_eq!(
         address.path,
-        db.get::<_, String>(&keys::address_path(account, keychain, index))
+        db.get(&keys::address_path(account, keychain, index))
             .unwrap()
     );
     assert_eq!(
         address.pkh,
-        db.get::<_, types::PublicKeyHash>(&keys::address_pkh(account, keychain, index))
+        db.get(&keys::address_pkh(account, keychain, index))
             .unwrap()
     );
     assert_eq!(
         label,
-        db.get::<_, model::AddressInfo>(&keys::address_info(account, keychain, index))
+        db.get(&keys::address_info(account, keychain, index))
             .unwrap()
             .label
             .unwrap()
@@ -304,7 +303,7 @@ fn test_custom_kv() {
 
 #[test]
 fn test_balance() {
-    let (wallet, _db) = factories::wallet(None);
+    let (wallet, db) = factories::wallet(None);
 
     let balance = wallet.balance().unwrap();
     assert_eq!(0, balance.local);
@@ -313,15 +312,11 @@ fn test_balance() {
     assert_eq!(0, balance.confirmed.available);
     assert_eq!(0, balance.confirmed.locked);
 
-    let mut db = HashMap::new();
     let new_balance = model::BalanceInfo {
         available: 99u64,
         locked: 0u64,
     };
-    db.insert(
-        keys::account_balance(0).as_bytes().to_vec(),
-        bincode::serialize(&new_balance).unwrap(),
-    );
+    db.put(&keys::account_balance(0), &new_balance).unwrap();
 
     let (wallet, _db) = factories::wallet(Some(db));
 
@@ -367,14 +362,10 @@ fn test_create_transaction_components_without_a_change_address() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
 
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -394,7 +385,7 @@ fn test_create_transaction_components_without_a_change_address() {
 }
 
 #[test]
-fn test_create_transaction_components_whith_a_change_address() {
+fn test_create_transaction_components_with_a_change_address() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -413,14 +404,10 @@ fn test_create_transaction_components_whith_a_change_address() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
 
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -479,18 +466,11 @@ fn test_create_transaction_components_which_value_overflows() {
         available: std::u64::MAX,
         locked: 0u64,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (
-            keys::account_balance(0).as_bytes().to_vec(),
-            bincode::serialize(&new_balance).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
 
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -531,18 +511,11 @@ fn test_create_vtt_does_not_spend_utxos() {
         available: 1u64,
         locked: 0u64,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (
-            keys::account_balance(0).as_bytes().to_vec(),
-            bincode::serialize(&new_balance).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
 
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, db) = factories::wallet(Some(db));
     let pkh = factories::pkh();
     let value = 1;
@@ -577,10 +550,16 @@ fn test_create_vtt_does_not_spend_utxos() {
 
     assert_eq!(1, wallet.balance().unwrap().confirmed.available);
     assert_eq!(0, wallet.balance().unwrap().confirmed.locked);
-    assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
+    assert_eq!(
+        model::BalanceInfo {
+            available: 1,
+            locked: 0,
+        },
+        db.get(&keys::account_balance(0)).unwrap()
+    );
 
     assert!(db
-        .get::<_, u32>(&keys::transactions_index(vtt.hash().as_ref()))
+        .get(&keys::transactions_index(vtt.hash().as_ref()))
         .is_err());
 }
 
@@ -608,18 +587,11 @@ fn test_create_data_request_does_not_spend_utxos() {
         available: 1u64,
         locked: 0u64,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (
-            keys::account_balance(0).as_bytes().to_vec(),
-            bincode::serialize(&new_balance).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
 
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, db) = factories::wallet(Some(db));
 
     let state_utxo_set = wallet.utxo_set().unwrap();
@@ -652,14 +624,12 @@ fn test_create_data_request_does_not_spend_utxos() {
     assert_eq!(1, wallet.balance().unwrap().confirmed.available);
     assert_eq!(0, wallet.balance().unwrap().confirmed.locked);
 
-    let db_balance = db
-        .get::<_, model::BalanceInfo>(&keys::account_balance(0))
-        .unwrap();
+    let db_balance = db.get(&keys::account_balance(0)).unwrap();
     assert_eq!(1, db_balance.available);
     assert_eq!(0, db_balance.locked);
 
     assert!(db
-        .get::<_, u32>(&keys::transactions_index(data_req.hash().as_ref()))
+        .get(&keys::transactions_index(data_req.hash().as_ref()))
         .is_err());
 }
 
@@ -668,9 +638,11 @@ fn test_index_transaction_output_affects_balance() {
     let (wallet, db) = factories::wallet(None);
 
     assert_eq!(
-        0,
-        db.get_or_default::<_, u64>(&keys::account_balance(0))
-            .unwrap()
+        model::BalanceInfo {
+            available: 0,
+            locked: 0,
+        },
+        db.get_or_default(&keys::account_balance(0)).unwrap()
     );
 
     let value = 1u64;
@@ -687,7 +659,13 @@ fn test_index_transaction_output_affects_balance() {
         .index_block_transactions(&block, &[vtt_from_body(body)], true, false)
         .unwrap();
 
-    assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
+    assert_eq!(
+        model::BalanceInfo {
+            available: 1,
+            locked: 0,
+        },
+        db.get(&keys::account_balance(0)).unwrap()
+    );
 }
 
 #[test]
@@ -695,9 +673,11 @@ fn test_index_transaction_input_affects_balance() {
     let (wallet, db) = factories::wallet(None);
 
     assert_eq!(
-        0,
-        db.get_or_default::<_, u64>(&keys::account_balance(0))
-            .unwrap()
+        model::BalanceInfo {
+            available: 0,
+            locked: 0,
+        },
+        db.get_or_default(&keys::account_balance(0)).unwrap()
     );
 
     let address = wallet.gen_external_address(None).unwrap();
@@ -732,7 +712,13 @@ fn test_index_transaction_input_affects_balance() {
         .index_block_transactions(&a_block, &[vtt_from_body(txn2)], true, false)
         .unwrap();
 
-    assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
+    assert_eq!(
+        model::BalanceInfo {
+            available: 1,
+            locked: 0,
+        },
+        db.get(&keys::account_balance(0)).unwrap()
+    );
 }
 
 #[test]
@@ -742,7 +728,7 @@ fn test_index_transaction_does_not_duplicate_transactions() {
 
     assert_eq!(
         0,
-        db.get_or_default::<_, u32>(&keys::transaction_next_id(account))
+        db.get_or_default(&keys::transaction_next_id(account))
             .unwrap()
     );
 
@@ -768,11 +754,7 @@ fn test_index_transaction_does_not_duplicate_transactions() {
         .index_block_transactions(&block, &[factories::vtt_from_body(txn)], true, false)
         .unwrap();
 
-    assert_eq!(
-        1,
-        db.get::<_, u32>(&keys::transaction_next_id(account))
-            .unwrap()
-    );
+    assert_eq!(1, db.get(&keys::transaction_next_id(account)).unwrap());
 }
 
 #[test]
@@ -839,9 +821,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
         .unwrap();
 
     // check that indeed, the previously created vtt has not been indexed
-    let db_movement = db
-        .get_opt::<_, model::BalanceMovement>(&keys::transaction_movement(0, 1))
-        .unwrap();
+    let db_movement = db.get_opt(&keys::transaction_movement(0, 1)).unwrap();
     assert!(db_movement.is_none());
 
     // index another block confirming the previously created vtt
@@ -851,7 +831,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
 
     // check that indeed, the previously created vtt now has a block associated with it
     let block_after = db
-        .get::<_, model::BalanceMovement>(&keys::transaction_movement(0, 1))
+        .get(&keys::transaction_movement(0, 1))
         .unwrap()
         .transaction
         .block;
@@ -897,11 +877,10 @@ fn test_update_wallet_with_values() {
 
     assert_eq!(name, wallet_data.name);
     assert_eq!(description, wallet_data.description);
-    assert_eq!(name, db.get_opt::<_, String>(&keys::wallet_name()).unwrap());
+    assert_eq!(name, db.get_opt(&keys::wallet_name()).unwrap());
     assert_eq!(
         description,
-        db.get_opt::<_, String>(&keys::wallet_description())
-            .unwrap()
+        db.get_opt(&keys::wallet_description()).unwrap()
     );
 }
 

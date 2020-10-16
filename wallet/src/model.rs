@@ -4,6 +4,7 @@ use std::{collections::HashMap, fmt};
 use failure::_core::fmt::Formatter;
 use serde::{Deserialize, Serialize};
 
+use crate::repository::keys::Key;
 use crate::{account, types};
 
 #[derive(Debug, Clone, Serialize)]
@@ -43,7 +44,7 @@ pub struct Addresses {
 pub struct AddressInfo {
     /// Database key for storing `AddressInfo` objects
     #[serde(skip)]
-    pub db_key: String,
+    pub db_key: Key<String, AddressInfo>,
     pub label: Option<String>,
     pub received_payments: Vec<String>,
     pub received_amount: u64,

@@ -1,10 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
-
 use witnet_data_structures::chain::Hash;
 
 use super::*;
+use crate::db::HashMapDb;
 
-pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
+pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
     let id = "example-wallet";
     let params = params::Params::default();
     let mnemonic = types::MnemonicGen::new()
@@ -26,8 +25,7 @@ pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>
     let salt = crypto::salt(&mut rng, params.db_salt_length);
     let iv = crypto::salt(&mut rng, params.db_iv_length);
 
-    let storage = Rc::new(RefCell::new(data.unwrap_or_default()));
-    let db = db::HashMapDb::new(storage);
+    let db = data.unwrap_or_default();
     let wallets = Wallets::new(db.clone());
 
     // Create the initial data required by the wallet

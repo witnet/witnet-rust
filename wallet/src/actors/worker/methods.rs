@@ -102,7 +102,7 @@ impl Worker {
 
         let wallet_db = db::EncryptedDb::new(self.db.clone(), prefix, key, iv.clone());
         wallet_db.put(
-            constants::ENCRYPTION_CHECK_KEY,
+            &constants::ENCRYPTION_CHECK_KEY,
             constants::ENCRYPTION_CHECK_VALUE,
         )?; // used when unlocking to check if the password is correct
 
@@ -188,7 +188,7 @@ impl Worker {
 
         // Check if password-derived key is able to read the special stored value
         wallet_db
-            .get(constants::ENCRYPTION_CHECK_KEY)
+            .get(&constants::ENCRYPTION_CHECK_KEY)
             .map_err(|err| match err {
                 db::Error::DbKeyNotFound { .. } => Error::WrongPassword,
                 err => Error::Db(err),

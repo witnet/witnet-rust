@@ -3,6 +3,8 @@
 //! KeyPath constant values are taken from the WIP definition:
 //! https://github.com/aesedepece/WIPs/blob/wip-adansdpc-hdwallets/wip-adansdpc-hdwallets.md#path-levels
 
+use crate::repository::keys::Key;
+
 /// Default offset used when returning paginated results.
 pub static DEFAULT_PAGINATION_OFFSET: u32 = 0;
 
@@ -25,7 +27,7 @@ pub static INTERNAL_KEYCHAIN: u32 = 1;
 
 /// Special key used to check if a decryption key is the correct one
 /// for a wallet.
-pub static ENCRYPTION_CHECK_KEY: &str = "ENC_KEY";
+pub static ENCRYPTION_CHECK_KEY: Key<&'static str, ()> = Key::new_const("ENC_KEY");
 
 /// Special value stored with `ENCRYPTION_CHECK_KEY`.
 pub static ENCRYPTION_CHECK_VALUE: () = ();

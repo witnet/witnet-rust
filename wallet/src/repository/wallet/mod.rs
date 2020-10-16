@@ -139,7 +139,7 @@ where
         // Restore state from database
         state.transaction_next_id = self
             .db
-            .get_or_default::<_, u32>(&keys::transaction_next_id(account))?;
+            .get_or_default(&keys::transaction_next_id(account))?;
         state.utxo_set = self.db.get_or_default(&keys::account_utxo_set(account))?;
         state.balance.confirmed = self.db.get_or_default(&keys::account_balance(account))?;
         state.balance.unconfirmed = state.balance.confirmed;
@@ -155,11 +155,11 @@ where
         engine: types::CryptoEngine,
     ) -> Result<Self> {
         let id = id.to_owned();
-        let name = db.get_opt(keys::wallet_name())?;
-        let description = db.get_opt(keys::wallet_description())?;
-        let account = db.get_or_default(keys::wallet_default_account())?;
+        let name = db.get_opt(&keys::wallet_name())?;
+        let description = db.get_opt(&keys::wallet_description())?;
+        let account = db.get_or_default(&keys::wallet_default_account())?;
         let available_accounts = db
-            .get_opt(keys::wallet_accounts())?
+            .get_opt(&keys::wallet_accounts())?
             .unwrap_or_else(|| vec![account]);
 
         let transaction_next_id = db.get_or_default(&keys::transaction_next_id(account))?;
@@ -309,12 +309,12 @@ where
             // Persist changes and new address in database
             let mut batch = self.db.batch();
 
-            batch.put(keys::address(account, keychain, index), &address)?;
-            batch.put(keys::address_path(account, keychain, index), &path)?;
-            batch.put(keys::address_pkh(account, keychain, index), &pkh)?;
+            batch.put(&keys::address(account, keychain, index), &address)?;
+            batch.put(&keys::address_path(account, keychain, index), &path)?;
+            batch.put(&keys::address_pkh(account, keychain, index), &pkh)?;
             batch.put(&info.db_key, &info)?;
             batch.put(
-                keys::pkh(&pkh),
+                &keys::pkh(&pkh),
                 &model::Path {
                     account,
                     keychain,
@@ -322,7 +322,7 @@ where
                 },
             )?;
 
-            batch.put(keys::account_next_index(account, keychain), &next_index)?;
+            batch.put(&keys::account_next_index(account, keychain), &next_index)?;
 
             self.db.write(batch)?;
         }
@@ -406,7 +406,7 @@ where
         // Query database `transaction_next_id` to compute total amount of transactions
         let db_total = self
             .db
-            .get_or_default::<_, u32>(&keys::transaction_next_id(account))?;
+            .get_or_default(&keys::transaction_next_id(account))?;
 
         // get number of non-repated pending movements.
         let pending_length = state
@@ -553,9 +553,7 @@ where
 
     /// Get a transaction if exists.
     pub fn get_transaction(&self, account: u32, index: u32) -> Result<model::BalanceMovement> {
-        Ok(self
-            .db
-            .get::<_, model::BalanceMovement>(&keys::transaction_movement(account, index))?)
+        Ok(self.db.get(&keys::transaction_movement(account, index))?)
     }
 
     /// Get a previously put serialized value.
@@ -571,7 +569,7 @@ where
     ///
     /// See `kv_get`.
     pub fn kv_set(&self, key: &str, value: &str) -> Result<()> {
-        self.db.put(&keys::custom(key), value)?;
+        self.db.put(&keys::custom(key), value.to_string())?;
 
         Ok(())
     }
@@ -583,12 +581,12 @@ where
 
         state.name = name;
         if let Some(ref name) = state.name {
-            batch.put(keys::wallet_name(), name)?;
+            batch.put(&keys::wallet_name(), name)?;
         }
 
         state.description = description;
         if let Some(ref description) = state.description {
-            batch.put(keys::wallet_description(), description)?;
+            batch.put(&keys::wallet_description(), description)?;
         }
 
         self.db.write(batch)?;
@@ -626,7 +624,7 @@ where
                     .contains_key(&tally.dr_pointer.to_string())
                     || self
                         .db
-                        .get::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
+                        .get(&keys::transactions_index(tally.dr_pointer.as_ref()))
                         .is_ok()
                 {
                     filtered_txns.push(txn.clone());
@@ -635,9 +633,7 @@ where
             }
 
             let check_db_and_transient = |output: &types::VttOutput| {
-                self.db
-                    .get::<_, model::Path>(&keys::pkh(&output.pkh))
-                    .is_ok()
+                self.db.get(&keys::pkh(&output.pkh)).is_ok()
                     || state.transient_external_addresses.contains_key(&output.pkh)
                     || state.transient_internal_addresses.contains_key(&output.pkh)
             };
@@ -672,9 +668,7 @@ where
         for txn in txns {
             // Check if transaction already exists in the database
             let hash = txn.transaction.hash().as_ref().to_vec();
-            let tx_in_db = self
-                .db
-                .get_opt::<_, u32>(&keys::transactions_index(&hash))?;
+            let tx_in_db = self.db.get_opt(&keys::transactions_index(&hash))?;
 
             match (tx_in_db, resynchronizing) {
                 // Transactions are only indexed if they do not exist in database, or if resynchronizing.
@@ -732,13 +726,10 @@ where
                 // The DR transaction was confirmed but the tally wasn't. Fetch the dr from DB.
                 else if let Ok((dr_movement, txn_id)) = self
                     .db
-                    .get::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
+                    .get(&keys::transactions_index(tally.dr_pointer.as_ref()))
                     .and_then(|txn_id| {
                         self.db
-                            .get::<_, model::BalanceMovement>(&keys::transaction_movement(
-                                state.account,
-                                txn_id,
-                            ))
+                            .get(&keys::transaction_movement(state.account, txn_id))
                             .map(|dr_movement| (dr_movement, txn_id))
                     })
                 {
@@ -859,40 +850,37 @@ where
             let txn_hash = types::Hash::from_str(&movement.transaction.hash)?;
             movement.transaction.confirmed = true;
             batch.put(
-                keys::transactions_index(txn_hash.as_ref()),
+                &keys::transactions_index(txn_hash.as_ref()),
                 &movement.db_key,
             )?;
             batch.put(
-                keys::transaction_hash(account, movement.db_key).into_bytes(),
-                txn_hash.as_ref(),
+                &keys::transaction_hash(account, movement.db_key),
+                txn_hash.as_ref().to_vec(),
             )?;
             batch.put(
-                keys::transaction_movement(account, movement.db_key).into_bytes(),
+                &keys::transaction_movement(account, movement.db_key),
                 &movement,
             )?;
         }
 
         // Write account state
-        batch.put(
-            keys::transaction_next_id(account).into_bytes(),
-            transaction_next_id,
-        )?;
-        batch.put(keys::account_utxo_set(account).into_bytes(), utxo_set)?;
-        batch.put(keys::account_balance(account).into_bytes(), balance)?;
+        batch.put(&keys::transaction_next_id(account), transaction_next_id)?;
+        batch.put(&keys::account_utxo_set(account), utxo_set)?;
+        batch.put(&keys::account_balance(account), balance)?;
 
         // Persist addresses
         for address in addresses {
             batch.put(&address.info.db_key, &address.info)?;
             batch.put(
-                keys::address(account, address.keychain, address.index),
+                &keys::address(account, address.keychain, address.index),
                 &address.address,
             )?;
             batch.put(
-                keys::address_path(account, address.keychain, address.index),
+                &keys::address_path(account, address.keychain, address.index),
                 &address.path,
             )?;
             batch.put(
-                keys::address_pkh(account, address.keychain, address.index),
+                &keys::address_pkh(account, address.keychain, address.index),
                 &address.pkh,
             )?;
         }
@@ -1183,9 +1171,7 @@ where
                 let mut addresses = vec![];
                 for (output_pointer, key_balance) in account_mutation.utxo_inserts {
                     // Retrieve previous address information
-                    let path = self
-                        .db
-                        .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
+                    let path = self.db.get(&keys::pkh(&key_balance.pkh))?;
 
                     // Get address from memory or DB
                     let old_address =
@@ -1381,7 +1367,7 @@ where
         let mut output_amount: u64 = 0;
         let mut own_outputs: HashMap<PublicKeyHash, model::OutputType> = HashMap::new();
         for (index, output) in outputs.iter().enumerate() {
-            if let Some(path) = self.db.get_opt::<_, model::Path>(&keys::pkh(&output.pkh))? {
+            if let Some(path) = self.db.get_opt(&keys::pkh(&output.pkh))? {
                 match path.keychain {
                     x if x == constants::EXTERNAL_KEYCHAIN => {
                         own_outputs.insert(output.pkh, model::OutputType::External);

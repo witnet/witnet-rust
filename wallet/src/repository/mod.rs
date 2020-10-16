@@ -1,5 +1,5 @@
 mod error;
-mod keys;
+pub mod keys;
 mod wallet;
 mod wallets;
 

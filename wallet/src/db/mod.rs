@@ -6,9 +6,11 @@ mod tests;
 
 use std::fmt::Debug;
 
+pub use crate::repository::keys::Key;
 pub use encrypted::*;
 pub use error::Error;
 pub use plain::*;
+pub use std::borrow::Borrow;
 #[cfg(test)]
 pub use tests::*;
 
@@ -17,9 +19,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub trait Database {
     type WriteBatch: WriteBatch;
 
-    fn get<K, V>(&self, key: &K) -> Result<V>
+    fn get<K, V>(&self, key: &Key<K, V>) -> Result<V>
     where
-        K: AsRef<[u8]> + ?Sized + Debug,
+        K: AsRef<[u8]> + Debug,
         V: serde::de::DeserializeOwned,
     {
         let opt = self.get_opt(key)?;
@@ -29,9 +31,9 @@ pub trait Database {
         })
     }
 
-    fn get_or_default<K, V>(&self, key: &K) -> Result<V>
+    fn get_or_default<K, V>(&self, key: &Key<K, V>) -> Result<V>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]>,
         V: serde::de::DeserializeOwned + Default,
     {
         let opt = self.get_opt(key)?;
@@ -39,19 +41,20 @@ pub trait Database {
         Ok(opt.unwrap_or_default())
     }
 
-    fn get_opt<K, V>(&self, key: &K) -> Result<Option<V>>
-    where
-        K: AsRef<[u8]> + ?Sized,
-        V: serde::de::DeserializeOwned;
-
-    fn contains<K>(&self, key: &K) -> Result<bool>
-    where
-        K: AsRef<[u8]> + ?Sized;
-
-    fn put<K, V>(&self, key: K, value: V) -> Result<()>
+    fn get_opt<K, V>(&self, key: &Key<K, V>) -> Result<Option<V>>
     where
         K: AsRef<[u8]>,
-        V: serde::Serialize;
+        V: serde::de::DeserializeOwned;
+
+    fn contains<K, V>(&self, key: &Key<K, V>) -> Result<bool>
+    where
+        K: AsRef<[u8]>;
+
+    fn put<K, V, Vref>(&self, key: &Key<K, V>, value: Vref) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized,
+        Vref: Borrow<V>;
 
     fn write(&self, batch: Self::WriteBatch) -> Result<()>;
 
@@ -61,8 +64,9 @@ pub trait Database {
 }
 
 pub trait WriteBatch {
-    fn put<K, V>(&mut self, key: K, value: V) -> Result<()>
+    fn put<K, V, Vref>(&mut self, key: &Key<K, V>, value: Vref) -> Result<()>
     where
         K: AsRef<[u8]>,
-        V: serde::Serialize;
+        V: serde::Serialize + ?Sized,
+        Vref: Borrow<V>;
 }
