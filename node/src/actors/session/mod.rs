@@ -84,6 +84,9 @@ pub struct Session {
 
     /// Reference to config
     config: Arc<Config>,
+
+    /// Expected number of "peers" message from this peer
+    expected_peers_msg: u8,
 }
 
 /// Session helper methods
@@ -115,8 +118,10 @@ impl Session {
             requested_blocks: HashMap::new(),
             blocks_timestamp: 0,
             config,
+            expected_peers_msg: 0,
         }
     }
+
     /// Method to send a Witnet message to the remote peer
     fn send_message(&mut self, msg: WitnetMessage) {
         // Convert WitnetMessage into a vector of bytes

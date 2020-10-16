@@ -209,7 +209,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                     }
                     // Handle Peers message
                     (_, SessionStatus::Consolidated, Command::Peers(Peers { peers })) => {
-                        peer_discovery_peers(&peers, self.remote_addr);
+                        peer_discovery_peers(self, ctx, &peers, self.remote_addr);
                     }
                     ///////////////////////
                     // INVENTORY_REQUEST //
@@ -391,6 +391,8 @@ impl Handler<SendGetPeers> for Session {
 
     fn handle(&mut self, _msg: SendGetPeers, _: &mut Context<Self>) {
         log::trace!("Sending GetPeers message to peer at {:?}", self.remote_addr);
+
+        self.expected_peers_msg = self.expected_peers_msg.saturating_add(1);
         // Create get peers message
         let get_peers_msg = WitnetMessage::build_get_peers(self.magic_number);
         // Write get peers message in session
@@ -591,18 +593,46 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
 }
 
 /// Function called when Peers message is received
-fn peer_discovery_peers(peers: &[Address], src_address: SocketAddr) {
+fn peer_discovery_peers(
+    session: &mut Session,
+    ctx: &mut Context<Session>,
+    peers: &[Address],
+    src_address: SocketAddr,
+) {
+    let peers_requested = session.expected_peers_msg > 0;
+
     // Get peers manager address
     let peers_manager_addr = PeersManager::from_registry();
 
-    // Convert array of address to vector of socket addresses
-    let addresses = peers.iter().map(from_address).collect();
+    if peers_requested {
+        session.expected_peers_msg -= 1;
 
-    // Send AddPeers message to the peers manager
-    peers_manager_addr.do_send(AddPeers {
-        addresses,
-        src_address: Some(src_address),
-    });
+        // Convert array of address to vector of socket addresses
+        let addresses: Vec<SocketAddr> = peers.iter().map(from_address).collect();
+
+        log::debug!(
+            "Received {} peer addresses from {}",
+            addresses.len(),
+            src_address
+        );
+
+        // Send AddPeers message to the peers manager
+        peers_manager_addr.do_send(AddPeers {
+            addresses,
+            src_address: Some(src_address),
+        });
+    } else {
+        log::debug!("{} sent unwanted \"peers\"(possibly attack?)", src_address,);
+
+        // If the "peers" messages was unwanted one, put the peer into iced
+        peers_manager_addr.do_send(RemoveAddressesFromTried {
+            addresses: vec![src_address],
+            ice: true,
+        });
+
+        // And stop the actor
+        ctx.stop()
+    }
 }
 
 /// Function called when Block message is received
