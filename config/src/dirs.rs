@@ -20,7 +20,7 @@ pub fn find_config() -> Option<PathBuf> {
         config_dirs.push(dir);
     }
 
-    if let Some(dir) = directories::ProjectDirs::from("io", "witnet", "witnet") {
+    if let Some(dir) = directories_next::ProjectDirs::from("io", "witnet", "witnet") {
         config_dirs.push(dir.config_dir().into());
     }
 
@@ -47,7 +47,7 @@ pub fn find_config() -> Option<PathBuf> {
 ///
 /// Defaults to current directory.
 pub fn data_dir() -> PathBuf {
-    directories::ProjectDirs::from("", "witnet", "witnet")
+    directories_next::ProjectDirs::from("", "witnet", "witnet")
         .map(|dir| dir.data_local_dir().into())
         .unwrap_or_else(|| env::current_dir().expect("Unable to store wallet data"))
 }
