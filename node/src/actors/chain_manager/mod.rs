@@ -411,6 +411,7 @@ impl ChainManager {
             Err(ChainManagerError::ChainNotReady.into())
         }
     }
+
     #[allow(clippy::map_entry)]
     fn process_candidate(&mut self, block: Block) {
         if let (Some(current_epoch), Some(chain_info), Some(rep_engine), Some(vrf_ctx)) = (
@@ -419,6 +420,18 @@ impl ChainManager {
             self.chain_state.reputation_engine.as_ref(),
             self.vrf_ctx.as_mut(),
         ) {
+            // To continue processing, received block epoch should equal to `current_epoch` or `current_epoch + 1`
+            if !(block.block_header.beacon.checkpoint == current_epoch
+                || block.block_header.beacon.checkpoint == current_epoch + 1)
+            {
+                log::debug!(
+                    "Ignoring received block #{} because its beacon is too old",
+                    block.block_header.beacon.checkpoint
+                );
+
+                return;
+            }
+
             let hash_block = block.hash();
             // If this candidate has not been seen before, validate it
             if self.seen_candidates.insert(hash_block) {
@@ -426,8 +439,7 @@ impl ChainManager {
                     || self.sm_state == StateMachine::Synchronizing
                 {
                     self.candidates.insert(hash_block, block.clone());
-
-                    // If the node is not synced, broadcast candidates without validating them
+                    // If the node is not synced, broadcast recent candidates without validating them
                     self.broadcast_item(InventoryItem::Block(block));
 
                     return;
@@ -471,6 +483,7 @@ impl ChainManager {
                     ) != Ordering::Greater
                     {
                         log::debug!("Ignoring new block candidate ({}) because a better one ({}) has been already validated", hash_block, best_hash);
+
                         return;
                     }
                 }
