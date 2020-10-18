@@ -1307,8 +1307,8 @@ impl ChainManager {
                             // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                             // the bootstrap committee signs is at least epoch activity_period + collateral_age
                             // FIXME(#1646): Remove this hack
-                            // Tuesday, October 20, 2020 09:00:00 AM UTC
-                            if now >= 1603184400 {
+                            // Wednesday, October 21, 2020 09:00:00 AM UTC
+                            if now >= 1_603_270_800 {
                                 reputation_engine.get_rep_ordered_ars_list()
                             } else {
                                 // Bootstrap committee

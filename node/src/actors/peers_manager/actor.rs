@@ -55,9 +55,9 @@ impl Actor for PeersManager {
                         if let Some(peers_from_storage) = peers_from_storage {
                             // FIXME(#1646): Remove skip import peers from storage
                             // Skip importing peers from storage if timestamp is earlier than
-                            // Tuesday, October 20, 2020 09:00:00 AM UTC
+                            // Wednesday, October 21, 2020 09:00:00 AM UTC
                             let current_timestamp = get_timestamp();
-                            if current_timestamp > 1_603_184_400 {
+                            if current_timestamp > 1_603_270_800 {
                                 // Add all the peers from storage
                                 // The add method handles duplicates by overwriting the old values
                                 act.import_peers(peers_from_storage, known_peers);
