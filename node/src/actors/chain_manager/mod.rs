@@ -58,7 +58,7 @@ use witnet_data_structures::{
     vrf::VrfCtx,
 };
 use witnet_rad::types::RadonTypes;
-use witnet_util::timestamp::seconds_to_human_string;
+use witnet_util::timestamp::{get_timestamp, seconds_to_human_string};
 use witnet_validations::validations::{
     compare_block_candidates, validate_block, validate_block_transactions,
     validate_new_transaction, verify_signatures, VrfSlots,
@@ -1300,19 +1300,28 @@ impl ChainManager {
                         let chain_info = act.chain_state.chain_info.as_ref().unwrap();
                         let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
                         let last_superblock_signed_by_bootstrap = last_superblock_signed_by_bootstrap(&chain_info.consensus_constants);
+                        let now = get_timestamp();
 
                         let ars_members =
                             // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
                             // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                             // the bootstrap committee signs is at least epoch activity_period + collateral_age
-                            if superblock_index
-                                >= last_superblock_signed_by_bootstrap
-                            {
+                            // FIXME(#1646): Remove this hack
+                            // Tuesday, October 20, 2020 09:00:00 AM UTC
+                            if now >= 1603184400 {
                                 reputation_engine.get_rep_ordered_ars_list()
                             } else {
-                                chain_info
-                                    .consensus_constants
-                                    .bootstrapping_committee
+                                // Bootstrap committee
+                                let bootstrapping_committee = [
+                                    "wit1asdpcspwysf0hg5kgwvgsp2h6g65y5kg9gj5dz",
+                                    "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty",
+                                    "wit17nnjuxmfuu92l6rxhque2qc3u2kvmx2fske4l9",
+                                    "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq",
+                                    "wit1cyrlc64hyu0rux7hclmg9rxwxpa0v9pevyaj2c",
+                                    "wit1g0rkajsgwqux9rnmkfca5tz6djg0f87x7ms5qx",
+                                    "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z"
+                                ];
+                                bootstrapping_committee
                                     .iter()
                                     .map(|add| add.parse().expect("Malformed bootstrapping committee"))
                                     .collect()
