@@ -309,7 +309,23 @@ impl Handler<AddBlocks> for ChainManager {
                     return;
                 }
 
-                if msg.blocks.is_empty() {
+                if let Some(block) = msg.blocks.get(0) {
+                    let chain_tip = self.get_chain_beacon();
+                    if block.block_header.beacon.checkpoint > chain_tip.checkpoint
+                        && block.block_header.beacon.hash_prev_block != chain_tip.hash_prev_block
+                    {
+                        // During synchronization, if you receive a block that doesn't match with
+                        // your chain tip, you could be forked,so a good practice it is restore
+                        // from storage
+                        log::warn!("Your chain is probably forked");
+
+                        self.update_state_machine(StateMachine::WaitingConsensus);
+                        self.initialize_from_storage(ctx);
+                        log::info!("Restored chain state from storage");
+
+                        return;
+                    }
+                } else {
                     log::debug!("Received an empty AddBlocks message");
                     self.update_state_machine(StateMachine::WaitingConsensus);
                     return;
