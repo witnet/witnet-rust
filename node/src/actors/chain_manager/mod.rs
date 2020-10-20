@@ -701,7 +701,7 @@ impl ChainManager {
                         }
                         // Persist blocks and transactions but do not persist chain_state, it will
                         // be persisted on superblock consolidation
-                        // FIXME #1437: discard persisted and non-consolidated blocks
+                        // FIXME(#1663): discard persisted and non-consolidated blocks
                         // This means that after a reorganization a call to getBlock or
                         // getTransaction will show the content without any warning that the block
                         // is not on the main chain. To fix this we could remove forked blocks when

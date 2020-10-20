@@ -345,6 +345,19 @@ pub struct AddSuperBlock {
     pub superblock: SuperBlock,
 }
 
+/// Returns true if the provided block hash is the consolidated block for the provided epoch, and
+/// there exists a superblock with a majority of votes to confirm that.
+pub struct IsConfirmedBlock {
+    /// Block hash
+    pub block_hash: Hash,
+    /// Block checkpoint
+    pub block_epoch: u32,
+}
+
+impl Message for IsConfirmedBlock {
+    type Result = Result<bool, failure::Error>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

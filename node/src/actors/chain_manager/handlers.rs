@@ -26,8 +26,9 @@ use crate::{
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
             GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, PeersBeacons,
-            ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon, TryMineBlock,
+            GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
+            PeersBeacons, ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon,
+            TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -388,9 +389,6 @@ impl Handler<AddBlocks> for ChainManager {
                         }
 
                         // Persist blocks batch when target not reached
-                        // FIXME(#1437): this blocks should be marked as "pending" because we don't
-                        // know if they are valid yet. We can mark them as valid after verifying
-                        // that the top blocks pertain to the target superblock.
                         self.persist_blocks_batch(ctx, blocks);
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
@@ -1499,6 +1497,37 @@ impl Handler<AddSuperBlock> for ChainManager {
                 "Received superblock {} when expecting no superblock",
                 received_superblock_hash
             );
+        }
+    }
+}
+
+impl Handler<IsConfirmedBlock> for ChainManager {
+    type Result = Result<bool, failure::Error>;
+
+    fn handle(&mut self, msg: IsConfirmedBlock, _ctx: &mut Self::Context) -> Self::Result {
+        let superblock_period = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .ok_or(ChainManagerError::ChainNotReady)?
+            .consensus_constants
+            .superblock_period;
+        let superblock_beacon = self.get_superblock_beacon();
+        // Superblock 1 confirms blocks 0..=9
+        let last_confirmed_block =
+            (superblock_beacon.checkpoint * u32::from(superblock_period)).saturating_sub(1);
+
+        if msg.block_epoch <= last_confirmed_block {
+            if self.chain_state.block_chain.get(&msg.block_epoch) == Some(&msg.block_hash) {
+                // Block hash matches, good
+                Ok(true)
+            } else {
+                // This is a forked block that will never be valid
+                Ok(false)
+            }
+        } else {
+            // block_epoch > last_confirmed_block, this block is not confirmed yet
+            Ok(false)
         }
     }
 }

@@ -36,7 +36,7 @@ use crate::{
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo, InitializePeers,
+            GetUtxoInfo, InitializePeers, IsConfirmedBlock,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -550,6 +550,9 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
             .send(GetItemBlock { hash })
             .then(move |res| match res {
                 Ok(Ok(output)) => {
+                    let block_epoch = output.block_header.beacon.checkpoint;
+                    let block_hash = output.hash();
+
                     let vtt_hashes: Vec<_> = output
                         .txns
                         .value_transfer_txns
@@ -594,7 +597,7 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
                         Ok(x) => x,
                         Err(e) => {
                             let err = internal_error(e);
-                            return futures::failed(err);
+                            return futures::future::Either::B(futures::failed(err));
                         }
                     };
 
@@ -603,15 +606,42 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
                         .expect("The result of getBlock should be an object")
                         .insert("txns_hashes".to_string(), txns_hashes);
 
-                    futures::finished(value)
+                    // Check if this block is confirmed by a majority of superblock votes
+                    let chain_manager = ChainManager::from_registry();
+                    let fut = chain_manager
+                        .send(IsConfirmedBlock {
+                            block_hash,
+                            block_epoch,
+                        })
+                        .then(|res| match res {
+                            Ok(Ok(confirmed)) => {
+                                // Append {"confirmed":true} to the result
+                                value
+                                    .as_object_mut()
+                                    .expect("The result of getBlock should be an object")
+                                    .insert("confirmed".to_string(), Value::Bool(confirmed));
+
+                                futures::finished(value)
+                            }
+                            Ok(Err(e)) => {
+                                let err = internal_error(e);
+                                futures::failed(err)
+                            }
+                            Err(e) => {
+                                let err = internal_error(e);
+                                futures::failed(err)
+                            }
+                        });
+
+                    futures::future::Either::A(fut)
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);
-                    futures::failed(err)
+                    futures::future::Either::B(futures::failed(err))
                 }
                 Err(e) => {
                     let err = internal_error(e);
-                    futures::failed(err)
+                    futures::future::Either::B(futures::failed(err))
                 }
             }),
     )
