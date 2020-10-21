@@ -37,8 +37,8 @@ use crate::{
     proto::{schema::witnet, ProtobufConvert},
     superblock::SuperBlockState,
     transaction::{
-        CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
-        TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
+        CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
+        RevealTransaction, TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
     },
     utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
@@ -1257,12 +1257,17 @@ pub struct ExtendedSecretKey {
 
 /// BLS data structures
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Hash, Default, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256PublicKey")]
 pub struct Bn256PublicKey {
     /// Compressed form of a BN256 public key
     pub public_key: Vec<u8>,
+    #[serde(skip)]
+    #[protobuf_convert(skip)]
+    // Cached uncompressed form
+    uncompressed: Memoized<Vec<u8>>,
 }
+
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Bn256SecretKey {
     pub bytes: Protected,
@@ -1283,7 +1288,10 @@ impl Bn256PublicKey {
     pub fn from_secret_key(secret_key: &Bn256SecretKey) -> Result<Self, failure::Error> {
         let public_key = Bn256.derive_public_key(&secret_key.bytes)?;
 
-        Ok(Self { public_key })
+        Ok(Self {
+            public_key,
+            uncompressed: Memoized::default(),
+        })
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, failure::Error> {
@@ -1292,13 +1300,22 @@ impl Bn256PublicKey {
 
         Ok(Self {
             public_key: bytes.to_vec(),
+            uncompressed: Memoized::default(),
         })
     }
 
     pub fn to_uncompressed(&self) -> Result<Vec<u8>, failure::Error> {
-        // Verify that this slice is a valid public key
+        // Use the cached uncompressed key, if it was already calculated
+        if let Some(cached_uncompressed) = self.uncompressed.get_cloned() {
+            return Ok(cached_uncompressed);
+        }
+
+        // If this is the first time we use to_uncompressed, perform this expensive conversion
+        // from compressed to uncompressed, and save the result for later
         let uncompressed =
             bn256::PublicKey::from_compressed(&self.public_key)?.to_uncompressed()?;
+        self.uncompressed.set(Some(uncompressed.clone()));
+
         Ok(uncompressed)
     }
 
@@ -5131,6 +5148,7 @@ mod tests {
                 .unwrap();
         let bls_pk_2 = Bn256PublicKey {
             public_key: bls_pk.public_key[1..63].to_vec(),
+            uncompressed: Default::default(),
         };
         assert_eq!(bls_pk_2.is_valid(), false);
     }
@@ -5139,6 +5157,7 @@ mod tests {
     fn test_is_valid_false() {
         let bls_pk = Bn256PublicKey {
             public_key: vec![1; 65],
+            uncompressed: Default::default(),
         };
         assert_eq!(bls_pk.is_valid(), false);
     }
