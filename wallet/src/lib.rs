@@ -54,7 +54,6 @@ pub fn run(conf: Config) -> Result<(), Error> {
     };
     let genesis_hash = conf.consensus_constants.genesis_hash;
     let genesis_prev_hash = conf.consensus_constants.bootstrap_hash;
-    let superblock_period = conf.consensus_constants.superblock_period;
 
     // Db-encryption params
     let db_hash_iterations = conf.wallet.db_encrypt_hash_iterations;
@@ -126,7 +125,6 @@ pub fn run(conf: Config) -> Result<(), Error> {
         node_sync_batch_size,
         genesis_hash,
         genesis_prev_hash,
-        superblock_period,
         sync_address_batch_length,
     };
 

@@ -599,16 +599,6 @@ impl Worker {
         Compat01As03::new(f).await
     }
 
-    // Calculate the last checkpoint (current epoch)
-    // FIXME(#1437): not needed if resolved
-    fn current_epoch(&self) -> Result<types::Epoch> {
-        let (now, _) = witnet_util::timestamp::get_local_timestamp();
-        self.params
-            .epoch_constants
-            .epoch_at(now)
-            .map_err(Into::into)
-    }
-
     /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet
     /// chain.
     pub fn sync(
@@ -619,7 +609,6 @@ impl Worker {
         resynchronizing: bool,
     ) -> Result<()> {
         let limit = i64::from(self.params.node_sync_batch_size);
-        let superblock_period = u32::from(wallet.get_superblock_period());
 
         // Generate transient addresses for sync purposes
         wallet.initialize_transient_addresses(
@@ -644,7 +633,7 @@ impl Worker {
                 .expect("A Witnet chain should always have a genesis block");
 
             let get_gen_future = self.get_block(gen_entry.1.clone());
-            let block: types::ChainBlock = futures03::executor::block_on(get_gen_future)?;
+            let (block, _confirmed) = futures03::executor::block_on(get_gen_future)?;
             log::debug!(
                 "[SU] Got block #{}: {:?}",
                 block.block_header.beacon.checkpoint,
@@ -703,16 +692,9 @@ impl Worker {
             log::debug!("[SU] Received chain: {:?}", block_chain);
 
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
-            for ChainEntry(epoch, id) in block_chain {
+            for ChainEntry(_epoch, id) in block_chain {
                 let get_block_future = self.get_block(id.clone());
-                let block: types::ChainBlock = futures03::executor::block_on(get_block_future)?;
-
-                // Compute if block should be considered confirmed
-                // Note: blocks confirmed in past superblocks are considered confirmed
-                // FIXME(#1437): best approach would be the node signaling if blocks are confirmed
-                let node_tip_superblock_index = self.current_epoch()? / superblock_period;
-                let local_tip_superblock_index = epoch / superblock_period;
-                let confirmed = node_tip_superblock_index - local_tip_superblock_index > 1;
+                let (block, confirmed) = futures03::executor::block_on(get_block_future)?;
 
                 // Process each block and update latest beacon
                 self.handle_block(
@@ -808,7 +790,7 @@ impl Worker {
     }
 
     /// Ask a Witnet node for the contents of a single block.
-    pub async fn get_block(&self, block_id: String) -> Result<types::ChainBlock> {
+    pub async fn get_block(&self, block_id: String) -> Result<(types::ChainBlock, bool)> {
         log::debug!("Getting block with id {} ", block_id);
         let method = String::from("getBlock");
         let params = block_id;
@@ -825,7 +807,18 @@ impl Worker {
             .flatten()
             .map(|json| {
                 log::trace!("getBlock request result: {:?}", json);
-                serde_json::from_value::<types::ChainBlock>(json).map_err(node_error)
+                // Set confirmed to true if the result contains {"confirmed": true}
+                let mut confirmed = false;
+                if let Some(obj) = json.as_object() {
+                    if let Some(c) = obj.get("confirmed") {
+                        if let Some(true) = c.as_bool() {
+                            confirmed = true;
+                        }
+                    }
+                }
+                serde_json::from_value::<types::ChainBlock>(json)
+                    .map(|block| (block, confirmed))
+                    .map_err(node_error)
             })
             .flatten()
             .map_err(|err| {

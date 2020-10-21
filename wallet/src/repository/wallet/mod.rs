@@ -123,11 +123,6 @@ where
         self.params.genesis_prev_hash
     }
 
-    /// Returns the superblock period consensus constant
-    pub fn get_superblock_period(&self) -> u16 {
-        self.params.superblock_period
-    }
-
     /// Clears local pending wallet state to match the persisted state in database
     pub fn clear_pending_state(&self) -> Result<()> {
         let account = 0;
