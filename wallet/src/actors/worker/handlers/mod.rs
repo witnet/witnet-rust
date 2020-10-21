@@ -1,3 +1,4 @@
+pub mod check_wallet_seed;
 pub mod create_data_req;
 pub mod create_vtt;
 pub mod create_wallet;
@@ -21,6 +22,7 @@ pub mod update_wallet;
 pub mod update_wallet_info;
 pub mod wallet_infos;
 
+pub use check_wallet_seed::*;
 pub use create_data_req::*;
 pub use create_vtt::*;
 pub use create_wallet::*;

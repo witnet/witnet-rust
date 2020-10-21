@@ -109,6 +109,15 @@ impl Worker {
         Ok(id)
     }
 
+    /// Check if wallet already exists
+    pub fn check_wallet_id(&self, id: String) -> Result<bool> {
+        Ok(self
+            .wallets
+            .infos()?
+            .into_iter()
+            .any(|wallet| wallet.id == id))
+    }
+
     /// Update a wallet details.
     pub fn update_wallet(
         &self,
