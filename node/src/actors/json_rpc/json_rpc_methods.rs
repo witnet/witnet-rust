@@ -32,11 +32,11 @@ use crate::{
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
-            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, GetBalance,
+            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, GetBalance,
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo,
+            GetUtxoInfo, InitializePeers,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -158,6 +158,21 @@ pub fn jsonrpc_io_handler(
         }
     });
 
+    io.add_method("clearPeers", move |_params: Params| {
+        if enable_sensitive_methods {
+            clear_peers()
+        } else {
+            unauthorized_method("clearPeers")
+        }
+    });
+
+    io.add_method("initializePeers", move |_params: Params| {
+        if enable_sensitive_methods {
+            initialize_peers()
+        } else {
+            unauthorized_method("initializePeers")
+        }
+    });
     // Enable subscriptions
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -1200,6 +1215,46 @@ pub fn add_peers(params: Result<Vec<SocketAddr>, jsonrpc_core::Error>) -> JsonRp
     Box::new(fut)
 }
 
+/// Clear peers
+pub fn clear_peers() -> JsonRpcResultAsync {
+    let peers_manager_addr = PeersManager::from_registry();
+
+    let fut = peers_manager_addr
+        .send(ClearPeers)
+        .map_err(internal_error)
+        .and_then(|res| match res {
+            Ok(_overwritten_peers) => {
+                // Ignore overwritten peers, just return true on success
+                futures::finished(Value::Bool(true))
+            }
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
+/// Initialize peers
+pub fn initialize_peers() -> JsonRpcResultAsync {
+    let fut = config_mngr::get()
+        .map_err(internal_error)
+        .and_then(|config| {
+            let known_peers: Vec<_> = config.connections.known_peers.iter().cloned().collect();
+            let peers_manager_addr = PeersManager::from_registry();
+            peers_manager_addr
+                .send(InitializePeers { known_peers })
+                .map_err(internal_error)
+                .and_then(|res| match res {
+                    Ok(_overwritten_peers) => {
+                        // Ignore overwritten peers, just return true on success
+                        futures::finished(Value::Bool(true))
+                    }
+                    Err(e) => futures::failed(internal_error_s(e)),
+                })
+        });
+
+    Box::new(fut)
+}
+
 /// Get consensus constants used by the node
 pub fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResultAsync {
     match params {
@@ -1567,6 +1622,7 @@ mod tests {
             all_methods_vec,
             vec![
                 "addPeers",
+                "clearPeers",
                 "createVRF",
                 "dataRequestReport",
                 "getBalance",
@@ -1581,6 +1637,7 @@ mod tests {
                 "getSuperblock",
                 "getTransaction",
                 "getUtxoInfo",
+                "initializePeers",
                 "inventory",
                 "knownPeers",
                 "masterKeyExport",
@@ -1610,10 +1667,12 @@ mod tests {
 
         let expected_sensitive_methods = vec![
             "addPeers",
+            "clearPeers",
             "createVRF",
             "getPkh",
             "getPublicKey",
             "getUtxoInfo",
+            "initializePeers",
             "masterKeyExport",
             "sendRequest",
             "sendValue",

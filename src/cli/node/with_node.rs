@@ -226,6 +226,12 @@ pub fn exec_cmd(
         Command::AddPeers { node, peers } => {
             rpc::add_peers(node.unwrap_or(config.jsonrpc.server_address), peers)
         }
+        Command::ClearPeers { node } => {
+            rpc::clear_peers(node.unwrap_or(config.jsonrpc.server_address))
+        }
+        Command::InitializePeers { node } => {
+            rpc::initialize_peers(node.unwrap_or(config.jsonrpc.server_address))
+        }
     }
 }
 
@@ -579,6 +585,21 @@ pub enum Command {
         /// If no addresses are provided, read the addresses from stdin.
         #[structopt(name = "peers")]
         peers: Vec<SocketAddr>,
+    },
+    #[structopt(name = "clearPeers", about = "Clear all peers from the buckets")]
+    ClearPeers {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "initializePeers",
+        about = "Clear all peers from the buckets and initialize to those in config"
+    )]
+    InitializePeers {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
     },
 }
 

@@ -395,6 +395,13 @@ impl Peers {
         log::trace!("Cleared new bucket: \n{}", self);
     }
 
+    /// Clear ice bucket
+    pub fn clear_ice_bucket(&mut self) {
+        self.ice_bucket.clear();
+
+        log::trace!("Cleared ice bucket: \n{}", self);
+    }
+
     /// Put a peer address into the ice bucket using the current timestamp as the tag for tracking
     /// when the address became iced.
     pub fn ice_peer_address(&mut self, addr: &SocketAddr) -> bool {

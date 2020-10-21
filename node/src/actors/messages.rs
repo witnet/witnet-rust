@@ -566,6 +566,23 @@ impl Message for AddPeers {
     type Result = PeersSocketAddrsResult;
 }
 
+/// Message to clear peers from buckets
+pub struct ClearPeers;
+
+impl Message for ClearPeers {
+    type Result = Result<(), failure::Error>;
+}
+
+/// Message to clear peers from buckets and initialize to those in config
+pub struct InitializePeers {
+    /// Peers with which to initialize the buckets
+    pub known_peers: Vec<SocketAddr>,
+}
+
+impl Message for InitializePeers {
+    type Result = Result<(), failure::Error>;
+}
+
 /// Message to add one peer address to the tried addresses bucket
 pub struct AddConsolidatedPeer {
     /// Tried addresses to add

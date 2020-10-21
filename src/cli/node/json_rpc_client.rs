@@ -1088,6 +1088,38 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure
     Ok(())
 }
 
+pub fn clear_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let request = r#"{"jsonrpc": "2.0","method": "clearPeers", "id": "1"}"#;
+
+    let response = send_request(&mut stream, &request)?;
+    let response: bool = parse_response(&response)?;
+    if response {
+        println!("Successfully cleared peers from buckets");
+    } else {
+        bail!("Failed to clear peers");
+    }
+
+    Ok(())
+}
+
+pub fn initialize_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let request = r#"{"jsonrpc": "2.0","method": "initializePeers", "id": "1"}"#;
+
+    let response = send_request(&mut stream, &request)?;
+    let response: bool = parse_response(&response)?;
+    if response {
+        println!("Successfully cleared peers from buckets and initialized to config");
+    } else {
+        bail!("Failed to clear and initializepeers");
+    }
+
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize)]
 struct SignatureWithData {
     address: String,

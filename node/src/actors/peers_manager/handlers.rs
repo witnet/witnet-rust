@@ -2,8 +2,9 @@ use actix::{Context, Handler};
 
 use super::PeersManager;
 use crate::actors::messages::{
-    AddConsolidatedPeer, AddPeers, EpochNotification, GetKnownPeers, GetRandomPeers, PeersNewTried,
-    PeersSocketAddrResult, PeersSocketAddrsResult, RemoveAddressesFromTried, RequestPeers,
+    AddConsolidatedPeer, AddPeers, ClearPeers, EpochNotification, GetKnownPeers, GetRandomPeers,
+    InitializePeers, PeersNewTried, PeersSocketAddrResult, PeersSocketAddrsResult,
+    RemoveAddressesFromTried, RequestPeers,
 };
 use witnet_util::timestamp::get_timestamp;
 
@@ -21,6 +22,43 @@ impl Handler<AddPeers> for PeersManager {
             self.peers.remove_many_from_ice(&msg.addresses);
         }
         self.peers.add_to_new(msg.addresses, msg.src_address)
+    }
+}
+
+/// Handler for ClearPeers message
+impl Handler<ClearPeers> for PeersManager {
+    type Result = Result<(), failure::Error>;
+
+    fn handle(&mut self, _msg: ClearPeers, _: &mut Context<Self>) -> Self::Result {
+        // Clear addresses address
+        log::trace!("Clear all peer addresses from tried bucket");
+        self.peers.clear_tried_bucket();
+        log::trace!("Clear all peer addresses from new bucket");
+        self.peers.clear_new_bucket();
+        log::trace!("Clear all peer addresses from ice bucket");
+        self.peers.clear_ice_bucket();
+
+        Ok(())
+    }
+}
+
+/// Handler for InitializePeers message
+impl Handler<InitializePeers> for PeersManager {
+    type Result = Result<(), failure::Error>;
+
+    fn handle(&mut self, msg: InitializePeers, _: &mut Context<Self>) -> Self::Result {
+        // Clear addresses address
+        log::trace!("Clear all peer addresses from tried bucket");
+        self.peers.clear_tried_bucket();
+        log::trace!("Clear all peer addresses from new bucket");
+        self.peers.clear_new_bucket();
+        log::trace!("Clear all peer addresses from ice bucket");
+        self.peers.clear_ice_bucket();
+
+        // Initialize with config peers
+        self.peers.add_to_new(msg.known_peers, None)?;
+
+        Ok(())
     }
 }
 
