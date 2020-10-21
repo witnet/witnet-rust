@@ -46,24 +46,33 @@ const GAMMA: u32 = 10;
 /// memo_hash.set(None);
 /// assert_eq!(memo_hash.get(), None);
 /// ```
+pub type MemoHash = Memoized<Hash>;
+
+/// Same as MemoHash, but can be used for arbitrary data
 #[derive(Clone, Debug, Default)]
-pub struct MemoHash {
-    hash: Arc<RwLock<Option<Hash>>>,
+pub struct Memoized<T> {
+    hash: Arc<RwLock<Option<T>>>,
 }
 
 // PartialEq always returns true because we dont want to compare
 // this field in a Transaction comparison.
-impl PartialEq for MemoHash {
+impl<T> PartialEq for Memoized<T> {
     fn eq(&self, _other: &Self) -> bool {
         true
     }
 }
 
 // Force `Eq` implementation
-impl Eq for MemoHash {}
+impl<T> Eq for Memoized<T> {}
 
-impl MemoHash {
-    /// Initialize a new `MemoHash` set to `None` (not computed yet)
+impl<T> std::hash::Hash for Memoized<T> {
+    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {
+        // Memoized does not affect the hash
+    }
+}
+
+impl<T> Memoized<T> {
+    /// Initialize a new `Memoized` set to `None` (not computed yet)
     pub fn new() -> Self {
         Self {
             hash: Arc::new(RwLock::new(None)),
@@ -71,15 +80,29 @@ impl MemoHash {
     }
 
     /// Get the hash, if already computed.
-    pub fn get(&self) -> Option<Hash> {
+    pub fn get(&self) -> Option<T>
+    where
+        T: Copy,
+    {
         *self
             .hash
             .read()
             .expect("read locks should only fail if poisoned")
     }
 
+    /// Get the hash, if already computed.
+    pub fn get_cloned(&self) -> Option<T>
+    where
+        T: Clone,
+    {
+        self.hash
+            .read()
+            .expect("read locks should only fail if poisoned")
+            .clone()
+    }
+
     /// Set or replace the hash.
-    pub fn set(&self, h: Option<Hash>) {
+    pub fn set(&self, h: Option<T>) {
         let mut lock = self
             .hash
             .write()
