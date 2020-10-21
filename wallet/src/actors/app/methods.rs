@@ -727,4 +727,38 @@ impl App {
             .actor
             .do_send(jsonrpc::Subscribe(request, recipient));
     }
+
+    /// Validate seed (mnemonics or xprv):
+    ///  - check if seed data is valid
+    ///  - check if there is already a wallet created with same seed
+    ///  - return wallet id deterministically derived from seed data
+    pub fn validate_seed(
+        &self,
+        seed_source: String,
+        seed_data: types::Password,
+    ) -> ResponseActFuture<ValidateMnemonicsResponse> {
+        // Validate mnemonics source and data
+        let f = fut::result(match seed_source.as_ref() {
+            "xprv" => Ok(types::SeedSource::Xprv(seed_data)),
+            "mnemonics" => types::Mnemonic::from_phrase(seed_data)
+                .map_err(|err| Error::Validation(app::field_error("seed_data", format!("{}", err))))
+                .map(types::SeedSource::Mnemonics),
+            _ => Err(Error::Validation(app::field_error(
+                "seed_source",
+                "Seed source has to be mnemonics|xprv.",
+            ))),
+        })
+        // Check if seed was already used in wallet
+        .and_then(|seed, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::CheckWalletSeedRequest(seed))
+                .flatten()
+                .map_err(From::from)
+                .map(|(exist, wallet_id)| ValidateMnemonicsResponse { exist, wallet_id })
+                .into_actor(slf)
+        });
+
+        Box::new(f)
+    }
 }
