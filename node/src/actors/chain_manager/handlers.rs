@@ -113,6 +113,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         }
 
         self.peers_beacons_received = false;
+        // The best candidate must be cleared on every epoch
+        let best_candidate = self.best_candidate.take();
+
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 if let Some(chain_info) = &self.chain_state.chain_info {
@@ -152,7 +155,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             utxo_diff,
                             reputation: _,
                             vrf_proof: _,
-                        }) = self.best_candidate.take()
+                        }) = best_candidate
                         {
                             // Persist block and update ChainState
                             self.consolidate_block(ctx, block, utxo_diff);
