@@ -109,8 +109,8 @@ impl<T: Database> Wallets<T> {
         if !ids.contains(&wallet_id) {
             ids.push(wallet_id);
             batch.put(keys::wallet_ids(), ids)?;
-            self.db.write(batch)?;
         }
+        self.db.write(batch)?;
         drop(lock);
 
         Ok(())

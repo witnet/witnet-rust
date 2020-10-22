@@ -8,8 +8,12 @@ pub struct CreateWallet(
     pub Option<String>,
     /// Wallet caption
     pub Option<String>,
+    /// Wallet user-defined password
     pub types::Password,
+    /// Seed data (mnemonics or xprv)
     pub types::SeedSource,
+    /// Overwrite flag
+    pub bool,
 );
 
 impl Message for CreateWallet {
@@ -21,9 +25,9 @@ impl Handler<CreateWallet> for worker::Worker {
 
     fn handle(
         &mut self,
-        CreateWallet(name, caption, password, seed_source): CreateWallet,
+        CreateWallet(name, caption, password, seed_source, overwrite): CreateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.create_wallet(name, caption, password.as_ref(), &seed_source)
+        self.create_wallet(name, caption, password.as_ref(), &seed_source, overwrite)
     }
 }

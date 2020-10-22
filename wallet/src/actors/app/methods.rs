@@ -248,11 +248,18 @@ impl App {
         seed_source: types::SeedSource,
         name: Option<String>,
         caption: Option<String>,
+        overwrite: bool,
     ) -> ResponseFuture<String> {
         let f = self
             .params
             .worker
-            .send(worker::CreateWallet(name, caption, password, seed_source))
+            .send(worker::CreateWallet(
+                name,
+                caption,
+                password,
+                seed_source,
+                overwrite,
+            ))
             .flatten()
             .map_err(|err| match err {
                 worker::Error::KeyGen(e @ crypto::Error::InvalidKeyPath(_)) => {

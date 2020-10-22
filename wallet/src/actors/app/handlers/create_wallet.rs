@@ -13,6 +13,7 @@ pub struct CreateWalletRequest {
     password: types::Password,
     seed_source: String,
     seed_data: types::Password,
+    overwrite: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,6 +37,7 @@ impl Handler<CreateWalletRequest> for app::App {
                 params.seed_source,
                 params.name,
                 params.caption,
+                params.overwrite,
             )
             .map(|wallet_id| CreateWalletResponse { wallet_id })
             .into_actor(slf)
@@ -46,8 +48,9 @@ impl Handler<CreateWalletRequest> for app::App {
 }
 
 struct Validated {
-    pub name: Option<String>,
     pub caption: Option<String>,
+    pub name: Option<String>,
+    pub overwrite: bool,
     pub password: types::Password,
     pub seed_source: types::SeedSource,
 }
@@ -79,10 +82,12 @@ fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors
     } else {
         Ok(req.password)
     };
+    let overwrite = req.overwrite.unwrap_or(false);
 
     app::combine_field_errors(source, password, move |seed_source, password| Validated {
-        name,
         caption,
+        name,
+        overwrite,
         password,
         seed_source,
     })

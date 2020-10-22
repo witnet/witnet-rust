@@ -1,10 +1,9 @@
 use actix::prelude::*;
 
-use crate::actors::worker;
-use crate::types;
+use crate::{actors::worker, types};
 
 pub struct CheckWalletSeedRequest(
-    /// Wallet seed source (mnemonics or xpriv)
+    /// Wallet seed source (mnemonics or xprv)
     pub types::SeedSource,
 );
 

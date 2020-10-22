@@ -65,6 +65,7 @@ impl Worker {
         caption: Option<String>,
         password: &[u8],
         source: &types::SeedSource,
+        overwrite: bool,
     ) -> Result<String> {
         let master_key = crypto::gen_master_key(
             self.params.seed_password.as_ref(),
@@ -77,6 +78,17 @@ impl Worker {
             self.params.master_key_salt.as_ref(),
             self.params.id_hash_iterations,
         );
+
+        // Return error if `overwrite=false` and wallet already exists
+        if !overwrite
+            && self
+                .wallets
+                .infos()?
+                .into_iter()
+                .any(|wallet| wallet.id == id)
+        {
+            return Err(Error::WalletAlreadyExists(id));
+        }
 
         let default_account_index = 0;
         let default_account =
