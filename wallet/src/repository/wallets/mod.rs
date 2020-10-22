@@ -36,6 +36,7 @@ impl<T: Database> Wallets<T> {
         for id in ids {
             let name = self.db.get_opt(&keys::wallet_id_name(&id))?;
             let caption = self.db.get_opt(&keys::wallet_id_caption(&id))?;
+            log::error!("Id {:?}, Name {:?}, Caption {:?}", id, name, caption);
 
             wallets.push(model::Wallet { id, name, caption })
         }
@@ -48,16 +49,12 @@ impl<T: Database> Wallets<T> {
         &self,
         id: &str,
         name: Option<String>,
-        caption: Option<String>,
+        _caption: Option<String>,
     ) -> Result<()> {
         let mut batch = self.db.batch();
 
         if let Some(name) = name {
-            batch.put(keys::wallet_id_name(id), name)?;
-        }
-
-        if let Some(caption) = caption {
-            batch.put(keys::wallet_id_caption(id), caption)?;
+            batch.put(keys::wallet_id_name(&id), name)?;
         }
 
         self.db.write(batch)?;
@@ -80,12 +77,14 @@ impl<T: Database> Wallets<T> {
         } = wallet_data;
         let mut wbatch = wallet_db.batch();
 
-        if let Some(name) = name {
+        if let Some(name) = name.clone() {
             wbatch.put(keys::wallet_name(), name)?;
         }
+
         if let Some(caption) = caption {
             wbatch.put(keys::wallet_caption(), caption)?;
         }
+
         wbatch.put(keys::wallet_default_account(), account.index)?;
         wbatch.put(
             keys::account_key(account.index, constants::EXTERNAL_KEYCHAIN),
@@ -99,6 +98,10 @@ impl<T: Database> Wallets<T> {
         wallet_db.write(wbatch)?;
 
         let mut batch = self.db.batch();
+        if let Some(name) = name {
+            batch.put(keys::wallet_id_name(&id), name)?;
+        }
+
         batch.put(keys::wallet_id_salt(&id), &salt)?;
         batch.put(keys::wallet_id_iv(&id), &iv)?;
 
@@ -117,8 +120,8 @@ impl<T: Database> Wallets<T> {
     }
 
     pub fn wallet_salt_and_iv(&self, id: &str) -> Result<(Vec<u8>, Vec<u8>)> {
-        let salt = self.db.get(&keys::wallet_id_salt(id))?;
-        let iv = self.db.get(&keys::wallet_id_iv(id))?;
+        let salt = self.db.get(&keys::wallet_id_salt(&id))?;
+        let iv = self.db.get(&keys::wallet_id_iv(&id))?;
 
         Ok((salt, iv))
     }
