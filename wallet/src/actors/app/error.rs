@@ -22,11 +22,13 @@ pub enum Error {
     SessionsStillOpen,
     #[fail(display = "wallet not found")]
     WalletNotFound,
+    #[fail(display = "wallet with id {} already exists", _0)]
+    WalletAlreadyExists(String),
 }
 
 impl Error {
     pub fn into_parts(self) -> (i64, &'static str, Option<serde_json::Value>) {
-        match self {
+        match &self {
             Error::Validation(e) => (
                 400,
                 "Validation Error",
@@ -34,6 +36,11 @@ impl Error {
             ),
             Error::SessionNotFound => (401, "Unauthorized", None),
             Error::WalletNotFound => (402, "Forbidden", None),
+            Error::WalletAlreadyExists(wallet_id) => (
+                409,
+                "Conflict",
+                Some(json!({ "cause": self.to_string(), "wallet_id": wallet_id })),
+            ),
             Error::Node(e) => {
                 log::error!("Node Error: {}", &e);
                 (
@@ -90,7 +97,10 @@ impl From<actix::MailboxError> for Error {
 
 impl From<actors::worker::Error> for Error {
     fn from(err: actors::worker::Error) -> Self {
-        internal_error(err)
+        match err {
+            actors::worker::Error::WalletAlreadyExists(e) => Error::WalletAlreadyExists(e),
+            _ => internal_error(err),
+        }
     }
 }
 
