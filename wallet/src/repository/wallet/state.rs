@@ -71,3 +71,36 @@ pub struct State {
     /// Transient external addresses
     pub transient_external_addresses: HashMap<types::PublicKeyHash, model::Address>,
 }
+
+impl State {
+    /// Clear all chain data for a wallet state.
+    ///
+    /// Proceed with caution, as this wipes the following data entirely:
+    /// - Synchronization status
+    /// - Balances
+    /// - Movements
+    /// - Addresses and their metadata
+    pub fn clear_chain_data(&mut self, genesis_prev_hash: &Hash) {
+        self.balance = Default::default();
+        self.last_confirmed = CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: *genesis_prev_hash,
+        };
+        self.last_sync = CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: *genesis_prev_hash,
+        };
+        self.local_movements.clear();
+        self.next_internal_index = Default::default();
+        self.next_external_index = Default::default();
+        self.pending_addresses_by_block.clear();
+        self.pending_addresses_by_path.clear();
+        self.pending_blocks.clear();
+        self.pending_dr_movements.clear();
+        self.pending_movements.clear();
+        self.transaction_next_id = Default::default();
+        self.utxo_set.clear();
+        self.transient_internal_addresses.clear();
+        self.transient_external_addresses.clear();
+    }
+}

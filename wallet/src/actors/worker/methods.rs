@@ -1029,4 +1029,28 @@ impl Worker {
 
         Ok(block_own_beacon)
     }
+
+    /// Clear all chain data for a wallet state.
+    ///
+    /// Proceed with caution, as this wipes the following data entirely:
+    /// - Synchronization status
+    /// - Balances
+    /// - Movements
+    /// - Addresses and their metadata
+    ///
+    /// In order to prevent data race conditions, resyncing is not allowed while a sync or resync
+    /// process is already in progress. Accordingly, this function returns whether chain data has
+    /// been cleared or not.
+    pub fn clear_chain_data_and_resync(
+        &self,
+        wallet_id: &str,
+        wallet: types::SessionWallet,
+        sink: DynamicSink,
+    ) -> Result<bool> {
+        // Only trigger sync of chain if data has been cleared
+        match wallet.clear_chain_data()? {
+            true => self.sync(wallet_id, wallet, sink).map(|_| true),
+            false => Ok(false),
+        }
+    }
 }

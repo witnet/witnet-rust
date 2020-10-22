@@ -164,6 +164,7 @@ pub fn connect_routes<T, S>(
         ("Update-Wallet", "update_wallet", UpdateWalletRequest),
         ("Lock-Wallet", "lock_wallet", LockWalletRequest),
         ("Unlock-Wallet", "unlock_wallet", UnlockWalletRequest),
+        ("Resync-Wallet", "resync_wallet", ResyncWalletRequest),
         ("Close-Session", "close_session", CloseSessionRequest),
         ("Get-Balance", "get_balance", GetBalanceRequest),
         (

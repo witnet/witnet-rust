@@ -1645,6 +1645,32 @@ where
 
         Ok(())
     }
+
+    /// Clear all chain data for a wallet.
+    ///
+    /// Proceed with caution, as this wipes the following data entirely:
+    /// - Synchronization status
+    /// - Balances
+    /// - Movements
+    /// - Addresses and their metadata
+    ///
+    /// In order to prevent data race conditions, resyncing is not allowed while a sync or resync
+    /// process is already in progress. Accordingly, this function returns whether chain data has
+    /// been cleared or not.
+    pub fn clear_chain_data(&self) -> Result<bool> {
+        let mut state = self.state.write()?;
+
+        // Prevent chain data from being cleared if a sync or resync process is in progress
+        if state.transient_internal_addresses.is_empty()
+            && state.transient_external_addresses.is_empty()
+        {
+            state.clear_chain_data(&self.params.genesis_prev_hash);
+
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
 }
 
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> u64 {

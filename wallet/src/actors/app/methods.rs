@@ -768,4 +768,43 @@ impl App {
 
         Box::new(f)
     }
+
+    /// Clear all chain data for a wallet state.
+    ///
+    /// Proceed with caution, as this wipes the following data entirely:
+    /// - Synchronization status
+    /// - Balances
+    /// - Movements
+    /// - Addresses and their metadata
+    ///
+    /// In order to prevent data race conditions, resyncing is not allowed while a sync or resync
+    /// process is already in progress. Accordingly, this function returns whether chain data has
+    /// been cleared or not.
+    pub fn clear_chain_data_and_resync(
+        &mut self,
+        session_id: types::SessionId,
+        wallet_id: String,
+    ) -> ResponseActFuture<bool> {
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            let sink = slf.state.get_sink(&session_id);
+
+            // Send `Resync` message to worker
+            slf.params
+                .worker
+                .send(worker::Resync {
+                    wallet_id,
+                    wallet,
+                    sink,
+                })
+                .flatten()
+                .map_err(From::from)
+                .into_actor(slf)
+        });
+
+        Box::new(f)
+    }
 }
