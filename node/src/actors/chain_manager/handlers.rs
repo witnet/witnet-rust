@@ -399,6 +399,9 @@ impl Handler<AddBlocks> for ChainManager {
                         log::debug!("TargetNotReached: superblock target #{} not reached, requesting more blocks. ({} processed blocks)",
                             sync_target.superblock.checkpoint, num_processed_blocks);
                         self.request_blocks_batch(ctx);
+
+                        // Copy current chain state into previous chain state, and persist it
+                        self.persist_chain_state(None, ctx);
                     }
                     // SyncWithoutCandidate:
                     // 1. process blocks

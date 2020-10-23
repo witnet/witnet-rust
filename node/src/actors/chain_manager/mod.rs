@@ -251,12 +251,20 @@ impl SystemService for ChainManager {}
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
     /// Persist previous chain state into storage
-    fn persist_chain_state(&mut self, superblock_index: u32, ctx: &mut Context<Self>) {
-        let previous_chain_state = self.chain_state_snapshot.restore(superblock_index);
-        if previous_chain_state.is_none() {
-            return;
-        }
-        let previous_chain_state = previous_chain_state.unwrap();
+    /// None case: persist current chain state into storage (during synchronization)
+    fn persist_chain_state(&mut self, superblock_index: Option<u32>, ctx: &mut Context<Self>) {
+        let previous_chain_state = if let Some(superblock_index) = superblock_index {
+            let chain_state_snapshot = self.chain_state_snapshot.restore(superblock_index);
+
+            if chain_state_snapshot.is_none() {
+                return;
+            }
+
+            chain_state_snapshot.unwrap()
+        } else {
+            // None case is used to persist chain_state during synchronization
+            self.chain_state.clone()
+        };
 
         // When updating the chain state, we need to update the highest superblock checkpoint.
         // This is the highest superblock that obtained a majority of votes and we do not want to
@@ -273,14 +281,21 @@ impl ChainManager {
         let chain_beacon = state.get_chain_beacon();
         let superblock_beacon = state.get_superblock_beacon();
 
-        log::debug!(
-            "Persisting chain state for superblock #{} with chain beacon {:?} and super beacon {:?}",
-            superblock_index,
-            chain_beacon,
-            superblock_beacon
-        );
+        if let Some(superblock_index) = superblock_index {
+            log::debug!(
+                "Persisting chain state for superblock #{} with chain beacon {:?} and super beacon {:?}",
+                superblock_index,
+                chain_beacon,
+                superblock_beacon
+            );
 
-        assert_eq!(superblock_beacon.checkpoint, superblock_index);
+            assert_eq!(superblock_beacon.checkpoint, superblock_index);
+        } else {
+            log::debug!(
+                "Persisting chain state during synchronization, chain beacon: {:?}",
+                chain_beacon
+            );
+        }
 
         storage_mngr::put(&storage_keys::chain_state_key(self.get_magic()), &state)
             .into_actor(self)
@@ -1134,7 +1149,7 @@ impl ChainManager {
 
                     // Copy current chain state into previous chain state, and persist it
                     act.move_chain_state_forward(sync_target.superblock.checkpoint);
-                    act.persist_chain_state(sync_target.superblock.checkpoint, ctx);
+                    act.persist_chain_state(Some(sync_target.superblock.checkpoint), ctx);
 
                     actix::fut::ok(())
                 } else {
@@ -1280,7 +1295,7 @@ impl ChainManager {
 
                         if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                             // Persist previous_chain_state with current superblock_state
-                            act.persist_chain_state(voted_superblock_beacon.checkpoint, ctx);
+                            act.persist_chain_state(Some(voted_superblock_beacon.checkpoint), ctx);
                             act.move_chain_state_forward(superblock_index);
                         }
 
