@@ -6,7 +6,7 @@ use crate::types;
 pub struct CreateWallet(
     /// Wallet name
     pub Option<String>,
-    /// Wallet deescription
+    /// Wallet description
     pub Option<String>,
     /// Wallet user-defined password
     pub types::Password,
@@ -28,6 +28,12 @@ impl Handler<CreateWallet> for worker::Worker {
         CreateWallet(name, description, password, seed_source, overwrite): CreateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.create_wallet(name, description, password.as_ref(), &seed_source, overwrite)
+        self.create_wallet(
+            name,
+            description,
+            password.as_ref(),
+            &seed_source,
+            overwrite,
+        )
     }
 }

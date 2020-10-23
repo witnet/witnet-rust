@@ -7,8 +7,6 @@ pub struct UpdateWalletInfo(
     pub String,
     /// Wallet name
     pub Option<String>,
-    /// Wallet description
-    pub Option<String>,
 );
 
 impl Message for UpdateWalletInfo {
@@ -20,9 +18,9 @@ impl Handler<UpdateWalletInfo> for worker::Worker {
 
     fn handle(
         &mut self,
-        UpdateWalletInfo(wallet_id, name, description): UpdateWalletInfo,
+        UpdateWalletInfo(wallet_id, name): UpdateWalletInfo,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.update_wallet_info(&wallet_id, name, description)
+        self.update_wallet_info(&wallet_id, name)
     }
 }

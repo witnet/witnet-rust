@@ -157,13 +157,8 @@ impl Worker {
     }
 
     /// Update the wallet information in the infos database.
-    pub fn update_wallet_info(
-        &self,
-        wallet_id: &str,
-        name: Option<String>,
-        description: Option<String>,
-    ) -> Result<()> {
-        self.wallets.update_info(wallet_id, name, description)?;
+    pub fn update_wallet_info(&self, wallet_id: &str, name: Option<String>) -> Result<()> {
+        self.wallets.update_info(wallet_id, name)?;
 
         Ok(())
     }

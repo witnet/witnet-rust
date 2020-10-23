@@ -10,7 +10,6 @@ use crate::{account, types};
 pub struct Wallet {
     pub id: String,
     pub name: Option<String>,
-    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

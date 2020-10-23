@@ -29,37 +29,22 @@ impl<T: Database> Wallets<T> {
         Ok(())
     }
 
+    /// Retrieve public information of wallets stored in the wallets DB
     pub fn infos(&self) -> Result<Vec<model::Wallet>> {
         let ids: Vec<String> = self.db.get_or_default(keys::wallet_ids())?;
         let mut wallets = Vec::with_capacity(ids.len());
 
         for id in ids {
             let name = self.db.get_opt(&keys::wallet_id_name(&id))?;
-            let description = self.db.get_opt(&keys::wallet_id_description(&id))?;
-            log::error!(
-                "Id {:?}, Name {:?}, Description {:?}",
-                id,
-                name,
-                description
-            );
 
-            wallets.push(model::Wallet {
-                id,
-                name,
-                description,
-            })
+            wallets.push(model::Wallet { id, name })
         }
 
         Ok(wallets)
     }
 
     /// Update a wallet's public info in the wallets db .
-    pub fn update_info(
-        &self,
-        id: &str,
-        name: Option<String>,
-        _description: Option<String>,
-    ) -> Result<()> {
+    pub fn update_info(&self, id: &str, name: Option<String>) -> Result<()> {
         let mut batch = self.db.batch();
 
         if let Some(name) = name {
@@ -71,6 +56,8 @@ impl<T: Database> Wallets<T> {
         Ok(())
     }
 
+    /// Create a wallet based on name, description, IV, salt and account. The name is stored in the
+    /// public wallets DB, while all parameters are stored in the private encrypted wallet DB
     pub fn create<'a, D: Database>(
         &self,
         wallet_db: &D,
@@ -84,11 +71,13 @@ impl<T: Database> Wallets<T> {
             salt,
             account,
         } = wallet_data;
+        let mut batch = self.db.batch();
         let mut wbatch = wallet_db.batch();
 
         // We first write name and description into private wallet DB
-        if let Some(name) = name.clone() {
-            wbatch.put(keys::wallet_name(), name)?;
+        if let Some(name) = name.as_ref() {
+            wbatch.put(keys::wallet_name(), name.clone())?;
+            batch.put(keys::wallet_id_name(&id), name.clone())?;
         }
 
         if let Some(description) = description {
@@ -107,12 +96,6 @@ impl<T: Database> Wallets<T> {
 
         wallet_db.write(wbatch)?;
 
-        // We then write name into the public wallets DB
-        let mut batch = self.db.batch();
-        if let Some(name) = name {
-            batch.put(keys::wallet_id_name(&id), name)?;
-        }
-
         batch.put(keys::wallet_id_salt(&id), &salt)?;
         batch.put(keys::wallet_id_iv(&id), &iv)?;
 
@@ -130,9 +113,10 @@ impl<T: Database> Wallets<T> {
         Ok(())
     }
 
+    /// Get a wallet's salt and IV based on its provided ID
     pub fn wallet_salt_and_iv(&self, id: &str) -> Result<(Vec<u8>, Vec<u8>)> {
-        let salt = self.db.get(&keys::wallet_id_salt(&id))?;
-        let iv = self.db.get(&keys::wallet_id_iv(&id))?;
+        let salt = self.db.get(&keys::wallet_id_salt(id))?;
+        let iv = self.db.get(&keys::wallet_id_iv(id))?;
 
         Ok((salt, iv))
     }

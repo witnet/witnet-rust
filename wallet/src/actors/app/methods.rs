@@ -298,7 +298,7 @@ impl App {
             let info_update = slf
                 .params
                 .worker
-                .send(worker::UpdateWalletInfo(wallet_id, name, description))
+                .send(worker::UpdateWalletInfo(wallet_id, name))
                 .flatten()
                 .map_err(From::from);
 

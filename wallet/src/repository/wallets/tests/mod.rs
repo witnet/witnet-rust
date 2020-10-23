@@ -40,28 +40,17 @@ fn test_update_wallet_info() {
     let wallet_info = &wallets.infos().unwrap()[0];
 
     assert!(wallet_info.name.is_none());
-    assert!(wallet_info.description.is_none());
     assert!(!db.contains(&keys::wallet_id_name(&id)).unwrap());
-    assert!(!db.contains(&keys::wallet_id_description(&id)).unwrap());
 
     let name = Some("Testing".to_string());
-    let description = Some("A testing wallet".to_string());
 
-    wallets
-        .update_info(&id, name.clone(), description.clone())
-        .unwrap();
+    wallets.update_info(&id, name.clone()).unwrap();
 
     let wallet_info = &wallets.infos().unwrap()[0];
 
     assert_eq!(name, wallet_info.name);
-    assert_eq!(description, wallet_info.description);
     assert_eq!(
         name,
         db.get_opt::<_, String>(&keys::wallet_id_name(&id)).unwrap()
-    );
-    assert_eq!(
-        description,
-        db.get_opt::<_, String>(&keys::wallet_id_description(&id))
-            .unwrap()
     );
 }

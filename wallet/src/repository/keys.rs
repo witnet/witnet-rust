@@ -24,12 +24,6 @@ pub fn wallet_id_name(id: &str) -> String {
     format!("{}name", id)
 }
 
-/// A wallet's description.
-#[inline]
-pub fn wallet_id_description(id: &str) -> String {
-    format!("{}description", id)
-}
-
 /// A wallet's encryption salt.
 #[inline]
 pub fn wallet_id_salt(wallet_id: &str) -> String {
