@@ -1666,9 +1666,7 @@ where
         let mut state = self.state.write()?;
 
         // Prevent chain data from being cleared if a sync or resync process is in progress
-        if state.transient_internal_addresses.is_empty()
-            && state.transient_external_addresses.is_empty()
-        {
+        if !state.is_syncing() {
             state.clear_chain_data(&self.params.genesis_prev_hash);
 
             Ok(true)

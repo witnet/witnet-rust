@@ -103,4 +103,16 @@ impl State {
         self.transient_internal_addresses.clear();
         self.transient_external_addresses.clear();
     }
+
+    /// Tell whether the wallet is undergoing a synchronization.
+    ///
+    /// Currently, this function derives the information from the presence or absence of transient
+    /// addresses, i.e. addresses that are temporarily generated during the synchronization process.
+    ///
+    /// TODO: refactor all synchronization-related fields into a `SynchronizationState` structure
+    ///  so that the number of fields in `State` does not keep growing, and take that as a chance
+    ///  to add a private `is_syncing` field for which this would act as a getter.
+    pub fn is_syncing(&self) -> bool {
+        self.transient_internal_addresses.is_empty() && self.transient_external_addresses.is_empty()
+    }
 }
