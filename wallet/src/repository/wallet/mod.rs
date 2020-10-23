@@ -1179,50 +1179,57 @@ where
             .checked_add(1)
             .ok_or_else(|| Error::TransactionIdOverflow)?;
 
-        // Update addresses and their information if there were payments (new UTXOs)
-        let mut addresses = vec![];
+        // Update addresses (externals/internals) and their information if there were payments (new UTXOs)
+        //
+        // - Data Request and Tally transactions are ignored as they only contain refunds to data request
+        // creators. By protocol the tally output can only be set to the first used input of the DR.
+        // - Commit and Reveal transactions are ignored as they only contain miners addresses.
+        let addresses = match txn.transaction {
+            types::Transaction::ValueTransfer(_) | types::Transaction::Mint(_) => {
+                let mut addresses = vec![];
+                for (output_pointer, key_balance) in account_mutation.utxo_inserts {
+                    // Retrieve previous address information
+                    let path = self
+                        .db
+                        .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
 
-        for (output_pointer, key_balance) in account_mutation.utxo_inserts {
-            // Retrieve previous address information
-            let path = self
-                .db
-                .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
+                    // Get address from memory or DB
+                    let old_address =
+                        self._get_address(state, path.account, path.keychain, path.index)?;
 
-            // Get address from memory or DB
-            let old_address = self._get_address(state, path.account, path.keychain, path.index)?;
+                    // Build the new address information
+                    let info = &old_address.info;
+                    let mut received_payments = info.received_payments.clone();
+                    received_payments.push(output_pointer.to_string());
+                    let current_timestamp =
+                        convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
+                    let first_payment_date =
+                        Some(info.first_payment_date.unwrap_or(current_timestamp));
+                    let updated_address = model::Address {
+                        info: model::AddressInfo {
+                            db_key: keys::address_info(path.account, path.keychain, path.index),
+                            label: info.label.clone(),
+                            received_payments,
+                            received_amount: info.received_amount + key_balance.amount,
+                            first_payment_date,
+                            last_payment_date: Some(current_timestamp),
+                        },
+                        ..(*old_address).clone()
+                    };
 
-            // Build the new address information
-            let info = &old_address.info;
-            let mut received_payments = info.received_payments.clone();
-            received_payments.push(output_pointer.to_string());
-            let current_timestamp =
-                convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
-            let first_payment_date = Some(info.first_payment_date.unwrap_or(current_timestamp));
-            let updated_address = model::Address {
-                address: old_address.address.clone(),
-                index: old_address.index,
-                keychain: old_address.keychain,
-                account: old_address.account,
-                path: old_address.path.clone(),
-                info: model::AddressInfo {
-                    db_key: keys::address_info(path.account, path.keychain, path.index),
-                    label: info.label.clone(),
-                    received_payments,
-                    received_amount: info.received_amount + key_balance.amount,
-                    first_payment_date,
-                    last_payment_date: Some(current_timestamp),
-                },
-                pkh: old_address.pkh,
-            };
+                    log::trace!(
+                        "Updating address:\nOld: {:?}\nNew: {:?}",
+                        old_address,
+                        updated_address
+                    );
 
-            log::trace!(
-                "Updating address:\nOld: {:?}\nNew: {:?}",
-                old_address,
-                updated_address
-            );
+                    addresses.push(Arc::new(updated_address));
+                }
 
-            addresses.push(Arc::new(updated_address));
-        }
+                addresses
+            }
+            _ => vec![],
+        };
 
         Ok(Some((account_mutation.balance_movement, addresses)))
     }
