@@ -39,7 +39,7 @@ pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>
                 salt,
                 id,
                 name: None,
-                caption: None,
+                description: None,
                 account: &default_account,
             },
         )

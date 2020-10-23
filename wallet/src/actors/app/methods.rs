@@ -247,7 +247,7 @@ impl App {
         password: types::Password,
         seed_source: types::SeedSource,
         name: Option<String>,
-        caption: Option<String>,
+        description: Option<String>,
         overwrite: bool,
     ) -> ResponseFuture<String> {
         let f = self
@@ -255,7 +255,7 @@ impl App {
             .worker
             .send(worker::CreateWallet(
                 name,
-                caption,
+                description,
                 password,
                 seed_source,
                 overwrite,
@@ -277,7 +277,7 @@ impl App {
         session_id: types::SessionId,
         wallet_id: String,
         name: Option<String>,
-        caption: Option<String>,
+        description: Option<String>,
     ) -> ResponseActFuture<()> {
         let f = fut::result(
             self.state
@@ -287,14 +287,18 @@ impl App {
             let wallet_update = slf
                 .params
                 .worker
-                .send(worker::UpdateWallet(wallet, name.clone(), caption.clone()))
+                .send(worker::UpdateWallet(
+                    wallet,
+                    name.clone(),
+                    description.clone(),
+                ))
                 .flatten()
                 .map_err(From::from);
 
             let info_update = slf
                 .params
                 .worker
-                .send(worker::UpdateWalletInfo(wallet_id, name, caption))
+                .send(worker::UpdateWalletInfo(wallet_id, name, description))
                 .flatten()
                 .map_err(From::from);
 

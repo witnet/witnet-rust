@@ -9,7 +9,7 @@ use crate::types;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateWalletRequest {
     name: Option<String>,
-    caption: Option<String>,
+    description: Option<String>,
     password: types::Password,
     seed_source: String,
     seed_data: types::Password,
@@ -36,7 +36,7 @@ impl Handler<CreateWalletRequest> for app::App {
                 params.password,
                 params.seed_source,
                 params.name,
-                params.caption,
+                params.description,
                 params.overwrite,
             )
             .map(|wallet_id| CreateWalletResponse { wallet_id })
@@ -48,7 +48,7 @@ impl Handler<CreateWalletRequest> for app::App {
 }
 
 struct Validated {
-    pub caption: Option<String>,
+    pub description: Option<String>,
     pub name: Option<String>,
     pub overwrite: bool,
     pub password: types::Password,
@@ -62,7 +62,7 @@ struct Validated {
 /// - seed_sources has to be `mnemonics | xprv`
 fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors> {
     let name = req.name;
-    let caption = req.caption;
+    let description = req.description;
     let seed_data = req.seed_data;
     let source = match req.seed_source.as_ref() {
         "xprv" => Ok(types::SeedSource::Xprv(seed_data)),
@@ -85,7 +85,7 @@ fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors
     let overwrite = req.overwrite.unwrap_or(false);
 
     app::combine_field_errors(source, password, move |seed_source, password| Validated {
-        caption,
+        description,
         name,
         overwrite,
         password,

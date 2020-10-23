@@ -13,7 +13,7 @@ pub struct UnlockWalletRequest {
 pub struct UnlockWalletResponse {
     session_id: types::SessionId,
     name: Option<String>,
-    caption: Option<String>,
+    description: Option<String>,
     available_accounts: Vec<u32>,
     current_account: u32,
     account_balance: model::WalletBalance,
@@ -35,7 +35,7 @@ impl Handler<UnlockWalletRequest> for app::App {
                 UnlockWalletResponse {
                     session_id,
                     name: data.name,
-                    caption: data.caption,
+                    description: data.description,
                     current_account: data.current_account,
                     available_accounts: data.available_accounts,
                     account_balance: data.balance,

@@ -7,7 +7,7 @@ pub struct UpdateWallet(
     pub types::SessionWallet,
     /// Wallet name
     pub Option<String>,
-    /// Wallet caption
+    /// Wallet description
     pub Option<String>,
 );
 
@@ -20,9 +20,9 @@ impl Handler<UpdateWallet> for worker::Worker {
 
     fn handle(
         &mut self,
-        UpdateWallet(wallet, name, caption): UpdateWallet,
+        UpdateWallet(wallet, name, description): UpdateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.update_wallet(&wallet, name, caption)
+        self.update_wallet(&wallet, name, description)
     }
 }

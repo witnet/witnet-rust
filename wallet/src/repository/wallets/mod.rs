@@ -35,21 +35,30 @@ impl<T: Database> Wallets<T> {
 
         for id in ids {
             let name = self.db.get_opt(&keys::wallet_id_name(&id))?;
-            let caption = self.db.get_opt(&keys::wallet_id_caption(&id))?;
-            log::error!("Id {:?}, Name {:?}, Caption {:?}", id, name, caption);
+            let description = self.db.get_opt(&keys::wallet_id_description(&id))?;
+            log::error!(
+                "Id {:?}, Name {:?}, Description {:?}",
+                id,
+                name,
+                description
+            );
 
-            wallets.push(model::Wallet { id, name, caption })
+            wallets.push(model::Wallet {
+                id,
+                name,
+                description,
+            })
         }
 
         Ok(wallets)
     }
 
-    /// Update a wallet's public info.
+    /// Update a wallet's public info in the wallets db .
     pub fn update_info(
         &self,
         id: &str,
         name: Option<String>,
-        _caption: Option<String>,
+        _description: Option<String>,
     ) -> Result<()> {
         let mut batch = self.db.batch();
 
@@ -70,19 +79,20 @@ impl<T: Database> Wallets<T> {
         let types::CreateWalletData {
             id,
             name,
-            caption,
+            description,
             iv,
             salt,
             account,
         } = wallet_data;
         let mut wbatch = wallet_db.batch();
 
+        // We first write name and description into private wallet DB
         if let Some(name) = name.clone() {
             wbatch.put(keys::wallet_name(), name)?;
         }
 
-        if let Some(caption) = caption {
-            wbatch.put(keys::wallet_caption(), caption)?;
+        if let Some(description) = description {
+            wbatch.put(keys::wallet_description(), description)?;
         }
 
         wbatch.put(keys::wallet_default_account(), account.index)?;
@@ -97,6 +107,7 @@ impl<T: Database> Wallets<T> {
 
         wallet_db.write(wbatch)?;
 
+        // We then write name into the public wallets DB
         let mut batch = self.db.batch();
         if let Some(name) = name {
             batch.put(keys::wallet_id_name(&id), name)?;

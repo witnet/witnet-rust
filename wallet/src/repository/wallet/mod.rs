@@ -156,7 +156,7 @@ where
     ) -> Result<Self> {
         let id = id.to_owned();
         let name = db.get_opt(keys::wallet_name())?;
-        let caption = db.get_opt(keys::wallet_caption())?;
+        let description = db.get_opt(keys::wallet_description())?;
         let account = db.get_or_default(keys::wallet_default_account())?;
         let available_accounts = db
             .get_opt(keys::wallet_accounts())?
@@ -219,7 +219,7 @@ where
 
         let state = RwLock::new(State {
             name,
-            caption,
+            description,
             account,
             keychains,
             next_external_index,
@@ -264,7 +264,7 @@ where
         Ok(types::WalletData {
             id: self.id.clone(),
             name: state.name.clone(),
-            caption: state.caption.clone(),
+            description: state.description.clone(),
             balance,
             current_account,
             available_accounts: state.available_accounts.clone(),
@@ -577,8 +577,8 @@ where
         Ok(())
     }
 
-    /// Update a wallet's name and/or caption
-    pub fn update(&self, name: Option<String>, caption: Option<String>) -> Result<()> {
+    /// Update a wallet's name and/or description
+    pub fn update(&self, name: Option<String>, description: Option<String>) -> Result<()> {
         let mut batch = self.db.batch();
         let mut state = self.state.write()?;
 
@@ -587,9 +587,9 @@ where
             batch.put(keys::wallet_name(), name)?;
         }
 
-        state.caption = caption;
-        if let Some(ref caption) = state.caption {
-            batch.put(keys::wallet_caption(), caption)?;
+        state.description = description;
+        if let Some(ref description) = state.description {
+            batch.put(keys::wallet_description(), description)?;
         }
 
         self.db.write(batch)?;

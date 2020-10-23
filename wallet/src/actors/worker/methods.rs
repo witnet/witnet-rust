@@ -62,7 +62,7 @@ impl Worker {
     pub fn create_wallet(
         &mut self,
         name: Option<String>,
-        caption: Option<String>,
+        description: Option<String>,
         password: &[u8],
         source: &types::SeedSource,
         overwrite: bool,
@@ -110,7 +110,7 @@ impl Worker {
             &wallet_db,
             types::CreateWalletData {
                 name,
-                caption,
+                description,
                 iv,
                 salt,
                 id: &id,
@@ -149,9 +149,9 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         name: Option<String>,
-        caption: Option<String>,
+        description: Option<String>,
     ) -> Result<()> {
-        wallet.update(name, caption)?;
+        wallet.update(name, description)?;
 
         Ok(())
     }
@@ -161,9 +161,9 @@ impl Worker {
         &self,
         wallet_id: &str,
         name: Option<String>,
-        caption: Option<String>,
+        description: Option<String>,
     ) -> Result<()> {
-        self.wallets.update_info(wallet_id, name, caption)?;
+        self.wallets.update_info(wallet_id, name, description)?;
 
         Ok(())
     }

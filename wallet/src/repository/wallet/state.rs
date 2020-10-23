@@ -30,8 +30,8 @@ pub struct State {
     pub available_accounts: Vec<u32>,
     /// Current wallet balance (including pending movements)
     pub balance: model::WalletBalance,
-    /// Wallet caption
-    pub caption: Option<String>,
+    /// Wallet description
+    pub description: Option<String>,
     /// List of already existing DB balance movements that need to be updated upon superblock
     /// confirmation
     pub db_movements_to_update: HashMap<String, Vec<model::BalanceMovement>>,

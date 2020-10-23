@@ -9,7 +9,7 @@ pub struct UpdateWalletRequest {
     session_id: types::SessionId,
     wallet_id: String,
     name: Option<String>,
-    caption: Option<String>,
+    description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ impl Handler<UpdateWalletRequest> for app::App {
 
     fn handle(&mut self, req: UpdateWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
-            .update_wallet(req.session_id, req.wallet_id, req.name, req.caption)
+            .update_wallet(req.session_id, req.wallet_id, req.name, req.description)
             .map(|(), _, _| UpdateWalletResponse { success: true });
 
         Box::new(f)

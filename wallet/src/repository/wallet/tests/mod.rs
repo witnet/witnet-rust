@@ -14,7 +14,7 @@ fn test_wallet_public_data() {
     let data = wallet.public_data().unwrap();
 
     assert!(data.name.is_none());
-    assert!(data.caption.is_none());
+    assert!(data.description.is_none());
     assert_eq!(0, data.balance.local);
     assert_eq!(0, data.balance.unconfirmed.available);
     assert_eq!(0, data.balance.unconfirmed.locked);
@@ -864,18 +864,18 @@ fn test_update_wallet_with_empty_values() {
     let wallet_data = wallet.public_data().unwrap();
 
     assert!(wallet_data.name.is_none());
-    assert!(wallet_data.caption.is_none());
+    assert!(wallet_data.description.is_none());
     assert!(!db.contains(&keys::wallet_name()).unwrap());
-    assert!(!db.contains(&keys::wallet_caption()).unwrap());
+    assert!(!db.contains(&keys::wallet_description()).unwrap());
 
     wallet.update(None, None).unwrap();
 
     let wallet_data = wallet.public_data().unwrap();
 
     assert!(wallet_data.name.is_none());
-    assert!(wallet_data.caption.is_none());
+    assert!(wallet_data.description.is_none());
     assert!(!db.contains(&keys::wallet_name()).unwrap());
-    assert!(!db.contains(&keys::wallet_caption()).unwrap());
+    assert!(!db.contains(&keys::wallet_description()).unwrap());
 }
 
 #[test]
@@ -884,23 +884,24 @@ fn test_update_wallet_with_values() {
     let wallet_data = wallet.public_data().unwrap();
 
     assert!(wallet_data.name.is_none());
-    assert!(wallet_data.caption.is_none());
+    assert!(wallet_data.description.is_none());
     assert!(!db.contains(&keys::wallet_name()).unwrap());
-    assert!(!db.contains(&keys::wallet_caption()).unwrap());
+    assert!(!db.contains(&keys::wallet_description()).unwrap());
 
     let name = Some("wallet name".to_string());
-    let caption = Some("wallet caption".to_string());
+    let description = Some("wallet description".to_string());
 
-    wallet.update(name.clone(), caption.clone()).unwrap();
+    wallet.update(name.clone(), description.clone()).unwrap();
 
     let wallet_data = wallet.public_data().unwrap();
 
     assert_eq!(name, wallet_data.name);
-    assert_eq!(caption, wallet_data.caption);
+    assert_eq!(description, wallet_data.description);
     assert_eq!(name, db.get_opt::<_, String>(&keys::wallet_name()).unwrap());
     assert_eq!(
-        caption,
-        db.get_opt::<_, String>(&keys::wallet_caption()).unwrap()
+        description,
+        db.get_opt::<_, String>(&keys::wallet_description())
+            .unwrap()
     );
 }
 

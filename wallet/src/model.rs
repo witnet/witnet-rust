@@ -10,13 +10,13 @@ use crate::{account, types};
 pub struct Wallet {
     pub id: String,
     pub name: Option<String>,
-    pub caption: Option<String>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UnlockedWallet {
     pub name: Option<String>,
-    pub caption: Option<String>,
+    pub description: Option<String>,
     pub current_account: u32,
     pub session_id: String,
     pub available_accounts: Vec<u32>,

@@ -12,10 +12,10 @@ pub fn wallet_name() -> &'static str {
     "name"
 }
 
-/// A wallet's caption.
+/// A wallet's description.
 #[inline]
-pub fn wallet_caption() -> &'static str {
-    "caption"
+pub fn wallet_description() -> &'static str {
+    "description"
 }
 
 /// A wallet's name.
@@ -24,10 +24,10 @@ pub fn wallet_id_name(id: &str) -> String {
     format!("{}name", id)
 }
 
-/// A wallet's caption.
+/// A wallet's description.
 #[inline]
-pub fn wallet_id_caption(id: &str) -> String {
-    format!("{}caption", id)
+pub fn wallet_id_description(id: &str) -> String {
+    format!("{}description", id)
 }
 
 /// A wallet's encryption salt.
