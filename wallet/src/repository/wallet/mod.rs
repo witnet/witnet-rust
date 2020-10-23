@@ -666,6 +666,7 @@ where
         block_info: &model::Beacon,
         txns: &[model::ExtendedTransaction],
         confirmed: bool,
+        resynchronizing: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
         let mut state = self.state.write()?;
         let mut addresses = Vec::new();
@@ -677,28 +678,32 @@ where
         for txn in txns {
             // Check if transaction already exists in the database
             let hash = txn.transaction.hash().as_ref().to_vec();
-            match self
+            let tx_in_db = self
                 .db
-                .get_opt::<_, u32>(&keys::transactions_index(&hash))?
-            {
-                None => match self._index_transaction(&mut state, txn, block_info, confirmed) {
-                    Ok(Some((balance_movement, mut new_addresses))) => {
-                        if let types::Transaction::DataRequest(dr_tx) = &txn.transaction {
-                            dr_balance_movements.insert(
-                                dr_tx.hash().to_string(),
-                                (block_info.block_hash, block_balance_movements.len()),
-                            );
+                .get_opt::<_, u32>(&keys::transactions_index(&hash))?;
+
+            match (tx_in_db, resynchronizing) {
+                // Transactions are only indexed if they do not exist in database, or if resynchronizing.
+                (None, _) | (_, true) => {
+                    match self._index_transaction(&mut state, txn, block_info, confirmed) {
+                        Ok(Some((balance_movement, mut new_addresses))) => {
+                            if let types::Transaction::DataRequest(dr_tx) = &txn.transaction {
+                                dr_balance_movements.insert(
+                                    dr_tx.hash().to_string(),
+                                    (block_info.block_hash, block_balance_movements.len()),
+                                );
+                            }
+                            block_balance_movements.push(balance_movement);
+                            addresses.append(&mut new_addresses);
                         }
-                        block_balance_movements.push(balance_movement);
-                        addresses.append(&mut new_addresses);
+                        Ok(None) => {}
+                        e @ Err(_) => {
+                            log::error!("Error while indexing transaction: {:?}", e);
+                            e?;
+                        }
                     }
-                    Ok(None) => {}
-                    e @ Err(_) => {
-                        log::error!("Error while indexing transaction: {:?}", e);
-                        e?;
-                    }
-                },
-                Some(_) => log::warn!(
+                }
+                _ => log::warn!(
                     "The transaction {} already exists in the database",
                     txn.transaction.hash()
                 ),

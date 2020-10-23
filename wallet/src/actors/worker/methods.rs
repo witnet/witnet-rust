@@ -282,6 +282,7 @@ impl Worker {
         block_info: &model::Beacon,
         txns: &[types::Transaction],
         confirmed: bool,
+        resynchronizing: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
         // If syncing, then re-generate transient addresses if needed
         // Note: this code can be further refactored by only updating the transient addresses
@@ -297,8 +298,12 @@ impl Worker {
         );
         // Extending transactions with metadata queried from the node
         let extended_txns = self.extend_transactions_data(filtered_txns)?;
-        let balance_movements =
-            wallet.index_block_transactions(block_info, &extended_txns, confirmed)?;
+        let balance_movements = wallet.index_block_transactions(
+            block_info,
+            &extended_txns,
+            confirmed,
+            resynchronizing,
+        )?;
 
         Ok(balance_movements)
     }
@@ -611,6 +616,7 @@ impl Worker {
         wallet_id: &str,
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
+        resynchronizing: bool,
     ) -> Result<()> {
         let limit = i64::from(self.params.node_sync_batch_size);
         let superblock_period = u32::from(wallet.get_superblock_period());
@@ -646,7 +652,13 @@ impl Worker {
             );
 
             // Process genesis block (transactions indexed as confirmed)
-            self.handle_block(block, true, wallet.clone(), DynamicSink::default())?;
+            self.handle_block(
+                block,
+                true,
+                resynchronizing,
+                wallet.clone(),
+                DynamicSink::default(),
+            )?;
         }
 
         // Query the node for the latest block in the chain
@@ -706,6 +718,7 @@ impl Worker {
                 self.handle_block(
                     block.clone(),
                     confirmed,
+                    resynchronizing,
                     wallet.clone(),
                     DynamicSink::default(),
                 )?;
@@ -827,6 +840,7 @@ impl Worker {
         &self,
         block: types::ChainBlock,
         confirmed: bool,
+        resynchronizing: bool,
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
@@ -890,7 +904,8 @@ impl Worker {
 
         if needs_indexing {
             // Index incoming block and its transactions
-            let new_last_sync = self.index_block(block, confirmed, &wallet, sink)?;
+            let new_last_sync =
+                self.index_block(block, confirmed, resynchronizing, &wallet, sink)?;
 
             // Update wallet state with the last indexed epoch and block hash
             wallet.update_sync_state(new_last_sync, confirmed)?;
@@ -956,7 +971,7 @@ impl Worker {
                 )
                 .ok();
 
-                self.sync(&wallet.id, wallet.clone(), sink)?
+                self.sync(&wallet.id, wallet.clone(), sink, false)?
             }
         }
 
@@ -967,6 +982,7 @@ impl Worker {
         &self,
         block: types::ChainBlock,
         confirmed: bool,
+        resynchronizing: bool,
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<CheckpointBeacon> {
@@ -1017,8 +1033,13 @@ impl Worker {
             block_hash,
             epoch: block.block_header.beacon.checkpoint,
         };
-        let balance_movements =
-            self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref(), confirmed)?;
+        let balance_movements = self.index_txns(
+            wallet.as_ref(),
+            &block_info,
+            block_txns.as_ref(),
+            confirmed,
+            resynchronizing,
+        )?;
 
         // Notify about the new block and every single balance movement found within.
         let mut events = vec![types::Event::Block(block_info)];
@@ -1049,7 +1070,7 @@ impl Worker {
     ) -> Result<bool> {
         // Only trigger sync of chain if data has been cleared
         match wallet.clear_chain_data()? {
-            true => self.sync(wallet_id, wallet, sink).map(|_| true),
+            true => self.sync(wallet_id, wallet, sink, true).map(|_| true),
             false => Ok(false),
         }
     }
