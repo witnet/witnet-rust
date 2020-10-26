@@ -17,14 +17,14 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hash, Hashable, PublicKeyHash},
+    chain::{Block, CheckpointBeacon, Hash, Hashable, PublicKeyHash, StateMachine},
     transaction::Transaction,
     vrf::VrfMessage,
 };
 
 use crate::{
     actors::{
-        chain_manager::{ChainManager, ChainManagerError, StateMachine},
+        chain_manager::{ChainManager, ChainManagerError},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
@@ -260,6 +260,9 @@ pub fn jsonrpc_io_handler(
                     }
                     "superblocks" => {
                         add_subscription("superblocks", subscriber);
+                    }
+                    "status" => {
+                        add_subscription("status", subscriber);
                     }
                     e => {
                         log::debug!("Unknown subscription method: {}", e);

@@ -6,7 +6,7 @@ use futures::future;
 use witnet_data_structures::chain::InventoryItem;
 
 use crate::actors::{
-    worker::{HandleBlockRequest, HandleSuperBlockRequest, NotifyStatus},
+    worker::{HandleBlockRequest, HandleSuperBlockRequest, NodeStatusRequest, NotifyStatus},
     *,
 };
 use crate::model;
@@ -491,6 +491,7 @@ impl App {
         match topic.as_str() {
             "blocks" => self.handle_block_notification(value),
             "superblocks" => self.handle_superblock_notification(value),
+            "status" => self.handle_node_status_notification(value),
             _ => {
                 log::debug!("Unhandled `{}` notification", topic);
                 log::trace!("Payload is {:?}", value);
@@ -512,7 +513,7 @@ impl App {
             .map(|(_, wallet)| wallet.clone())
             .collect();
 
-        for wallet in wallets.iter() {
+        for wallet in &wallets {
             let sink = self.state.get_sink(&wallet.session_id);
             self.handle_block_in_worker(&block, &wallet, sink.clone());
         }
@@ -533,13 +534,33 @@ impl App {
             .map(|(_, wallet)| wallet.clone())
             .collect();
 
-        for wallet in wallets.iter() {
+        for wallet in &wallets {
             let sink = self.state.get_sink(&wallet.session_id);
             self.handle_superblock_in_worker(
                 superblock_notification.clone(),
                 wallet.clone(),
                 sink.clone(),
             );
+        }
+
+        Ok(())
+    }
+
+    /// Handle node status notifications received from a Witnet node.
+    pub fn handle_node_status_notification(&mut self, value: types::Json) -> Result<()> {
+        let status = serde_json::from_value::<types::StateMachine>(value).map_err(node_error)?;
+
+        // This iterator is collected early so as to free the immutable reference to `self`.
+        let wallets: Vec<types::SessionWallet> = self
+            .state
+            .wallets
+            .iter()
+            .map(|(_, wallet)| wallet.clone())
+            .collect();
+
+        for wallet in &wallets {
+            let sink = self.state.get_sink(&wallet.session_id);
+            self.handle_node_status_in_worker(&status, wallet, sink.clone());
         }
 
         Ok(())
@@ -574,6 +595,21 @@ impl App {
         self.params.worker.do_send(HandleSuperBlockRequest {
             superblock_notification,
             wallet,
+            sink,
+        });
+    }
+
+    /// Offload node status into a worker that operates on a different Arbiter than the main
+    /// server thread, so as not to lock the rest of the application.
+    pub fn handle_node_status_in_worker(
+        &self,
+        status: &types::StateMachine,
+        wallet: &types::SessionWallet,
+        sink: types::DynamicSink,
+    ) {
+        self.params.worker.do_send(NodeStatusRequest {
+            status: *status,
+            wallet: wallet.clone(),
             sink,
         });
     }

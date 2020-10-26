@@ -19,7 +19,7 @@ pub use witnet_data_structures::{
         Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
         HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer,
         PublicKey, PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve,
-        RADTally, SuperBlock, ValueTransferOutput as VttOutput,
+        RADTally, StateMachine, SuperBlock, ValueTransferOutput as VttOutput,
     },
     error::EpochCalculationError,
     proto::ProtobufConvert,
@@ -234,6 +234,8 @@ pub enum Event {
     BlocksOrphan(Vec<String>),
     /// A new movement (transaction) affecting balance.
     Movement(model::BalanceMovement),
+    /// Node status has changed
+    NodeStatus(StateMachine),
     /// The end of a synchronization progress.
     SyncFinish(u32, u32),
     /// An update on the progress of a the synchronization progress.

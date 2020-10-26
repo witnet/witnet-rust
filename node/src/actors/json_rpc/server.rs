@@ -1,8 +1,4 @@
 use actix::prelude::*;
-// use actix::{
-//     io::FramedWrite, Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
-//     StreamHandler,
-// };
 use tokio::{
     codec::FramedRead,
     io::AsyncRead,
@@ -17,7 +13,7 @@ use super::{
     SubscriptionResult, Subscriptions,
 };
 use crate::{
-    actors::messages::{BlockNotify, InboundTcpConnect, SuperBlockNotify},
+    actors::messages::{BlockNotify, InboundTcpConnect, NodeStatusNotify, SuperBlockNotify},
     config_mngr,
 };
 use jsonrpc_pubsub::{PubSubHandler, Session};
@@ -234,6 +230,38 @@ impl Handler<SuperBlockNotify> for JsonRpcServer {
             }
         } else {
             log::error!("Failed to acquire lock in SuperBlockNotify handle");
+        }
+    }
+}
+
+impl Handler<NodeStatusNotify> for JsonRpcServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: NodeStatusNotify, ctx: &mut Self::Context) -> Self::Result {
+        if let Ok(subs) = self.subscriptions.lock() {
+            let empty_map = HashMap::new();
+            for (subscription, (sink, _subscription_params)) in
+                subs.get("status").unwrap_or(&empty_map)
+            {
+                log::debug!("Sending node status notification ({:?})", msg.node_status);
+                let r = SubscriptionResult {
+                    result: serde_json::to_value(msg.node_status).unwrap(),
+                    subscription: subscription.clone(),
+                };
+                ctx.spawn(
+                    sink.notify(r.into())
+                        .into_actor(self)
+                        .then(move |res, _act, _ctx| {
+                            if let Err(e) = res {
+                                log::error!("Failed to send node status: {:?}", e);
+                            }
+
+                            actix::fut::ok(())
+                        }),
+                );
+            }
+        } else {
+            log::error!("Failed to acquire lock in NodeStatusNotify handle");
         }
     }
 }

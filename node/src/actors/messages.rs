@@ -20,7 +20,7 @@ use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, SuperBlock, SuperBlockVote, ValueTransferOutput,
+        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, ValueTransferOutput,
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
@@ -34,7 +34,7 @@ use witnet_p2p::{
 use witnet_rad::{error::RadError, types::RadonTypes};
 
 use super::{
-    chain_manager::{ChainManagerError, StateMachine, MAX_BLOCKS_SYNC},
+    chain_manager::{ChainManagerError, MAX_BLOCKS_SYNC},
     epoch_manager::{
         AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
     },
@@ -971,4 +971,15 @@ pub struct SuperBlockNotify {
     pub superblock: SuperBlock,
     /// The hashes of the blocks that we are signaling as consolidated.
     pub consolidated_block_hashes: Vec<Hash>,
+}
+
+/// Notification signaling that the node's state has changed.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct NodeStatusNotify {
+    /// The node status.
+    pub node_status: StateMachine,
+}
+
+impl Message for NodeStatusNotify {
+    type Result = ();
 }

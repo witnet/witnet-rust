@@ -1007,6 +1007,21 @@ impl Worker {
         Ok(())
     }
 
+    pub fn handle_node_status(
+        &self,
+        status: types::StateMachine,
+        wallet: types::SessionWallet,
+        sink: types::DynamicSink,
+    ) -> Result<()> {
+        log::debug!("The node has changed its status into {:?}", status);
+
+        // Notify about the changed node status.
+        let events = vec![types::Event::NodeStatus(status)];
+        self.notify_client(&wallet, sink, Some(events)).ok();
+
+        Ok(())
+    }
+
     pub fn index_block(
         &self,
         block: types::ChainBlock,

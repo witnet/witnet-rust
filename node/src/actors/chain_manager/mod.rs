@@ -47,7 +47,7 @@ use witnet_data_structures::{
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
         DataRequestInfo, DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry,
         InventoryItem, NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify,
-        SuperBlock, SuperBlockVote, TransactionsPool,
+        StateMachine, SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -71,8 +71,9 @@ use crate::{
         json_rpc::JsonRpcServer,
         messages::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast,
-            GetBlocksEpochRange, GetItemBlock, SendInventoryItem, SendInventoryRequest,
-            SendLastBeacon, SendSuperBlockVote, StoreInventoryItem, SuperBlockNotify,
+            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, SendInventoryItem,
+            SendInventoryRequest, SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
+            SuperBlockNotify,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -126,27 +127,6 @@ pub enum ChainManagerError {
         /// Tells what the current epoch was
         current_superblock_index: u32,
     },
-}
-
-/// State Machine
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum StateMachine {
-    /// First state, ChainManager is waiting to consensus between its peers
-    WaitingConsensus,
-    /// Second state, ChainManager synchronization process
-    Synchronizing,
-    /// Third state, `ChainManager` has all the blocks in the chain and is ready to start
-    /// consolidating block candidates in real time.
-    AlmostSynced,
-    /// Fourth state, `ChainManager` can consolidate block candidates, propose its own
-    /// candidates (mining) and participate in resolving data requests (witnessing).
-    Synced,
-}
-
-impl Default for StateMachine {
-    fn default() -> Self {
-        StateMachine::WaitingConsensus
-    }
 }
 
 /// Synchronization target determined by the beacons received from outbound peers
@@ -1479,7 +1459,7 @@ impl ChainManager {
                 next_state
             ),
         }
-
+        self.notify_node_status(next_state);
         self.sm_state = next_state
     }
 
@@ -1679,6 +1659,12 @@ impl ChainManager {
 
             JsonRpcServer::from_registry().do_send(superblock_notify);
         }
+    }
+
+    /// Let JSON-RPC clients know when the node changes its status
+    fn notify_node_status(&mut self, node_status: StateMachine) {
+        let new_node_status = NodeStatusNotify { node_status };
+        JsonRpcServer::from_registry().do_send(new_node_status);
     }
 }
 

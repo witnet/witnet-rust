@@ -36,6 +36,7 @@ impl Actor for App {
         // Subscribe to new blocks and blocks consolidation notifications from a Witnet node
         self.node_subscribe("blocks", ctx);
         self.node_subscribe("superblocks", ctx);
+        self.node_subscribe("status", ctx);
 
         let mut handler =
             jsonrpc_pubsub::PubSubHandler::new(jsonrpc_core::MetaIoHandler::default());

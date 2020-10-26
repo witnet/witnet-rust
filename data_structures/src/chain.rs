@@ -67,6 +67,27 @@ pub struct ChainInfo {
     pub highest_vrf_output: CheckpointVRF,
 }
 
+/// State machine for the synchronization status of a Witnet node
+#[derive(Copy, Clone, Deserialize, Debug, Eq, PartialEq, Serialize)]
+pub enum StateMachine {
+    /// First state, ChainManager is waiting for reaching  consensus between its peers
+    WaitingConsensus,
+    /// Second state, ChainManager synchronization process
+    Synchronizing,
+    /// Third state, `ChainManager` has all the blocks in the chain and is ready to start
+    /// consolidating block candidates in real time.
+    AlmostSynced,
+    /// Fourth state, `ChainManager` can consolidate block candidates, propose its own
+    /// candidates (mining) and participate in resolving data requests (witnessing).
+    Synced,
+}
+
+impl Default for StateMachine {
+    fn default() -> Self {
+        StateMachine::WaitingConsensus
+    }
+}
+
 /// Possible values for the "environment" configuration param.
 // The variants are explicitly tagged so that bincode serialization does not break
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
