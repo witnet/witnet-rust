@@ -113,6 +113,7 @@ impl State {
     ///  so that the number of fields in `State` does not keep growing, and take that as a chance
     ///  to add a private `is_syncing` field for which this would act as a getter.
     pub fn is_syncing(&self) -> bool {
-        self.transient_internal_addresses.is_empty() && self.transient_external_addresses.is_empty()
+        !(self.transient_internal_addresses.is_empty()
+            && self.transient_external_addresses.is_empty())
     }
 }
