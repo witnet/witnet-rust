@@ -1517,6 +1517,9 @@ pub struct TransactionsPool {
     // Values greater than 1 mean keep more value transfer transactions than data request
     // transactions.
     vt_to_dr_factor: f64,
+    // Minimum fee required to include a VTT into a block. We check for this fee in the
+    // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
+    minimum_vtt_fee: u64,
 }
 
 impl Default for TransactionsPool {
@@ -1538,6 +1541,8 @@ impl Default for TransactionsPool {
             weight_limit: u64::MAX,
             // Try to keep the same amount of value transfer weight and data request weight
             vt_to_dr_factor: 1.0,
+            // Default is to include all transactions into the pool and blocks
+            minimum_vtt_fee: 0,
         }
     }
 }
@@ -1574,6 +1579,15 @@ impl TransactionsPool {
         self.remove_transactions_for_size_limit()
     }
 
+    /// As a miner, require a minimum flat fee to include a VTT into the `TransactionsPool` and
+    /// blocks.
+    ///
+    /// This fee is irrespective of the complexity of the VTT so this setting is as uncomplicated
+    /// as possible.
+    pub fn set_minimum_vtt_fee(&mut self, minimum_vtt_fee: u64) {
+        self.minimum_vtt_fee = minimum_vtt_fee;
+    }
+
     /// Returns `true` if the pool contains no transactions.
     ///
     /// # Examples:
@@ -1608,6 +1622,7 @@ impl TransactionsPool {
             total_dr_weight,
             weight_limit: _,
             vt_to_dr_factor: _,
+            minimum_vtt_fee: _,
         } = self;
 
         vt_transactions.clear();
@@ -2084,6 +2099,9 @@ impl TransactionsPool {
     /// Due to the size limit, inserting a new transaction may result in some older ones being
     /// removed. This method returns a list of the removed transactions.
     ///
+    /// If the transaction is not added due to configurable constraints, the method returns a
+    /// list containing only the transaction that was not added
+    ///
     /// # Examples:
     ///
     /// ```
@@ -2104,17 +2122,21 @@ impl TransactionsPool {
                 let weight = f64::from(vt_tx.weight());
                 let priority = OrderedFloat(fee as f64 / weight);
 
-                self.total_vt_weight += u64::from(vt_tx.weight());
+                if fee < self.minimum_vtt_fee {
+                    return vec![Transaction::ValueTransfer(vt_tx)];
+                } else {
+                    self.total_vt_weight += u64::from(vt_tx.weight());
 
-                for input in &vt_tx.body.inputs {
-                    self.output_pointer_map
-                        .entry(input.output_pointer.clone())
-                        .or_insert_with(Vec::new)
-                        .push(vt_tx.hash());
+                    for input in &vt_tx.body.inputs {
+                        self.output_pointer_map
+                            .entry(input.output_pointer.clone())
+                            .or_insert_with(Vec::new)
+                            .push(vt_tx.hash());
+                    }
+
+                    self.vt_transactions.insert(key, (priority, vt_tx));
+                    self.sorted_vt_index.insert((priority, key));
                 }
-
-                self.vt_transactions.insert(key, (priority, vt_tx));
-                self.sorted_vt_index.insert((priority, key));
             }
             Transaction::DataRequest(dr_tx) => {
                 let weight = f64::from(dr_tx.weight());
@@ -4295,6 +4317,27 @@ mod tests {
             // Assert there are exactly 10 removed VTTs
             assert_eq!(removed_vt_count, 10);
         }
+    }
+
+    #[test]
+    fn transactions_pool_minimum_vtt_fee() {
+        let input = Input::default();
+        let vt1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![input], vec![ValueTransferOutput::default()]),
+            vec![],
+        ));
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_vtt_fee(1);
+
+        // Inserting a transaction with a fee lower than `minimum_vtt_fee` results in the transaction not being added
+        let removed = transactions_pool.insert(vt1.clone(), 0);
+        assert_eq!(removed, vec![vt1.clone()]);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        // Inserting a transaction with a fee higher than `minimum_vtt_fee` results in the transaction being added
+        let removed = transactions_pool.insert(vt1.clone(), 1);
+        assert_eq!(removed, vec![]);
+        assert!(transactions_pool.contains(&vt1).unwrap());
     }
 
     #[test]

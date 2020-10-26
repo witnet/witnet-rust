@@ -97,6 +97,9 @@ impl ChainManager {
                 let vt_to_dr_factor = f64::from(config.consensus_constants.max_vt_weight) / f64::from(config.consensus_constants.max_dr_weight);
                 let _removed_transactions = act.transactions_pool.set_total_weight_limit(config.mining.transactions_pool_total_weight_limit, vt_to_dr_factor);
 
+                // Minimum fee required to include a VTT into a block
+                act.transactions_pool.set_minimum_vtt_fee(config.mining.minimum_vtt_fee);
+
                 storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
                     .into_actor(act)
                     .then(|chain_state_from_storage, _, _| {

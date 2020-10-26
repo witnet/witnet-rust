@@ -214,6 +214,12 @@ pub trait Defaults {
         24 * seconds_in_one_hour * max_block_weight / block_period
     }
 
+    /// Allow setting a minimum value transfer transaction fee to be included in a block
+    /// Setting it to zero essentially means all VTT's can be included in a block
+    fn mining_minimum_vtt_fee(&self) -> u64 {
+        0
+    }
+
     fn consensus_constants_max_vt_weight(&self) -> u32 {
         20_000
     }

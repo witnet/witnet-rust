@@ -2351,7 +2351,7 @@ pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_t
 
         if removed_the_one_we_just_inserted {
             log::trace!(
-                "Transaction {} was not added because the TransactionsPool is full",
+                "Transaction {} was not added because the fee was too low",
                 inserted_tx_hash
             );
         } else {
@@ -2359,7 +2359,7 @@ pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_t
         }
 
         log::debug!(
-            "TransactionsPool is full! Removed the following transactions: {:?}",
+            "Removed the following transactions: {:?}",
             removed_tx_hashes
         );
     }

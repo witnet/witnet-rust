@@ -91,6 +91,8 @@ genesis_path = ".witnet/config/genesis_block.json"
 # the percentage of the block rewards that will be assigned to `mint_external_address` (50% by default)
 #mint_external_address = "twit1jqgf4rxjrgas3kdhj3t4cr3mg3n33m8zw0aglr"
 #mint_external_percentage = 50
+# Set a minimum fee you require before your node includes a value transfer transaction into a block
+minimum_vtt_fee_nanowits = 1
 
 [log]
 # Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"

@@ -329,6 +329,9 @@ pub struct Mining {
     pub mint_external_address: Option<String>,
     /// Mempool size limit in weight units
     pub transactions_pool_total_weight_limit: u64,
+    /// Minimum value transfer transaction fee that allows being included into a block
+    #[partial_struct(serde(default, rename = "minimum_vtt_fee_nanowits"))]
+    pub minimum_vtt_fee: u64,
 }
 
 /// NTP-related configuration
@@ -748,6 +751,10 @@ impl Mining {
                 .transactions_pool_total_weight_limit
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_transactions_pool_total_weight_limit()),
+            minimum_vtt_fee: config
+                .minimum_vtt_fee
+                .to_owned()
+                .unwrap_or_else(|| defaults.mining_minimum_vtt_fee()),
         }
     }
 
@@ -760,6 +767,7 @@ impl Mining {
             mint_external_percentage: Some(self.mint_external_percentage),
             mint_external_address: self.mint_external_address.clone(),
             transactions_pool_total_weight_limit: Some(self.transactions_pool_total_weight_limit),
+            minimum_vtt_fee: Some(self.minimum_vtt_fee),
         }
     }
 }
