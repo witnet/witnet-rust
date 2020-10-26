@@ -1947,7 +1947,7 @@ fn update_pools(
     }
 
     for vt_tx in &block.txns.value_transfer_txns {
-        transactions_pool.vt_remove(&vt_tx.hash());
+        transactions_pool.vt_remove(&vt_tx);
     }
 
     for dr_tx in &block.txns.data_request_txns {
@@ -1959,7 +1959,7 @@ fn update_pools(
         ) {
             log::error!("Error processing data request transaction:\n{}", e);
         } else {
-            transactions_pool.dr_remove(&dr_tx.hash());
+            transactions_pool.dr_remove(&dr_tx);
         }
     }
 
