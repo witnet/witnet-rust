@@ -29,6 +29,9 @@ mod state;
 #[cfg(test)]
 mod tests;
 
+const INPUT_SIZE: u32 = 133;
+const OUTPUT_SIZE: u32 = 36;
+
 /// Internal structure used to gather state mutations while indexing block transactions
 struct AccountMutation {
     balance_movement: model::BalanceMovement,
@@ -918,10 +921,9 @@ where
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
-        let components =
-            self.create_vt_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))?;
+        let (body, components) =
+            self.create_vt_body(&mut state, value, fee, Some((pkh, time_lock)))?;
 
-        let body = types::VTTransactionBody::new(components.inputs, components.outputs);
         let sign_data = body.hash();
         let signatures: Result<Vec<types::KeyedSignature>> = components
             .sign_keys
@@ -986,6 +988,37 @@ where
         recipient: Option<(types::PublicKeyHash, u64)>,
     ) -> Result<types::TransactionComponents> {
         self.create_transaction_components(state, value, fee, recipient, false)
+    }
+
+    fn create_vt_body(
+        &self,
+        state: &mut State,
+        value: u64,
+        fee: u64,
+        recipient: Option<(types::PublicKeyHash, u64)>,
+    ) -> Result<(types::VTTransactionBody, types::TransactionComponents)> {
+        // Set this to 1-2 output.
+        let mut initial_fee = u64::from(INPUT_SIZE + 2 * OUTPUT_SIZE) * fee;
+        loop {
+            let components =
+                self.create_vt_transaction_components(state, value, initial_fee, recipient)?;
+            let body = types::VTTransactionBody::new(
+                components.inputs.clone(),
+                components.outputs.clone(),
+            );
+            let new_fee = u64::from(body.weight()) * fee;
+
+
+            let new_components =
+                self.create_vt_transaction_components(state, value, new_fee, recipient)?;
+            //panic!("Components {:?}, New components: {:?}", components, new_components);
+            if new_components.value == components.value
+                && new_components.change == components.change
+            {
+                return Ok((body, new_components));
+            }
+            initial_fee = new_fee;
+        }
     }
 
     fn create_dr_transaction_components(
