@@ -39,7 +39,7 @@ eth_existing_dr_polling_rate_ms = 10_000
 eth_new_dr_polling_rate_ms = 1_000
 
 # Running in the witnet testnet?
-witnet_testnet = true
+witnet_testnet = false
 # If readDrHash returns 0, try again later
 read_dr_hash_interval_ms = 10_000
 
