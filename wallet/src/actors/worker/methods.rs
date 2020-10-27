@@ -594,8 +594,7 @@ impl Worker {
         Compat01As03::new(f).await
     }
 
-    /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet
-    /// chain.
+    /// Sync wrapper in order to clear transient addresses in case of errors
     pub fn sync(
         &self,
         wallet_id: &str,
@@ -603,13 +602,30 @@ impl Worker {
         sink: types::DynamicSink,
         resynchronizing: bool,
     ) -> Result<()> {
-        let limit = i64::from(self.params.node_sync_batch_size);
-
         // Generate transient addresses for sync purposes
         wallet.initialize_transient_addresses(
             self.params.sync_address_batch_length,
             self.params.sync_address_batch_length,
         )?;
+
+        let sync_result = self._sync(wallet_id, wallet, sink, resynchronizing);
+
+        // Clear transient created addresses
+        wallet.clear_transient_addresses()?;
+
+        sync_result
+    }
+
+    /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet
+    /// chain.
+    pub fn _sync(
+        &self,
+        wallet_id: &str,
+        wallet: &types::SessionWallet,
+        sink: types::DynamicSink,
+        resynchronizing: bool,
+    ) -> Result<()> {
+        let limit = i64::from(self.params.node_sync_batch_size);
 
         let wallet_data = wallet.public_data()?;
         let first_beacon = wallet_data.last_confirmed;
@@ -734,9 +750,6 @@ impl Worker {
             wallet_id,
             latest_beacon
         );
-
-        // Clear transient created addresses
-        wallet.clear_transient_addresses()?;
 
         Ok(())
     }
