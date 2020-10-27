@@ -12,4 +12,3 @@ lazy_static = "1.4.0"
 log = "0.4.8"
 ntp = { git = "https://github.com/witnet/ntp" }
 serde = { version = "1.0.104", features = ["derive"] }
-time = "0.2.6"
