@@ -17,6 +17,6 @@ impl Handler<SyncRequest> for worker::Worker {
     type Result = <SyncRequest as Message>::Result;
 
     fn handle(&mut self, msg: SyncRequest, _ctx: &mut Self::Context) -> Self::Result {
-        self.sync(&msg.wallet_id, msg.wallet, msg.sink, false)
+        self.sync(&msg.wallet_id, &msg.wallet, msg.sink, false)
     }
 }

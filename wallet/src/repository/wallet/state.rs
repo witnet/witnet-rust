@@ -18,6 +18,10 @@ pub struct StateSnapshot {
 /// A single wallet state. It includes:
 ///  - fields required to operate wallet accounts (e.g. derive addresses)
 ///  - on-memory state after indexing pending block transactions
+///
+/// TODO: refactor all synchronization-related fields (e.g. transient addresses) from `State` into
+///  `SynchronizationState` structure so that the number of fields in `State` does not keep
+///  growing.
 #[derive(Debug)]
 pub struct State {
     /// Current account index
@@ -70,6 +74,8 @@ pub struct State {
     pub transient_internal_addresses: HashMap<types::PublicKeyHash, model::Address>,
     /// Transient external addresses
     pub transient_external_addresses: HashMap<types::PublicKeyHash, model::Address>,
+    /// Synchronization info and status
+    pub synchronization: SynchronizationState,
 }
 
 impl State {
@@ -80,6 +86,7 @@ impl State {
     /// - Balances
     /// - Movements
     /// - Addresses and their metadata
+    ///
     pub fn clear_chain_data(&mut self, genesis_prev_hash: &Hash) {
         self.balance = Default::default();
         self.last_confirmed = CheckpointBeacon {
@@ -103,17 +110,37 @@ impl State {
         self.transient_internal_addresses.clear();
         self.transient_external_addresses.clear();
     }
+}
 
-    /// Tell whether the wallet is undergoing a synchronization.
-    ///
-    /// Currently, this function derives the information from the presence or absence of transient
-    /// addresses, i.e. addresses that are temporarily generated during the synchronization process.
-    ///
-    /// TODO: refactor all synchronization-related fields into a `SynchronizationState` structure
-    ///  so that the number of fields in `State` does not keep growing, and take that as a chance
-    ///  to add a private `is_syncing` field for which this would act as a getter.
-    pub fn is_syncing(&self) -> bool {
-        !(self.transient_internal_addresses.is_empty()
-            && self.transient_external_addresses.is_empty())
+/// The synchronization state and information for a wallet.
+///
+/// TODO: refactor all synchronization-related fields (e.g. transient addresses) from `State` into
+///  `SynchronizationState` structure so that the number of fields in `State` does not keep
+///  growing.
+#[derive(Debug)]
+pub struct SynchronizationState {
+    is_resyncing: bool,
+}
+
+impl SynchronizationState {
+    /// Tell whether a wallet is resyncing.
+    pub fn is_resyncing(&self) -> bool {
+        self.is_resyncing
+    }
+
+    /// Set the resynchronization status. Returns the old status.
+    pub fn set_resyncing(&mut self, new_status: bool) -> bool {
+        let old_status = self.is_resyncing;
+        self.is_resyncing = new_status;
+
+        old_status
+    }
+}
+
+impl Default for SynchronizationState {
+    fn default() -> Self {
+        Self {
+            is_resyncing: false,
+        }
     }
 }
