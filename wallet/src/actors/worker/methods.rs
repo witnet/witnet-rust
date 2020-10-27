@@ -604,7 +604,7 @@ impl Worker {
     pub fn sync(
         &self,
         wallet_id: &str,
-        wallet: types::SessionWallet,
+        wallet: &types::SessionWallet,
         sink: types::DynamicSink,
         resynchronizing: bool,
     ) -> Result<()> {
@@ -964,7 +964,7 @@ impl Worker {
                 )
                 .ok();
 
-                self.sync(&wallet.id, wallet.clone(), sink, false)?
+                self.sync(&wallet.id, &wallet, sink, false)?
             }
         }
 
@@ -1061,10 +1061,17 @@ impl Worker {
         wallet: types::SessionWallet,
         sink: DynamicSink,
     ) -> Result<bool> {
-        // Only trigger sync of chain if data has been cleared
-        match wallet.clear_chain_data()? {
-            true => self.sync(wallet_id, wallet, sink, true).map(|_| true),
-            false => Ok(false),
+        // Do not try to clear chain data and resync if a resynchronization is already in progress
+        if !wallet.is_resyncing()? {
+            wallet.clear_chain_data()?;
+
+            wallet.lock_and_update_state(|mut state| state.synchronization.set_resyncing(true))?;
+            let sync_result = self.sync(wallet_id, &wallet, sink, true).map(|_| true);
+            wallet.lock_and_update_state(|mut state| state.synchronization.set_resyncing(false))?;
+
+            sync_result
+        } else {
+            Ok(false)
         }
     }
 }

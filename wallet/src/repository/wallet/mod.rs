@@ -1,12 +1,13 @@
 use std::{
+    cmp::min,
     collections::HashMap,
     convert::TryFrom,
+    ops::Range,
     str::FromStr,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 use state::State;
-
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash},
@@ -23,8 +24,6 @@ use crate::{
 };
 
 use super::*;
-use std::cmp::min;
-use std::ops::Range;
 
 mod state;
 #[cfg(test)]
@@ -241,6 +240,7 @@ where
             db_movements_to_update: Default::default(),
             transient_external_addresses: Default::default(),
             transient_internal_addresses: Default::default(),
+            synchronization: Default::default(),
         });
 
         Ok(Self {
@@ -1660,21 +1660,24 @@ where
     /// - Balances
     /// - Movements
     /// - Addresses and their metadata
-    ///
-    /// In order to prevent data race conditions, resyncing is not allowed while a sync or resync
-    /// process is already in progress. Accordingly, this function returns whether chain data has
-    /// been cleared or not.
-    pub fn clear_chain_data(&self) -> Result<bool> {
+    pub fn clear_chain_data(&self) -> Result<()> {
         let mut state = self.state.write()?;
+        state.clear_chain_data(&self.params.genesis_prev_hash);
 
-        // Prevent chain data from being cleared if a sync or resync process is in progress
-        if !state.is_syncing() {
-            state.clear_chain_data(&self.params.genesis_prev_hash);
+        Ok(())
+    }
 
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+    /// Run a predicate on the state of a wallet in a thread safe manner, thanks to a write lock.
+    pub fn lock_and_update_state<P, O>(&self, predicate: P) -> Result<O>
+    where
+        P: FnOnce(RwLockWriteGuard<'_, State>) -> O,
+    {
+        Ok(predicate(self.state.write()?))
+    }
+
+    /// Tell whether a wallet is resynchronizing.
+    pub fn is_resyncing(&self) -> Result<bool> {
+        Ok(self.state.read()?.synchronization.is_resyncing())
     }
 }
 
