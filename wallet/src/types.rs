@@ -158,7 +158,7 @@ pub struct DataReqParams {
     pub request: DataRequestOutput,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TransactionComponents {
     pub value: u64,
     pub change: u64,
