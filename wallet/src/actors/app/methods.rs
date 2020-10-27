@@ -9,7 +9,7 @@ use crate::actors::{
     worker::{HandleBlockRequest, HandleSuperBlockRequest, NotifyStatus},
     *,
 };
-use crate::{crypto, model, repository};
+use crate::model;
 
 use super::*;
 
@@ -261,12 +261,7 @@ impl App {
                 overwrite,
             ))
             .flatten()
-            .map_err(|err| match err {
-                worker::Error::KeyGen(e @ crypto::Error::InvalidKeyPath(_)) => {
-                    validation_error(field_error("seedData", format!("{}", e)))
-                }
-                err => From::from(err),
-            });
+            .map_err(From::from);
 
         Box::new(f)
     }
@@ -328,15 +323,7 @@ impl App {
             .worker
             .send(worker::UnlockWallet(wallet_id.clone(), password))
             .flatten()
-            .map_err(|err| match err {
-                worker::Error::WalletNotFound => {
-                    validation_error(field_error("wallet_id", "Wallet not found"))
-                }
-                worker::Error::WrongPassword => {
-                    validation_error(field_error("password", "Wrong password"))
-                }
-                err => From::from(err),
-            })
+            .map_err(From::from)
             .into_actor(self)
             .and_then(move |res, slf: &mut Self, _ctx| {
                 let types::UnlockedSessionWallet {
@@ -377,15 +364,7 @@ impl App {
                 .worker
                 .send(worker::CreateVtt(wallet, vtt_params))
                 .flatten()
-                .map_err(|err| match err {
-                    worker::Error::Repository(repository::Error::InsufficientBalance) => {
-                        validation_error(field_error(
-                            "balance",
-                            "Wallet account has not enough balance",
-                        ))
-                    }
-                    err => From::from(err),
-                })
+                .map_err(From::from)
                 .into_actor(slf)
         });
 
@@ -407,15 +386,7 @@ impl App {
                 .worker
                 .send(worker::CreateDataReq(wallet, params))
                 .flatten()
-                .map_err(|err| match err {
-                    worker::Error::Repository(repository::Error::InsufficientBalance) => {
-                        validation_error(field_error(
-                            "balance",
-                            "Wallet account has not enough balance",
-                        ))
-                    }
-                    err => From::from(err),
-                })
+                .map_err(From::from)
                 .into_actor(slf)
         });
 

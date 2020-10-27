@@ -4,7 +4,7 @@ use serde_json::json;
 
 use witnet_net::client::tcp;
 
-use crate::actors;
+use crate::{actors, crypto, repository};
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -38,7 +38,7 @@ impl Error {
             Error::WalletNotFound => (402, "Forbidden", None),
             Error::WalletAlreadyExists(wallet_id) => (
                 409,
-                "Conflict",
+                "Wallet Conflict",
                 Some(json!({ "cause": self.to_string(), "wallet_id": wallet_id })),
             ),
             Error::Node(e) => {
@@ -99,6 +99,22 @@ impl From<actors::worker::Error> for Error {
     fn from(err: actors::worker::Error) -> Self {
         match err {
             actors::worker::Error::WalletAlreadyExists(e) => Error::WalletAlreadyExists(e),
+            actors::worker::Error::WrongPassword => {
+                validation_error(field_error("password", "Wrong password"))
+            }
+            actors::worker::Error::WalletNotFound => {
+                validation_error(field_error("wallet_id", "Wallet not found"))
+            }
+            actors::worker::Error::Node(e) => Error::Node(e),
+            actors::worker::Error::KeyGen(e @ crypto::Error::InvalidKeyPath(_)) => {
+                validation_error(field_error("seedData", e.to_string()))
+            }
+            actors::worker::Error::Repository(_e @ repository::Error::InsufficientBalance) => {
+                validation_error(field_error(
+                    "balance",
+                    "Wallet account has not enough balance",
+                ))
+            }
             _ => internal_error(err),
         }
     }
