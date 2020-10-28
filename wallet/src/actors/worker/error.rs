@@ -36,6 +36,11 @@ pub enum Error {
     EpochCalculation(#[cause] witnet_data_structures::error::EpochCalculationError),
     #[fail(display = "wallet already exists: {}", _0)]
     WalletAlreadyExists(String),
+    #[fail(
+        display = "error while syncing: node is behind our local tip (#{} < #{})",
+        _0, _1
+    )]
+    NodeBehindLocalTip(u32, u32),
 }
 
 #[derive(Debug, Fail)]

@@ -674,6 +674,14 @@ impl Worker {
         // Store the tip into the worker in form of beacon
         self.node.update_last_beacon(tip);
 
+        // Return error if the node's tip of the chain is behind ours
+        if tip.checkpoint < since_beacon.checkpoint {
+            return Err(Error::NodeBehindLocalTip(
+                tip.checkpoint,
+                since_beacon.checkpoint,
+            ));
+        }
+
         // Notify wallet about initial synchronization status (the wallet most likely has an old
         // chain tip)
         let events = Some(vec![types::Event::SyncStart(
