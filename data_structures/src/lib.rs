@@ -33,6 +33,9 @@ pub mod superblock;
 /// Module containing transaction structures
 pub mod transaction;
 
+/// High level transaction factory
+pub mod transaction_factory;
+
 /// Module containing UnspentOutputsPool and related structures
 pub mod utxo_pool;
 

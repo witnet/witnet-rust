@@ -24,10 +24,37 @@ use witnet_data_structures::{
         Bn256KeyedSignature, Bn256PublicKey, Bn256SecretKey, ExtendedSecretKey, Hash, Hashable,
         KeyedSignature, PublicKey, PublicKeyHash, SecretKey, Signature, SignaturesToVerify,
     },
+    transaction::MemoizedHashable,
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
 use witnet_protected::ProtectedString;
 use witnet_validations::validations;
+
+/// Sign a transaction using this node's private key.
+/// This function assumes that all the inputs have the same public key hash:
+/// the hash of the public key of the node.
+pub fn sign_transaction<T>(
+    tx: &T,
+    inputs_len: usize,
+) -> impl Future<Item = Vec<KeyedSignature>, Error = failure::Error>
+where
+    T: MemoizedHashable + Hashable,
+{
+    // Assuming that all the inputs have the same pkh
+    sign(tx).map(move |signature| {
+        // TODO: do we need to sign:
+        // value transfer inputs,
+        // data request inputs (for commits),
+        // commit inputs (for reveals),
+        //
+        // We do not need to sign:
+        // reveal inputs (for tallies)
+        //
+        // But currently we just sign everything, hoping that the validations
+        // work
+        vec![signature; inputs_len]
+    })
+}
 
 /// Start the signature manager
 pub fn start() {

@@ -22,10 +22,7 @@ use witnet_validations::validations::{
 
 use crate::{
     actors::{
-        chain_manager::{
-            transaction_factory::{build_commit_collateral, sign_transaction},
-            ChainManager, StateMachine,
-        },
+        chain_manager::{ChainManager, StateMachine},
         messages::{AddCandidates, AddCommitReveal, ResolveRA, RunTally},
         rad_manager::RadManager,
     },
@@ -44,6 +41,7 @@ use witnet_data_structures::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
     },
+    transaction_factory::build_commit_collateral,
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
@@ -523,7 +521,7 @@ impl ChainManager {
                         act.bn256_public_key.clone()
                     };
 
-                    sign_transaction(&reveal_body, 1)
+                    signature_mngr::sign_transaction(&reveal_body, 1)
                         .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
                         .and_then(move |reveal_signatures| {
                             // Commitment is the hash of the RevealTransaction signature
@@ -533,7 +531,7 @@ impl ChainManager {
                             let commit_body =
                                 CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr, inputs, outputs, bn256_public_key);
 
-                            sign_transaction(&commit_body, 1)
+                            signature_mngr::sign_transaction(&commit_body, 1)
                                 .map(|commit_signatures| {
                                     let commit_transaction =
                                         CommitTransaction::new(commit_body, commit_signatures);

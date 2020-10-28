@@ -1,15 +1,13 @@
-use crate::signature_mngr;
-use futures::Future;
-use witnet_data_structures::{
+use crate::{
     chain::{
-        DataRequestOutput, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+        DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
         ValueTransferOutput,
     },
     error::TransactionError,
-    transaction::{DRTransactionBody, MemoizedHashable, VTTransactionBody},
-    utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool, UtxoSelectionStrategy},
+    transaction::{DRTransactionBody, VTTransactionBody},
+    utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoSelectionStrategy},
 };
-use witnet_validations::validations::transaction_outputs_sum;
+use std::{collections::HashSet, convert::TryFrom};
 
 /// Select enough UTXOs to sum up to `amount`.
 ///
@@ -243,43 +241,75 @@ fn build_inputs_outputs_inner(
     Ok((inputs, outputs))
 }
 
-/// Sign a transaction using this node's private key.
-/// This function assumes that all the inputs have the same public key hash:
-/// the hash of the public key of the node.
-pub fn sign_transaction<T>(
-    tx: &T,
-    inputs_len: usize,
-) -> impl Future<Item = Vec<KeyedSignature>, Error = failure::Error>
-where
-    T: MemoizedHashable + Hashable,
-{
-    // Assuming that all the inputs have the same pkh
-    signature_mngr::sign(tx).map(move |signature| {
-        // TODO: do we need to sign:
-        // value transfer inputs,
-        // data request inputs (for commits),
-        // commit inputs (for reveals),
-        //
-        // We do not need to sign:
-        // reveal inputs (for tallies)
-        //
-        // But currently we just sign everything, hoping that the validations
-        // work
-        vec![signature; inputs_len]
-    })
+/// Calculate the sum of the values of the outputs pointed by the
+/// inputs of a transaction. If an input pointed-output is not
+/// found in `pool`, then an error is returned instead indicating
+/// it. If a Signature is invalid an error is returned too
+pub fn transaction_inputs_sum(
+    inputs: &[Input],
+    utxo_diff: &UtxoDiff,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
+) -> Result<u64, failure::Error> {
+    let mut total_value: u64 = 0;
+    let mut seen_output_pointers = HashSet::with_capacity(inputs.len());
+
+    for input in inputs {
+        let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
+            TransactionError::OutputNotFound {
+                output: input.output_pointer().clone(),
+            }
+        })?;
+
+        // Verify that commits are only accepted after the time lock expired
+        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+        let vt_time_lock = i64::try_from(vt_output.time_lock)?;
+        if vt_time_lock > epoch_timestamp {
+            return Err(TransactionError::TimeLock {
+                expected: vt_time_lock,
+                current: epoch_timestamp,
+            }
+            .into());
+        } else {
+            if !seen_output_pointers.insert(input.output_pointer()) {
+                // If the set already contained this output pointer
+                return Err(TransactionError::OutputNotFound {
+                    output: input.output_pointer().clone(),
+                }
+                .into());
+            }
+            total_value = total_value
+                .checked_add(vt_output.value)
+                .ok_or(TransactionError::InputValueOverflow)?;
+        }
+    }
+
+    Ok(total_value)
+}
+
+/// Calculate the sum of the values of the outputs of a transaction.
+pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, TransactionError> {
+    let mut total_value: u64 = 0;
+    for vt_output in outputs {
+        total_value = total_value
+            .checked_add(vt_output.value)
+            .ok_or(TransactionError::OutputValueOverflow)?
+    }
+
+    Ok(total_value)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        convert::TryFrom,
-        sync::atomic::{AtomicU32, Ordering},
-    };
-    use witnet_data_structures::{
+    use crate::{
         chain::{generate_unspent_outputs_pool, Hashable, PublicKey},
         error::TransactionError,
         transaction::*,
+    };
+    use std::{
+        convert::TryFrom,
+        sync::atomic::{AtomicU32, Ordering},
     };
 
     // Counter used to prevent creating two transactions with the same hash

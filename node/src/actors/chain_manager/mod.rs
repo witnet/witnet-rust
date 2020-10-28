@@ -83,8 +83,6 @@ use crate::{
 mod actor;
 mod handlers;
 mod mining;
-/// High level transaction factory
-pub mod transaction_factory;
 
 /// Maximum blocks number to be sent during synchronization process
 pub const MAX_BLOCKS_SYNC: usize = 500;

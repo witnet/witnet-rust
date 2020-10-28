@@ -13,13 +13,12 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
-use witnet_data_structures::chain::ConsensusConstants;
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, DataRequestOutput,
-        DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input,
-        KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation,
-        ReputationEngine, SignaturesToVerify, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
+        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
+        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
+        Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
@@ -31,6 +30,7 @@ use witnet_data_structures::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
         Transaction, VTTransaction,
     },
+    transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
@@ -44,64 +44,6 @@ use witnet_rad::{
     },
     types::{array::RadonArray, serial_iter_decode, RadonType, RadonTypes},
 };
-
-/// Calculate the sum of the values of the outputs pointed by the
-/// inputs of a transaction. If an input pointed-output is not
-/// found in `pool`, then an error is returned instead indicating
-/// it. If a Signature is invalid an error is returned too
-pub fn transaction_inputs_sum(
-    inputs: &[Input],
-    utxo_diff: &UtxoDiff,
-    epoch: Epoch,
-    epoch_constants: EpochConstants,
-) -> Result<u64, failure::Error> {
-    let mut total_value: u64 = 0;
-    let mut seen_output_pointers = HashSet::with_capacity(inputs.len());
-
-    for input in inputs {
-        let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
-            TransactionError::OutputNotFound {
-                output: input.output_pointer().clone(),
-            }
-        })?;
-
-        // Verify that commits are only accepted after the time lock expired
-        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
-        let vt_time_lock = i64::try_from(vt_output.time_lock)?;
-        if vt_time_lock > epoch_timestamp {
-            return Err(TransactionError::TimeLock {
-                expected: vt_time_lock,
-                current: epoch_timestamp,
-            }
-            .into());
-        } else {
-            if !seen_output_pointers.insert(input.output_pointer()) {
-                // If the set already contained this output pointer
-                return Err(TransactionError::OutputNotFound {
-                    output: input.output_pointer().clone(),
-                }
-                .into());
-            }
-            total_value = total_value
-                .checked_add(vt_output.value)
-                .ok_or(TransactionError::InputValueOverflow)?;
-        }
-    }
-
-    Ok(total_value)
-}
-
-/// Calculate the sum of the values of the outputs of a transaction.
-pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, TransactionError> {
-    let mut total_value: u64 = 0;
-    for vt_output in outputs {
-        total_value = total_value
-            .checked_add(vt_output.value)
-            .ok_or(TransactionError::OutputValueOverflow)?
-    }
-
-    Ok(total_value)
-}
 
 /// Returns the fee of a value transfer transaction.
 ///

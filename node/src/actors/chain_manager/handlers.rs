@@ -11,13 +11,14 @@ use witnet_data_structures::{
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
+    transaction_factory,
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
-use super::{transaction_factory, ChainManager, ChainManagerError, StateMachine, SyncTarget};
+use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
@@ -32,7 +33,7 @@ use crate::{
         },
         sessions_manager::SessionsManager,
     },
-    storage_mngr,
+    signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
 
@@ -1163,7 +1164,7 @@ impl Handler<BuildVtt> for ChainManager {
                 Box::new(actix::fut::err(e.into()))
             }
             Ok(vtt) => {
-                let fut = transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
+                let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
                     .into_actor(self)
                     .then(|s, act, ctx| match s {
                         Ok(signatures) => {
@@ -1226,7 +1227,7 @@ impl Handler<BuildDrt> for ChainManager {
             }
             Ok(drt) => {
                 log::debug!("Created drt:\n{:?}", drt);
-                let fut = transaction_factory::sign_transaction(&drt, drt.inputs.len())
+                let fut = signature_mngr::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
                     .then(|s, act, ctx| match s {
                         Ok(signatures) => {
