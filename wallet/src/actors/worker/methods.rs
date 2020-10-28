@@ -284,7 +284,7 @@ impl Worker {
         wallet._sync_address_generation(txns)?;
 
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
-        log::info!(
+        log::debug!(
             "Indexing block #{} ({}) with {} transactions ({})",
             block_info.epoch,
             block_info.block_hash,
@@ -616,8 +616,15 @@ impl Worker {
         wallet.clear_transient_addresses()?;
 
         // Notify client if error occurred while syncing
-        if sync_result.is_err() {
+        if let Err(ref e) = sync_result {
             let sync_end = wallet.lock_and_read_state(|state| state.last_sync.checkpoint)?;
+            log::error!(
+                "Error while synchronizing (start: {}, end:{}): {}",
+                sync_start,
+                sync_end,
+                e
+            );
+
             let events = Some(vec![types::Event::SyncError(sync_start, sync_end)]);
             self.notify_client(&wallet, sink, events).ok();
         }
