@@ -25,6 +25,8 @@ pub struct Params {
     pub genesis_hash: Hash,
     pub genesis_prev_hash: Hash,
     pub sync_address_batch_length: u16,
+    pub max_vt_weight: u32,
+    pub max_dr_weight: u32,
 }
 
 impl Default for Params {
@@ -43,6 +45,8 @@ impl Default for Params {
             genesis_hash: Hash::default(),
             genesis_prev_hash: Hash::default(),
             sync_address_batch_length: 10,
+            max_vt_weight: 20_000,
+            max_dr_weight: 80_000,
         }
     }
 }
