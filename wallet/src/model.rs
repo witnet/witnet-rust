@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::repository::keys::Key;
 use crate::{account, types};
-use witnet_data_structures::chain::ValueTransferOutput;
+use witnet_data_structures::chain::{PublicKeyHash, ValueTransferOutput};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
@@ -32,7 +32,7 @@ pub struct Address {
     pub path: String,
     pub info: AddressInfo,
     #[serde(skip)]
-    pub pkh: types::PublicKeyHash,
+    pub pkh: PublicKeyHash,
 }
 
 #[derive(Debug, Serialize)]
@@ -274,7 +274,7 @@ pub struct OutputInfo {
     /// Amount of the UTXO
     pub amount: u64,
     /// PKH receiving this balance
-    pub pkh: types::PublicKeyHash,
+    pub pkh: PublicKeyHash,
     /// Timestamp in which UTXO is unlocked
     pub time_lock: u64,
 }

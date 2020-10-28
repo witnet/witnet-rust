@@ -5,7 +5,7 @@ use crate::actors::app;
 use crate::types;
 use crate::types::{Hashable as _, ProtobufConvert as _};
 
-use witnet_data_structures::chain::Environment;
+use witnet_data_structures::chain::{Environment, PublicKeyHash};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVttRequest {
@@ -83,17 +83,14 @@ impl Handler<CreateVttRequest> for app::App {
 /// To be valid it must pass these checks:
 /// - destination address must be in the same network (test/main)
 /// - source account must have enough balance
-fn validate(testnet: bool, address: &str) -> Result<types::PublicKeyHash, app::ValidationErrors> {
+fn validate(testnet: bool, address: &str) -> Result<PublicKeyHash, app::ValidationErrors> {
     let pkh = validate_address(testnet, address)?;
 
     Ok(pkh)
 }
 
-fn validate_address(
-    testnet: bool,
-    address: &str,
-) -> Result<types::PublicKeyHash, app::ValidationErrors> {
-    types::PublicKeyHash::from_bech32(
+fn validate_address(testnet: bool, address: &str) -> Result<PublicKeyHash, app::ValidationErrors> {
+    PublicKeyHash::from_bech32(
         if testnet {
             Environment::Testnet
         } else {

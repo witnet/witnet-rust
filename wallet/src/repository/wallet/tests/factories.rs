@@ -49,9 +49,9 @@ pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb)
     (wallet, db)
 }
 
-pub fn pkh() -> types::PublicKeyHash {
+pub fn pkh() -> PublicKeyHash {
     let bytes: [u8; 20] = rand::random();
-    types::PublicKeyHash::from_bytes(&bytes).expect("PKH of 20 bytes failed")
+    PublicKeyHash::from_bytes(&bytes).expect("PKH of 20 bytes failed")
 }
 
 pub fn transaction_id() -> types::Hash {
@@ -70,6 +70,7 @@ pub fn vtt_from_body(body: types::VTTransactionBody) -> model::ExtendedTransacti
     }
 }
 
+#[derive(Default)]
 pub struct BlockInfo {
     hash: Option<Vec<u8>>,
     epoch: Option<u32>,

@@ -986,7 +986,7 @@ where
         state: &mut State,
         value: u64,
         fee: u64,
-        recipient: Option<(types::PublicKeyHash, u64)>,
+        recipient: Option<(PublicKeyHash, u64)>,
     ) -> Result<types::TransactionComponents> {
         self.create_transaction_components(state, value, fee, recipient, false)
     }
@@ -1005,7 +1005,7 @@ where
         state: &mut State,
         value: u64,
         fee: u64,
-        recipient: Option<(types::PublicKeyHash, u64)>,
+        recipient: Option<(PublicKeyHash, u64)>,
         // When creating data request transactions, the change address must be the same as the
         // first input address
         change_address_same_as_input: bool,
