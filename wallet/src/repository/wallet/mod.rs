@@ -36,9 +36,6 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-const INPUT_SIZE: u32 = 133;
-const OUTPUT_SIZE: u32 = 36;
-
 /// Internal structure used to gather state mutations while indexing block transactions
 struct AccountMutation {
     balance_movement: model::BalanceMovement,
@@ -992,7 +989,11 @@ where
     /// Create a new value transfer transaction using available UTXOs.
     pub fn create_vtt(
         &self,
-        types::VttParams { fee, outputs }: types::VttParams,
+        types::VttParams {
+            fee,
+            outputs,
+            weighted_fee,
+        }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
         let (inputs, outputs) = self.create_vt_transaction_components(&mut state, outputs, fee)?;
@@ -1007,7 +1008,11 @@ where
     /// Create a new data request transaction using available UTXOs.
     pub fn create_data_req(
         &self,
-        types::DataReqParams { fee, request }: types::DataReqParams,
+        types::DataReqParams {
+            fee,
+            request,
+            weighted_fee,
+        }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
         let (inputs, outputs) =
@@ -1085,34 +1090,108 @@ where
         Ok((inputs, outputs))
     }
 
-    fn create_vt_body(
+    /// Create a VTT body with weighted fee
+    fn create_vtt_body(
         &self,
         state: &mut State,
         value: u64,
-        fee: u64,
+        weighted_fee: u64,
         recipient: Option<(types::PublicKeyHash, u64)>,
     ) -> Result<(types::VTTransactionBody, types::TransactionComponents)> {
-        // Set this to 1-2 output.
-        let mut initial_fee = u64::from(INPUT_SIZE + 2 * OUTPUT_SIZE) * fee;
-        loop {
+        let max_iterations = self.params.max_vt_weight / types::INPUT_SIZE;
+
+        let mut initial_fee = u64::from(types::INPUT_SIZE + 2 * types::OUTPUT_SIZE * types::GAMMA)
+            .checked_mul(weighted_fee)
+            .ok_or_else(|| Error::VTTFeeTooLarge(weighted_fee, value))?;
+
+        // The algorithm iterates over disctinct fees, without taking into consideration the UTXO selection algorithm
+        // For each iteration sets a fee, builds a VTT transaction, and checks whether the added weight * fee is coverable by that transaction
+        // If not, weight*fee is set as the new_fee, and the algorithm starts again.
+        // It is assumed that if such a transaction is not found after 'max_iterations', the account does not have enough UTXOs to cover it
+        for _ in 0..max_iterations {
             let components =
                 self.create_vt_transaction_components(state, value, initial_fee, recipient)?;
             let body = types::VTTransactionBody::new(
                 components.inputs.clone(),
                 components.outputs.clone(),
             );
-            let new_fee = u64::from(body.weight()) * fee;
 
+            let weight = body.weight();
+            // If the maximum VTT weight is reached, return
+            if weight > self.params.max_vt_weight {
+                return Err(Error::MaximumVTTWeightReached(value));
+            }
+            // Calculate the new fee with the added weight
+            let new_fee = u64::from(weight)
+                .checked_mul(weighted_fee)
+                .ok_or_else(|| Error::VTTFeeTooLarge(weighted_fee, value))?;
+
+            // Re-buid the transaction with the new fee
             let new_components =
                 self.create_vt_transaction_components(state, value, new_fee, recipient)?;
-            //panic!("Components {:?}, New components: {:?}", components, new_components);
+
+            // If the transaciton components did not change, then the inputs are able to cover the new fee
             if new_components.value == components.value
                 && new_components.change == components.change
             {
                 return Ok((body, new_components));
             }
+            // Else, set new fee as the fee for next iteration
             initial_fee = new_fee;
         }
+
+        Err(Error::InsufficientBalance)
+    }
+
+    /// Create a DR body with weighted fee
+    fn create_dr_body(
+        &self,
+        state: &mut State,
+        value: u64,
+        weighted_fee: u64,
+        request: types::DataRequestOutput,
+    ) -> Result<(types::DRTransactionBody, types::TransactionComponents)> {
+        let dro_weight = types::INPUT_SIZE + types::OUTPUT_SIZE + request.weight();
+        let max_iterations = self.params.max_dr_weight / dro_weight;
+        let mut initial_fee = u64::from(dro_weight)
+            .checked_mul(weighted_fee)
+            .ok_or_else(|| Error::DRFeeTooLarge(weighted_fee, request.clone()))?;
+        // The algorithm iterates over disctinct fees, without taking into consideration the UTXO selection algorithm
+        // For each iteration sets a fee, builds a DR transaction, and checks whether the added weight * fee is coverable by that transaction
+        // If not, weight*fee is set as the new_fee, and the algorithm starts again.
+        // It is assumed that if such a transaction is not found after 'max_iterations', the account does not have enough UTXOs to cover it.
+        for _ in 0..max_iterations {
+            let components = self.create_dr_transaction_components(state, value, initial_fee)?;
+            let body = types::DRTransactionBody::new(
+                components.inputs,
+                components.outputs,
+                request.clone(),
+            );
+
+            let weight = body.weight();
+            // If the maximum DR weight is reached, return
+            if weight > self.params.max_dr_weight {
+                return Err(Error::MaximumDRWeightReached(request));
+            }
+            // Calculate the new fee with the added weight
+            let new_fee = u64::from(weight)
+                .checked_mul(weighted_fee)
+                .ok_or_else(|| Error::DRFeeTooLarge(weighted_fee, request.clone()))?;
+
+            // Re-buid the transaction with the new fee
+            let new_components = self.create_dr_transaction_components(state, value, new_fee)?;
+
+            // Re-buid the transaction with the new fee
+            if new_components.value == components.value
+                && new_components.change == components.change
+            {
+                return Ok((body, new_components));
+            }
+            // Else, set new fee as the fee for next iteration
+            initial_fee = new_fee;
+        }
+
+        Err(Error::InsufficientBalance)
     }
 
     fn create_dr_transaction_components(

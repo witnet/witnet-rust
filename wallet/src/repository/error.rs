@@ -50,6 +50,25 @@ pub enum Error {
     CryptoError(#[cause] crypto::Error),
     #[fail(display = "Master key serialization failed")]
     KeySerializationError,
+    #[fail(display = "failed because wallet is still syncing: {}", _0)]
+    StillSyncing(String),
+    #[fail(
+        display = "Weight limit reached when trying to create a VTT of value {} nanoWits",
+        _0
+    )]
+    MaximumVTTWeightReached(u64),
+    #[fail(display = "Weight limit reached when trying to create DR {:?}", _0)]
+    MaximumDRWeightReached(types::DataRequestOutput),
+    #[fail(
+        display = "The chosen fee ({} nanoWits) seems too large for a VTT transferring {} nanoWits",
+        _0, _1
+    )]
+    VTTFeeTooLarge(u64, u64),
+    #[fail(
+        display = "The chosen fee ({} nanoWits) seems too large for sending the request {:?}",
+        _0, _1
+    )]
+    DRFeeTooLarge(u64, types::DataRequestOutput),
 }
 
 impl From<failure::Error> for Error {

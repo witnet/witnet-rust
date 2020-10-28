@@ -11,6 +11,7 @@ pub struct CreateDataReqRequest {
     wallet_id: String,
     request: DataRequestOutput,
     fee: u64,
+    weighted_fee: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,6 +51,7 @@ impl Handler<CreateDataReqRequest> for app::App {
         CreateDataReqRequest {
             request,
             fee,
+            weighted_fee,
             session_id,
             wallet_id,
         }: CreateDataReqRequest,
@@ -58,7 +60,11 @@ impl Handler<CreateDataReqRequest> for app::App {
         let validated = validate(request).map_err(app::validation_error);
 
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
-            let params = types::DataReqParams { request, fee };
+            let params = types::DataReqParams {
+                request,
+                fee,
+                weighted_fee,
+            };
 
             slf.create_data_req(&session_id, &wallet_id, params)
                 .map(|transaction, _, _| {

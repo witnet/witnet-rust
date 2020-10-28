@@ -69,6 +69,10 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let id_hash_iterations = conf.wallet.id_hash_iterations;
     let id_hash_function = conf.wallet.id_hash_function;
 
+    // Weights
+    let max_vt_weight = conf.consensus_constants.max_vt_weight;
+    let max_dr_weight = conf.consensus_constants.max_dr_weight;
+
     // Wallet concurrency
     let concurrency = conf.wallet.concurrency.unwrap_or_else(num_cpus::get);
 
@@ -126,6 +130,8 @@ pub fn run(conf: Config) -> Result<(), Error> {
         genesis_hash,
         genesis_prev_hash,
         sync_address_batch_length,
+        max_vt_weight,
+        max_dr_weight,
     };
 
     let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {

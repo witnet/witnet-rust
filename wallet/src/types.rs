@@ -27,9 +27,11 @@ pub use witnet_data_structures::{
     radon_report::RadonReport,
     transaction::{
         DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
-        VTTransactionBody,
+        VTTransactionBody, ALPHA, BETA, COMMIT_WEIGHT, GAMMA, INPUT_SIZE, OUTPUT_SIZE,
+        REVEAL_WEIGHT, TALLY_WEIGHT,
     },
 };
+
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
 pub use witnet_rad::{error::RadError, types::RadonTypes, RADRequestExecutionReport};
@@ -151,11 +153,13 @@ pub struct CreateWalletData<'a> {
 pub struct VttParams {
     pub fee: u64,
     pub outputs: Vec<ValueTransferOutput>,
+    pub weighted_fee: Option<u64>,
 }
 
 pub struct DataReqParams {
     pub fee: u64,
     pub request: DataRequestOutput,
+    pub weighted_fee: Option<u64>,
 }
 
 #[derive(Debug, PartialEq)]

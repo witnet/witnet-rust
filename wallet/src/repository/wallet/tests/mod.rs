@@ -554,6 +554,7 @@ fn test_create_vtt_does_not_spend_utxos() {
                 value,
                 time_lock,
             }],
+            weighted_fee: None,
         })
         .unwrap();
 
@@ -630,7 +631,11 @@ fn test_create_data_request_does_not_spend_utxos() {
     };
 
     let data_req = wallet
-        .create_data_req(types::DataReqParams { fee: 0, request })
+        .create_data_req(types::DataReqParams {
+            fee: 0,
+            request,
+            weighted_fee: Some(0),
+        })
         .unwrap();
 
     let state_utxo_set = wallet.utxo_set().unwrap();
@@ -846,6 +851,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
                 value: 1,
                 time_lock: 0,
             }],
+            weighted_fee: Some(0),
         })
         .unwrap();
 
@@ -959,6 +965,7 @@ fn test_get_transaction() {
                 value: 1,
                 time_lock: 0,
             }],
+            weighted_fee: Some(0),
         })
         .unwrap();
 
@@ -1030,6 +1037,7 @@ fn test_get_transactions() {
                 value: 1,
                 time_lock: 0,
             }],
+            weighted_fee: Some(0),
         })
         .unwrap();
 
@@ -1101,6 +1109,7 @@ fn test_create_vtt_with_locked_balance() {
                 value: 1,
                 time_lock: 0,
             }],
+            weighted_fee: Some(0),
         })
         .unwrap_err();
 
@@ -1222,7 +1231,7 @@ fn test_create_vt_body() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert_eq!(1, vtt.inputs.len());
@@ -1230,7 +1239,7 @@ fn test_create_vt_body() {
 }
 
 #[test]
-fn test_create_vt_body_2() {
+fn test_create_vtt_body_2() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1276,7 +1285,7 @@ fn test_create_vt_body_2() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(!vtt.inputs.is_empty());
@@ -1284,7 +1293,7 @@ fn test_create_vt_body_2() {
 }
 
 #[test]
-fn test_create_vt_body_3() {
+fn test_create_vtt_body_3() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1330,7 +1339,7 @@ fn test_create_vt_body_3() {
     let fee = 1;
     let time_lock = 0;
     let err = wallet
-        .create_vt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -1355,7 +1364,7 @@ fn test_export_xprvdouble_key() {
         .starts_with("xprvdouble"));
 }
 
-fn test_create_vt_body_4() {
+fn test_create_vtt_body_4() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1421,7 +1430,7 @@ fn test_create_vt_body_4() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(!vtt.inputs.is_empty());
@@ -1429,7 +1438,7 @@ fn test_create_vt_body_4() {
 }
 
 #[test]
-fn test_create_vt_body_5() {
+fn test_create_vtt_body_5() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1495,7 +1504,7 @@ fn test_create_vt_body_5() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(!vtt.inputs.is_empty());
@@ -1503,7 +1512,7 @@ fn test_create_vt_body_5() {
 }
 
 #[test]
-fn test_create_vt_body_6() {
+fn test_create_vtt_body_6() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1575,9 +1584,482 @@ fn test_create_vt_body_6() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(vtt.inputs.len() >= 2);
     assert_eq!(2, vtt.outputs.len());
+}
+
+#[test]
+fn test_create_vtt_body_without_outputs() {
+    let pkh = factories::pkh();
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let pkh = factories::pkh();
+    let value = 1;
+    let fee = 1;
+    let time_lock = 0;
+    let err = wallet
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::InsufficientBalance),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
+}
+
+#[test]
+fn test_create_vtt_body_with_too_large_fee() {
+    let pkh = factories::pkh();
+    let out_pointer = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 0,
+    };
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
+        out_pointer,
+        model::OutputInfo {
+            pkh,
+            amount: 1,
+            time_lock: 0,
+        },
+    )]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let pkh = factories::pkh();
+    let value = 1;
+    let fee = u64::MAX;
+    let time_lock = 0;
+    let err = wallet
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::VTTFeeTooLarge(fee, value)),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
+}
+#[test]
+fn test_create_vt_weight_too_large() {
+    let pkh = factories::pkh();
+    let mut output_vec: Vec<(model::OutPtr, model::OutputInfo)> = vec![];
+    for index in 0u8..200u8 {
+        let out_pointer = model::OutPtr {
+            txn_hash: vec![index; 32],
+            output_index: u32::from(index),
+        };
+        output_vec.push((
+            out_pointer,
+            model::OutputInfo {
+                pkh,
+                amount: 1,
+                time_lock: 0,
+            },
+        ));
+    }
+
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(output_vec);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let pkh = factories::pkh();
+    let value = 150;
+    let fee = 0;
+    let time_lock = 0;
+    let err = wallet
+        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::MaximumVTTWeightReached(value)),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
+}
+
+#[test]
+fn test_create_dr_body_1() {
+    let pkh = factories::pkh();
+    let out_pointer = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 0,
+    };
+
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
+        out_pointer,
+        model::OutputInfo {
+            pkh,
+            amount: 2000,
+            time_lock: 0,
+        },
+    )]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let request = types::DataRequestOutput {
+        witness_reward: 1,
+        witnesses: 1,
+        ..types::DataRequestOutput::default()
+    };
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let value = 1;
+    let fee = 1;
+    let (dr, _) = wallet
+        .create_dr_body(&mut state, value, fee, request)
+        .unwrap();
+
+    assert_eq!(dr.inputs.len(), 1);
+}
+
+#[test]
+fn test_create_dr_body_2_not_enough_funds() {
+    let pkh = factories::pkh();
+    let out_pointer = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 0,
+    };
+
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
+        out_pointer,
+        model::OutputInfo {
+            pkh,
+            amount: 2,
+            time_lock: 0,
+        },
+    )]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let request = types::DataRequestOutput {
+        witness_reward: 1,
+        witnesses: 1,
+        ..types::DataRequestOutput::default()
+    };
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let value = 1;
+    let fee = 1;
+    let err = wallet
+        .create_dr_body(&mut state, value, fee, request)
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::InsufficientBalance),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
+}
+
+#[test]
+fn test_create_dr_body_3_funds_splitted() {
+    let pkh = factories::pkh();
+    let out_pointer = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 0,
+    };
+
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
+        out_pointer.clone(),
+        model::OutputInfo {
+            pkh,
+            amount: 2000,
+            time_lock: 0,
+        },
+    )]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let request = types::DataRequestOutput {
+        witness_reward: 1,
+        witnesses: 1,
+        ..types::DataRequestOutput::default()
+    };
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let value = 1;
+    let fee = 1;
+    let (dr_body, _) = wallet
+        .create_dr_body(&mut state, value, fee, request.clone())
+        .unwrap();
+    let weight = u64::from(dr_body.weight());
+
+    let mut out_pointer_1 = out_pointer.clone();
+    out_pointer_1.output_index = 1;
+    out_pointer_1.txn_hash = vec![1; 32];
+
+    let mut out_pointer_2 = out_pointer.clone();
+    out_pointer_2.output_index = 2;
+    out_pointer_2.txn_hash = vec![2; 32];
+
+    let mut out_pointer_3 = out_pointer;
+    out_pointer_3.output_index = 3;
+    out_pointer_3.txn_hash = vec![3; 32];
+
+    let utxo_set_2: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![
+        (
+            out_pointer_1,
+            model::OutputInfo {
+                pkh,
+                amount: weight / 2,
+                time_lock: 0,
+            },
+        ),
+        (
+            out_pointer_2,
+            model::OutputInfo {
+                pkh,
+                amount: weight / 2,
+                time_lock: 0,
+            },
+        ),
+        (
+            out_pointer_3,
+            model::OutputInfo {
+                pkh,
+                amount: weight / 2,
+                time_lock: 0,
+            },
+        ),
+    ]);
+
+    let db_2 = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set_2).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let (wallet_2, _db) = factories::wallet(Some(db_2));
+    let mut state_2 = wallet_2.state.write().unwrap();
+
+    let (dr_body_2, _) = wallet_2
+        .create_dr_body(&mut state_2, value, fee, request)
+        .unwrap();
+
+    assert_eq!(dr_body_2.inputs.len(), 3);
+}
+
+#[test]
+fn test_create_dr_body_without_outputs() {
+    let pkh = factories::pkh();
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let request = types::DataRequestOutput {
+        witness_reward: 1,
+        witnesses: 1,
+        ..types::DataRequestOutput::default()
+    };
+    let value = 1;
+    let fee = 1;
+    let err = wallet
+        .create_dr_body(&mut state, value, fee, request)
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::InsufficientBalance),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
+}
+
+#[test]
+fn test_create_dr_body_weight_too_large() {
+    let pkh = factories::pkh();
+    let mut output_vec: Vec<(model::OutPtr, model::OutputInfo)> = vec![];
+    for index in 0u32..1000u32 {
+        let out_pointer = model::OutPtr {
+            txn_hash: vec![0; 32],
+            output_index: index,
+        };
+        output_vec.push((
+            out_pointer,
+            model::OutputInfo {
+                pkh,
+                amount: 1,
+                time_lock: 0,
+            },
+        ));
+    }
+
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(output_vec);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let request = types::DataRequestOutput {
+        witness_reward: 0,
+        witnesses: 1,
+        ..types::DataRequestOutput::default()
+    };
+
+    let value = 1000;
+    let fee = 0;
+    let err = wallet
+        .create_dr_body(&mut state, value, fee, request.clone())
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::MaximumDRWeightReached(request)),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
+}
+
+#[test]
+fn test_create_dr_body_fee_too_large() {
+    let pkh = factories::pkh();
+    let out_pointer = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 0,
+    };
+
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
+        out_pointer,
+        model::OutputInfo {
+            pkh,
+            amount: 2000,
+            time_lock: 0,
+        },
+    )]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let request = types::DataRequestOutput {
+        witness_reward: 1,
+        witnesses: 1,
+        ..types::DataRequestOutput::default()
+    };
+
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let value = 1;
+    let fee = u64::MAX / 2;
+    let err = wallet
+        .create_dr_body(&mut state, value, fee, request.clone())
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::DRFeeTooLarge(fee, request)),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
 }

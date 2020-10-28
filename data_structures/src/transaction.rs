@@ -19,14 +19,14 @@ pub trait MemoizedHashable {
 }
 // These constants were calculated in:
 // TODO: add link to WIP about transaction weights
-const INPUT_SIZE: u32 = 133;
-const OUTPUT_SIZE: u32 = 36;
-const COMMIT_WEIGHT: u32 = 400;
-const REVEAL_WEIGHT: u32 = 200;
-const TALLY_WEIGHT: u32 = 100;
-const ALPHA: u32 = 1;
-const BETA: u32 = 1;
-const GAMMA: u32 = 10;
+pub const INPUT_SIZE: u32 = 133;
+pub const OUTPUT_SIZE: u32 = 36;
+pub const COMMIT_WEIGHT: u32 = 400;
+pub const REVEAL_WEIGHT: u32 = 200;
+pub const TALLY_WEIGHT: u32 = 100;
+pub const ALPHA: u32 = 1;
+pub const BETA: u32 = 1;
+pub const GAMMA: u32 = 10;
 
 /// A shareable wrapper for hash that may or may not be already computed.
 /// This low level structure does not include the implementation for compute-on-read, as that is up
