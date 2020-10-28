@@ -34,8 +34,6 @@ pub enum Error {
     TransactionTypeNotSupported,
     #[fail(display = "epoch calculation error {}", _0)]
     EpochCalculation(#[cause] witnet_data_structures::error::EpochCalculationError),
-    #[fail(display = "failed because wallet is still syncing: {}", _0)]
-    StillSyncing(String),
     #[fail(display = "wallet already exists: {}", _0)]
     WalletAlreadyExists(String),
 }
@@ -83,10 +81,7 @@ impl From<witnet_rad::error::RadError> for Error {
 
 impl From<repository::Error> for Error {
     fn from(err: repository::Error) -> Self {
-        match err {
-            repository::Error::StillSyncing(e) => Error::StillSyncing(e),
-            _ => Error::Repository(err),
-        }
+        Error::Repository(err)
     }
 }
 

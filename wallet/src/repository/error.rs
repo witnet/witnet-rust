@@ -41,8 +41,6 @@ pub enum Error {
     BlockConsolidation(String),
     #[fail(display = "hash parsing failed: {}", _0)]
     HashParseError(#[cause] types::HashParseError),
-    #[fail(display = "failed because wallet is still syncing: {}", _0)]
-    StillSyncing(String),
 }
 
 impl From<failure::Error> for Error {

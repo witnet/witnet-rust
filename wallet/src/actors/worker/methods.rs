@@ -934,9 +934,18 @@ impl Worker {
             notification.consolidated_block_hashes
         );
 
+        if wallet.is_syncing()? {
+            log::warn!(
+                "Superblock #{} notification received. Ignoring superblock because the wallet is still synchronizing...",
+                notification.superblock.index,
+            );
+
+            return Ok(());
+        }
+
         let consolidated = wallet
             .handle_superblock(&notification.consolidated_block_hashes)
-            .map_err(|error| error.into());
+            .map_err(Error::from);
 
         match consolidated {
             Ok(_) => {
@@ -950,16 +959,11 @@ impl Worker {
                 )
                 .ok();
             }
-            Err(Error::StillSyncing(_e)) => {
-                log::warn!(
-                    "Superblock #{} notification received. Ignoring superblock because the wallet is still synchronizing...",
-                    notification.superblock.index,
-                );
-            }
-            Err(_) => {
+            Err(e) => {
                 log::error!(
-                    "Error while persisting blocks confirmed by superblock #{}... trying to re-sync with node",
+                    "Error while persisting blocks confirmed by superblock #{}... trying to re-sync with node\n{}",
                     notification.superblock.index,
+                    e
                 );
 
                 // Notify orphaning of the blocks that could not be persisted
@@ -1070,14 +1074,10 @@ impl Worker {
         sink: DynamicSink,
     ) -> Result<bool> {
         // Do not try to clear chain data and resync if a resynchronization is already in progress
-        if !wallet.is_resyncing()? {
+        if !wallet.is_syncing()? {
             wallet.clear_chain_data()?;
 
-            wallet.lock_and_update_state(|mut state| state.synchronization.set_resyncing(true))?;
-            let sync_result = self.sync(wallet_id, &wallet, sink, true).map(|_| true);
-            wallet.lock_and_update_state(|mut state| state.synchronization.set_resyncing(false))?;
-
-            sync_result
+            self.sync(wallet_id, &wallet, sink, true).map(|_| true)
         } else {
             Ok(false)
         }
