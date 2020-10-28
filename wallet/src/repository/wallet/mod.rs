@@ -4,7 +4,7 @@ use std::{
     convert::TryFrom,
     ops::Range,
     str::FromStr,
-    sync::{Arc, RwLock, RwLockWriteGuard},
+    sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard},
 };
 
 use state::State;
@@ -240,7 +240,6 @@ where
             db_movements_to_update: Default::default(),
             transient_external_addresses: Default::default(),
             transient_internal_addresses: Default::default(),
-            synchronization: Default::default(),
         });
 
         Ok(Self {
@@ -1549,14 +1548,6 @@ where
             }
         }
 
-        // // Only persist last_sync if block is confirmed
-        // if confirmed {
-        //     // TODO: modify last_sync for last_confirmed?
-        //     self.db
-        //         .put(&keys::wallet_last_sync(), beacon)
-        //         .map_err(Error::from)?
-        // }
-
         Ok(())
     }
 
@@ -1668,16 +1659,27 @@ where
     }
 
     /// Run a predicate on the state of a wallet in a thread safe manner, thanks to a write lock.
-    pub fn lock_and_update_state<P, O>(&self, predicate: P) -> Result<O>
+    pub fn _lock_and_update_state<P, O>(&self, predicate: P) -> Result<O>
     where
         P: FnOnce(RwLockWriteGuard<'_, State>) -> O,
     {
         Ok(predicate(self.state.write()?))
     }
 
-    /// Tell whether a wallet is resynchronizing.
-    pub fn is_resyncing(&self) -> Result<bool> {
-        Ok(self.state.read()?.synchronization.is_resyncing())
+    /// Run a predicate on the state of a wallet in a thread safe manner, thanks to a read lock.
+    pub fn _lock_and_read_state<P, O>(&self, predicate: P) -> Result<O>
+    where
+        P: FnOnce(RwLockReadGuard<'_, State>) -> O,
+    {
+        Ok(predicate(self.state.read()?))
+    }
+
+    /// Tell whether a wallet is synchronizing.
+    pub fn is_syncing(&self) -> Result<bool> {
+        let state = self.state.read()?;
+
+        Ok(!(state.transient_internal_addresses.is_empty()
+            && state.transient_external_addresses.is_empty()))
     }
 }
 
