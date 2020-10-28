@@ -240,6 +240,8 @@ pub enum Event {
     SyncProgress(u32, u32, u32),
     /// The start of a synchronization progress.
     SyncStart(u32, u32),
+    /// An error occurred during the synchronization.
+    SyncError(u32, u32),
 }
 
 /// Format of the output of getTransaction

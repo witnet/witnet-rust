@@ -4,7 +4,7 @@ use std::{
     convert::TryFrom,
     ops::Range,
     str::FromStr,
-    sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard},
+    sync::{Arc, RwLock, RwLockReadGuard},
 };
 
 use state::State;
@@ -50,7 +50,7 @@ where
     T: Database,
 {
     /// Generate transient addresses for synchronization purposes
-    /// This function only creates and inserts addreses
+    /// This function only creates and inserts addresses
     pub fn initialize_transient_addresses(
         &self,
         external_addresses: u16,
@@ -1658,16 +1658,8 @@ where
         Ok(())
     }
 
-    /// Run a predicate on the state of a wallet in a thread safe manner, thanks to a write lock.
-    pub fn _lock_and_update_state<P, O>(&self, predicate: P) -> Result<O>
-    where
-        P: FnOnce(RwLockWriteGuard<'_, State>) -> O,
-    {
-        Ok(predicate(self.state.write()?))
-    }
-
     /// Run a predicate on the state of a wallet in a thread safe manner, thanks to a read lock.
-    pub fn _lock_and_read_state<P, O>(&self, predicate: P) -> Result<O>
+    pub fn lock_and_read_state<P, O>(&self, predicate: P) -> Result<O>
     where
         P: FnOnce(RwLockReadGuard<'_, State>) -> O,
     {

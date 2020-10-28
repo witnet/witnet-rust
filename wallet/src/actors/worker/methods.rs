@@ -602,23 +602,32 @@ impl Worker {
         sink: types::DynamicSink,
         resynchronizing: bool,
     ) -> Result<()> {
+        let sync_start = wallet.lock_and_read_state(|state| state.last_sync.checkpoint)?;
+
         // Generate transient addresses for sync purposes
         wallet.initialize_transient_addresses(
             self.params.sync_address_batch_length,
             self.params.sync_address_batch_length,
         )?;
 
-        let sync_result = self._sync(wallet_id, wallet, sink, resynchronizing);
+        let sync_result = self.sync_inner(wallet_id, wallet, sink.clone(), resynchronizing);
 
         // Clear transient created addresses
         wallet.clear_transient_addresses()?;
+
+        // Notify client if error occurred while syncing
+        if sync_result.is_err() {
+            let sync_end = wallet.lock_and_read_state(|state| state.last_sync.checkpoint)?;
+            let events = Some(vec![types::Event::SyncError(sync_start, sync_end)]);
+            self.notify_client(&wallet, sink, events).ok();
+        }
 
         sync_result
     }
 
     /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet
     /// chain.
-    pub fn _sync(
+    pub fn sync_inner(
         &self,
         wallet_id: &str,
         wallet: &types::SessionWallet,
