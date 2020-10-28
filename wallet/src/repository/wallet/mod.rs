@@ -10,7 +10,10 @@ use std::{
 use state::State;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
-    chain::{CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash},
+    chain::{
+        CheckpointBeacon, Environment, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
+        ValueTransferOutput,
+    },
     get_environment,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -604,7 +607,7 @@ where
         let mut filtered_txns = vec![];
         for txn in txns {
             // Inputs and outputs from different transaction types
-            let (inputs, outputs): (&[types::TransactionInput], &[types::VttOutput]) = match txn {
+            let (inputs, outputs): (&[Input], &[ValueTransferOutput]) = match txn {
                 types::Transaction::ValueTransfer(vt) => (&vt.body.inputs, &vt.body.outputs),
                 types::Transaction::DataRequest(dr) => (&dr.body.inputs, &dr.body.outputs),
                 types::Transaction::Commit(commit) => {
@@ -632,7 +635,7 @@ where
                 }
             }
 
-            let check_db_and_transient = |output: &types::VttOutput| {
+            let check_db_and_transient = |output: &ValueTransferOutput| {
                 self.db.get(&keys::pkh(&output.pkh)).is_ok()
                     || state.transient_external_addresses.contains_key(&output.pkh)
                     || state.transient_internal_addresses.contains_key(&output.pkh)
@@ -1016,7 +1019,7 @@ where
         let mut balance = state.balance;
 
         if let Some((pkh, time_lock)) = recipient {
-            outputs.push(types::VttOutput {
+            outputs.push(ValueTransferOutput {
                 pkh,
                 value,
                 time_lock,
@@ -1033,7 +1036,7 @@ where
                 continue;
             }
 
-            let input = types::TransactionInput::new(types::OutputPointer {
+            let input = Input::new(OutputPointer {
                 transaction_id: out_ptr.transaction_id(),
                 output_index: out_ptr.output_index,
             });
@@ -1080,7 +1083,7 @@ where
                     self._gen_internal_address(state, None)?.pkh
                 };
 
-                outputs.push(types::VttOutput {
+                outputs.push(ValueTransferOutput {
                     pkh: change_pkh,
                     value: change,
                     time_lock: 0,
@@ -1260,7 +1263,7 @@ where
             return Ok(());
         }
 
-        let mut outputs: Vec<types::VttOutput> = vec![];
+        let mut outputs: Vec<ValueTransferOutput> = vec![];
         txns.iter().for_each(|txn| {
             let txn_outputs = match txn {
                 types::Transaction::ValueTransfer(vt) => vt.body.outputs.clone(),
@@ -1670,7 +1673,7 @@ fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoc
 // Extract inputs and output from a transaction
 fn extract_inputs_and_outputs(
     transaction: &types::Transaction,
-) -> Result<(Vec<types::TransactionInput>, Vec<types::VttOutput>)> {
+) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
     // Inputs and outputs from different transaction types
     let (inputs, outputs) = match transaction {
         types::Transaction::ValueTransfer(vt) => (vt.body.inputs.clone(), vt.body.outputs.clone()),
@@ -1901,7 +1904,7 @@ fn calculate_transaction_ranges(
 
 // Map vtt to output vec
 fn vtt_to_outputs(
-    vtt: &[types::VttOutput],
+    vtt: &[ValueTransferOutput],
     own_outputs: &HashMap<PublicKeyHash, model::OutputType>,
 ) -> Vec<model::Output> {
     vtt.iter()

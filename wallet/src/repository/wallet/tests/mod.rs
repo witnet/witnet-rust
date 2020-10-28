@@ -648,11 +648,12 @@ fn test_index_transaction_output_affects_balance() {
     let value = 1u64;
     let address = wallet.gen_external_address(None).unwrap();
     let block = factories::BlockInfo::default().create();
-    let inputs = vec![factories::Input::default().create()];
-    let outputs = vec![factories::VttOutput::default()
-        .with_pkh(address.pkh)
-        .with_value(value)
-        .create()];
+    let inputs = vec![Input::default()];
+    let outputs = vec![ValueTransferOutput {
+        pkh: address.pkh,
+        value,
+        time_lock: 0,
+    }];
     let body = types::VTTransactionBody::new(inputs, outputs);
 
     wallet
@@ -686,23 +687,25 @@ fn test_index_transaction_input_affects_balance() {
 
     // txn1 gives a credit of 3 to our pkh
     let txn1 = types::VTTransactionBody::new(
-        vec![factories::Input::default().create()],
-        vec![factories::VttOutput::default()
-            .with_pkh(address.pkh)
-            .with_value(3)
-            .create()],
+        vec![Input::default()],
+        vec![ValueTransferOutput {
+            pkh: address.pkh,
+            value: 3,
+            time_lock: 0,
+        }],
     );
 
     // txn2 spends the previous credit and gives back a change of 1 to our pkh
     let txn2 = types::VTTransactionBody::new(
-        vec![factories::Input::default()
-            .with_transaction(txn1.hash())
-            .with_output_index(0)
-            .create()],
-        vec![factories::VttOutput::default()
-            .with_pkh(address.pkh)
-            .with_value(1)
-            .create()],
+        vec![Input::new(OutputPointer {
+            transaction_id: txn1.hash(),
+            output_index: 0,
+        })],
+        vec![ValueTransferOutput {
+            pkh: address.pkh,
+            value: 1,
+            time_lock: 0,
+        }],
     );
 
     wallet
@@ -735,11 +738,12 @@ fn test_index_transaction_does_not_duplicate_transactions() {
     let value = 1u64;
     let address = wallet.gen_external_address(None).unwrap();
     let block = factories::BlockInfo::default().create();
-    let inputs = vec![factories::Input::default().create()];
-    let outputs = vec![factories::VttOutput::default()
-        .with_pkh(address.pkh)
-        .with_value(value)
-        .create()];
+    let inputs = vec![Input::default()];
+    let outputs = vec![ValueTransferOutput {
+        pkh: address.pkh,
+        value,
+        time_lock: 0,
+    }];
     let txn = types::VTTransactionBody::new(inputs, outputs);
 
     wallet
@@ -763,16 +767,18 @@ fn test_index_transaction_errors_if_balance_overflow() {
 
     let address = wallet.gen_external_address(None).unwrap();
     let block = factories::BlockInfo::default().create();
-    let inputs = vec![factories::Input::default().create()];
+    let inputs = vec![Input::default()];
     let outputs = vec![
-        factories::VttOutput::default()
-            .with_pkh(address.pkh)
-            .with_value(1u64)
-            .create(),
-        factories::VttOutput::default()
-            .with_pkh(address.pkh)
-            .with_value(std::u64::MAX)
-            .create(),
+        ValueTransferOutput {
+            pkh: address.pkh,
+            value: 1u64,
+            time_lock: 0,
+        },
+        ValueTransferOutput {
+            pkh: address.pkh,
+            value: std::u64::MAX,
+            time_lock: 0,
+        },
     ];
     let txn = types::VTTransactionBody::new(inputs, outputs);
 
@@ -799,11 +805,12 @@ fn test_index_transaction_vtt_created_by_wallet() {
         .index_block_transactions(
             &a_block,
             &[factories::vtt_from_body(types::VTTransactionBody::new(
-                vec![factories::Input::default().create()],
-                vec![factories::VttOutput::default()
-                    .with_pkh(our_address.pkh)
-                    .with_value(2)
-                    .create()],
+                vec![Input::default()],
+                vec![ValueTransferOutput {
+                    pkh: our_address.pkh,
+                    value: 2,
+                    time_lock: 0,
+                }],
             ))],
             true,
             false,
@@ -898,11 +905,12 @@ fn test_get_transaction() {
         .index_block_transactions(
             &a_block,
             &[factories::vtt_from_body(types::VTTransactionBody::new(
-                vec![factories::Input::default().create()],
-                vec![factories::VttOutput::default()
-                    .with_pkh(our_address.pkh)
-                    .with_value(2)
-                    .create()],
+                vec![Input::default()],
+                vec![ValueTransferOutput {
+                    pkh: our_address.pkh,
+                    value: 2,
+                    time_lock: 0,
+                }],
             ))],
             true,
             false,
@@ -957,11 +965,12 @@ fn test_get_transactions() {
         .index_block_transactions(
             &a_block,
             &[factories::vtt_from_body(types::VTTransactionBody::new(
-                vec![factories::Input::default().create()],
-                vec![factories::VttOutput::default()
-                    .with_pkh(our_address.pkh)
-                    .with_value(2)
-                    .create()],
+                vec![Input::default()],
+                vec![ValueTransferOutput {
+                    pkh: our_address.pkh,
+                    value: 2,
+                    time_lock: 0,
+                }],
             ))],
             true,
             false,
@@ -1026,12 +1035,12 @@ fn test_create_vtt_with_locked_balance() {
         .index_block_transactions(
             &a_block,
             &[factories::vtt_from_body(types::VTTransactionBody::new(
-                vec![factories::Input::default().create()],
-                vec![factories::VttOutput::default()
-                    .with_pkh(our_address.pkh)
-                    .with_value(2)
-                    .with_time_lock(u64::MAX)
-                    .create()],
+                vec![Input::default()],
+                vec![ValueTransferOutput {
+                    pkh: our_address.pkh,
+                    value: 2,
+                    time_lock: u64::MAX,
+                }],
             ))],
             true,
             false,

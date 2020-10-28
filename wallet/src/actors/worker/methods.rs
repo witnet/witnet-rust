@@ -4,6 +4,7 @@ use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::{json, Value};
 
+use witnet_data_structures::chain::ValueTransferOutput;
 use witnet_rad::script::RadonScriptExecutionSettings;
 
 use crate::types::{ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable};
@@ -471,7 +472,7 @@ impl Worker {
     pub fn get_vt_outputs_from_pointers(
         &self,
         output_pointers: &[types::OutputPointer],
-    ) -> Result<Vec<types::VttOutput>> {
+    ) -> Result<Vec<ValueTransferOutput>> {
         // Query the node for the required Transactions
         let txn_futures = output_pointers
             .iter()
@@ -484,7 +485,7 @@ impl Worker {
             transactions.len()
         );
 
-        let result: Result<Vec<types::VttOutput>> = transactions
+        let result: Result<Vec<ValueTransferOutput>> = transactions
             .iter()
             .zip(output_pointers)
             .map(|(txn, output)| match txn {
@@ -492,7 +493,7 @@ impl Worker {
                     .body
                     .outputs
                     .get(output.output_index as usize)
-                    .map(types::VttOutput::clone)
+                    .map(ValueTransferOutput::clone)
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
@@ -500,21 +501,21 @@ impl Worker {
                     .body
                     .outputs
                     .get(output.output_index as usize)
-                    .map(types::VttOutput::clone)
+                    .map(ValueTransferOutput::clone)
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
                 types::Transaction::Tally(tally) => tally
                     .outputs
                     .get(output.output_index as usize)
-                    .map(types::VttOutput::clone)
+                    .map(ValueTransferOutput::clone)
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
                 types::Transaction::Mint(mint) => mint
                     .outputs
                     .get(output.output_index as usize)
-                    .map(types::VttOutput::clone)
+                    .map(ValueTransferOutput::clone)
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
@@ -522,7 +523,7 @@ impl Worker {
                     .body
                     .outputs
                     .get(output.output_index as usize)
-                    .map(types::VttOutput::clone)
+                    .map(ValueTransferOutput::clone)
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),

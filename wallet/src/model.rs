@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::repository::keys::Key;
 use crate::{account, types};
+use witnet_data_structures::chain::ValueTransferOutput;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
@@ -318,7 +319,7 @@ pub struct ExtendedTransaction {
 }
 
 pub enum TransactionMetadata {
-    InputValues(Vec<types::VttOutput>),
+    InputValues(Vec<ValueTransferOutput>),
     Tally(Box<types::DataRequestInfo>),
 }
 

@@ -19,7 +19,7 @@ pub use witnet_data_structures::{
         Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
         HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer,
         PublicKey, PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve,
-        RADTally, StateMachine, SuperBlock, ValueTransferOutput as VttOutput,
+        RADTally, StateMachine, SuperBlock, ValueTransferOutput,
     },
     error::EpochCalculationError,
     proto::ProtobufConvert,
@@ -164,7 +164,7 @@ pub struct TransactionComponents {
     pub change: u64,
     pub balance: model::BalanceInfo,
     pub inputs: Vec<TransactionInput>,
-    pub outputs: Vec<VttOutput>,
+    pub outputs: Vec<ValueTransferOutput>,
     pub sign_keys: Vec<SK>,
     pub used_utxos: Vec<model::OutPtr>,
 }
@@ -173,7 +173,7 @@ pub struct TransactionComponents {
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildVtt {
     /// List of `ValueTransferOutput`s
-    pub vto: Vec<VttOutput>,
+    pub vto: Vec<ValueTransferOutput>,
     /// Fee
     pub fee: u64,
 }
