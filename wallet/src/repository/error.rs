@@ -69,6 +69,8 @@ pub enum Error {
         _0, _1
     )]
     DRFeeTooLarge(u64, types::DataRequestOutput),
+    #[fail(display = "Unknown Fee Type specified")]
+    UnknownFeeType,
 }
 
 impl From<failure::Error> for Error {

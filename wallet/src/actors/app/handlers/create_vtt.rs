@@ -21,7 +21,7 @@ pub struct CreateVttRequest {
     outputs: Vec<VttOutputParams>,
     session_id: types::SessionId,
     wallet_id: String,
-    weighted_fee: Option<u64>,
+    fee_type: types::FeeType,
 }
 
 /// Part of CreateVttResponse struct, containing additional data to be displayed in clients
@@ -56,7 +56,7 @@ impl Handler<CreateVttRequest> for app::App {
             let params = types::VttParams {
                 fee: msg.fee,
                 outputs,
-                weighted_fee: msg.weighted_fee,
+                fee_type: msg.fee_type,
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)

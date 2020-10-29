@@ -992,7 +992,7 @@ where
         types::VttParams {
             fee,
             outputs,
-            weighted_fee,
+            fee_type,
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
@@ -1011,7 +1011,7 @@ where
         types::DataReqParams {
             fee,
             request,
-            weighted_fee,
+            fee_type,
         }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
@@ -1091,7 +1091,7 @@ where
     }
 
     /// Create a VTT body with weighted fee
-    fn create_vtt_body(
+    fn create_vt_components_weighted_fee(
         &self,
         state: &mut State,
         value: u64,
@@ -1144,7 +1144,7 @@ where
     }
 
     /// Create a DR body with weighted fee
-    fn create_dr_body(
+    fn create_dr_components_weighted_fee(
         &self,
         state: &mut State,
         value: u64,
