@@ -129,11 +129,7 @@ impl Message {
     ) -> Message {
         Message::build_message(
             magic,
-            Command::Block(Block {
-                block_header,
-                block_sig,
-                txns,
-            }),
+            Command::Block(Block::new(block_header, block_sig, txns)),
         )
     }
 

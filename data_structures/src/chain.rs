@@ -26,6 +26,7 @@ use witnet_crypto::{
 use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
+use crate::transaction::{MemoHash, MemoizedHashable};
 use crate::{
     chain::Signature::Secp256k1,
     data_request::DataRequestPool,
@@ -376,6 +377,10 @@ pub struct Block {
     pub block_sig: KeyedSignature,
     /// A non-empty list of signed transactions
     pub txns: BlockTransactions,
+
+    #[protobuf_convert(skip)]
+    #[serde(skip)]
+    hash: MemoHash,
 }
 
 /// Block transactions
@@ -397,6 +402,21 @@ pub struct BlockTransactions {
 }
 
 impl Block {
+    /// Simple factory for the `Block` data structure that automatically initiates the hash field
+    /// without actually performing the hash operation, just in case it is never used.
+    pub fn new(
+        block_header: BlockHeader,
+        block_sig: KeyedSignature,
+        txns: BlockTransactions,
+    ) -> Self {
+        Self {
+            block_header,
+            block_sig,
+            txns,
+            hash: Default::default(),
+        }
+    }
+
     pub fn genesis(bootstrap_hash: Hash, value_transfer_txns: Vec<VTTransaction>) -> Block {
         let txns = BlockTransactions {
             mint: MintTransaction::default(),
@@ -431,8 +451,8 @@ impl Block {
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
         };
 
-        Block {
-            block_header: BlockHeader {
+        Block::new(
+            BlockHeader {
                 version: 1,
                 beacon: CheckpointBeacon {
                     checkpoint: 0,
@@ -442,9 +462,9 @@ impl Block {
                 proof: Default::default(),
                 bn256_public_key: Default::default(),
             },
-            block_sig: Default::default(),
+            Default::default(),
             txns,
-        }
+        )
     }
 }
 
@@ -546,9 +566,13 @@ impl Hashable for BlockHeader {
     }
 }
 
-impl Hashable for Block {
-    fn hash(&self) -> Hash {
-        self.block_header.hash()
+impl MemoizedHashable for Block {
+    fn hashable_bytes(&self) -> Vec<u8> {
+        self.block_header.to_pb_bytes().unwrap()
+    }
+
+    fn memoized_hash(&self) -> &MemoHash {
+        &self.hash
     }
 }
 
@@ -3393,11 +3417,7 @@ pub fn block_example() -> Block {
         ..BlockTransactions::default()
     };
 
-    Block {
-        block_header,
-        block_sig,
-        txns,
-    }
+    Block::new(block_header, block_sig, txns)
 }
 
 #[cfg(test)]

@@ -212,11 +212,7 @@ impl ChainManager {
                 // Sign the block hash
                 signature_mngr::sign(&block_header)
                     .map_err(|e| log::error!("Couldn't sign beacon: {}", e))
-                    .map(|block_sig| Block {
-                        block_header,
-                        block_sig,
-                        txns,
-                    })
+                    .map(|block_sig| Block::new(block_header, block_sig, txns))
                     .into_actor(act)
             })
             .and_then(move |block, act, _ctx| {
@@ -1024,11 +1020,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
         );
-        let block = Block {
-            block_header,
-            block_sig: KeyedSignature::default(),
-            txns,
-        };
+        let block = Block::new(block_header, KeyedSignature::default(), txns);
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.value_transfer_txns.len(), 0);
@@ -1106,14 +1098,14 @@ mod tests {
         let witnet_pk = PublicKey::from(public_key);
         let witnet_signature = Signature::from(signature);
 
-        let block = Block {
+        let block = Block::new(
             block_header,
-            block_sig: KeyedSignature {
+            KeyedSignature {
                 signature: witnet_signature,
                 public_key: witnet_pk,
             },
             txns,
-        };
+        );
 
         // Check Signature
         assert!(verify(secp, &public_key, &data, &signature).is_ok());
@@ -1217,11 +1209,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
         );
-        let block = Block {
-            block_header,
-            block_sig: KeyedSignature::default(),
-            txns,
-        };
+        let block = Block::new(block_header, KeyedSignature::default(), txns);
 
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
         assert_eq!(block.txns.len(), 2);
@@ -1315,11 +1303,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
         );
-        let block = Block {
-            block_header,
-            block_sig: KeyedSignature::default(),
-            txns,
-        };
+        let block = Block::new(block_header, KeyedSignature::default(), txns);
 
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
         assert_eq!(block.txns.len(), 2);
@@ -1408,11 +1392,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
         );
-        let block = Block {
-            block_header,
-            block_sig: KeyedSignature::default(),
-            txns,
-        };
+        let block = Block::new(block_header, KeyedSignature::default(), txns);
 
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
         assert_eq!(block.txns.len(), 2);
@@ -1503,11 +1483,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
         );
-        let block = Block {
-            block_header,
-            block_sig: KeyedSignature::default(),
-            txns,
-        };
+        let block = Block::new(block_header, KeyedSignature::default(), txns);
 
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
         assert_eq!(block.txns.len(), 2);

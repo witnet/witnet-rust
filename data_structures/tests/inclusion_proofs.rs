@@ -58,11 +58,7 @@ fn example_block(txns: BlockTransactions) -> Block {
 
     let block_sig = KeyedSignature::default();
 
-    Block {
-        block_header,
-        block_sig,
-        txns,
-    }
+    Block::new(block_header, block_sig, txns)
 }
 
 fn example_dr(id: usize) -> DRTransaction {

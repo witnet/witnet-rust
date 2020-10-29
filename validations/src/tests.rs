@@ -5327,11 +5327,7 @@ static LAST_VRF_INPUT: &str = "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c5038
 
 #[test]
 fn block_signatures() {
-    let mut b = Block {
-        block_header: Default::default(),
-        block_sig: Default::default(),
-        txns: Default::default(),
-    };
+    let mut b = Block::new(Default::default(), Default::default(), Default::default());
     // Add valid vrf proof
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let secret_key = SecretKey {
@@ -5525,11 +5521,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
     let block_sig = sign_tx(PRIV_KEY_1, &block_header);
-    let mut b = Block {
-        block_header,
-        block_sig,
-        txns,
-    };
+    let mut b = Block::new(block_header, block_sig, txns);
 
     // Pass the block to the mutation function used by tests
     if mut_block(&mut b) {
@@ -5791,11 +5783,7 @@ fn block_difficult_proof() {
     block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
     let block_sig = sign_tx(PRIV_KEY_1, &block_header);
-    let b = Block {
-        block_header,
-        block_sig,
-        txns,
-    };
+    let b = Block::new(block_header, block_sig, txns);
 
     let x = {
         let x = || -> Result<_, failure::Error> {
@@ -6388,11 +6376,7 @@ fn test_blocks_with_limits(
         block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
         let block_sig = KeyedSignature::default();
-        let mut b = Block {
-            block_header,
-            block_sig,
-            txns,
-        };
+        let mut b = Block::new(block_header, block_sig, txns);
 
         b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header);
 
@@ -7162,11 +7146,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
         let block_sig = sign_tx(PRIV_KEY_1, &block_header);
-        let b = Block {
-            block_header,
-            block_sig,
-            txns,
-        };
+        let b = Block::new(block_header, block_sig, txns);
         let mut signatures_to_verify = vec![];
 
         validate_block_transactions(
@@ -7333,11 +7313,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
         let block_sig = sign_tx(PRIV_KEY_1, &block_header);
-        let b = Block {
-            block_header,
-            block_sig,
-            txns,
-        };
+        let b = Block::new(block_header, block_sig, txns);
         let mut signatures_to_verify = vec![];
 
         validate_block_transactions(

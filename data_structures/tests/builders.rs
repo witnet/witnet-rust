@@ -44,11 +44,11 @@ fn builders_build_block() {
 
     // Expected message
     let msg = Message {
-        kind: Command::Block(Block {
-            block_header: block_header.clone(),
-            block_sig: KeyedSignature::default(),
-            txns: txns.clone(),
-        }),
+        kind: Command::Block(Block::new(
+            block_header.clone(),
+            KeyedSignature::default(),
+            txns.clone(),
+        )),
         magic: 0xABCD,
     };
 

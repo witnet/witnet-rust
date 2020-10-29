@@ -876,6 +876,7 @@ fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
             block_header,
             block_sig,
             txns,
+            ..
         }) => {
             // Build Block msg
             let block_msg =
