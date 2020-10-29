@@ -134,6 +134,8 @@ impl Handler<Configure> for StorageManager {
             log::info!("Storage backend is using encryption");
         }
 
+        migrations::migrate(&*self.backend)?;
+
         Ok(())
     }
 }
@@ -314,5 +316,56 @@ impl Handler<GetBackend> for StorageManagerAdapter {
 
     fn handle(&mut self, msg: GetBackend, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.storage.send(msg).flatten())
+    }
+}
+
+mod migrations {
+    use super::*;
+
+    pub fn migrate(db: &(dyn Storage + Send + Sync)) -> Result<(), failure::Error> {
+        // Check if the db is empty
+        // Migrations are only needed if the database is non-empty
+        if db.prefix_iterator(b"")?.next().is_none() {
+            update_version(db, 1)
+        } else {
+            loop {
+                let version = detect_version(db)?;
+
+                match version {
+                    0 => migrate_v0(db)?,
+                    1 => return Ok(()),
+                    _ => Err(failure::err_msg(format!("Invalid db version {}", version)))?,
+                }
+            }
+        }
+    }
+
+    pub fn detect_version(db: &(dyn Storage + Send + Sync)) -> Result<u32, failure::Error> {
+        let version_key = b"WITNET-DB-VERSION";
+        let version_bytes = db.get(version_key)?;
+        if version_bytes.is_none() {
+            // No version key.
+            // This can mean version 0, or empty database
+            // We assume that the database is not empty at this point, so this is version 0
+            return Ok(0);
+        }
+
+        let version: u32 = bincode::deserialize(&version_bytes.unwrap()).unwrap();
+        Ok(version)
+    }
+
+    pub fn update_version(db: &(dyn Storage + Send + Sync), version: u32) -> Result<(), failure::Error> {
+        let version_key = b"WITNET-DB-VERSION";
+        let version_bytes = bincode::serialize(&version).unwrap();
+        db.put(version_key.to_vec(), version_bytes)?;
+
+        Ok(())
+    }
+
+    /// The only change from v0 to v1 is in ChainState: in v0 the utxo set is stored in ChainState,
+    /// but in v1 the utxo set is independent, and each utxo is stored under its own key.
+    pub fn migrate_v0(db: &(dyn Storage + Send + Sync)) -> Result<(), failure::Error> {
+        //let old_chain_state: v0::ChainState = bincode::deserialize(&old_chain_state_bytes).unwrap();
+        unimplemented!()
     }
 }
