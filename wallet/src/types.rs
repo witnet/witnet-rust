@@ -148,18 +148,29 @@ pub struct CreateWalletData<'a> {
     pub account: &'a Account,
 }
 
+/// Fee type distinguished between absolute or Weighted (fee/weight unit)
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum FeeType {
+    /// Absolute fee
+    #[serde(rename = "absolute")]
+    Absolute,
+    /// Fee per weight unit
+    #[serde(rename = "weighted")]
+    Weighted,
+}
+
 pub struct VttParams {
     pub pkh: PublicKeyHash,
     pub value: u64,
     pub fee: u64,
     pub time_lock: u64,
-    pub weighted_fee: Option<u64>,
+    pub fee_type: FeeType,
 }
 
 pub struct DataReqParams {
     pub fee: u64,
     pub request: DataRequestOutput,
-    pub weighted_fee: Option<u64>,
+    pub fee_type: FeeType,
 }
 
 #[derive(Debug, PartialEq)]

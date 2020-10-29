@@ -15,7 +15,7 @@ pub struct CreateVttRequest {
     label: Option<String>,
     amount: u64,
     fee: u64,
-    weighted_fee: Option<u64>,
+    fee_type: types::FeeType,
     time_lock: u64,
 }
 
@@ -53,7 +53,7 @@ impl Handler<CreateVttRequest> for app::App {
                 pkh,
                 value: msg.amount,
                 fee: msg.fee,
-                weighted_fee: msg.weighted_fee,
+                fee_type: msg.fee_type,
                 time_lock: msg.time_lock,
             };
 

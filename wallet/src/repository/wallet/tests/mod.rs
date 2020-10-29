@@ -537,7 +537,7 @@ fn test_create_vtt_does_not_spend_utxos() {
             value,
             fee,
             time_lock,
-            weighted_fee: None,
+            fee_type: types::FeeType::Absolute,
         })
         .unwrap();
 
@@ -614,7 +614,7 @@ fn test_create_data_request_does_not_spend_utxos() {
         .create_data_req(types::DataReqParams {
             fee: 0,
             request,
-            weighted_fee: Some(0),
+            fee_type: types::FeeType::Absolute,
         })
         .unwrap();
 
@@ -822,7 +822,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
             value: 1,
             fee: 0,
             time_lock: 0,
-            weighted_fee: Some(0),
+            fee_type: types::FeeType::Absolute,
         })
         .unwrap();
 
@@ -930,7 +930,7 @@ fn test_get_transaction() {
             value: 1,
             fee: 0,
             time_lock: 0,
-            weighted_fee: Some(0),
+            fee_type: types::FeeType::Absolute,
         })
         .unwrap();
     // the wallet does not store created VTT transactions until confirmation
@@ -995,7 +995,7 @@ fn test_get_transactions() {
             value: 1,
             fee: 0,
             time_lock: 0,
-            weighted_fee: Some(0),
+            fee_type: types::FeeType::Absolute,
         })
         .unwrap();
     // the wallet does not store created VTT transactions until confirmation
@@ -1061,7 +1061,7 @@ fn test_create_vtt_with_locked_balance() {
             value: 1,
             fee: 0,
             time_lock: 0,
-            weighted_fee: Some(0),
+            fee_type: types::FeeType::Absolute,
         })
         .unwrap_err();
 
@@ -1074,7 +1074,7 @@ fn test_create_vtt_with_locked_balance() {
 }
 
 #[test]
-fn test_create_vtt_body() {
+fn test_create_vt_components_weighted_fee() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1109,7 +1109,7 @@ fn test_create_vtt_body() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert_eq!(1, vtt.inputs.len());
@@ -1117,7 +1117,7 @@ fn test_create_vtt_body() {
 }
 
 #[test]
-fn test_create_vtt_body_2() {
+fn test_create_vt_components_weighted_fee_2() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1166,7 +1166,7 @@ fn test_create_vtt_body_2() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(!vtt.inputs.is_empty());
@@ -1174,7 +1174,7 @@ fn test_create_vtt_body_2() {
 }
 
 #[test]
-fn test_create_vtt_body_3() {
+fn test_create_vt_components_weighted_fee_3() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1220,7 +1220,7 @@ fn test_create_vtt_body_3() {
     let fee = 1;
     let time_lock = 0;
     let err = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -1232,7 +1232,7 @@ fn test_create_vtt_body_3() {
 }
 
 #[test]
-fn test_create_vtt_body_4() {
+fn test_create_vt_components_weighted_fee_4() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1299,7 +1299,7 @@ fn test_create_vtt_body_4() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(!vtt.inputs.is_empty());
@@ -1307,7 +1307,7 @@ fn test_create_vtt_body_4() {
 }
 
 #[test]
-fn test_create_vtt_body_5() {
+fn test_create_vt_components_weighted_fee_5() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1373,7 +1373,7 @@ fn test_create_vtt_body_5() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(!vtt.inputs.is_empty());
@@ -1381,7 +1381,7 @@ fn test_create_vtt_body_5() {
 }
 
 #[test]
-fn test_create_vtt_body_6() {
+fn test_create_vt_components_weighted_fee_6() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1453,7 +1453,7 @@ fn test_create_vtt_body_6() {
     let fee = 1;
     let time_lock = 0;
     let (vtt, _) = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert!(vtt.inputs.len() >= 2);
@@ -1461,7 +1461,7 @@ fn test_create_vtt_body_6() {
 }
 
 #[test]
-fn test_create_vtt_body_without_outputs() {
+fn test_create_vt_components_weighted_fee_without_outputs() {
     let pkh = factories::pkh();
     let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![]);
     let path = model::Path {
@@ -1484,7 +1484,7 @@ fn test_create_vtt_body_without_outputs() {
     let fee = 1;
     let time_lock = 0;
     let err = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -1496,7 +1496,7 @@ fn test_create_vtt_body_without_outputs() {
 }
 
 #[test]
-fn test_create_vtt_body_with_too_large_fee() {
+fn test_create_vt_components_weighted_fee_with_too_large_fee() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1530,7 +1530,7 @@ fn test_create_vtt_body_with_too_large_fee() {
     let fee = u64::MAX;
     let time_lock = 0;
     let err = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -1580,7 +1580,7 @@ fn test_create_vt_weight_too_large() {
     let fee = 0;
     let time_lock = 0;
     let err = wallet
-        .create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -1592,7 +1592,7 @@ fn test_create_vt_weight_too_large() {
 }
 
 #[test]
-fn test_create_dr_body_1() {
+fn test_create_dr_components_weighted_fee_1() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1632,14 +1632,14 @@ fn test_create_dr_body_1() {
     let value = 1;
     let fee = 1;
     let (dr, _) = wallet
-        .create_dr_body(&mut state, value, fee, request)
+        .create_dr_components_weighted_fee(&mut state, value, fee, request)
         .unwrap();
 
     assert_eq!(dr.inputs.len(), 1);
 }
 
 #[test]
-fn test_create_dr_body_2_not_enough_funds() {
+fn test_create_dr_components_weighted_fee_2_not_enough_funds() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1679,7 +1679,7 @@ fn test_create_dr_body_2_not_enough_funds() {
     let value = 1;
     let fee = 1;
     let err = wallet
-        .create_dr_body(&mut state, value, fee, request)
+        .create_dr_components_weighted_fee(&mut state, value, fee, request)
         .unwrap_err();
 
     assert_eq!(
@@ -1691,7 +1691,7 @@ fn test_create_dr_body_2_not_enough_funds() {
 }
 
 #[test]
-fn test_create_dr_body_3_funds_splitted() {
+fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1731,7 +1731,7 @@ fn test_create_dr_body_3_funds_splitted() {
     let value = 1;
     let fee = 1;
     let (dr_body, _) = wallet
-        .create_dr_body(&mut state, value, fee, request.clone())
+        .create_dr_components_weighted_fee(&mut state, value, fee, request.clone())
         .unwrap();
     let weight = u64::from(dr_body.weight());
 
@@ -1788,14 +1788,14 @@ fn test_create_dr_body_3_funds_splitted() {
     let mut state_2 = wallet_2.state.write().unwrap();
 
     let (dr_body_2, _) = wallet_2
-        .create_dr_body(&mut state_2, value, fee, request)
+        .create_dr_components_weighted_fee(&mut state_2, value, fee, request)
         .unwrap();
 
     assert_eq!(dr_body_2.inputs.len(), 3);
 }
 
 #[test]
-fn test_create_dr_body_without_outputs() {
+fn test_create_dr_components_weighted_fee_without_outputs() {
     let pkh = factories::pkh();
     let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![]);
     let path = model::Path {
@@ -1822,7 +1822,7 @@ fn test_create_dr_body_without_outputs() {
     let value = 1;
     let fee = 1;
     let err = wallet
-        .create_dr_body(&mut state, value, fee, request)
+        .create_dr_components_weighted_fee(&mut state, value, fee, request)
         .unwrap_err();
 
     assert_eq!(
@@ -1834,7 +1834,7 @@ fn test_create_dr_body_without_outputs() {
 }
 
 #[test]
-fn test_create_dr_body_weight_too_large() {
+fn test_create_dr_components_weighted_fee_weight_too_large() {
     let pkh = factories::pkh();
     let mut output_vec: Vec<(model::OutPtr, model::OutputInfo)> = vec![];
     for index in 0u32..1000u32 {
@@ -1878,7 +1878,7 @@ fn test_create_dr_body_weight_too_large() {
     let value = 1000;
     let fee = 0;
     let err = wallet
-        .create_dr_body(&mut state, value, fee, request.clone())
+        .create_dr_components_weighted_fee(&mut state, value, fee, request.clone())
         .unwrap_err();
 
     assert_eq!(
@@ -1890,7 +1890,7 @@ fn test_create_dr_body_weight_too_large() {
 }
 
 #[test]
-fn test_create_dr_body_fee_too_large() {
+fn test_create_dr_components_weighted_fee_fee_too_large() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -1930,7 +1930,7 @@ fn test_create_dr_body_fee_too_large() {
     let value = 1;
     let fee = u64::MAX / 2;
     let err = wallet
-        .create_dr_body(&mut state, value, fee, request.clone())
+        .create_dr_components_weighted_fee(&mut state, value, fee, request.clone())
         .unwrap_err();
 
     assert_eq!(

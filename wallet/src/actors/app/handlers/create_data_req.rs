@@ -11,7 +11,7 @@ pub struct CreateDataReqRequest {
     wallet_id: String,
     request: DataRequestOutput,
     fee: u64,
-    weighted_fee: Option<u64>,
+    fee_type: types::FeeType,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,7 +51,7 @@ impl Handler<CreateDataReqRequest> for app::App {
         CreateDataReqRequest {
             request,
             fee,
-            weighted_fee,
+            fee_type,
             session_id,
             wallet_id,
         }: CreateDataReqRequest,
@@ -63,7 +63,7 @@ impl Handler<CreateDataReqRequest> for app::App {
             let params = types::DataReqParams {
                 request,
                 fee,
-                weighted_fee,
+                fee_type,
             };
 
             slf.create_data_req(&session_id, &wallet_id, params)

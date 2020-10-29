@@ -915,27 +915,31 @@ where
             value,
             fee,
             time_lock,
-            weighted_fee,
+            fee_type,
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
-        let (body, components) = if weighted_fee.is_none() {
-            let components = self.create_vt_transaction_components(
+        let (body, components) = match fee_type {
+            types::FeeType::Absolute => {
+                let components = self.create_vt_transaction_components(
+                    &mut state,
+                    value,
+                    fee,
+                    Some((pkh, time_lock)),
+                )?;
+                let body = types::VTTransactionBody::new(
+                    components.inputs.clone(),
+                    components.outputs.clone(),
+                );
+                (body, components)
+            }
+            types::FeeType::Weighted => self.create_vt_components_weighted_fee(
                 &mut state,
                 value,
                 fee,
                 Some((pkh, time_lock)),
-            )?;
-            let body = types::VTTransactionBody::new(
-                components.inputs.clone(),
-                components.outputs.clone(),
-            );
-
-            (body, components)
-        } else {
-            self.create_vtt_body(&mut state, value, fee, Some((pkh, time_lock)))?
+            )?,
         };
-
         let sign_data = body.hash();
         let signatures: Result<Vec<types::KeyedSignature>> = components
             .sign_keys
@@ -964,7 +968,7 @@ where
         types::DataReqParams {
             fee,
             request,
-            weighted_fee,
+            fee_type,
         }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
@@ -972,17 +976,19 @@ where
             .checked_total_value()
             .map_err(|_| Error::TransactionValueOverflow)?;
 
-        let (body, components) = if weighted_fee.is_none() {
-            let components = self.create_dr_transaction_components(&mut state, value, fee)?;
-            let body = types::DRTransactionBody::new(
-                components.inputs.clone(),
-                components.outputs.clone(),
-                request,
-            );
-
-            (body, components)
-        } else {
-            self.create_dr_body(&mut state, value, fee, request)?
+        let (body, components) = match fee_type {
+            types::FeeType::Absolute => {
+                let components = self.create_dr_transaction_components(&mut state, value, fee)?;
+                let body = types::DRTransactionBody::new(
+                    components.inputs.clone(),
+                    components.outputs.clone(),
+                    request,
+                );
+                (body, components)
+            }
+            types::FeeType::Weighted => {
+                self.create_dr_components_weighted_fee(&mut state, value, fee, request)?
+            }
         };
 
         let sign_data = body.hash();
@@ -1018,7 +1024,7 @@ where
     }
 
     /// Create a VTT body with weighted fee
-    fn create_vtt_body(
+    fn create_vt_components_weighted_fee(
         &self,
         state: &mut State,
         value: u64,
@@ -1071,7 +1077,7 @@ where
     }
 
     /// Create a DR body with weighted fee
-    fn create_dr_body(
+    fn create_dr_components_weighted_fee(
         &self,
         state: &mut State,
         value: u64,
