@@ -675,7 +675,7 @@ where
     /// Filter transactions in a block (received from a node) if they belong to wallet accounts.
     pub fn filter_wallet_transactions(
         &self,
-        txns: &[types::Transaction],
+        txns: impl Iterator<Item = types::Transaction>,
     ) -> Result<Vec<types::Transaction>> {
         let state = self.state.read()?;
 
@@ -683,13 +683,13 @@ where
         for txn in txns {
             // Inputs and outputs from different transaction types
             let (inputs, outputs): (&[Input], &[ValueTransferOutput]) = match txn {
-                types::Transaction::ValueTransfer(vt) => (&vt.body.inputs, &vt.body.outputs),
-                types::Transaction::DataRequest(dr) => (&dr.body.inputs, &dr.body.outputs),
-                types::Transaction::Commit(commit) => {
+                types::Transaction::ValueTransfer(ref vt) => (&vt.body.inputs, &vt.body.outputs),
+                types::Transaction::DataRequest(ref dr) => (&dr.body.inputs, &dr.body.outputs),
+                types::Transaction::Commit(ref commit) => {
                     (&commit.body.collateral, &commit.body.outputs)
                 }
-                types::Transaction::Tally(tally) => (&[], &tally.outputs),
-                types::Transaction::Mint(mint) => (&[], &mint.outputs),
+                types::Transaction::Tally(ref tally) => (&[], &tally.outputs),
+                types::Transaction::Mint(ref mint) => (&[], &mint.outputs),
                 _ => continue,
             };
 
@@ -1340,7 +1340,10 @@ where
 
     // During wallet synchronization, generate external and internal addresses
     // if transaction outputs are pointing to transient addresses
-    pub fn _sync_address_generation(&self, txns: &[types::Transaction]) -> Result<()> {
+    pub fn _sync_address_generation(
+        &self,
+        txns: impl Iterator<Item = types::Transaction>,
+    ) -> Result<()> {
         let mut state = self.state.write()?;
 
         // Exit if not syncing
@@ -1350,18 +1353,17 @@ where
             return Ok(());
         }
 
-        let mut outputs: Vec<ValueTransferOutput> = vec![];
-        txns.iter().for_each(|txn| {
-            let txn_outputs = match txn {
-                types::Transaction::ValueTransfer(vt) => vt.body.outputs.clone(),
-                types::Transaction::DataRequest(dr) => dr.body.outputs.clone(),
-                types::Transaction::Commit(commit) => commit.body.outputs.clone(),
-                types::Transaction::Tally(tally) => tally.outputs.clone(),
-                types::Transaction::Mint(mint) => mint.outputs.clone(),
+        let outputs = txns
+            .map(|txn| match txn {
+                types::Transaction::ValueTransfer(vt) => vt.body.outputs,
+                types::Transaction::DataRequest(dr) => dr.body.outputs,
+                types::Transaction::Commit(commit) => commit.body.outputs,
+                types::Transaction::Tally(tally) => tally.outputs,
+                types::Transaction::Mint(mint) => mint.outputs,
                 _ => vec![],
-            };
-            outputs.extend_from_slice(&txn_outputs);
-        });
+            })
+            .flatten()
+            .collect_vec();
 
         loop {
             let (new_external_index, new_internal_index) = outputs.iter().fold(

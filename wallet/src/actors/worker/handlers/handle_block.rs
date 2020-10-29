@@ -2,9 +2,10 @@ use actix::{Handler, Message};
 
 use crate::actors::worker;
 use crate::types;
+use std::sync::Arc;
 
 pub struct HandleBlockRequest {
-    pub block: types::ChainBlock,
+    pub block: Arc<types::ChainBlock>,
     pub wallet: types::SessionWallet,
     pub sink: types::DynamicSink,
 }

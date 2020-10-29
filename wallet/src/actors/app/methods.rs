@@ -508,7 +508,8 @@ impl App {
 
     /// Handle new block notifications received from a Witnet node.
     pub fn handle_block_notification(&mut self, value: types::Json) -> Result<()> {
-        let block = serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?;
+        let block =
+            Arc::new(serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?);
 
         // This iterator is collected early so as to free the immutable reference to `self`.
         let wallets: Vec<types::SessionWallet> = self
@@ -520,7 +521,7 @@ impl App {
 
         for wallet in &wallets {
             let sink = self.state.get_sink(&wallet.session_id);
-            self.handle_block_in_worker(&block, &wallet, sink.clone());
+            self.handle_block_in_worker(block.clone(), &wallet, sink.clone());
         }
 
         Ok(())
@@ -575,15 +576,12 @@ impl App {
     /// server thread, so as not to lock the rest of the application.
     pub fn handle_block_in_worker(
         &self,
-        block: &types::ChainBlock,
+        block: Arc<types::ChainBlock>,
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) {
-        // NOTE: Possible enhancement.
-        // Maybe is a good idea to use a shared reference Arc instead of cloning `block` altogether,
-        // moreover when this method is called iteratively by `handle_block_notification`.
         self.params.worker.do_send(HandleBlockRequest {
-            block: block.clone(),
+            block,
             wallet: wallet.clone(),
             sink,
         });

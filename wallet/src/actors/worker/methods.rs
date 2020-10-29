@@ -276,13 +276,13 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         block_info: &model::Beacon,
-        txns: &[types::Transaction],
+        txns: impl Iterator<Item = types::Transaction> + Clone,
         confirmed: bool,
         resynchronizing: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
         // If syncing, then re-generate transient addresses if needed
         // Note: this code can be further refactored by only updating the transient addresses
-        wallet._sync_address_generation(txns)?;
+        wallet._sync_address_generation(txns.clone())?;
 
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
         log::debug!(
@@ -668,9 +668,12 @@ impl Worker {
                 block
             );
 
+            // Wrap block into an atomic reference count for the sake of avoiding expensive clones
+            let block_arc = Arc::new(block);
+
             // Process genesis block (transactions indexed as confirmed)
             self.handle_block(
-                block,
+                block_arc,
                 true,
                 resynchronizing,
                 wallet.clone(),
@@ -732,15 +735,18 @@ impl Worker {
                 let get_block_future = self.get_block(id.clone());
                 let (block, confirmed) = futures03::executor::block_on(get_block_future)?;
 
+                // Wrap block into an atomic reference count for the sake of avoiding expensive clones
+                let block_arc = Arc::new(block);
+
                 // Process each block and update latest beacon
                 self.handle_block(
-                    block.clone(),
+                    block_arc.clone(),
                     confirmed,
                     resynchronizing,
                     wallet.clone(),
                     DynamicSink::default(),
                 )?;
-                latest_beacon = block.block_header.beacon;
+                latest_beacon = block_arc.block_header.beacon;
             }
 
             let events = Some(vec![types::Event::SyncProgress(
@@ -866,7 +872,7 @@ impl Worker {
 
     pub fn handle_block(
         &self,
-        block: types::ChainBlock,
+        block: Arc<types::ChainBlock>,
         confirmed: bool,
         resynchronizing: bool,
         wallet: types::SessionWallet,
@@ -1027,16 +1033,12 @@ impl Worker {
 
     pub fn index_block(
         &self,
-        block: types::ChainBlock,
+        block: Arc<types::ChainBlock>,
         confirmed: bool,
         resynchronizing: bool,
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<CheckpointBeacon> {
-        // NOTE: Possible enhancement.
-        // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
-        // if this vector results to be too big, problem is that doing so conflicts with the internal
-        // Cell of the txns type which cannot be shared between threads.
         let block_hash = block.hash();
 
         // Immediately update the local reference to the node's last beacon
@@ -1051,30 +1053,35 @@ impl Worker {
         let vtt_txns = block
             .txns
             .value_transfer_txns
-            .into_iter()
+            .iter()
+            .cloned()
             .map(types::Transaction::from);
         let dr_txns = block
             .txns
             .data_request_txns
-            .into_iter()
+            .iter()
+            .cloned()
             .map(types::Transaction::from);
         let commit_txns = block
             .txns
             .commit_txns
-            .into_iter()
+            .iter()
+            .cloned()
             .map(types::Transaction::from);
         let tally_txns = block
             .txns
             .tally_txns
-            .into_iter()
+            .iter()
+            .cloned()
             .map(types::Transaction::from);
 
         let block_txns = vtt_txns
             .chain(dr_txns)
             .chain(commit_txns)
             .chain(tally_txns)
-            .chain(std::iter::once(types::Transaction::Mint(block.txns.mint)))
-            .collect::<Vec<types::Transaction>>();
+            .chain(std::iter::once(types::Transaction::Mint(
+                block.txns.mint.clone(),
+            )));
 
         let block_info = model::Beacon {
             block_hash,
@@ -1083,7 +1090,7 @@ impl Worker {
         let balance_movements = self.index_txns(
             wallet.as_ref(),
             &block_info,
-            block_txns.as_ref(),
+            block_txns,
             confirmed,
             resynchronizing,
         )?;
