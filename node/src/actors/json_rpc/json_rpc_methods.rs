@@ -9,6 +9,7 @@ use std::{
 use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
+use futures::future::FutureResult;
 use itertools::Itertools;
 use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
@@ -21,11 +22,6 @@ use witnet_data_structures::{
     vrf::VrfMessage,
 };
 
-//use std::str::FromStr;
-use super::Subscriptions;
-
-#[cfg(test)]
-use self::mock_actix::SystemService;
 use crate::{
     actors::{
         chain_manager::{ChainManager, ChainManagerError, StateMachine},
@@ -44,6 +40,11 @@ use crate::{
     config_mngr, signature_mngr,
 };
 
+use super::Subscriptions;
+
+#[cfg(test)]
+use self::mock_actix::SystemService;
+
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
 
 /// Define the JSON-RPC interface:
@@ -58,7 +59,7 @@ pub fn jsonrpc_io_handler(
     io.add_method("getBlockChain", |params: Params| {
         get_block_chain(params.parse())
     });
-    io.add_method("getBlock", |params: Params| get_block(params.parse()));
+    io.add_method("getBlock", get_block);
     io.add_method("getTransaction", |params: Params| {
         get_transaction(params.parse())
     });
@@ -534,64 +535,109 @@ pub fn get_block_chain(
 }
 
 /// Get block by hash
+///
+/// - First argument is the hash of the block that we are querying.
+/// - Second argument is whether we want the response to contain a list of hashes of the
+///   transactions found in the block.  
 /* test
-{"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb"]}
-{"jsonrpc":"2.0","id":1,"method":"getBlock","params":[{"SHA256":[255,198,135,145,253,40,66,175,226,220,119,243,233,210,25,119,171,217,215,188,185,190,93,116,164,234,217,67,30,102,205,46]}]}
+{"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb", false]}
 */
-pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
-    let hash = match hash {
-        Ok(x) => x.0,
-        Err(e) => return Box::new(futures::failed(e)),
+pub fn get_block(params: Params) -> JsonRpcResultAsync {
+    let (block_hash, include_txns_hashes): (Hash, bool);
+
+    // Handle parameters as an array with a first obligatory hash field plus an optional bool field
+    if let Params::Array(params) = params {
+        if let Some(Value::String(hash)) = params.get(0) {
+            match hash.parse() {
+                Ok(hash) => block_hash = hash,
+                Err(e) => {
+                    return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
+                        futures::failed(internal_error(e)),
+                    ))
+                }
+            }
+        } else {
+            return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
+                futures::failed(jsonrpc_core::Error::invalid_params(
+                    "First argument of `get_block` must have type `Hash`",
+                )),
+            ));
+        };
+
+        match params.get(1) {
+            None => include_txns_hashes = true,
+            Some(Value::Bool(ith)) => include_txns_hashes = *ith,
+            Some(_) => {
+                return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
+                    futures::failed(jsonrpc_core::Error::invalid_params(
+                        "Second argument of `get_block` must have type `Bool`",
+                    )),
+                ))
+            }
+        };
+    } else {
+        return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
+            futures::failed(jsonrpc_core::Error::invalid_params(
+                "Params of `get_block` method must have type `Array`",
+            )),
+        ));
     };
 
     let inventory_manager = InventoryManager::from_registry();
     Box::new(
         inventory_manager
-            .send(GetItemBlock { hash })
+            .send(GetItemBlock { hash: block_hash })
             .then(move |res| match res {
                 Ok(Ok(output)) => {
                     let block_epoch = output.block_header.beacon.checkpoint;
                     let block_hash = output.hash();
 
-                    let vtt_hashes: Vec<_> = output
-                        .txns
-                        .value_transfer_txns
-                        .iter()
-                        .map(|txn| txn.hash())
-                        .collect();
-                    let drt_hashes: Vec<_> = output
-                        .txns
-                        .data_request_txns
-                        .iter()
-                        .map(|txn| txn.hash())
-                        .collect();
-                    let ct_hashes: Vec<_> = output
-                        .txns
-                        .commit_txns
-                        .iter()
-                        .map(|txn| txn.hash())
-                        .collect();
-                    let rt_hashes: Vec<_> = output
-                        .txns
-                        .reveal_txns
-                        .iter()
-                        .map(|txn| txn.hash())
-                        .collect();
-                    let tt_hashes: Vec<_> = output
-                        .txns
-                        .tally_txns
-                        .iter()
-                        .map(|txn| txn.hash())
-                        .collect();
+                    // Only include the `txns_hashes` field if explicitly requested, as hash
+                    // operations are quite expensive, and transactions read from storage cannot
+                    // benefit from hash memoization
+                    let txns_hashes = if include_txns_hashes {
+                        let vtt_hashes: Vec<_> = output
+                            .txns
+                            .value_transfer_txns
+                            .iter()
+                            .map(|txn| txn.hash())
+                            .collect();
+                        let drt_hashes: Vec<_> = output
+                            .txns
+                            .data_request_txns
+                            .iter()
+                            .map(|txn| txn.hash())
+                            .collect();
+                        let ct_hashes: Vec<_> = output
+                            .txns
+                            .commit_txns
+                            .iter()
+                            .map(|txn| txn.hash())
+                            .collect();
+                        let rt_hashes: Vec<_> = output
+                            .txns
+                            .reveal_txns
+                            .iter()
+                            .map(|txn| txn.hash())
+                            .collect();
+                        let tt_hashes: Vec<_> = output
+                            .txns
+                            .tally_txns
+                            .iter()
+                            .map(|txn| txn.hash())
+                            .collect();
 
-                    let txns_hashes = serde_json::json!({
-                        "mint" : output.txns.mint.hash(),
-                        "value_transfer" : vtt_hashes,
-                        "data_request" : drt_hashes,
-                        "commit" : ct_hashes,
-                        "reveal" : rt_hashes,
-                        "tally" : tt_hashes
-                    });
+                        Some(serde_json::json!({
+                            "mint" : output.txns.mint.hash(),
+                            "value_transfer" : vtt_hashes,
+                            "data_request" : drt_hashes,
+                            "commit" : ct_hashes,
+                            "reveal" : rt_hashes,
+                            "tally" : tt_hashes
+                        }))
+                    } else {
+                        None
+                    };
 
                     let mut value = match serde_json::to_value(output) {
                         Ok(x) => x,
@@ -601,10 +647,13 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
                         }
                     };
 
-                    value
-                        .as_object_mut()
-                        .expect("The result of getBlock should be an object")
-                        .insert("txns_hashes".to_string(), txns_hashes);
+                    // See explanation above about optional `txns_hashes` field
+                    if let Some(txns_hashes) = txns_hashes {
+                        value
+                            .as_object_mut()
+                            .expect("The result of getBlock should be an object")
+                            .insert("txns_hashes".to_string(), txns_hashes);
+                    }
 
                     // Check if this block is confirmed by a majority of superblock votes
                     let chain_manager = ChainManager::from_registry();
@@ -1399,11 +1448,13 @@ mod mock_actix {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use futures::sync::mpsc;
 
-    use super::*;
-    use std::collections::BTreeSet;
     use witnet_data_structures::{chain::RADRequest, transaction::*};
+
+    use super::*;
 
     #[test]
     fn empty_string_parse_error() {
