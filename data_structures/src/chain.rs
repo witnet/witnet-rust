@@ -659,16 +659,46 @@ pub struct SuperBlock {
     pub last_block_in_previous_superblock: Hash,
     /// Merkle root of the tallies in the blocks created since the last SuperBlock
     pub tally_root: Hash,
+
+    #[protobuf_convert(skip)]
+    #[serde(skip)]
+    hash: MemoHash,
 }
 
-impl Hashable for SuperBlock {
-    /// Hash the superblock bytes
-    fn hash(&self) -> Hash {
-        calculate_sha256(&self.serialize_as_bytes()).into()
+impl MemoizedHashable for SuperBlock {
+    fn hashable_bytes(&self) -> Vec<u8> {
+        self.serialize_as_bytes()
+    }
+
+    fn memoized_hash(&self) -> &MemoHash {
+        &self.hash
     }
 }
 
 impl SuperBlock {
+    /// Simple factory for the `SuperBlock` data structure that automatically initiates the hash
+    /// field without actually performing the hash operation, just in case it is never used.
+    pub fn new(
+        signing_committee_length: u32,
+        ars_root: Hash,
+        data_request_root: Hash,
+        index: u32,
+        last_block: Hash,
+        last_block_in_previous_superblock: Hash,
+        tally_root: Hash,
+    ) -> Self {
+        Self {
+            signing_committee_length,
+            ars_root,
+            data_request_root,
+            index,
+            last_block,
+            last_block_in_previous_superblock,
+            tally_root,
+            hash: Default::default(),
+        }
+    }
+
     /// Serialize the SuperBlock structure
     /// We do not use protocolBuffers as we would need a protocol buffer decoder in Ethereum
     /// Note that both the node and Ethereum smart contracts need to hash identical superblocks
@@ -3552,45 +3582,45 @@ mod tests {
 
     #[test]
     fn test_superblock_hashable_trait() {
-        let superblock = SuperBlock {
-            signing_committee_length: 3,
-            ars_root: Hash::SHA256([1; 32]),
-            data_request_root: Hash::SHA256([2; 32]),
-            index: 1,
-            last_block: Hash::SHA256([3; 32]),
-            last_block_in_previous_superblock: Hash::SHA256([4; 32]),
-            tally_root: Hash::SHA256([5; 32]),
-        };
+        let superblock = SuperBlock::new(
+            3,
+            Hash::SHA256([1; 32]),
+            Hash::SHA256([2; 32]),
+            1,
+            Hash::SHA256([3; 32]),
+            Hash::SHA256([4; 32]),
+            Hash::SHA256([5; 32]),
+        );
         let expected = "c9a800eb2c8047b05b660137771ccda4fa34e02fb7bc8d178747b0b3ae987875";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
     #[test]
     fn test_superblock_hashable_trait_2() {
-        let superblock = SuperBlock {
-            signing_committee_length: 0x0fff_ffff,
-            ars_root: Hash::SHA256([1; 32]),
-            data_request_root: Hash::SHA256([2; 32]),
-            index: 0x0020_2020,
-            last_block: Hash::SHA256([3; 32]),
-            last_block_in_previous_superblock: Hash::SHA256([4; 32]),
-            tally_root: Hash::SHA256([5; 32]),
-        };
+        let superblock = SuperBlock::new(
+            0x0fff_ffff,
+            Hash::SHA256([1; 32]),
+            Hash::SHA256([2; 32]),
+            0x0020_2020,
+            Hash::SHA256([3; 32]),
+            Hash::SHA256([4; 32]),
+            Hash::SHA256([5; 32]),
+        );
         let expected = "244961e865ad0e295184912cfd90032e3c400c08c959b49fda51e05eae1a7c66";
         assert_eq!(superblock.hash().to_string(), expected);
     }
 
     #[test]
     fn test_superblock_hashable_trait_3() {
-        let superblock = SuperBlock {
-            signing_committee_length: 0x000a_456b,
-            ars_root: Hash::SHA256([1; 32]),
-            data_request_root: Hash::SHA256([2; 32]),
-            index: 0x20a6_b256,
-            last_block: Hash::SHA256([3; 32]),
-            last_block_in_previous_superblock: Hash::SHA256([4; 32]),
-            tally_root: Hash::SHA256([5; 32]),
-        };
+        let superblock = SuperBlock::new(
+            0x000a_456b,
+            Hash::SHA256([1; 32]),
+            Hash::SHA256([2; 32]),
+            0x20a6_b256,
+            Hash::SHA256([3; 32]),
+            Hash::SHA256([4; 32]),
+            Hash::SHA256([5; 32]),
+        );
         let expected = "e70684a7f72668a7b77fe2d9add8f798b012efd8a551bd37167d02b345ecb2fa";
         assert_eq!(superblock.hash().to_string(), expected);
     }
@@ -3628,15 +3658,15 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-        let superblock = SuperBlock {
-            signing_committee_length: 0x000a_456b,
-            ars_root: Hash::SHA256(ars_root),
-            data_request_root: Hash::SHA256(dr_root),
-            index: 0x0020_a6b2,
-            last_block: Hash::SHA256(last_block_hash),
-            last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
-            tally_root: Hash::SHA256(tally_root),
-        };
+        let superblock = SuperBlock::new(
+            0x000a_456b,
+            Hash::SHA256(ars_root),
+            Hash::SHA256(dr_root),
+            0x0020_a6b2,
+            Hash::SHA256(last_block_hash),
+            Hash::SHA256(prev_last_block_hash),
+            Hash::SHA256(tally_root),
+        );
         let expected = "329349f85dd42d0b59c014a6f859b26185c488dc3ca13c036ddc751916220c77";
         assert_eq!(superblock.hash().to_string(), expected);
     }
@@ -3674,15 +3704,15 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-        let superblock = SuperBlock {
-            signing_committee_length: 0x0012_34ad,
-            ars_root: Hash::SHA256(ars_root),
-            data_request_root: Hash::SHA256(dr_root),
-            index: 0x0765_64fd,
-            last_block: Hash::SHA256(last_block_hash),
-            last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
-            tally_root: Hash::SHA256(tally_root),
-        };
+        let superblock = SuperBlock::new(
+            0x0012_34ad,
+            Hash::SHA256(ars_root),
+            Hash::SHA256(dr_root),
+            0x0765_64fd,
+            Hash::SHA256(last_block_hash),
+            Hash::SHA256(prev_last_block_hash),
+            Hash::SHA256(tally_root),
+        );
         let expected = "4afd32e477049920cc70dd223657c0574a700ee18aad2463a4b528bfa8de6d99";
         assert_eq!(superblock.hash().to_string(), expected);
     }
@@ -3720,15 +3750,15 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-        let superblock = SuperBlock {
-            signing_committee_length: 0x0fff_ffff,
-            ars_root: Hash::SHA256(ars_root),
-            data_request_root: Hash::SHA256(dr_root),
-            index: 0x00ff_ffff,
-            last_block: Hash::SHA256(last_block_hash),
-            last_block_in_previous_superblock: Hash::SHA256(prev_last_block_hash),
-            tally_root: Hash::SHA256(tally_root),
-        };
+        let superblock = SuperBlock::new(
+            0x0fff_ffff,
+            Hash::SHA256(ars_root),
+            Hash::SHA256(dr_root),
+            0x00ff_ffff,
+            Hash::SHA256(last_block_hash),
+            Hash::SHA256(prev_last_block_hash),
+            Hash::SHA256(tally_root),
+        );
         let expected = "c87b63079813d3eca051f11f07ad555280ff9a7e44f3b1d42c1d309d25392327";
         assert_eq!(superblock.hash().to_string(), expected);
     }

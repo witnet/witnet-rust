@@ -573,14 +573,16 @@ pub fn mining_build_superblock(
                 last_block_in_previous_superblock,
                 ars_root,
             );
-            SuperBlock {
+
+            SuperBlock::new(
                 signing_committee_length,
                 ars_root,
+                Default::default(),
                 index,
-                last_block: last_block_in_previous_superblock,
                 last_block_in_previous_superblock,
-                ..Default::default()
-            }
+                last_block_in_previous_superblock,
+                Default::default(),
+            )
         }
         Some(last_block_header) => {
             let last_block_hash = last_block_header.hash();
@@ -607,15 +609,15 @@ pub fn mining_build_superblock(
                 blocks
             );
 
-            SuperBlock {
+            SuperBlock::new(
                 signing_committee_length,
-                data_request_root: hash_merkle_tree_root(&merkle_drs),
-                tally_root: hash_merkle_tree_root(&merkle_tallies),
                 ars_root,
+                hash_merkle_tree_root(&merkle_drs),
                 index,
-                last_block: last_block_hash,
+                last_block_hash,
                 last_block_in_previous_superblock,
-            }
+                hash_merkle_tree_root(&merkle_tallies),
+            )
         }
     }
 }
@@ -651,15 +653,15 @@ mod tests {
         let default_hash = Hash::default();
         let superblock = mining_build_superblock(&[], &[], 0, default_hash, 0);
 
-        let expected = SuperBlock {
-            signing_committee_length: 0,
-            ars_root: Hash::from(EMPTY_SHA256),
-            data_request_root: default_hash,
-            index: 0,
-            last_block: default_hash,
-            last_block_in_previous_superblock: default_hash,
-            tally_root: default_hash,
-        };
+        let expected = SuperBlock::new(
+            0,
+            Hash::from(EMPTY_SHA256),
+            default_hash,
+            0,
+            default_hash,
+            default_hash,
+            default_hash,
+        );
         assert_eq!(superblock, expected);
     }
 
@@ -695,15 +697,15 @@ mod tests {
             bn256_public_key: None,
         };
 
-        let expected_superblock = SuperBlock {
-            signing_committee_length: 1,
-            ars_root: default_hash,
-            data_request_root: dr_merkle_root_1,
-            index: 0,
-            last_block: block.hash(),
-            last_block_in_previous_superblock: default_hash,
-            tally_root: tally_merkle_root_1,
-        };
+        let expected_superblock = SuperBlock::new(
+            1,
+            default_hash,
+            dr_merkle_root_1,
+            0,
+            block.hash(),
+            default_hash,
+            tally_merkle_root_1,
+        );
 
         let superblock = mining_build_superblock(&[block], &[default_hash], 0, default_hash, 1);
         assert_eq!(superblock, expected_superblock);
@@ -759,15 +761,15 @@ mod tests {
             bn256_public_key: None,
         };
 
-        let expected_superblock = SuperBlock {
-            signing_committee_length: 1,
-            ars_root: default_hash,
-            data_request_root: expected_superblock_dr_root,
-            index: 0,
-            last_block: block_2.hash(),
-            last_block_in_previous_superblock: default_hash,
-            tally_root: expected_superblock_tally_root,
-        };
+        let expected_superblock = SuperBlock::new(
+            1,
+            default_hash,
+            expected_superblock_dr_root,
+            0,
+            block_2.hash(),
+            default_hash,
+            expected_superblock_tally_root,
+        );
 
         let superblock =
             mining_build_superblock(&[block_1, block_2], &[default_hash], 0, default_hash, 1);
@@ -914,17 +916,17 @@ mod tests {
             None,
         );
 
-        let expected_superblock = SuperBlock {
-            signing_committee_length: 0,
-            ars_root: hash_merkle_tree_root(&hash_key_leaves(
+        let expected_superblock = SuperBlock::new(
+            0,
+            hash_merkle_tree_root(&hash_key_leaves(
                 &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
             )),
-            data_request_root: Hash::default(),
-            index: 0,
-            last_block: genesis_hash,
-            last_block_in_previous_superblock: genesis_hash,
-            tally_root: Hash::default(),
-        };
+            Hash::default(),
+            0,
+            genesis_hash,
+            genesis_hash,
+            Hash::default(),
+        );
         assert_eq!(first_superblock, expected_superblock);
 
         let expected_superblock_hash =
@@ -967,17 +969,17 @@ mod tests {
             None,
         );
 
-        let expected_second_superblock = SuperBlock {
-            signing_committee_length: 1,
-            ars_root: hash_merkle_tree_root(&hash_key_leaves(
+        let expected_second_superblock = SuperBlock::new(
+            1,
+            hash_merkle_tree_root(&hash_key_leaves(
                 &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
             )),
-            data_request_root: Hash::default(),
-            index: 1,
-            last_block: genesis_hash,
-            last_block_in_previous_superblock: genesis_hash,
-            tally_root: Hash::default(),
-        };
+            Hash::default(),
+            1,
+            genesis_hash,
+            genesis_hash,
+            Hash::default(),
+        );
         let mut expected_sbs = sbs.clone();
         assert_eq!(
             sbs.build_superblock(
