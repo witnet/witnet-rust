@@ -3,7 +3,7 @@
 //! This backend performs no storage at all and always fails to do any operation.
 use failure::bail;
 
-use crate::storage::{Result, Storage};
+use crate::storage::{Result, Storage, StorageIterator};
 
 /// A Backend that is not persisted
 ///
@@ -16,11 +16,15 @@ impl Storage for Backend {
         bail!("This is a no backend storage")
     }
 
-    fn put(&mut self, _key: Vec<u8>, _value: Vec<u8>) -> Result<()> {
+    fn put(&self, _key: Vec<u8>, _value: Vec<u8>) -> Result<()> {
         bail!("This is a no backend storage")
     }
 
-    fn delete(&mut self, _key: &[u8]) -> Result<()> {
+    fn delete(&self, _key: &[u8]) -> Result<()> {
+        bail!("This is a no backend storage")
+    }
+
+    fn prefix_iterator<'a, 'b: 'a>(&'a self, _prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
         bail!("This is a no backend storage")
     }
 }

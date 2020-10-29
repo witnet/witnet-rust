@@ -4638,6 +4638,7 @@ name = "witnet_data_structures"
 version = "0.3.2"
 dependencies = [
  "bech32",
+ "bincode",
  "bls-signatures-rs",
  "byteorder",
  "cbor-codec",
@@ -4662,6 +4663,7 @@ dependencies = [
  "witnet_crypto",
  "witnet_protected",
  "witnet_reputation",
+ "witnet_storage",
  "witnet_util",
 ]
 

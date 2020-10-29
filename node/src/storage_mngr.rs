@@ -9,7 +9,7 @@ use futures::future::{Either, Future};
 
 use crate::config_mngr;
 use witnet_config::config;
-use witnet_storage::{backends, storage};
+use witnet_storage::{backends, storage, storage::Storage};
 
 macro_rules! as_failure {
     ($e:expr) => {
@@ -89,14 +89,21 @@ where
         .and_then(move |key_bytes| addr.send(Delete(key_bytes)).flatten())
 }
 
+/// Get an atomic reference to the storage backend
+pub fn get_backend() -> impl Future<Item = Arc<dyn Storage + Send + Sync>, Error = failure::Error> {
+    let addr = StorageManagerAdapter::from_registry();
+
+    addr.send(GetBackend).flatten()
+}
+
 struct StorageManager {
-    backend: Box<dyn storage::Storage>,
+    backend: Arc<dyn Storage + Send + Sync>,
 }
 
 impl Default for StorageManager {
     fn default() -> Self {
         StorageManager {
-            backend: Box::new(backends::nobackend::Backend),
+            backend: Arc::new(backends::nobackend::Backend),
         }
     }
 }
@@ -126,6 +133,8 @@ impl Handler<Configure> for StorageManager {
         if storage_conf.password.is_some() {
             log::info!("Storage backend is using encryption");
         }
+
+        migrations::migrate(&*self.backend)?;
 
         Ok(())
     }
@@ -191,25 +200,40 @@ impl Handler<Delete> for StorageManager {
     }
 }
 
+struct GetBackend;
+
+impl Message for GetBackend {
+    type Result = Result<Arc<dyn Storage + Send + Sync>, failure::Error>;
+}
+
+impl Handler<GetBackend> for StorageManager {
+    type Result = <GetBackend as Message>::Result;
+
+    fn handle(&mut self, _msg: GetBackend, _ctx: &mut Self::Context) -> Self::Result {
+        Ok(self.backend.clone())
+    }
+}
+
 macro_rules! encrypted_backend {
     ($backend:expr, $password_opt:expr) => {
         if let Some(password) = $password_opt {
-            Box::new(backends::crypto::Backend::new(password, $backend))
-                as Box<dyn storage::Storage>
+            Arc::new(backends::crypto::Backend::new(password, $backend))
+                as Arc<dyn storage::Storage + Send + Sync>
         } else {
-            Box::new($backend) as Box<dyn storage::Storage>
+            Arc::new($backend) as Arc<dyn storage::Storage + Send + Sync>
         }
     };
 }
 
-fn create_appropriate_backend(
+/// Create storage backend according to provided config
+pub fn create_appropriate_backend(
     conf: &config::Storage,
-) -> Result<Box<dyn storage::Storage>, failure::Error> {
+) -> Result<Arc<dyn storage::Storage + Send + Sync>, failure::Error> {
     let passwd = conf.password.clone();
 
     match conf.backend {
         config::StorageBackend::HashMap => Ok(encrypted_backend!(
-            backends::hashmap::Backend::new(),
+            backends::hashmap::Backend::default(),
             passwd
         )),
         config::StorageBackend::RocksDB => {
@@ -284,5 +308,64 @@ impl Handler<Delete> for StorageManagerAdapter {
 
     fn handle(&mut self, msg: Delete, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.storage.send(msg).flatten())
+    }
+}
+
+impl Handler<GetBackend> for StorageManagerAdapter {
+    type Result = ResponseFuture<Arc<dyn Storage + Send + Sync>, failure::Error>;
+
+    fn handle(&mut self, msg: GetBackend, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.storage.send(msg).flatten())
+    }
+}
+
+mod migrations {
+    use super::*;
+
+    pub fn migrate(db: &(dyn Storage + Send + Sync)) -> Result<(), failure::Error> {
+        // Check if the db is empty
+        // Migrations are only needed if the database is non-empty
+        if db.prefix_iterator(b"")?.next().is_none() {
+            update_version(db, 1)
+        } else {
+            loop {
+                let version = detect_version(db)?;
+
+                match version {
+                    0 => migrate_v0(db)?,
+                    1 => return Ok(()),
+                    _ => Err(failure::err_msg(format!("Invalid db version {}", version)))?,
+                }
+            }
+        }
+    }
+
+    pub fn detect_version(db: &(dyn Storage + Send + Sync)) -> Result<u32, failure::Error> {
+        let version_key = b"WITNET-DB-VERSION";
+        let version_bytes = db.get(version_key)?;
+        if version_bytes.is_none() {
+            // No version key.
+            // This can mean version 0, or empty database
+            // We assume that the database is not empty at this point, so this is version 0
+            return Ok(0);
+        }
+
+        let version: u32 = bincode::deserialize(&version_bytes.unwrap()).unwrap();
+        Ok(version)
+    }
+
+    pub fn update_version(db: &(dyn Storage + Send + Sync), version: u32) -> Result<(), failure::Error> {
+        let version_key = b"WITNET-DB-VERSION";
+        let version_bytes = bincode::serialize(&version).unwrap();
+        db.put(version_key.to_vec(), version_bytes)?;
+
+        Ok(())
+    }
+
+    /// The only change from v0 to v1 is in ChainState: in v0 the utxo set is stored in ChainState,
+    /// but in v1 the utxo set is independent, and each utxo is stored under its own key.
+    pub fn migrate_v0(db: &(dyn Storage + Send + Sync)) -> Result<(), failure::Error> {
+        //let old_chain_state: v0::ChainState = bincode::deserialize(&old_chain_state_bytes).unwrap();
+        unimplemented!()
     }
 }

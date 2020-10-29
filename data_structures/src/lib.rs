@@ -46,6 +46,9 @@ pub mod vrf;
 pub mod radon_error;
 pub mod radon_report;
 
+/// Old versions of some data structures used in the storage
+pub mod migrations;
+
 /// Serialization boilerplate to allow serializing some data structures as
 /// strings or bytes depending on the serializer.
 mod serialization_helpers;

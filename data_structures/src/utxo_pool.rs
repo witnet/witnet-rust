@@ -2,33 +2,59 @@ use crate::chain::{Epoch, OutputPointer, PublicKeyHash, ValueTransferOutput};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::str::FromStr;
+use std::sync::Arc;
+use witnet_storage::storage::Storage;
 use witnet_util::timestamp::get_timestamp;
 
 /// Unspent Outputs Pool
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Default)]
 pub struct UnspentOutputsPool {
-    /// Map of output pointer to a tuple of:
-    /// * Value transfer output
-    /// * The number of the block that included the transaction
-    ///   (how many blocks were consolidated before this one).
-    map: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
+    // Map of output pointer to a tuple of:
+    // * Value transfer output
+    // * The number of the block that included the transaction
+    //   (how many blocks were consolidated before this one).
+    //map: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
+    pub diff: Diff,
+    /// Database
+    // If the database is set to None, all reads will return "not found", but all writes will panic
+    // This ensures that we can use an UnspentOutputsPool with no database in tests, and it will
+    // work fine as long as we don't try to persist it
+    pub db: Option<Arc<dyn Storage + Send + Sync>>,
+}
+
+impl fmt::Debug for UnspentOutputsPool {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("UnspentOutputsPool")
+    }
+}
+
+impl PartialEq for UnspentOutputsPool {
+    fn eq(&self, other: &Self) -> bool {
+        self.diff == other.diff
+    }
 }
 
 impl UnspentOutputsPool {
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&ValueTransferOutput>
-    where
-        OutputPointer: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + Eq,
-    {
-        self.map.get(k).map(|(vt, _n)| vt)
+    pub fn get(&self, k: &OutputPointer) -> Option<ValueTransferOutput> {
+        self.get_map(k).map(|(vt, _n)| vt)
     }
 
-    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
-    where
-        OutputPointer: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + Eq,
-    {
-        self.map.contains_key(k)
+    pub fn get_map(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+        if let Some(x) = self.diff.utxos_to_add.get(k) {
+            return Some(x.clone());
+        }
+
+        if self.diff.utxos_to_remove.contains(&k) || self.diff.utxos_to_remove_dr.contains(&k) {
+            return None;
+        }
+
+        self.db_get(k)
+    }
+
+    pub fn contains_key(&self, k: &OutputPointer) -> bool {
+        self.get_map(k).is_some()
     }
 
     pub fn insert(
@@ -37,30 +63,145 @@ impl UnspentOutputsPool {
         v: ValueTransferOutput,
         block_number: u32,
     ) -> Option<(ValueTransferOutput, u32)> {
-        self.map.insert(k, (v, block_number))
+        self.diff.utxos_to_add.insert(k, (v, block_number))
     }
 
-    pub fn remove(&mut self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
-        self.map.remove(k)
+    pub fn remove(&mut self, k: &OutputPointer) {
+        if self.diff.utxos_to_add.remove(k).is_none() {
+            self.diff.utxos_to_remove.insert(k.clone());
+        }
     }
 
-    pub fn drain(
+    fn db_get(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+        let key_string = format!("UTXO-{}", k);
+        log::debug!("GET {}", key_string);
+        self.db
+            .as_ref()?
+            .get(key_string.as_bytes())
+            .expect("db fail")
+            .map(|bytes| {
+                bincode::deserialize::<(ValueTransferOutput, u32)>(&bytes).expect("bincode fail")
+            })
+    }
+
+    fn db_insert(
         &mut self,
-    ) -> std::collections::hash_map::Drain<OutputPointer, (ValueTransferOutput, u32)> {
-        self.map.drain()
+        k: OutputPointer,
+        v: ValueTransferOutput,
+        block_number: u32,
+    ) -> Option<(ValueTransferOutput, u32)> {
+        let old_vto = self.get_map(&k);
+
+        let key_string = format!("UTXO-{}", k);
+        log::debug!("PUT {}", key_string);
+        self.db
+            .as_mut()
+            .expect("no db")
+            .put(
+                key_string.into_bytes(),
+                bincode::serialize(&(v, block_number)).unwrap(),
+            )
+            .unwrap();
+
+        old_vto
     }
 
-    pub fn iter(
-        &self,
-    ) -> std::collections::hash_map::Iter<OutputPointer, (ValueTransferOutput, u32)> {
-        self.map.iter()
+    fn db_remove(&mut self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+        let old_vto = self.get_map(&k);
+
+        let key_string = format!("UTXO-{}", k);
+        log::debug!("REMOVE {}", key_string);
+        self.db
+            .as_mut()
+            .expect("no db")
+            .delete(key_string.as_bytes())
+            .unwrap();
+
+        old_vto
+    }
+
+    fn db_iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+        self.db
+            .as_ref()
+            .map(|db| {
+                db.prefix_iterator(b"UTXO-")
+                    .unwrap()
+                    .map(|(k, v)| {
+                        let key_string = String::from_utf8(k).unwrap();
+                        let output_pointer_str = key_string.strip_prefix("UTXO-").unwrap();
+                        let key = OutputPointer::from_str(output_pointer_str).unwrap();
+                        let value = bincode::deserialize(&v).unwrap();
+
+                        (key, value)
+                    })
+                    .filter_map(move |(k, v)| {
+                        if self.diff.utxos_to_remove.contains(&k)
+                            || self.diff.utxos_to_remove_dr.contains(&k)
+                        {
+                            None
+                        } else {
+                            Some((k, v))
+                        }
+                    })
+            })
+            // Transform `Option<impl Iterator>` into `impl Iterator`, with 0 elements in
+            // None case
+            .into_iter()
+            .flatten()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+        self.diff
+            .utxos_to_add
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .chain(self.db_iter())
     }
 
     /// Returns the number of the block that included the transaction referenced
     /// by this OutputPointer. The difference between that number and the
     /// current number of consolidated blocks is the "collateral age".
-    pub fn included_in_block_number(&self, k: &OutputPointer) -> Option<Epoch> {
-        self.map.get(k).map(|(_vt, n)| *n)
+    pub fn included_in_block_number(&self, k: &OutputPointer) -> Option<u32> {
+        self.get_map(k).map(|(_vt, n)| n)
+    }
+
+    pub fn persist(&mut self) {
+        let mut diff = std::mem::replace(&mut self.diff, Diff::new());
+        for (k, (v, block_number)) in diff.utxos_to_add.drain() {
+            self.db_insert(k, v, block_number);
+        }
+
+        for k in diff.utxos_to_remove.drain() {
+            self.db_remove(&k);
+        }
+
+        for k in diff.utxos_to_remove_dr.drain(..) {
+            self.db_remove(&k);
+        }
+    }
+
+    pub fn restore(&mut self) {
+        self.diff = Diff::new();
+    }
+
+    pub fn remove_persisted_from_memory(&mut self, persisted: &Diff) {
+        for k in persisted.utxos_to_add.keys() {
+            self.diff.utxos_to_add.remove(k).unwrap();
+        }
+
+        for k in &persisted.utxos_to_remove {
+            assert!(self.diff.utxos_to_remove.remove(k));
+        }
+
+        for k in &persisted.utxos_to_remove_dr {
+            let pos = self
+                .diff
+                .utxos_to_remove_dr
+                .iter()
+                .position(|x| x == k)
+                .unwrap();
+            self.diff.utxos_to_remove_dr.remove(pos);
+        }
     }
 }
 
@@ -215,7 +356,12 @@ pub fn get_utxo_info(
             .iter()
             .filter_map(|(o, (vto, _))| {
                 if vto.pkh == pkh {
-                    Some(create_utxo_metadata(vto, o, all_utxos, block_number_limit))
+                    Some(create_utxo_metadata(
+                        &vto,
+                        &o,
+                        all_utxos,
+                        block_number_limit,
+                    ))
                 } else {
                     None
                 }
@@ -228,6 +374,7 @@ pub fn get_utxo_info(
             .filter_map(|(o, _)| {
                 all_utxos
                     .get(o)
+                    .as_ref()
                     .map(|vto| create_utxo_metadata(vto, o, all_utxos, block_number_limit))
             })
             .collect()
@@ -241,21 +388,20 @@ pub fn get_utxo_info(
 
 /// Diffs to apply to an utxo set. This type does not contains a
 /// reference to the original utxo set.
-#[derive(Debug)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Diff {
-    utxos_to_add: UnspentOutputsPool,
+    utxos_to_add: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
     utxos_to_remove: HashSet<OutputPointer>,
+    // TODO: we need utxos_to_remove_dr.contains(), change to HashSet or combine with utxos_to_remove?
     utxos_to_remove_dr: Vec<OutputPointer>,
-    block_number: u32,
 }
 
 impl Diff {
-    pub fn new(block_number: u32) -> Self {
+    pub fn new() -> Self {
         Self {
             utxos_to_add: Default::default(),
             utxos_to_remove: Default::default(),
             utxos_to_remove_dr: vec![],
-            block_number,
         }
     }
 
@@ -280,8 +426,7 @@ impl Diff {
     /// use std::collections::HashMap;
     /// use witnet_data_structures::utxo_pool::Diff;
     ///
-    /// let block_number = 0;
-    /// let diff = Diff::new(block_number);
+    /// let diff = Diff::new();
     /// let mut hashmap = HashMap::new();
     /// diff.visit(&mut hashmap, |hashmap, output_pointer, output| {
     ///     hashmap.insert(output_pointer.clone(), output.clone());
@@ -310,6 +455,7 @@ impl Diff {
 pub struct UtxoDiff<'a> {
     diff: Diff,
     utxo_set: &'a UnspentOutputsPool,
+    block_number: u32,
 }
 
 impl<'a> UtxoDiff<'a> {
@@ -317,7 +463,8 @@ impl<'a> UtxoDiff<'a> {
     pub fn new(utxo_set: &'a UnspentOutputsPool, block_number: u32) -> Self {
         UtxoDiff {
             utxo_set,
-            diff: Diff::new(block_number),
+            diff: Diff::new(),
+            block_number,
         }
     }
 
@@ -328,10 +475,10 @@ impl<'a> UtxoDiff<'a> {
         output: ValueTransferOutput,
         block_number: Option<u32>,
     ) {
+        // TODO: this assumes that we never insert-remove-insert again
         self.diff.utxos_to_add.insert(
             output_pointer,
-            output,
-            block_number.unwrap_or(self.diff.block_number),
+            (output, block_number.unwrap_or(self.block_number)),
         );
     }
 
@@ -351,10 +498,15 @@ impl<'a> UtxoDiff<'a> {
     /// Get an utxo from the original utxo set or one that has been
     /// recorded as inserted later. If the same utxo has been recorded
     /// as removed, None will be returned.
-    pub fn get(&self, output_pointer: &OutputPointer) -> Option<&ValueTransferOutput> {
+    pub fn get(&self, output_pointer: &OutputPointer) -> Option<ValueTransferOutput> {
         self.utxo_set
             .get(output_pointer)
-            .or_else(|| self.diff.utxos_to_add.get(output_pointer))
+            .or_else(|| {
+                self.diff
+                    .utxos_to_add
+                    .get(output_pointer)
+                    .map(|(vt, _block_number)| vt.clone())
+            })
             .and_then(|output| {
                 if self.diff.utxos_to_remove.contains(output_pointer) {
                     None
