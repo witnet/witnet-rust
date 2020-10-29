@@ -1093,14 +1093,15 @@ fn test_create_vtt_body() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance = model::BalanceInfo {
+        available: 20000u64,
+        locked: 0u64,
+    };
 
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1147,15 +1148,18 @@ fn test_create_vtt_body_2() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
 
+    let new_balance = model::BalanceInfo {
+        available: 2800u64,
+        locked: 0u64,
+    };
+
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
+
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = 1;
@@ -1201,14 +1205,14 @@ fn test_create_vtt_body_3() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
-
+    let new_balance = model::BalanceInfo {
+        available: 801u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1279,14 +1283,15 @@ fn test_create_vtt_body_4() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance = model::BalanceInfo {
+        available: 70003u64,
+        locked: 0u64,
+    };
 
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1353,14 +1358,14 @@ fn test_create_vtt_body_5() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
-
+    let new_balance = model::BalanceInfo {
+        available: 3700u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1433,14 +1438,14 @@ fn test_create_vtt_body_6() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
-
+    let new_balance = model::BalanceInfo {
+        available: 1300u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1464,14 +1469,14 @@ fn test_create_vtt_body_without_outputs() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
-
+    let new_balance = model::BalanceInfo {
+        available: 0u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1510,14 +1515,14 @@ fn test_create_vtt_body_with_too_large_fee() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
-
+    let new_balance = model::BalanceInfo {
+        available: 1u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1560,14 +1565,14 @@ fn test_create_vt_weight_too_large() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
-
+    let new_balance = model::BalanceInfo {
+        available: 200u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
@@ -1607,13 +1612,15 @@ fn test_create_dr_body_1() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance = model::BalanceInfo {
+        available: 2000u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
 
     let request = types::DataRequestOutput {
         witness_reward: 1,
@@ -1621,7 +1628,6 @@ fn test_create_dr_body_1() {
         ..types::DataRequestOutput::default()
     };
 
-    let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let value = 1;
     let fee = 1;
@@ -1653,13 +1659,15 @@ fn test_create_dr_body_2_not_enough_funds() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance = model::BalanceInfo {
+        available: 2u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
 
     let request = types::DataRequestOutput {
         witness_reward: 1,
@@ -1667,7 +1675,6 @@ fn test_create_dr_body_2_not_enough_funds() {
         ..types::DataRequestOutput::default()
     };
 
-    let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let value = 1;
     let fee = 1;
@@ -1704,13 +1711,15 @@ fn test_create_dr_body_3_funds_splitted() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance = model::BalanceInfo {
+        available: 2000u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), &path).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
 
     let request = types::DataRequestOutput {
         witness_reward: 1,
@@ -1718,7 +1727,6 @@ fn test_create_dr_body_3_funds_splitted() {
         ..types::DataRequestOutput::default()
     };
 
-    let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let value = 1;
     let fee = 1;
@@ -1766,13 +1774,15 @@ fn test_create_dr_body_3_funds_splitted() {
         ),
     ]);
 
-    let db_2 = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set_2).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance_2 = model::BalanceInfo {
+        available: weight * 3 / 2,
+        locked: 0u64,
+    };
+
+    let db_2 = HashMapDb::default();
+    db_2.put(&keys::account_utxo_set(0), utxo_set_2).unwrap();
+    db_2.put(&keys::account_balance(0), new_balance_2).unwrap();
+    db_2.put(&keys::pkh(&pkh), path).unwrap();
 
     let (wallet_2, _db) = factories::wallet(Some(db_2));
     let mut state_2 = wallet_2.state.write().unwrap();
@@ -1793,15 +1803,16 @@ fn test_create_dr_body_without_outputs() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
-
+    let new_balance = model::BalanceInfo {
+        available: 0u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
+
     let mut state = wallet.state.write().unwrap();
     let request = types::DataRequestOutput {
         witness_reward: 1,
@@ -1847,13 +1858,14 @@ fn test_create_dr_body_weight_too_large() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance = model::BalanceInfo {
+        available: 1000u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
 
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
@@ -1898,13 +1910,15 @@ fn test_create_dr_body_fee_too_large() {
         keychain: constants::EXTERNAL_KEYCHAIN,
         index: 0,
     };
-    let db = HashMap::from_iter(vec![
-        (
-            keys::account_utxo_set(0).as_bytes().to_vec(),
-            bincode::serialize(&utxo_set).unwrap(),
-        ),
-        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
-    ]);
+    let new_balance = model::BalanceInfo {
+        available: 2000u64,
+        locked: 0u64,
+    };
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
 
     let request = types::DataRequestOutput {
         witness_reward: 1,
@@ -1912,7 +1926,6 @@ fn test_create_dr_body_fee_too_large() {
         ..types::DataRequestOutput::default()
     };
 
-    let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let value = 1;
     let fee = u64::MAX / 2;
