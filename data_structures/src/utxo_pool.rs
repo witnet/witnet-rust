@@ -1,4 +1,7 @@
-use crate::chain::{Epoch, OutputPointer, PublicKeyHash, ValueTransferOutput};
+use crate::{
+    chain::{Epoch, OutputPointer, PublicKeyHash, ValueTransferOutput},
+    transaction_factory::UtxoFantasy,
+};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -144,6 +147,51 @@ impl OwnUnspentOutputsPool {
             })
             .cloned()
             .collect()
+    }
+}
+
+/// Struct that keep the unspent outputs pool and the own unspent outputs pool
+#[derive(Debug)]
+pub struct NodeUtxos<'a> {
+    pub all_utxos: &'a UnspentOutputsPool,
+    pub own_utxos: &'a mut OwnUnspentOutputsPool,
+}
+
+impl<'a> UtxoFantasy for NodeUtxos<'a> {
+    fn sort_iter(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer> {
+        match strategy {
+            UtxoSelectionStrategy::BigFirst => self.own_utxos.sort(&self.all_utxos, true),
+            UtxoSelectionStrategy::SmallFirst => self.own_utxos.sort(&self.all_utxos, false),
+            UtxoSelectionStrategy::Random => {
+                self.own_utxos.iter().map(|(o, _ts)| o.clone()).collect()
+            }
+        }
+    }
+
+    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
+        let time_lock = self.all_utxos.get(outptr).map(|vto| vto.time_lock);
+        let time_lock_by_used = self.own_utxos.get(outptr).copied();
+
+        match (time_lock, time_lock_by_used) {
+            (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            _ => None,
+        }
+    }
+
+    fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
+        self.all_utxos.get(outptr).map(|vto| vto.value)
+    }
+
+    fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<u32> {
+        self.all_utxos.included_in_block_number(outptr)
+    }
+
+    fn set_used_output_pointer(&mut self, outptr: &OutputPointer, ts: u64) {
+        if let Some(current_ts) = self.own_utxos.get_mut(outptr) {
+            *current_ts = ts;
+        }
     }
 }
 

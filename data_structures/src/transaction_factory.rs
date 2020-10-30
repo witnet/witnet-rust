@@ -5,24 +5,35 @@ use crate::{
     },
     error::TransactionError,
     transaction::{DRTransactionBody, VTTransactionBody},
+    utxo_pool::NodeUtxos,
     utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoSelectionStrategy},
 };
 use std::{collections::HashSet, convert::TryFrom};
+
+pub trait UtxoFantasy {
+    fn sort_iter(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer>;
+    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64>;
+    fn get_value(&self, outptr: &OutputPointer) -> Option<u64>;
+    fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<Epoch>;
+    fn set_used_output_pointer(&mut self, outptr: &OutputPointer, ts: u64);
+}
 
 /// Select enough UTXOs to sum up to `amount`.
 ///
 /// On success, return a list of output pointers and their sum.
 /// On error, return the total sum of the output pointers in `own_utxos`.
-pub fn take_enough_utxos(
-    own_utxos: &mut OwnUnspentOutputsPool,
-    all_utxos: &UnspentOutputsPool,
+pub fn take_enough_utxos<T>(
+    utxos: &mut T,
     amount: u64,
     timestamp: u64,
     tx_pending_timeout: u64,
     // The block number must be lower than this limit
     block_number_limit: Option<u32>,
     utxo_strategy: UtxoSelectionStrategy,
-) -> Result<(Vec<OutputPointer>, u64), TransactionError> {
+) -> Result<(Vec<OutputPointer>, u64), TransactionError>
+where
+    T: UtxoFantasy,
+{
     // FIXME: this is a very naive utxo selection algorithm
     if amount == 0 {
         // Transactions with no inputs make no sense
@@ -33,21 +44,14 @@ pub fn take_enough_utxos(
     let mut total = 0;
     let mut list = vec![];
 
-    let utxo_iter: Vec<OutputPointer> = match utxo_strategy {
-        UtxoSelectionStrategy::BigFirst => own_utxos.sort(&all_utxos, true),
-        UtxoSelectionStrategy::SmallFirst => own_utxos.sort(&all_utxos, false),
-        UtxoSelectionStrategy::Random => own_utxos.iter().map(|(o, _ts)| o.clone()).collect(),
-    };
+    let utxo_iter = utxos.sort_iter(utxo_strategy);
 
     for op in utxo_iter.iter() {
-        let ts = own_utxos.get_mut(op).unwrap();
-        let value = all_utxos.get(op).unwrap().value;
+        let value = utxos.get_value(op).unwrap();
         total += value;
-        if all_utxos.get(op).unwrap().time_lock > timestamp {
-            continue;
-        }
 
-        if timestamp < *ts {
+        let time_lock = utxos.get_time_lock(op).unwrap();
+        if time_lock > timestamp {
             continue;
         }
 
@@ -55,7 +59,7 @@ pub fn take_enough_utxos(
             // Ignore all outputs created after `block_number_limit`.
             // Outputs from the genesis block will never be ignored because `block_number_limit`
             // can't go lower than `0`.
-            if all_utxos.included_in_block_number(op).unwrap() > block_number_limit {
+            if utxos.get_included_block_number(op).unwrap() > block_number_limit {
                 continue;
             }
         }
@@ -71,9 +75,8 @@ pub fn take_enough_utxos(
     if acc >= amount {
         // Mark UTXOs as used so we don't double spend
         for elem in &list {
-            let ts = own_utxos.get_mut(elem).unwrap();
             // Save the timestamp until it could be spend it
-            *ts = timestamp + tx_pending_timeout;
+            utxos.set_used_output_pointer(elem, timestamp + tx_pending_timeout);
         }
         Ok((list, acc))
     } else {
@@ -128,13 +131,17 @@ pub fn build_vtt(
     tx_pending_timeout: u64,
     utxo_strategy: UtxoSelectionStrategy,
 ) -> Result<VTTransactionBody, TransactionError> {
+    let mut utxos = NodeUtxos {
+        all_utxos,
+        own_utxos,
+    };
+
     let (inputs, outputs) = build_inputs_outputs_inner(
         outputs,
         None,
         fee,
-        own_utxos,
+        &mut utxos,
         own_pkh,
-        all_utxos,
         timestamp,
         tx_pending_timeout,
         None,
@@ -154,13 +161,16 @@ pub fn build_drt(
     timestamp: u64,
     tx_pending_timeout: u64,
 ) -> Result<DRTransactionBody, TransactionError> {
+    let mut utxos = NodeUtxos {
+        all_utxos,
+        own_utxos,
+    };
     let (inputs, outputs) = build_inputs_outputs_inner(
         vec![],
         Some(&dr_output),
         fee,
-        own_utxos,
+        &mut utxos,
         own_pkh,
-        all_utxos,
         timestamp,
         tx_pending_timeout,
         None,
@@ -185,13 +195,16 @@ pub fn build_commit_collateral(
     // In a CommitTransaction, the collateral is also the difference between the input value
     // and the output value
     let fee = collateral;
+    let mut utxos = NodeUtxos {
+        all_utxos,
+        own_utxos,
+    };
     build_inputs_outputs_inner(
         vec![],
         None,
         fee,
-        own_utxos,
+        &mut utxos,
         own_pkh,
-        all_utxos,
         timestamp,
         tx_pending_timeout,
         Some(block_number_limit),
@@ -202,19 +215,21 @@ pub fn build_commit_collateral(
 /// Generic inputs/outputs builder: can be used to build
 /// value transfer transactions and data request transactions.
 #[allow(clippy::too_many_arguments)]
-fn build_inputs_outputs_inner(
+fn build_inputs_outputs_inner<T>(
     outputs: Vec<ValueTransferOutput>,
     dr_output: Option<&DataRequestOutput>,
     fee: u64,
-    own_utxos: &mut OwnUnspentOutputsPool,
+    utxos: &mut T,
     own_pkh: PublicKeyHash,
-    all_utxos: &UnspentOutputsPool,
     timestamp: u64,
     tx_pending_timeout: u64,
     // The block number must be lower than this limit
     block_number_limit: Option<u32>,
     utxo_strategy: UtxoSelectionStrategy,
-) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), TransactionError> {
+) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), TransactionError>
+where
+    T: UtxoFantasy,
+{
     // On error just assume the value is u64::max_value(), hoping that it is
     // impossible to pay for this transaction
     let output_value: u64 = transaction_outputs_sum(&outputs)
@@ -226,8 +241,7 @@ fn build_inputs_outputs_inner(
         );
 
     let (output_pointers, input_value) = take_enough_utxos(
-        own_utxos,
-        all_utxos,
+        utxos,
         output_value + fee,
         timestamp,
         tx_pending_timeout,
