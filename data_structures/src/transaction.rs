@@ -172,6 +172,15 @@ impl Transaction {
     pub fn size(&self) -> u32 {
         u32::try_from(self.to_pb().write_to_bytes().unwrap().len()).unwrap()
     }
+
+    /// Get the weight of the transaction
+    pub fn weight(&self) -> u32 {
+        match self {
+            Transaction::ValueTransfer(vt_txn) => vt_txn.weight(),
+            Transaction::DataRequest(dr_txn) => dr_txn.weight(),
+            _ => 0,
+        }
+    }
 }
 
 pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {

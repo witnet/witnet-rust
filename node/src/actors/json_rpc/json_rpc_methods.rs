@@ -653,6 +653,8 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
 pub struct GetTransactionOutput {
     /// Transaction
     pub transaction: Transaction,
+    /// Weight of the transaction
+    pub weight: u32,
     /// Hash of the block that contains this transaction in hex format,
     /// or "pending" if the transaction has not been included in any block yet
     pub block_hash: String,
@@ -671,8 +673,10 @@ pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcRes
             .send(GetItemTransaction { hash })
             .then(move |res| match res {
                 Ok(Ok((transaction, pointer_to_block))) => {
+                    let weight = transaction.weight();
                     let output = GetTransactionOutput {
                         transaction,
+                        weight,
                         block_hash: pointer_to_block.block_hash.to_string(),
                     };
                     let value = match serde_json::to_value(output) {
@@ -691,8 +695,10 @@ pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcRes
                     Box::new(chain_manager.send(GetMemoryTransaction { hash }).then(
                         |res| match res {
                             Ok(Ok(transaction)) => {
+                                let weight = transaction.weight();
                                 let output = GetTransactionOutput {
                                     transaction,
+                                    weight,
                                     block_hash: "pending".to_string(),
                                 };
                                 let value = match serde_json::to_value(output) {
