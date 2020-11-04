@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
-use serde_json::json;
+use serde_json::{json, Value};
 
 use witnet_rad::script::RadonScriptExecutionSettings;
 
@@ -825,7 +825,7 @@ impl Worker {
     pub async fn get_block(&self, block_id: String) -> Result<(types::ChainBlock, bool)> {
         log::debug!("Getting block with id {} ", block_id);
         let method = String::from("getBlock");
-        let params = block_id;
+        let params = vec![Value::String(block_id), Value::Bool(false)];
 
         let req = types::RpcRequest::method(method)
             .timeout(self.node.requests_timeout)
