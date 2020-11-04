@@ -1736,6 +1736,14 @@ where
         Ok(())
     }
 
+    /// Clear all pending data for a wallet.
+    pub fn clear_pending_data(&self) -> Result<()> {
+        let mut state = self.state.write()?;
+        state.clear_pending_data();
+
+        Ok(())
+    }
+
     /// Run a predicate on the state of a wallet in a thread safe manner, thanks to a read lock.
     pub fn lock_and_read_state<P, O>(&self, predicate: P) -> Result<O>
     where

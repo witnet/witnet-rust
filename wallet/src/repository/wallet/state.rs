@@ -114,4 +114,14 @@ impl State {
         self.transient_internal_addresses.clear();
         self.transient_external_addresses.clear();
     }
+
+    /// Clear all pending data for a wallet state.
+    pub fn clear_pending_data(&mut self) {
+        self.local_movements.clear();
+        self.pending_addresses_by_block.clear();
+        self.pending_addresses_by_path.clear();
+        self.pending_blocks.clear();
+        self.pending_dr_movements.clear();
+        self.pending_movements.clear();
+    }
 }

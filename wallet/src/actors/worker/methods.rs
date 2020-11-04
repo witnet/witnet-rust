@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 use witnet_data_structures::chain::ValueTransferOutput;
 use witnet_rad::script::RadonScriptExecutionSettings;
 
-use crate::types::{ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable};
+use crate::types::{
+    ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable, StateMachine,
+};
 use crate::{account, constants, crypto, db::Database as _, model, params};
 
 use super::*;
@@ -1022,7 +1024,13 @@ impl Worker {
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
-        log::debug!("The node has changed its status into {:?}", status);
+        log::info!("The node has changed its status into {:?}", status);
+        if status == StateMachine::Synced && !wallet.is_syncing()? {
+            wallet.clear_pending_data().ok();
+            self.sync(&wallet.id, &wallet, sink.clone(), true)
+                .map(|_| true)
+                .ok();
+        }
 
         // Notify about the changed node status.
         let events = vec![types::Event::NodeStatus(status)];
