@@ -332,8 +332,13 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
     let fee = 0;
     let pkh = factories::pkh();
     let time_lock = 0;
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
     let err = wallet
-        .create_vt_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_transaction_components(&mut state, vec![vto], fee)
         .unwrap_err();
 
     assert_eq!(
@@ -350,7 +355,7 @@ fn test_create_transaction_components_without_a_change_address() {
         output_index: 0,
     };
     let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
-        out_pointer.clone(),
+        out_pointer,
         model::OutputInfo {
             pkh,
             amount: 1,
@@ -372,16 +377,18 @@ fn test_create_transaction_components_without_a_change_address() {
     let value = 1;
     let fee = 0;
     let time_lock = 0;
-    let vtt = wallet
-        .create_vt_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(&mut state, vec![vto], fee)
         .unwrap();
 
-    assert_eq!(1, vtt.value);
-    assert_eq!(0, vtt.change);
-    assert_eq!(vec![out_pointer], vtt.used_utxos);
-    assert_eq!(1, vtt.sign_keys.len());
-    assert_eq!(1, vtt.inputs.len());
-    assert_eq!(1, vtt.outputs.len());
+    assert_eq!(1, inputs.len());
+    assert_eq!(1, outputs.len());
 }
 
 #[test]
@@ -413,21 +420,20 @@ fn test_create_transaction_components_with_a_change_address() {
     let pkh = factories::pkh();
     let value = 1;
     let fee = 0;
-    let out_pointer = model::OutPtr {
-        txn_hash: vec![0; 32],
-        output_index: 0,
-    };
     let time_lock = 0;
-    let vtt = wallet
-        .create_vt_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(&mut state, vec![vto], fee)
         .unwrap();
 
-    assert_eq!(1, vtt.value);
-    assert_eq!(1, vtt.change);
-    assert_eq!(vec![out_pointer], vtt.used_utxos);
-    assert_eq!(1, vtt.sign_keys.len());
-    assert_eq!(1, vtt.inputs.len());
-    assert_eq!(2, vtt.outputs.len());
+    assert_eq!(1, inputs.len());
+    assert_eq!(2, outputs.len());
 }
 
 #[test]
@@ -477,8 +483,13 @@ fn test_create_transaction_components_which_value_overflows() {
     let value = std::u64::MAX;
     let fee = 0;
     let time_lock = 0;
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
     let err = wallet
-        .create_vt_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_transaction_components(&mut state, vec![vto], fee)
         .unwrap_err();
 
     assert_eq!(

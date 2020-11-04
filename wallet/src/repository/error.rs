@@ -1,6 +1,7 @@
 use failure::Fail;
 
 use crate::{db, types};
+use witnet_data_structures::error::TransactionError;
 
 #[derive(Debug, Fail)]
 #[fail(display = "Database Error")]
@@ -41,6 +42,8 @@ pub enum Error {
     BlockConsolidation(String),
     #[fail(display = "hash parsing failed: {}", _0)]
     HashParseError(#[cause] types::HashParseError),
+    #[fail(display = "failed creating a transaction: {}", _0)]
+    TransactionCreation(#[cause] TransactionError),
 }
 
 impl From<failure::Error> for Error {
@@ -82,5 +85,15 @@ impl From<types::PublicKeyHashParseError> for Error {
 impl From<types::HashParseError> for Error {
     fn from(err: types::HashParseError) -> Self {
         Error::HashParseError(err)
+    }
+}
+
+impl From<TransactionError> for Error {
+    fn from(err: TransactionError) -> Self {
+        match err {
+            TransactionError::NoMoney { .. } => Error::InsufficientBalance,
+            TransactionError::OutputValueOverflow => Error::TransactionValueOverflow,
+            _ => Error::TransactionCreation(err),
+        }
     }
 }

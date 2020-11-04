@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::repository::keys::Key;
 use crate::{account, types};
-use witnet_data_structures::chain::{PublicKeyHash, ValueTransferOutput};
+use witnet_data_structures::chain::{OutputPointer, PublicKeyHash, ValueTransferOutput};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
@@ -233,6 +233,13 @@ impl OutPtr {
 
         types::Hash::SHA256(array_bytes)
     }
+
+    pub fn output_pointer(&self) -> OutputPointer {
+        OutputPointer {
+            transaction_id: self.transaction_id(),
+            output_index: self.output_index,
+        }
+    }
 }
 
 impl From<&types::OutputPointer> for OutPtr {
@@ -293,6 +300,7 @@ impl fmt::Display for Beacon {
 }
 
 pub type UtxoSet = HashMap<OutPtr, OutputInfo>;
+pub type UsedUtxoSet = HashMap<OutPtr, u64>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Path {

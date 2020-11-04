@@ -4819,6 +4819,7 @@ dependencies = [
  "futures 0.3.7",
  "futures-util",
  "hex 0.4.2",
+ "itertools",
  "jsonrpc-core 15.1.0",
  "jsonrpc-pubsub",
  "log 0.4.11",

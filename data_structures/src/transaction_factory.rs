@@ -41,14 +41,16 @@ where
     }
 
     let mut acc = 0;
-    let mut total = 0;
+    let mut total: u64 = 0;
     let mut list = vec![];
 
     let utxo_iter = utxos.sort_iter(utxo_strategy);
 
     for op in utxo_iter.iter() {
         let value = utxos.get_value(op).unwrap();
-        total += value;
+        total = total
+            .checked_add(value)
+            .ok_or_else(|| TransactionError::OutputValueOverflow)?;
 
         let time_lock = utxos.get_time_lock(op).unwrap();
         if time_lock > timestamp {
@@ -215,7 +217,7 @@ pub fn build_commit_collateral(
 /// Generic inputs/outputs builder: can be used to build
 /// value transfer transactions and data request transactions.
 #[allow(clippy::too_many_arguments)]
-fn build_inputs_outputs_inner<T>(
+pub fn build_inputs_outputs_inner<T>(
     outputs: Vec<ValueTransferOutput>,
     dr_output: Option<&DataRequestOutput>,
     fee: u64,

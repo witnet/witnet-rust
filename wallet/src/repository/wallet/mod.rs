@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{
     cmp::min,
     collections::HashMap,
@@ -11,10 +12,13 @@ use state::State;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
-        CheckpointBeacon, Environment, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
-        ValueTransferOutput,
+        CheckpointBeacon, DataRequestOutput, Environment, Epoch, EpochConstants, Input,
+        OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
+    transaction_factory::UtxoFantasy,
+    transaction_factory::{insert_change_output, take_enough_utxos, transaction_outputs_sum},
+    utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_util::timestamp::get_timestamp;
 
@@ -37,6 +41,68 @@ struct AccountMutation {
     balance_movement: model::BalanceMovement,
     utxo_inserts: Vec<(model::OutPtr, model::OutputInfo)>,
     utxo_removals: Vec<model::OutPtr>,
+}
+
+/// Struct that keep the unspent outputs pool and the own unspent outputs pool
+#[derive(Debug)]
+pub struct WalletUtxos<'a> {
+    pub utxo_set: &'a model::UtxoSet,
+    pub used_utxo_set: &'a mut model::UsedUtxoSet,
+}
+
+impl<'a> UtxoFantasy for WalletUtxos<'a> {
+    fn sort_iter(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer> {
+        match strategy {
+            UtxoSelectionStrategy::BigFirst => sort_utxo_set(self.utxo_set, true),
+            UtxoSelectionStrategy::SmallFirst => sort_utxo_set(self.utxo_set, false),
+            UtxoSelectionStrategy::Random => self
+                .utxo_set
+                .iter()
+                .map(|(o, _)| o.clone().output_pointer())
+                .collect(),
+        }
+    }
+
+    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
+        let time_lock = self.utxo_set.get(&outptr.into()).map(|vto| vto.time_lock);
+        let time_lock_by_used = self.used_utxo_set.get(&outptr.into()).copied();
+
+        match (time_lock, time_lock_by_used) {
+            (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            _ => None,
+        }
+    }
+
+    fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
+        self.utxo_set.get(&outptr.into()).map(|vto| vto.amount)
+    }
+
+    fn get_included_block_number(&self, _outptr: &OutputPointer) -> Option<u32> {
+        None
+    }
+
+    fn set_used_output_pointer(&mut self, outptr: &OutputPointer, ts: u64) {
+        self.used_utxo_set.insert(outptr.into(), ts);
+    }
+}
+
+/// Method to sort own_utxos by value
+pub fn sort_utxo_set(utxo_set: &model::UtxoSet, bigger_first: bool) -> Vec<OutputPointer> {
+    utxo_set
+        .iter()
+        .sorted_by_key(|(_o, info)| {
+            let value = i128::from(info.amount);
+
+            if bigger_first {
+                -value
+            } else {
+                value
+            }
+        })
+        .map(|(o, _info)| o.output_pointer())
+        .collect()
 }
 
 pub struct Wallet<T> {
@@ -921,28 +987,20 @@ where
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
-        let components =
-            self.create_vt_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))?;
+        let (inputs, outputs) = self.create_vt_transaction_components(
+            &mut state,
+            vec![ValueTransferOutput {
+                pkh,
+                value,
+                time_lock,
+            }],
+            fee,
+        )?;
 
-        let body = types::VTTransactionBody::new(components.inputs, components.outputs);
+        let body = types::VTTransactionBody::new(inputs.clone(), outputs);
         let sign_data = body.hash();
-        let signatures: Result<Vec<types::KeyedSignature>> = components
-            .sign_keys
-            .into_iter()
-            .map(|sign_key| {
-                let public_key = From::from(types::PK::from_secret_key(&self.engine, &sign_key));
-                let signature = From::from(types::signature::sign(
-                    &self.engine,
-                    sign_key,
-                    sign_data.as_ref(),
-                )?);
-
-                Ok(types::KeyedSignature {
-                    signature,
-                    public_key,
-                })
-            })
-            .collect();
+        let signatures =
+            self.create_signatures_from_inputs_and_update_balance(inputs, sign_data, &mut state);
 
         Ok(types::VTTransaction::new(body, signatures?))
     }
@@ -953,93 +1011,164 @@ where
         types::DataReqParams { fee, request }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
-        let value = request
-            .checked_total_value()
-            .map_err(|_| Error::TransactionValueOverflow)?;
-        let components = self.create_dr_transaction_components(&mut state, value, fee)?;
+        let (inputs, outputs) =
+            self.create_dr_transaction_components(&mut state, request.clone(), fee)?;
 
-        let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
+        let body = types::DRTransactionBody::new(inputs.clone(), outputs, request);
         let sign_data = body.hash();
-        let signatures: Result<Vec<types::KeyedSignature>> = components
-            .sign_keys
-            .into_iter()
-            .map(|sign_key| {
-                let public_key = From::from(types::PK::from_secret_key(&self.engine, &sign_key));
-                let signature = From::from(types::signature::sign(
-                    &self.engine,
-                    sign_key,
-                    sign_data.as_ref(),
-                )?);
-
-                Ok(types::KeyedSignature {
-                    signature,
-                    public_key,
-                })
-            })
-            .collect();
+        let signatures =
+            self.create_signatures_from_inputs_and_update_balance(inputs, sign_data, &mut state);
 
         Ok(types::DRTransaction::new(body, signatures?))
+    }
+
+    /// Create signatures from inputs
+    fn create_signatures_from_inputs_and_update_balance(
+        &self,
+        inputs: Vec<Input>,
+        sign_data: Hash,
+        state: &mut State,
+    ) -> Result<Vec<types::KeyedSignature>> {
+        let mut keyed_signatures = vec![];
+        let mut balance = state.balance;
+
+        for input in inputs {
+            let key_balance = state.utxo_set.get(&input.output_pointer().into()).unwrap();
+
+            let model::Path {
+                keychain, index, ..
+            } = self.db.get(&keys::pkh(&key_balance.pkh))?;
+            let parent_key = state
+                .keychains
+                .get(keychain as usize)
+                .expect("could not get keychain");
+
+            let extended_sign_key =
+                parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
+
+            let sign_key = extended_sign_key.into();
+
+            let public_key = From::from(types::PK::from_secret_key(&self.engine, &sign_key));
+            let signature = From::from(types::signature::sign(
+                &self.engine,
+                sign_key,
+                sign_data.as_ref(),
+            )?);
+
+            balance.unconfirmed.available = balance
+                .unconfirmed
+                .available
+                .checked_sub(key_balance.amount)
+                .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
+
+            keyed_signatures.push(types::KeyedSignature {
+                signature,
+                public_key,
+            });
+        }
+
+        Ok(keyed_signatures)
     }
 
     fn create_vt_transaction_components(
         &self,
         state: &mut State,
-        value: u64,
+        outputs: Vec<ValueTransferOutput>,
         fee: u64,
-        recipient: Option<(PublicKeyHash, u64)>,
-    ) -> Result<types::TransactionComponents> {
-        self.create_transaction_components(state, value, fee, recipient, false)
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
+        let utxo_strategy = UtxoSelectionStrategy::Random;
+        let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+
+        let (inputs, outputs) = self.build_inputs_outputs_inner_wallet(
+            outputs,
+            None,
+            fee,
+            state,
+            timestamp,
+            tx_pending_timeout,
+            None,
+            utxo_strategy,
+        )?;
+
+        Ok((inputs, outputs))
     }
 
     fn create_dr_transaction_components(
         &self,
         state: &mut State,
-        value: u64,
+        request: DataRequestOutput,
         fee: u64,
-    ) -> Result<types::TransactionComponents> {
-        self.create_transaction_components(state, value, fee, None, true)
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
+        let utxo_strategy = UtxoSelectionStrategy::Random;
+        let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+
+        let (inputs, outputs) = self.build_inputs_outputs_inner_wallet(
+            vec![],
+            Some(&request),
+            fee,
+            state,
+            timestamp,
+            tx_pending_timeout,
+            None,
+            utxo_strategy,
+        )?;
+
+        Ok((inputs, outputs))
     }
 
-    fn create_transaction_components(
+    #[allow(clippy::too_many_arguments)]
+    fn build_inputs_outputs_inner_wallet(
         &self,
-        state: &mut State,
-        value: u64,
+        outputs: Vec<ValueTransferOutput>,
+        dr_output: Option<&DataRequestOutput>,
         fee: u64,
-        recipient: Option<(PublicKeyHash, u64)>,
-        // When creating data request transactions, the change address must be the same as the
-        // first input address
-        change_address_same_as_input: bool,
-    ) -> Result<types::TransactionComponents> {
-        let target = value.saturating_add(fee);
-        let mut payment = 0u64;
-        let mut inputs = Vec::with_capacity(5);
-        let mut outputs = Vec::with_capacity(2);
-        let mut sign_keys = Vec::with_capacity(5);
-        let mut used_utxos = Vec::with_capacity(5);
-        let mut balance = state.balance;
+        state: &mut State,
+        timestamp: u64,
+        tx_pending_timeout: u64,
+        // The block number must be lower than this limit
+        block_number_limit: Option<u32>,
+        utxo_strategy: UtxoSelectionStrategy,
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
+        let mut used_utxo_set = HashMap::default();
+        let mut wallet_utxos = WalletUtxos {
+            utxo_set: &state.utxo_set,
+            used_utxo_set: &mut used_utxo_set,
+        };
 
-        if let Some((pkh, time_lock)) = recipient {
-            outputs.push(ValueTransferOutput {
-                pkh,
-                value,
-                time_lock,
-            });
-        }
+        // On error just assume the value is u64::max_value(), hoping that it is
+        // impossible to pay for this transaction
+        let output_value: u64 = transaction_outputs_sum(&outputs)
+            .unwrap_or(u64::max_value())
+            .saturating_add(
+                dr_output
+                    .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
+                    .unwrap_or_default(),
+            );
 
-        let mut first_pkh = None;
-        let timestamp =
-            u64::try_from(get_timestamp()).expect("Get timestamp should return a positive value");
-        for (out_ptr, key_balance) in state.utxo_set.iter() {
-            if payment >= target {
-                break;
-            } else if key_balance.time_lock > timestamp {
-                continue;
-            }
+        let (output_pointers, input_value) = take_enough_utxos(
+            &mut wallet_utxos,
+            output_value + fee,
+            timestamp,
+            tx_pending_timeout,
+            block_number_limit,
+            utxo_strategy,
+        )
+        .map_err(|e| {
+            let repository_error: Error = e.into();
 
-            let input = Input::new(OutputPointer {
-                transaction_id: out_ptr.transaction_id(),
-                output_index: out_ptr.output_index,
-            });
+            repository_error
+        })?;
+
+        // In case of VTTransaction, a new internal address is used
+        // In case of DRTransaction, the first input pkh will be used
+        let change_pkh = if dr_output.is_none() {
+            self._gen_internal_address(state, None)?.pkh
+        } else {
+            let first_output = output_pointers.first().clone().unwrap();
+            let key_balance = wallet_utxos.utxo_set.get(&first_output.into()).unwrap();
+
             let model::Path {
                 keychain, index, ..
             } = self.db.get(&keys::pkh(&key_balance.pkh))?;
@@ -1051,55 +1180,17 @@ where
             let extended_sign_key =
                 parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
 
-            if first_pkh.is_none() && change_address_same_as_input {
-                let public_key: types::PK =
-                    types::ExtendedPK::from_secret_key(&self.engine, &extended_sign_key).into();
+            let public_key: types::PK =
+                types::ExtendedPK::from_secret_key(&self.engine, &extended_sign_key).into();
 
-                first_pkh = Some(witnet_data_structures::chain::PublicKey::from(public_key).pkh());
-            }
+            witnet_data_structures::chain::PublicKey::from(public_key).pkh()
+        };
 
-            payment = payment
-                .checked_add(key_balance.amount)
-                .ok_or_else(|| Error::TransactionValueOverflow)?;
-            balance.unconfirmed.available = balance
-                .unconfirmed
-                .available
-                .checked_sub(key_balance.amount)
-                .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
-            inputs.push(input);
-            sign_keys.push(extended_sign_key.into());
-            used_utxos.push(out_ptr.clone());
-        }
+        let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
+        let mut outputs = outputs;
+        insert_change_output(&mut outputs, change_pkh, input_value - output_value - fee);
 
-        if payment < target {
-            Err(Error::InsufficientBalance)
-        } else {
-            let change = payment - target;
-
-            if change > 0 {
-                let change_pkh = if let Some(pkh) = first_pkh {
-                    pkh
-                } else {
-                    self._gen_internal_address(state, None)?.pkh
-                };
-
-                outputs.push(ValueTransferOutput {
-                    pkh: change_pkh,
-                    value: change,
-                    time_lock: 0,
-                });
-            }
-
-            Ok(types::TransactionComponents {
-                value,
-                balance: balance.unconfirmed,
-                change,
-                inputs,
-                outputs,
-                sign_keys,
-                used_utxos,
-            })
-        }
+        Ok((inputs, outputs))
     }
 
     fn _gen_internal_address(
