@@ -752,7 +752,9 @@ impl Worker {
 
             // Keep asking for new batches of blocks until we get less than expected, which signals
             // that there are no more blocks to process.
-            if batch_size < i128::from(limit) {
+            if batch_size < i128::from(limit)
+                || wallet.lock_and_read_state(|state| state.stop_syncing)?
+            {
                 break;
             } else {
                 log::info!(

@@ -309,6 +309,7 @@ where
             db_movements_to_update: Default::default(),
             transient_external_addresses: Default::default(),
             transient_internal_addresses: Default::default(),
+            stop_syncing: false,
         });
 
         Ok(Self {
@@ -407,6 +408,14 @@ where
         };
 
         Ok((Arc::new(address), next_index))
+    }
+
+    /// Set stop syncing flag to true
+    pub fn set_stop_syncing(&self) -> Result<()> {
+        let mut state = self.state.write()?;
+        state.stop_syncing = true;
+
+        Ok(())
     }
 
     /// Generate an address in the external keychain (WIP-0001).

@@ -161,4 +161,12 @@ impl State {
 
         self.wallets.insert(wallet_id, wallet);
     }
+
+    /// Get latest session for a wallet ID
+    pub fn get_current_wallet_session(
+        &mut self,
+        wallet_id: String,
+    ) -> Option<&types::SessionWallet> {
+        self.wallets.get(&wallet_id)
+    }
 }

@@ -77,6 +77,8 @@ pub struct State {
     pub transient_internal_addresses: HashMap<PublicKeyHash, model::Address>,
     /// Transient external addresses
     pub transient_external_addresses: HashMap<PublicKeyHash, model::Address>,
+    /// Flag that determines whether to stop syncing an ongoing synchronization for a wallet session
+    pub stop_syncing: bool,
 }
 
 impl State {
