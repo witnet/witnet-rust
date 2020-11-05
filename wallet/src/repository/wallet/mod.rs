@@ -1738,6 +1738,25 @@ where
         Ok(!(state.transient_internal_addresses.is_empty()
             && state.transient_external_addresses.is_empty()))
     }
+
+    pub fn export_private_key(&self, _password: &[u8]) -> Result<String> {
+        let state = self.state.read()?;
+        let internal_parent_key = &state.keychains[constants::INTERNAL_KEYCHAIN as usize];
+        let external_parent_key = &state.keychains[constants::EXTERNAL_KEYCHAIN as usize];
+        let internal_secret_key = internal_parent_key.to_slip32(&types::KeyPath::default());
+        let mut internal_secret_key_hex = match internal_secret_key {
+            Ok(x) => x,
+            Err(_e) => return Err(Error::TransactionBalanceOverflow),
+        };
+        let external_secret_key = external_parent_key.to_slip32(&types::KeyPath::default());
+        let external_secret_key_hex = match external_secret_key {
+            Ok(x) => x,
+            Err(_e) => return Err(Error::TransactionBalanceOverflow),
+        };
+        internal_secret_key_hex.push_str(&external_secret_key_hex);
+        //log::error!("Your secret key is {:?}", secret_key_hex.clone().into_bytes());
+        Ok(internal_secret_key_hex)
+    }
 }
 
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> u64 {

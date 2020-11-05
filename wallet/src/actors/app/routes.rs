@@ -193,6 +193,7 @@ pub fn connect_routes<T, S>(
         ("Set", "set", SetRequest),
         ("Get", "get", GetRequest),
         ("Sign-Data", "sign_data", SignDataRequest),
+        ("Export-Private-Key", "export_private_key", ExportPrivateKeyRequest),
         ("Shutdown", "shutdown", ShutdownRequest),
     );
 }

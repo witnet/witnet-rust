@@ -1,5 +1,7 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::str;
+
 
 use witnet_crypto::mnemonic::Mnemonic;
 
@@ -30,6 +32,7 @@ impl Handler<CreateWalletRequest> for app::App {
 
     fn handle(&mut self, req: CreateWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let validated_params = validate(req).map_err(app::validation_error);
+        log::error!("I passed the validation");
 
         let f = fut::result(validated_params).and_then(|params, slf: &mut Self, _ctx| {
             slf.create_wallet(
@@ -65,7 +68,23 @@ fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors
     let description = req.description;
     let seed_data = req.seed_data;
     let source = match req.seed_source.as_ref() {
-        "xprv" => Ok(types::SeedSource::Xprv(seed_data)),
+        "xprv" => {
+                let ref_seed: &[u8] = seed_data.as_ref();
+                let seed_data_string: String = str::from_utf8(ref_seed).expect("wrong").to_string();
+                let ocurrences: Vec<(usize, &str)> = seed_data_string.match_indices("xprv").collect();
+                log::error!("Here with ocurrences {:?}", ocurrences);
+
+                match ocurrences.len() {
+                    1 => Ok(types::SeedSource::Xprv(seed_data)),
+                    2 => {
+                        let (internal, external) = seed_data_string.split_at(ocurrences[1].0);
+                        log::error!("Here with external {:?} and internal {:?}", external, internal);
+
+                        Ok(types::SeedSource::XprvKeychain((internal.into(), external.into())))
+                    },
+                    _ => Ok(types::SeedSource::Xprv(seed_data)),
+                }
+        },
         "mnemonics" => Mnemonic::from_phrase(seed_data)
             .map_err(|err| app::field_error("seed_data", format!("{}", err)))
             .map(types::SeedSource::Mnemonics),

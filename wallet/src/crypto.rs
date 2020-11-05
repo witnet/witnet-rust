@@ -55,6 +55,7 @@ pub fn gen_master_key(
 
             key
         }
+        _ => return Err(Error::Generation(MasterKeyGenError::InvalidKeyLength))
     };
 
     Ok(key)
