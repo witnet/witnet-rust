@@ -170,6 +170,12 @@ impl State {
         wallet_id: String,
     ) -> Option<&types::SessionWallet> {
         self.wallets.get(&wallet_id)
+
+    }
+    
+    /// Updates the node state
+    pub fn update_node_state(&mut self, node_state: StateMachine) {
+        self.node_state = Some(node_state);
     }
 
     /// Updates the node state
