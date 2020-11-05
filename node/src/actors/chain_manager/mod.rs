@@ -1459,6 +1459,7 @@ impl ChainManager {
                 next_state
             ),
         }
+
         self.notify_node_status(next_state);
         self.sm_state = next_state
     }

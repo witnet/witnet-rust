@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix::utils::TimerFunc;
 use futures::future;
 
-use witnet_data_structures::chain::InventoryItem;
+use witnet_data_structures::chain::{InventoryItem, StateMachine};
 
 use crate::actors::{
     worker::{HandleBlockRequest, HandleSuperBlockRequest, NodeStatusRequest, NotifyStatus},
@@ -340,13 +340,17 @@ impl App {
                 slf.state
                     .create_session(session_id.clone(), wallet_id.clone(), wallet.clone());
 
-                // Start synchronization for this wallet
-                let sink = slf.state.get_sink(&session_id);
-                slf.params.worker.do_send(worker::SyncRequest {
-                    wallet_id,
-                    wallet,
-                    sink,
-                });
+                // If the node is synced start synchronization for this wallet
+                if slf.state.node_state == Some(StateMachine::Synced)
+                    || slf.state.node_state == None
+                {
+                    let sink = slf.state.get_sink(&session_id);
+                    slf.params.worker.do_send(worker::SyncRequest {
+                        wallet_id,
+                        wallet,
+                        sink,
+                    });
+                };
 
                 fut::ok(types::UnlockedWallet { data, session_id })
             });
@@ -568,6 +572,7 @@ impl App {
             let sink = self.state.get_sink(&wallet.session_id);
             self.handle_node_status_in_worker(&status, wallet, sink.clone());
         }
+        self.state.update_node_state(status);
 
         Ok(())
     }

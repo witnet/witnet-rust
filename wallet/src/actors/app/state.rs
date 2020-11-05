@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
+use witnet_data_structures::chain::StateMachine;
 use witnet_net::client::tcp::jsonrpc::Subscribe;
 
 use crate::types::SubscriptionId;
@@ -14,6 +15,7 @@ use super::*;
 #[derive(Default)]
 pub struct State {
     pub node_subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
+    pub node_state: Option<StateMachine>,
     pub client_subscriptions: HashMap<types::SessionId, types::DynamicSink>,
     pub sessions: HashMap<types::SessionId, Session>,
     pub wallets: HashMap<String, types::SessionWallet>,
@@ -168,5 +170,10 @@ impl State {
         wallet_id: String,
     ) -> Option<&types::SessionWallet> {
         self.wallets.get(&wallet_id)
+    }
+
+    /// Updates the node state
+    pub fn update_node_state(&mut self, node_state: StateMachine) {
+        self.node_state = Some(node_state);
     }
 }

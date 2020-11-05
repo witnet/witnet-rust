@@ -1026,7 +1026,7 @@ impl Worker {
     ) -> Result<()> {
         log::info!("The node has changed its status into {:?}", status);
         if status == StateMachine::Synced && !wallet.is_syncing()? {
-            wallet.clear_pending_data().ok();
+            wallet.clear_pending_state().ok();
             self.sync(&wallet.id, &wallet, sink.clone(), true)
                 .map(|_| true)
                 .ok();
