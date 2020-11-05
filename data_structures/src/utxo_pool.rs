@@ -150,7 +150,7 @@ impl OwnUnspentOutputsPool {
     }
 }
 
-/// Struct that keep the unspent outputs pool and the own unspent outputs pool
+/// Struct that keeps the unspent outputs pool and the own unspent outputs pool
 #[derive(Debug)]
 pub struct NodeUtxos<'a> {
     pub all_utxos: &'a UnspentOutputsPool,

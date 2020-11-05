@@ -5,8 +5,9 @@ use crate::{
     },
     error::TransactionError,
     transaction::{DRTransactionBody, VTTransactionBody},
-    utxo_pool::NodeUtxos,
-    utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoSelectionStrategy},
+    utxo_pool::{
+        NodeUtxos, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoSelectionStrategy,
+    },
 };
 use std::{collections::HashSet, convert::TryFrom};
 
@@ -52,9 +53,10 @@ where
             .checked_add(value)
             .ok_or_else(|| TransactionError::OutputValueOverflow)?;
 
-        let time_lock = utxos.get_time_lock(op).unwrap();
-        if time_lock > timestamp {
-            continue;
+        if let Some(time_lock) = utxos.get_time_lock(op) {
+            if time_lock > timestamp {
+                continue;
+            }
         }
 
         if let Some(block_number_limit) = block_number_limit {

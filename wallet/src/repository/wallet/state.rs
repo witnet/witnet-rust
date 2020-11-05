@@ -70,6 +70,8 @@ pub struct State {
     pub transaction_next_id: u32,
     /// Current UTXO set (including pending movements)
     pub utxo_set: model::UtxoSet,
+    /// Tagged used UTXO set
+    pub used_utxo_set: model::UsedUtxoSet,
     /// Transient internal addresses
     pub transient_internal_addresses: HashMap<PublicKeyHash, model::Address>,
     /// Transient external addresses

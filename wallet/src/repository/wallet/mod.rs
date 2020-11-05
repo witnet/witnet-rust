@@ -46,16 +46,16 @@ struct AccountMutation {
 /// Struct that keep the unspent outputs pool and the own unspent outputs pool
 #[derive(Debug)]
 pub struct WalletUtxos<'a> {
-    pub utxo_set: &'a model::UtxoSet,
-    pub used_utxo_set: &'a mut model::UsedUtxoSet,
+    pub state: &'a mut State,
 }
 
 impl<'a> UtxoFantasy for WalletUtxos<'a> {
     fn sort_iter(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer> {
         match strategy {
-            UtxoSelectionStrategy::BigFirst => sort_utxo_set(self.utxo_set, true),
-            UtxoSelectionStrategy::SmallFirst => sort_utxo_set(self.utxo_set, false),
+            UtxoSelectionStrategy::BigFirst => sort_utxo_set(&self.state.utxo_set, true),
+            UtxoSelectionStrategy::SmallFirst => sort_utxo_set(&self.state.utxo_set, false),
             UtxoSelectionStrategy::Random => self
+                .state
                 .utxo_set
                 .iter()
                 .map(|(o, _)| o.clone().output_pointer())
@@ -64,8 +64,12 @@ impl<'a> UtxoFantasy for WalletUtxos<'a> {
     }
 
     fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
-        let time_lock = self.utxo_set.get(&outptr.into()).map(|vto| vto.time_lock);
-        let time_lock_by_used = self.used_utxo_set.get(&outptr.into()).copied();
+        let time_lock = self
+            .state
+            .utxo_set
+            .get(&outptr.into())
+            .map(|vto| vto.time_lock);
+        let time_lock_by_used = self.state.used_utxo_set.get(&outptr.into()).copied();
 
         match (time_lock, time_lock_by_used) {
             (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
@@ -76,7 +80,10 @@ impl<'a> UtxoFantasy for WalletUtxos<'a> {
     }
 
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
-        self.utxo_set.get(&outptr.into()).map(|vto| vto.amount)
+        self.state
+            .utxo_set
+            .get(&outptr.into())
+            .map(|vto| vto.amount)
     }
 
     fn get_included_block_number(&self, _outptr: &OutputPointer) -> Option<u32> {
@@ -84,7 +91,7 @@ impl<'a> UtxoFantasy for WalletUtxos<'a> {
     }
 
     fn set_used_output_pointer(&mut self, outptr: &OutputPointer, ts: u64) {
-        self.used_utxo_set.insert(outptr.into(), ts);
+        self.state.used_utxo_set.insert(outptr.into(), ts);
     }
 }
 
@@ -297,6 +304,7 @@ where
             balance,
             transaction_next_id,
             utxo_set,
+            used_utxo_set: Default::default(),
             epoch_constants,
             last_sync,
             last_confirmed,
@@ -1131,11 +1139,7 @@ where
         block_number_limit: Option<u32>,
         utxo_strategy: UtxoSelectionStrategy,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
-        let mut used_utxo_set = HashMap::default();
-        let mut wallet_utxos = WalletUtxos {
-            utxo_set: &state.utxo_set,
-            used_utxo_set: &mut used_utxo_set,
-        };
+        let mut wallet_utxos = WalletUtxos { state };
 
         // On error just assume the value is u64::max_value(), hoping that it is
         // impossible to pay for this transaction
@@ -1167,12 +1171,17 @@ where
             self._gen_internal_address(state, None)?.pkh
         } else {
             let first_output = output_pointers.first().clone().unwrap();
-            let key_balance = wallet_utxos.utxo_set.get(&first_output.into()).unwrap();
+            let key_balance = wallet_utxos
+                .state
+                .utxo_set
+                .get(&first_output.into())
+                .unwrap();
 
             let model::Path {
                 keychain, index, ..
             } = self.db.get(&keys::pkh(&key_balance.pkh))?;
-            let parent_key = &state
+            let parent_key = wallet_utxos
+                .state
                 .keychains
                 .get(keychain as usize)
                 .expect("could not get keychain");
@@ -1244,6 +1253,7 @@ where
         // Update memory state: `utxo_set`
         for pointer in &account_mutation.utxo_removals {
             state.utxo_set.remove(pointer);
+            state.used_utxo_set.remove(pointer);
         }
         for (pointer, key_balance) in &account_mutation.utxo_inserts {
             state.utxo_set.insert(pointer.clone(), key_balance.clone());
