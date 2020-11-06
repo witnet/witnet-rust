@@ -4812,6 +4812,7 @@ version = "0.3.2"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
+ "bech32",
  "bincode",
  "chrono",
  "failure",

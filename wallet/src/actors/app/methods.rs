@@ -832,20 +832,20 @@ impl App {
         &mut self,
         session_id: types::SessionId,
         wallet_id: String,
-        password: types::Password) -> ResponseActFuture<String> {
+        password: types::Password,
+    ) -> ResponseActFuture<String> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
         )
-
-            .and_then(move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::ExportPrivateKey(wallet, password))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-            });
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::ExportPrivateKey(wallet, password))
+                .flatten()
+                .map_err(From::from)
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }

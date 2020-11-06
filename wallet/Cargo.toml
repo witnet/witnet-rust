@@ -26,6 +26,7 @@ failure = "0.1.8"
 hex = "0.4.1"
 rand = "0.7.3"
 chrono = "0.4.10"
+bech32 = "0.7.2"
 
 witnet_net = { path = "../net" }
 witnet_config = { path = "../config", features = ["with-rocksdb"] }

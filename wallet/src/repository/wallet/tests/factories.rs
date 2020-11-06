@@ -12,8 +12,7 @@ pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb)
     let source = types::SeedSource::Mnemonics(mnemonic);
     let master_key = crypto::gen_master_key(
         params.seed_password.as_ref(),
-        params.
-            master_key_salt.as_ref(),
+        params.master_key_salt.as_ref(),
         &source,
     )
     .unwrap();

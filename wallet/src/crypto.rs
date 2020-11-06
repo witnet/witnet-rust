@@ -2,12 +2,17 @@ use failure::Fail;
 
 pub use witnet_crypto::hash::calculate_sha256;
 use witnet_crypto::{
+    cipher,
     hash::HashFunction,
     key::{ExtendedSK, KeyError, MasterKeyGen, MasterKeyGenError},
     pbkdf2::pbkdf2_sha256,
 };
 
 use crate::types;
+
+const IV_LENGTH: usize = 16;
+const SALT_LENGTH: usize = 32;
+const HASH_ITER_COUNT: u32 = 10_000;
 
 /// Generation of master key errors
 #[derive(Debug, Fail)]
@@ -55,7 +60,7 @@ pub fn gen_master_key(
 
             key
         }
-        _ => return Err(Error::Generation(MasterKeyGenError::InvalidKeyLength))
+        _ => return Err(Error::Generation(MasterKeyGenError::InvalidKeyLength)),
     };
 
     Ok(key)
@@ -115,4 +120,34 @@ where
     rng.fill_bytes(&mut bytes);
 
     bytes
+}
+
+pub fn encrypt_cbc(value: &[u8], password: &[u8]) -> Result<Vec<u8>> {
+    log::error!("Plaintext to encrypt{:?}", value);
+
+    let iv = cipher::generate_random(IV_LENGTH).unwrap();
+    log::error!("iv to encrypt{:?}", iv);
+
+    let salt = cipher::generate_random(SALT_LENGTH).unwrap();
+    log::error!("salt to encrypt{:?}", salt);
+
+    let secret = pbkdf2_sha256(password, &salt, HASH_ITER_COUNT);
+    let encrypted = cipher::encrypt_aes_cbc(&secret, value, iv.as_ref()).unwrap();
+    let mut final_value = iv;
+    final_value.extend(salt);
+    final_value.extend(encrypted);
+    Ok(final_value)
+}
+
+pub fn decrypt_cbc(ciphertext: &[u8], password: &[u8]) -> Result<Vec<u8>> {
+    let mut iv = ciphertext.to_vec();
+    let mut salt = iv.split_off(IV_LENGTH);
+    log::error!("Len of iv is {:?}", iv);
+
+    let true_ciphertext = salt.split_off(SALT_LENGTH);
+    log::error!("Len of salt is {:?}", salt);
+    log::error!("Len of ciphertext is {:?}", true_ciphertext);
+    let secret = pbkdf2_sha256(password, &salt, HASH_ITER_COUNT);
+    let plaintext = cipher::decrypt_aes_cbc(&secret, &true_ciphertext, &iv).unwrap();
+    Ok(plaintext)
 }

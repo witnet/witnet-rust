@@ -44,6 +44,8 @@ pub enum Error {
     HashParseError(#[cause] types::HashParseError),
     #[fail(display = "failed creating a transaction: {}", _0)]
     TransactionCreation(#[cause] TransactionError),
+    #[fail(display = "Bech32 serialization error: {}", _0)]
+    Bech32(#[cause] bech32::Error),
 }
 
 impl From<failure::Error> for Error {

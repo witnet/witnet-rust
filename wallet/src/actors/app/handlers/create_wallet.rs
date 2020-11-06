@@ -2,11 +2,10 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::str;
 
-
 use witnet_crypto::mnemonic::Mnemonic;
 
 use crate::actors::app;
-use crate::types;
+use crate::{crypto, types};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateWalletRequest {
@@ -16,6 +15,7 @@ pub struct CreateWalletRequest {
     seed_source: String,
     seed_data: types::Password,
     overwrite: Option<bool>,
+    backup_password: Option<types::Password>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,24 +67,67 @@ fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors
     let name = req.name;
     let description = req.description;
     let seed_data = req.seed_data;
+    let backup_password = req.backup_password;
     let source = match req.seed_source.as_ref() {
         "xprv" => {
-                let ref_seed: &[u8] = seed_data.as_ref();
-                let seed_data_string: String = str::from_utf8(ref_seed).expect("wrong").to_string();
-                let ocurrences: Vec<(usize, &str)> = seed_data_string.match_indices("xprv").collect();
-                log::error!("Here with ocurrences {:?}", ocurrences);
+            let backup_password = backup_password.ok_or_else(|| {
+                app::field_error("backup_password", "Backup password not found for XPRV key")
+            })?;
+            let seed_data_string = str::from_utf8(seed_data.as_ref()).map_err(|_| {
+                app::field_error("seed_data", "Could not convert seed data to XPRV string")
+            })?;
+            log::error!("Before decoding");
+            let (hrp, ciphertext) = bech32::decode(seed_data_string)
+                .map_err(|_| app::field_error("seed_data", "Could not decode bench32 key"))?;
+            match hrp.as_str() {
+                "xprv" => Ok(types::SeedSource::Xprv(seed_data)),
+                "xprvdouble" => {
+                    let decrypted_key_string = bech32::FromBase32::from_base32(&ciphertext)
+                        .map_err(|_| {
+                            app::field_error(
+                                "seed_data",
+                                "Could not convert bech 32 decoded key to u8 array",
+                            )
+                        })
+                        .and_then(|res: Vec<u8>| {
+                            crypto::decrypt_cbc(&res, backup_password.as_ref()).map_err(|_| {
+                                app::field_error("seed_data", "Could not decrypt seed data")
+                            })
+                        })
+                        .and_then(|decrypted: Vec<u8>| {
+                            str::from_utf8(&decrypted)
+                                .map(|str| str.to_string())
+                                .map_err(|_| {
+                                    app::field_error("seed_data", "Could not decrypt seed data")
+                                })
+                        })?;
 
-                match ocurrences.len() {
-                    1 => Ok(types::SeedSource::Xprv(seed_data)),
-                    2 => {
-                        let (internal, external) = seed_data_string.split_at(ocurrences[1].0);
-                        log::error!("Here with external {:?} and internal {:?}", external, internal);
+                    log::error!("After utf8 {:?}", decrypted_key_string);
 
-                        Ok(types::SeedSource::XprvKeychain((internal.into(), external.into())))
-                    },
-                    _ => Ok(types::SeedSource::Xprv(seed_data)),
+                    let ocurrences: Vec<(usize, &str)> =
+                        decrypted_key_string.match_indices("xprv").collect();
+                    log::error!("Here with ocurrences {:?}", ocurrences);
+                    if ocurrences.len() != 2 {
+                        return Err(app::field_error(
+                            "seed_data",
+                            "Invalid number of XPRV keys found for xprvDouble type",
+                        ));
+                    }
+                    let (internal, external) = decrypted_key_string.split_at(ocurrences[1].0);
+                    log::error!(
+                        "Here with external {:?} and internal {:?}",
+                        external,
+                        internal
+                    );
+
+                    Ok(types::SeedSource::XprvKeychain((
+                        internal.into(),
+                        external.into(),
+                    )))
                 }
-        },
+                _ => Ok(types::SeedSource::Xprv(seed_data)),
+            }
+        }
         "mnemonics" => Mnemonic::from_phrase(seed_data)
             .map_err(|err| app::field_error("seed_data", format!("{}", err)))
             .map(types::SeedSource::Mnemonics),

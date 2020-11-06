@@ -5,7 +5,6 @@ use crate::types;
 
 pub struct ExportPrivateKey(pub types::SessionWallet, pub types::Password);
 
-
 impl Message for ExportPrivateKey {
     type Result = worker::Result<String>;
 }
@@ -18,10 +17,6 @@ impl Handler<ExportPrivateKey> for worker::Worker {
         ExportPrivateKey(wallet, password): ExportPrivateKey,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.
-            export_private_key(
-            &wallet,
-            password.as_ref(),
-        )
+        self.export_private_key(&wallet, password.as_ref())
     }
 }
