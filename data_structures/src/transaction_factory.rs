@@ -11,84 +11,87 @@ use crate::{
 };
 use std::{collections::HashSet, convert::TryFrom};
 
-pub trait UtxoFantasy {
-    fn sort_iter(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer>;
+/// Abstraction that facilitates the creation of new transactions from a set of unspent outputs.
+/// Transaction factories are expected to operate on this trait so that their business logic
+/// can be applied on many heterogeneous data structures that may implement it.
+pub trait OutputsCollection {
+    fn sort_by(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer>;
     fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<Epoch>;
-    fn set_used_output_pointer(&mut self, outptr: &OutputPointer, ts: u64);
-}
+    fn set_used_output_pointer(&mut self, outptrs: &[OutputPointer], ts: u64);
 
-/// Select enough UTXOs to sum up to `amount`.
-///
-/// On success, return a list of output pointers and their sum.
-/// On error, return the total sum of the output pointers in `own_utxos`.
-pub fn take_enough_utxos<T>(
-    utxos: &mut T,
-    amount: u64,
-    timestamp: u64,
-    tx_pending_timeout: u64,
-    // The block number must be lower than this limit
-    block_number_limit: Option<u32>,
-    utxo_strategy: UtxoSelectionStrategy,
-) -> Result<(Vec<OutputPointer>, u64), TransactionError>
-where
-    T: UtxoFantasy,
-{
-    // FIXME: this is a very naive utxo selection algorithm
-    if amount == 0 {
-        // Transactions with no inputs make no sense
-        return Err(TransactionError::ZeroAmount);
-    }
-
-    let mut acc = 0;
-    let mut total: u64 = 0;
-    let mut list = vec![];
-
-    let utxo_iter = utxos.sort_iter(utxo_strategy);
-
-    for op in utxo_iter.iter() {
-        let value = utxos.get_value(op).unwrap();
-        total = total
-            .checked_add(value)
-            .ok_or_else(|| TransactionError::OutputValueOverflow)?;
-
-        if let Some(time_lock) = utxos.get_time_lock(op) {
-            if time_lock > timestamp {
-                continue;
-            }
+    /// Select enough UTXOs to sum up to `amount`.
+    ///
+    /// On success, return a list of output pointers and their sum.
+    /// On error, return the total sum of the output pointers in `own_utxos`.
+    fn take_enough_utxos(
+        &mut self,
+        amount: u64,
+        timestamp: u64,
+        tx_pending_timeout: u64,
+        // The block number must be lower than this limit
+        block_number_limit: Option<u32>,
+        utxo_strategy: UtxoSelectionStrategy,
+    ) -> Result<(Vec<OutputPointer>, u64), TransactionError> {
+        // FIXME: this is a very naive utxo selection algorithm
+        if amount == 0 {
+            // Transactions with no inputs make no sense
+            return Err(TransactionError::ZeroAmount);
         }
 
-        if let Some(block_number_limit) = block_number_limit {
-            // Ignore all outputs created after `block_number_limit`.
-            // Outputs from the genesis block will never be ignored because `block_number_limit`
-            // can't go lower than `0`.
-            if utxos.get_included_block_number(op).unwrap() > block_number_limit {
-                continue;
+        let mut acc = 0;
+        let mut total: u64 = 0;
+        let mut list = vec![];
+
+        let utxo_iter = self.sort_by(utxo_strategy);
+
+        for op in utxo_iter.iter() {
+            let value = self.get_value(op).unwrap();
+            total = total
+                .checked_add(value)
+                .ok_or_else(|| TransactionError::OutputValueOverflow)?;
+
+            if let Some(time_lock) = self.get_time_lock(op) {
+                if time_lock > timestamp {
+                    continue;
+                }
+            }
+
+            if let Some(block_number_limit) = block_number_limit {
+                // Ignore all outputs created after `block_number_limit`.
+                // Outputs from the genesis block will never be ignored because `block_number_limit`
+                // can't go lower than `0`.
+                if let Some(limit) = self.get_included_block_number(op) {
+                    if limit > block_number_limit {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
+
+            acc += value;
+            list.push(op.clone());
+
+            if acc >= amount {
+                break;
             }
         }
-
-        acc += value;
-        list.push(op.clone());
 
         if acc >= amount {
-            break;
-        }
-    }
-
-    if acc >= amount {
-        // Mark UTXOs as used so we don't double spend
-        for elem in &list {
+            // Mark UTXOs as used so we don't double spend
             // Save the timestamp until it could be spend it
-            utxos.set_used_output_pointer(elem, timestamp + tx_pending_timeout);
+            self.set_used_output_pointer(&list, timestamp + tx_pending_timeout);
+
+            Ok((list, acc))
+        } else {
+            Err(TransactionError::NoMoney {
+                total_balance: total,
+                available_balance: acc,
+                transaction_value: amount,
+            })
         }
-        Ok((list, acc))
-    } else {
-        Err(TransactionError::NoMoney {
-            total_balance: total,
-            available_balance: acc,
-            transaction_value: amount,
-        })
     }
 }
 
@@ -232,21 +235,25 @@ pub fn build_inputs_outputs_inner<T>(
     utxo_strategy: UtxoSelectionStrategy,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), TransactionError>
 where
-    T: UtxoFantasy,
+    T: OutputsCollection,
 {
     // On error just assume the value is u64::max_value(), hoping that it is
     // impossible to pay for this transaction
     let output_value: u64 = transaction_outputs_sum(&outputs)
         .unwrap_or(u64::max_value())
-        .saturating_add(
+        .checked_add(
             dr_output
                 .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
                 .unwrap_or_default(),
-        );
+        )
+        .ok_or_else(|| TransactionError::OutputValueOverflow)?;
 
-    let (output_pointers, input_value) = take_enough_utxos(
-        utxos,
-        output_value + fee,
+    let amount = output_value
+        .checked_add(fee)
+        .ok_or_else(|| TransactionError::OutputValueOverflow)?;
+
+    let (output_pointers, input_value) = utxos.take_enough_utxos(
+        amount,
         timestamp,
         tx_pending_timeout,
         block_number_limit,

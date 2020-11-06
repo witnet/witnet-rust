@@ -233,11 +233,13 @@ impl OutPtr {
 
         types::Hash::SHA256(array_bytes)
     }
+}
 
-    pub fn output_pointer(&self) -> OutputPointer {
+impl From<&OutPtr> for OutputPointer {
+    fn from(out_ptr: &OutPtr) -> OutputPointer {
         OutputPointer {
-            transaction_id: self.transaction_id(),
-            output_index: self.output_index,
+            transaction_id: out_ptr.transaction_id(),
+            output_index: out_ptr.output_index,
         }
     }
 }
@@ -300,7 +302,10 @@ impl fmt::Display for Beacon {
 }
 
 pub type UtxoSet = HashMap<OutPtr, OutputInfo>;
-pub type UsedUtxoSet = HashMap<OutPtr, u64>;
+/// Map of output pointer to timestamp.
+/// Used to mark outputs that have been recently used in a transaction.
+/// They will not be used again until this timestamp.
+pub type UsedOutputs = HashMap<OutPtr, u64>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Path {

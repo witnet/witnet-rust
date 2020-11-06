@@ -16,8 +16,8 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
-    transaction_factory::UtxoFantasy,
-    transaction_factory::{insert_change_output, take_enough_utxos, transaction_outputs_sum},
+    transaction_factory::OutputsCollection,
+    transaction_factory::{insert_change_output, transaction_outputs_sum},
     utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -46,31 +46,24 @@ struct AccountMutation {
 /// Struct that keep the unspent outputs pool and the own unspent outputs pool
 #[derive(Debug)]
 pub struct WalletUtxos<'a> {
-    pub state: &'a mut State,
+    pub utxo_set: &'a model::UtxoSet,
+    pub used_outputs: &'a mut model::UsedOutputs,
 }
 
-impl<'a> UtxoFantasy for WalletUtxos<'a> {
-    fn sort_iter(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer> {
+impl<'a> OutputsCollection for WalletUtxos<'a> {
+    fn sort_by(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer> {
         match strategy {
-            UtxoSelectionStrategy::BigFirst => sort_utxo_set(&self.state.utxo_set, true),
-            UtxoSelectionStrategy::SmallFirst => sort_utxo_set(&self.state.utxo_set, false),
-            UtxoSelectionStrategy::Random => self
-                .state
-                .utxo_set
-                .iter()
-                .map(|(o, _)| o.clone().output_pointer())
-                .collect(),
+            UtxoSelectionStrategy::BigFirst => sort_utxo_set(&self.utxo_set, true),
+            UtxoSelectionStrategy::SmallFirst => sort_utxo_set(&self.utxo_set, false),
+            UtxoSelectionStrategy::Random => self.utxo_set.iter().map(|(o, _)| o.into()).collect(),
         }
     }
 
     fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
-        let time_lock = self
-            .state
-            .utxo_set
-            .get(&outptr.into())
-            .map(|vto| vto.time_lock);
-        let time_lock_by_used = self.state.used_utxo_set.get(&outptr.into()).copied();
+        let time_lock = self.utxo_set.get(&outptr.into()).map(|vto| vto.time_lock);
+        let time_lock_by_used = self.used_outputs.get(&outptr.into()).copied();
 
+        // The most restrictive time_lock will be used to avoid UTXOs during a transaction creation
         match (time_lock, time_lock_by_used) {
             (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
             (Some(a), None) => Some(a),
@@ -80,18 +73,17 @@ impl<'a> UtxoFantasy for WalletUtxos<'a> {
     }
 
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
-        self.state
-            .utxo_set
-            .get(&outptr.into())
-            .map(|vto| vto.amount)
+        self.utxo_set.get(&outptr.into()).map(|vto| vto.amount)
     }
 
     fn get_included_block_number(&self, _outptr: &OutputPointer) -> Option<u32> {
         None
     }
 
-    fn set_used_output_pointer(&mut self, outptr: &OutputPointer, ts: u64) {
-        self.state.used_utxo_set.insert(outptr.into(), ts);
+    fn set_used_output_pointer(&mut self, outptrs: &[OutputPointer], ts: u64) {
+        for outptr in outptrs {
+            self.used_outputs.insert(outptr.into(), ts);
+        }
     }
 }
 
@@ -108,7 +100,7 @@ pub fn sort_utxo_set(utxo_set: &model::UtxoSet, bigger_first: bool) -> Vec<Outpu
                 value
             }
         })
-        .map(|(o, _info)| o.output_pointer())
+        .map(|(o, _info)| o.into())
         .collect()
 }
 
@@ -304,7 +296,7 @@ where
             balance,
             transaction_next_id,
             utxo_set,
-            used_utxo_set: Default::default(),
+            used_outputs: Default::default(),
             epoch_constants,
             last_sync,
             last_confirmed,
@@ -1007,8 +999,7 @@ where
 
         let body = types::VTTransactionBody::new(inputs.clone(), outputs);
         let sign_data = body.hash();
-        let signatures =
-            self.create_signatures_from_inputs_and_update_balance(inputs, sign_data, &mut state);
+        let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
 
         Ok(types::VTTransaction::new(body, signatures?))
     }
@@ -1024,21 +1015,19 @@ where
 
         let body = types::DRTransactionBody::new(inputs.clone(), outputs, request);
         let sign_data = body.hash();
-        let signatures =
-            self.create_signatures_from_inputs_and_update_balance(inputs, sign_data, &mut state);
+        let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
 
         Ok(types::DRTransaction::new(body, signatures?))
     }
 
     /// Create signatures from inputs
-    fn create_signatures_from_inputs_and_update_balance(
+    fn create_signatures_from_inputs(
         &self,
         inputs: Vec<Input>,
         sign_data: Hash,
         state: &mut State,
     ) -> Result<Vec<types::KeyedSignature>> {
         let mut keyed_signatures = vec![];
-        let mut balance = state.balance;
 
         for input in inputs {
             let key_balance = state.utxo_set.get(&input.output_pointer().into()).unwrap();
@@ -1062,12 +1051,6 @@ where
                 sign_key,
                 sign_data.as_ref(),
             )?);
-
-            balance.unconfirmed.available = balance
-                .unconfirmed
-                .available
-                .checked_sub(key_balance.amount)
-                .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
 
             keyed_signatures.push(types::KeyedSignature {
                 signature,
@@ -1139,31 +1122,39 @@ where
         block_number_limit: Option<u32>,
         utxo_strategy: UtxoSelectionStrategy,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
-        let mut wallet_utxos = WalletUtxos { state };
+        let mut wallet_utxos = WalletUtxos {
+            utxo_set: &state.utxo_set,
+            used_outputs: &mut state.used_outputs,
+        };
 
         // On error just assume the value is u64::max_value(), hoping that it is
         // impossible to pay for this transaction
         let output_value: u64 = transaction_outputs_sum(&outputs)
             .unwrap_or(u64::max_value())
-            .saturating_add(
+            .checked_add(
                 dr_output
                     .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
                     .unwrap_or_default(),
-            );
+            )
+            .ok_or_else(|| Error::TransactionValueOverflow)?;
 
-        let (output_pointers, input_value) = take_enough_utxos(
-            &mut wallet_utxos,
-            output_value + fee,
-            timestamp,
-            tx_pending_timeout,
-            block_number_limit,
-            utxo_strategy,
-        )
-        .map_err(|e| {
-            let repository_error: Error = e.into();
+        let amount = output_value
+            .checked_add(fee)
+            .ok_or_else(|| Error::TransactionValueOverflow)?;
 
-            repository_error
-        })?;
+        let (output_pointers, input_value) = wallet_utxos
+            .take_enough_utxos(
+                amount,
+                timestamp,
+                tx_pending_timeout,
+                block_number_limit,
+                utxo_strategy,
+            )
+            .map_err(|e| {
+                let repository_error: Error = e.into();
+
+                repository_error
+            })?;
 
         // In case of VTTransaction, a new internal address is used
         // In case of DRTransaction, the first input pkh will be used
@@ -1171,17 +1162,12 @@ where
             self._gen_internal_address(state, None)?.pkh
         } else {
             let first_output = output_pointers.first().clone().unwrap();
-            let key_balance = wallet_utxos
-                .state
-                .utxo_set
-                .get(&first_output.into())
-                .unwrap();
+            let key_balance = wallet_utxos.utxo_set.get(&first_output.into()).unwrap();
 
             let model::Path {
                 keychain, index, ..
             } = self.db.get(&keys::pkh(&key_balance.pkh))?;
-            let parent_key = wallet_utxos
-                .state
+            let parent_key = state
                 .keychains
                 .get(keychain as usize)
                 .expect("could not get keychain");
@@ -1253,7 +1239,7 @@ where
         // Update memory state: `utxo_set`
         for pointer in &account_mutation.utxo_removals {
             state.utxo_set.remove(pointer);
-            state.used_utxo_set.remove(pointer);
+            state.used_outputs.remove(pointer);
         }
         for (pointer, key_balance) in &account_mutation.utxo_inserts {
             state.utxo_set.insert(pointer.clone(), key_balance.clone());

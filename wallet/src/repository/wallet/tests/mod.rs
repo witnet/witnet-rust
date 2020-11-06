@@ -389,6 +389,7 @@ fn test_create_transaction_components_without_a_change_address() {
 
     assert_eq!(1, inputs.len());
     assert_eq!(1, outputs.len());
+    assert_eq!(value, outputs[0].value);
 }
 
 #[test]
@@ -434,6 +435,9 @@ fn test_create_transaction_components_with_a_change_address() {
 
     assert_eq!(1, inputs.len());
     assert_eq!(2, outputs.len());
+    assert_eq!(value, outputs[0].value);
+    let expected_change = 1;
+    assert_eq!(expected_change, outputs[1].value);
 }
 
 #[test]

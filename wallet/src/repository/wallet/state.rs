@@ -71,7 +71,7 @@ pub struct State {
     /// Current UTXO set (including pending movements)
     pub utxo_set: model::UtxoSet,
     /// Tagged used UTXO set
-    pub used_utxo_set: model::UsedUtxoSet,
+    pub used_outputs: model::UsedOutputs,
     /// Transient internal addresses
     pub transient_internal_addresses: HashMap<PublicKeyHash, model::Address>,
     /// Transient external addresses
