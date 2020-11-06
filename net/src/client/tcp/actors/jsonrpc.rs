@@ -4,7 +4,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use actix::prelude::*;
@@ -27,6 +27,9 @@ pub struct JsonRpcClient {
     active_subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
     pending_subscriptions: HashMap<String, Subscribe>,
     url: String,
+    // Used to calculate the time since the last reconnection, and prevent multiple reconnections
+    // in a short time interval
+    last_reconnection: Instant,
 }
 
 impl JsonRpcClient {
@@ -43,6 +46,7 @@ impl JsonRpcClient {
         subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
     ) -> Result<Addr<JsonRpcClient>, Error> {
         log::info!("Connecting client to {}", url);
+        let last_reconnection = Instant::now();
         let (_handle, socket) = TcpSocket::new(url).map_err(|_| Error::InvalidUrl)?;
         let client = Self {
             _handle,
@@ -50,6 +54,7 @@ impl JsonRpcClient {
             active_subscriptions: subscriptions,
             pending_subscriptions: Default::default(),
             url: String::from(url),
+            last_reconnection,
         };
         log::info!("TCP socket is now connected to {}", url);
 
@@ -58,6 +63,17 @@ impl JsonRpcClient {
 
     /// Replace the TCP connection with a fresh new connection.
     pub fn reconnect(&mut self, ctx: &mut <Self as Actor>::Context) {
+        let now = Instant::now();
+        // Attempt to reconnect at most once every 10 seconds
+        let reconnection_cooldown = Duration::from_secs(10);
+        if now.duration_since(self.last_reconnection) < reconnection_cooldown {
+            log::debug!(
+                "Ignoring reconnect request: last reconnection attempt was a few seconds ago"
+            );
+            return;
+        }
+
+        self.last_reconnection = now;
         log::info!("Reconnecting TCP client to {}", self.url);
         let (_handle, socket) = TcpSocket::new(self.url.as_str())
             .map_err(|e| log::error!("Reconnection error: {}", e))
