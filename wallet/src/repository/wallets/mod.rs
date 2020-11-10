@@ -70,9 +70,14 @@ impl<T: Database> Wallets<T> {
             iv,
             salt,
             account,
+            master_key,
         } = wallet_data;
         let mut batch = self.db.batch();
         let mut wbatch = wallet_db.batch();
+
+        if let Some(master_key) = master_key {
+            wbatch.put(&keys::master_key(), master_key)?;
+        }
 
         // We first write name and description into private wallet DB
         if let Some(name) = name.as_ref() {

@@ -39,6 +39,7 @@ pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb)
                 name: None,
                 description: None,
                 account: &default_account,
+                master_key: Some(master_key),
             },
         )
         .unwrap();

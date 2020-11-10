@@ -1,6 +1,6 @@
 use failure::Fail;
 
-use crate::{db, types};
+use crate::{crypto, db, types};
 use witnet_data_structures::error::TransactionError;
 
 #[derive(Debug, Fail)]
@@ -46,6 +46,8 @@ pub enum Error {
     TransactionCreation(#[cause] TransactionError),
     #[fail(display = "Bech32 serialization error: {}", _0)]
     Bech32(#[cause] bech32::Error),
+    #[fail(display = "Crypto operation failed: {}", _0)]
+    CrytpoError(#[cause] crypto::Error),
 }
 
 impl From<failure::Error> for Error {

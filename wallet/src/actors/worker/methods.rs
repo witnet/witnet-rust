@@ -71,8 +71,8 @@ impl Worker {
         source: &types::SeedSource,
         overwrite: bool,
     ) -> Result<String> {
-        let (id, default_account) = match source {
-            types::SeedSource::XprvKeychain((internal, external)) => {
+        let (id, default_account, master_key) = match source {
+            types::SeedSource::XprvDouble((internal, external)) => {
                 let (external_key, external_path) = ExtendedSK::from_slip32(external.as_ref())
                     .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
                 if !external_path.is_master() {
@@ -81,14 +81,17 @@ impl Worker {
                         external_path
                     ))));
                 }
+
                 let (internal_key, internal_path) = ExtendedSK::from_slip32(internal.as_ref())
                     .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
+
                 if !internal_path.is_master() {
                     return Err(Error::KeyGen(crypto::Error::InvalidKeyPath(format!(
                         "{}",
                         internal_path
                     ))));
                 }
+
                 let id = crypto::gen_wallet_id(
                     &self.params.id_hash_function,
                     &external_key,
@@ -100,7 +103,7 @@ impl Worker {
                     external: external_key,
                     internal: internal_key,
                 };
-                (id, account)
+                (id, account, None)
             }
             _ => {
                 let master_key = crypto::gen_master_key(
@@ -117,7 +120,7 @@ impl Worker {
                 let default_account_index = 0;
                 let default_account =
                     account::gen_account(&self.engine, default_account_index, &master_key)?;
-                (id, default_account)
+                (id, default_account, Some(master_key))
             }
         };
         // Return error if `overwrite=false` and wallet already exists
@@ -142,7 +145,6 @@ impl Worker {
             &constants::ENCRYPTION_CHECK_KEY,
             constants::ENCRYPTION_CHECK_VALUE,
         )?; // used when unlocking to check if the password is correct
-
         self.wallets.create(
             &wallet_db,
             types::CreateWalletData {
@@ -152,6 +154,7 @@ impl Worker {
                 salt,
                 id: &id,
                 account: &default_account,
+                master_key,
             },
         )?;
 

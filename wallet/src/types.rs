@@ -107,7 +107,7 @@ impl From<String> for SessionId {
 pub enum SeedSource {
     Mnemonics(Mnemonic),
     Xprv(ProtectedString),
-    XprvKeychain((ProtectedString, ProtectedString)),
+    XprvDouble((ProtectedString, ProtectedString)),
 }
 
 pub struct UnlockedSessionWallet {
@@ -145,6 +145,7 @@ pub struct CreateWalletData<'a> {
     pub iv: Vec<u8>,
     pub salt: Vec<u8>,
     pub account: &'a Account,
+    pub master_key: Option<ExtendedSK>,
 }
 
 pub struct VttParams {

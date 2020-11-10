@@ -32,7 +32,6 @@ impl Handler<CreateWalletRequest> for app::App {
 
     fn handle(&mut self, req: CreateWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let validated_params = validate(req).map_err(app::validation_error);
-        log::error!("I passed the validation");
 
         let f = fut::result(validated_params).and_then(|params, slf: &mut Self, _ctx| {
             slf.create_wallet(
@@ -79,34 +78,29 @@ fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors
             log::error!("Before decoding");
             let (hrp, ciphertext) = bech32::decode(seed_data_string)
                 .map_err(|_| app::field_error("seed_data", "Could not decode bench32 key"))?;
+
+            let decrypted_key_string = bech32::FromBase32::from_base32(&ciphertext)
+                .map_err(|_| {
+                    app::field_error(
+                        "seed_data",
+                        "Could not convert bech 32 decoded key to u8 array",
+                    )
+                })
+                .and_then(|res: Vec<u8>| {
+                    crypto::decrypt_cbc(&res, backup_password.as_ref())
+                        .map_err(|_| app::field_error("seed_data", "Could not decrypt seed data"))
+                })
+                .and_then(|decrypted: Vec<u8>| {
+                    str::from_utf8(&decrypted)
+                        .map(|str| str.to_string())
+                        .map_err(|_| app::field_error("seed_data", "Could not decrypt seed data"))
+                })?;
             match hrp.as_str() {
-                "xprv" => Ok(types::SeedSource::Xprv(seed_data)),
+                "xprv" => Ok(types::SeedSource::Xprv(decrypted_key_string.into())),
                 "xprvdouble" => {
-                    let decrypted_key_string = bech32::FromBase32::from_base32(&ciphertext)
-                        .map_err(|_| {
-                            app::field_error(
-                                "seed_data",
-                                "Could not convert bech 32 decoded key to u8 array",
-                            )
-                        })
-                        .and_then(|res: Vec<u8>| {
-                            crypto::decrypt_cbc(&res, backup_password.as_ref()).map_err(|_| {
-                                app::field_error("seed_data", "Could not decrypt seed data")
-                            })
-                        })
-                        .and_then(|decrypted: Vec<u8>| {
-                            str::from_utf8(&decrypted)
-                                .map(|str| str.to_string())
-                                .map_err(|_| {
-                                    app::field_error("seed_data", "Could not decrypt seed data")
-                                })
-                        })?;
-
-                    log::error!("After utf8 {:?}", decrypted_key_string);
-
                     let ocurrences: Vec<(usize, &str)> =
                         decrypted_key_string.match_indices("xprv").collect();
-                    log::error!("Here with ocurrences {:?}", ocurrences);
+                    // xprvDouble should only have 2 ocurrences
                     if ocurrences.len() != 2 {
                         return Err(app::field_error(
                             "seed_data",
@@ -114,13 +108,8 @@ fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors
                         ));
                     }
                     let (internal, external) = decrypted_key_string.split_at(ocurrences[1].0);
-                    log::error!(
-                        "Here with external {:?} and internal {:?}",
-                        external,
-                        internal
-                    );
 
-                    Ok(types::SeedSource::XprvKeychain((
+                    Ok(types::SeedSource::XprvDouble((
                         internal.into(),
                         external.into(),
                     )))

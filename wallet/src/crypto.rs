@@ -29,6 +29,8 @@ pub enum Error {
         _0
     )]
     InvalidKeyPath(String),
+    #[fail(display = "The AES encryption/decryption failed: {}", _0)]
+    AESError(#[cause] cipher::Error),
 }
 
 /// Result type for cryptographic operations that can fail.
@@ -122,32 +124,28 @@ where
     bytes
 }
 
+/// AES-CBC encryption of a given u8 slice with the provided password. Returns IV|SALT|CIPHERTEXT
 pub fn encrypt_cbc(value: &[u8], password: &[u8]) -> Result<Vec<u8>> {
-    log::error!("Plaintext to encrypt{:?}", value);
-
-    let iv = cipher::generate_random(IV_LENGTH).unwrap();
-    log::error!("iv to encrypt{:?}", iv);
-
-    let salt = cipher::generate_random(SALT_LENGTH).unwrap();
-    log::error!("salt to encrypt{:?}", salt);
-
+    let iv = cipher::generate_random(IV_LENGTH).map_err(Error::AESError)?;
+    let salt = cipher::generate_random(SALT_LENGTH).map_err(Error::AESError)?;
     let secret = pbkdf2_sha256(password, &salt, HASH_ITER_COUNT);
-    let encrypted = cipher::encrypt_aes_cbc(&secret, value, iv.as_ref()).unwrap();
+    let ciphertext =
+        cipher::encrypt_aes_cbc(&secret, value, iv.as_ref()).map_err(Error::AESError)?;
     let mut final_value = iv;
     final_value.extend(salt);
-    final_value.extend(encrypted);
+    final_value.extend(ciphertext);
+
     Ok(final_value)
 }
 
+/// AES-CBC decryption of a given u8 given as IV|SALT|CIPHERTEXT slice with the provided password.
 pub fn decrypt_cbc(ciphertext: &[u8], password: &[u8]) -> Result<Vec<u8>> {
     let mut iv = ciphertext.to_vec();
     let mut salt = iv.split_off(IV_LENGTH);
-    log::error!("Len of iv is {:?}", iv);
-
     let true_ciphertext = salt.split_off(SALT_LENGTH);
-    log::error!("Len of salt is {:?}", salt);
-    log::error!("Len of ciphertext is {:?}", true_ciphertext);
     let secret = pbkdf2_sha256(password, &salt, HASH_ITER_COUNT);
-    let plaintext = cipher::decrypt_aes_cbc(&secret, &true_ciphertext, &iv).unwrap();
+    let plaintext =
+        cipher::decrypt_aes_cbc(&secret, &true_ciphertext, &iv).map_err(Error::AESError)?;
+
     Ok(plaintext)
 }

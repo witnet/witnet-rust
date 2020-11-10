@@ -207,6 +207,12 @@ pub fn address_info(
     ))
 }
 
+/// Master key
+#[inline]
+pub fn master_key() -> Key<String, ExtendedSK> {
+    Key::new("master-key".to_string())
+}
+
 /// Path information associated to a pkh (account, keychain and index).
 #[inline]
 pub fn pkh(pkh: &PublicKeyHash) -> Key<Vec<u8>, model::Path> {
