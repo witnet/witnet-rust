@@ -764,6 +764,40 @@ impl App {
             .do_send(jsonrpc::Subscribe(request, recipient));
     }
 
+    pub fn node_ping_pong(&self, ctx: &mut <Self as Actor>::Context) {
+        let method = "ping".to_string();
+        let params = ();
+
+        let req = types::RpcRequest::method(method)
+            .timeout(self.params.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+
+        log::debug!("Sending periodic request: {:?}", req);
+
+        let f = self
+            .get_client()
+            .actor
+            .send(req)
+            .flatten()
+            .inspect(|res| {
+                log::debug!("Periodic request result: {:?}", res);
+            })
+            .map_err(|err| {
+                log::warn!("Periodic request failed: {}", &err);
+                // TODO: detect node disconnected
+            })
+            .map(|_res| {
+                // Ignore result
+            })
+            .into_actor(self);
+        ctx.spawn(f);
+
+        // Try to contact the node once every 10 seconds
+        let duration = std::time::Duration::from_secs(10);
+        ctx.run_later(duration, |act, ctx| act.node_ping_pong(ctx));
+    }
+
     /// Validate seed (mnemonics or xprv):
     ///  - check if seed data is valid
     ///  - check if there is already a wallet created with same seed
