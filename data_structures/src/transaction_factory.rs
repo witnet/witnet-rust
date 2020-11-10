@@ -19,7 +19,7 @@ pub trait OutputsCollection {
     fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<Epoch>;
-    fn set_used_output_pointer(&mut self, outptrs: &[OutputPointer], ts: u64);
+    fn set_used_output_pointer(&mut self, outptrs: &[Input], ts: u64);
 
     /// Select enough UTXOs to sum up to `amount`.
     ///
@@ -29,7 +29,6 @@ pub trait OutputsCollection {
         &mut self,
         amount: u64,
         timestamp: u64,
-        tx_pending_timeout: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
         utxo_strategy: UtxoSelectionStrategy,
@@ -80,10 +79,6 @@ pub trait OutputsCollection {
         }
 
         if acc >= amount {
-            // Mark UTXOs as used so we don't double spend
-            // Save the timestamp until it could be spend it
-            self.set_used_output_pointer(&list, timestamp + tx_pending_timeout);
-
             Ok((list, acc))
         } else {
             Err(TransactionError::NoMoney {
@@ -92,6 +87,41 @@ pub trait OutputsCollection {
                 transaction_value: amount,
             })
         }
+    }
+
+    /// Generic inputs/outputs builder: can be used to build
+    /// value transfer transactions and data request transactions.
+    #[allow(clippy::too_many_arguments)]
+    fn build_inputs_outputs(
+        &mut self,
+        outputs: Vec<ValueTransferOutput>,
+        dr_output: Option<&DataRequestOutput>,
+        fee: u64,
+        timestamp: u64,
+        // The block number must be lower than this limit
+        block_number_limit: Option<u32>,
+        utxo_strategy: UtxoSelectionStrategy,
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64, u64), TransactionError> {
+        // On error just assume the value is u64::max_value(), hoping that it is
+        // impossible to pay for this transaction
+        let output_value: u64 = transaction_outputs_sum(&outputs)
+            .unwrap_or(u64::max_value())
+            .checked_add(
+                dr_output
+                    .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
+                    .unwrap_or_default(),
+            )
+            .ok_or_else(|| TransactionError::OutputValueOverflow)?;
+
+        let amount = output_value
+            .checked_add(fee)
+            .ok_or_else(|| TransactionError::OutputValueOverflow)?;
+
+        let (output_pointers, input_value) =
+            self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
+        let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
+
+        Ok((inputs, outputs, input_value, output_value))
     }
 }
 
@@ -143,17 +173,15 @@ pub fn build_vtt(
         own_utxos,
     };
 
-    let (inputs, outputs) = build_inputs_outputs_inner(
-        outputs,
-        None,
-        fee,
-        &mut utxos,
-        own_pkh,
-        timestamp,
-        tx_pending_timeout,
-        None,
-        utxo_strategy,
-    )?;
+    let (inputs, outputs, input_value, output_value) =
+        utxos.build_inputs_outputs(outputs, None, fee, timestamp, None, utxo_strategy)?;
+
+    // Mark UTXOs as used so we don't double spend
+    // Save the timestamp until it could be spend it
+    utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
+
+    let mut outputs = outputs;
+    insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
 
     Ok(VTTransactionBody::new(inputs, outputs))
 }
@@ -172,17 +200,21 @@ pub fn build_drt(
         all_utxos,
         own_utxos,
     };
-    let (inputs, outputs) = build_inputs_outputs_inner(
+    let (inputs, outputs, input_value, output_value) = utxos.build_inputs_outputs(
         vec![],
         Some(&dr_output),
         fee,
-        &mut utxos,
-        own_pkh,
         timestamp,
-        tx_pending_timeout,
         None,
         UtxoSelectionStrategy::Random,
     )?;
+
+    // Mark UTXOs as used so we don't double spend
+    // Save the timestamp until it could be spend it
+    utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
+
+    let mut outputs = outputs;
+    insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
 
     Ok(DRTransactionBody::new(inputs, outputs, dr_output))
 }
@@ -206,60 +238,19 @@ pub fn build_commit_collateral(
         all_utxos,
         own_utxos,
     };
-    build_inputs_outputs_inner(
+    let (inputs, outputs, input_value, output_value) = utxos.build_inputs_outputs(
         vec![],
         None,
         fee,
-        &mut utxos,
-        own_pkh,
         timestamp,
-        tx_pending_timeout,
         Some(block_number_limit),
         UtxoSelectionStrategy::SmallFirst,
-    )
-}
-
-/// Generic inputs/outputs builder: can be used to build
-/// value transfer transactions and data request transactions.
-#[allow(clippy::too_many_arguments)]
-pub fn build_inputs_outputs_inner<T>(
-    outputs: Vec<ValueTransferOutput>,
-    dr_output: Option<&DataRequestOutput>,
-    fee: u64,
-    utxos: &mut T,
-    own_pkh: PublicKeyHash,
-    timestamp: u64,
-    tx_pending_timeout: u64,
-    // The block number must be lower than this limit
-    block_number_limit: Option<u32>,
-    utxo_strategy: UtxoSelectionStrategy,
-) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), TransactionError>
-where
-    T: OutputsCollection,
-{
-    // On error just assume the value is u64::max_value(), hoping that it is
-    // impossible to pay for this transaction
-    let output_value: u64 = transaction_outputs_sum(&outputs)
-        .unwrap_or(u64::max_value())
-        .checked_add(
-            dr_output
-                .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
-                .unwrap_or_default(),
-        )
-        .ok_or_else(|| TransactionError::OutputValueOverflow)?;
-
-    let amount = output_value
-        .checked_add(fee)
-        .ok_or_else(|| TransactionError::OutputValueOverflow)?;
-
-    let (output_pointers, input_value) = utxos.take_enough_utxos(
-        amount,
-        timestamp,
-        tx_pending_timeout,
-        block_number_limit,
-        utxo_strategy,
     )?;
-    let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
+
+    // Mark UTXOs as used so we don't double spend
+    // Save the timestamp until it could be spend it
+    utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
+
     let mut outputs = outputs;
     insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
 

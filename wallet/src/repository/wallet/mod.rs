@@ -16,8 +16,7 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
-    transaction_factory::OutputsCollection,
-    transaction_factory::{insert_change_output, transaction_outputs_sum},
+    transaction_factory::{insert_change_output, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -80,9 +79,9 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
         None
     }
 
-    fn set_used_output_pointer(&mut self, outptrs: &[OutputPointer], ts: u64) {
-        for outptr in outptrs {
-            self.used_outputs.insert(outptr.into(), ts);
+    fn set_used_output_pointer(&mut self, inputs: &[Input], ts: u64) {
+        for input in inputs {
+            self.used_outputs.insert(input.output_pointer().into(), ts);
         }
     }
 }
@@ -1071,7 +1070,7 @@ where
         let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        let (inputs, outputs) = self.build_inputs_outputs_inner_wallet(
+        let (inputs, outputs) = self.build_inputs_outputs_wallet(
             outputs,
             None,
             fee,
@@ -1095,7 +1094,7 @@ where
         let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        let (inputs, outputs) = self.build_inputs_outputs_inner_wallet(
+        let (inputs, outputs) = self.build_inputs_outputs_wallet(
             vec![],
             Some(&request),
             fee,
@@ -1109,8 +1108,12 @@ where
         Ok((inputs, outputs))
     }
 
+    /// This function calls to their equivalent in data_structures 'build_inputs_outputs'
+    /// to share the same create transaction logic.
+    /// Due to wallet handles many different addresses, the 'insert_change' logic is different
+    /// from the node's one
     #[allow(clippy::too_many_arguments)]
-    fn build_inputs_outputs_inner_wallet(
+    fn build_inputs_outputs_wallet(
         &self,
         outputs: Vec<ValueTransferOutput>,
         dr_output: Option<&DataRequestOutput>,
@@ -1127,42 +1130,26 @@ where
             used_outputs: &mut state.used_outputs,
         };
 
-        // On error just assume the value is u64::max_value(), hoping that it is
-        // impossible to pay for this transaction
-        let output_value: u64 = transaction_outputs_sum(&outputs)
-            .unwrap_or(u64::max_value())
-            .checked_add(
-                dr_output
-                    .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
-                    .unwrap_or_default(),
-            )
-            .ok_or_else(|| Error::TransactionValueOverflow)?;
+        let (inputs, outputs, input_value, output_value) = wallet_utxos.build_inputs_outputs(
+            outputs,
+            dr_output,
+            fee,
+            timestamp,
+            block_number_limit,
+            utxo_strategy,
+        )?;
 
-        let amount = output_value
-            .checked_add(fee)
-            .ok_or_else(|| Error::TransactionValueOverflow)?;
-
-        let (output_pointers, input_value) = wallet_utxos
-            .take_enough_utxos(
-                amount,
-                timestamp,
-                tx_pending_timeout,
-                block_number_limit,
-                utxo_strategy,
-            )
-            .map_err(|e| {
-                let repository_error: Error = e.into();
-
-                repository_error
-            })?;
+        // Mark UTXOs as used so we don't double spend
+        // Save the timestamp until it could be spend it
+        wallet_utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
 
         // In case of VTTransaction, a new internal address is used
         // In case of DRTransaction, the first input pkh will be used
         let change_pkh = if dr_output.is_none() {
             self._gen_internal_address(state, None)?.pkh
         } else {
-            let first_output = output_pointers.first().clone().unwrap();
-            let key_balance = wallet_utxos.utxo_set.get(&first_output.into()).unwrap();
+            let first_input = inputs.first().clone().unwrap().output_pointer();
+            let key_balance = wallet_utxos.utxo_set.get(&first_input.into()).unwrap();
 
             let model::Path {
                 keychain, index, ..
@@ -1181,7 +1168,6 @@ where
             witnet_data_structures::chain::PublicKey::from(public_key).pkh()
         };
 
-        let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
         let mut outputs = outputs;
         insert_change_output(&mut outputs, change_pkh, input_value - output_value - fee);
 

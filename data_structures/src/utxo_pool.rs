@@ -1,5 +1,5 @@
 use crate::{
-    chain::{Epoch, OutputPointer, PublicKeyHash, ValueTransferOutput},
+    chain::{Epoch, Input, OutputPointer, PublicKeyHash, ValueTransferOutput},
     transaction_factory::OutputsCollection,
 };
 use itertools::Itertools;
@@ -191,9 +191,9 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
         self.all_utxos.included_in_block_number(outptr)
     }
 
-    fn set_used_output_pointer(&mut self, outptrs: &[OutputPointer], ts: u64) {
-        for outptr in outptrs {
-            let current_ts = self.own_utxos.get_mut(outptr).unwrap();
+    fn set_used_output_pointer(&mut self, inputs: &[Input], ts: u64) {
+        for input in inputs {
+            let current_ts = self.own_utxos.get_mut(input.output_pointer()).unwrap();
             *current_ts = ts;
         }
     }
