@@ -209,7 +209,7 @@ fn create_appropriate_backend(
 
     match conf.backend {
         config::StorageBackend::HashMap => Ok(encrypted_backend!(
-            backends::hashmap::Backend::new(),
+            backends::hashmap::Backend::default(),
             passwd
         )),
         config::StorageBackend::RocksDB => {
