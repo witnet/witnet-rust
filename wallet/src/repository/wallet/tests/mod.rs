@@ -1178,8 +1178,17 @@ fn test_export_xprv_key() {
     let (wallet, _db) = factories::wallet(None, true);
 
     let password = "password".as_ref();
-    assert!(wallet.export_private_key(password).unwrap().starts_with("xprv"));
-    assert_eq!(wallet.export_private_key(password).unwrap().starts_with("xprvdouble"), false);
+    assert!(wallet
+        .export_private_key(password)
+        .unwrap()
+        .starts_with("xprv"));
+    assert_eq!(
+        wallet
+            .export_private_key(password)
+            .unwrap()
+            .starts_with("xprvdouble"),
+        false
+    );
 }
 
 #[test]
@@ -1187,5 +1196,8 @@ fn test_export_xprvdouble_key() {
     let (wallet, _db) = factories::wallet(None, false);
 
     let password = "password".as_ref();
-    assert!(wallet.export_private_key(password).unwrap().starts_with("xprvdouble"));
+    assert!(wallet
+        .export_private_key(password)
+        .unwrap()
+        .starts_with("xprvdouble"));
 }

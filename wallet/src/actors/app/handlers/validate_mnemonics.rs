@@ -8,6 +8,7 @@ use crate::types;
 pub struct ValidateMnemonicsRequest {
     seed_source: String,
     seed_data: types::Password,
+    backup_password: Option<types::Password>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,7 +25,7 @@ impl Handler<ValidateMnemonicsRequest> for app::App {
     type Result = app::ResponseActFuture<ValidateMnemonicsResponse>;
 
     fn handle(&mut self, req: ValidateMnemonicsRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let f = self.validate_seed(req.seed_source, req.seed_data);
+        let f = self.validate_seed(req.seed_source, req.seed_data, req.backup_password);
 
         Box::new(f)
     }

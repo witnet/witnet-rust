@@ -163,18 +163,32 @@ impl Worker {
 
     /// Check if wallet with given seed source already exists
     pub fn check_wallet_seed(&self, seed: types::SeedSource) -> Result<(bool, String)> {
-        let master_key = crypto::gen_master_key(
-            self.params.seed_password.as_ref(),
-            self.params.master_key_salt.as_ref(),
-            &seed,
-        )?;
-        let id = crypto::gen_wallet_id(
-            &self.params.id_hash_function,
-            &master_key,
-            self.params.master_key_salt.as_ref(),
-            self.params.id_hash_iterations,
-        );
+        let id = match seed {
+            types::SeedSource::XprvDouble((_, external)) => {
+                let (external_key, _) = ExtendedSK::from_slip32(external.as_ref())
+                    .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
 
+                crypto::gen_wallet_id(
+                    &self.params.id_hash_function,
+                    &external_key,
+                    self.params.master_key_salt.as_ref(),
+                    self.params.id_hash_iterations,
+                )
+            }
+            _ => {
+                let master_key = crypto::gen_master_key(
+                    self.params.seed_password.as_ref(),
+                    self.params.master_key_salt.as_ref(),
+                    &seed,
+                )?;
+                crypto::gen_wallet_id(
+                    &self.params.id_hash_function,
+                    &master_key,
+                    self.params.master_key_salt.as_ref(),
+                    self.params.id_hash_iterations,
+                )
+            }
+        };
         Ok((
             self.wallets
                 .infos()?

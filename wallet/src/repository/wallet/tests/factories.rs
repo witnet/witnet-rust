@@ -3,7 +3,10 @@ use witnet_data_structures::chain::Hash;
 use super::*;
 use crate::db::HashMapDb;
 
-pub fn wallet(data: Option<HashMapDb>, store_master_key: bool) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
+pub fn wallet(
+    data: Option<HashMapDb>,
+    store_master_key: bool,
+) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
     let id = "example-wallet";
     let params = params::Params::default();
     let mnemonic = types::MnemonicGen::new()
@@ -28,7 +31,11 @@ pub fn wallet(data: Option<HashMapDb>, store_master_key: bool) -> (Wallet<db::Ha
     let db = data.unwrap_or_default();
     let wallets = Wallets::new(db.clone());
 
-    let master_key_to_store = if store_master_key {Some(master_key)} else{None};
+    let master_key_to_store = if store_master_key {
+        Some(master_key)
+    } else {
+        None
+    };
     // Create the initial data required by the wallet
     wallets
         .create(
