@@ -555,6 +555,9 @@ fn test_create_vtt_does_not_spend_utxos() {
         })
         .unwrap();
 
+    // There is a signature for each input
+    assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
+
     let state_utxo_set = wallet.utxo_set().unwrap();
     let new_utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
         db.get(&keys::account_utxo_set(0)).unwrap();
@@ -842,6 +845,9 @@ fn test_index_transaction_vtt_created_by_wallet() {
         })
         .unwrap();
 
+    // There is a signature for each input
+    assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
+
     // check that indeed, the previously created vtt has not been indexed
     let db_movement = db.get_opt(&keys::transaction_movement(0, 1)).unwrap();
     assert!(db_movement.is_none());
@@ -949,6 +955,10 @@ fn test_get_transaction() {
             time_lock: 0,
         })
         .unwrap();
+
+    // There is a signature for each input
+    assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
+
     // the wallet does not store created VTT transactions until confirmation
     assert!(wallet.get_transaction(0, 1).is_err());
 
@@ -1014,6 +1024,10 @@ fn test_get_transactions() {
             time_lock: 0,
         })
         .unwrap();
+
+    // There is a signature for each input
+    assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
+
     // the wallet does not store created VTT transactions until confirmation
     let x = wallet.transactions(0, 1).unwrap();
     assert_eq!(x.transactions.len(), 1);
