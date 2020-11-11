@@ -765,12 +765,11 @@ impl App {
     }
 
     pub fn node_ping_pong(&self, ctx: &mut <Self as Actor>::Context) {
-        let method = "ping".to_string();
-        let params = ();
+        let method = "syncStatus".to_string();
 
         let req = types::RpcRequest::method(method)
             .timeout(self.params.requests_timeout)
-            .params(params)
+            .params(())
             .expect("params failed serialization");
 
         log::debug!("Sending periodic request: {:?}", req);

@@ -896,6 +896,8 @@ pub struct SyncStatus {
     pub current_epoch: Option<u32>,
     /// Is the node synchronized?
     pub synchronized: bool,
+    /// Node State
+    pub node_state: Option<StateMachine>,
 }
 
 /// Get node status
@@ -912,6 +914,19 @@ pub fn status() -> JsonRpcResultAsync {
             Ok(Err(())) => Err(internal_error(())),
             Err(e) => Err(internal_error(e)),
         });
+    let node_state_fut = chain_manager
+        .send(GetState)
+        .map_err(internal_error_s)
+        .then(|res| match res {
+            Ok(Ok(StateMachine::Synced)) => Ok(Some(StateMachine::Synced)),
+            Ok(Ok(StateMachine::AlmostSynced)) => Ok(Some(StateMachine::AlmostSynced)),
+            Ok(Ok(StateMachine::WaitingConsensus)) => Ok(Some(StateMachine::WaitingConsensus)),
+            Ok(Ok(StateMachine::Synchronizing)) => Ok(Some(StateMachine::Synchronizing)),
+            // Ok(Ok(..)) => Ok(None),
+            Ok(Err(())) => Err(internal_error(())),
+            Err(e) => Err(internal_error(e)),
+        });
+        
     let chain_beacon_fut = chain_manager
         .send(GetHighestCheckpointBeacon)
         .then(|res| match res {
@@ -927,11 +942,12 @@ pub fn status() -> JsonRpcResultAsync {
         Err(e) => Err(internal_error_s(e)),
     });
 
-    let j = Future::join3(synchronized_fut, chain_beacon_fut, current_epoch_fut)
-        .map(|(synchronized, chain_beacon, current_epoch)| SyncStatus {
+    let j = Future::join4(synchronized_fut, chain_beacon_fut, current_epoch_fut, node_state_fut)
+        .map(|(synchronized, chain_beacon, current_epoch, node_state)| SyncStatus {
             chain_beacon,
             current_epoch,
             synchronized,
+            node_state,
         })
         .and_then(|res| match serde_json::to_value(res) {
             Ok(x) => futures::finished(x),
