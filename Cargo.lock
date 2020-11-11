@@ -161,7 +161,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "async-jsonrpc-client"
 version = "0.1.0"
-source = "git+https://github.com/witnet/async-jsonrpc-client#db42be175031677b910efa129f42b23d6a000d41"
+source = "git+https://github.com/witnet/async-jsonrpc-client?branch=fix-tcp-leak#600a2d696af265511868f77c01e448c1d678650e"
 dependencies = [
  "error-chain",
  "futures 0.1.30",
@@ -171,8 +171,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "tokio 0.1.22",
  "tokio-codec",
- "tokio-core",
  "tokio-timer 0.2.13",
 ]
 

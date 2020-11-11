@@ -6,7 +6,7 @@ version = "0.3.2"
 workspace = ".."
 
 [dependencies]
-async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"] }
+async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"], branch = "fix-tcp-leak" }
 bincode = "1.2.1"
 log = "0.4.8"
 jsonrpc-core = "15.1.0"

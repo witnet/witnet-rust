@@ -7,7 +7,7 @@ workspace = ".."
 
 [dependencies]
 actix = { version = "0.8.3", default-features = false }
-async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"] }
+async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"], branch = "fix-tcp-leak" }
 failure = "0.1.8"
 futures = "0.1.29"
 jsonrpc-core = "15.1.0"
