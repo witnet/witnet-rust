@@ -11,6 +11,8 @@ pub mod methods;
 pub mod params;
 pub mod routes;
 mod state;
+#[cfg(test)]
+mod tests;
 
 pub use error::*;
 pub use handlers::*;

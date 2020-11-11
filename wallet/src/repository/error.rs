@@ -47,7 +47,9 @@ pub enum Error {
     #[fail(display = "Bech32 serialization error: {}", _0)]
     Bech32(#[cause] bech32::Error),
     #[fail(display = "Crypto operation failed: {}", _0)]
-    CrytpoError(#[cause] crypto::Error),
+    CryptoError(#[cause] crypto::Error),
+    #[fail(display = "Master key serialization failed")]
+    KeySerializationError,
 }
 
 impl From<failure::Error> for Error {

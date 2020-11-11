@@ -3,7 +3,18 @@ use witnet_data_structures::chain::Hash;
 use super::*;
 use crate::db::HashMapDb;
 
-pub fn wallet(
+pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
+    wallet_inner(data, true)
+}
+
+pub fn wallet_with_args(
+    data: Option<HashMapDb>,
+    store_master_key: bool,
+) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
+    wallet_inner(data, store_master_key)
+}
+
+fn wallet_inner(
     data: Option<HashMapDb>,
     store_master_key: bool,
 ) -> (Wallet<db::HashMapDb>, db::HashMapDb) {

@@ -209,8 +209,8 @@ pub fn address_info(
 
 /// Master key
 #[inline]
-pub fn master_key() -> Key<String, ExtendedSK> {
-    Key::new("master-key".to_string())
+pub fn master_key() -> Key<&'static str, ExtendedSK> {
+    Key::new("master-key")
 }
 
 /// Path information associated to a pkh (account, keychain and index).

@@ -1740,12 +1740,12 @@ where
             && state.transient_external_addresses.is_empty()))
     }
 
-    pub fn export_private_key(&self, password: &[u8]) -> Result<String> {
+    pub fn export_master_key(&self, password: types::Password) -> Result<String> {
         let state = self.state.read()?;
         let (tag, key) = if let Some(master_key) = self.db.get_opt(&keys::master_key())? {
             let master_key_string = match master_key.to_slip32(&types::KeyPath::default()) {
                 Ok(x) => x,
-                Err(_e) => return Err(Error::TransactionBalanceOverflow),
+                Err(_e) => return Err(Error::KeySerializationError),
             };
             ("xprv", master_key_string)
         } else {
@@ -1754,18 +1754,18 @@ where
             let internal_secret_key = internal_parent_key.to_slip32(&types::KeyPath::default());
             let mut internal_secret_key_hex = match internal_secret_key {
                 Ok(x) => x,
-                Err(_e) => return Err(Error::TransactionBalanceOverflow),
+                Err(_e) => return Err(Error::KeySerializationError),
             };
             let external_secret_key = external_parent_key.to_slip32(&types::KeyPath::default());
             let external_secret_key_hex = match external_secret_key {
                 Ok(x) => x,
-                Err(_e) => return Err(Error::TransactionBalanceOverflow),
+                Err(_e) => return Err(Error::KeySerializationError),
             };
             internal_secret_key_hex.push_str(&external_secret_key_hex);
             ("xprvdouble", internal_secret_key_hex)
         };
         let encrypted_final_key =
-            crypto::encrypt_cbc(key.as_ref(), password).map_err(Error::CrytpoError)?;
+            crypto::encrypt_cbc(key.as_ref(), password.as_ref()).map_err(Error::CryptoError)?;
         let final_key =
             bech32::encode(tag, encrypted_final_key.to_base32()).map_err(Error::Bech32)?;
         Ok(final_key)

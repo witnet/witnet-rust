@@ -3,8 +3,8 @@ use std::sync::Arc;
 use actix::utils::TimerFunc;
 use futures::future;
 
-use witnet_data_structures::chain::{InventoryItem, StateMachine};
 use witnet_crypto::mnemonic::Mnemonic;
+use witnet_data_structures::chain::{InventoryItem, StateMachine};
 
 use crate::actors::{
     worker::{HandleBlockRequest, HandleSuperBlockRequest, NodeStatusRequest, NotifyStatus},
@@ -776,7 +776,7 @@ impl App {
     ) -> ResponseActFuture<ValidateMnemonicsResponse> {
         // Validate mnemonics source and data
         let f = fut::result(match seed_source.as_ref() {
-            "xprv" => self.validate_xprv(seed_data, backup_password),
+            "xprv" => validate_xprv(seed_data, backup_password),
             "mnemonics" => types::Mnemonic::from_phrase(seed_data)
                 .map_err(|err| Error::Validation(app::field_error("seed_data", format!("{}", err))))
                 .map(types::SeedSource::Mnemonics),
@@ -838,8 +838,8 @@ impl App {
         Box::new(f)
     }
 
-    /// Get public info of all the wallets stored in the database.
-    pub fn export_private_key(
+    /// Export wallet master key, encrypted with password
+    pub fn export_master_key(
         &mut self,
         session_id: types::SessionId,
         wallet_id: String,
@@ -852,7 +852,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::ExportPrivateKey(wallet, password))
+                .send(worker::ExportMasterKey(wallet, password))
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -860,121 +860,116 @@ impl App {
 
         Box::new(f)
     }
+}
 
-    /// Validate `CreateWalletRequest`.
-    ///
-    /// To be valid it must pass these checks:
-    /// - password is at least 8 characters
-    /// - seed_sources has to be `mnemonics | xprv`
-    #[allow(clippy::too_many_arguments)]
-    pub fn validate(
-        &self,
-        password: types::Password,
-        seed_data: types::Password,
-        seed_source: String,
-        name: Option<String>,
-        description: Option<String>,
-        overwrite: Option<bool>,
-        backup_password: Option<types::Password>,
-    ) -> Result<Validated> {
-        let source = match seed_source.as_ref() {
-            "xprv" => self
-                .validate_xprv(seed_data, backup_password)
-                .map_err(|e| app::field_error("seed_data", e.to_string())),
-            "mnemonics" => Mnemonic::from_phrase(seed_data)
-                .map_err(|err| app::field_error("seed_data", format!("{}", err)))
-                .map(types::SeedSource::Mnemonics),
-            _ => Err(app::field_error(
-                "seed_source",
-                "Seed source has to be mnemonics|xprv.",
-            )),
-        };
-        let password = if <str>::len(password.as_ref()) < 8 {
-            Err(app::field_error(
-                "password",
-                "Password must be at least 8 characters.",
-            ))
-        } else {
-            Ok(password)
-        };
-        let overwrite = overwrite.unwrap_or(false);
-        app::combine_field_errors(source, password, move |seed_source, password| Validated {
-            description,
-            name,
-            overwrite,
-            password,
-            seed_source,
-        })
-        .map_err(validation_error)
+// Validate `CreateWalletRequest`.
+///
+/// To be valid it must pass these checks:
+/// - password is at least 8 characters
+/// - seed_sources has to be `mnemonics | xprv`
+#[allow(clippy::too_many_arguments)]
+pub fn validate(
+    password: types::Password,
+    seed_data: types::Password,
+    seed_source: String,
+    name: Option<String>,
+    description: Option<String>,
+    overwrite: Option<bool>,
+    backup_password: Option<types::Password>,
+) -> Result<Validated> {
+    let source = match seed_source.as_ref() {
+        "xprv" => validate_xprv(seed_data, backup_password)
+            .map_err(|e| app::field_error("seed_data", e.to_string())),
+        "mnemonics" => Mnemonic::from_phrase(seed_data)
+            .map_err(|err| app::field_error("seed_data", format!("{}", err)))
+            .map(types::SeedSource::Mnemonics),
+        _ => Err(app::field_error(
+            "seed_source",
+            "Seed source has to be mnemonics|xprv",
+        )),
+    };
+    let password = if <str>::len(password.as_ref()) < 8 {
+        Err(app::field_error(
+            "password",
+            "Password must be at least 8 characters",
+        ))
+    } else {
+        Ok(password)
+    };
+    let overwrite = overwrite.unwrap_or(false);
+    app::combine_field_errors(source, password, move |seed_source, password| Validated {
+        description,
+        name,
+        overwrite,
+        password,
+        seed_source,
+    })
+    .map_err(validation_error)
+}
+
+/// Validate an encrypted XPRV file, first decrypting it and then checking the key format
+/// The seed data contains the hrp||iv||salt||ciphertext
+/// hrp can be either 'xprv' or 'xprvoduble'
+pub fn validate_xprv(
+    seed_data: types::Password,
+    backup_password: Option<types::Password>,
+) -> Result<types::SeedSource> {
+    let backup_password = backup_password.ok_or_else(|| {
+        validation_error(app::field_error(
+            "backup_password",
+            "Backup password not found for XPRV key",
+        ))
+    })?;
+    let seed_data_string = seed_data.as_ref();
+    let (hrp, ciphertext) = bech32::decode(seed_data_string).map_err(|_| {
+        validation_error(app::field_error("seed_data", "Could not decode bech32 key"))
+    })?;
+
+    if hrp.as_str() != "xprv" && hrp.as_str() != "xprvdouble" {
+        return Err(validation_error(app::field_error(
+            "seed_data",
+            "Invalid seed data prefix",
+        )));
     }
-
-    /// Validate XPRV
-    pub fn validate_xprv(
-        &self,
-        seed_data: types::Password,
-        backup_password: Option<types::Password>,
-    ) -> Result<types::SeedSource> {
-        let backup_password = backup_password.ok_or_else(|| {
-            validation_error(app::field_error(
-                "backup_password",
-                "Backup password not found for XPRV key",
-            ))
-        })?;
-        let seed_data_string = std::str::from_utf8(seed_data.as_ref()).map_err(|_| {
+    let decrypted_key_string = bech32::FromBase32::from_base32(&ciphertext)
+        .map_err(|_| {
             validation_error(app::field_error(
                 "seed_data",
-                "Could not convert seed data to XPRV string",
+                "Could not convert bech 32 decoded key to u8 array",
             ))
-        })?;
-        let (hrp, ciphertext) = bech32::decode(seed_data_string).map_err(|_| {
-            validation_error(app::field_error(
-                "seed_data",
-                "Could not decode bench32 key",
-            ))
-        })?;
-
-        let decrypted_key_string = bech32::FromBase32::from_base32(&ciphertext)
-            .map_err(|_| {
-                validation_error(app::field_error(
-                    "seed_data",
-                    "Could not convert bech 32 decoded key to u8 array",
-                ))
+        })
+        .and_then(|res: Vec<u8>| {
+            crypto::decrypt_cbc(&res, backup_password.as_ref()).map_err(|_| {
+                validation_error(app::field_error("seed_data", "Could not decrypt seed data"))
             })
-            .and_then(|res: Vec<u8>| {
-                crypto::decrypt_cbc(&res, backup_password.as_ref()).map_err(|_| {
+        })
+        .and_then(|decrypted: Vec<u8>| {
+            std::str::from_utf8(&decrypted)
+                .map(|str| str.to_string())
+                .map_err(|_| {
                     validation_error(app::field_error("seed_data", "Could not decrypt seed data"))
                 })
-            })
-            .and_then(|decrypted: Vec<u8>| {
-                std::str::from_utf8(&decrypted)
-                    .map(|str| str.to_string())
-                    .map_err(|_| {
-                        validation_error(app::field_error(
-                            "seed_data",
-                            "Could not decrypt seed data",
-                        ))
-                    })
-            })?;
-        match hrp.as_str() {
-            "xprv" => Ok(types::SeedSource::Xprv(decrypted_key_string.into())),
-            "xprvdouble" => {
-                let ocurrences: Vec<(usize, &str)> =
-                    decrypted_key_string.match_indices("xprv").collect();
-                // xprvDouble should only have 2 ocurrences
-                if ocurrences.len() != 2 {
-                    return Err(validation_error(app::field_error(
-                        "seed_data",
-                        "Invalid number of XPRV keys found for xprvDouble type",
-                    )));
-                }
-                let (internal, external) = decrypted_key_string.split_at(ocurrences[1].0);
+        })?;
 
-                Ok(types::SeedSource::XprvDouble((
-                    internal.into(),
-                    external.into(),
-                )))
-            }
-            _ => Ok(types::SeedSource::Xprv(seed_data)),
-        }
+    if hrp.as_str() == "xprv" {
+        Ok(types::SeedSource::Xprv(decrypted_key_string.into()))
+    } else {
+        let (internal, external) = split_xprv_double(decrypted_key_string)?;
+
+        Ok(types::SeedSource::XprvDouble((internal, external)))
     }
+}
+
+/// Split a double XPRV string into internal and external keys
+pub fn split_xprv_double(xprv_double_key: String) -> Result<(types::Password, types::Password)> {
+    let ocurrences: Vec<(usize, &str)> = xprv_double_key.match_indices("xprv").collect();
+    // xprvDouble should only have 2 ocurrences
+    if ocurrences.len() != 2 {
+        return Err(validation_error(app::field_error(
+            "seed_data",
+            "Invalid number of XPRV keys found for xprvDouble type",
+        )));
+    }
+    let (internal, external) = xprv_double_key.split_at(ocurrences[1].0);
+    Ok((internal.into(), external.into()))
 }

@@ -4,13 +4,12 @@ use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::{json, Value};
 
-use witnet_data_structures::chain::ValueTransferOutput;
-use witnet_rad::script::RadonScriptExecutionSettings;
-use witnet_crypto::{
-    key::ExtendedSK};
-use crate::types::{ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable, StateMachine};
+use crate::types::{
+    ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable, StateMachine,
+};
 use crate::{account, constants, crypto, db::Database as _, model, params};
 use witnet_crypto::key::ExtendedSK;
+use witnet_data_structures::chain::ValueTransferOutput;
 use witnet_rad::script::RadonScriptExecutionSettings;
 
 use super::*;
@@ -1191,7 +1190,11 @@ impl Worker {
         }
     }
 
-    pub fn export_private_key(&self, wallet: &types::Wallet, password: &[u8]) -> Result<String> {
-        wallet.export_private_key(password).map_err(Error::from)
+    pub fn export_master_key(
+        &self,
+        wallet: &types::Wallet,
+        password: types::Password,
+    ) -> Result<String> {
+        wallet.export_master_key(password).map_err(Error::from)
     }
 }

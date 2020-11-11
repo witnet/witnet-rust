@@ -194,9 +194,9 @@ pub fn connect_routes<T, S>(
         ("Get", "get", GetRequest),
         ("Sign-Data", "sign_data", SignDataRequest),
         (
-            "Export-Private-Key",
-            "export_private_key",
-            ExportPrivateKeyRequest
+            "Export-Master-Key",
+            "export_master_key",
+            ExportMasterKeyRequest
         ),
         ("Shutdown", "shutdown", ShutdownRequest),
     );
