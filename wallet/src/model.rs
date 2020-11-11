@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::repository::keys::Key;
 use crate::{account, types};
 use witnet_data_structures::chain::{OutputPointer, PublicKeyHash, ValueTransferOutput};
+use witnet_util::timestamp::get_timestamp;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
@@ -302,10 +303,26 @@ impl fmt::Display for Beacon {
 }
 
 pub type UtxoSet = HashMap<OutPtr, OutputInfo>;
+
 /// Map of output pointer to timestamp.
 /// Used to mark outputs that have been recently used in a transaction.
 /// They will not be used again until this timestamp.
 pub type UsedOutputs = HashMap<OutPtr, u64>;
+
+/// Function that returns a cleaned UsedOutputs, it means, without output pointer non existing
+/// in the UtxoSet and without output pointer with old timestamps
+#[allow(clippy::cast_sign_loss)]
+pub fn clean_used_outputs(used_outputs: &UsedOutputs, utxo_set: &UtxoSet) -> UsedOutputs {
+    let mut new_hm = UsedOutputs::default();
+    let now = get_timestamp() as u64;
+    for (o, &ts) in used_outputs.iter() {
+        if utxo_set.contains_key(o) && ts < now {
+            new_hm.insert(o.clone(), ts);
+        }
+    }
+
+    new_hm
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Path {

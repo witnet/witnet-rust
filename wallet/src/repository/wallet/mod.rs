@@ -208,6 +208,7 @@ where
             .db
             .get_or_default(&keys::transaction_next_id(account))?;
         state.utxo_set = self.db.get_or_default(&keys::account_utxo_set(account))?;
+        state.used_outputs = model::clean_used_outputs(&state.used_outputs, &state.utxo_set);
         state.balance.confirmed = self.db.get_or_default(&keys::account_balance(account))?;
         state.balance.unconfirmed = state.balance.confirmed;
 

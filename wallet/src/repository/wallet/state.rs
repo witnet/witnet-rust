@@ -107,6 +107,7 @@ impl State {
         self.pending_movements.clear();
         self.transaction_next_id = Default::default();
         self.utxo_set.clear();
+        self.used_outputs.clear();
         self.transient_internal_addresses.clear();
         self.transient_external_addresses.clear();
     }
