@@ -70,7 +70,8 @@ pub struct State {
     pub transaction_next_id: u32,
     /// Current UTXO set (including pending movements)
     pub utxo_set: model::UtxoSet,
-    /// Tagged used UTXO set
+    /// Outputs that have been locally tagged as used. This prevents double spending
+    /// an output while a first spending transaction is pending.
     pub used_outputs: model::UsedOutputs,
     /// Transient internal addresses
     pub transient_internal_addresses: HashMap<PublicKeyHash, model::Address>,

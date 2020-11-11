@@ -1131,7 +1131,7 @@ where
             used_outputs: &mut state.used_outputs,
         };
 
-        let (inputs, outputs, input_value, output_value) = wallet_utxos.build_inputs_outputs(
+        let tx_info = wallet_utxos.build_inputs_outputs(
             outputs,
             dr_output,
             fee,
@@ -1142,14 +1142,14 @@ where
 
         // Mark UTXOs as used so we don't double spend
         // Save the timestamp until it could be spend it
-        wallet_utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
+        wallet_utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
 
         // In case of VTTransaction, a new internal address is used
         // In case of DRTransaction, the first input pkh will be used
         let change_pkh = if dr_output.is_none() {
             self._gen_internal_address(state, None)?.pkh
         } else {
-            let first_input = inputs.first().clone().unwrap().output_pointer();
+            let first_input = tx_info.inputs.first().clone().unwrap().output_pointer();
             let key_balance = wallet_utxos.utxo_set.get(&first_input.into()).unwrap();
 
             let model::Path {
@@ -1169,10 +1169,14 @@ where
             witnet_data_structures::chain::PublicKey::from(public_key).pkh()
         };
 
-        let mut outputs = outputs;
-        insert_change_output(&mut outputs, change_pkh, input_value - output_value - fee);
+        let mut outputs = tx_info.outputs;
+        insert_change_output(
+            &mut outputs,
+            change_pkh,
+            tx_info.input_value - tx_info.output_value - fee,
+        );
 
-        Ok((inputs, outputs))
+        Ok((tx_info.inputs, outputs))
     }
 
     fn _gen_internal_address(

@@ -11,6 +11,14 @@ use crate::{
 };
 use std::{collections::HashSet, convert::TryFrom};
 
+/// Structure that resumes the information needed to create a Transaction
+pub struct TransactionInfo {
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<ValueTransferOutput>,
+    pub input_value: u64,
+    pub output_value: u64,
+}
+
 /// Abstraction that facilitates the creation of new transactions from a set of unspent outputs.
 /// Transaction factories are expected to operate on this trait so that their business logic
 /// can be applied on many heterogeneous data structures that may implement it.
@@ -101,7 +109,7 @@ pub trait OutputsCollection {
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
         utxo_strategy: UtxoSelectionStrategy,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64, u64), TransactionError> {
+    ) -> Result<TransactionInfo, TransactionError> {
         // On error just assume the value is u64::max_value(), hoping that it is
         // impossible to pay for this transaction
         let output_value: u64 = transaction_outputs_sum(&outputs)
@@ -121,7 +129,12 @@ pub trait OutputsCollection {
             self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
         let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
 
-        Ok((inputs, outputs, input_value, output_value))
+        Ok(TransactionInfo {
+            inputs,
+            outputs,
+            input_value,
+            output_value,
+        })
     }
 }
 
@@ -173,17 +186,21 @@ pub fn build_vtt(
         own_utxos,
     };
 
-    let (inputs, outputs, input_value, output_value) =
-        utxos.build_inputs_outputs(outputs, None, fee, timestamp, None, utxo_strategy)?;
+    let tx_info = utxos.build_inputs_outputs(outputs, None, fee, timestamp, None, utxo_strategy)?;
 
     // Mark UTXOs as used so we don't double spend
-    // Save the timestamp until it could be spend it
-    utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
+    // Save the timestamp after which the transaction will be considered timed out
+    // and the output will become available for spending it again
+    utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
 
-    let mut outputs = outputs;
-    insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
+    let mut outputs = tx_info.outputs;
+    insert_change_output(
+        &mut outputs,
+        own_pkh,
+        tx_info.input_value - tx_info.output_value - fee,
+    );
 
-    Ok(VTTransactionBody::new(inputs, outputs))
+    Ok(VTTransactionBody::new(tx_info.inputs, outputs))
 }
 
 /// Build data request transaction with the given outputs and fee.
@@ -200,7 +217,7 @@ pub fn build_drt(
         all_utxos,
         own_utxos,
     };
-    let (inputs, outputs, input_value, output_value) = utxos.build_inputs_outputs(
+    let tx_info = utxos.build_inputs_outputs(
         vec![],
         Some(&dr_output),
         fee,
@@ -210,13 +227,18 @@ pub fn build_drt(
     )?;
 
     // Mark UTXOs as used so we don't double spend
-    // Save the timestamp until it could be spend it
-    utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
+    // Save the timestamp after which the transaction will be considered timed out
+    // and the output will become available for spending it again
+    utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
 
-    let mut outputs = outputs;
-    insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
+    let mut outputs = tx_info.outputs;
+    insert_change_output(
+        &mut outputs,
+        own_pkh,
+        tx_info.input_value - tx_info.output_value - fee,
+    );
 
-    Ok(DRTransactionBody::new(inputs, outputs, dr_output))
+    Ok(DRTransactionBody::new(tx_info.inputs, outputs, dr_output))
 }
 
 /// Build inputs and outputs to be used as the collateral in a CommitTransaction
@@ -238,7 +260,7 @@ pub fn build_commit_collateral(
         all_utxos,
         own_utxos,
     };
-    let (inputs, outputs, input_value, output_value) = utxos.build_inputs_outputs(
+    let tx_info = utxos.build_inputs_outputs(
         vec![],
         None,
         fee,
@@ -248,13 +270,18 @@ pub fn build_commit_collateral(
     )?;
 
     // Mark UTXOs as used so we don't double spend
-    // Save the timestamp until it could be spend it
-    utxos.set_used_output_pointer(&inputs, timestamp + tx_pending_timeout);
+    // Save the timestamp after which the transaction will be considered timed out
+    // and the output will become available for spending it again
+    utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
 
-    let mut outputs = outputs;
-    insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
+    let mut outputs = tx_info.outputs;
+    insert_change_output(
+        &mut outputs,
+        own_pkh,
+        tx_info.input_value - tx_info.output_value - fee,
+    );
 
-    Ok((inputs, outputs))
+    Ok((tx_info.inputs, outputs))
 }
 
 /// Calculate the sum of the values of the outputs pointed by the
