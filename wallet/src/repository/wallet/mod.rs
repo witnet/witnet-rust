@@ -988,23 +988,10 @@ where
     /// Create a new value transfer transaction using available UTXOs.
     pub fn create_vtt(
         &self,
-        types::VttParams {
-            pkh,
-            value,
-            fee,
-            time_lock,
-        }: types::VttParams,
+        types::VttParams { fee, outputs }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
-        let (inputs, outputs) = self.create_vt_transaction_components(
-            &mut state,
-            vec![ValueTransferOutput {
-                pkh,
-                value,
-                time_lock,
-            }],
-            fee,
-        )?;
+        let (inputs, outputs) = self.create_vt_transaction_components(&mut state, outputs, fee)?;
 
         let body = types::VTTransactionBody::new(inputs.clone(), outputs);
         let sign_data = body.hash();

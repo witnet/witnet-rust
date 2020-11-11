@@ -362,7 +362,7 @@ impl App {
         &self,
         session_id: &types::SessionId,
         wallet_id: &str,
-        vtt_params: types::VttParams,
+        params: types::VttParams,
     ) -> ResponseActFuture<types::Transaction> {
         let f = fut::result(
             self.state
@@ -371,7 +371,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::CreateVtt(wallet, vtt_params))
+                .send(worker::CreateVtt(wallet, params))
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)

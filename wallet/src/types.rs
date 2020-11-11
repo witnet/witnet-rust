@@ -147,10 +147,8 @@ pub struct CreateWalletData<'a> {
 }
 
 pub struct VttParams {
-    pub pkh: PublicKeyHash,
-    pub value: u64,
     pub fee: u64,
-    pub time_lock: u64,
+    pub outputs: Vec<ValueTransferOutput>,
 }
 
 pub struct DataReqParams {
