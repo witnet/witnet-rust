@@ -8,7 +8,7 @@ use crate::{actors, crypto, repository};
 
 #[derive(Debug, Fail)]
 pub enum Error {
-    #[fail(display = "validation error")]
+    #[fail(display = "validation error ({:?})", _0)]
     Validation(ValidationErrors),
     #[fail(display = "internal error: {}", _0)]
     Internal(#[cause] failure::Error),

@@ -72,6 +72,11 @@ impl Handler<CreateVttRequest> for app::App {
                         },
                     }
                 })
+                .map_err(|err, _, _| {
+                    log::error!("Failed to create a VTT: {}", err);
+
+                    err
+                })
         });
 
         Box::new(f)
