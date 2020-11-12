@@ -1890,11 +1890,12 @@ fn dr_validation_weight_limit_exceeded() {
     let mut signatures_to_verify = vec![];
     let utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_set, 1000);
+    let dro = example_data_request_output(2, 1, 0);
 
     let dr_body = DRTransactionBody::new(
         vec![Input::default()],
         vec![ValueTransferOutput::default()],
-        example_data_request_output(2, 1, 0),
+        dro.clone(),
     );
     let dr_tx = DRTransaction::new(dr_body, vec![]);
     let dr_weight = dr_tx.weight();
@@ -1914,7 +1915,8 @@ fn dr_validation_weight_limit_exceeded() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestWeightLimitExceeded {
             weight: 1625,
-            max_weight: 1625 - 1
+            max_weight: 1625 - 1,
+            dr_output: dro,
         }
     );
 }
@@ -7537,12 +7539,13 @@ fn validate_dr_weight_overflow() {
 // This test evaluates the theoretical limit of witnesses for a MAX_DR_WEIGHT of 80_000
 #[test]
 fn validate_dr_weight_overflow_126_witnesses() {
+    let dro = example_data_request_output(126, 1, 0);
     let t0 = {
         let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
-        let dro = example_data_request_output(126, 1, 0);
         let dr_value = dro.checked_total_value().unwrap();
 
-        let dr_body = DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro);
+        let dr_body =
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
 
@@ -7567,6 +7570,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
         TransactionError::DataRequestWeightLimitExceeded {
             weight: 80453,
             max_weight: MAX_DR_WEIGHT,
+            dr_output: dro,
         },
     );
 }

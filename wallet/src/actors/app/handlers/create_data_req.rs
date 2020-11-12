@@ -1,9 +1,11 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::app;
-use crate::types;
-use crate::types::{Hashable as _, ProtobufConvert as _};
+use crate::{
+    actors::app,
+    types::{self, Hashable as _, ProtobufConvert as _},
+};
+use witnet_data_structures::{chain::DataRequestOutput, transaction_factory::FeeType};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDataReqRequest {
@@ -11,17 +13,7 @@ pub struct CreateDataReqRequest {
     wallet_id: String,
     request: DataRequestOutput,
     fee: u64,
-    fee_type: types::FeeType,
-}
-
-#[derive(Debug, Deserialize)]
-struct DataRequestOutput {
-    data_request: RADRequest,
-    witness_reward: u64,
-    witnesses: u16,
-    commit_and_reveal_fee: u64,
-    min_consensus_percentage: u32,
-    collateral: u64,
+    fee_type: Option<types::FeeType>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,27 +38,17 @@ impl Message for CreateDataReqRequest {
 impl Handler<CreateDataReqRequest> for app::App {
     type Result = app::ResponseActFuture<CreateDataReqResponse>;
 
-    fn handle(
-        &mut self,
-        CreateDataReqRequest {
-            request,
-            fee,
-            fee_type,
-            session_id,
-            wallet_id,
-        }: CreateDataReqRequest,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
-        let validated = validate(request).map_err(app::validation_error);
+    fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
+        let validated = validate(msg.request.clone()).map_err(app::validation_error);
 
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
             let params = types::DataReqParams {
                 request,
-                fee,
-                fee_type,
+                fee: msg.fee,
+                fee_type: msg.fee_type.unwrap_or(FeeType::Weighted),
             };
 
-            slf.create_data_req(&session_id, &wallet_id, params)
+            slf.create_data_req(&msg.session_id, &msg.wallet_id, params)
                 .map(|transaction, _, _| {
                     let transaction_id = hex::encode(transaction.hash().as_ref());
                     let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
@@ -89,19 +71,7 @@ impl Handler<CreateDataReqRequest> for app::App {
 /// - value is greater that the sum of `witnesses` times the sum of the fees
 /// - value minus all the fees must divisible by the number of witnesses
 fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app::ValidationErrors> {
-    let req = types::DataRequestOutput {
-        data_request: types::RADRequest {
-            time_lock: request.data_request.time_lock,
-            retrieve: request.data_request.retrieve,
-            aggregate: request.data_request.aggregate,
-            tally: request.data_request.tally,
-        },
-        witness_reward: request.witness_reward,
-        witnesses: request.witnesses,
-        commit_and_reveal_fee: request.commit_and_reveal_fee,
-        min_consensus_percentage: request.min_consensus_percentage,
-        collateral: request.collateral,
-    };
+    let req = request;
 
     let request = witnet_validations::validations::validate_data_request_output(&req)
         .map_err(|err| app::field_error("request", format!("{}", err)));

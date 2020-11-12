@@ -1,11 +1,15 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::app;
-use crate::types;
-use crate::types::{Hashable as _, ProtobufConvert as _};
+use crate::{
+    actors::app,
+    types::{self, Hashable as _, ProtobufConvert as _},
+};
 
-use witnet_data_structures::chain::Environment;
+use witnet_data_structures::{
+    chain::{Environment, PublicKeyHash},
+    transaction_factory::FeeType,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VttOutputParams {
@@ -21,7 +25,7 @@ pub struct CreateVttRequest {
     outputs: Vec<VttOutputParams>,
     session_id: types::SessionId,
     wallet_id: String,
-    fee_type: types::FeeType,
+    fee_type: Option<types::FeeType>,
 }
 
 /// Part of CreateVttResponse struct, containing additional data to be displayed in clients
@@ -56,7 +60,7 @@ impl Handler<CreateVttRequest> for app::App {
             let params = types::VttParams {
                 fee: msg.fee,
                 outputs,
-                fee_type: msg.fee_type,
+                fee_type: msg.fee_type.unwrap_or(FeeType::Weighted),
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)
@@ -89,7 +93,7 @@ impl Handler<CreateVttRequest> for app::App {
 ///
 /// To be valid it must pass these checks:
 /// - destination address must be in the same network (testnet/mainnet)
-fn validate_output_addresses(
+pub fn validate_output_addresses(
     testnet: bool,
     outputs: &[VttOutputParams],
 ) -> Result<Vec<types::ValueTransferOutput>, app::ValidationErrors> {
@@ -99,7 +103,7 @@ fn validate_output_addresses(
         Environment::Mainnet
     };
     outputs.iter().try_fold(vec![], |mut acc, output| {
-        types::PublicKeyHash::from_bech32(environment, &output.address)
+        PublicKeyHash::from_bech32(environment, &output.address)
             .map(|pkh| {
                 acc.push(types::ValueTransferOutput {
                     pkh,
@@ -118,69 +122,72 @@ fn validate_output_addresses(
 }
 
 #[cfg(test)]
-use witnet_data_structures::chain::{PublicKeyHash, ValueTransferOutput};
+mod tests {
+    use crate::actors::app::{validate_output_addresses, VttOutputParams};
+    use witnet_data_structures::chain::{Environment, PublicKeyHash, ValueTransferOutput};
 
-#[test]
-fn test_validate_addresses() {
-    let output_mainnet = [VttOutputParams {
-        address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm".to_string(),
-        amount: 10,
-        time_lock: None,
-    }];
-    let validation = validate_output_addresses(false, &output_mainnet).unwrap();
-    assert_eq!(
-        validation,
-        [ValueTransferOutput {
-            pkh: PublicKeyHash::from_bech32(
-                Environment::Mainnet,
-                "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm",
-            )
-            .unwrap(),
-            value: 10,
-            time_lock: 0,
-        }]
-    );
+    #[test]
+    fn test_validate_addresses() {
+        let output_mainnet = [VttOutputParams {
+            address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm".to_string(),
+            amount: 10,
+            time_lock: None,
+        }];
+        let validation = validate_output_addresses(false, &output_mainnet).unwrap();
+        assert_eq!(
+            validation,
+            [ValueTransferOutput {
+                pkh: PublicKeyHash::from_bech32(
+                    Environment::Mainnet,
+                    "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm",
+                )
+                .unwrap(),
+                value: 10,
+                time_lock: 0,
+            }]
+        );
 
-    let output_testnet = [VttOutputParams {
-        address: "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc".to_string(),
-        amount: 10,
-        time_lock: None,
-    }];
-    let validation = validate_output_addresses(true, &output_testnet).unwrap();
-    assert_eq!(
-        validation,
-        [ValueTransferOutput {
-            pkh: PublicKeyHash::from_bech32(
-                Environment::Testnet,
-                "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc",
-            )
-            .unwrap(),
-            value: 10,
-            time_lock: 0,
-        }]
-    );
-}
+        let output_testnet = [VttOutputParams {
+            address: "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc".to_string(),
+            amount: 10,
+            time_lock: None,
+        }];
+        let validation = validate_output_addresses(true, &output_testnet).unwrap();
+        assert_eq!(
+            validation,
+            [ValueTransferOutput {
+                pkh: PublicKeyHash::from_bech32(
+                    Environment::Testnet,
+                    "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc",
+                )
+                .unwrap(),
+                value: 10,
+                time_lock: 0,
+            }]
+        );
+    }
 
-#[test]
-fn test_validate_addresses_errors() {
-    let output_wrong_address = [VttOutputParams {
-        address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vx".to_string(),
-        amount: 10,
-        time_lock: None,
-    }];
-    assert!(validate_output_addresses(false, &output_wrong_address).is_err());
+    #[test]
+    fn test_validate_addresses_errors() {
+        let output_wrong_address = [VttOutputParams {
+            address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vx".to_string(),
+            amount: 10,
+            time_lock: None,
+        }];
+        assert!(validate_output_addresses(false, &output_wrong_address).is_err());
 
-    let output_mainnet = [VttOutputParams {
-        address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm".to_string(),
-        amount: 10,
-        time_lock: None,
-    }];
-    assert!(validate_output_addresses(true, &output_mainnet).is_err());
+        let output_mainnet = [VttOutputParams {
+            address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm".to_string(),
+            amount: 10,
+            time_lock: None,
+        }];
+        assert!(validate_output_addresses(true, &output_mainnet).is_err());
 
-    let output_testnet = [VttOutputParams {
-        address: "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc".to_string(),
-        amount: 10,
-        time_lock: None,
-    }];
-    assert!(validate_output_addresses(false, &output_testnet).is_err());
+        let output_testnet = [VttOutputParams {
+            address: "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc".to_string(),
+            amount: 10,
+            time_lock: None,
+        }];
+        assert!(validate_output_addresses(false, &output_testnet).is_err());
+    }
 }

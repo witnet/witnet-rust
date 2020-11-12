@@ -29,28 +29,6 @@ pub struct Params {
     pub max_dr_weight: u32,
 }
 
-impl Default for Params {
-    fn default() -> Self {
-        Self {
-            testnet: false,
-            seed_password: "".into(),
-            master_key_salt: b"Bitcoin seed".to_vec(),
-            id_hash_iterations: 4096,
-            id_hash_function: types::HashFunction::Sha256,
-            db_hash_iterations: 10_000,
-            db_iv_length: 16,
-            db_salt_length: 32,
-            epoch_constants: EpochConstants::default(),
-            node_sync_batch_size: 100,
-            genesis_hash: Hash::default(),
-            genesis_prev_hash: Hash::default(),
-            sync_address_batch_length: 10,
-            max_vt_weight: 20_000,
-            max_dr_weight: 80_000,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct NodeParams {
     /// Reference to the JSON-RPC client actor.

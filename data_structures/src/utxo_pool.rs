@@ -200,7 +200,7 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
 }
 
 /// Strategy to sort our own unspent outputs pool
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum UtxoSelectionStrategy {
     Random,
     BigFirst,

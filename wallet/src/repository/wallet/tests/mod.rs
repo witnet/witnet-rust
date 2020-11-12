@@ -1,11 +1,10 @@
 use std::{collections::HashMap, iter::FromIterator as _, mem};
 
 use super::*;
-use crate::db::HashMapDb;
-use crate::repository::wallet::tests::factories::vtt_from_body;
-use crate::types::Hashable;
-use crate::*;
-use witnet_data_structures::transaction::VTTransaction;
+use crate::{
+    db::HashMapDb, repository::wallet::tests::factories::vtt_from_body, types::Hashable, *,
+};
+use witnet_data_structures::{transaction::VTTransaction, transaction_factory::calculate_weight};
 
 mod factories;
 
@@ -338,7 +337,7 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee)
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
         .unwrap_err();
 
     assert_eq!(
@@ -384,7 +383,7 @@ fn test_create_transaction_components_without_a_change_address() {
     };
 
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee)
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
         .unwrap();
 
     assert_eq!(1, inputs.len());
@@ -430,7 +429,7 @@ fn test_create_transaction_components_with_a_change_address() {
     };
 
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee)
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
         .unwrap();
 
     assert_eq!(1, inputs.len());
@@ -493,7 +492,7 @@ fn test_create_transaction_components_which_value_overflows() {
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee)
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
         .unwrap_err();
 
     assert_eq!(
@@ -1172,6 +1171,7 @@ fn test_create_vtt_with_multiple_outputs() {
                     time_lock: 0,
                 },
             ],
+            fee_type: FeeType::Absolute,
         })
         .unwrap();
 
@@ -1191,10 +1191,13 @@ fn test_export_xprv_key() {
         .export_master_key(password.clone())
         .unwrap()
         .starts_with("xprv"));
-    assert_eq!(wallet
-        .export_master_key(password)
-        .unwrap()
-        .starts_with("xprvdouble"),);
+    assert_eq!(
+        wallet
+            .export_master_key(password)
+            .unwrap()
+            .starts_with("xprvdouble"),
+        false
+    );
 }
 
 #[test]
@@ -1246,12 +1249,17 @@ fn test_create_vt_components_weighted_fee() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
-    let (vtt, _) = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap();
 
-    assert_eq!(1, vtt.inputs.len());
-    assert_eq!(2, vtt.outputs.len());
+    assert_eq!(1, inputs.len());
+    assert_eq!(2, outputs.len());
 }
 
 #[test]
@@ -1303,12 +1311,17 @@ fn test_create_vt_components_weighted_fee_2() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
-    let (vtt, _) = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap();
 
-    assert!(!vtt.inputs.is_empty());
-    assert_eq!(2, vtt.outputs.len());
+    assert!(!inputs.is_empty());
+    assert_eq!(2, outputs.len());
 }
 
 #[test]
@@ -1357,8 +1370,13 @@ fn test_create_vt_components_weighted_fee_3() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
     let err = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
@@ -1436,12 +1454,17 @@ fn test_create_vt_components_weighted_fee_4() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
-    let (vtt, _) = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap();
 
-    assert!(!vtt.inputs.is_empty());
-    assert_eq!(2, vtt.outputs.len());
+    assert!(!inputs.is_empty());
+    assert_eq!(2, outputs.len());
 }
 
 #[test]
@@ -1510,12 +1533,17 @@ fn test_create_vt_components_weighted_fee_5() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
-    let (vtt, _) = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap();
 
-    assert!(!vtt.inputs.is_empty());
-    assert_eq!(2, vtt.outputs.len());
+    assert!(!inputs.is_empty());
+    assert_eq!(2, outputs.len());
 }
 
 #[test]
@@ -1590,12 +1618,17 @@ fn test_create_vt_components_weighted_fee_6() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
-    let (vtt, _) = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap();
 
-    assert!(vtt.inputs.len() >= 2);
-    assert_eq!(2, vtt.outputs.len());
+    assert!(inputs.len() >= 2);
+    assert_eq!(2, outputs.len());
 }
 
 #[test]
@@ -1621,8 +1654,13 @@ fn test_create_vt_components_weighted_fee_without_outputs() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
     let err = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
@@ -1667,12 +1705,17 @@ fn test_create_vt_components_weighted_fee_with_too_large_fee() {
     let value = 1;
     let fee = u64::MAX;
     let time_lock = 0;
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
     let err = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
-        mem::discriminant(&repository::Error::VTTFeeTooLarge(fee, value)),
+        mem::discriminant(&repository::Error::FeeTooLarge),
         mem::discriminant(&err),
         "{:?}",
         err,
@@ -1717,8 +1760,13 @@ fn test_create_vt_weight_too_large() {
     let value = 150;
     let fee = 0;
     let time_lock = 0;
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
     let err = wallet
-        .create_vt_components_weighted_fee(&mut state, value, fee, Some((pkh, time_lock)))
+        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
@@ -1767,13 +1815,12 @@ fn test_create_dr_components_weighted_fee_1() {
     };
 
     let mut state = wallet.state.write().unwrap();
-    let value = 1;
     let fee = 1;
-    let (dr, _) = wallet
-        .create_dr_components_weighted_fee(&mut state, value, fee, request)
+    let (inputs, _) = wallet
+        .create_dr_transaction_components(&mut state, request, fee, FeeType::Weighted)
         .unwrap();
 
-    assert_eq!(dr.inputs.len(), 1);
+    assert_eq!(inputs.len(), 1);
 }
 
 #[test]
@@ -1814,10 +1861,9 @@ fn test_create_dr_components_weighted_fee_2_not_enough_funds() {
     };
 
     let mut state = wallet.state.write().unwrap();
-    let value = 1;
     let fee = 1;
     let err = wallet
-        .create_dr_components_weighted_fee(&mut state, value, fee, request)
+        .create_dr_transaction_components(&mut state, request, fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
@@ -1866,12 +1912,12 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     };
 
     let mut state = wallet.state.write().unwrap();
-    let value = 1;
+
     let fee = 1;
-    let (dr_body, _) = wallet
-        .create_dr_components_weighted_fee(&mut state, value, fee, request.clone())
+    let (inputs, _) = wallet
+        .create_dr_transaction_components(&mut state, request.clone(), fee, FeeType::Weighted)
         .unwrap();
-    let weight = u64::from(dr_body.weight());
+    let weight = calculate_weight(inputs.len(), 1, Some(&request), u32::MAX).unwrap();
 
     let mut out_pointer_1 = out_pointer.clone();
     out_pointer_1.output_index = 1;
@@ -1890,7 +1936,7 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
             out_pointer_1,
             model::OutputInfo {
                 pkh,
-                amount: weight / 2,
+                amount: u64::from(weight) / 2,
                 time_lock: 0,
             },
         ),
@@ -1898,7 +1944,7 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
             out_pointer_2,
             model::OutputInfo {
                 pkh,
-                amount: weight / 2,
+                amount: u64::from(weight) / 2,
                 time_lock: 0,
             },
         ),
@@ -1906,14 +1952,14 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
             out_pointer_3,
             model::OutputInfo {
                 pkh,
-                amount: weight / 2,
+                amount: u64::from(weight) / 2,
                 time_lock: 0,
             },
         ),
     ]);
 
     let new_balance_2 = model::BalanceInfo {
-        available: weight * 3 / 2,
+        available: u64::from(weight) * 3 / 2,
         locked: 0u64,
     };
 
@@ -1925,11 +1971,11 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     let (wallet_2, _db) = factories::wallet(Some(db_2));
     let mut state_2 = wallet_2.state.write().unwrap();
 
-    let (dr_body_2, _) = wallet_2
-        .create_dr_components_weighted_fee(&mut state_2, value, fee, request)
+    let (inputs, _) = wallet_2
+        .create_dr_transaction_components(&mut state_2, request, fee, FeeType::Weighted)
         .unwrap();
 
-    assert_eq!(dr_body_2.inputs.len(), 3);
+    assert_eq!(inputs.len(), 3);
 }
 
 #[test]
@@ -1957,10 +2003,10 @@ fn test_create_dr_components_weighted_fee_without_outputs() {
         witnesses: 1,
         ..types::DataRequestOutput::default()
     };
-    let value = 1;
+
     let fee = 1;
     let err = wallet
-        .create_dr_components_weighted_fee(&mut state, value, fee, request)
+        .create_dr_transaction_components(&mut state, request, fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
@@ -2009,14 +2055,12 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
     let mut state = wallet.state.write().unwrap();
     let request = types::DataRequestOutput {
         witness_reward: 0,
-        witnesses: 1,
+        witnesses: 1000,
         ..types::DataRequestOutput::default()
     };
-
-    let value = 1000;
     let fee = 0;
     let err = wallet
-        .create_dr_components_weighted_fee(&mut state, value, fee, request.clone())
+        .create_dr_transaction_components(&mut state, request.clone(), fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
@@ -2065,14 +2109,14 @@ fn test_create_dr_components_weighted_fee_fee_too_large() {
     };
 
     let mut state = wallet.state.write().unwrap();
-    let value = 1;
+
     let fee = u64::MAX / 2;
     let err = wallet
-        .create_dr_components_weighted_fee(&mut state, value, fee, request.clone())
+        .create_dr_transaction_components(&mut state, request, fee, FeeType::Weighted)
         .unwrap_err();
 
     assert_eq!(
-        mem::discriminant(&repository::Error::DRFeeTooLarge(fee, request)),
+        mem::discriminant(&repository::Error::FeeTooLarge),
         mem::discriminant(&err),
         "{:?}",
         err,

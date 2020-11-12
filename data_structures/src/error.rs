@@ -3,7 +3,7 @@
 use failure::Fail;
 use std::num::ParseIntError;
 
-use crate::chain::{Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash};
+use crate::chain::{DataRequestOutput, Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash};
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
 #[derive(Debug, PartialEq, Fail)]
@@ -262,10 +262,14 @@ pub enum TransactionError {
     ValueTransferWeightLimitExceeded { weight: u32, max_weight: u32 },
     /// Data Request weight limit exceeded
     #[fail(
-        display = "Data Request Transaction weight ({}) exceeds the limit ({})",
-        weight, max_weight
+        display = "Data Request Transaction weight ({}) exceeds the limit ({})\n > {:?}",
+        weight, max_weight, dr_output
     )]
-    DataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
+    DataRequestWeightLimitExceeded {
+        weight: u32,
+        max_weight: u32,
+        dr_output: DataRequestOutput,
+    },
 }
 
 /// The error type for operations on a [`Block`](Block)

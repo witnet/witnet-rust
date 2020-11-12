@@ -4,11 +4,12 @@ use crate::{
         ValueTransferOutput,
     },
     error::TransactionError,
-    transaction::{DRTransactionBody, VTTransactionBody},
+    transaction::{DRTransactionBody, VTTransactionBody, INPUT_SIZE},
     utxo_pool::{
         NodeUtxos, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoSelectionStrategy,
     },
 };
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, convert::TryFrom};
 
 /// Structure that resumes the information needed to create a Transaction
@@ -17,6 +18,18 @@ pub struct TransactionInfo {
     pub outputs: Vec<ValueTransferOutput>,
     pub input_value: u64,
     pub output_value: u64,
+    pub fee: u64,
+}
+
+/// Fee type distinguished between absolute or Weighted (fee/weight unit)
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum FeeType {
+    /// Absolute fee
+    #[serde(rename = "absolute")]
+    Absolute,
+    /// Fee per weight unit
+    #[serde(rename = "weighted")]
+    Weighted,
 }
 
 /// Abstraction that facilitates the creation of new transactions from a set of unspent outputs.
@@ -105,10 +118,12 @@ pub trait OutputsCollection {
         outputs: Vec<ValueTransferOutput>,
         dr_output: Option<&DataRequestOutput>,
         fee: u64,
+        fee_type: FeeType,
         timestamp: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
         utxo_strategy: UtxoSelectionStrategy,
+        max_weight: u32,
     ) -> Result<TransactionInfo, TransactionError> {
         // On error just assume the value is u64::max_value(), hoping that it is
         // impossible to pay for this transaction
@@ -121,21 +136,103 @@ pub trait OutputsCollection {
             )
             .ok_or_else(|| TransactionError::OutputValueOverflow)?;
 
-        let amount = output_value
-            .checked_add(fee)
-            .ok_or_else(|| TransactionError::OutputValueOverflow)?;
+        // For the first estimation: 1 input and 1 output more for the change address
+        let mut current_weight = calculate_weight(1, outputs.len() + 1, dr_output, max_weight)?;
 
-        let (output_pointers, input_value) =
-            self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
-        let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
+        match fee_type {
+            FeeType::Absolute => {
+                let amount = output_value
+                    .checked_add(fee)
+                    .ok_or_else(|| TransactionError::FeeOverflow)?;
 
-        Ok(TransactionInfo {
-            inputs,
-            outputs,
-            input_value,
-            output_value,
-        })
+                let (output_pointers, input_value) =
+                    self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
+                let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
+
+                Ok(TransactionInfo {
+                    inputs,
+                    outputs,
+                    input_value,
+                    output_value,
+                    fee,
+                })
+            }
+            FeeType::Weighted => {
+                let max_iterations = 1 + ((max_weight - current_weight) / INPUT_SIZE);
+                for _i in 0..max_iterations {
+                    let weighted_fee = fee
+                        .checked_mul(u64::from(current_weight))
+                        .ok_or_else(|| TransactionError::FeeOverflow)?;
+
+                    let amount = output_value
+                        .checked_add(weighted_fee)
+                        .ok_or_else(|| TransactionError::FeeOverflow)?;
+
+                    let (output_pointers, input_value) = self.take_enough_utxos(
+                        amount,
+                        timestamp,
+                        block_number_limit,
+                        utxo_strategy,
+                    )?;
+                    let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
+
+                    let new_weight =
+                        calculate_weight(inputs.len(), outputs.len() + 1, dr_output, max_weight)?;
+                    if new_weight == current_weight {
+                        return Ok(TransactionInfo {
+                            inputs,
+                            outputs,
+                            input_value,
+                            output_value,
+                            fee: weighted_fee,
+                        });
+                    } else {
+                        current_weight = new_weight;
+                    }
+                }
+
+                unreachable!("Unexpected exit in build_inputs_outputs method");
+            }
+        }
     }
+}
+
+/// Calculate weight from inputs and outputs information
+pub fn calculate_weight(
+    inputs_count: usize,
+    outputs_count: usize,
+    dro: Option<&DataRequestOutput>,
+    max_weight: u32,
+) -> Result<u32, TransactionError> {
+    let inputs = vec![Input::default(); inputs_count];
+    let outputs = vec![ValueTransferOutput::default(); outputs_count];
+
+    let weight = if let Some(dr_output) = dro {
+        let drt = DRTransactionBody::new(inputs, outputs, dr_output.clone());
+        let dr_weight = drt.weight();
+        if dr_weight > max_weight {
+            return Err(TransactionError::DataRequestWeightLimitExceeded {
+                weight: dr_weight,
+                max_weight,
+                dr_output: dr_output.clone(),
+            });
+        } else {
+            dr_weight
+        }
+    } else {
+        let vtt = VTTransactionBody::new(inputs, outputs);
+        let vt_weight = vtt.weight();
+        if vt_weight > max_weight {
+            return Err(TransactionError::ValueTransferWeightLimitExceeded {
+                weight: vt_weight,
+                max_weight,
+            });
+        } else {
+            vt_weight
+        }
+    };
+
+    Ok(weight)
 }
 
 /// Get total balance
@@ -180,50 +277,25 @@ pub fn build_vtt(
     timestamp: u64,
     tx_pending_timeout: u64,
     utxo_strategy: UtxoSelectionStrategy,
+    max_weight: u32,
 ) -> Result<VTTransactionBody, TransactionError> {
     let mut utxos = NodeUtxos {
         all_utxos,
         own_utxos,
     };
 
-    let tx_info = utxos.build_inputs_outputs(outputs, None, fee, timestamp, None, utxo_strategy)?;
+    // FIXME(#1722): Apply FeeTypes in the node methods
+    let fee_type = FeeType::Absolute;
 
-    // Mark UTXOs as used so we don't double spend
-    // Save the timestamp after which the transaction will be considered timed out
-    // and the output will become available for spending it again
-    utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
-
-    let mut outputs = tx_info.outputs;
-    insert_change_output(
-        &mut outputs,
-        own_pkh,
-        tx_info.input_value - tx_info.output_value - fee,
-    );
-
-    Ok(VTTransactionBody::new(tx_info.inputs, outputs))
-}
-
-/// Build data request transaction with the given outputs and fee.
-pub fn build_drt(
-    dr_output: DataRequestOutput,
-    fee: u64,
-    own_utxos: &mut OwnUnspentOutputsPool,
-    own_pkh: PublicKeyHash,
-    all_utxos: &UnspentOutputsPool,
-    timestamp: u64,
-    tx_pending_timeout: u64,
-) -> Result<DRTransactionBody, TransactionError> {
-    let mut utxos = NodeUtxos {
-        all_utxos,
-        own_utxos,
-    };
     let tx_info = utxos.build_inputs_outputs(
-        vec![],
-        Some(&dr_output),
+        outputs,
+        None,
         fee,
+        fee_type,
         timestamp,
         None,
-        UtxoSelectionStrategy::Random,
+        utxo_strategy,
+        max_weight,
     )?;
 
     // Mark UTXOs as used so we don't double spend
@@ -235,7 +307,53 @@ pub fn build_drt(
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - fee,
+        tx_info.input_value - tx_info.output_value - tx_info.fee,
+    );
+
+    Ok(VTTransactionBody::new(tx_info.inputs, outputs))
+}
+
+/// Build data request transaction with the given outputs and fee.
+#[allow(clippy::too_many_arguments)]
+pub fn build_drt(
+    dr_output: DataRequestOutput,
+    fee: u64,
+    own_utxos: &mut OwnUnspentOutputsPool,
+    own_pkh: PublicKeyHash,
+    all_utxos: &UnspentOutputsPool,
+    timestamp: u64,
+    tx_pending_timeout: u64,
+    max_weight: u32,
+) -> Result<DRTransactionBody, TransactionError> {
+    let mut utxos = NodeUtxos {
+        all_utxos,
+        own_utxos,
+    };
+
+    // FIXME(#1722): Apply FeeTypes in the node methods
+    let fee_type = FeeType::Absolute;
+
+    let tx_info = utxos.build_inputs_outputs(
+        vec![],
+        Some(&dr_output),
+        fee,
+        fee_type,
+        timestamp,
+        None,
+        UtxoSelectionStrategy::Random,
+        max_weight,
+    )?;
+
+    // Mark UTXOs as used so we don't double spend
+    // Save the timestamp after which the transaction will be considered timed out
+    // and the output will become available for spending it again
+    utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
+
+    let mut outputs = tx_info.outputs;
+    insert_change_output(
+        &mut outputs,
+        own_pkh,
+        tx_info.input_value - tx_info.output_value - tx_info.fee,
     );
 
     Ok(DRTransactionBody::new(tx_info.inputs, outputs, dr_output))
@@ -264,9 +382,11 @@ pub fn build_commit_collateral(
         vec![],
         None,
         fee,
+        FeeType::Absolute,
         timestamp,
         Some(block_number_limit),
         UtxoSelectionStrategy::SmallFirst,
+        u32::MAX,
     )?;
 
     // Mark UTXOs as used so we don't double spend
@@ -278,7 +398,7 @@ pub fn build_commit_collateral(
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - fee,
+        tx_info.input_value - tx_info.output_value - tx_info.fee,
     );
 
     Ok((tx_info.inputs, outputs))
@@ -355,6 +475,9 @@ mod tests {
         sync::atomic::{AtomicU32, Ordering},
     };
 
+    const MAX_VT_WEIGHT: u32 = 20000;
+    const MAX_DR_WEIGHT: u32 = 80000;
+
     // Counter used to prevent creating two transactions with the same hash
     static TX_COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -383,6 +506,7 @@ mod tests {
             timestamp,
             tx_pending_timeout,
             UtxoSelectionStrategy::Random,
+            MAX_VT_WEIGHT,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -409,6 +533,7 @@ mod tests {
             timestamp,
             tx_pending_timeout,
             UtxoSelectionStrategy::Random,
+            MAX_VT_WEIGHT,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -434,6 +559,7 @@ mod tests {
             all_utxos,
             timestamp,
             tx_pending_timeout,
+            MAX_DR_WEIGHT,
         )?;
 
         Ok(Transaction::DataRequest(DRTransaction::new(drt_tx, vec![])))

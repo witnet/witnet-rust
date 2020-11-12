@@ -13,10 +13,6 @@ use std::convert::TryFrom;
 use std::sync::{Arc, RwLock};
 use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
-pub trait MemoizedHashable {
-    fn hashable_bytes(&self) -> Vec<u8>;
-    fn memoized_hash(&self) -> &MemoHash;
-}
 // These constants were calculated in:
 // TODO: add link to WIP about transaction weights
 pub const INPUT_SIZE: u32 = 133;
@@ -27,6 +23,11 @@ pub const TALLY_WEIGHT: u32 = 100;
 pub const ALPHA: u32 = 1;
 pub const BETA: u32 = 1;
 pub const GAMMA: u32 = 10;
+
+pub trait MemoizedHashable {
+    fn hashable_bytes(&self) -> Vec<u8>;
+    fn memoized_hash(&self) -> &MemoHash;
+}
 
 /// A shareable wrapper for hash that may or may not be already computed.
 /// This low level structure does not include the implementation for compute-on-read, as that is up

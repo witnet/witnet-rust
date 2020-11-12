@@ -17,7 +17,7 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
-    transaction_factory::{insert_change_output, OutputsCollection},
+    transaction_factory::{insert_change_output, FeeType, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -996,7 +996,8 @@ where
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         let mut state = self.state.write()?;
-        let (inputs, outputs) = self.create_vt_transaction_components(&mut state, outputs, fee)?;
+        let (inputs, outputs) =
+            self.create_vt_transaction_components(&mut state, outputs, fee, fee_type)?;
 
         let body = types::VTTransactionBody::new(inputs.clone(), outputs);
         let sign_data = body.hash();
@@ -1016,7 +1017,7 @@ where
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
         let (inputs, outputs) =
-            self.create_dr_transaction_components(&mut state, request.clone(), fee)?;
+            self.create_dr_transaction_components(&mut state, request.clone(), fee, fee_type)?;
 
         let body = types::DRTransactionBody::new(inputs.clone(), outputs, request);
         let sign_data = body.hash();
@@ -1071,6 +1072,7 @@ where
         state: &mut State,
         outputs: Vec<ValueTransferOutput>,
         fee: u64,
+        fee_type: FeeType,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let utxo_strategy = UtxoSelectionStrategy::Random;
         let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
@@ -1080,118 +1082,16 @@ where
             outputs,
             None,
             fee,
+            fee_type,
             state,
             timestamp,
             tx_pending_timeout,
             None,
             utxo_strategy,
+            self.params.max_vt_weight,
         )?;
 
         Ok((inputs, outputs))
-    }
-
-    /// Create a VTT body with weighted fee
-    fn create_vt_components_weighted_fee(
-        &self,
-        state: &mut State,
-        value: u64,
-        weighted_fee: u64,
-        recipient: Option<(types::PublicKeyHash, u64)>,
-    ) -> Result<(types::VTTransactionBody, types::TransactionComponents)> {
-        let max_iterations = self.params.max_vt_weight / types::INPUT_SIZE;
-
-        let mut initial_fee = u64::from(types::INPUT_SIZE + 2 * types::OUTPUT_SIZE * types::GAMMA)
-            .checked_mul(weighted_fee)
-            .ok_or_else(|| Error::VTTFeeTooLarge(weighted_fee, value))?;
-
-        // The algorithm iterates over disctinct fees, without taking into consideration the UTXO selection algorithm
-        // For each iteration sets a fee, builds a VTT transaction, and checks whether the added weight * fee is coverable by that transaction
-        // If not, weight*fee is set as the new_fee, and the algorithm starts again.
-        // It is assumed that if such a transaction is not found after 'max_iterations', the account does not have enough UTXOs to cover it
-        for _ in 0..max_iterations {
-            let components =
-                self.create_vt_transaction_components(state, value, initial_fee, recipient)?;
-            let body = types::VTTransactionBody::new(
-                components.inputs.clone(),
-                components.outputs.clone(),
-            );
-
-            let weight = body.weight();
-            // If the maximum VTT weight is reached, return
-            if weight > self.params.max_vt_weight {
-                return Err(Error::MaximumVTTWeightReached(value));
-            }
-            // Calculate the new fee with the added weight
-            let new_fee = u64::from(weight)
-                .checked_mul(weighted_fee)
-                .ok_or_else(|| Error::VTTFeeTooLarge(weighted_fee, value))?;
-
-            // Re-buid the transaction with the new fee
-            let new_components =
-                self.create_vt_transaction_components(state, value, new_fee, recipient)?;
-
-            // If the transaciton components did not change, then the inputs are able to cover the new fee
-            if new_components.value == components.value
-                && new_components.change == components.change
-            {
-                return Ok((body, new_components));
-            }
-            // Else, set new fee as the fee for next iteration
-            initial_fee = new_fee;
-        }
-
-        Err(Error::InsufficientBalance)
-    }
-
-    /// Create a DR body with weighted fee
-    fn create_dr_components_weighted_fee(
-        &self,
-        state: &mut State,
-        value: u64,
-        weighted_fee: u64,
-        request: types::DataRequestOutput,
-    ) -> Result<(types::DRTransactionBody, types::TransactionComponents)> {
-        let dro_weight = types::INPUT_SIZE + types::OUTPUT_SIZE + request.weight();
-        let max_iterations = self.params.max_dr_weight / dro_weight;
-        let mut initial_fee = u64::from(dro_weight)
-            .checked_mul(weighted_fee)
-            .ok_or_else(|| Error::DRFeeTooLarge(weighted_fee, request.clone()))?;
-        // The algorithm iterates over disctinct fees, without taking into consideration the UTXO selection algorithm
-        // For each iteration sets a fee, builds a DR transaction, and checks whether the added weight * fee is coverable by that transaction
-        // If not, weight*fee is set as the new_fee, and the algorithm starts again.
-        // It is assumed that if such a transaction is not found after 'max_iterations', the account does not have enough UTXOs to cover it.
-        for _ in 0..max_iterations {
-            let components = self.create_dr_transaction_components(state, value, initial_fee)?;
-            let body = types::DRTransactionBody::new(
-                components.inputs,
-                components.outputs,
-                request.clone(),
-            );
-
-            let weight = body.weight();
-            // If the maximum DR weight is reached, return
-            if weight > self.params.max_dr_weight {
-                return Err(Error::MaximumDRWeightReached(request));
-            }
-            // Calculate the new fee with the added weight
-            let new_fee = u64::from(weight)
-                .checked_mul(weighted_fee)
-                .ok_or_else(|| Error::DRFeeTooLarge(weighted_fee, request.clone()))?;
-
-            // Re-buid the transaction with the new fee
-            let new_components = self.create_dr_transaction_components(state, value, new_fee)?;
-
-            // Re-buid the transaction with the new fee
-            if new_components.value == components.value
-                && new_components.change == components.change
-            {
-                return Ok((body, new_components));
-            }
-            // Else, set new fee as the fee for next iteration
-            initial_fee = new_fee;
-        }
-
-        Err(Error::InsufficientBalance)
     }
 
     fn create_dr_transaction_components(
@@ -1199,6 +1099,7 @@ where
         state: &mut State,
         request: DataRequestOutput,
         fee: u64,
+        fee_type: FeeType,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let utxo_strategy = UtxoSelectionStrategy::Random;
         let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
@@ -1208,14 +1109,37 @@ where
             vec![],
             Some(&request),
             fee,
+            fee_type,
             state,
             timestamp,
             tx_pending_timeout,
             None,
             utxo_strategy,
+            self.params.max_dr_weight,
         )?;
 
         Ok((inputs, outputs))
+    }
+
+    /// Function that returns an address for the change ValueTransferOutput
+    fn calculate_change_address(
+        &self,
+        is_vtt: bool,
+        inputs: &[Input],
+        state: &mut State,
+    ) -> Result<PublicKeyHash> {
+        let pkh = if is_vtt {
+            // In case of VTTransaction, a new internal address is used
+            self._gen_internal_address(state, None)?.pkh
+        } else {
+            // In case of DRTransaction, the first input pkh will be used
+            let first_input = inputs.first().clone().unwrap().output_pointer();
+            let key_balance = state.utxo_set.get(&first_input.into()).unwrap();
+
+            key_balance.pkh
+        };
+
+        Ok(pkh)
     }
 
     /// This function calls to their equivalent in data_structures 'build_inputs_outputs'
@@ -1228,12 +1152,14 @@ where
         outputs: Vec<ValueTransferOutput>,
         dr_output: Option<&DataRequestOutput>,
         fee: u64,
+        fee_type: FeeType,
         state: &mut State,
         timestamp: u64,
         tx_pending_timeout: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
         utxo_strategy: UtxoSelectionStrategy,
+        max_weight: u32,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let mut wallet_utxos = WalletUtxos {
             utxo_set: &state.utxo_set,
@@ -1244,45 +1170,24 @@ where
             outputs,
             dr_output,
             fee,
+            fee_type,
             timestamp,
             block_number_limit,
             utxo_strategy,
+            max_weight,
         )?;
 
         // Mark UTXOs as used so we don't double spend
         // Save the timestamp until it could be spend it
         wallet_utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
 
-        // In case of VTTransaction, a new internal address is used
-        // In case of DRTransaction, the first input pkh will be used
-        let change_pkh = if dr_output.is_none() {
-            self._gen_internal_address(state, None)?.pkh
-        } else {
-            let first_input = tx_info.inputs.first().clone().unwrap().output_pointer();
-            let key_balance = wallet_utxos.utxo_set.get(&first_input.into()).unwrap();
-
-            let model::Path {
-                keychain, index, ..
-            } = self.db.get(&keys::pkh(&key_balance.pkh))?;
-            let parent_key = state
-                .keychains
-                .get(keychain as usize)
-                .expect("could not get keychain");
-
-            let extended_sign_key =
-                parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
-
-            let public_key: types::PK =
-                types::ExtendedPK::from_secret_key(&self.engine, &extended_sign_key).into();
-
-            witnet_data_structures::chain::PublicKey::from(public_key).pkh()
-        };
-
+        let change_pkh =
+            self.calculate_change_address(dr_output.is_none(), &tx_info.inputs, state)?;
         let mut outputs = tx_info.outputs;
         insert_change_output(
             &mut outputs,
             change_pkh,
-            tx_info.input_value - tx_info.output_value - fee,
+            tx_info.input_value - tx_info.output_value - tx_info.fee,
         );
 
         Ok((tx_info.inputs, outputs))

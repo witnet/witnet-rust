@@ -1149,6 +1149,7 @@ impl Handler<BuildVtt> for ChainManager {
             ));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
+        let max_vt_weight = self.consensus_constants().max_vt_weight;
         match transaction_factory::build_vtt(
             msg.vto,
             msg.fee,
@@ -1158,6 +1159,7 @@ impl Handler<BuildVtt> for ChainManager {
             timestamp,
             self.tx_pending_timeout,
             msg.utxo_strategy,
+            max_vt_weight,
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
@@ -1212,6 +1214,7 @@ impl Handler<BuildDrt> for ChainManager {
             return Box::new(actix::fut::err(e));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
+        let max_dr_weight = self.consensus_constants().max_dr_weight;
         match transaction_factory::build_drt(
             msg.dro,
             msg.fee,
@@ -1220,6 +1223,7 @@ impl Handler<BuildDrt> for ChainManager {
             &self.chain_state.unspent_outputs_pool,
             timestamp,
             self.tx_pending_timeout,
+            max_dr_weight,
         ) {
             Err(e) => {
                 log::error!("Error when building data request transaction: {}", e);

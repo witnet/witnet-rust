@@ -57,18 +57,13 @@ pub enum Error {
         _0
     )]
     MaximumVTTWeightReached(u64),
-    #[fail(display = "Weight limit reached when trying to create DR {:?}", _0)]
+    #[fail(
+        display = "Weight limit reached when trying to create a Data Request. \n > {:?}",
+        _0
+    )]
     MaximumDRWeightReached(types::DataRequestOutput),
-    #[fail(
-        display = "The chosen fee ({} nanoWits) seems too large for a VTT transferring {} nanoWits",
-        _0, _1
-    )]
-    VTTFeeTooLarge(u64, u64),
-    #[fail(
-        display = "The chosen fee ({} nanoWits) seems too large for sending the request {:?}",
-        _0, _1
-    )]
-    DRFeeTooLarge(u64, types::DataRequestOutput),
+    #[fail(display = "The chosen fee seems too large")]
+    FeeTooLarge,
     #[fail(display = "Unknown Fee Type specified")]
     UnknownFeeType,
 }
@@ -120,6 +115,13 @@ impl From<TransactionError> for Error {
         match err {
             TransactionError::NoMoney { .. } => Error::InsufficientBalance,
             TransactionError::OutputValueOverflow => Error::TransactionValueOverflow,
+            TransactionError::FeeOverflow => Error::FeeTooLarge,
+            TransactionError::ValueTransferWeightLimitExceeded { weight, .. } => {
+                Error::MaximumVTTWeightReached(u64::from(weight))
+            }
+            TransactionError::DataRequestWeightLimitExceeded { dr_output, .. } => {
+                Error::MaximumDRWeightReached(dr_output)
+            }
             _ => Error::TransactionCreation(err),
         }
     }

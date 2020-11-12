@@ -30,6 +30,7 @@ pub use witnet_data_structures::{
         VTTransactionBody, ALPHA, BETA, COMMIT_WEIGHT, GAMMA, INPUT_SIZE, OUTPUT_SIZE,
         REVEAL_WEIGHT, TALLY_WEIGHT,
     },
+    transaction_factory::FeeType,
 };
 
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
@@ -148,17 +149,6 @@ pub struct CreateWalletData<'a> {
     pub salt: Vec<u8>,
     pub account: &'a Account,
     pub master_key: Option<ExtendedSK>,
-}
-
-/// Fee type distinguished between absolute or Weighted (fee/weight unit)
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub enum FeeType {
-    /// Absolute fee
-    #[serde(rename = "absolute")]
-    Absolute,
-    /// Fee per weight unit
-    #[serde(rename = "weighted")]
-    Weighted,
 }
 
 pub struct VttParams {

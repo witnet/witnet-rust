@@ -19,7 +19,23 @@ fn wallet_inner(
     store_master_key: bool,
 ) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
     let id = "example-wallet";
-    let params = params::Params::default();
+    let params = params::Params {
+        testnet: false,
+        seed_password: "".into(),
+        master_key_salt: b"Bitcoin seed".to_vec(),
+        id_hash_iterations: 4096,
+        id_hash_function: types::HashFunction::Sha256,
+        db_hash_iterations: 10_000,
+        db_iv_length: 16,
+        db_salt_length: 32,
+        epoch_constants: EpochConstants::default(),
+        node_sync_batch_size: 100,
+        genesis_hash: Hash::default(),
+        genesis_prev_hash: Hash::default(),
+        sync_address_batch_length: 10,
+        max_vt_weight: 20_000,
+        max_dr_weight: 80_000,
+    };
     let mnemonic = types::MnemonicGen::new()
         .with_len(types::MnemonicLength::Words12)
         .generate();
