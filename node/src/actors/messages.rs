@@ -20,7 +20,8 @@ use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, ValueTransferOutput,
+        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
+        ValueTransferOutput,
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
@@ -253,6 +254,14 @@ pub struct GetUtxoInfo {
 
 impl Message for GetUtxoInfo {
     type Result = Result<UtxoInfo, failure::Error>;
+}
+
+/// Get Supply
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetSupplyInfo;
+
+impl Message for GetSupplyInfo {
+    type Result = Result<SupplyInfo, failure::Error>;
 }
 
 /// Reputation info

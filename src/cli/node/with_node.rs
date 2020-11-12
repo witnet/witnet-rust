@@ -60,6 +60,9 @@ pub fn exec_cmd(
             let pkh = pkh.map(|x| x.parse()).transpose()?;
             rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address), long, pkh)
         }
+        Command::GetSupplyInfo { node } => {
+            rpc::get_supply_info(node.unwrap_or(config.jsonrpc.server_address))
+        }
         Command::GetReputation { node, address, all } => {
             let address = address.map(|x| x.parse()).transpose()?;
             rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), address, all)
@@ -384,6 +387,17 @@ pub enum Command {
         /// Public key hash for which to get UTXO information. If omitted, defaults to the node pkh
         #[structopt(long = "address", alias = "pkh")]
         pkh: Option<String>,
+    },
+    #[structopt(
+        name = "supply",
+        alias = "getSupply",
+        alias = "getSupplyInfo",
+        about = "Get the total supply of witnet tokens"
+    )]
+    GetSupplyInfo {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
     },
     #[structopt(
         name = "reputation",

@@ -2,12 +2,13 @@ use actix::{fut::WrapFuture, prelude::*};
 use futures::future::Future;
 use std::{
     collections::BTreeMap, collections::HashSet, convert::TryFrom, net::SocketAddr, time::Duration,
+    time::SystemTime, time::UNIX_EPOCH,
 };
 
 use witnet_data_structures::{
     chain::{
         Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, NodeStats,
-        SuperBlockVote,
+        SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -27,9 +28,9 @@ use crate::{
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
             GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
-            PeersBeacons, ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon,
-            TryMineBlock,
+            GetReputationResult, GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo,
+            IsConfirmedBlock, PeersBeacons, ReputationStats, SendLastBeacon, SessionUnitResult,
+            SetLastBeacon, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1354,6 +1355,47 @@ impl Handler<GetUtxoInfo> for ChainManager {
             chain_info.consensus_constants.collateral_minimum,
             block_number_limit,
         ))
+    }
+}
+
+impl Handler<GetSupplyInfo> for ChainManager {
+    type Result = Result<SupplyInfo, failure::Error>;
+
+    fn handle(&mut self, GetSupplyInfo: GetSupplyInfo, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
+        }
+
+        let total_supply = 2_500_000_000_000_000_000;
+        let epoch = self.current_epoch.unwrap();
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+
+        log::info!("Getting supply for time {}.", current_time);
+
+        let mut current_unlocked_supply = 0;
+        let mut current_locked_supply = 0;
+        for (_output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter()
+        {
+            if value_transfer_output.0.time_lock <= current_time {
+                current_unlocked_supply += value_transfer_output.0.value;
+            } else {
+                current_locked_supply += value_transfer_output.0.value;
+            }
+        }
+
+        Ok(SupplyInfo {
+            epoch,
+            current_time,
+            current_unlocked_supply,
+            current_locked_supply,
+            total_supply,
+        })
     }
 }
 

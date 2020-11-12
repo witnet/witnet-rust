@@ -3412,6 +3412,21 @@ impl EpochConstants {
     }
 }
 
+/// Information about the total supply
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SupplyInfo {
+    /// Current epoch
+    pub epoch: u32,
+    /// Current time
+    pub current_time: u64,
+    /// Current unlocked supply
+    pub current_unlocked_supply: u64,
+    /// Current locked supply
+    pub current_locked_supply: u64,
+    /// Total supply
+    pub total_supply: u64,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum SignaturesToVerify {
     VrfDr {

@@ -22,7 +22,7 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature,
-        NodeStats, OutputPointer, PublicKey, PublicKeyHash, SyncStatus, ValueTransferOutput,
+        NodeStats, OutputPointer, PublicKey, PublicKeyHash, SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -243,6 +243,39 @@ pub fn get_utxo_info(
         Wit::from_nanowits(utxo_not_ready_sum).to_string()
     ]);
     utxos_table.printstd();
+
+    Ok(())
+}
+
+pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo", "id": "1"}"#;
+    let response = send_request(&mut stream, &request)?;
+    let supply_info = parse_response::<SupplyInfo>(&response)?;
+
+    println!(
+        "\nSupply info at {} (epoch {}):\n",
+        pretty_print(supply_info.current_time as i64, 0),
+        supply_info.epoch
+    );
+
+    let mut supply_table = Table::new();
+    supply_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    supply_table.set_titles(row!["Supply type", "Amount (in wits)"]);
+    supply_table.add_row(row![
+        "Current supply".to_string(),
+        Wit::from_nanowits(supply_info.current_unlocked_supply).to_string()
+    ]);
+    supply_table.add_row(row![
+        "Locked supply".to_string(),
+        Wit::from_nanowits(supply_info.current_locked_supply).to_string()
+    ]);
+    supply_table.add_row(row![
+        "Total supply".to_string(),
+        Wit::from_nanowits(supply_info.total_supply).to_string()
+    ]);
+    supply_table.printstd();
 
     Ok(())
 }

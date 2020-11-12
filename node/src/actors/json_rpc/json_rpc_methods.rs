@@ -32,7 +32,7 @@ use crate::{
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo, InitializePeers, IsConfirmedBlock,
+            GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -85,6 +85,7 @@ pub fn jsonrpc_io_handler(
     io.add_method("getSuperblock", |params: Params| {
         get_superblock(params.parse())
     });
+    io.add_method("getSupplyInfo", move |_params: Params| get_supply_info());
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
     // A method is sensitive if it touches in some way the master key of the node.
@@ -1072,6 +1073,27 @@ pub fn get_utxo_info(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> J
     Box::new(fut)
 }
 
+/// Get supply info
+pub fn get_supply_info() -> JsonRpcResultAsync {
+    let chain_manager_addr = ChainManager::from_registry();
+
+    let fut = chain_manager_addr
+        .send(GetSupplyInfo)
+        .map_err(internal_error)
+        .and_then(|supply_info| match supply_info {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
 /// Get Reputation of one pkh
 pub fn get_reputation(
     params: Result<(PublicKeyHash,), jsonrpc_core::Error>,
@@ -1720,6 +1742,7 @@ mod tests {
                 "getSuperblock",
                 "getTransaction",
                 "getUtxoInfo",
+                "getSupplyInfo",
                 "initializePeers",
                 "inventory",
                 "knownPeers",
