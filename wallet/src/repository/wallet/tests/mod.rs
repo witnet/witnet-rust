@@ -548,10 +548,12 @@ fn test_create_vtt_does_not_spend_utxos() {
 
     let vtt = wallet
         .create_vtt(types::VttParams {
-            pkh,
-            value,
             fee,
-            time_lock,
+            outputs: vec![types::ValueTransferOutput {
+                pkh,
+                value,
+                time_lock,
+            }],
         })
         .unwrap();
 
@@ -838,10 +840,12 @@ fn test_index_transaction_vtt_created_by_wallet() {
     // spend those funds to create a new transaction which is pending (it has no block)
     let vtt = wallet
         .create_vtt(types::VttParams {
-            pkh: their_pkh,
-            value: 1,
             fee: 0,
-            time_lock: 0,
+            outputs: vec![types::ValueTransferOutput {
+                pkh: their_pkh,
+                value: 1,
+                time_lock: 0,
+            }],
         })
         .unwrap();
 
@@ -949,10 +953,12 @@ fn test_get_transaction() {
     // spend those funds to create a new transaction which is pending (it has no block)
     let vtt = wallet
         .create_vtt(types::VttParams {
-            pkh: their_pkh,
-            value: 1,
             fee: 0,
-            time_lock: 0,
+            outputs: vec![types::ValueTransferOutput {
+                pkh: their_pkh,
+                value: 1,
+                time_lock: 0,
+            }],
         })
         .unwrap();
 
@@ -1018,10 +1024,12 @@ fn test_get_transactions() {
     // spend those funds to create a new transaction which is pending (it has no block)
     let vtt = wallet
         .create_vtt(types::VttParams {
-            pkh: their_pkh,
-            value: 1,
             fee: 0,
-            time_lock: 0,
+            outputs: vec![types::ValueTransferOutput {
+                pkh: their_pkh,
+                value: 1,
+                time_lock: 0,
+            }],
         })
         .unwrap();
 
@@ -1087,10 +1095,12 @@ fn test_create_vtt_with_locked_balance() {
     // try to spend locked funds to create a new transaction
     let err = wallet
         .create_vtt(types::VttParams {
-            pkh: their_pkh,
-            value: 1,
             fee: 0,
-            time_lock: 0,
+            outputs: vec![types::ValueTransferOutput {
+                pkh: their_pkh,
+                value: 1,
+                time_lock: 0,
+            }],
         })
         .unwrap_err();
 
