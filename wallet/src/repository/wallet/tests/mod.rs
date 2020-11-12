@@ -1111,3 +1111,64 @@ fn test_create_vtt_with_locked_balance() {
         err,
     );
 }
+
+#[test]
+fn test_create_vtt_with_multiple_outputs() {
+    let (wallet, _db) = factories::wallet(None);
+
+    let a_block = factories::BlockInfo::default().create();
+    let our_address = wallet.gen_external_address(None).unwrap();
+
+    assert!(wallet.get_transaction(0, 0).is_err());
+    // index transaction to receive funds
+    wallet
+        .index_block_transactions(
+            &a_block,
+            &[factories::vtt_from_body(types::VTTransactionBody::new(
+                vec![Input::default()],
+                vec![ValueTransferOutput {
+                    pkh: our_address.pkh,
+                    value: 2,
+                    time_lock: 0,
+                }],
+            ))],
+            true,
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(1, wallet.state.read().unwrap().utxo_set.len());
+
+    assert!(wallet.get_transaction(0, 0).is_ok());
+    assert!(wallet.get_transaction(0, 1).is_err());
+
+    assert_eq!(2, wallet.balance().unwrap().unconfirmed.available);
+    assert_eq!(0, wallet.balance().unwrap().unconfirmed.locked);
+
+    // create wallet with 2 multiple outputs
+    let their_pkh1 = factories::pkh();
+    let their_pkh2 = factories::pkh();
+    let vtt = wallet
+        .create_vtt(types::VttParams {
+            fee: 0,
+            outputs: vec![
+                types::ValueTransferOutput {
+                    pkh: their_pkh1,
+                    value: 1,
+                    time_lock: 0,
+                },
+                types::ValueTransferOutput {
+                    pkh: their_pkh2,
+                    value: 1,
+                    time_lock: 0,
+                },
+            ],
+        })
+        .unwrap();
+
+    // There is a signature for each input
+    assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
+
+    // There 2 outputs
+    assert_eq!(vtt.body.outputs.len(), 2);
+}
