@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hash, Hashable, PublicKeyHash, StateMachine},
+    chain::{Block, Hash, Hashable, PublicKeyHash, StateMachine, SyncStatus},
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -887,46 +887,23 @@ pub fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResul
     }
 }
 
-/// Node synchronization status
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct SyncStatus {
-    /// The hash of the top consolidated block and the epoch of that block
-    pub chain_beacon: CheckpointBeacon,
-    /// The current epoch, or None if the epoch 0 is in the future
-    pub current_epoch: Option<u32>,
-    /// Is the node synchronized?
-    pub synchronized: bool,
-    /// Node State
-    pub node_state: Option<StateMachine>,
-}
-
 /// Get node status
 pub fn status() -> JsonRpcResultAsync {
     let chain_manager = ChainManager::from_registry();
     let epoch_manager = EpochManager::from_registry();
+    let node_state_fut =
+        chain_manager
+            .send(GetState)
+            .map_err(internal_error_s)
+            .then(|res| match res {
+                Ok(Ok(StateMachine::Synced)) => Ok(Some(StateMachine::Synced)),
+                Ok(Ok(StateMachine::AlmostSynced)) => Ok(Some(StateMachine::AlmostSynced)),
+                Ok(Ok(StateMachine::WaitingConsensus)) => Ok(Some(StateMachine::WaitingConsensus)),
+                Ok(Ok(StateMachine::Synchronizing)) => Ok(Some(StateMachine::Synchronizing)),
+                Ok(Err(())) => Err(internal_error(())),
+                Err(e) => Err(internal_error(e)),
+            });
 
-    let synchronized_fut = chain_manager
-        .send(GetState)
-        .map_err(internal_error_s)
-        .then(|res| match res {
-            Ok(Ok(StateMachine::Synced)) => Ok(true),
-            Ok(Ok(..)) => Ok(false),
-            Ok(Err(())) => Err(internal_error(())),
-            Err(e) => Err(internal_error(e)),
-        });
-    let node_state_fut = chain_manager
-        .send(GetState)
-        .map_err(internal_error_s)
-        .then(|res| match res {
-            Ok(Ok(StateMachine::Synced)) => Ok(Some(StateMachine::Synced)),
-            Ok(Ok(StateMachine::AlmostSynced)) => Ok(Some(StateMachine::AlmostSynced)),
-            Ok(Ok(StateMachine::WaitingConsensus)) => Ok(Some(StateMachine::WaitingConsensus)),
-            Ok(Ok(StateMachine::Synchronizing)) => Ok(Some(StateMachine::Synchronizing)),
-            // Ok(Ok(..)) => Ok(None),
-            Ok(Err(())) => Err(internal_error(())),
-            Err(e) => Err(internal_error(e)),
-        });
-        
     let chain_beacon_fut = chain_manager
         .send(GetHighestCheckpointBeacon)
         .then(|res| match res {
@@ -942,11 +919,11 @@ pub fn status() -> JsonRpcResultAsync {
         Err(e) => Err(internal_error_s(e)),
     });
 
-    let j = Future::join4(synchronized_fut, chain_beacon_fut, current_epoch_fut, node_state_fut)
-        .map(|(synchronized, chain_beacon, current_epoch, node_state)| SyncStatus {
+    let j = Future::join3(chain_beacon_fut, current_epoch_fut, node_state_fut)
+        .map(|(chain_beacon, current_epoch, node_state)| SyncStatus {
             chain_beacon,
             current_epoch,
-            synchronized,
+            synchronized: node_state == Some(StateMachine::Synced),
             node_state,
         })
         .and_then(|res| match serde_json::to_value(res) {

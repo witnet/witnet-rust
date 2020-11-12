@@ -39,7 +39,7 @@ impl Actor for App {
         self.node_subscribe("blocks", ctx);
         self.node_subscribe("superblocks", ctx);
         self.node_subscribe("status", ctx);
-        self.node_ping_pong(ctx);
+        self.periodic_node_request(ctx);
 
         let mut handler =
             jsonrpc_pubsub::PubSubHandler::new(jsonrpc_core::MetaIoHandler::default());

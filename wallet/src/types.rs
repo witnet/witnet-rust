@@ -19,7 +19,7 @@ pub use witnet_data_structures::{
         Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
         HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer,
         PublicKey, PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve,
-        RADTally, StateMachine, SuperBlock, ValueTransferOutput,
+        RADTally, StateMachine, SuperBlock, SyncStatus, ValueTransferOutput,
     },
     error::EpochCalculationError,
     proto::ProtobufConvert,
@@ -228,7 +228,7 @@ pub type DynamicSink = Arc<RwLock<Option<Sink>>>;
 
 /// Friendly events that can be sent to subscribed clients to let them now about significant
 /// activity related to their wallets.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub enum Event {
     /// The basic information of a new block that has already been processed but is pending
     /// consolidation (anchoring into a future superblock).
@@ -241,6 +241,8 @@ pub enum Event {
     Movement(model::BalanceMovement),
     /// Node status has changed
     NodeStatus(StateMachine),
+    /// Node disconnected
+    NodeDisconnected,
     /// The end of a synchronization progress.
     SyncFinish(u32, u32),
     /// An update on the progress of a the synchronization progress.

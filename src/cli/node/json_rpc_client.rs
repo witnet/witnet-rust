@@ -22,7 +22,7 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature,
-        NodeStats, OutputPointer, PublicKey, PublicKeyHash, ValueTransferOutput,
+        NodeStats, OutputPointer, PublicKey, PublicKeyHash, SyncStatus, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -30,7 +30,7 @@ use witnet_data_structures::{
 };
 use witnet_node::actors::{
     json_rpc::json_rpc_methods::{
-        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, SyncStatus,
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
     messages::{BuildVtt, GetReputationResult},
 };

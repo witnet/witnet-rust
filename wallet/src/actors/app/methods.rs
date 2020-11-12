@@ -83,9 +83,11 @@ impl App {
             let wallets = self.state.get_wallets_by_session(&session_id);
             if let Ok(wallets) = wallets {
                 for (_, wallet) in wallets.iter() {
-                    self.params
-                        .worker
-                        .do_send(NotifyStatus(wallet.clone(), dyn_sink.clone()));
+                    self.params.worker.do_send(NotifyStatus(
+                        wallet.clone(),
+                        dyn_sink.clone(),
+                        None,
+                    ));
                 }
             }
         })
@@ -764,9 +766,19 @@ impl App {
             .do_send(jsonrpc::Subscribe(request, recipient));
     }
 
-    pub fn node_ping_pong(&self, ctx: &mut <Self as Actor>::Context) {
+    /// Send syncStatus request to the node every 10 seconds and send
+    /// NodeDisconnected event if error in the response
+    pub fn periodic_node_request(&self, ctx: &mut <Self as Actor>::Context) {
         let method = "syncStatus".to_string();
 
+        let wallets: Vec<types::SessionWallet> = self
+            .state
+            .wallets
+            .iter()
+            .map(|(_, wallet)| wallet.clone())
+            .collect();
+
+        let events = Some(vec![types::Event::NodeDisconnected]);
         let req = types::RpcRequest::method(method)
             .timeout(self.params.requests_timeout)
             .params(())
@@ -781,20 +793,29 @@ impl App {
             .flatten()
             .inspect(|res| {
                 log::debug!("Periodic request result: {:?}", res);
+                let status = serde_json::from_value::<types::SyncStatus>(res.clone());
+                log::debug!("The result of the node status is {:?}", status);
             })
-            .map_err(|err| {
+            .into_actor(self)
+            .map_err(move |err, act, _ctx| {
                 log::warn!("Periodic request failed: {}", &err);
-                // TODO: detect node disconnected
+                log::error!("The node is disconnected");
+                // Notify that the node is disconnected
+                for wallet in &wallets {
+                    let sink = act.state.get_sink(&wallet.session_id);
+                    act.params
+                        .worker
+                        .do_send(NotifyStatus(wallet.clone(), sink, events.clone()))
+                }
             })
-            .map(|_res| {
-                // Ignore result
-            })
-            .into_actor(self);
+            .map(|_res, _act, _ctx| {
+                // TODO: send event with node state
+            });
         ctx.spawn(f);
 
         // Try to contact the node once every 10 seconds
         let duration = std::time::Duration::from_secs(10);
-        ctx.run_later(duration, |act, ctx| act.node_ping_pong(ctx));
+        ctx.run_later(duration, |act, ctx| act.periodic_node_request(ctx));
     }
 
     /// Validate seed (mnemonics or xprv):

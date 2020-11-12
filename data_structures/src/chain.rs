@@ -91,6 +91,19 @@ impl Default for StateMachine {
     }
 }
 
+/// Node synchronization status
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct SyncStatus {
+    /// The hash of the top consolidated block and the epoch of that block
+    pub chain_beacon: CheckpointBeacon,
+    /// The current epoch, or None if the epoch 0 is in the future
+    pub current_epoch: Option<u32>,
+    /// Is the node synchronized?
+    pub synchronized: bool,
+    /// Node State
+    pub node_state: Option<StateMachine>,
+}
+
 /// Possible values for the "environment" configuration param.
 // The variants are explicitly tagged so that bincode serialization does not break
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
