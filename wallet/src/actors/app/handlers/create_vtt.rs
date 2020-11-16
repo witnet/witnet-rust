@@ -91,27 +91,94 @@ fn validate_output_addresses(
     testnet: bool,
     outputs: &[VttOutputParams],
 ) -> Result<Vec<types::ValueTransferOutput>, app::ValidationErrors> {
+    let environment = if testnet {
+        Environment::Testnet
+    } else {
+        Environment::Mainnet
+    };
     outputs.iter().try_fold(vec![], |mut acc, output| {
-        types::PublicKeyHash::from_bech32(
-            if testnet {
-                Environment::Testnet
-            } else {
-                Environment::Mainnet
-            },
-            &output.address,
-        )
-        .map(|pkh| {
-            acc.push(types::ValueTransferOutput {
-                pkh,
-                value: output.amount,
-                time_lock: output.time_lock.unwrap_or_default(),
-            });
-        })
-        .map_err(|err| {
-            log::warn!("Invalid address: {}", err);
-            app::field_error("address", "Address failed to deserialize.")
-        })?;
+        types::PublicKeyHash::from_bech32(environment, &output.address)
+            .map(|pkh| {
+                acc.push(types::ValueTransferOutput {
+                    pkh,
+                    value: output.amount,
+                    time_lock: output.time_lock.unwrap_or_default(),
+                });
+            })
+            .map_err(|err| {
+                log::warn!("Invalid address: {}", err);
+
+                app::field_error("address", "Address failed to deserialize.")
+            })?;
 
         Ok(acc)
     })
+}
+
+#[cfg(test)]
+use witnet_data_structures::chain::{PublicKeyHash, ValueTransferOutput};
+
+#[test]
+fn test_validate_addresses() {
+    let output_mainnet = [VttOutputParams {
+        address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm".to_string(),
+        amount: 10,
+        time_lock: None,
+    }];
+    let validation = validate_output_addresses(false, &output_mainnet).unwrap();
+    assert_eq!(
+        validation,
+        [ValueTransferOutput {
+            pkh: PublicKeyHash::from_bech32(
+                Environment::Mainnet,
+                "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm",
+            )
+            .unwrap(),
+            value: 10,
+            time_lock: 0,
+        }]
+    );
+
+    let output_testnet = [VttOutputParams {
+        address: "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc".to_string(),
+        amount: 10,
+        time_lock: None,
+    }];
+    let validation = validate_output_addresses(true, &output_testnet).unwrap();
+    assert_eq!(
+        validation,
+        [ValueTransferOutput {
+            pkh: PublicKeyHash::from_bech32(
+                Environment::Testnet,
+                "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc",
+            )
+            .unwrap(),
+            value: 10,
+            time_lock: 0,
+        }]
+    );
+}
+
+#[test]
+fn test_validate_addresses_errors() {
+    let output_wrong_address = [VttOutputParams {
+        address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vx".to_string(),
+        amount: 10,
+        time_lock: None,
+    }];
+    assert!(validate_output_addresses(false, &output_wrong_address).is_err());
+
+    let output_mainnet = [VttOutputParams {
+        address: "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm".to_string(),
+        amount: 10,
+        time_lock: None,
+    }];
+    assert!(validate_output_addresses(true, &output_mainnet).is_err());
+
+    let output_testnet = [VttOutputParams {
+        address: "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc".to_string(),
+        amount: 10,
+        time_lock: None,
+    }];
+    assert!(validate_output_addresses(false, &output_testnet).is_err());
 }
