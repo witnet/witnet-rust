@@ -1376,8 +1376,6 @@ impl Handler<GetSupplyInfo> for ChainManager {
             .expect("Time went backwards")
             .as_secs();
 
-        log::info!("Getting supply for time {}.", current_time);
-
         let mut current_unlocked_supply = 0;
         let mut current_locked_supply = 0;
         for (_output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter()
@@ -1388,6 +1386,9 @@ impl Handler<GetSupplyInfo> for ChainManager {
                 current_locked_supply += value_transfer_output.0.value;
             }
         }
+
+        // Add the sum of all locked collateral to the current unlocked supply
+        current_unlocked_supply += self.chain_state.data_request_pool.collateral_locked;
 
         Ok(SupplyInfo {
             epoch,

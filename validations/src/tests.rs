@@ -2814,7 +2814,9 @@ fn commitment_dr_in_reveal_stage() {
     let cs = sign_tx(PRIV_KEY_1, &cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-    dr_pool.process_commit(&c_tx, &block_hash).unwrap();
+    dr_pool
+        .process_commit(&c_tx, &block_hash, collateral_minimum)
+        .unwrap();
     dr_pool.update_data_request_stages();
     let mut signatures_to_verify = vec![];
 
@@ -3338,6 +3340,8 @@ fn commitment_timelock() {
 }
 
 fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
+    let collateral_minimum = 1_000_000_000;
+
     let mut dr_pool = DataRequestPool::default();
     let block_hash = Hash::default();
     let epoch = 0;
@@ -3370,7 +3374,9 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
         )
         .unwrap();
     dr_pool.update_data_request_stages();
-    dr_pool.process_commit(&c_tx, &block_hash).unwrap();
+    dr_pool
+        .process_commit(&c_tx, &block_hash, collateral_minimum)
+        .unwrap();
     dr_pool.update_data_request_stages();
 
     (dr_pool, dr_pointer)
@@ -3589,6 +3595,8 @@ fn reveal_invalid_commitment() {
 
 #[test]
 fn reveal_valid_commitment() {
+    let collateral_minimum = 1_000_000_000;
+
     let mut signatures_to_verify = vec![];
     // Create DataRequestPool
     let mut dr_pool = DataRequestPool::new(2);
@@ -3643,7 +3651,7 @@ fn reveal_valid_commitment() {
 
     // Include CommitTransaction in DataRequestPool
     dr_pool
-        .process_commit(&commit_transaction, &fake_block_hash)
+        .process_commit(&commit_transaction, &fake_block_hash, collateral_minimum)
         .unwrap();
     dr_pool.update_data_request_stages();
 
@@ -3809,9 +3817,13 @@ fn include_commits(
 ) {
     assert!(commits_count <= commits.len());
 
+    let collateral_minimum = 1_000_000_000;
+
     let fake_block_hash = Hash::SHA256([1; 32]);
     for commit in commits.iter().take(commits_count) {
-        dr_pool.process_commit(&commit, &fake_block_hash).unwrap();
+        dr_pool
+            .process_commit(&commit, &fake_block_hash, collateral_minimum)
+            .unwrap();
     }
     dr_pool.update_data_request_stages();
 }
@@ -4083,6 +4095,8 @@ fn dr_pool_with_dr_in_tally_stage_with_dr_liar(
 
 #[test]
 fn tally_dr_not_tally_stage() {
+    let collateral_minimum = 1_000_000_000;
+
     // Create DRTransaction
     let fake_block_hash = Hash::SHA256([1; 32]);
     let epoch = 0;
@@ -4154,7 +4168,7 @@ fn tally_dr_not_tally_stage() {
     );
 
     dr_pool
-        .process_commit(&commit_transaction, &fake_block_hash)
+        .process_commit(&commit_transaction, &fake_block_hash, collateral_minimum)
         .unwrap();
     dr_pool.update_data_request_stages();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
@@ -6023,6 +6037,8 @@ fn block_duplicated_commits() {
 
 #[test]
 fn block_duplicated_reveals() {
+    let collateral_minimum = 1_000_000_000;
+
     let mut dr_pool = DataRequestPool::default();
     let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
 
@@ -6094,10 +6110,10 @@ fn block_duplicated_reveals() {
 
     // Include CommitTransaction in DataRequestPool
     dr_pool
-        .process_commit(&commit_transaction, &last_block_hash)
+        .process_commit(&commit_transaction, &last_block_hash, collateral_minimum)
         .unwrap();
     dr_pool
-        .process_commit(&commit_transaction2, &last_block_hash)
+        .process_commit(&commit_transaction2, &last_block_hash, collateral_minimum)
         .unwrap();
     dr_pool.update_data_request_stages();
 

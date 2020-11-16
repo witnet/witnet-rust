@@ -607,6 +607,7 @@ impl ChainManager {
                     &mut self.chain_state.own_utxos,
                     epoch_constants,
                     &mut self.chain_state.node_stats,
+                    chain_info.consensus_constants.collateral_minimum,
                 );
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
@@ -1947,6 +1948,7 @@ fn update_pools(
     own_utxos: &mut OwnUnspentOutputsPool,
     epoch_constants: EpochConstants,
     node_stats: &mut NodeStats,
+    collateral_minimum: u64,
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
 
@@ -1955,7 +1957,7 @@ fn update_pools(
         rep_info.update(&ta_tx, data_request_pool, own_pkh, node_stats);
 
         // IMPORTANT: Update the data request pool after updating reputation info
-        if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash(), collateral_minimum) {
             log::error!("Error processing tally transaction:\n{}", e);
         }
     }
@@ -1978,7 +1980,8 @@ fn update_pools(
     }
 
     for co_tx in &block.txns.commit_txns {
-        if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash(), collateral_minimum)
+        {
             log::error!("Error processing commit transaction:\n{}", e);
         } else {
             if Some(co_tx.body.proof.proof.pkh()) == own_pkh {
@@ -2397,6 +2400,8 @@ mod tests {
         let mut rep_info = ReputationInfo::default();
         let mut dr_pool = DataRequestPool::default();
 
+        let collateral_minimum = 1_000_000_000;
+
         let pk1 = PublicKey {
             compressed: 0,
             bytes: [1; 32],
@@ -2460,9 +2465,15 @@ mod tests {
         dr_pool
             .add_data_request(1, dr_tx, &Hash::default())
             .unwrap();
-        dr_pool.process_commit(&co_tx, &Hash::default()).unwrap();
-        dr_pool.process_commit(&co_tx2, &Hash::default()).unwrap();
-        dr_pool.process_commit(&co_tx3, &Hash::default()).unwrap();
+        dr_pool
+            .process_commit(&co_tx, &Hash::default(), collateral_minimum)
+            .unwrap();
+        dr_pool
+            .process_commit(&co_tx2, &Hash::default(), collateral_minimum)
+            .unwrap();
+        dr_pool
+            .process_commit(&co_tx3, &Hash::default(), collateral_minimum)
+            .unwrap();
         dr_pool.update_data_request_stages();
         dr_pool.process_reveal(&re_tx1, &Hash::default()).unwrap();
         dr_pool.process_reveal(&re_tx2, &Hash::default()).unwrap();

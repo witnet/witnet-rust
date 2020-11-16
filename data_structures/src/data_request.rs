@@ -27,6 +27,8 @@ pub struct DataRequestPool {
     pub to_be_stored: Vec<DataRequestInfo>,
     /// Extra rounds for commitments and reveals
     pub extra_rounds: u16,
+    /// Keep a sum of all collateral that is locked in data requests
+    pub collateral_locked: u64,
 }
 
 impl DataRequestPool {
@@ -131,10 +133,30 @@ impl DataRequestPool {
         pkh: PublicKeyHash,
         commit: CommitTransaction,
         block_hash: &Hash,
+        collateral_minimum: u64,
     ) -> Result<(), failure::Error> {
         let tx_hash = commit.hash();
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = commit.body.dr_pointer;
+
+        let dr_collateral = match self.get_dr_output(&dr_pointer) {
+            Some(x) => x.collateral,
+            None => 0,
+        };
+        self.collateral_locked = match self
+            .collateral_locked
+            .checked_add(std::cmp::max(dr_collateral, collateral_minimum))
+        {
+            Some(x) => x,
+            None => std::u64::MAX,
+        };
+        log::debug!(
+            "Commit {} for DR {} uses {} wit as collateral. Total collateral locked is {}",
+            commit.body.commitment,
+            dr_pointer,
+            std::cmp::max(dr_collateral, collateral_minimum),
+            self.collateral_locked
+        );
 
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
@@ -180,7 +202,27 @@ impl DataRequestPool {
         &mut self,
         tally: TallyTransaction,
         block_hash: &Hash,
+        collateral_minimum: u64,
     ) -> Result<(), failure::Error> {
+        let dr_pointer = tally.dr_pointer;
+        let (dr_collateral, witnesses) = match self.get_dr_output(&dr_pointer) {
+            Some(x) => (x.collateral, x.witnesses),
+            None => (0, 0),
+        };
+        self.collateral_locked = match self
+            .collateral_locked
+            .checked_sub(std::cmp::max(dr_collateral, collateral_minimum) * u64::from(witnesses))
+        {
+            Some(x) => x,
+            None => 0,
+        };
+        log::debug!(
+            "Data request {} is finished. Released {} collateral. Total collateral locked is {}",
+            dr_pointer,
+            std::cmp::max(dr_collateral, collateral_minimum) * u64::from(witnesses),
+            self.collateral_locked
+        );
+
         let dr_info = Self::resolve_data_request(&mut self.data_request_pool, tally, block_hash)?;
 
         // Since this method does not have access to the storage, we save the
@@ -300,9 +342,15 @@ impl DataRequestPool {
         &mut self,
         commit_transaction: &CommitTransaction,
         block_hash: &Hash,
+        collateral_minimum: u64,
     ) -> Result<(), failure::Error> {
         let pkh = PublicKeyHash::from_public_key(&commit_transaction.signatures[0].public_key);
-        self.add_commit(pkh, commit_transaction.clone(), block_hash)
+        self.add_commit(
+            pkh,
+            commit_transaction.clone(),
+            block_hash,
+            collateral_minimum,
+        )
     }
 
     /// New reveals are added to their respective data requests, updating the stage to tally
@@ -347,8 +395,9 @@ impl DataRequestPool {
         &mut self,
         tally_transaction: &TallyTransaction,
         block_hash: &Hash,
+        collateral_minimum: u64,
     ) -> Result<(), failure::Error> {
-        self.add_tally(tally_transaction.clone(), block_hash)
+        self.add_tally(tally_transaction.clone(), block_hash, collateral_minimum)
     }
 
     /// Get the detailed state of a data request.
@@ -676,6 +725,8 @@ mod tests {
         mut p: DataRequestPool,
         dr_pointer: Hash,
     ) -> (Hash, DataRequestPool, Hash) {
+        let collateral_minimum = 1_000_000_000;
+
         let commit_transaction = CommitTransaction::new(
             CommitTransactionBody::without_collateral(
                 dr_pointer,
@@ -685,7 +736,7 @@ mod tests {
             vec![KeyedSignature::default()],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, &fake_block_hash, collateral_minimum)
             .unwrap();
 
         // And we can also get all the commit pointers from the data request
@@ -766,13 +817,15 @@ mod tests {
     }
 
     fn from_tally_to_storage(fake_block_hash: Hash, mut p: DataRequestPool, dr_pointer: Hash) {
+        let collateral_minimum = 1_000_000_000;
+
         let tally_transaction = TallyTransaction::new(dr_pointer, vec![], vec![], vec![], vec![]);
 
         // There is nothing to be stored yet
         assert_eq!(p.to_be_stored.len(), 0);
 
         // Process tally: this will remove the data request from the pool
-        p.process_tally(&tally_transaction, &fake_block_hash)
+        p.process_tally(&tally_transaction, &fake_block_hash, collateral_minimum)
             .unwrap();
 
         // And the data request has been removed from the pool
@@ -816,6 +869,8 @@ mod tests {
 
     #[test]
     fn test_from_reveal_to_tally_3_stages_uncompleted() {
+        let collateral_minimum = 1_000_000_000;
+
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
@@ -843,9 +898,9 @@ mod tests {
             }],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, &fake_block_hash, collateral_minimum)
             .unwrap();
-        p.process_commit(&commit_transaction2, &fake_block_hash)
+        p.process_commit(&commit_transaction2, &fake_block_hash, collateral_minimum)
             .unwrap();
 
         // Update stages
@@ -907,6 +962,8 @@ mod tests {
 
     #[test]
     fn test_from_reveal_to_tally_3_stages_completed() {
+        let collateral_minimum = 1_000_000_000;
+
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
@@ -934,9 +991,9 @@ mod tests {
             }],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, &fake_block_hash, collateral_minimum)
             .unwrap();
-        p.process_commit(&commit_transaction2, &fake_block_hash)
+        p.process_commit(&commit_transaction2, &fake_block_hash, collateral_minimum)
             .unwrap();
 
         // Update stages
@@ -993,6 +1050,8 @@ mod tests {
 
     #[test]
     fn test_from_reveal_to_tally_3_stages_zero_reveals() {
+        let collateral_minimum = 1_000_000_000;
+
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
@@ -1020,9 +1079,9 @@ mod tests {
             }],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, &fake_block_hash, collateral_minimum)
             .unwrap();
-        p.process_commit(&commit_transaction2, &fake_block_hash)
+        p.process_commit(&commit_transaction2, &fake_block_hash, collateral_minimum)
             .unwrap();
 
         // Update stages
@@ -1082,6 +1141,8 @@ mod tests {
 
     #[test]
     fn my_claims() {
+        let collateral_minimum = 1_000_000_000;
+
         // Test the `add_own_reveal` function
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
@@ -1108,7 +1169,7 @@ mod tests {
             Some(&reveal_transaction)
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, &fake_block_hash, collateral_minimum)
             .unwrap();
 
         // Still in commit stage until we update

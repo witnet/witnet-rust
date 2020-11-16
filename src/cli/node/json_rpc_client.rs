@@ -247,6 +247,7 @@ pub fn get_utxo_info(
     Ok(())
 }
 
+#[allow(clippy::cast_possible_wrap)]
 pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
