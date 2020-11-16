@@ -82,7 +82,7 @@ impl JsonRpcClient {
         self.socket = socket;
 
         // Recover active subscriptions
-        let mut active_subscriptions = self
+        let active_subscriptions = self
             .active_subscriptions
             .lock()
             .map(|x| x.clone())
@@ -113,7 +113,9 @@ impl JsonRpcClient {
             });
 
         // Clear up all subscriptions (will be pushed again if they keep failing)
-        active_subscriptions.clear();
+        if let Ok(mut x) = self.active_subscriptions.lock() {
+            x.clear()
+        }
         self.pending_subscriptions.clear();
     }
 
