@@ -17,6 +17,7 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
+    transaction::Transaction,
     transaction_factory::{insert_change_output, FeeType, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
@@ -1075,7 +1076,6 @@ where
         fee_type: FeeType,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let utxo_strategy = UtxoSelectionStrategy::Random;
-        let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         let (inputs, outputs) = self.build_inputs_outputs_wallet(
@@ -1085,7 +1085,6 @@ where
             fee_type,
             state,
             timestamp,
-            tx_pending_timeout,
             None,
             utxo_strategy,
             self.params.max_vt_weight,
@@ -1102,7 +1101,6 @@ where
         fee_type: FeeType,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let utxo_strategy = UtxoSelectionStrategy::Random;
-        let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         let (inputs, outputs) = self.build_inputs_outputs_wallet(
@@ -1112,7 +1110,6 @@ where
             fee_type,
             state,
             timestamp,
-            tx_pending_timeout,
             None,
             utxo_strategy,
             self.params.max_dr_weight,
@@ -1155,7 +1152,6 @@ where
         fee_type: FeeType,
         state: &mut State,
         timestamp: u64,
-        tx_pending_timeout: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
         utxo_strategy: UtxoSelectionStrategy,
@@ -1177,12 +1173,9 @@ where
             max_weight,
         )?;
 
-        // Mark UTXOs as used so we don't double spend
-        // Save the timestamp until it could be spend it
-        wallet_utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
-
         let change_pkh =
             self.calculate_change_address(dr_output.is_none(), &tx_info.inputs, state)?;
+
         let mut outputs = tx_info.outputs;
         insert_change_output(
             &mut outputs,
@@ -1316,6 +1309,31 @@ where
         txn: &model::ExtendedTransaction,
     ) -> Result<Option<model::BalanceMovement>> {
         let mut state = self.state.write()?;
+        // This line is needed because of this error:
+        // - Cannot borrow `state` as mutable because it is also borrowed as immutable
+        let mut state = &mut *state;
+
+        // Mark UTXOs as used so we don't double spend
+        // Save the timestamp to after which the UTXO can be spent again
+        let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+
+        let inputs = match &txn.transaction {
+            Transaction::ValueTransfer(tx) => Some(&tx.body.inputs),
+            Transaction::DataRequest(tx) => Some(&tx.body.inputs),
+            Transaction::Commit(tx) => Some(&tx.body.collateral),
+            Transaction::Reveal(_) => None,
+            Transaction::Tally(_) => None,
+            Transaction::Mint(_) => None,
+        };
+
+        let mut wallet_utxos = WalletUtxos {
+            utxo_set: &state.utxo_set,
+            used_outputs: &mut state.used_outputs,
+        };
+        if let Some(inputs) = inputs {
+            wallet_utxos.set_used_output_pointer(inputs, timestamp + tx_pending_timeout);
+        }
 
         if let Some(mut account_mutation) =
             self._get_account_mutation(&state, txn, &model::Beacon::default(), false)?
