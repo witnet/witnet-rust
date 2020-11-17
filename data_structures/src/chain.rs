@@ -3419,6 +3419,18 @@ pub struct SupplyInfo {
     pub epoch: u32,
     /// Current time
     pub current_time: u64,
+    /// Number of blocks minted
+    pub blocks_minted: u32,
+    /// WIT minted through block creation
+    pub blocks_minted_reward: u64,
+    /// Number of blocks missing
+    pub blocks_missing: u32,
+    /// WIT missing because a block was not created
+    pub blocks_missing_reward: u64,
+    /// Amount of in-flight data requests
+    pub collateralized_data_requests: u32,
+    /// Supply currently locked in data requests
+    pub collateral_locked: u64,
     /// Current unlocked supply
     pub current_unlocked_supply: u64,
     /// Current locked supply
