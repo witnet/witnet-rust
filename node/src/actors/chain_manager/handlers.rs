@@ -36,6 +36,7 @@ use crate::{
     signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
+use witnet_data_structures::transaction_factory::FeeType;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -1107,9 +1108,16 @@ impl Handler<BuildVtt> for ChainManager {
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         let max_vt_weight = self.consensus_constants().max_vt_weight;
+
+        let fee_type = if msg.weighted_fee {
+            FeeType::Weighted
+        } else {
+            FeeType::Absolute
+        };
         match transaction_factory::build_vtt(
             msg.vto,
             msg.fee,
+            fee_type,
             &mut self.chain_state.own_utxos,
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
@@ -1175,9 +1183,15 @@ impl Handler<BuildDrt> for ChainManager {
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         let max_dr_weight = self.consensus_constants().max_dr_weight;
+        let fee_type = if msg.weighted_fee {
+            FeeType::Weighted
+        } else {
+            FeeType::Absolute
+        };
         match transaction_factory::build_drt(
             msg.dro,
             msg.fee,
+            fee_type,
             &mut self.chain_state.own_utxos,
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,

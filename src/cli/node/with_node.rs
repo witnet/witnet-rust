@@ -85,6 +85,7 @@ pub fn exec_cmd(
             fee,
             time_lock,
             dry_run,
+            weighted_fee,
         } => rpc::send_vtt(
             node.unwrap_or(config.jsonrpc.server_address),
             Some(address.parse()?),
@@ -94,6 +95,7 @@ pub fn exec_cmd(
             time_lock.unwrap_or(0),
             None,
             dry_run,
+            weighted_fee,
         ),
         Command::Split {
             node,
@@ -103,6 +105,7 @@ pub fn exec_cmd(
             fee,
             time_lock,
             dry_run,
+            weighted_fee,
         } => {
             let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == 0 { None } else { Some(size) };
@@ -115,6 +118,7 @@ pub fn exec_cmd(
                 time_lock.unwrap_or(0),
                 Some(true),
                 dry_run,
+                weighted_fee,
             )
         }
         Command::Join {
@@ -125,6 +129,7 @@ pub fn exec_cmd(
             fee,
             time_lock,
             dry_run,
+            weighted_fee,
         } => {
             let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == Some(0) { None } else { size };
@@ -137,6 +142,7 @@ pub fn exec_cmd(
                 time_lock.unwrap_or(0),
                 Some(false),
                 dry_run,
+                weighted_fee,
             )
         }
         Command::SendRequest {
@@ -144,7 +150,14 @@ pub fn exec_cmd(
             hex,
             fee,
             run,
-        } => rpc::send_dr(node.unwrap_or(config.jsonrpc.server_address), hex, fee, run),
+            weighted_fee,
+        } => rpc::send_dr(
+            node.unwrap_or(config.jsonrpc.server_address),
+            hex,
+            fee,
+            run,
+            weighted_fee,
+        ),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
@@ -425,13 +438,16 @@ pub enum Command {
         value: u64,
         /// Fee
         #[structopt(long = "fee")]
-        fee: u64,
+        fee: Option<u64>,
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+        /// Use weighted fee (instead of absolute)
+        #[structopt(long = "weighted_fee", conflicts_with = "fee")]
+        weighted_fee: Option<u64>,
     },
     #[structopt(
         name = "splitTransaction",
@@ -452,13 +468,16 @@ pub enum Command {
         size: u64,
         /// Fee
         #[structopt(long = "fee")]
-        fee: u64,
+        fee: Option<u64>,
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+        /// Use weighted fee (instead of absolute)
+        #[structopt(long = "weighted_fee", conflicts_with = "fee")]
+        weighted_fee: Option<u64>,
     },
     #[structopt(
         name = "joinTransaction",
@@ -479,13 +498,16 @@ pub enum Command {
         size: Option<u64>,
         /// Fee
         #[structopt(long = "fee")]
-        fee: u64,
+        fee: Option<u64>,
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+        /// Use weighted fee (instead of absolute)
+        #[structopt(long = "weighted_fee", conflicts_with = "fee")]
+        weighted_fee: Option<u64>,
     },
     #[structopt(
         name = "sendRequest",
@@ -498,11 +520,14 @@ pub enum Command {
         node: Option<SocketAddr>,
         #[structopt(long = "hex")]
         hex: String,
-        #[structopt(long = "fee", default_value = "0")]
-        fee: u64,
+        #[structopt(long = "fee")]
+        fee: Option<u64>,
         /// Run the data request locally before sending, to ensure correctness of RADON scripts
         #[structopt(long = "run")]
         run: bool,
+        /// Use weighted fee (instead of absolute)
+        #[structopt(long = "weighted_fee", conflicts_with = "fee")]
+        weighted_fee: Option<u64>,
     },
     #[structopt(
         name = "config",

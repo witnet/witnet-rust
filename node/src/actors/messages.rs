@@ -192,6 +192,8 @@ pub struct BuildVtt {
     pub vto: Vec<ValueTransferOutput>,
     /// Fee
     pub fee: u64,
+    /// weighted fee flag
+    pub weighted_fee: bool,
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
@@ -208,6 +210,8 @@ pub struct BuildDrt {
     pub dro: DataRequestOutput,
     /// Fee
     pub fee: u64,
+    /// weighted fee flag
+    pub weighted_fee: bool,
 }
 
 impl Message for BuildDrt {

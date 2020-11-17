@@ -271,6 +271,7 @@ pub fn insert_change_output(
 pub fn build_vtt(
     outputs: Vec<ValueTransferOutput>,
     fee: u64,
+    fee_type: FeeType,
     own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
@@ -283,9 +284,6 @@ pub fn build_vtt(
         all_utxos,
         own_utxos,
     };
-
-    // FIXME(#1722): Apply FeeTypes in the node methods
-    let fee_type = FeeType::Absolute;
 
     let tx_info = utxos.build_inputs_outputs(
         outputs,
@@ -318,6 +316,7 @@ pub fn build_vtt(
 pub fn build_drt(
     dr_output: DataRequestOutput,
     fee: u64,
+    fee_type: FeeType,
     own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
@@ -329,9 +328,6 @@ pub fn build_drt(
         all_utxos,
         own_utxos,
     };
-
-    // FIXME(#1722): Apply FeeTypes in the node methods
-    let fee_type = FeeType::Absolute;
 
     let tx_info = utxos.build_inputs_outputs(
         vec![],
@@ -500,6 +496,7 @@ mod tests {
         let vtt_tx = build_vtt(
             outputs,
             fee,
+            FeeType::Absolute,
             own_utxos,
             own_pkh,
             all_utxos,
@@ -527,6 +524,7 @@ mod tests {
         let vtt_tx = build_vtt(
             outputs,
             fee,
+            FeeType::Absolute,
             own_utxos,
             own_pkh,
             all_utxos,
@@ -554,6 +552,7 @@ mod tests {
         let drt_tx = build_drt(
             dr_output,
             fee,
+            FeeType::Absolute,
             own_utxos,
             own_pkh,
             all_utxos,

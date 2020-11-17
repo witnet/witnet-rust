@@ -415,10 +415,11 @@ pub fn send_vtt(
     pkh: Option<PublicKeyHash>,
     value: u64,
     size: Option<u64>,
-    fee: u64,
+    fee: Option<u64>,
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
+    weighted_fee: Option<u64>,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
@@ -463,10 +464,18 @@ pub fn send_vtt(
         None => UtxoSelectionStrategy::Random,
     };
 
+    let (fee, weighted_fee) = match (fee, weighted_fee) {
+        (Some(x), None) => (x, false),
+        (None, Some(x)) => (x, true),
+        (None, None) => bail!("Any fee included"),
+        _ => unreachable!("There are two different fees requested"),
+    };
+
     let params = BuildVtt {
         vto: vt_outputs,
         fee,
         utxo_strategy,
+        weighted_fee,
     };
 
     let request = format!(
@@ -543,15 +552,23 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
 pub fn send_dr(
     addr: SocketAddr,
     hex_bytes: String,
-    fee: u64,
+    fee: Option<u64>,
     run: bool,
+    weighted_fee: Option<u64>,
 ) -> Result<(), failure::Error> {
     let dr_output = deserialize_and_validate_hex_dr(hex_bytes)?;
     if run {
         run_dr_locally(&dr_output)?;
     }
 
-    let bdr_params = json!({"dro": dr_output, "fee": fee});
+    let (fee, weighted_fee) = match (fee, weighted_fee) {
+        (Some(x), None) => (x, false),
+        (None, Some(x)) => (x, true),
+        (None, None) => bail!("Any fee included"),
+        _ => unreachable!("There are two different fees requested"),
+    };
+
+    let bdr_params = json!({"dro": dr_output, "fee": fee, "weighted_fee": weighted_fee});
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "sendRequest", "params": {}, "id": "1"}}"#,
         serde_json::to_string(&bdr_params)?

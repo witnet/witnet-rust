@@ -235,6 +235,7 @@ mod examples {
                 collateral: 1_000_000_000,
             },
             fee: 10,
+            weighted_fee: false,
         }
     }
 
@@ -290,6 +291,7 @@ mod examples {
                 collateral: 1_000_000_000,
             },
             fee: 0,
+            weighted_fee: false,
         }
     }
 
@@ -334,6 +336,7 @@ mod examples {
                 collateral: 1_000_000_000,
             },
             fee: 0,
+            weighted_fee: false,
         }
     }
 
@@ -405,6 +408,7 @@ mod examples {
                 collateral: 1_000_000_000,
             },
             fee: 0,
+            weighted_fee: false,
         }
     }
 }
