@@ -29,6 +29,7 @@ pub struct CreateDataReqResponse {
     pub transaction_id: String,
     pub transaction: types::Transaction,
     pub bytes: String,
+    pub fee: u64,
 }
 
 impl Message for CreateDataReqRequest {
@@ -41,15 +42,22 @@ impl Handler<CreateDataReqRequest> for app::App {
     fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         let validated = validate(msg.request.clone()).map_err(app::validation_error);
 
+        let fee_type = msg.fee_type.unwrap_or(FeeType::Weighted);
+
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
             let params = types::DataReqParams {
                 request,
                 fee: msg.fee,
-                fee_type: msg.fee_type.unwrap_or(FeeType::Weighted),
+                fee_type,
             };
 
             slf.create_data_req(&msg.session_id, &msg.wallet_id, params)
-                .map(|transaction, _, _| {
+                .map(move |transaction, _, _| {
+                    let fee = match fee_type {
+                        FeeType::Absolute => msg.fee,
+                        FeeType::Weighted => msg.fee * u64::from(transaction.weight()),
+                    };
+
                     let transaction_id = hex::encode(transaction.hash().as_ref());
                     let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
 
@@ -57,6 +65,7 @@ impl Handler<CreateDataReqRequest> for app::App {
                         transaction_id,
                         transaction,
                         bytes,
+                        fee,
                     }
                 })
         });

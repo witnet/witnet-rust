@@ -56,15 +56,22 @@ impl Handler<CreateVttRequest> for app::App {
         let validated =
             validate_output_addresses(testnet, &msg.outputs).map_err(app::validation_error);
 
+        let fee_type = msg.fee_type.unwrap_or(FeeType::Weighted);
+
         let f = fut::result(validated).and_then(move |outputs, act: &mut Self, _ctx| {
             let params = types::VttParams {
                 fee: msg.fee,
                 outputs,
-                fee_type: msg.fee_type.unwrap_or(FeeType::Weighted),
+                fee_type,
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)
-                .map(|transaction, _, _| {
+                .map(move |transaction, _, _| {
+                    let fee = match fee_type {
+                        FeeType::Absolute => msg.fee,
+                        FeeType::Weighted => msg.fee * u64::from(transaction.weight()),
+                    };
+
                     let transaction_id = hex::encode(transaction.hash().as_ref());
                     let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
 
@@ -73,7 +80,7 @@ impl Handler<CreateVttRequest> for app::App {
                         transaction,
                         bytes,
                         metadata: VttMetadata {
-                            fee: msg.fee,
+                            fee,
                             outputs: msg.outputs,
                         },
                     }
