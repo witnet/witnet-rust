@@ -24,6 +24,6 @@ impl Handler<SendTransactionRequest> for app::App {
     type Result = app::ResponseActFuture<SendTransactionResponse>;
 
     fn handle(&mut self, msg: SendTransactionRequest, _ctx: &mut Self::Context) -> Self::Result {
-        self.send_transaction(&msg.session_id, &msg.wallet_id, msg.transaction)
+        self.send_transaction(msg.session_id, msg.wallet_id, msg.transaction)
     }
 }

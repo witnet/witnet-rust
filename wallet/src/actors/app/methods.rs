@@ -4,7 +4,7 @@ use actix::utils::TimerFunc;
 use futures::future;
 
 use witnet_crypto::mnemonic::Mnemonic;
-use witnet_data_structures::chain::{InventoryItem, StateMachine};
+use witnet_data_structures::chain::{Hashable, InventoryItem, StateMachine};
 
 use crate::actors::{
     worker::{HandleBlockRequest, HandleSuperBlockRequest, NodeStatusRequest, NotifyStatus},
@@ -631,25 +631,34 @@ impl App {
     /// and add a local pending balance movement to the wallet state.
     pub fn send_transaction(
         &self,
-        session_id: &types::SessionId,
-        wallet_id: &str,
+        session_id: types::SessionId,
+        wallet_id: String,
         transaction: types::Transaction,
     ) -> ResponseActFuture<SendTransactionResponse> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
         )
-        .and_then(move |wallet, act: &mut Self, _| {
-            act.send_inventory_transaction(transaction.clone())
-                .and_then(move |jsonrpc_result, _slf, _ctx| {
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.send_inventory_transaction(transaction.clone())
+                .and_then(move |jsonrpc_result, slf: &mut Self, _ctx| {
                     match wallet.add_local_movement(&model::ExtendedTransaction {
-                        transaction,
+                        transaction: transaction.clone(),
                         metadata: None,
                     }) {
-                        Ok(balance_movement) => actix::fut::ok(SendTransactionResponse {
-                            jsonrpc_result,
-                            balance_movement,
-                        }),
+                        Ok(balance_movement) => {
+                            let sink = slf.state.get_sink(&session_id);
+                            // We send a notification to the client
+                            let events =
+                                Some(vec![types::Event::LocalTransactionSent(transaction.hash())]);
+                            slf.params
+                                .worker
+                                .do_send(NotifyStatus(wallet, sink, events));
+                            actix::fut::ok(SendTransactionResponse {
+                                jsonrpc_result,
+                                balance_movement,
+                            })
+                        }
                         Err(e) => {
                             log::error!("Error while adding local pending movement: {}", e);
 
