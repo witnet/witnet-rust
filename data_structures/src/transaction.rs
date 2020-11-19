@@ -388,21 +388,11 @@ impl DRTransactionBody {
 
         let dr_weight = inputs_weight
             .saturating_add(outputs_weight)
-            .saturating_add(self.dr_output.weight());
-        let witnesses = u32::from(self.dr_output.witnesses);
+            .saturating_add(self.dr_output.weight())
+            .saturating_mul(ALPHA);
 
-        let total_dr_weight = dr_weight.saturating_mul(ALPHA);
-        let commits_weight = witnesses.saturating_mul(COMMIT_WEIGHT);
-        let reveals_weight = witnesses.saturating_mul(REVEAL_WEIGHT).saturating_mul(BETA);
-        let tally_outputs_weight = witnesses.saturating_mul(OUTPUT_SIZE);
-        let tally_weight = TALLY_WEIGHT
-            .saturating_mul(BETA)
-            .saturating_add(tally_outputs_weight);
-
-        total_dr_weight
-            .saturating_add(commits_weight)
-            .saturating_add(reveals_weight)
-            .saturating_add(tally_weight)
+        let dr_extra_weight = self.dr_output.extra_weight();
+        dr_weight.saturating_add(dr_extra_weight)
     }
 
     /// Specified data to be divided in a new level in the proof of inclusion

@@ -28,6 +28,7 @@ use crate::{
     },
     signature_mngr,
 };
+use witnet_data_structures::chain::Hash;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
@@ -753,6 +754,61 @@ fn build_block(
         }
     }
 
+    for ta_tx in tally_transactions {
+        if let Some(dr_state) = dr_pool.data_request_state(&ta_tx.dr_pointer) {
+            tally_txns.push(ta_tx.clone());
+            let commits_count = dr_state.info.commits.len();
+            let reveals_count = dr_state.info.reveals.len();
+
+            let (liars_count, errors_count) = calculate_liars_and_errors_count_from_tally(&ta_tx);
+
+            let collateral = if dr_state.data_request.collateral == 0 {
+                collateral_minimum
+            } else {
+                dr_state.data_request.collateral
+            };
+
+            // Remainder collateral goes to the miner
+            let (_, extra_tally_fee) = calculate_witness_reward(
+                commits_count,
+                reveals_count,
+                liars_count,
+                errors_count,
+                dr_state.data_request.witness_reward,
+                collateral,
+            );
+            transaction_fees += extra_tally_fee;
+        } else {
+            log::warn!(
+                "Data Request pointed by tally transaction doesn't exist in DataRequestPool"
+            );
+        }
+    }
+
+    let (commit_txns, commits_fees, solved_dr_pointers) = transactions_pool.remove_commits(dr_pool);
+    transaction_fees += commits_fees;
+
+    let (reveal_txns, reveals_fees) = transactions_pool.remove_reveals(dr_pool);
+    transaction_fees += reveals_fees;
+
+    // Calculate data request not solved weight
+    let mut dr_pointers: HashSet<Hash> = dr_pool
+        .get_dr_output_pointers_by_epoch(epoch)
+        .into_iter()
+        .collect();
+    for dr in solved_dr_pointers {
+        dr_pointers.remove(&dr);
+    }
+
+    for dr in dr_pointers {
+        let unsolved_dro = dr_pool.get_dr_output(&dr);
+        if let Some(dro) = unsolved_dro {
+            dr_weight = dr_weight
+                .saturating_add(dro.weight())
+                .saturating_add(dro.extra_weight());
+        }
+    }
+
     let dro = DataRequestOutput {
         witnesses: 1,
         ..DataRequestOutput::default()
@@ -791,43 +847,6 @@ fn build_block(
             break;
         }
     }
-
-    for ta_tx in tally_transactions {
-        if let Some(dr_state) = dr_pool.data_request_state(&ta_tx.dr_pointer) {
-            tally_txns.push(ta_tx.clone());
-            let commits_count = dr_state.info.commits.len();
-            let reveals_count = dr_state.info.reveals.len();
-
-            let (liars_count, errors_count) = calculate_liars_and_errors_count_from_tally(&ta_tx);
-
-            let collateral = if dr_state.data_request.collateral == 0 {
-                collateral_minimum
-            } else {
-                dr_state.data_request.collateral
-            };
-
-            // Remainder collateral goes to the miner
-            let (_, extra_tally_fee) = calculate_witness_reward(
-                commits_count,
-                reveals_count,
-                liars_count,
-                errors_count,
-                dr_state.data_request.witness_reward,
-                collateral,
-            );
-            transaction_fees += extra_tally_fee;
-        } else {
-            log::warn!(
-                "Data Request pointed by tally transaction doesn't exist in DataRequestPool"
-            );
-        }
-    }
-
-    let (commit_txns, commits_fees) = transactions_pool.remove_commits(dr_pool);
-    transaction_fees += commits_fees;
-
-    let (reveal_txns, reveals_fees) = transactions_pool.remove_reveals(dr_pool);
-    transaction_fees += reveals_fees;
 
     // Include Mint Transaction by miner
     let reward = block_reward(epoch, initial_block_reward, halving_period) + transaction_fees;

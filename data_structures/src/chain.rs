@@ -26,7 +26,9 @@ use witnet_crypto::{
 use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
-use crate::transaction::{MemoHash, MemoizedHashable};
+use crate::transaction::{
+    MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
+};
 use crate::{
     chain::Signature::Secp256k1,
     data_request::DataRequestPool,
@@ -1260,6 +1262,21 @@ impl DataRequestOutput {
 
         self.data_request.weight().saturating_add(8 + 2 + 8 + 4 + 8)
     }
+
+    /// Data Request extra weight related by commits, reveals and tally
+    pub fn extra_weight(&self) -> u32 {
+        let witnesses = u32::from(self.witnesses);
+        let commits_weight = witnesses.saturating_mul(COMMIT_WEIGHT);
+        let reveals_weight = witnesses.saturating_mul(REVEAL_WEIGHT).saturating_mul(BETA);
+        let tally_outputs_weight = witnesses.saturating_mul(OUTPUT_SIZE);
+        let tally_weight = TALLY_WEIGHT
+            .saturating_mul(BETA)
+            .saturating_add(tally_outputs_weight);
+
+        commits_weight
+            .saturating_add(reveals_weight)
+            .saturating_add(tally_weight)
+    }
 }
 
 /// Keyed signature data structure
@@ -2033,11 +2050,16 @@ impl TransactionsPool {
     }
 
     /// Returns a tuple with a vector of commit transactions that achieve the minimum specify
-    /// by the data request, and the value of all the fees obtained with those commits
-    pub fn remove_commits(&mut self, dr_pool: &DataRequestPool) -> (Vec<CommitTransaction>, u64) {
+    /// by the data request, the value of all the fees obtained with those commits, and
+    /// the list of data requests that have reached the commit limit
+    pub fn remove_commits(
+        &mut self,
+        dr_pool: &DataRequestPool,
+    ) -> (Vec<CommitTransaction>, u64, Vec<Hash>) {
         let mut total_fee = 0;
         let mut spent_inputs = HashSet::new();
         let co_hash_index = &mut self.co_hash_index;
+        let mut dr_pointer_vec = vec![];
         let commits_vector = self
             .co_transactions
             .iter_mut()
@@ -2083,6 +2105,7 @@ impl TransactionsPool {
                             if filtered_commits.len() == n_commits {
                                 commits_vec.extend(filtered_commits);
                                 total_fee += dr_output.commit_and_reveal_fee * n_commits as u64;
+                                dr_pointer_vec.push(*dr_pointer);
                             }
                         }
                     }
@@ -2093,7 +2116,7 @@ impl TransactionsPool {
         // Clear commit hash index: commits are invalidated at the end of the epoch
         self.clear_commits();
 
-        (commits_vector, total_fee)
+        (commits_vector, total_fee, dr_pointer_vec)
     }
 
     /// Returns a tuple with a vector of reveal transactions and the value
@@ -4557,7 +4580,7 @@ mod tests {
         transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.co_transactions.len(), 1);
         assert_eq!(transactions_pool.co_hash_index.len(), 1);
-        let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
+        let (commits_vec, _commit_fees, _) = transactions_pool.remove_commits(&dr_pool);
         assert_eq!(commits_vec.len(), 1);
         assert_eq!(transactions_pool.co_transactions, HashMap::new());
         assert_eq!(transactions_pool.co_hash_index, HashMap::new());
@@ -4676,7 +4699,7 @@ mod tests {
         assert_eq!(transactions_pool.co_transactions.len(), 3);
         assert_eq!(transactions_pool.co_hash_index.len(), 3);
 
-        let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
+        let (commits_vec, _commit_fees, _) = transactions_pool.remove_commits(&dr_pool);
         assert_eq!(commits_vec.len(), 2);
         // t2 does not conflict with anything so it must be present
         assert!(commits_vec.contains(&c2));
@@ -4717,7 +4740,7 @@ mod tests {
         transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.co_transactions.len(), 1);
         assert_eq!(transactions_pool.co_hash_index.len(), 1);
-        let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
+        let (commits_vec, _commit_fees, _) = transactions_pool.remove_commits(&dr_pool);
         // Since the number of commits is below the minimum of 1 witness specified in the `dro`,
         // remove_commits returns an empty vector
         assert_eq!(commits_vec, vec![]);
