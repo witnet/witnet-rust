@@ -976,6 +976,27 @@ impl ChainManager {
                 }
             }
 
+            // Stop validating new commit transactions as soon as we achieve the limit of commits because
+            // the VRF validation is expensive. The limit is the number of witnesses of the data request.
+            if let Transaction::Commit(co_tx) = &msg.transaction {
+                let dr_pointer = co_tx.body.dr_pointer;
+                if let Some(dr_state) = self
+                    .chain_state
+                    .data_request_pool
+                    .data_request_state(&dr_pointer)
+                {
+                    let dr_output = &dr_state.data_request;
+                    let commit_limit = usize::from(dr_output.witnesses);
+                    let num_commits_in_pool = self
+                        .transactions_pool
+                        .num_commits_for_data_request(&dr_pointer);
+                    if num_commits_in_pool >= commit_limit {
+                        log::debug!("Ignoring commit {} because of commit limit", co_tx.hash());
+                        return Box::new(actix::fut::ok(()));
+                    }
+                }
+            }
+
             let mut signatures_to_verify = vec![];
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = current_epoch;

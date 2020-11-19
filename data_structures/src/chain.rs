@@ -2403,6 +2403,14 @@ impl TransactionsPool {
                     .map(|rt| Transaction::Reveal(rt.clone()))
             })
     }
+
+    /// Return the number of commits for the given data request
+    pub fn num_commits_for_data_request(&self, dr_hash: &Hash) -> usize {
+        self.co_transactions
+            .get(dr_hash)
+            .map(|x| x.len())
+            .unwrap_or(0)
+    }
 }
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
