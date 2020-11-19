@@ -732,8 +732,6 @@ impl App {
     /// Send syncStatus request to the node every 10 seconds and send
     /// NodeDisconnected event if error in the response
     pub fn periodic_node_request(&self, ctx: &mut <Self as Actor>::Context) {
-        let method = "syncStatus".to_string();
-
         let wallets: Vec<types::SessionWallet> = self
             .state
             .wallets
@@ -741,8 +739,11 @@ impl App {
             .map(|(_, wallet)| wallet.clone())
             .collect();
 
+        let wallets2 = wallets.clone();
+
         let events = Some(vec![types::Event::NodeDisconnected]);
-        let req = types::RpcRequest::method(method)
+
+        let req = types::RpcRequest::method("syncStatus".to_string())
             .timeout(self.params.requests_timeout)
             .params(())
             .expect("params failed serialization");
@@ -763,21 +764,40 @@ impl App {
             .map_err(move |err, act, _ctx| {
                 log::warn!("Periodic request failed: {}", &err);
                 log::error!("The node is disconnected");
+                // Update node_state
+                act.state.node_state = None;
                 // Notify that the node is disconnected
-                for wallet in &wallets {
+                for wallet in &wallets2 {
                     let sink = act.state.get_sink(&wallet.session_id);
                     act.params
                         .worker
                         .do_send(NotifyStatus(wallet.clone(), sink, events.clone()))
                 }
             })
-            .map(|_res, _act, _ctx| {
-                // TODO: send event with node state
+            .map(move |res, act, _ctx| {
+                let status = serde_json::from_value::<types::SyncStatus>(res);
+                // Notify if the node status is changed
+                if let Ok(status) = status {
+                    if status.node_state != act.state.node_state {
+                        // Update node_state
+                        act.state.node_state = status.node_state;
+                        for wallet in &wallets {
+                            let sink = act.state.get_sink(&wallet.session_id);
+                            act.params.worker.do_send(NodeStatusRequest {
+                                status: act.state.node_state.unwrap(),
+                                wallet: wallet.clone(),
+                                sink,
+                            });
+                        }
+                    }
+                } else {
+                    log::error!("Periodic request result serialization failed");
+                }
             });
         ctx.spawn(f);
 
-        // Try to contact the node once every 10 seconds
-        let duration = std::time::Duration::from_secs(10);
+        // Try to contact the node once every 15 seconds
+        let duration = std::time::Duration::from_secs(15);
         ctx.run_later(duration, |act, ctx| act.periodic_node_request(ctx));
     }
 

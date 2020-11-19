@@ -1074,7 +1074,7 @@ impl Worker {
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
-        log::info!("The node has changed its status into {:?}", status);
+        log::debug!("The current node status is {:?}", status);
         // Notify about the changed node status.
         let events = vec![types::Event::NodeStatus(status)];
         self.notify_client(&wallet, sink.clone(), Some(events)).ok();
