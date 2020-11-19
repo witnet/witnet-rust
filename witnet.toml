@@ -47,7 +47,7 @@ known_peers = [
 ]
 # How many peer connections to stablish before considering that is safe to decide what the best chain tip is, based on
 # the beacons that those peers are announcing.
-outbound_limit = 12
+outbound_limit = 1
 # Period for opening new peer connections while the current number of peers is lower than `outbound_limit`.
 bootstrap_peers_period_seconds = 1
 # Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as to prevent sybil peers from
@@ -85,7 +85,7 @@ data_request_max_retrievals_per_epoch = 30
 data_request_timeout_milliseconds = 2000
 # Path for the `genesis_block.json` file that contains the initial wit allocations that need to be built into the first
 # block in the block chain.
-genesis_path = ".witnet/config/genesis_block.json"
+genesis_path = "./genesis_block.json"
 # `mint_external_address` and `mint_external_percentage` enable splitting the mint reward between the node's
 # own address and an "external" address, e.g. a the address of a wallet. `mint_external_percentage` indicates
 # the percentage of the block rewards that will be assigned to `mint_external_address` (50% by default)
@@ -93,10 +93,11 @@ genesis_path = ".witnet/config/genesis_block.json"
 #mint_external_percentage = 50
 # Set a minimum fee you require before your node includes a value transfer transaction into a block
 minimum_vtt_fee_nanowits = 1
+minimum_reward_to_collateral_ratio = 1000
 
 [log]
 # Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"
-level = "info"
+level = "debug"
 
 [wallet]
 # The address (IP and port) of a Witnet node's JSON-RPC server. This should normally match `json_rpc.server_address`.

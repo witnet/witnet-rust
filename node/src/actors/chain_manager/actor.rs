@@ -82,7 +82,7 @@ impl ChainManager {
 
                 // Do not start the MiningManager if the configuration disables it
                 act.mining_enabled = config.mining.enabled;
-
+                act.minimum_reward_to_collateral_ratio = config.mining.minimum_reward_to_collateral_ratio;
                 // External mint address
                 act.external_address = config.mining.mint_external_address.clone().and_then(|pkh| PublicKeyHash::from_str(pkh.as_str()).ok());
                 // External mint percentage should not exceed 100%

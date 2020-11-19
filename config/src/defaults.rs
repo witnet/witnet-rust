@@ -220,6 +220,10 @@ pub trait Defaults {
         0
     }
 
+    fn minimum_reward_to_collateral_ratio(&self) -> u64 {
+        1000
+    }
+
     fn consensus_constants_max_vt_weight(&self) -> u32 {
         20_000
     }

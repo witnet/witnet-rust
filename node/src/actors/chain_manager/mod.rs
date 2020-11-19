@@ -204,6 +204,8 @@ pub struct ChainManager {
     temp_superblock_votes: Vec<SuperBlockVote>,
     /// Commits and reveals to process later
     temp_commits_and_reveals: Vec<Transaction>,
+    /// Minimum_reward_to_collateral_ratio
+    minimum_reward_to_collateral_ratio: u64,
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding

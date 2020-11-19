@@ -28,6 +28,7 @@ use crate::{
     },
     signature_mngr,
 };
+use witnet_data_structures::chain::DataRequestState;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
@@ -246,8 +247,15 @@ impl ChainManager {
             .wait(ctx);
     }
 
+    /// Check whether the reward covers the minimum specified collateral
+    pub fn check_reward_to_collateral_filter(&self, dr_state: &DataRequestState) -> bool {
+        let dr_reward_to_collateral_ratio =
+            (dr_state.data_request.witness_reward / dr_state.data_request.collateral) * 1000;
+        dr_reward_to_collateral_ratio > self.minimum_reward_to_collateral_ratio
+    }
+
     /// Try to mine a data_request
-    // TODO: refactor this procedure into multiple functions that can be tested separately.
+    // TODO: refactor this procedure into multiple functions that can be tesdr_stateted separately.
     pub fn try_mine_data_request(&mut self, ctx: &mut Context<Self>) {
         let vrf_input = self
             .chain_state
@@ -302,6 +310,16 @@ impl ChainManager {
                 .data_request_state(&dr_pointer)
                 .map(|dr_state| (dr_pointer, dr_state.clone()))
         }) {
+            // Continue analyzing the following dr
+            if !self.check_reward_to_collateral_filter(&dr_state) {
+                log::error!("Not analyzing eligbility for DR {:?} because its reward {:?} and collateral{:?} does not match the mininum specified",
+                dr_pointer,
+                    dr_state.data_request.witness_reward,
+                            dr_state.data_request.collateral,
+                );
+                continue;
+            }
+
             let num_witnesses = dr_state.data_request.witnesses;
             let num_backup_witnesses = dr_state.backup_witnesses();
             // The vrf_input used to create and verify data requests must be set to the current epoch
