@@ -95,9 +95,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             chain_beacon.hash_prev_block
         );
 
-        // Clear pending transactions HashSet
-        self.transactions_pool.clear_pending_transactions();
-
         // Handle case consensus not achieved
         if !self.peers_beacons_received {
             log::warn!("No beacon messages received from peers. Moving to WaitingConsensus state");
@@ -1129,6 +1126,11 @@ impl Handler<PeersBeacons> for ChainManager {
             // During epoch 0 there is no need to create the superblock 0
             if current_epoch != 0 && current_epoch % superblock_period == 0 {
                 self.create_and_broadcast_superblock(ctx, current_epoch);
+
+                // Clear pending transactions HashSet
+                // Only clear after a superblock consolidation to avoid receiving repeated transactions
+                // during a reverting process
+                self.transactions_pool.clear_pending_transactions();
             }
         }
 
