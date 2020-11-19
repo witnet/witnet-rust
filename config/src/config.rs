@@ -561,7 +561,7 @@ impl Log {
                 .level
                 .to_owned()
                 .unwrap_or_else(|| defaults.log_level()),
-            sentry_telemetry: config.sentry_telemetry.unwrap_or_else(|| false),
+            sentry_telemetry: config.sentry_telemetry.unwrap_or(false),
         }
     }
 

@@ -1247,7 +1247,7 @@ impl DataRequestOutput {
             .checked_add(self.commit_and_reveal_fee)
             .and_then(|res| res.checked_add(self.commit_and_reveal_fee))
             .and_then(|res| res.checked_mul(u64::from(self.witnesses)))
-            .ok_or_else(|| TransactionError::FeeOverflow)
+            .ok_or(TransactionError::FeeOverflow)
     }
 
     /// Returns the DataRequestOutput weight

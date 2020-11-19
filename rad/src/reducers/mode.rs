@@ -17,10 +17,7 @@ pub fn mode(input: &RadonArray) -> Result<RadonTypes, RadError> {
     let temp_counter = counter.clone();
 
     // Compute how many times does the most frequent item appear
-    let max_count = temp_counter
-        .values()
-        .max()
-        .ok_or_else(|| RadError::ModeEmpty)?;
+    let max_count = temp_counter.values().max().ok_or(RadError::ModeEmpty)?;
 
     // Collect items that appear as many times as the one that appears the most
     let mode_vector: Vec<RadonTypes> = counter

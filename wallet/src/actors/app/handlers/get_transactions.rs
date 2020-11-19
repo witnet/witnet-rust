@@ -22,12 +22,8 @@ impl Handler<GetTransactionsRequest> for app::App {
     type Result = app::ResponseActFuture<GetTransactionsResponse>;
 
     fn handle(&mut self, msg: GetTransactionsRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let offset = msg
-            .offset
-            .unwrap_or_else(|| constants::DEFAULT_PAGINATION_OFFSET);
-        let limit = msg
-            .limit
-            .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT);
+        let offset = msg.offset.unwrap_or(constants::DEFAULT_PAGINATION_OFFSET);
+        let limit = msg.limit.unwrap_or(constants::DEFAULT_PAGINATION_LIMIT);
         let f = self.get_transactions(msg.session_id, msg.wallet_id, offset, limit);
 
         Box::new(f)

@@ -23,12 +23,8 @@ impl Handler<GetAddressesRequest> for app::App {
     type Result = app::ResponseActFuture<GetAddressesResponse>;
 
     fn handle(&mut self, msg: GetAddressesRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let offset = msg
-            .offset
-            .unwrap_or_else(|| constants::DEFAULT_PAGINATION_OFFSET);
-        let limit = msg
-            .limit
-            .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT);
+        let offset = msg.offset.unwrap_or(constants::DEFAULT_PAGINATION_OFFSET);
+        let limit = msg.limit.unwrap_or(constants::DEFAULT_PAGINATION_LIMIT);
         let external = msg.external.unwrap_or(true);
         let f = self.get_addresses(msg.session_id, msg.wallet_id, offset, limit, external);
 

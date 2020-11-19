@@ -215,7 +215,7 @@ impl Peers {
                         // If the source address that sent us this peer addresses is None, use the same address
                         // that we want to add. This will make all the peer addresses that were added using manual methods
                         // go to the same bucket that if it was announced by that address.
-                        let src_address = src_address.unwrap_or_else(|| address);
+                        let src_address = src_address.unwrap_or(address);
                         let index = self.new_bucket_index(&address, &src_address);
 
                         self.new_bucket

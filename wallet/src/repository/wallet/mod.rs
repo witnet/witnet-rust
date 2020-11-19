@@ -267,7 +267,7 @@ where
 
         let last_sync = db
             .get(&keys::wallet_last_sync())
-            .unwrap_or_else(|_| CheckpointBeacon {
+            .unwrap_or(CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: params.genesis_prev_hash,
             });
@@ -375,7 +375,7 @@ where
             last_payment_date: None,
         };
 
-        let next_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
+        let next_index = index.checked_add(1).ok_or(Error::IndexOverflow)?;
         if persist_db {
             // Persist changes and new address in database
             let mut batch = self.db.batch();
@@ -1238,7 +1238,7 @@ where
                 .balance
                 .local
                 .checked_sub(local_movement.amount)
-                .ok_or_else(|| Error::TransactionValueOverflow)?;
+                .ok_or(Error::TransactionValueOverflow)?;
         }
 
         // Update memory state: `utxo_set`
@@ -1254,7 +1254,7 @@ where
         state.transaction_next_id = state
             .transaction_next_id
             .checked_add(1)
-            .ok_or_else(|| Error::TransactionIdOverflow)?;
+            .ok_or(Error::TransactionIdOverflow)?;
 
         // Update addresses (externals/internals) and their information if there were payments (new UTXOs)
         //
@@ -1335,7 +1335,7 @@ where
                 .balance
                 .local
                 .checked_add(account_mutation.balance_movement.amount)
-                .ok_or_else(|| Error::TransactionValueOverflow)?;
+                .ok_or(Error::TransactionValueOverflow)?;
 
             return Ok(Some(account_mutation.balance_movement));
         }
@@ -1456,7 +1456,7 @@ where
             if let Some(model::OutputInfo { amount, .. }) = state.utxo_set.get(&out_ptr) {
                 input_amount = input_amount
                     .checked_add(*amount)
-                    .ok_or_else(|| Error::TransactionBalanceOverflow)?;
+                    .ok_or(Error::TransactionBalanceOverflow)?;
                 utxo_removals.push(out_ptr);
             }
         }
@@ -1492,7 +1492,7 @@ where
                 };
                 output_amount = output_amount
                     .checked_add(output.value)
-                    .ok_or_else(|| Error::TransactionBalanceOverflow)?;
+                    .ok_or(Error::TransactionBalanceOverflow)?;
 
                 let address = output.pkh.bech32(if self.params.testnet {
                     Environment::Testnet

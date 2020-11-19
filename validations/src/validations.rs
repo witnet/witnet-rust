@@ -885,7 +885,7 @@ pub fn validate_reveal_transaction(
         .info
         .commits
         .get(&pkh)
-        .ok_or_else(|| TransactionError::CommitNotFound)?;
+        .ok_or(TransactionError::CommitNotFound)?;
 
     if commit.body.commitment != reveal_signature.signature.hash() {
         return Err(TransactionError::MismatchedCommitment.into());

@@ -74,7 +74,7 @@ impl State {
         Ok(&self
             .sessions
             .get(session_id)
-            .ok_or_else(|| Error::SessionNotFound)?
+            .ok_or(Error::SessionNotFound)?
             .wallets)
     }
 
@@ -89,7 +89,7 @@ impl State {
         let wallet = wallets
             .get(wallet_id)
             .cloned()
-            .ok_or_else(|| Error::WalletNotFound)?;
+            .ok_or(Error::WalletNotFound)?;
 
         Ok(wallet)
     }
@@ -133,7 +133,7 @@ impl State {
         self.sessions
             .remove(session_id)
             .map(|_| ())
-            .ok_or_else(|| Error::SessionNotFound)
+            .ok_or(Error::SessionNotFound)
     }
 
     /// Remove a wallet completely.
@@ -141,7 +141,7 @@ impl State {
         let session = self
             .sessions
             .get_mut(session_id)
-            .ok_or_else(|| Error::SessionNotFound)?;
+            .ok_or(Error::SessionNotFound)?;
 
         session.wallets.remove(wallet_id);
         self.wallets.remove(wallet_id);

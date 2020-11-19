@@ -70,7 +70,7 @@ pub trait OutputsCollection {
             let value = self.get_value(op).unwrap();
             total = total
                 .checked_add(value)
-                .ok_or_else(|| TransactionError::OutputValueOverflow)?;
+                .ok_or(TransactionError::OutputValueOverflow)?;
 
             if let Some(time_lock) = self.get_time_lock(op) {
                 if time_lock > timestamp {
@@ -134,7 +134,7 @@ pub trait OutputsCollection {
                     .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
                     .unwrap_or_default(),
             )
-            .ok_or_else(|| TransactionError::OutputValueOverflow)?;
+            .ok_or(TransactionError::OutputValueOverflow)?;
 
         // For the first estimation: 1 input and 1 output more for the change address
         let mut current_weight = calculate_weight(1, outputs.len() + 1, dr_output, max_weight)?;
@@ -143,7 +143,7 @@ pub trait OutputsCollection {
             FeeType::Absolute => {
                 let amount = output_value
                     .checked_add(fee)
-                    .ok_or_else(|| TransactionError::FeeOverflow)?;
+                    .ok_or(TransactionError::FeeOverflow)?;
 
                 let (output_pointers, input_value) =
                     self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
@@ -162,11 +162,11 @@ pub trait OutputsCollection {
                 for _i in 0..max_iterations {
                     let weighted_fee = fee
                         .checked_mul(u64::from(current_weight))
-                        .ok_or_else(|| TransactionError::FeeOverflow)?;
+                        .ok_or(TransactionError::FeeOverflow)?;
 
                     let amount = output_value
                         .checked_add(weighted_fee)
-                        .ok_or_else(|| TransactionError::FeeOverflow)?;
+                        .ok_or(TransactionError::FeeOverflow)?;
 
                     let (output_pointers, input_value) = self.take_enough_utxos(
                         amount,
