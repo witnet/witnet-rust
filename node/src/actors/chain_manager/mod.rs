@@ -1309,6 +1309,7 @@ impl ChainManager {
                         let last_superblock_signed_by_bootstrap = last_superblock_signed_by_bootstrap(&chain_info.consensus_constants);
 
                         let is_superblock_hack_period = superblock_index > 750 && superblock_index < 1344;
+                        let is_second_superblock_hack_period = superblock_index > "INSERT TIMESTAMP HERE";
 
                         let ars_members =
                             // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
@@ -1324,6 +1325,22 @@ impl ChainManager {
                                     "wit1cyrlc64hyu0rux7hclmg9rxwxpa0v9pevyaj2c",
                                     "wit1g0rkajsgwqux9rnmkfca5tz6djg0f87x7ms5qx",
                                     "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z"
+                                ];
+                                hack_bootstrapping_committee
+                                    .iter()
+                                    .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                                    .collect()
+                            } else if is_second_superblock_hack_period {
+                                // Bootstrap committee
+                                let hack_bootstrapping_committee = [
+                                    "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty",
+                                    "wit17nnjuxmfuu92l6rxhque2qc3u2kvmx2fske4l9",
+                                    "wit1cyrlc64hyu0rux7hclmg9rxwxpa0v9pevyaj2c",
+                                    "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq",
+                                    "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z",
+                                    "wit1g0rkajsgwqux9rnmkfca5tz6djg0f87x7ms5qx",
+                                    "wit1gz66wggxkpwclvv32hapjt5ehu6zp4r566vvcl",
+                                    "wit1rp09zvqfxccaa36qqfafzzp0cr9h2c34ep5z6y",
                                 ];
                                 hack_bootstrapping_committee
                                     .iter()
