@@ -390,6 +390,7 @@ impl ChainManager {
                 epoch_constants,
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
+                &self.transactions_pool,
                 vrf_ctx,
                 secp_ctx,
                 block_number,
@@ -489,6 +490,7 @@ impl ChainManager {
                     self.epoch_constants.unwrap(),
                     &self.chain_state.unspent_outputs_pool,
                     &self.chain_state.data_request_pool,
+                    &self.transactions_pool,
                     // The unwrap is safe because if there is no VRF context,
                     // the actor should have stopped execution
                     self.vrf_ctx.as_mut().expect("No initialized VRF context"),
@@ -985,6 +987,7 @@ impl ChainManager {
                     reputation_engine,
                     &self.chain_state.unspent_outputs_pool,
                     &self.chain_state.data_request_pool,
+                    &self.transactions_pool,
                 ),
                 vrf_input,
                 current_epoch,
@@ -1425,6 +1428,7 @@ impl ChainManager {
             futures::future::result(validate_block_transactions(
                 &act.chain_state.unspent_outputs_pool,
                 &act.chain_state.data_request_pool,
+                &act.transactions_pool,
                 &block,
                 vrf_input,
                 &mut signatures_to_verify,
@@ -1810,6 +1814,7 @@ pub fn process_validations(
     epoch_constants: EpochConstants,
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
+    tx_pool: &TransactionsPool,
     vrf_ctx: &mut VrfCtx,
     secp_ctx: &CryptoEngine,
     block_number: u32,
@@ -1831,6 +1836,7 @@ pub fn process_validations(
     let utxo_dif = validate_block_transactions(
         utxo_set,
         dr_pool,
+        tx_pool,
         block,
         vrf_input,
         &mut signatures_to_verify,
