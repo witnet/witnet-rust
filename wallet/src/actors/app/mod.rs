@@ -38,7 +38,6 @@ impl Actor for App {
         // Subscribe to new blocks and blocks consolidation notifications from a Witnet node
         self.node_subscribe("blocks", ctx);
         self.node_subscribe("superblocks", ctx);
-        self.node_subscribe("status", ctx);
         self.periodic_node_request(ctx);
 
         let mut handler =
