@@ -260,12 +260,8 @@ impl SessionsManager {
                             );
                         }
                         // Unregister peers out of consensus
+                        act.drop_outbound_peers(peers_to_unregister.as_ref());
                         for peer in peers_to_unregister {
-                            if let Some(a) =
-                                act.sessions.outbound_consolidated.collection.get(&peer)
-                            {
-                                a.reference.do_send(CloseSession);
-                            }
                             peers_to_keep.remove(&peer);
                         }
                         // Mark remaining peers as safu
@@ -290,6 +286,16 @@ impl SessionsManager {
                 .keys()
                 .cloned(),
         );
+    }
+
+    /// Drop outbound peers
+    fn drop_outbound_peers(&mut self, peers_to_unregister: &[SocketAddr]) {
+        // Unregister peers out of consensus
+        for peer in peers_to_unregister {
+            if let Some(a) = self.sessions.outbound_consolidated.collection.get(&peer) {
+                a.reference.do_send(CloseSession);
+            }
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     marker::Send,
+    net::SocketAddr,
 };
 
 use actix::{
@@ -16,9 +17,10 @@ use crate::actors::{
     chain_manager::ChainManager,
     codec::P2PCodec,
     messages::{
-        AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification,
-        GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult, PeerBeacon, Register,
-        RemoveAddressesFromTried, SessionsUnitResult, SetLastBeacon, TryMineBlock, Unregister,
+        AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropOutboundPeers,
+        EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult,
+        PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult, SetLastBeacon,
+        TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -466,5 +468,20 @@ impl Handler<SetLastBeacon> for SessionsManager {
 
     fn handle(&mut self, msg: SetLastBeacon, _ctx: &mut Context<Self>) -> Self::Result {
         self.last_beacon = Some(msg.beacon);
+    }
+}
+
+impl Handler<DropOutboundPeers> for SessionsManager {
+    type Result = <DropOutboundPeers as Message>::Result;
+
+    fn handle(&mut self, _msg: DropOutboundPeers, _ctx: &mut Context<Self>) -> Self::Result {
+        let outbound_peers: Vec<SocketAddr> = self
+            .sessions
+            .outbound_consolidated
+            .collection
+            .keys()
+            .cloned()
+            .collect();
+        self.drop_outbound_peers(outbound_peers.as_ref());
     }
 }

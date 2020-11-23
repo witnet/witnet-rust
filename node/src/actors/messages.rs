@@ -941,6 +941,13 @@ impl Message for LogMessage {
     type Result = SessionsUnitResult;
 }
 
+/// Drop all outbound peers
+#[derive(Clone, Debug)]
+pub struct DropOutboundPeers {}
+impl Message for DropOutboundPeers {
+    type Result = ();
+}
+
 /// Set the LastBeacon
 #[derive(Clone, Debug)]
 pub struct SetLastBeacon {

@@ -70,7 +70,7 @@ use crate::{
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{
-            AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast,
+            AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
             GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, SendInventoryItem,
             SendInventoryRequest, SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
             SuperBlockNotify,
@@ -1368,6 +1368,9 @@ impl ChainManager {
                         "Superblock consensus {} different from current superblock",
                         target_superblock_hash
                     );
+                    let sessions_manager_addr = SessionsManager::from_registry();
+
+                    sessions_manager_addr.do_send(DropOutboundPeers {});
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
 
