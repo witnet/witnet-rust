@@ -1,7 +1,6 @@
 use std::{
     fmt::{Debug, Display},
     marker::Send,
-    net::SocketAddr,
 };
 
 use actix::{
@@ -474,14 +473,7 @@ impl Handler<SetLastBeacon> for SessionsManager {
 impl Handler<DropOutboundPeers> for SessionsManager {
     type Result = <DropOutboundPeers as Message>::Result;
 
-    fn handle(&mut self, _msg: DropOutboundPeers, _ctx: &mut Context<Self>) -> Self::Result {
-        let outbound_peers: Vec<SocketAddr> = self
-            .sessions
-            .outbound_consolidated
-            .collection
-            .keys()
-            .cloned()
-            .collect();
-        self.drop_outbound_peers(outbound_peers.as_ref());
+    fn handle(&mut self, msg: DropOutboundPeers, _ctx: &mut Context<Self>) -> Self::Result {
+        self.drop_outbound_peers(msg.peers_to_drop.as_ref());
     }
 }

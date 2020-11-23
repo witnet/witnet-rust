@@ -868,6 +868,7 @@ impl Handler<PeersBeacons> for ChainManager {
         let beacon_consensus = peers_beacons.superblock_consensus(consensus_threshold);
         let outbound_limit = peers_beacons.outbound_limit;
         let pb_len = peers_beacons.pb.len();
+        self.last_received_beacons = peers_beacons.pb.clone();
         let peers_needed_for_consensus = outbound_limit
             .map(|x| {
                 // ceil(x * consensus_threshold / 100)

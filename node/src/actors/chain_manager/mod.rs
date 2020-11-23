@@ -29,6 +29,7 @@ use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet},
     convert::TryFrom,
+    net::SocketAddr,
     time::Duration,
 };
 
@@ -204,6 +205,8 @@ pub struct ChainManager {
     temp_superblock_votes: Vec<SuperBlockVote>,
     /// Commits and reveals to process later
     temp_commits_and_reveals: Vec<Transaction>,
+    /// Last received Beacons
+    last_received_beacons: Vec<(SocketAddr, Option<LastBeacon>)>,
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding
@@ -1368,9 +1371,21 @@ impl ChainManager {
                         "Superblock consensus {} different from current superblock",
                         target_superblock_hash
                     );
+
+                    // We are on a different chain than the one dictated by the network. Thus we need
+                    // to throw away those outbound peers that were in the wrong consensus with us, and
+                    // find new ones that can give us the blocks consolidated by the network
+                    let mut peers_to_unregister: Vec<SocketAddr> = Vec::new();
+                    for (addr, peer_beacon) in act.last_received_beacons.iter() {
+                        if let Some(peer_beacon) = peer_beacon {
+                            if peer_beacon.highest_block_checkpoint == act.get_chain_beacon() {
+                                peers_to_unregister.push(*addr)
+                            }
+                        }
+                    };
                     let sessions_manager_addr = SessionsManager::from_registry();
 
-                    sessions_manager_addr.do_send(DropOutboundPeers {});
+                    sessions_manager_addr.do_send(DropOutboundPeers {peers_to_drop: peers_to_unregister});
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
 

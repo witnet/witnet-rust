@@ -5,6 +5,7 @@ use crate::{
     proto::{schema::witnet, ProtobufConvert},
     transaction::Transaction,
 };
+use serde::{Deserialize, Serialize};
 
 /// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
@@ -138,7 +139,7 @@ pub struct InventoryRequest {
     pub inventory: Vec<InventoryEntry>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert, Hash)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Clone, ProtobufConvert, Serialize, Hash)]
 #[protobuf_convert(pb = "witnet::LastBeacon")]
 pub struct LastBeacon {
     pub highest_block_checkpoint: CheckpointBeacon,

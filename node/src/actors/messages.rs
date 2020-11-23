@@ -943,7 +943,10 @@ impl Message for LogMessage {
 
 /// Drop all outbound peers
 #[derive(Clone, Debug)]
-pub struct DropOutboundPeers {}
+pub struct DropOutboundPeers {
+    /// peers to be dropped
+    pub peers_to_drop: Vec<SocketAddr>,
+}
 impl Message for DropOutboundPeers {
     type Result = ();
 }
