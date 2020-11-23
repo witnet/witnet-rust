@@ -41,6 +41,7 @@ use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
 use futures::future::{join_all, Future};
 use itertools::Itertools;
+use rand::Rng;
 use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
@@ -744,11 +745,21 @@ impl ChainManager {
                     })
                     .into_actor(act)
                     .map(|res, act, ctx| {
-                        // Broadcast vote one epoch checkpoint later.
+                        // Broadcast vote between one and ("superblock_period" - 3) epoch checkpoints later.
                         // This is used to prevent the race condition described in issue #1573
+                        // It is also used to spread the CPU load by checking superblock votes along
+                        // the superblock period with a safe margin
+                        let mut rng = rand::thread_rng();
                         let checkpoints_period = act.consensus_constants().checkpoints_period;
+                        let superblock_period = act.consensus_constants().superblock_period;
+                        let end_range = if superblock_period > 4 {
+                            (superblock_period - 3) * checkpoints_period
+                        } else {
+                            checkpoints_period + 1
+                        };
+                        let random_waiting = rng.gen_range(checkpoints_period, end_range);
                         ctx.run_later(
-                            Duration::from_secs(u64::from(checkpoints_period)),
+                            Duration::from_secs(u64::from(random_waiting)),
                             |act, ctx| match act.add_superblock_vote(res, ctx) {
                                 Ok(()) => (),
                                 Err(e) => {
