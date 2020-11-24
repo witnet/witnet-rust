@@ -706,7 +706,7 @@ impl ChainManager {
 
     /// Create a superblock, sign a superblock vote and broadcast it
     fn create_and_broadcast_superblock(&mut self, ctx: &mut Context<Self>, current_epoch: u32) {
-        self.construct_superblock(ctx, current_epoch, None)
+        self.construct_superblock(current_epoch, None)
             .and_then(move |superblock, act, _ctx| {
                 let superblock_hash = superblock.hash();
                 log::debug!(
@@ -1059,12 +1059,10 @@ impl ChainManager {
     #[must_use]
     pub fn build_and_vote_candidate_superblock(
         &mut self,
-        ctx: &mut Context<Self>,
         superblock_epoch: u32,
     ) -> ResponseActFuture<Self, (), ()> {
-        let fut = self
-            .construct_superblock(ctx, superblock_epoch, None)
-            .and_then(move |superblock, act, _ctx| {
+        let fut = self.construct_superblock(superblock_epoch, None).and_then(
+            move |superblock, act, _ctx| {
                 let superblock_hash = superblock.hash();
                 log::debug!(
                     "Local SUPERBLOCK #{} {}: {:?}",
@@ -1109,7 +1107,8 @@ impl ChainManager {
                             actix::fut::err(())
                         }
                     })
-            });
+            },
+        );
 
         Box::new(fut)
     }
@@ -1118,13 +1117,12 @@ impl ChainManager {
     #[must_use]
     pub fn try_consolidate_superblock(
         &mut self,
-        ctx: &mut Context<Self>,
         block_epoch: u32,
         sync_target: SyncTarget,
         sync_superblock: Option<SuperBlock>,
     ) -> ResponseActFuture<Self, (), ()> {
         let fut = self
-            .construct_superblock(ctx, block_epoch, sync_superblock)
+            .construct_superblock(block_epoch, sync_superblock)
             .and_then(move |superblock, act, ctx| {
                 if superblock.hash() == sync_target.superblock.hash_prev_block {
                     // In synchronizing state, the consensus beacon is the one we just created
@@ -1170,7 +1168,6 @@ impl ChainManager {
     #[must_use]
     pub fn construct_superblock(
         &mut self,
-        ctx: &mut Context<Self>,
         block_epoch: u32,
         sync_superblock: Option<SuperBlock>,
     ) -> ResponseActFuture<Self, SuperBlock, ()> {
@@ -1196,9 +1193,8 @@ impl ChainManager {
         let final_epoch = block_epoch.saturating_sub(1);
         let genesis_hash = consensus_constants.genesis_hash;
 
-        let fut = futures::future::ok(self.handle(
+        let fut = futures::future::ok(self.get_blocks_epoch_range(
             GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
-            ctx,
         ))
         .and_then(move |res| match res {
             Ok(v) => {
@@ -1233,11 +1229,10 @@ impl ChainManager {
                     .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
             })
             .into_actor(self)
-            .and_then(move |block_headers, act, ctx| {
+            .and_then(move |block_headers, act, _ctx| {
                 let last_hash = act
-                    .handle(
+                    .get_blocks_epoch_range(
                         GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
-                        ctx,
                     )
                     .map(move |v| {
                         v.first()
@@ -1294,7 +1289,7 @@ impl ChainManager {
                         if let Some(consolidated_superblock) = act.chain_state.superblock_state.get_current_superblock() {
                             // Let JSON-RPC clients know that the blocks in the previous superblock can now
                             // be considered consolidated
-                            act.notify_superblock_consolidation(consolidated_superblock, ctx);
+                            act.notify_superblock_consolidation(consolidated_superblock);
 
                             log::info!("Consensus reached for Superblock #{}", voted_superblock_beacon.checkpoint);
                             log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
@@ -1656,21 +1651,17 @@ impl ChainManager {
 
     /// Let JSON-RPC clients know that the blocks in the previous superblock can now
     /// be considered consolidated
-    fn notify_superblock_consolidation(
-        &mut self,
-        superblock: SuperBlock,
-        ctx: &mut Context<ChainManager>,
-    ) {
+    fn notify_superblock_consolidation(&mut self, superblock: SuperBlock) {
         let superblock_period = u32::from(self.consensus_constants().superblock_period);
         let final_epoch = superblock
             .index
             .checked_mul(superblock_period)
             .expect("Multiplying a superblock index by `superblock_period` should never overflow");
         let initial_epoch = final_epoch.saturating_sub(superblock_period);
-        let beacons = self.handle(
-            GetBlocksEpochRange::new_with_limit(initial_epoch..final_epoch, 0),
-            ctx,
-        );
+        let beacons = self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(
+            initial_epoch..final_epoch,
+            0,
+        ));
 
         // If there is a superblock to consolidate, and we got the confirmed block beacons, send
         // notification
@@ -1695,6 +1686,54 @@ impl ChainManager {
     fn notify_node_status(&mut self, node_status: StateMachine) {
         let new_node_status = NodeStatusNotify { node_status };
         JsonRpcServer::from_registry().do_send(new_node_status);
+    }
+
+    /// Get a list of (epoch, block_hash)
+    fn get_blocks_epoch_range(
+        &mut self,
+        GetBlocksEpochRange {
+            range,
+            limit,
+            limit_from_end,
+        }: GetBlocksEpochRange,
+    ) -> Result<Vec<(Epoch, Hash)>, ChainManagerError> {
+        log::debug!("GetBlocksEpochRange received {:?}", range);
+
+        // Accept this message in any state
+        // TODO: we should only accept this message in Synced state, but that breaks the
+        // JSON-RPC getBlockChain method
+
+        // Iterator over all the blocks in the given range
+        let block_chain_range = self
+            .chain_state
+            .block_chain
+            .range(range)
+            .map(|(k, v)| (*k, *v));
+
+        if limit == 0 {
+            // Return all the blocks from this epoch range
+            let hashes: Vec<(Epoch, Hash)> = block_chain_range.collect();
+
+            Ok(hashes)
+        } else if limit_from_end {
+            let mut hashes: Vec<(Epoch, Hash)> = block_chain_range
+                // Take the last "limit" blocks
+                .rev()
+                .take(limit)
+                .collect();
+
+            // Reverse again to return them in non-reversed order
+            hashes.reverse();
+
+            Ok(hashes)
+        } else {
+            let hashes: Vec<(Epoch, Hash)> = block_chain_range
+                // Take the first "limit" blocks
+                .take(limit)
+                .collect();
+
+            Ok(hashes)
+        }
     }
 }
 

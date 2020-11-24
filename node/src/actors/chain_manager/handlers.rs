@@ -430,7 +430,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, consolidate_epoch, sync_target, sync_superblock)
+                                self.try_consolidate_superblock(consolidate_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,
@@ -482,7 +482,7 @@ impl Handler<AddBlocks> for ChainManager {
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
                             actix::fut::Either::A(
-                                self.try_consolidate_superblock(ctx, consolidate_superblock_epoch, sync_target, sync_superblock)
+                                self.try_consolidate_superblock(consolidate_superblock_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,
@@ -521,9 +521,9 @@ impl Handler<AddBlocks> for ChainManager {
                                     actix::fut::ok(candidate_superblock_checkpoint)
                                 }
                             })
-                            .and_then(move |candidate_superblock_checkpoint, act, ctx| {
+                            .and_then(move |candidate_superblock_checkpoint, act, _ctx| {
                                 if let Some(candidate_superblock_epoch) = act.superblock_candidate_is_needed(candidate_superblock_checkpoint, superblock_period) {
-                                    actix::fut::Either::A(act.build_and_vote_candidate_superblock(ctx, candidate_superblock_epoch).map(move |_, act, _| {
+                                    actix::fut::Either::A(act.build_and_vote_candidate_superblock(candidate_superblock_epoch).map(move |_, act, _| {
                                         let superblock_index = candidate_superblock_epoch / superblock_period;
                                         // Copy current chain state into previous chain state, but do not persist it yet
                                         act.move_chain_state_forward(superblock_index);
@@ -639,52 +639,8 @@ impl Handler<AddTransaction> for ChainManager {
 impl Handler<GetBlocksEpochRange> for ChainManager {
     type Result = Result<Vec<(Epoch, Hash)>, ChainManagerError>;
 
-    fn handle(
-        &mut self,
-        GetBlocksEpochRange {
-            range,
-            limit,
-            limit_from_end,
-        }: GetBlocksEpochRange,
-        _ctx: &mut Context<Self>,
-    ) -> Self::Result {
-        log::debug!("GetBlocksEpochRange received {:?}", range);
-
-        // Accept this message in any state
-        // TODO: we should only accept this message in Synced state, but that breaks the
-        // JSON-RPC getBlockChain method
-
-        // Iterator over all the blocks in the given range
-        let block_chain_range = self
-            .chain_state
-            .block_chain
-            .range(range)
-            .map(|(k, v)| (*k, *v));
-
-        if limit == 0 {
-            // Return all the blocks from this epoch range
-            let hashes: Vec<(Epoch, Hash)> = block_chain_range.collect();
-
-            Ok(hashes)
-        } else if limit_from_end {
-            let mut hashes: Vec<(Epoch, Hash)> = block_chain_range
-                // Take the last "limit" blocks
-                .rev()
-                .take(limit)
-                .collect();
-
-            // Reverse again to return them in non-reversed order
-            hashes.reverse();
-
-            Ok(hashes)
-        } else {
-            let hashes: Vec<(Epoch, Hash)> = block_chain_range
-                // Take the first "limit" blocks
-                .take(limit)
-                .collect();
-
-            Ok(hashes)
-        }
+    fn handle(&mut self, msg: GetBlocksEpochRange, _ctx: &mut Context<Self>) -> Self::Result {
+        self.get_blocks_epoch_range(msg)
     }
 }
 
@@ -1169,14 +1125,17 @@ impl Handler<BuildVtt> for ChainManager {
             Ok(vtt) => {
                 let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
                     .into_actor(self)
-                    .then(|s, act, ctx| match s {
+                    .then(|s, act, _ctx| match s {
                         Ok(signatures) => {
                             let transaction =
                                 Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
                             let tx_hash = transaction.hash();
                             Box::new(
-                                act.handle(AddTransaction { transaction }, ctx)
-                                    .map(move |_, _, _| tx_hash),
+                                act.add_transaction(
+                                    AddTransaction { transaction },
+                                    get_timestamp(),
+                                )
+                                .map(move |_, _, _| tx_hash),
                             )
                         }
                         Err(e) => {
@@ -1234,14 +1193,17 @@ impl Handler<BuildDrt> for ChainManager {
                 log::debug!("Created drt:\n{:?}", drt);
                 let fut = signature_mngr::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
-                    .then(|s, act, ctx| match s {
+                    .then(|s, act, _ctx| match s {
                         Ok(signatures) => {
                             let transaction =
                                 Transaction::DataRequest(DRTransaction::new(drt, signatures));
                             let tx_hash = transaction.hash();
                             Box::new(
-                                act.handle(AddTransaction { transaction }, ctx)
-                                    .map(move |_, _, _| tx_hash),
+                                act.add_transaction(
+                                    AddTransaction { transaction },
+                                    get_timestamp(),
+                                )
+                                .map(move |_, _, _| tx_hash),
                             )
                         }
                         Err(e) => {
@@ -1435,7 +1397,7 @@ impl Handler<AddCommitReveal> for ChainManager {
             commit_transaction,
             reveal_transaction,
         }: AddCommitReveal,
-        ctx: &mut Self::Context,
+        _ctx: &mut Self::Context,
     ) -> Self::Result {
         let dr_pointer = commit_transaction.body.dr_pointer;
         // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
@@ -1446,11 +1408,11 @@ impl Handler<AddCommitReveal> for ChainManager {
         // Send AddTransaction message to self
         // And broadcast it to all of peers
         Box::new(
-            self.handle(
+            self.add_transaction(
                 AddTransaction {
                     transaction: Transaction::Commit(commit_transaction),
                 },
-                ctx,
+                get_timestamp(),
             )
             .map_err(|e, _, _| {
                 log::warn!("Failed to add commit transaction: {}", e);

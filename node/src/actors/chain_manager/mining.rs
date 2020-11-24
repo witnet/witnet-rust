@@ -1,6 +1,4 @@
-use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
-};
+use actix::{ActorFuture, AsyncContext, Context, ContextFutureSpawner, SystemService, WrapFuture};
 use ansi_term::Color::{White, Yellow};
 use futures::future::{join_all, Future};
 use std::{
@@ -23,7 +21,7 @@ use witnet_validations::validations::{
 use crate::{
     actors::{
         chain_manager::{ChainManager, StateMachine},
-        messages::{AddCandidates, AddCommitReveal, ResolveRA, RunTally},
+        messages::{AddCommitReveal, ResolveRA, RunTally},
         rad_manager::RadManager,
     },
     signature_mngr,
@@ -224,7 +222,7 @@ impl ChainManager {
                     beacon,
                     epoch_constants,
                 )
-                .map(|_diff, act, ctx| {
+                .map(|_diff, act, _ctx| {
                     // Send AddCandidates message to self
                     // This will run all the validations again
 
@@ -235,12 +233,8 @@ impl ChainManager {
                         "Proposed block candidate {}",
                         Yellow.bold().paint(block_hash.to_string())
                     );
-                    act.handle(
-                        AddCandidates {
-                            blocks: vec![block],
-                        },
-                        ctx,
-                    );
+
+                    act.process_candidate(block);
                 })
                 .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
             })
