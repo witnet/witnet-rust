@@ -10,7 +10,6 @@ use crate::{
     config_mngr, storage_mngr,
 };
 use witnet_p2p::peers::Peers;
-use witnet_util::timestamp::get_timestamp;
 
 /// Make actor from PeersManager
 impl Actor for PeersManager {
@@ -53,15 +52,9 @@ impl Actor for PeersManager {
                     .and_then(move |peers_from_storage, act, _ctx| {
                         // peers_from_storage can be None if the storage does not contain that key
                         if let Some(peers_from_storage) = peers_from_storage {
-                            // FIXME(#1646): Remove skip import peers from storage
-                            // Skip importing peers from storage if timestamp is earlier than
-                            // Wednesday, October 21, 2020 09:00:00 AM UTC
-                            let current_timestamp = get_timestamp();
-                            if current_timestamp > 1_603_270_800 {
-                                // Add all the peers from storage
-                                // The add method handles duplicates by overwriting the old values
-                                act.import_peers(peers_from_storage, known_peers);
-                            }
+                            // Add all the peers from storage
+                            // The add method handles duplicates by overwriting the old values
+                            act.import_peers(peers_from_storage, known_peers);
                         }
 
                         fut::ok(())
