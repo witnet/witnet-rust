@@ -2209,7 +2209,7 @@ fn update_reputation(
     block_epoch: Epoch,
     own_pkh: PublicKeyHash,
 ) {
-    let old_alpha = rep_eng.current_alpha;
+    let old_alpha = rep_eng.current_alpha();
     let new_alpha = Alpha(old_alpha.0 + alpha_diff.0);
     log::log!(log_level, "Reputation Engine Update:\n");
     log::log!(
@@ -2347,7 +2347,7 @@ fn update_reputation(
     // Retain identities that exist in the ARS
     secp_bls_mapping.retain(|k| rep_eng.is_ars_member(k));
 
-    rep_eng.current_alpha = new_alpha;
+    rep_eng.set_current_alpha(new_alpha);
 }
 
 fn show_tally_info(tally_tx: &TallyTransaction, block_epoch: Epoch) {

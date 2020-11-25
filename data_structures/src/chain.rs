@@ -1,7 +1,6 @@
 use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use failure::Fail;
-use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use partial_struct::PartialStruct;
 use secp256k1::{
@@ -10,7 +9,7 @@ use secp256k1::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -3045,7 +3044,7 @@ impl AltKeys {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ReputationEngine {
     /// Total number of witnessing acts
-    pub current_alpha: Alpha,
+    current_alpha: Alpha,
     /// Reputation to be split between honest identities in the next epoch
     pub extra_reputation: Reputation,
     /// Total Reputation Set
@@ -3086,9 +3085,36 @@ impl ReputationEngine {
         &mut self.ars
     }
 
+    /// Sort the active identities by reputation. This is an internal method, use
+    /// `get_rep_ordered_ars_list` instead.
+    fn calculate_rep_ordered_ars_list(&self) -> Vec<PublicKeyHash> {
+        // Get list of identities and their reputation, and sort them by reputation
+        let mut identities_and_reputation: Vec<_> = self
+            .ars
+            .active_identities()
+            .map(|pkh| (pkh, self.trs().get(pkh), Cell::new(None)))
+            .collect();
+        // Using unstable sort because it's impossible to have two equal elements in this list
+        identities_and_reputation
+            .sort_unstable_by(|a, b| compare_reputed_pkh(a, b, self.current_alpha));
+        let sorted_identities: Vec<_> = identities_and_reputation
+            .into_iter()
+            .map(|(pkh, _reputation, _cached_hash)| *pkh)
+            .collect();
+
+        sorted_identities
+    }
+
     /// Calculate total active reputation and sorted active reputation
-    fn calculate_active_rep(&self) -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>) {
-        let sorted_identities = self.get_rep_ordered_ars_list();
+    fn calculate_active_rep(
+        &self,
+    ) -> (
+        u64,
+        Vec<u32>,
+        HashMap<PublicKeyHash, u32>,
+        Vec<PublicKeyHash>,
+    ) {
+        let sorted_identities = self.calculate_rep_ordered_ars_list();
 
         // Redistribute the reputation along the trapezoid
         let (trapezoid_hm, total_trapezoid_rep) =
@@ -3102,7 +3128,12 @@ impl ReputationEngine {
             .map(|pkh| *trapezoid_hm.get(pkh).unwrap_or(&0) + 1)
             .collect();
 
-        (total_active_rep, sorted_rep, trapezoid_hm)
+        (
+            total_active_rep,
+            sorted_rep,
+            trapezoid_hm,
+            sorted_identities,
+        )
     }
 
     /// Return a factor to increase the threshold dynamically
@@ -3142,44 +3173,81 @@ impl ReputationEngine {
 
     /// Get ARS keys ordered by reputation. If tie, order by pkh.
     pub fn get_rep_ordered_ars_list(&self) -> Vec<PublicKeyHash> {
-        self.ars
-            .active_identities()
-            .cloned()
-            .sorted_by(|a, b| compare_reputed_pkh(a, b, &self).reverse())
-            .collect()
+        self.threshold_cache
+            .borrow_mut()
+            .get_rep_ordered_ars_list(|| self.calculate_active_rep())
+            .to_vec()
     }
+
+    /// Get total number of witnessing acts
+    pub fn current_alpha(&self) -> Alpha {
+        self.current_alpha
+    }
+
+    /// Set total number of witnessing acts
+    pub fn set_current_alpha(&mut self, new_alpha: Alpha) {
+        // Changing the alpha counter invalidates the list of identities sorted by reputation,
+        // because alpha is used as a tie-breaker
+        if self.current_alpha != new_alpha {
+            self.invalidate_reputation_threshold_cache();
+            self.current_alpha = new_alpha;
+        }
+    }
+}
+
+/// Hash of PublicKeyHash and alpha clock, used to sort identities when there is a reputation tie
+// We use an additional alpha paramater because comparing only by pkh creates a problem where some
+// identities are always better than others.
+fn pkh_alpha_hash(pkh: &PublicKeyHash, alpha: Alpha) -> Hash {
+    let alpha_bytes: &[u8] = &alpha.0.to_be_bytes();
+    let mut pkh_bytes = Vec::with_capacity(pkh.hash.len() + alpha_bytes.len());
+    pkh_bytes.extend(&pkh.hash);
+    pkh_bytes.extend(alpha_bytes);
+
+    calculate_sha256(&pkh_bytes).into()
 }
 
 /// Compare 2 PublicKeyHashes comparing:
 /// First: reputation
 /// Second: Hashes related to PublicKeyHash and alpha clock || PublicKeyHashes in case of 0 rep
 fn compare_reputed_pkh(
-    a: &PublicKeyHash,
-    b: &PublicKeyHash,
-    rep_eng: &ReputationEngine,
+    a: &(&PublicKeyHash, Reputation, Cell<Option<Hash>>),
+    b: &(&PublicKeyHash, Reputation, Cell<Option<Hash>>),
+    alpha: Alpha,
 ) -> Ordering {
-    let rep_a = rep_eng.trs().get(a).0;
-    let rep_b = rep_eng.trs().get(b).0;
+    let (pkh_a, rep_a, _) = a;
+    let (pkh_b, rep_b, _) = b;
 
-    rep_a.cmp(&rep_b).then_with(|| {
-        if rep_a > 0 {
-            let alpha_bytes: &[u8] = &rep_eng.current_alpha.0.to_be_bytes();
-            let mut a_bytes = a.hash.to_vec();
-            let mut b_bytes = b.hash.to_vec();
+    rep_a
+        .cmp(rep_b)
+        .then_with(|| {
+            // If both identities have the same reputation, compare them by hash(pkh || alpha)
+            // but only if their reputation is greater than 0
+            if *rep_a > Reputation(0) {
+                let get_hash = |(pkh, _rep, cached_hash): &(
+                    &PublicKeyHash,
+                    Reputation,
+                    Cell<Option<Hash>>,
+                )| {
+                    // If possible, use the cached hash that was calculated in a previous iteration
+                    // of the sort loop. This hash is only valid with the current alpha.
+                    cached_hash.get().unwrap_or_else(|| {
+                        // If there is no cached hash, calculate it and store it for later
+                        let h = pkh_alpha_hash(pkh, alpha);
+                        cached_hash.set(Some(h));
+                        h
+                    })
+                };
 
-            a_bytes.extend(alpha_bytes);
-            b_bytes.extend(alpha_bytes);
-
-            let new_hash_a: Hash = calculate_sha256(&a_bytes).into();
-            let new_hash_b: Hash = calculate_sha256(&b_bytes).into();
-
-            new_hash_a.cmp(&new_hash_b)
-        } else {
-            // If both identities have 0 reputation their ordering is not important because
-            // they will have the same eligibility, so compare them by PublicKeyHash
-            a.cmp(&b)
-        }
-    })
+                get_hash(a).cmp(&get_hash(b))
+            } else {
+                // If both identities have 0 reputation their ordering is not important because
+                // they will have the same eligibility, so compare them by PublicKeyHash
+                pkh_a.cmp(pkh_b)
+            }
+        })
+        // Reverse the order: identities with most reputation should be first
+        .reverse()
 }
 
 /// Calculate the result of `y = mx + K`
@@ -3292,6 +3360,7 @@ struct ReputationThresholdCache {
     valid: bool,
     total_active_rep: u64,
     sorted_active_rep: Vec<u32>,
+    sorted_identities: Vec<PublicKeyHash>,
     threshold: HashMap<u16, u32>,
     trapezoid_rep: HashMap<PublicKeyHash, u32>,
 }
@@ -3305,21 +3374,33 @@ impl ReputationThresholdCache {
         total_active_rep: u64,
         sorted_active_rep: Vec<u32>,
         trapezoid_rep: HashMap<PublicKeyHash, u32>,
+        sorted_identities: Vec<PublicKeyHash>,
     ) {
         self.threshold.clear();
         self.total_active_rep = total_active_rep;
         self.sorted_active_rep = sorted_active_rep;
+        self.sorted_identities = sorted_identities;
         self.valid = true;
         self.trapezoid_rep = trapezoid_rep;
     }
 
     fn get_trapezoidal_eligibility<F>(&mut self, pkh: &PublicKeyHash, gen: F) -> u32
     where
-        F: Fn() -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>),
+        F: Fn() -> (
+            u64,
+            Vec<u32>,
+            HashMap<PublicKeyHash, u32>,
+            Vec<PublicKeyHash>,
+        ),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep, trapezoid_rep) = gen();
-            self.initialize(total_active_rep, sorted_active_rep, trapezoid_rep);
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            self.initialize(
+                total_active_rep,
+                sorted_active_rep,
+                trapezoid_rep,
+                sorted_identities,
+            );
         }
 
         *self.trapezoid_rep.get(pkh).unwrap_or(&0)
@@ -3331,11 +3412,21 @@ impl ReputationThresholdCache {
 
     fn threshold_factor<F>(&mut self, n: u16, gen: F) -> u32
     where
-        F: Fn() -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>),
+        F: Fn() -> (
+            u64,
+            Vec<u32>,
+            HashMap<PublicKeyHash, u32>,
+            Vec<PublicKeyHash>,
+        ),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep, trapezoid_rep) = gen();
-            self.initialize(total_active_rep, sorted_active_rep, trapezoid_rep);
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            self.initialize(
+                total_active_rep,
+                sorted_active_rep,
+                trapezoid_rep,
+                sorted_identities,
+            );
         }
 
         let Self {
@@ -3356,14 +3447,46 @@ impl ReputationThresholdCache {
 
     fn total_active_reputation<F>(&mut self, gen: F) -> u64
     where
-        F: Fn() -> (u64, Vec<u32>, HashMap<PublicKeyHash, u32>),
+        F: Fn() -> (
+            u64,
+            Vec<u32>,
+            HashMap<PublicKeyHash, u32>,
+            Vec<PublicKeyHash>,
+        ),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep, trapezoid_rep) = gen();
-            self.initialize(total_active_rep, sorted_active_rep, trapezoid_rep);
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            self.initialize(
+                total_active_rep,
+                sorted_active_rep,
+                trapezoid_rep,
+                sorted_identities,
+            );
         }
 
         self.total_active_rep
+    }
+
+    fn get_rep_ordered_ars_list<F>(&mut self, gen: F) -> &[PublicKeyHash]
+    where
+        F: Fn() -> (
+            u64,
+            Vec<u32>,
+            HashMap<PublicKeyHash, u32>,
+            Vec<PublicKeyHash>,
+        ),
+    {
+        if !self.valid {
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            self.initialize(
+                total_active_rep,
+                sorted_active_rep,
+                trapezoid_rep,
+                sorted_identities,
+            );
+        }
+
+        &self.sorted_identities
     }
 }
 
@@ -5615,24 +5738,24 @@ mod tests {
         // "a" start with 10 and "b" with 5
         add_rep(&mut rep_engine, 10, pkh_a, 10);
         add_rep(&mut rep_engine, 10, pkh_b, 5);
-        rep_engine.current_alpha = Alpha(10);
+        rep_engine.set_current_alpha(Alpha(10));
         let expected_order = vec![pkh_a, pkh_b];
         assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
 
         // "b" get 10 points more
         add_rep(&mut rep_engine, 11, pkh_b, 10);
-        rep_engine.current_alpha = Alpha(11);
+        rep_engine.set_current_alpha(Alpha(11));
         let expected_order = vec![pkh_b, pkh_a];
         assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
 
         // "a" get 5 points more and there is a tie with "b"
         add_rep(&mut rep_engine, 12, pkh_a, 5);
-        rep_engine.current_alpha = Alpha(12);
+        rep_engine.set_current_alpha(Alpha(12));
         let expected_order = vec![pkh_a, pkh_b];
         assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
 
         // the tie persist but alpha changes
-        rep_engine.current_alpha = Alpha(13);
+        rep_engine.set_current_alpha(Alpha(13));
         let expected_order = vec![pkh_b, pkh_a];
         assert_eq!(rep_engine.get_rep_ordered_ars_list(), expected_order);
     }
@@ -5987,5 +6110,16 @@ mod tests {
             vec![b1],
             tally_txs,
         );
+    }
+
+    #[test]
+    fn pkh_alpha_hash_test() {
+        let pkh = PublicKeyHash::default();
+        let alpha = Alpha(0x12345678);
+        let expected_hash: Hash =
+            "2fa45432b83defdee33823c104fde4bc66379f69284bed90d82f12a8d20396cf"
+                .parse()
+                .unwrap();
+        assert_eq!(pkh_alpha_hash(&pkh, alpha), expected_hash);
     }
 }
