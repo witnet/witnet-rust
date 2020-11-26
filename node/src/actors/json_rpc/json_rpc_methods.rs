@@ -899,10 +899,10 @@ pub fn status() -> JsonRpcResultAsync {
             .send(GetState)
             .map_err(internal_error_s)
             .then(|res| match res {
-                Ok(Ok(StateMachine::Synced)) => Ok(Some(StateMachine::Synced)),
-                Ok(Ok(StateMachine::AlmostSynced)) => Ok(Some(StateMachine::AlmostSynced)),
-                Ok(Ok(StateMachine::WaitingConsensus)) => Ok(Some(StateMachine::WaitingConsensus)),
-                Ok(Ok(StateMachine::Synchronizing)) => Ok(Some(StateMachine::Synchronizing)),
+                Ok(Ok(StateMachine::Synced)) => Ok(StateMachine::Synced),
+                Ok(Ok(StateMachine::AlmostSynced)) => Ok(StateMachine::AlmostSynced),
+                Ok(Ok(StateMachine::WaitingConsensus)) => Ok(StateMachine::WaitingConsensus),
+                Ok(Ok(StateMachine::Synchronizing)) => Ok(StateMachine::Synchronizing),
                 Ok(Err(())) => Err(internal_error(())),
                 Err(e) => Err(internal_error(e)),
             });
@@ -926,7 +926,6 @@ pub fn status() -> JsonRpcResultAsync {
         .map(|(chain_beacon, current_epoch, node_state)| SyncStatus {
             chain_beacon,
             current_epoch,
-            synchronized: node_state == Some(StateMachine::Synced),
             node_state,
         })
         .and_then(|res| match serde_json::to_value(res) {

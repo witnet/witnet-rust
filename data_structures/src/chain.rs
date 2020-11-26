@@ -99,10 +99,8 @@ pub struct SyncStatus {
     pub chain_beacon: CheckpointBeacon,
     /// The current epoch, or None if the epoch 0 is in the future
     pub current_epoch: Option<u32>,
-    /// Is the node synchronized?
-    pub synchronized: bool,
     /// Node State
-    pub node_state: Option<StateMachine>,
+    pub node_state: StateMachine,
 }
 
 /// Possible values for the "environment" configuration param.

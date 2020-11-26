@@ -814,9 +814,9 @@ impl App {
                 let status = serde_json::from_value::<types::SyncStatus>(res);
                 // Notify if the node status is changed
                 if let Ok(status) = status {
-                    if status.node_state != act.state.node_state {
+                    if Some(status.node_state) != act.state.node_state {
                         // Update node_state
-                        act.state.node_state = status.node_state;
+                        act.state.node_state = Some(status.node_state);
                         for wallet in &wallets {
                             let sink = act.state.get_sink(&wallet.session_id);
                             act.params

@@ -22,7 +22,8 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature,
-        NodeStats, OutputPointer, PublicKey, PublicKeyHash, SyncStatus, ValueTransferOutput,
+        NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine, SyncStatus,
+        ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -995,7 +996,7 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
     let sync_status: SyncStatus = parse_response(&response)?;
 
     if let Some(current_epoch) = sync_status.current_epoch {
-        if sync_status.synchronized {
+        if sync_status.node_state == StateMachine::Synced {
             println!(
                 "The node is synchronized and the current epoch is {}",
                 current_epoch
@@ -1010,10 +1011,11 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
                 percent_done_float = 99.99;
             }
             let percent_done_string = format!("{:.2}%", percent_done_float);
+            let node_state = sync_status.node_state;
 
             println!(
-                "Synchronization progress: {} ({:>6}/{:>6})",
-                percent_done_string, sync_status.chain_beacon.checkpoint, current_epoch,
+                "Synchronization progress: {} ({:>6}/{:>6}), the current node state is {:?}",
+                percent_done_string, sync_status.chain_beacon.checkpoint, current_epoch, node_state,
             );
         }
     } else {
