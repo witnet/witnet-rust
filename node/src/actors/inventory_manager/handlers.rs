@@ -312,3 +312,173 @@ impl Handler<GetItemSuperblock> for InventoryManager {
         self.handle_get_item_superblock(msg)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        actors::chain_manager::mining::build_block, config_mngr, storage_mngr,
+        utils::test_actix_system,
+    };
+    use futures_util::compat::Compat01As03;
+    use std::sync::Arc;
+    use witnet_config::config::{Config, StorageBackend};
+    use witnet_data_structures::{
+        chain::{
+            CheckpointBeacon, EpochConstants, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+            TransactionsPool, ValueTransferOutput,
+        },
+        data_request::DataRequestPool,
+        transaction::{Transaction, VTTransaction, VTTransactionBody},
+        utxo_pool::UnspentOutputsPool,
+        vrf::BlockEligibilityClaim,
+    };
+
+    const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
+    const HALVING_PERIOD: u32 = 3_500_000;
+
+    static MILLION_TX_OUTPUT: &str =
+        "0f0f000000000000000000000000000000000000000000000000000000000000:0";
+    static MY_PKH_1: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
+
+    fn build_block_with_vt_transactions(block_epoch: u32) -> Block {
+        let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let input = vec![Input::new(output1_pointer.clone())];
+        let vto1 = ValueTransferOutput {
+            value: 1,
+            ..Default::default()
+        };
+        let vto2 = ValueTransferOutput {
+            value: 2,
+            ..Default::default()
+        };
+        let vto3 = ValueTransferOutput {
+            value: 3,
+            ..Default::default()
+        };
+        let one_output = vec![vto1.clone()];
+        let two_outputs = vec![vto1.clone(), vto2];
+        let two_outputs2 = vec![vto1, vto3];
+
+        let vt_body_one_output = VTTransactionBody::new(input.clone(), one_output);
+        let vt_body_two_outputs1 = VTTransactionBody::new(input.clone(), two_outputs);
+        let vt_body_two_outputs2 = VTTransactionBody::new(input, two_outputs2);
+
+        // Build sample transactions
+        let vt_tx1 = VTTransaction::new(vt_body_one_output, vec![]);
+        let vt_tx2 = VTTransaction::new(vt_body_two_outputs1, vec![]);
+        let vt_tx3 = VTTransaction::new(vt_body_two_outputs2, vec![]);
+
+        let transaction_1 = Transaction::ValueTransfer(vt_tx1.clone());
+        let transaction_2 = Transaction::ValueTransfer(vt_tx2);
+        let transaction_3 = Transaction::ValueTransfer(vt_tx3);
+
+        // Set `max_vt_weight` to fit only `transaction_1` weight
+        let max_vt_weight = vt_tx1.weight();
+        let max_dr_weight = 0;
+
+        // Insert transactions into `transactions_pool`
+        let mut transaction_pool = TransactionsPool::default();
+        transaction_pool.insert(transaction_1, 1);
+        transaction_pool.insert(transaction_2, 10);
+        transaction_pool.insert(transaction_3, 10);
+        assert_eq!(transaction_pool.vt_len(), 3);
+
+        let mut unspent_outputs_pool = UnspentOutputsPool::default();
+        let output1 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1_000_000,
+        };
+        unspent_outputs_pool.insert(output1_pointer.clone(), output1, 0);
+        assert!(unspent_outputs_pool.contains_key(&output1_pointer));
+
+        let dr_pool = DataRequestPool::default();
+
+        // Fields required to mine a block
+        let mut block_beacon = CheckpointBeacon::default();
+        block_beacon.checkpoint = block_epoch;
+        let block_number = 1;
+        let block_proof = BlockEligibilityClaim::default();
+        let collateral_minimum = 1_000_000_000;
+
+        // Build block with
+
+        let (block_header, txns) = build_block(
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            max_vt_weight,
+            max_dr_weight,
+            block_beacon,
+            block_proof,
+            &[],
+            PublicKeyHash::default(),
+            EpochConstants::default(),
+            block_number,
+            collateral_minimum,
+            None,
+            None,
+            0,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
+        );
+
+        Block::new(block_header, KeyedSignature::default(), txns)
+    }
+
+    #[test]
+    fn persist_same_transaction_twice_overwrites() {
+        // Create two blocks with the same transaction, to simulate a reorganization.
+        // GetItemTransaction should return the hash of the last block that was added using
+        // AddItem.
+        test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+            let inventory_manager = InventoryManager::default().start();
+
+            // Create first block with value transfer transactions
+            let block = build_block_with_vt_transactions(1);
+            let block_hash1 = block.hash();
+            let tx_hash1 = block.txns.value_transfer_txns[0].hash();
+            let item = StoreInventoryItem::Block(Box::new(block));
+
+            // Persist first block
+            let f = inventory_manager.send(AddItem { item });
+            let res = Compat01As03::new(f).await.unwrap();
+            res.unwrap();
+
+            // Get first transaction of that block
+            let f = inventory_manager.send(GetItemTransaction { hash: tx_hash1 });
+            let res = Compat01As03::new(f).await.unwrap();
+
+            // The transaction pointer should point to that block
+            let (_tx, tx_pointer1) = res.unwrap();
+            assert_eq!(tx_pointer1.block_hash, block_hash1);
+
+            // Create a different block with the same transactions
+            let block = build_block_with_vt_transactions(2);
+            let block_hash2 = block.hash();
+            let tx_hash2 = block.txns.value_transfer_txns[0].hash();
+            assert_ne!(block_hash1, block_hash2);
+            assert_eq!(tx_hash1, tx_hash2);
+            let item = StoreInventoryItem::Block(Box::new(block));
+
+            // Persist second block
+            let f = inventory_manager.send(AddItem { item });
+            let res = Compat01As03::new(f).await.unwrap();
+            res.unwrap();
+
+            // Get first transaction again
+            let f = inventory_manager.send(GetItemTransaction { hash: tx_hash1 });
+            let res = Compat01As03::new(f).await.unwrap();
+
+            // Now, the transaction pointer should point to the second block
+            let (_tx, tx_pointer2) = res.unwrap();
+            assert_eq!(tx_pointer2.block_hash, block_hash2);
+        });
+    }
+}

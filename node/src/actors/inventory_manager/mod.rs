@@ -9,7 +9,7 @@ mod actor;
 mod handlers;
 
 /// InventoryManager actor
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct InventoryManager;
 
 /// Possible errors when interacting with InventoryManager

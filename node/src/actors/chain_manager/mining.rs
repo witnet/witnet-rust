@@ -681,7 +681,7 @@ impl ChainManager {
 /// `transaction_pool`
 /// Returns an unsigned block!
 #[allow(clippy::too_many_arguments)]
-fn build_block(
+pub fn build_block(
     pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_vt_weight: u32,
     max_dr_weight: u32,

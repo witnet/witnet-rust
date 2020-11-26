@@ -85,7 +85,8 @@ use crate::{
 
 mod actor;
 mod handlers;
-mod mining;
+/// Block and data request mining
+pub mod mining;
 
 /// Maximum blocks number to be sent during synchronization process
 pub const MAX_BLOCKS_SYNC: usize = 500;
