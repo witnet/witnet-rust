@@ -3,18 +3,18 @@ use actix::prelude::*;
 use crate::actors::worker;
 use crate::types;
 
-pub struct CreateWallet(
+pub struct CreateWallet {
     /// Wallet name
-    pub Option<String>,
+    pub name: Option<String>,
     /// Wallet description
-    pub Option<String>,
+    pub description: Option<String>,
     /// Wallet user-defined password
-    pub types::Password,
+    pub password: types::Password,
     /// Seed data (mnemonics or xprv)
-    pub types::SeedSource,
+    pub seed_source: types::SeedSource,
     /// Overwrite flag
-    pub bool,
-);
+    pub overwrite: bool,
+}
 
 impl Message for CreateWallet {
     type Result = worker::Result<String>;
@@ -25,7 +25,13 @@ impl Handler<CreateWallet> for worker::Worker {
 
     fn handle(
         &mut self,
-        CreateWallet(name, description, password, seed_source, overwrite): CreateWallet,
+        CreateWallet {
+            name,
+            description,
+            password,
+            seed_source,
+            overwrite,
+        }: CreateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.create_wallet(

@@ -115,7 +115,11 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::GenAddress(wallet, external, label))
+                .send(worker::GenAddress {
+                    wallet,
+                    external,
+                    label,
+                })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -140,7 +144,12 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::GetAddresses(wallet, offset, limit, external))
+                .send(worker::GetAddresses {
+                    wallet,
+                    offset,
+                    limit,
+                    external,
+                })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -162,7 +171,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::GetBalance(wallet))
+                .send(worker::GetBalance { wallet })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -186,7 +195,11 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::GetTransactions(wallet, offset, limit))
+                .send(worker::GetTransactions {
+                    wallet,
+                    offset,
+                    limit,
+                })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -198,12 +211,12 @@ impl App {
     /// Run a RADRequest and return the computed result.
     pub fn run_rad_request(
         &self,
-        req: types::RADRequest,
+        request: types::RADRequest,
     ) -> ResponseFuture<types::RADRequestExecutionReport> {
         let f = self
             .params
             .worker
-            .send(worker::RunRadRequest(req))
+            .send(worker::RunRadRequest { request })
             .flatten()
             .map_err(From::from);
 
@@ -215,7 +228,7 @@ impl App {
         let f = self
             .params
             .worker
-            .send(worker::GenMnemonic(length))
+            .send(worker::GenMnemonic { length })
             .map_err(From::from);
 
         Box::new(f)
@@ -265,13 +278,13 @@ impl App {
         let f = self
             .params
             .worker
-            .send(worker::CreateWallet(
+            .send(worker::CreateWallet {
                 name,
                 description,
                 password,
                 seed_source,
                 overwrite,
-            ))
+            })
             .flatten()
             .map_err(From::from);
 
@@ -305,7 +318,7 @@ impl App {
             let info_update = slf
                 .params
                 .worker
-                .send(worker::UpdateWalletInfo(wallet_id, name))
+                .send(worker::UpdateWalletInfo { wallet_id, name })
                 .flatten()
                 .map_err(From::from);
 
@@ -335,10 +348,11 @@ impl App {
         if let Some(wallet) = self.state.get_current_wallet_session(wallet_id.clone()) {
             wallet.set_stop_syncing().expect("Lock error")
         }
+        let id = wallet_id.clone();
         let f = self
             .params
             .worker
-            .send(worker::UnlockWallet(wallet_id.clone(), password))
+            .send(worker::UnlockWallet { id, password })
             .flatten()
             .map_err(From::from)
             .into_actor(self)
@@ -383,7 +397,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::CreateVtt(wallet, params))
+                .send(worker::CreateVtt { wallet, params })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -405,7 +419,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::CreateDataReq(wallet, params))
+                .send(worker::CreateDataReq { wallet, params })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -462,7 +476,7 @@ impl App {
         .and_then(|wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::Get(wallet, key))
+                .send(worker::Get { wallet, key })
                 .flatten()
                 .map_err(From::from)
                 .and_then(|opt| match opt {
@@ -496,7 +510,7 @@ impl App {
                 move |value, slf: &mut Self, _| {
                     slf.params
                         .worker
-                        .send(worker::Set(wallet, key, value))
+                        .send(worker::Set { wallet, key, value })
                         .flatten()
                         .map_err(From::from)
                         .into_actor(slf)
@@ -687,7 +701,11 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::SignData(wallet, data, extended_pk))
+                .send(worker::SignData {
+                    wallet,
+                    data,
+                    extended_pk,
+                })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)
@@ -836,7 +854,7 @@ impl App {
         .and_then(|seed, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::CheckWalletSeedRequest(seed))
+                .send(worker::CheckWalletSeedRequest { seed })
                 .flatten()
                 .map_err(From::from)
                 .map(|(exist, wallet_id)| ValidateMnemonicsResponse { exist, wallet_id })
@@ -899,7 +917,7 @@ impl App {
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
                 .worker
-                .send(worker::ExportMasterKey(wallet, password))
+                .send(worker::ExportMasterKey { wallet, password })
                 .flatten()
                 .map_err(From::from)
                 .into_actor(slf)

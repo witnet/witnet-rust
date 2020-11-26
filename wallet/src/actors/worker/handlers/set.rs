@@ -3,13 +3,13 @@ use actix::prelude::*;
 use crate::actors::worker;
 use crate::types;
 
-pub struct Set(
-    pub types::SessionWallet,
+pub struct Set {
+    pub wallet: types::SessionWallet,
     /// Key
-    pub String,
+    pub key: String,
     /// Value
-    pub String,
-);
+    pub value: String,
+}
 
 impl Message for Set {
     type Result = worker::Result<()>;
@@ -18,7 +18,11 @@ impl Message for Set {
 impl Handler<Set> for worker::Worker {
     type Result = <Set as Message>::Result;
 
-    fn handle(&mut self, Set(wallet, key, value): Set, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        Set { wallet, key, value }: Set,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
         self.set(&wallet, &key, &value)
     }
 }

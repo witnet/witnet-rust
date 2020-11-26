@@ -3,7 +3,10 @@ use actix::prelude::*;
 use crate::actors::worker;
 use crate::types;
 
-pub struct CreateVtt(pub types::SessionWallet, pub types::VttParams);
+pub struct CreateVtt {
+    pub wallet: types::SessionWallet,
+    pub params: types::VttParams,
+}
 
 impl Message for CreateVtt {
     type Result = worker::Result<types::Transaction>;
@@ -14,7 +17,7 @@ impl Handler<CreateVtt> for worker::Worker {
 
     fn handle(
         &mut self,
-        CreateVtt(wallet, params): CreateVtt,
+        CreateVtt { wallet, params }: CreateVtt,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.create_vtt(&wallet, params)

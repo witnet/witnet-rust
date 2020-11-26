@@ -3,12 +3,12 @@ use actix::prelude::*;
 use crate::actors::worker;
 use crate::types;
 
-pub struct UnlockWallet(
+pub struct UnlockWallet {
     /// Wallet id
-    pub String,
+    pub id: String,
     /// Wallet password
-    pub types::Password,
-);
+    pub password: types::Password,
+}
 
 impl Message for UnlockWallet {
     type Result = worker::Result<types::UnlockedSessionWallet>;
@@ -19,7 +19,7 @@ impl Handler<UnlockWallet> for worker::Worker {
 
     fn handle(
         &mut self,
-        UnlockWallet(id, password): UnlockWallet,
+        UnlockWallet { id, password }: UnlockWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.unlock_wallet(&id, password.as_ref())
