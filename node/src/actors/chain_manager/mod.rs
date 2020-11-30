@@ -1401,6 +1401,7 @@ impl ChainManager {
                 SuperBlockConsensus::NoConsensus => {
                     // No consensus: move to AlmostSynced and restore chain_state from storage
                     log::warn!("No superblock consensus");
+                    // TODO: call get_all_transactions_since_epoch_and_insert_them_in_mempool_again
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::AlmostSynced);
 
@@ -1409,6 +1410,7 @@ impl ChainManager {
                 SuperBlockConsensus::Unknown => {
                     // Consensus unknown: move to waiting consensus and restore chain_state from storage
                     log::warn!("Superblock consensus unknown");
+                    // TODO: call get_all_transactions_since_epoch_and_insert_them_in_mempool_again
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -1691,7 +1693,7 @@ impl ChainManager {
 
     /// Get a list of (epoch, block_hash)
     fn get_blocks_epoch_range(
-        &mut self,
+        &self,
         GetBlocksEpochRange {
             range,
             limit,
@@ -1735,6 +1737,104 @@ impl ChainManager {
 
             Ok(hashes)
         }
+    }
+
+    #[must_use]
+    fn get_all_transactions_since_epoch_and_insert_them_in_mempool_again(
+        &self,
+        epoch: Epoch,
+    ) -> ResponseActFuture<Self, (), ()> {
+        let inventory_manager = InventoryManager::from_registry();
+
+        // Get all blocks since epoch
+        let fut = futures::future::ok(
+            self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(epoch.., 0)),
+        )
+        .and_then(move |res| match res {
+            Ok(v) => {
+                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
+                futures::future::ok(block_hashes)
+            }
+            Err(e) => {
+                log::error!("Error in GetBlocksEpochRange: {}", e);
+                futures::future::err(())
+            }
+        })
+        .and_then(move |block_hashes| {
+            // For each block, collect all the transactions that may be valid if this block is
+            // reverted. This includes value transfer transactions and data request transactions.
+            // And some reveals.
+            let aux = block_hashes.into_iter().map(move |hash| {
+                inventory_manager
+                    .send(GetItemBlock { hash })
+                    .then(move |res| match res {
+                        Ok(Ok(block)) => {
+                            let mut transactions = vec![];
+
+                            // TODO: be functional
+                            for vtt in &block.txns.value_transfer_txns {
+                                transactions.push(Transaction::ValueTransfer(vtt.clone()));
+                            }
+                            for drt in &block.txns.data_request_txns {
+                                transactions.push(Transaction::DataRequest(drt.clone()));
+                            }
+                            // TODO: only include reveals of data requests that were in reveal
+                            // stage right at the revert epoch. Reveals that point to data requests
+                            // that are still in commit stage will not be valid, and reveals that
+                            // point to data requests that did not exist at the revert epoch will
+                            // also not be valid.
+                            for reveal in &block.txns.reveal_txns {
+                                transactions.push(Transaction::Reveal(reveal.clone()));
+                            }
+                            futures::future::ok(transactions)
+                        }
+                        Ok(Err(e)) => {
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            futures::future::err(())
+                        }
+                        Err(e) => {
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            futures::future::err(())
+                        }
+                    })
+                    // TODO: make sure that we want to ignore errors
+                    .then(|x| futures::future::ok(x.ok()))
+            });
+
+            join_all(aux)
+                // Map Option<Vec<Vec<T>>> to Vec<T>, this returns all the non-error results
+                .map(|x| {
+                    x.into_iter()
+                        .flatten()
+                        .flatten()
+                        .collect::<Vec<Transaction>>()
+                })
+        })
+        .into_actor(self)
+        .and_then(move |transactions, _act, _ctx| {
+            log::debug!(
+                "{} transactions since epoch {}: {:?}",
+                transactions.len(),
+                epoch,
+                transactions
+            );
+            // TODO: insert transactions in mempool again
+            // How?
+            // * We can use self.add_transaction, and join on all the futures
+            // * We can send an AddTransaction message using ctx.notify
+            // * We can store the transactions in some temporary list, and gradually insert them
+            // over time
+            // Problem: this function must be called before the revert because it uses
+            // self.get_blocks_epoch_range to get the block hashes. But the transactions must be
+            // inserted into the mempool after the revert, otherwise they will be marked as
+            // invalid.
+            // Note that the transactions added here should not be broadcasted through the network,
+            // as it is assumed that most nodes have already seen this transactions.
+            actix::fut::ok(())
+        })
+        .map_err(|e, _, _| log::error!("{:?}", e));
+
+        Box::new(fut)
     }
 }
 
