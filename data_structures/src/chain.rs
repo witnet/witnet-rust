@@ -1587,6 +1587,37 @@ type PrioritizedHash = (OrderedFloat<f64>, Hash);
 type PrioritizedVTTransaction = (OrderedFloat<f64>, VTTransaction);
 type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction);
 
+#[derive(Debug, Clone, Default)]
+struct UnconfirmedTransactions {
+    current: Vec<Hash>,
+    previous: Vec<Hash>,
+}
+
+impl UnconfirmedTransactions {
+    fn update(&mut self) {
+        std::mem::swap(&mut self.previous, &mut self.current);
+        self.current.clear();
+    }
+
+    fn insert(&mut self, h: Hash) {
+        self.current.push(h);
+    }
+
+    fn clear(&mut self) {
+        self.current.clear();
+        self.previous.clear();
+    }
+
+    fn remove_all(&mut self) -> Vec<Hash> {
+        let mut v = vec![];
+        v.extend(self.current.iter());
+        v.extend(self.previous.iter());
+        self.clear();
+
+        v
+    }
+}
+
 /// A pool of validated transactions that supports constant access by
 /// [`Hash`](Hash) and iteration over the
 /// transactions sorted from by transactions with bigger fees to
@@ -1625,6 +1656,8 @@ pub struct TransactionsPool {
     // Minimum fee required to include a VTT into a block. We check for this fee in the
     // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
     minimum_vtt_fee: u64,
+    // Map for unconfirmed transactions
+    unconfirmed_transactions: UnconfirmedTransactions,
 }
 
 impl Default for TransactionsPool {
@@ -1648,6 +1681,7 @@ impl Default for TransactionsPool {
             vt_to_dr_factor: 1.0,
             // Default is to include all transactions into the pool and blocks
             minimum_vtt_fee: 0,
+            unconfirmed_transactions: Default::default(),
         }
     }
 }
@@ -1728,6 +1762,7 @@ impl TransactionsPool {
             weight_limit: _,
             vt_to_dr_factor: _,
             minimum_vtt_fee: _,
+            unconfirmed_transactions,
         } = self;
 
         vt_transactions.clear();
@@ -1742,6 +1777,7 @@ impl TransactionsPool {
         output_pointer_map.clear();
         *total_vt_weight = 0;
         *total_dr_weight = 0;
+        unconfirmed_transactions.clear();
     }
 
     /// Returns the number of value transfer transactions in the pool.
@@ -2438,6 +2474,38 @@ impl TransactionsPool {
                     .get(hash)
                     .map(|rt| Transaction::Reveal(rt.clone()))
             })
+    }
+
+    /// Update unconfirmed transactions
+    pub fn update_unconfirmed_transactions(&mut self) {
+        self.unconfirmed_transactions.update();
+    }
+
+    pub fn insert_unconfirmed_transactions(&mut self, h: Hash) {
+        self.unconfirmed_transactions.insert(h);
+    }
+
+    pub fn remove_unconfirmed_transactions(&mut self) -> Vec<Transaction> {
+        let unconfirmed_hashes = self.unconfirmed_transactions.remove_all();
+
+        let mut v = vec![];
+        for hash in unconfirmed_hashes {
+            if let Some(transaction) = self.get(&hash) {
+                match transaction {
+                    Transaction::ValueTransfer(_) => {
+                        let _x = self.vt_remove_inner(&hash, false);
+                    }
+                    Transaction::DataRequest(_) => {
+                        let _x = self.dr_remove_inner(&hash, false);
+                    }
+                    _ => continue,
+                }
+
+                v.push(transaction);
+            }
+        }
+
+        v
     }
 }
 

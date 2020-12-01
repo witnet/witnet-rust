@@ -380,7 +380,10 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
 
             let chain_manager_addr = ChainManager::from_registry();
             let fut = chain_manager_addr
-                .send(AddTransaction { transaction })
+                .send(AddTransaction {
+                    transaction,
+                    broadcast_flag: true,
+                })
                 .map_err(internal_error)
                 .and_then(|res| match res {
                     Ok(()) => futures::finished(Value::Bool(true)),

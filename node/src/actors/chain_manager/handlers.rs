@@ -219,7 +219,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         // After block consolidation, commits and reveals that arrive in an incorrect moment
         // are processed now
         for transaction in self.temp_commits_and_reveals.drain(..) {
-            ctx.notify(AddTransaction { transaction });
+            ctx.notify(AddTransaction {
+                transaction,
+                broadcast_flag: true,
+            });
         }
 
         self.peers_beacons_received = false;
@@ -1132,7 +1135,10 @@ impl Handler<BuildVtt> for ChainManager {
                             let tx_hash = transaction.hash();
                             Box::new(
                                 act.add_transaction(
-                                    AddTransaction { transaction },
+                                    AddTransaction {
+                                        transaction,
+                                        broadcast_flag: true,
+                                    },
                                     get_timestamp(),
                                 )
                                 .map(move |_, _, _| tx_hash),
@@ -1200,7 +1206,10 @@ impl Handler<BuildDrt> for ChainManager {
                             let tx_hash = transaction.hash();
                             Box::new(
                                 act.add_transaction(
-                                    AddTransaction { transaction },
+                                    AddTransaction {
+                                        transaction,
+                                        broadcast_flag: true,
+                                    },
                                     get_timestamp(),
                                 )
                                 .map(move |_, _, _| tx_hash),
@@ -1411,6 +1420,7 @@ impl Handler<AddCommitReveal> for ChainManager {
             self.add_transaction(
                 AddTransaction {
                     transaction: Transaction::Commit(commit_transaction),
+                    broadcast_flag: true,
                 },
                 get_timestamp(),
             )

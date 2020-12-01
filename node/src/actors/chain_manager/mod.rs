@@ -680,6 +680,7 @@ impl ChainManager {
                             // And broadcast it to all of peers
                             ctx.address().do_send(AddTransaction {
                                 transaction: Transaction::Reveal(reveal),
+                                broadcast_flag: true,
                             })
                         }
                         // Persist blocks and transactions but do not persist chain_state, it will
@@ -955,6 +956,8 @@ impl ChainManager {
             Ok(false) => {
                 self.transactions_pool
                     .insert_pending_transaction(&msg.transaction);
+                self.transactions_pool
+                    .insert_unconfirmed_transactions(msg.transaction.hash());
             }
             Ok(true) => {
                 log::trace!(
@@ -1017,10 +1020,12 @@ impl ChainManager {
                     .map(move |_| fee)
                     .into_actor(act)
             })
-            .then(|res, act, _ctx| match res {
+            .then(move |res, act, _ctx| match res {
                 Ok(fee) => {
                     // Broadcast valid transaction
-                    act.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
+                    if msg.broadcast_flag {
+                        act.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
+                    }
 
                     // Add valid transaction to transactions_pool
                     let tx_hash = msg.transaction.hash();
@@ -1298,6 +1303,9 @@ impl ChainManager {
                                 "The last block of the consolidated superblock is {}",
                                 last_hash
                             );
+
+                            // Update mempool after superblock consolidation
+                            act.transactions_pool.update_unconfirmed_transactions();
                         }
 
                         let chain_info = act.chain_state.chain_info.as_ref().unwrap();
@@ -1401,7 +1409,9 @@ impl ChainManager {
                 SuperBlockConsensus::NoConsensus => {
                     // No consensus: move to AlmostSynced and restore chain_state from storage
                     log::warn!("No superblock consensus");
-                    // TODO: call get_all_transactions_since_epoch_and_insert_them_in_mempool_again
+
+                    act.reinsert_unconfirmed_transactions(init_epoch.saturating_sub(superblock_period)).wait(ctx);
+
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::AlmostSynced);
 
@@ -1410,7 +1420,9 @@ impl ChainManager {
                 SuperBlockConsensus::Unknown => {
                     // Consensus unknown: move to waiting consensus and restore chain_state from storage
                     log::warn!("Superblock consensus unknown");
-                    // TODO: call get_all_transactions_since_epoch_and_insert_them_in_mempool_again
+
+                    act.reinsert_unconfirmed_transactions(init_epoch.saturating_sub(superblock_period)).wait(ctx);
+
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -1739,12 +1751,17 @@ impl ChainManager {
         }
     }
 
+    /// This function takes the transactions that were included in the mempool during an unconfirmed
+    /// superepoch and the transactions included in unconfirmed blocks and it allows them to be
+    /// included again in the mempool when the node wold be Synced again
     #[must_use]
-    fn get_all_transactions_since_epoch_and_insert_them_in_mempool_again(
-        &self,
+    fn reinsert_unconfirmed_transactions(
+        &mut self,
         epoch: Epoch,
     ) -> ResponseActFuture<Self, (), ()> {
         let inventory_manager = InventoryManager::from_registry();
+
+        let mut mempool_transactions = self.transactions_pool.remove_unconfirmed_transactions();
 
         // Get all blocks since epoch
         let fut = futures::future::ok(
@@ -1778,14 +1795,10 @@ impl ChainManager {
                             for drt in &block.txns.data_request_txns {
                                 transactions.push(Transaction::DataRequest(drt.clone()));
                             }
-                            // TODO: only include reveals of data requests that were in reveal
-                            // stage right at the revert epoch. Reveals that point to data requests
-                            // that are still in commit stage will not be valid, and reveals that
-                            // point to data requests that did not exist at the revert epoch will
-                            // also not be valid.
-                            for reveal in &block.txns.reveal_txns {
-                                transactions.push(Transaction::Reveal(reveal.clone()));
-                            }
+
+                            // We do not reinsert RevealTransactions due to each node resend
+                            // their reveal in case of a data request would be in REVEAL stage
+
                             futures::future::ok(transactions)
                         }
                         Ok(Err(e)) => {
@@ -1811,25 +1824,28 @@ impl ChainManager {
                 })
         })
         .into_actor(self)
-        .and_then(move |transactions, _act, _ctx| {
-            log::debug!(
-                "{} transactions since epoch {}: {:?}",
-                transactions.len(),
-                epoch,
-                transactions
+        .and_then(move |transactions, act, ctx| {
+            // FIXME(#1763): Do not use a run_later
+            let five_epochs = u64::from(
+                act.consensus_constants()
+                    .checkpoints_period
+                    .saturating_mul(5),
             );
-            // TODO: insert transactions in mempool again
-            // How?
-            // * We can use self.add_transaction, and join on all the futures
-            // * We can send an AddTransaction message using ctx.notify
-            // * We can store the transactions in some temporary list, and gradually insert them
-            // over time
-            // Problem: this function must be called before the revert because it uses
-            // self.get_blocks_epoch_range to get the block hashes. But the transactions must be
-            // inserted into the mempool after the revert, otherwise they will be marked as
-            // invalid.
-            // Note that the transactions added here should not be broadcasted through the network,
-            // as it is assumed that most nodes have already seen this transactions.
+            ctx.run_later(Duration::from_secs(five_epochs), move |_act, ctx| {
+                mempool_transactions.extend(transactions);
+                log::debug!(
+                    "Re-adding {} transactions into mempool since epoch {}",
+                    mempool_transactions.len(),
+                    epoch,
+                );
+                for transaction in mempool_transactions {
+                    ctx.notify(AddTransaction {
+                        transaction,
+                        broadcast_flag: false,
+                    });
+                }
+            });
+
             actix::fut::ok(())
         })
         .map_err(|e, _, _| log::error!("{:?}", e));

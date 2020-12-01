@@ -693,7 +693,10 @@ fn inventory_process_transaction(
     let chain_manager_addr = ChainManager::from_registry();
 
     // Send a message to the ChainManager to try to add a new transaction
-    chain_manager_addr.do_send(AddTransaction { transaction });
+    chain_manager_addr.do_send(AddTransaction {
+        transaction,
+        broadcast_flag: true,
+    });
 }
 
 /// Function called when SuperBlock message is received

@@ -100,6 +100,8 @@ impl Message for AddSuperBlockVote {
 pub struct AddTransaction {
     /// Transaction
     pub transaction: Transaction,
+    /// Broadcasting flag
+    pub broadcast_flag: bool,
 }
 
 impl Message for AddTransaction {
