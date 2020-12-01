@@ -74,41 +74,133 @@ pub fn block_relay_and_poi(
 
             let superblock = superblock_notification.superblock;
             let confirmed_block_hashes = superblock_notification.consolidated_block_hashes;
-            let empty_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".parse().unwrap();
 
             let superblock_hash: U256 = match superblock.hash() {
                 Hash::SHA256(x) => x.into(),
             };
-
+            let superblock_epoch: U256 = superblock.index.into();
+            let dr_merkle_root: U256 =
+                match superblock.data_request_root {
+                    Hash::SHA256(x) => x.into(),
+                };
+            let tally_merkle_root: U256 =
+                match superblock.tally_root {
+                    Hash::SHA256(x) => x.into(),
+                };
             get_blocks(confirmed_block_hashes, witnet_client)
+                .and_then({
+
+                    let eth_state = Arc::clone(&eth_state);
+                    move |confirmed_blocks| {
+                        eth_state.wrb_requests.read()
+                            .and_then({
+                                move |wrb_requests| {
+                                    let block_hash: U256 = match superblock.hash() {
+                                        Hash::SHA256(x) => x.into(),
+                                    };
+                                    let dr_txs: Vec<DRTransaction> = confirmed_blocks.iter().flat_map(|block| {
+                                        block.txns.data_request_txns.clone()
+                                    }).collect();
+                                    let tally_txs: Vec<TallyTransaction> = confirmed_blocks.iter().flat_map(|block| {
+                                        block.txns.tally_txns.clone()
+                                    }).collect();
+
+                                    let block_epoch: U256 = superblock.index.into();
+
+                                    let mut including = vec![];
+                                    let mut resolving = vec![];
+
+                                    let claimed_drs = wrb_requests.claimed();
+                                    let waiting_for_tally = wrb_requests.included();
+
+                                    if enable_claim_and_inclusion {
+                                        for dr in &dr_txs {
+                                            for dr_id in claimed_drs.get_by_right(&dr.body.dr_output.hash())
+                                            {
+                                                let dr_inclusion_proof = match superblock.dr_proof_of_inclusion(&confirmed_blocks, &dr) {
+                                                    Some(x) => x,
+                                                    None => {
+                                                        log::error!("Error creating data request proof of inclusion");
+                                                        continue;
+                                                    }
+                                                };
+
+                                                let poi: Vec<U256> = dr_inclusion_proof
+                                                    .lemma
+                                                    .iter()
+                                                    .map(|x| match x {
+                                                        Hash::SHA256(x) => x.into(),
+                                                    })
+                                                    .collect();
+                                                let poi_index = U256::from(dr_inclusion_proof.index);
+
+                                                log::debug!(
+                                                    "Proof of inclusion for data request {}:\nPoi: {:x?}\nPoi index: {}",
+                                                    dr.hash(),
+                                                    poi,
+                                                    poi_index,
+                                                );
+                                                log::info!("[{}] Claimed dr got included in witnet block!", dr_id);
+                                                log::info!("[{}] Sending proof of inclusion to WRB wrb_contract", dr_id);
+
+                                                including.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch));
+                                            }
+                                        }
+                                    }
+
+                                    if enable_result_reporting {
+                                        for tally in &tally_txs {
+                                            for dr_id in waiting_for_tally.get_by_right(&tally.dr_pointer)
+                                            {
+                                                let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
+                                                log::info!("[{}] Found tally for data request, posting to WRB", dr_id);
+                                                let tally_inclusion_proof = match superblock.tally_proof_of_inclusion(&confirmed_blocks, &tally) {
+                                                    Some(x) => x,
+                                                    None => {
+                                                        log::error!("Error creating tally data proof of inclusion");
+                                                        continue;
+                                                    }
+                                                };
+                                                log::debug!(
+                                                    "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
+                                                    tally.hash(),
+                                                    [&dr_pointer_bytes[..], &tally.tally].concat(),
+                                                    tally_inclusion_proof
+                                                );
+
+                                                // Call report_result
+                                                let poi: Vec<U256> = tally_inclusion_proof
+                                                    .lemma
+                                                    .iter()
+                                                    .map(|x| match x {
+                                                        Hash::SHA256(x) => x.into(),
+                                                    })
+                                                    .collect();
+                                                let poi_index = U256::from(tally_inclusion_proof.index);
+                                                let result: Bytes = tally.tally.clone();
+                                                resolving.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone()));
+                                            }
+                                        }
+                                    }
+                                    futures::future::finished((including, resolving))
+                                }
+                            })
+                    }
+                })
                 .and_then({
                     let config = Arc::clone(&config);
                     let eth_state = Arc::clone(&eth_state);
+                    move |(including, resolving)| {
 
-
-                    move |confirmed_blocks| {
-                        // Optimization: do not process empty blocks
-                        let is_non_empty = confirmed_blocks.iter().any(|block| {
-                            block.block_header.merkle_roots.dr_hash_merkle_root != empty_hash || block.block_header.merkle_roots.tally_hash_merkle_root != empty_hash
-                        });
-                        if !is_non_empty {
+                        // Optimization: do not process blocks that do not contain requests coming from ethereum
+                        if including.is_empty() && resolving.is_empty() {
                             log::debug!("Skipping empty superblock");
                             return futures::finished(());
                         }
 
                         if (is_new_block && config.enable_block_relay_new_blocks) || (!is_new_block && config.enable_block_relay_old_blocks) {
-                            let superblock_epoch: U256 = superblock.index.into();
-                            let dr_merkle_root: U256 =
-                                match superblock.data_request_root {
-                                    Hash::SHA256(x) => x.into(),
-                                };
-                            let tally_merkle_root: U256 =
-                                match superblock.tally_root {
-                                    Hash::SHA256(x) => x.into(),
-                                };
 
                             let block_relay_contract2 = block_relay_contract.clone();
-
                             // Post witnet superblock to BlockRelay wrb_contract
                             tokio::spawn(
                                 block_relay_contract
@@ -167,103 +259,9 @@ pub fn block_relay_and_poi(
                                 })
                             })
                             .and_then({
-                                let eth_state = Arc::clone(&eth_state);
-                                move |()| {
-                                    eth_state.wrb_requests.read()
-                                }
-                            })
-                            .and_then({
                                 let config = Arc::clone(&config);
                                 let eth_state = Arc::clone(&eth_state);
-                                move |wrb_requests| {
-                                    let block_hash: U256 = match superblock.hash() {
-                                        Hash::SHA256(x) => x.into(),
-                                    };
-                                    let dr_txs: Vec<DRTransaction> = confirmed_blocks.iter().flat_map(|block| {
-                                        block.txns.data_request_txns.clone()
-                                    }).collect();
-                                    let tally_txs: Vec<TallyTransaction> = confirmed_blocks.iter().flat_map(|block| {
-                                        block.txns.tally_txns.clone()
-                                    }).collect();
-
-                                    let block_epoch: U256 = superblock.index.into();
-
-                                    let mut including = vec![];
-                                    let mut resolving = vec![];
-
-                                    let claimed_drs = wrb_requests.claimed();
-                                    let waiting_for_tally = wrb_requests.included();
-
-                                    if enable_claim_and_inclusion {
-                                        for dr in &dr_txs {
-                                            for dr_id in claimed_drs.get_by_right(&dr.body.dr_output.hash())
-                                            {
-                                                let dr_inclusion_proof = match superblock.dr_proof_of_inclusion(&confirmed_blocks, &dr) {
-                                                    Some(x) => x,
-                                                    None => {
-                                                        log::error!("Error creating data request proof of inclusion");
-                                                        continue;
-                                                    }
-                                                };
-
-                                                let poi: Vec<U256> = dr_inclusion_proof
-                                                    .lemma
-                                                    .iter()
-                                                    .map(|x| match x {
-                                                        Hash::SHA256(x) => x.into(),
-                                                    })
-                                                    .collect();
-                                                let poi_index = U256::from(dr_inclusion_proof.index);
-
-                                                log::debug!(
-                                    "Proof of inclusion for data request {}:\nPoi: {:x?}\nPoi index: {}",
-                                    dr.hash(),
-                                    poi,
-                                    poi_index,
-                                );
-                                                log::info!("[{}] Claimed dr got included in witnet block!", dr_id);
-                                                log::info!("[{}] Sending proof of inclusion to WRB wrb_contract", dr_id);
-
-                                                including.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch));
-                                            }
-                                        }
-                                    }
-
-                                    if enable_result_reporting {
-                                        for tally in &tally_txs {
-                                            for dr_id in waiting_for_tally.get_by_right(&tally.dr_pointer)
-                                            {
-                                                let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
-                                                log::info!("[{}] Found tally for data request, posting to WRB", dr_id);
-                                                let tally_inclusion_proof = match superblock.tally_proof_of_inclusion(&confirmed_blocks, &tally) {
-                                                    Some(x) => x,
-                                                    None => {
-                                                        log::error!("Error creating tally data proof of inclusion");
-                                                        continue;
-                                                    }
-                                                };
-                                                log::debug!(
-                                    "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
-                                    tally.hash(),
-                                    [&dr_pointer_bytes[..], &tally.tally].concat(),
-                                    tally_inclusion_proof
-                                );
-
-                                                // Call report_result
-                                                let poi: Vec<U256> = tally_inclusion_proof
-                                                    .lemma
-                                                    .iter()
-                                                    .map(|x| match x {
-                                                        Hash::SHA256(x) => x.into(),
-                                                    })
-                                                    .collect();
-                                                let poi_index = U256::from(tally_inclusion_proof.index);
-                                                let result: Bytes = tally.tally.clone();
-                                                resolving.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone()));
-                                            }
-                                        }
-                                    }
-
+                                move |()| {
                                     // Check if we need to acquire a write lock
                                     if !including.is_empty() || !resolving.is_empty() {
                                         Either::A(eth_state.wrb_requests.write().map(move |mut wrb_requests| {
