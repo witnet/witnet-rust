@@ -5,10 +5,10 @@ use crate::{actors::handle_receipt, actors::WitnetSuperBlock, config::Config, et
 
 use async_jsonrpc_client::{transports::tcp::TcpSocket, Transport};
 use ethabi::Bytes;
-use futures::{future::Either, sink::Sink, stream::Stream};
+use futures::{future::Either, sink::Sink, stream::Stream, sync::oneshot};
 use serde_json::json;
 use std::sync::Arc;
-use tokio::{sync::mpsc, sync::oneshot};
+use tokio::sync::mpsc;
 use web3::{contract, futures::Future, types::U256};
 use witnet_data_structures::{
     chain::{Block, Hash, Hashable},

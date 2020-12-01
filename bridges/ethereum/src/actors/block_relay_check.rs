@@ -2,13 +2,13 @@
 
 use crate::{config::Config, eth::EthState};
 use async_jsonrpc_client::futures::Stream;
-use futures::{future::Either, sink::Sink};
+use futures::{future::Either, sink::Sink, sync::oneshot};
 use std::{
     collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::{sync::mpsc, sync::oneshot, timer::Interval};
+use tokio::{sync::mpsc, timer::Interval};
 use web3::{
     contract,
     futures::{future, Future},
