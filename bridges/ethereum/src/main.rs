@@ -199,6 +199,19 @@ fn run() -> Result<(), String> {
                 if config.subscribe_to_witnet_blocks {
                     tokio::spawn(witnet_event_fut);
                 }
+                // This should only be instantiated if this node is planning on doing claims and inclusions
+                if config.enable_claim_and_inclusion {
+                    tokio::spawn(claim_and_post_fut);
+                    tokio::spawn(claim_ticker_fut);
+                }
+
+                tokio::spawn(block_relay_and_poi_fut);
+                tokio::spawn(block_relay_check_fut);
+
+                // This should only be instantiated if this node is planning on doing result reporting
+                if config.enable_result_reporting {
+                    tokio::spawn(tally_finder_fut);
+                }
                 tokio::spawn(
                     Interval::new(Instant::now(), Duration::from_millis(10_000))
                         .map_err(|e| log::error!("Error creating interval: {:?}", e))
@@ -208,11 +221,6 @@ fn run() -> Result<(), String> {
                         .then(|_| Ok(()))
                         .for_each(|_| Ok(())),
                 );
-                tokio::spawn(claim_and_post_fut);
-                tokio::spawn(block_relay_and_poi_fut);
-                tokio::spawn(claim_ticker_fut);
-                tokio::spawn(block_relay_check_fut);
-                tokio::spawn(tally_finder_fut);
             }));
         }
     }

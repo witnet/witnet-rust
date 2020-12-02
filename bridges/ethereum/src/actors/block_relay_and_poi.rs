@@ -9,7 +9,11 @@ use futures::{future::Either, sink::Sink, stream::Stream, sync::oneshot};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use web3::{contract, futures::Future, types::U256};
+use web3::{
+    contract,
+    futures::Future,
+    types::{H160, U256},
+};
 use witnet_data_structures::{
     chain::{Block, Hash, Hashable},
     transaction::{DRTransaction, TallyTransaction},
@@ -92,7 +96,7 @@ pub fn block_relay_and_poi(
 
                     let eth_state = Arc::clone(&eth_state);
                     move |confirmed_blocks| {
-                        eth_state.wrb_requests.read()
+                            eth_state.wrb_requests.read()
                             .and_then({
                                 move |wrb_requests| {
                                     let block_hash: U256 = match superblock.hash() {
@@ -182,7 +186,24 @@ pub fn block_relay_and_poi(
                                             }
                                         }
                                     }
-                                    futures::future::finished((including, resolving))
+                                    // If including or resolving is non empty, needs_relaying should be set to true
+                                    let needs_relaying = if !including.is_empty() || !resolving.is_empty() {
+                                        true
+                                        }
+                                    else{
+                                        dr_txs.iter().any(|dr_tx| {
+                                            wrb_requests.posted().values().any(|(address, dr_hash)| {
+                                                if *address == H160::default() {
+                                                    false
+                                                } else {
+                                                    dr_tx.body.dr_output.hash() == *dr_hash
+                                                }
+                                            })
+                                        }) || tally_txs.iter().any(|tally_tx| {
+                                            !waiting_for_tally.get_by_right(&tally_tx.dr_pointer).is_empty()
+                                        })
+                                    };
+                                    futures::future::finished((including, resolving, needs_relaying))
                                 }
                             })
                     }
@@ -190,15 +211,14 @@ pub fn block_relay_and_poi(
                 .and_then({
                     let config = Arc::clone(&config);
                     let eth_state = Arc::clone(&eth_state);
-                    move |(including, resolving)| {
-
-                        // Optimization: do not process blocks that do not contain requests coming from ethereum
-                        if including.is_empty() && resolving.is_empty() {
-                            log::debug!("Skipping empty superblock");
-                            return futures::finished(());
-                        }
+                    move |(including, resolving, needs_relaying)| {
 
                         if (is_new_block && config.enable_block_relay_new_blocks) || (!is_new_block && config.enable_block_relay_old_blocks) {
+                            // Optimization: do not process blocks that do not contain requests coming from ethereum
+                            if including.is_empty() && resolving.is_empty() && !needs_relaying {
+                                log::debug!("Skipping empty superblock");
+                                return futures::finished(());
+                            }
 
                             let block_relay_contract2 = block_relay_contract.clone();
                             // Post witnet superblock to BlockRelay wrb_contract
@@ -247,7 +267,9 @@ pub fn block_relay_and_poi(
 
                         // Wait for someone else to publish the witnet block to ethereum
                         let (wbtx, wbrx) = oneshot::channel();
-                        let fut = wait_for_witnet_block_tx2.send((superblock_hash, wbtx))
+                        let fut = if !including.is_empty() || !resolving.is_empty() {
+
+                            Either::A(wait_for_witnet_block_tx2.send((superblock_hash, wbtx))
                             .map_err(|e| log::error!("Failed to send message to block_ticker channel: {}", e))
                             .and_then(move |_| {
                                 // Receiving the new block notification can fail if the block_ticker got
@@ -263,8 +285,7 @@ pub fn block_relay_and_poi(
                                 let eth_state = Arc::clone(&eth_state);
                                 move |()| {
                                     // Check if we need to acquire a write lock
-                                    if !including.is_empty() || !resolving.is_empty() {
-                                        Either::A(eth_state.wrb_requests.write().map(move |mut wrb_requests| {
+                                    eth_state.wrb_requests.write().map(move |mut wrb_requests| {
                                             for (dr_id, poi, poi_index, block_hash, block_epoch) in including {
                                                 if wrb_requests.claimed().contains_left(&dr_id) {
                                                     wrb_requests.set_including(dr_id, poi.clone(), poi_index, block_hash, block_epoch);
@@ -328,12 +349,14 @@ pub fn block_relay_and_poi(
                                                     );
                                                 }
                                             }
-                                        }))
-                                    } else {
-                                        Either::B(futures::finished(()))
+                                        })
                                     }
-                                }
-                            })
+                                })
+                            )
+                        }
+                        else {
+                            Either::B(futures::finished(()))
+                        }
                             // Without this line the actor will panic on the first failure
                             .then(|_| Result::<(), ()>::Ok(()));
 

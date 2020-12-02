@@ -14,14 +14,17 @@ use witnet_data_structures::chain::Hash;
 #[derive(Debug)]
 pub enum DrState {
     /// The data request was just posted, and may be available for claiming
-    Posted,
+    Posted {
+        /// address of the claimer
+        address: H160,
+    },
     /// The data request uses an invalid serialization so the bridge will not try to claim it
     Ignored,
     /// The node sent a transaction to claim this data request, but that transaction
     /// is not yet confirmed. This state prevents the node from double-claiming the
     /// same data request multiple times in parallel.
     Claiming,
-    /// The data request was claimed by this node.
+    /// The data request was claimed by THIS node.
     /// Data requests claimed by other nodes are in `Posted` state, so we can
     /// try to claim it in the future.
     Claimed {
@@ -72,7 +75,7 @@ pub enum DrState {
 #[derive(Debug, Default)]
 pub struct WrbRequests {
     requests: HashMap<U256, DrState>,
-    posted: HashSet<U256>,
+    posted: HashMap<U256, (H160, Hash)>,
     claiming: HashSet<U256>,
     // Claimed by our node, used to reportInclusion
     // dr_output_hash: Hash
@@ -89,6 +92,7 @@ impl WrbRequests {
     fn remove_from_all_helper_maps(&mut self, dr_id: U256) {
         self.posted.remove(&dr_id);
         self.claiming.remove(&dr_id);
+        self.claiming.remove(&dr_id);
         self.claimed.remove_by_left(&dr_id);
         self.claimed_timestamp.remove(&dr_id);
         self.including.remove(&dr_id);
@@ -97,15 +101,17 @@ impl WrbRequests {
         self.resolved.remove(&dr_id);
     }
     /// Insert a data request in `Posted` state
-    pub fn insert_posted(&mut self, dr_id: U256) {
+    pub fn insert_posted(&mut self, dr_id: U256, address: H160, dr_hash: Hash) {
         // This is only safe if the data request did not exist yet
         match self.requests.get(&dr_id) {
             None => {
                 self.remove_from_all_helper_maps(dr_id);
-                self.requests.insert(dr_id, DrState::Posted);
-                self.posted.insert(dr_id);
+                self.requests.insert(dr_id, DrState::Posted { address });
+                self.posted.insert(dr_id, (address, dr_hash));
             }
-            Some(DrState::Posted) => {
+            Some(DrState::Posted { .. }) => {
+                self.requests.insert(dr_id, DrState::Posted { address });
+                self.posted.insert(dr_id, (address, dr_hash));
                 log::debug!("Invalid state in WrbRequests: [{}] was being set to Posted, but it is already Posted", dr_id);
             }
             Some(DrState::Ignored) => {
@@ -123,6 +129,20 @@ impl WrbRequests {
             }
         }
     }
+    /// Update a data request in `Posted` state. This means the claimer changed.
+    pub fn update_posted_claimer(&mut self, dr_id: U256, address: H160) {
+        if let Some(DrState::Posted { .. }) = self.requests.get(&dr_id) {
+            if let Some((x, _)) = self.posted.get_mut(&dr_id) {
+                *x = address;
+                self.requests.insert(dr_id, DrState::Posted { address });
+            } else {
+                log::warn!(
+                    "Cannot update posted state because dr is in an inconsistent state: [{}]",
+                    dr_id
+                );
+            }
+        }
+    }
     /// Insert a data request in `Included` state, with the data request
     /// transaction hash from Witnet stored to allow a map
     /// from WRB_dr_id to Witnet_dr_tx_hash
@@ -131,7 +151,7 @@ impl WrbRequests {
         // in a state "before" Included
         match self.requests.get(&dr_id) {
             None
-            | Some(DrState::Posted)
+            | Some(DrState::Posted { .. })
             | Some(DrState::Ignored)
             | Some(DrState::Claiming)
             | Some(DrState::Claimed { .. })
@@ -154,14 +174,6 @@ impl WrbRequests {
                 );
             }
         }
-    }
-    /// Insert a data request in `Resolved` state, with the result as a vector
-    /// of bytes.
-    pub fn insert_result(&mut self, dr_id: U256, result: Vec<u8>) {
-        // This is always safe, we can just overwrite the old value if it exists
-        self.remove_from_all_helper_maps(dr_id);
-        self.requests.insert(dr_id, DrState::Resolved { result });
-        self.resolved.insert(dr_id);
     }
     /// Mark this data request as `Including`
     pub fn set_including(
@@ -190,9 +202,23 @@ impl WrbRequests {
         if self.including.remove(&dr_id) {
             // If the proof of inclusion fails, retry this data request from posted state
             // This will result in extra wits spent
-            self.requests.insert(dr_id, DrState::Posted);
-            self.posted.insert(dr_id);
+            self.requests.insert(
+                dr_id,
+                DrState::Posted {
+                    address: H160::default(),
+                },
+            );
+            self.posted
+                .insert(dr_id, (H160::default(), Hash::default()));
         }
+    }
+    /// Insert a data request in `Resolved` state, with the result as a vector
+    /// of bytes.
+    pub fn insert_result(&mut self, dr_id: U256, result: Vec<u8>) {
+        // This is always safe, we can just overwrite the old value if it exists
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(dr_id, DrState::Resolved { result });
+        self.resolved.insert(dr_id);
     }
     /// Mark this data request as `Claiming`
     pub fn set_claiming(&mut self, dr_id: U256) {
@@ -243,8 +269,14 @@ impl WrbRequests {
     /// Otherwise, do nothing.
     pub fn undo_claim(&mut self, dr_id: U256) {
         if self.claiming.remove(&dr_id) {
-            self.requests.insert(dr_id, DrState::Posted);
-            self.posted.insert(dr_id);
+            self.requests.insert(
+                dr_id,
+                DrState::Posted {
+                    address: H160::default(),
+                },
+            );
+            self.posted
+                .insert(dr_id, (H160::default(), Hash::default()));
         }
     }
     /// If the data request is in claiming state, confirm the claim.
@@ -280,7 +312,7 @@ impl WrbRequests {
         }
     }
     /// View of all the data requests in `Posted` state.
-    pub fn posted(&self) -> &HashSet<U256> {
+    pub fn posted(&self) -> &HashMap<U256, (H160, Hash)> {
         &self.posted
     }
     /// View of all the data requests in `Claimed` state, with an auxiliar

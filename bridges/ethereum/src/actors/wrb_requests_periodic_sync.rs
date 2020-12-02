@@ -8,7 +8,12 @@ use ethabi::Bytes;
 use futures::{future::Either, sink::Sink};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use web3::{contract, futures::Future, types::U256};
+use web3::{
+    contract,
+    futures::Future,
+    types::{H160, U256},
+};
+use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::Hash;
 
 /// Check for new requests in the WRB
@@ -163,7 +168,7 @@ fn check_wrb_new_dr_state(
                             contract::Options::default(),
                             None,
                         )
-                        .map_err(|e| log::error!("readResult: {:?}", e))
+                        .map_err(|e| log::error!("readDrHash: {:?}", e))
                         .map(move |x: U256| (x, dr_id))
                         .and_then(move |(dr_tx_hash, dr_id)| {
                             if dr_tx_hash != U256::from(0) {
@@ -177,21 +182,53 @@ fn check_wrb_new_dr_state(
                                 ))
                             } else {
                                 log::info!("[{}] Request has been posted", dr_id);
-                                // Not in included state, must be in posted state
-                                Either::B(eth_state.wrb_requests.write().and_then(
-                                    move |mut wrb_requests| {
-                                        wrb_requests.insert_posted(dr_id);
+                                Either::B(eth_state
+                                    .wrb_contract
+                                    .query(
+                                        "getDataRequestPkhClaim",
+                                        (dr_id,),
+                                        eth_account,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .map_err(|e| log::error!("readDataRequestPkhClaim: {:?}", e))
+                                    .map(move |x: H160| (x, dr_id))
+                                              .and_then({
+                                                  let eth_state = Arc::clone(&eth_state);
+                                                  move |(address, dr_id)|
+                                                      eth_state.wrb_contract
+                                                          .query(
+                                                              "readDataRequest",
+                                                              (dr_id,),
+                                                              eth_account,
+                                                              contract::Options::default(),
+                                                              None,
+                                                          ).map_err(|e| log::error!("readDataRequest {:?}", e))
+                                                          .map(move |dr: Bytes| (address, dr_id, calculate_sha256(&dr)))
+                                              })
+                                    .and_then({
+                                        let eth_state = Arc::clone(&eth_state);
 
-                                        tx.send(ClaimMsg::NewDr(dr_id))
-                                            .map_err(|e| {
-                                                log::error!(
-                                                    "Failed to send ClaimMsg message: {}",
-                                                    e
-                                                )
-                                            })
-                                            .map(|_| ())
-                                    },
-                                ))
+                                        move |(address, dr_id, dr_hash)| {
+
+                                            // Not in included state, must be in posted state
+                                            eth_state.wrb_requests.write().and_then(
+                                                move |mut wrb_requests| {
+                                                    wrb_requests.insert_posted(dr_id, address, Hash::SHA256(dr_hash.0   ));
+
+                                                    tx.send(ClaimMsg::NewDr(dr_id))
+                                                        .map_err(|e| {
+                                                            log::error!(
+                                                                "Failed to send ClaimMsg message: {}",
+                                                                e
+                                                            )
+                                                        })
+                                                        .map(|_| ())
+                                                },
+                                            )
+                                        }
+                                    })
+                                )
                             }
                         }),
                 )
@@ -268,7 +305,33 @@ fn check_wrb_existing_dr_state(
                                 // Not in included state, must be in posted state
                                 // Nothing to do here, new data requests are handled
                                 // by get_new_requests
-                                Either::B(futures::finished(()))
+                                Either::B(
+                                    eth_state
+                                        .wrb_contract
+                                        .query(
+                                            "getDataRequestPkhClaim",
+                                            (dr_id,),
+                                            eth_account,
+                                            contract::Options::default(),
+                                            None,
+                                        )
+                                        .map_err(|e| {
+                                            log::error!("readDataRequestPkhClaim: {:?}", e)
+                                        })
+                                        .map(move |x: H160| (x, dr_id))
+                                        .and_then({
+                                            let eth_state = Arc::clone(&eth_state);
+                                            move |(address, dr_id)| {
+                                                // Not in included state, must be in posted state
+                                                eth_state.wrb_requests.write().map(
+                                                    move |mut wrb_requests| {
+                                                        wrb_requests
+                                                            .update_posted_claimer(dr_id, address);
+                                                    },
+                                                )
+                                            }
+                                        }),
+                                )
                             }
                         }),
                 )

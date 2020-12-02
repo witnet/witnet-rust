@@ -389,7 +389,7 @@ fn claim_and_post_dr(
                     let witnet_client = Arc::clone(&witnet_client);
 
                     move |mut wrb_requests| {
-                        if wrb_requests.posted().contains(&dr_id) {
+                        if wrb_requests.posted().contains_key(&dr_id) {
                             wrb_requests.set_claiming(dr_id);
                             Either::A(futures::finished(()))
                         } else if post_to_witnet_more_than_once && wrb_requests.claimed().contains_left(&dr_id) {
@@ -537,7 +537,7 @@ pub fn claim_and_post(
                                 (true, true) => Either::B(futures::finished(())),
                                 (false, _) => {
                                     let i = thread_rng().gen_range(0, known_dr_ids_posted.len());
-                                    let dr_id = *known_dr_ids_posted.iter().nth(i).unwrap();
+                                    let dr_id = *known_dr_ids_posted.keys().nth(i).unwrap();
                                     std::mem::drop(known_dr_ids);
 
                                     Either::A(claim_and_post_dr(
