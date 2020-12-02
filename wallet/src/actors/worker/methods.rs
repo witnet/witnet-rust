@@ -502,7 +502,10 @@ impl Worker {
                     IndexTransactionQuery::DataRequestReport(dr_id) => {
                         let retrieve_responses =
                             async { self.query_data_request_report(dr_id).await };
-                        let report = futures03::executor::block_on(retrieve_responses)?;
+                        let report = futures::future::lazy(|| {
+                            futures03::executor::block_on(retrieve_responses)
+                        })
+                        .wait()?;
 
                         Ok(model::ExtendedTransaction {
                             transaction,
@@ -531,7 +534,8 @@ impl Worker {
             .map(|output| self.query_transaction(output.transaction_id.to_string()));
         let retrieve_responses = async { futures03::future::try_join_all(txn_futures).await };
         let transactions: Vec<types::Transaction> =
-            futures03::executor::block_on(retrieve_responses)?;
+            futures::future::lazy(|| futures03::executor::block_on(retrieve_responses)).wait()?;
+
         log::debug!(
             "Retrieved value transfer output information from node (queried {} wallet transactions)",
             transactions.len()
@@ -707,13 +711,15 @@ impl Worker {
             && wallet_data.last_confirmed.hash_prev_block == wallet.get_bootstrap_hash()
         {
             let gen_fut = self.get_block_chain(0, 1);
-            let gen_res: Vec<ChainEntry> = futures03::executor::block_on(gen_fut)?;
+            let gen_res: Vec<ChainEntry> =
+                futures::future::lazy(|| futures03::executor::block_on(gen_fut)).wait()?;
             let gen_entry = gen_res
                 .get(0)
                 .expect("A Witnet chain should always have a genesis block");
 
             let get_gen_future = self.get_block(gen_entry.1.clone());
-            let (block, _confirmed) = futures03::executor::block_on(get_gen_future)?;
+            let (block, _confirmed) =
+                futures::future::lazy(|| futures03::executor::block_on(get_gen_future)).wait()?;
             log::debug!(
                 "[SU] Got block #{}: {:?}",
                 block.block_header.beacon.checkpoint,
@@ -735,7 +741,8 @@ impl Worker {
 
         // Query the node for the latest block in the chain
         let tip_fut = self.get_block_chain(0, -1);
-        let tip_res: Vec<ChainEntry> = futures03::executor::block_on(tip_fut)?;
+        let tip_res: Vec<ChainEntry> =
+            futures::future::lazy(|| futures03::executor::block_on(tip_fut)).wait()?;
         let tip = CheckpointBeacon::try_from(
             tip_res
                 .get(0)
@@ -777,7 +784,8 @@ impl Worker {
                 self.get_block_chain(i64::from(since_beacon.checkpoint + 1), limit);
 
             let block_chain: Vec<ChainEntry> =
-                futures03::executor::block_on(get_block_chain_future)?;
+                futures::future::lazy(|| futures03::executor::block_on(get_block_chain_future))
+                    .wait()?;
 
             let batch_size = i128::try_from((&block_chain).len()).unwrap();
             log::debug!("[SU] Received chain: {:?}", block_chain);
@@ -785,7 +793,9 @@ impl Worker {
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
             for ChainEntry(_epoch, id) in block_chain {
                 let get_block_future = self.get_block(id.clone());
-                let (block, confirmed) = futures03::executor::block_on(get_block_future)?;
+                let (block, confirmed) =
+                    futures::future::lazy(|| futures03::executor::block_on(get_block_future))
+                        .wait()?;
 
                 // Wrap block into an atomic reference count for the sake of avoiding expensive clones
                 let block_arc = Arc::new(block);
