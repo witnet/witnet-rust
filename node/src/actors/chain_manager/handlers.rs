@@ -225,6 +225,20 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             });
         }
 
+        // Include value transfers and data requests that were recovered from a rollback
+        if !self.temp_vts_and_drs.is_empty() && self.sm_state == StateMachine::Synced {
+            let max_txs = std::cmp::min(
+                self.max_reinserted_transactions,
+                self.temp_vts_and_drs.len(),
+            );
+            for transaction in self.temp_vts_and_drs.drain(..max_txs) {
+                ctx.notify(AddTransaction {
+                    transaction,
+                    broadcast_flag: false,
+                });
+            }
+        }
+
         self.peers_beacons_received = false;
     }
 }

@@ -83,6 +83,9 @@ impl ChainManager {
                 // Do not start the MiningManager if the configuration disables it
                 act.mining_enabled = config.mining.enabled;
 
+                // Set the maximum reinserted transaction number
+                act.max_reinserted_transactions = config.mempool.max_reinserted_transactions as usize;
+
                 // External mint address
                 act.external_address = config.mining.mint_external_address.clone().and_then(|pkh| PublicKeyHash::from_str(pkh.as_str()).ok());
                 // External mint percentage should not exceed 100%
@@ -244,6 +247,16 @@ impl ChainManager {
                 act.best_candidate = None;
                 act.candidates.clear();
                 act.seen_candidates.clear();
+
+                // clean transactions included during an unconfirmed superepoch
+                let mempool_transactions = act.transactions_pool.remove_unconfirmed_transactions();
+                act.temp_vts_and_drs.extend(mempool_transactions);
+                if !act.temp_vts_and_drs.is_empty(){
+                    log::debug!(
+                        "Re-adding {} transactions into mempool",
+                        act.temp_vts_and_drs.len(),
+                    );
+                }
 
                 // Delete any saved copies of the old chain state to avoid accidentally persisting
                 // a forked state

@@ -27,7 +27,7 @@
 //!     - Adding a new UTXO for every output in the transaction.
 use std::{
     cmp::{max, min, Ordering},
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     convert::TryFrom,
     net::SocketAddr,
     time::Duration,
@@ -207,6 +207,10 @@ pub struct ChainManager {
     temp_superblock_votes: Vec<SuperBlockVote>,
     /// Commits and reveals to process later
     temp_commits_and_reveals: Vec<Transaction>,
+    /// Value transfers and data requests to process later
+    temp_vts_and_drs: VecDeque<Transaction>,
+    /// Maximum number of recovered transactions to include by epoch
+    max_reinserted_transactions: usize,
     /// Last received Beacons
     last_received_beacons: Vec<(SocketAddr, Option<LastBeacon>)>,
 }
@@ -1410,7 +1414,7 @@ impl ChainManager {
                     // No consensus: move to AlmostSynced and restore chain_state from storage
                     log::warn!("No superblock consensus");
 
-                    act.reinsert_unconfirmed_transactions(init_epoch.saturating_sub(superblock_period)).wait(ctx);
+                    act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).wait(ctx);
 
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::AlmostSynced);
@@ -1421,7 +1425,7 @@ impl ChainManager {
                     // Consensus unknown: move to waiting consensus and restore chain_state from storage
                     log::warn!("Superblock consensus unknown");
 
-                    act.reinsert_unconfirmed_transactions(init_epoch.saturating_sub(superblock_period)).wait(ctx);
+                    act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).wait(ctx);
 
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
@@ -1751,17 +1755,14 @@ impl ChainManager {
         }
     }
 
-    /// This function takes the transactions that were included in the mempool during an unconfirmed
-    /// superepoch and the transactions included in unconfirmed blocks and it allows them to be
+    /// This function takes the transactions included in unconfirmed blocks and it allows them to be
     /// included again in the mempool when the node wold be Synced again
     #[must_use]
-    fn reinsert_unconfirmed_transactions(
+    fn reinsert_transactions_from_unconfirmed_blocks(
         &mut self,
         epoch: Epoch,
     ) -> ResponseActFuture<Self, (), ()> {
         let inventory_manager = InventoryManager::from_registry();
-
-        let mut mempool_transactions = self.transactions_pool.remove_unconfirmed_transactions();
 
         // Get all blocks since epoch
         let fut = futures::future::ok(
@@ -1780,21 +1781,24 @@ impl ChainManager {
         .and_then(move |block_hashes| {
             // For each block, collect all the transactions that may be valid if this block is
             // reverted. This includes value transfer transactions and data request transactions.
-            // And some reveals.
             let aux = block_hashes.into_iter().map(move |hash| {
                 inventory_manager
                     .send(GetItemBlock { hash })
                     .then(move |res| match res {
                         Ok(Ok(block)) => {
-                            let mut transactions = vec![];
-
-                            // TODO: be functional
-                            for vtt in &block.txns.value_transfer_txns {
-                                transactions.push(Transaction::ValueTransfer(vtt.clone()));
-                            }
-                            for drt in &block.txns.data_request_txns {
-                                transactions.push(Transaction::DataRequest(drt.clone()));
-                            }
+                            let transactions: Vec<Transaction> = block
+                                .txns
+                                .value_transfer_txns
+                                .iter()
+                                .map(|vtt| Transaction::ValueTransfer(vtt.clone()))
+                                .chain(
+                                    block
+                                        .txns
+                                        .data_request_txns
+                                        .iter()
+                                        .map(|drt| Transaction::DataRequest(drt.clone())),
+                                )
+                                .collect();
 
                             // We do not reinsert RevealTransactions due to each node resend
                             // their reveal in case of a data request would be in REVEAL stage
@@ -1824,27 +1828,9 @@ impl ChainManager {
                 })
         })
         .into_actor(self)
-        .and_then(move |transactions, act, ctx| {
-            // FIXME(#1763): Do not use a run_later
-            let five_epochs = u64::from(
-                act.consensus_constants()
-                    .checkpoints_period
-                    .saturating_mul(5),
-            );
-            ctx.run_later(Duration::from_secs(five_epochs), move |_act, ctx| {
-                mempool_transactions.extend(transactions);
-                log::debug!(
-                    "Re-adding {} transactions into mempool since epoch {}",
-                    mempool_transactions.len(),
-                    epoch,
-                );
-                for transaction in mempool_transactions {
-                    ctx.notify(AddTransaction {
-                        transaction,
-                        broadcast_flag: false,
-                    });
-                }
-            });
+        .and_then(move |transactions, act, _ctx| {
+            // Include in temporal vts and drs to include them later
+            act.temp_vts_and_drs.extend(transactions);
 
             actix::fut::ok(())
         })

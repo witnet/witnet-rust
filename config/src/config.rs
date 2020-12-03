@@ -360,6 +360,8 @@ pub struct Ntp {
 pub struct Mempool {
     /// Timeout to use again an UTXO spent by a pending transaction
     pub tx_pending_timeout: u64,
+    /// Maximum number of recovered transactions to include by epoch
+    pub max_reinserted_transactions: u32,
 }
 
 fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusConstants {
@@ -806,12 +808,17 @@ impl Mempool {
                 .tx_pending_timeout
                 .to_owned()
                 .unwrap_or_else(|| defaults.mempool_tx_pending_timeout()),
+            max_reinserted_transactions: config
+                .max_reinserted_transactions
+                .to_owned()
+                .unwrap_or_else(|| defaults.mempool_max_reinserted_transactions()),
         }
     }
 
     pub fn to_partial(&self) -> PartialMempool {
         PartialMempool {
             tx_pending_timeout: Some(self.tx_pending_timeout),
+            max_reinserted_transactions: Some(self.max_reinserted_transactions),
         }
     }
 }

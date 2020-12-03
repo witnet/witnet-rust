@@ -403,6 +403,10 @@ pub trait Defaults {
     fn mempool_tx_pending_timeout(&self) -> u64 {
         u64::from(self.consensus_constants_checkpoints_period()) * 10
     }
+
+    fn mempool_max_reinserted_transactions(&self) -> u32 {
+        100
+    }
 }
 
 /// Struct that will implement all the development defaults
