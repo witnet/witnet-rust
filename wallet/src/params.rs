@@ -56,7 +56,7 @@ impl NodeParams {
     /// This is a best-effort method. It will silently do nothing if the write lock on `last_beacon`
     /// cannot be acquired or if the new beacon looks older than the current one.
     pub fn update_last_beacon(&self, new_beacon: CheckpointBeacon) {
-        let lock = (*self.last_beacon).write();
+        let lock = (*self.last_beacon).try_write();
         if let Ok(mut beacon) = lock {
             if new_beacon.checkpoint > beacon.checkpoint {
                 *beacon = new_beacon

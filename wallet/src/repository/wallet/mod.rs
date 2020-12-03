@@ -1642,11 +1642,14 @@ where
             beacon,
         );
 
-        if let Ok(mut write_guard) = self.state.write() {
+        if let Ok(mut write_guard) = self.state.try_write() {
             write_guard.last_sync = beacon;
             if confirmed {
                 write_guard.last_confirmed = beacon;
             }
+        } else {
+            log::error!("Failed to set tip of chain");
+            return Err(());
         }
 
         Ok(())
