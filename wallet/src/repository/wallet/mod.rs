@@ -467,7 +467,7 @@ where
             total
         );
         for index in range.rev() {
-            let address = self.get_address(account, keychain, index)?;
+            let address = self._get_address(&state, account, keychain, index)?;
             addresses.push((*address).clone());
         }
 
@@ -578,6 +578,7 @@ where
         })
     }
 
+    #[cfg(test)]
     /// Get an address if it exists in memory or storage.
     pub fn get_address(
         &self,
