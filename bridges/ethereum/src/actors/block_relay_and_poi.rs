@@ -94,6 +94,7 @@ pub fn block_relay_and_poi(
             get_blocks(confirmed_block_hashes, witnet_client)
                 .and_then({
 
+                    let config = Arc::clone(&config);
                     let eth_state = Arc::clone(&eth_state);
                     move |confirmed_blocks| {
                             eth_state.wrb_requests.read()
@@ -187,10 +188,9 @@ pub fn block_relay_and_poi(
                                         }
                                     }
                                     // If including or resolving is non empty, needs_relaying should be set to true
-                                    let needs_relaying = if !including.is_empty() || !resolving.is_empty() {
+                                    let needs_relaying = if config.relay_all_superblocks_even_the_empty_ones || !including.is_empty() || !resolving.is_empty() {
                                         true
-                                        }
-                                    else{
+                                        } else{
                                         dr_txs.iter().any(|dr_tx| {
                                             wrb_requests.posted().values().any(|(address, dr_hash)| {
                                                 if *address == H160::default() {
@@ -257,7 +257,7 @@ pub fn block_relay_and_poi(
                                                         log::warn!("Failed to post superblock {:x} to block relay, maybe it was already posted?", superblock_hash)
                                                     })
                                                 })
-                                                .map(move |()| {
+                                                    .map(move |()| {
                                                     log::info!("Posted superblock {:x} to block relay", superblock_hash);
                                                 })
                                         }
@@ -284,7 +284,6 @@ pub fn block_relay_and_poi(
                                 let config = Arc::clone(&config);
                                 let eth_state = Arc::clone(&eth_state);
                                 move |()| {
-                                    // Check if we need to acquire a write lock
                                     eth_state.wrb_requests.write().map(move |mut wrb_requests| {
                                             for (dr_id, poi, poi_index, block_hash, block_epoch) in including {
                                                 if wrb_requests.claimed().contains_left(&dr_id) {

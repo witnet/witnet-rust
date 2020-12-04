@@ -26,6 +26,8 @@ pub struct Config {
     /// Enable block relay from witnet to ethereum, relay only old blocks
     /// (old blocks that were never posted to the block relay)
     pub enable_block_relay_old_blocks: bool,
+    /// Relay all superblocks
+    pub relay_all_superblocks_even_the_empty_ones: bool,
     /// Enable data request claim + inclusion
     pub enable_claim_and_inclusion: bool,
     /// Enable data request result reporting

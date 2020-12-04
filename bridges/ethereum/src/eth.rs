@@ -136,8 +136,8 @@ impl WrbRequests {
                 *x = address;
                 self.requests.insert(dr_id, DrState::Posted { address });
             } else {
-                log::warn!(
-                    "Cannot update posted state because dr is in an inconsistent state: [{}]",
+                log::debug!(
+                    "Cannot update claimer address because dr is not in posted state: [{}]",
                     dr_id
                 );
             }

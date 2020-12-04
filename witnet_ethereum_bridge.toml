@@ -14,6 +14,8 @@ enable_block_relay_new_blocks = true
 # Enable block relay from witnet to ethereum, relay only old blocks
 # (old blocks that were never posted to the block relay, but contain a posted tally)
 enable_block_relay_old_blocks = true
+# Relay all superblocks
+relay_all_superblocks_even_the_empty_ones = false
 # Enable data request claim + inclusion
 enable_claim_and_inclusion = true
 # Enable data request result reporting
