@@ -10,7 +10,15 @@ jobs:
     env:
       ROCKSDB_LIB_DIR: /usr/lib/
       RUST_BACKTRACE: 1
-
+      CLIPPY_LINTS: >-
+        -D warnings
+        -D clippy::cast-lossless
+        -D clippy::cast-possible-truncation
+        -D clippy::cast-possible-wrap
+        -D clippy::cast-precision-loss
+        -D clippy::cast-sign-loss
+        -D clippy::checked-conversions
+        
     steps:
       - uses: actions/checkout@v1
 
@@ -35,7 +43,13 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
+          args: --all --all-features -- ${{ env.CLIPPY_LINTS }}
+          
+      - name: Clippy2
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all --all-targets --all-features -- ${{ env.CLIPPY_LINTS }} -A clippy::many-single-char-names
 
       - name: Test
         uses: actions-rs/cargo@v1
