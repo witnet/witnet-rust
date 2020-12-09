@@ -549,6 +549,15 @@ impl ChainManager {
                 return;
             }
         };
+
+        let own_pkh = match self.own_pkh {
+            Some(x) => x,
+            None => {
+                log::error!("No OwnPkh loaded in ChainManager");
+                return;
+            }
+        };
+
         match self.chain_state {
             ChainState {
                 chain_info: Some(ref mut chain_info),
@@ -608,10 +617,11 @@ impl ChainManager {
                     &mut self.chain_state.data_request_pool,
                     &mut self.transactions_pool,
                     utxo_diff,
-                    self.own_pkh,
+                    own_pkh,
                     &mut self.chain_state.own_utxos,
                     epoch_constants,
                     &mut self.chain_state.node_stats,
+                    self.sm_state,
                 );
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
@@ -672,11 +682,6 @@ impl ChainManager {
                             .data_request_pool
                             .update_data_request_stages();
 
-                        if block_hash == self.chain_state.node_stats.last_block_proposed {
-                            self.chain_state.node_stats.block_mined_count += 1;
-                            log::info!("Congratulations! Your block was consolidated into the block chain by an apparent majority of peers");
-                        }
-
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 
                         for reveal in reveals {
@@ -701,6 +706,16 @@ impl ChainManager {
 
                         // Send notification to JsonRpcServer
                         JsonRpcServer::from_registry().do_send(BlockNotify { block })
+                    }
+                }
+
+                if miner_pkh == own_pkh {
+                    self.chain_state.node_stats.block_mined_count += 1;
+                    if self.sm_state == StateMachine::Synced {
+                        log::info!("Congratulations! Your block was consolidated into the block chain by an apparent majority of peers");
+                    } else {
+                        // During synchronization, we assume that every consolidated block has, at least, one proposed block.
+                        self.chain_state.node_stats.block_proposed_count += 1;
                     }
                 }
             }
@@ -2043,7 +2058,7 @@ impl ReputationInfo {
         &mut self,
         tally_transaction: &TallyTransaction,
         data_request_pool: &DataRequestPool,
-        own_pkh: Option<PublicKeyHash>,
+        own_pkh: PublicKeyHash,
         node_stats: &mut NodeStats,
     ) {
         let dr_pointer = tally_transaction.dr_pointer;
@@ -2068,10 +2083,7 @@ impl ReputationInfo {
         }
 
         // Update node stats
-        if own_pkh.is_some()
-            && out_of_consensus.contains(&own_pkh.unwrap())
-            && !error_committers.contains(&own_pkh.unwrap())
-        {
+        if out_of_consensus.contains(&own_pkh) && !error_committers.contains(&own_pkh) {
             node_stats.slashed_count += 1;
         }
     }
@@ -2085,10 +2097,11 @@ fn update_pools(
     data_request_pool: &mut DataRequestPool,
     transactions_pool: &mut TransactionsPool,
     utxo_diff: Diff,
-    own_pkh: Option<PublicKeyHash>,
+    own_pkh: PublicKeyHash,
     own_utxos: &mut OwnUnspentOutputsPool,
     epoch_constants: EpochConstants,
     node_stats: &mut NodeStats,
+    state_machine: StateMachine,
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
 
@@ -2123,8 +2136,14 @@ fn update_pools(
         if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
             log::error!("Error processing commit transaction:\n{}", e);
         } else {
-            if Some(co_tx.body.proof.proof.pkh()) == own_pkh {
+            if co_tx.body.proof.proof.pkh() == own_pkh {
                 node_stats.commits_count += 1;
+                if state_machine != StateMachine::Synced {
+                    // During synchronization, we assume that every consolidated commit had,
+                    // at least, one data requests valid proof and one commit proposed
+                    node_stats.dr_eligibility_count += 1;
+                    node_stats.commits_proposed_count += 1;
+                }
             }
             transactions_pool.remove_inputs(&co_tx.body.collateral);
         }
@@ -2139,22 +2158,20 @@ fn update_pools(
     // Remove reveals because they expire every consolidated block
     transactions_pool.clear_reveals();
 
-    // Update own_utxos:
-    if let Some(own_pkh) = own_pkh {
-        utxo_diff.visit(
-            own_utxos,
-            |own_utxos, output_pointer, output| {
-                // Insert new outputs
-                if output.pkh == own_pkh {
-                    own_utxos.insert(output_pointer.clone(), 0);
-                }
-            },
-            |own_utxos, output_pointer| {
-                // Remove spent inputs
-                own_utxos.remove(&output_pointer);
-            },
-        );
-    }
+    // Update own_utxos
+    utxo_diff.visit(
+        own_utxos,
+        |own_utxos, output_pointer, output| {
+            // Insert new outputs
+            if output.pkh == own_pkh {
+                own_utxos.insert(output_pointer.clone(), 0);
+            }
+        },
+        |own_utxos, output_pointer| {
+            // Remove spent inputs
+            own_utxos.remove(&output_pointer);
+        },
+    );
 
     utxo_diff.apply(unspent_outputs_pool);
 
@@ -2609,7 +2626,12 @@ mod tests {
         dr_pool.process_reveal(&re_tx1, &Hash::default()).unwrap();
         dr_pool.process_reveal(&re_tx2, &Hash::default()).unwrap();
 
-        rep_info.update(&ta_tx, &dr_pool, None, &mut NodeStats::default());
+        rep_info.update(
+            &ta_tx,
+            &dr_pool,
+            PublicKeyHash::default(),
+            &mut NodeStats::default(),
+        );
 
         assert_eq!(
             rep_info.result_count[&pk1.pkh()],

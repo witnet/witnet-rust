@@ -227,6 +227,7 @@ impl ChainManager {
                     // This will run all the validations again
 
                     let block_hash = block.hash();
+                    // FIXME(#1773): Currently last_block_proposed is not used, but removing it is a breaking change
                     act.chain_state.node_stats.last_block_proposed = block_hash;
                     act.chain_state.node_stats.block_proposed_count += 1;
                     log::info!(
