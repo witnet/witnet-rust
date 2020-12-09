@@ -356,7 +356,7 @@ impl App {
             .flatten()
             .map_err(From::from)
             .into_actor(self)
-            .and_then(move |res, slf: &mut Self, _ctx| {
+            .and_then(move |res, slf: &mut Self, ctx| {
                 let types::UnlockedSessionWallet {
                     wallet,
                     session_id,
@@ -371,11 +371,19 @@ impl App {
                     || slf.state.node_state == None
                 {
                     let sink = slf.state.get_sink(&session_id);
-                    slf.params.worker.do_send(worker::SyncRequest {
-                        wallet_id,
-                        wallet,
-                        sink,
-                    });
+                    slf.params
+                        .worker
+                        .send(worker::SyncRequest {
+                            wallet_id,
+                            wallet,
+                            sink,
+                        })
+                        .flatten()
+                        .into_actor(slf)
+                        .map_err(|e, act: &mut Self, _ctx| {
+                            act.handle_sync_error(&(e.into()));
+                        })
+                        .spawn(ctx)
                 };
 
                 fut::ok(types::UnlockedWallet { data, session_id })
@@ -802,7 +810,7 @@ impl App {
                         .do_send(NotifyStatus(wallet.clone(), sink, events.clone()))
                 }
             })
-            .map(move |res, act, _ctx| {
+            .map(move |res, act, ctx| {
                 let status = serde_json::from_value::<types::SyncStatus>(res);
                 // Notify if the node status is changed
                 if let Ok(status) = status {
@@ -811,11 +819,19 @@ impl App {
                         act.state.node_state = status.node_state;
                         for wallet in &wallets {
                             let sink = act.state.get_sink(&wallet.session_id);
-                            act.params.worker.do_send(NodeStatusRequest {
-                                status: act.state.node_state.unwrap(),
-                                wallet: wallet.clone(),
-                                sink,
-                            });
+                            act.params
+                                .worker
+                                .send(NodeStatusRequest {
+                                    status: act.state.node_state.unwrap(),
+                                    wallet: wallet.clone(),
+                                    sink,
+                                })
+                                .flatten()
+                                .into_actor(act)
+                                .map_err(|e, act: &mut Self, _ctx| {
+                                    act.handle_sync_error(&(e.into()));
+                                })
+                                .spawn(ctx);
                         }
                     }
                 } else {
@@ -896,8 +912,12 @@ impl App {
                     sink,
                 })
                 .flatten()
-                .map_err(From::from)
                 .into_actor(slf)
+                .map_err(|e, slf: &mut Self, _| {
+                    let app_error = e.into();
+                    slf.handle_sync_error(&app_error);
+                    app_error
+                })
         });
 
         Box::new(f)
@@ -924,6 +944,16 @@ impl App {
         });
 
         Box::new(f)
+    }
+
+    /// Handle status from sync error
+    pub fn handle_sync_error(&mut self, e: &Error) {
+        if let Error::JsonRpcTimeoutError = e {
+            log::error!(
+                "Detected timeout while syncing, waiting until next periodic sync to connect"
+            );
+            self.state.node_state = None
+        }
     }
 }
 

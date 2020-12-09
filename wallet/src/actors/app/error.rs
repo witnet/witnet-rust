@@ -12,6 +12,8 @@ pub enum Error {
     Validation(ValidationErrors),
     #[fail(display = "internal error: {}", _0)]
     Internal(#[cause] failure::Error),
+    #[fail(display = "JsonRPC timeout error")]
+    JsonRpcTimeoutError,
     #[fail(display = "node error: {}", _0)]
     Node(#[cause] failure::Error),
     #[fail(display = "wallet is not connected to a node")]
@@ -48,6 +50,10 @@ impl Error {
                     "Node Error",
                     Some(json!({ "cause": format!("{}", e) })),
                 )
+            }
+            Error::JsonRpcTimeoutError => {
+                log::error!("Timeout Error");
+                (408, "Timeout Error", None)
             }
             Error::NodeNotConnected => (520, "Node Not Connected", None),
             Error::Internal(e) => {
@@ -115,6 +121,7 @@ impl From<actors::worker::Error> for Error {
                     "Wallet account has not enough balance",
                 ))
             }
+            actors::worker::Error::JsonRpcTimeoutError => Error::JsonRpcTimeoutError,
             _ => internal_error(err),
         }
     }

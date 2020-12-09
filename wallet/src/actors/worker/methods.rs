@@ -681,9 +681,12 @@ impl Worker {
                 sync_end,
                 e
             );
-
-            let events = Some(vec![types::Event::SyncError(sync_start, sync_end)]);
-            self.notify_client(&wallet, sink, events).ok();
+            if let Error::JsonRpcTimeoutError = e {
+                log::error!("JsonRpc timeout error during synchronization");
+            } else {
+                let events = Some(vec![types::Event::SyncError(sync_start, sync_end)]);
+                self.notify_client(&wallet, sink, events).ok();
+            }
         }
 
         sync_result

@@ -26,6 +26,8 @@ pub enum Error {
     Send(#[cause] futures::sync::mpsc::SendError<std::string::String>),
     #[fail(display = "node error: {}", _0)]
     Node(#[cause] failure::Error),
+    #[fail(display = "JsonRPC timeout error")]
+    JsonRpcTimeoutError,
     #[fail(display = "error processing a block: {}", _0)]
     Block(#[cause] failure::Error),
     #[fail(display = "output ({}) not found in transaction: {}", _0, _1)]
@@ -59,6 +61,11 @@ pub enum BlockError {
 /// Helper function to simplify .map_err on node errors.
 pub fn node_error<T: Fail>(err: T) -> Error {
     Error::Node(failure::Error::from(err))
+}
+
+/// Helper function to simplify .map_err on timeout errors.
+pub fn jsonrpc_timeout_error<T: Fail>(_err: T) -> Error {
+    Error::JsonRpcTimeoutError
 }
 
 /// Helper function to simplify .map_err on block errors.
@@ -110,7 +117,10 @@ impl From<futures::sync::mpsc::SendError<std::string::String>> for Error {
 
 impl From<tcp::Error> for Error {
     fn from(err: tcp::Error) -> Self {
-        node_error(err)
+        match err {
+            tcp::Error::RequestTimedOut(_) => jsonrpc_timeout_error(err),
+            _ => node_error(err),
+        }
     }
 }
 
