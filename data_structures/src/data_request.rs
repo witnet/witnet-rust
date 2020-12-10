@@ -348,6 +348,24 @@ impl DataRequestPool {
     pub fn finished_data_requests(&mut self) -> Vec<DataRequestInfo> {
         std::mem::take(&mut self.to_be_stored)
     }
+
+    /// Return the sum of all the collateral that is currently being used to resolve data requests
+    pub fn collateral_locked(&self, collateral_minimum: u64) -> u64 {
+        let mut total = 0;
+
+        for dr_state in self.data_request_pool.values() {
+            let dr_collateral = dr_state.data_request.collateral;
+            let dr_collateral = if dr_collateral == 0 {
+                collateral_minimum
+            } else {
+                dr_collateral
+            };
+
+            total += dr_collateral * u64::try_from(dr_state.info.commits.len()).unwrap();
+        }
+
+        total
+    }
 }
 
 /// Return the change that should be returned to the creator of the data request if
