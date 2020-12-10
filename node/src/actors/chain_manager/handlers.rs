@@ -1424,6 +1424,7 @@ impl Handler<GetSupplyInfo> for ChainManager {
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
         let halving_period = chain_info.consensus_constants.halving_period;
         let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
+        let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
 
         let epoch = self.current_epoch.unwrap();
         let current_time = SystemTime::now()
@@ -1449,9 +1450,10 @@ impl Handler<GetSupplyInfo> for ChainManager {
             .len()
             .try_into()
             .unwrap();
-
-        // TODO: Calculate properly
-        let collateral_locked = 0;
+        let collateral_locked = self
+            .chain_state
+            .data_request_pool
+            .collateral_locked(collateral_minimum);
 
         let (mut blocks_minted, mut blocks_minted_reward) = (0, 0);
         let (mut blocks_missing, mut blocks_missing_reward) = (0, 0);
