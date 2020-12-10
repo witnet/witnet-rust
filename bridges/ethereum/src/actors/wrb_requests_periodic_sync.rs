@@ -214,8 +214,7 @@ fn check_wrb_new_dr_state(
                                             // Not in included state, must be in posted state
                                             eth_state.wrb_requests.write().and_then(
                                                 move |mut wrb_requests| {
-                                                    wrb_requests.insert_posted(dr_id, address, Hash::SHA256(dr_hash.0   ));
-
+                                                    wrb_requests.insert_posted(dr_id, address, Hash::SHA256(dr_hash.0));
                                                     tx.send(ClaimMsg::NewDr(dr_id))
                                                         .map_err(|e| {
                                                             log::error!(
@@ -234,6 +233,8 @@ fn check_wrb_new_dr_state(
                 )
             }
         })
+        // Without this line the actor will panic on the first failure
+        .then(|_| Result::<(), ()>::Ok(()))
 }
 
 fn check_wrb_existing_dr_state(
