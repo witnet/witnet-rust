@@ -286,10 +286,11 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::BTreeMap;
 
     use crate::types::{array::RadonArray, bytes::RadonBytes};
-    use std::collections::BTreeMap;
+
+    use super::*;
 
     #[test]
     fn test_parse_json_map() {
