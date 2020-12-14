@@ -101,11 +101,11 @@ pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError>
 fn get_number(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let item = get(input, args)?;
 
-    Ok(if args.len() == 3 {
+    if args.len() == 3 {
         replace_separators(item, args[1].clone(), args[2].clone())
     } else {
-        item
-    })
+        Ok(item)
+    }
 }
 
 pub fn get_string(input: &RadonArray, args: &[Value]) -> Result<RadonString, RadError> {
