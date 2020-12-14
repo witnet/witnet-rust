@@ -150,39 +150,34 @@ pub fn radon_trim(input: &RadonString) -> String {
     }
 }
 
-pub fn to_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
-    let str_value = radon_trim(input);
-    let value = match args {
-        Some(args) if args.len() == 3 => {
-            _replace_separators(str_value, args[1].clone(), args[2].clone())
-        }
-        _ => str_value,
-    };
-
-    f64::from_str(&value)
-        .map(RadonFloat::from)
-        .map_err(Into::into)
-}
-
-pub fn to_int(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonInteger, RadError> {
-    let str_value = radon_trim(input);
-    let value = match args {
-        Some(args) if args.len() == 3 => {
-            _replace_separators(str_value, args[1].clone(), args[2].clone())
-        }
-        _ => str_value,
-    };
-
-    i128::from_str(&value)
-        .map(RadonInteger::from)
-        .map_err(Into::into)
-}
-
 pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
     let str_value = radon_trim(input);
     bool::from_str(&str_value)
         .map(RadonBoolean::from)
         .map_err(Into::into)
+}
+
+pub fn to_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
+    f64::from_str(&to_number(input, args))
+        .map(RadonFloat::from)
+        .map_err(Into::into)
+}
+
+pub fn to_int(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonInteger, RadError> {
+    i128::from_str(&to_number(input, args))
+        .map(RadonInteger::from)
+        .map_err(Into::into)
+}
+
+pub fn to_number(input: &RadonString, args: &Option<Vec<Value>>) -> String {
+    let str_value = radon_trim(input);
+
+    match args {
+        Some(args) if args.len() == 3 => {
+            _replace_separators(str_value, args[1].clone(), args[2].clone())
+        }
+        _ => str_value,
+    }
 }
 
 pub fn length(input: &RadonString) -> RadonInteger {

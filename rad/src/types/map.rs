@@ -126,10 +126,10 @@ impl Operable for RadonMap {
                 map_operators::get_bytes(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetInteger, Some(args)) => {
-                map_operators::get_integer(self, args.as_slice()).map(RadonTypes::from)
+                map_operators::get_integer(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetFloat, Some(args)) => {
-                map_operators::get_float(self, args.as_slice()).map(RadonTypes::from)
+                map_operators::get_float(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetMap, Some(args)) => {
                 map_operators::get_map(self, args.as_slice()).map(RadonTypes::from)
