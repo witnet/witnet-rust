@@ -74,20 +74,29 @@ pub fn keys(input: &RadonMap) -> RadonArray {
     RadonArray::from(v)
 }
 
+pub fn _replace_separators(
+    value: String,
+    thousand_separator: serde_cbor::Value,
+    decimal_separator: serde_cbor::Value,
+) -> String {
+    let thousand = from_value::<String>(thousand_separator).unwrap_or_else(|_| "".to_string());
+    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
+
+    value.replace(&thousand, "").replace(&decimal, ",")
+}
+
 pub fn replace_separators(
     value: RadonTypes,
     thousand_separator: serde_cbor::Value,
     decimal_separator: serde_cbor::Value,
 ) -> RadonTypes {
     let rad_str_value: RadonString = value.try_into().unwrap();
-    let thousand = from_value::<String>(thousand_separator).unwrap_or_else(|_| "".to_string());
-    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
-    RadonTypes::from(RadonString::from(
-        rad_str_value
-            .value()
-            .replace(&thousand, "")
-            .replace(&decimal, "."),
-    ))
+
+    RadonTypes::from(RadonString::from(_replace_separators(
+        rad_str_value.value(),
+        thousand_separator,
+        decimal_separator,
+    )))
 }
 
 pub fn values(input: &RadonMap) -> RadonArray {

@@ -1,13 +1,15 @@
-use serde_cbor::value::{from_value, Value};
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
     str::FromStr,
 };
 
+use serde_cbor::value::{from_value, Value};
+
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
+    operators::map::_replace_separators,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
@@ -148,16 +150,30 @@ pub fn radon_trim(input: &RadonString) -> String {
     }
 }
 
-pub fn to_float(input: &RadonString) -> Result<RadonFloat, RadError> {
+pub fn to_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
     let str_value = radon_trim(input);
-    f64::from_str(&str_value)
+    let value = match args {
+        Some(args) if args.len() == 3 => {
+            _replace_separators(str_value, args[1].clone(), args[2].clone())
+        }
+        _ => str_value,
+    };
+
+    f64::from_str(&value)
         .map(RadonFloat::from)
         .map_err(Into::into)
 }
 
-pub fn to_int(input: &RadonString) -> Result<RadonInteger, RadError> {
+pub fn to_int(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonInteger, RadError> {
     let str_value = radon_trim(input);
-    i128::from_str(&str_value)
+    let value = match args {
+        Some(args) if args.len() == 3 => {
+            _replace_separators(str_value, args[1].clone(), args[2].clone())
+        }
+        _ => str_value,
+    };
+
+    i128::from_str(&value)
         .map(RadonInteger::from)
         .map_err(Into::into)
 }
@@ -266,7 +282,8 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::{BTreeMap, HashMap};
+
     use crate::types::{array::RadonArray, bytes::RadonBytes};
     use std::collections::BTreeMap;
 
@@ -541,7 +558,7 @@ mod tests {
         let rad_int = RadonInteger::from(10);
         let rad_string: RadonString = RadonString::from("10");
 
-        assert_eq!(to_int(&rad_string).unwrap(), rad_int);
+        assert_eq!(to_int(&rad_string, &None).unwrap(), rad_int);
     }
 
     #[test]
@@ -549,7 +566,7 @@ mod tests {
         let rad_float = RadonFloat::from(10.2);
         let rad_string: RadonString = RadonString::from("10.2");
 
-        assert_eq!(to_float(&rad_string).unwrap(), rad_float);
+        assert_eq!(to_float(&rad_string, &None).unwrap(), rad_float);
     }
 
     #[test]
