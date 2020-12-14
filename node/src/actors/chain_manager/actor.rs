@@ -109,8 +109,7 @@ impl ChainManager {
                         let result = match chain_state_from_storage {
                             Ok(x) => (x, config),
                             Err(e) => {
-                                log::error!("Error while getting chain state from storage: {}", e);
-                                (None, config)
+                                panic!("Error while getting chain state from storage: {}", e);
                             }
                         };
 
