@@ -52,6 +52,7 @@ use witnet_data_structures::{
         StateMachine, SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
+    get_environment,
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
@@ -61,9 +62,12 @@ use witnet_data_structures::{
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
-use witnet_validations::validations::{
-    compare_block_candidates, validate_block, validate_block_transactions,
-    validate_new_transaction, verify_signatures, VrfSlots,
+use witnet_validations::{
+    mainnet_validations::in_emergency_period,
+    validations::{
+        compare_block_candidates, validate_block, validate_block_transactions,
+        validate_new_transaction, verify_signatures, VrfSlots,
+    },
 };
 
 use crate::{
@@ -1331,27 +1335,13 @@ impl ChainManager {
                         let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
                         let last_superblock_signed_by_bootstrap = last_superblock_signed_by_bootstrap(&chain_info.consensus_constants);
 
-                        let is_superblock_hack_period = superblock_index > 750 && superblock_index < 1344;
-
                         let ars_members =
                             // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
                             // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
                             // the bootstrap committee signs is at least epoch activity_period + collateral_age
-                            if is_superblock_hack_period {
+                            if let Some(ars_members) = in_emergency_period(superblock_index, get_environment()) {
                                 // Bootstrap committee
-                                let hack_bootstrapping_committee = [
-                                    "wit1asdpcspwysf0hg5kgwvgsp2h6g65y5kg9gj5dz",
-                                    "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty",
-                                    "wit17nnjuxmfuu92l6rxhque2qc3u2kvmx2fske4l9",
-                                    "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq",
-                                    "wit1cyrlc64hyu0rux7hclmg9rxwxpa0v9pevyaj2c",
-                                    "wit1g0rkajsgwqux9rnmkfca5tz6djg0f87x7ms5qx",
-                                    "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z"
-                                ];
-                                hack_bootstrapping_committee
-                                    .iter()
-                                    .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                                    .collect()
+                                ars_members
                             } else if superblock_index >= last_superblock_signed_by_bootstrap {
                                 reputation_engine.get_rep_ordered_ars_list()
                             } else {
