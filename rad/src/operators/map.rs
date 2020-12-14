@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn test_replace_separators() {
-        // English format
+        // English style numbers, i.e. commas for thousands and dots for decimals.
         assert_eq!(
             replace_separators(
                 RadonTypes::String(RadonString::from("1,234.567")),
@@ -522,11 +522,22 @@ mod tests {
             RadonTypes::String(RadonString::from("1234.567"))
         );
 
-        // Spanish format
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
         assert_eq!(
             replace_separators(
                 RadonTypes::String(RadonString::from("1.234,567")),
                 Value::from(String::from(".")),
+                Value::from(String::from(","))
+            )
+            .unwrap(),
+            RadonTypes::String(RadonString::from("1234.567"))
+        );
+
+        // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
+        assert_eq!(
+            replace_separators(
+                RadonTypes::String(RadonString::from("1 234,567")),
+                Value::from(String::from(" ")),
                 Value::from(String::from(","))
             )
             .unwrap(),
