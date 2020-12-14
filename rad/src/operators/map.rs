@@ -39,10 +39,14 @@ pub fn get_bytes(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadErro
     item.try_into()
 }
 
+/// Try to get a `RadonFloat` from an entry in the input `RadonMap`, as specified by the first
+/// argument, which is used as the search key.
 pub fn get_float(input: &RadonMap, args: &[Value]) -> Result<RadonFloat, RadError> {
     get_number(input, args)?.try_into()
 }
 
+/// Try to get a `RadonInteger` from an entry in the input `RadonMap`, as specified by the first
+/// argument, which is used as the search key.
 pub fn get_integer(input: &RadonMap, args: &[Value]) -> Result<RadonInteger, RadError> {
     get_number(input, args)?.try_into()
 }
@@ -52,6 +56,11 @@ pub fn get_map(input: &RadonMap, args: &[Value]) -> Result<RadonMap, RadError> {
     item.try_into()
 }
 
+/// Try to get a `RadonTypes` from an entry in the input `RadonMap`, as specified by the first
+/// argument, which is used as the search key.
+///
+/// This simply assumes that the element in that position is a number (i.e., `RadonFloat` or
+/// `RadonInteger`). If it is not, it will fail with a `RadError` because of `replace_separators`.
 fn get_number(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
     let item = get(input, args)?;
 
@@ -76,6 +85,7 @@ pub fn keys(input: &RadonMap) -> RadonArray {
     RadonArray::from(v)
 }
 
+/// Replace thousands and decimals separators in a `String`.
 pub fn _replace_separators(
     value: String,
     thousand_separator: serde_cbor::Value,
@@ -87,6 +97,10 @@ pub fn _replace_separators(
     value.replace(&thousand, "").replace(&decimal, ".")
 }
 
+/// Replace thousands and decimals separators in a `RadonTypes` that is assumed to be a
+/// `RadonString`.
+///
+/// If the input value is not a `RadonString`, returns `RadError` because of `try_into`.
 pub fn replace_separators(
     value: RadonTypes,
     thousand_separator: serde_cbor::Value,
