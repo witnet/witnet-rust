@@ -9,22 +9,6 @@ use crate::{
     },
 };
 
-pub fn replace_separators(
-    value: RadonTypes,
-    thousand_separator: serde_cbor::Value,
-    decimal_separator: serde_cbor::Value,
-) -> RadonTypes {
-    let rad_str_value: RadonString = value.try_into().unwrap();
-    let thousand = from_value::<String>(thousand_separator).unwrap_or_else(|_| "".to_string());
-    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
-    RadonTypes::from(RadonString::from(
-        rad_str_value
-            .value()
-            .replace(&thousand, "")
-            .replace(&decimal, "."),
-    ))
-}
-
 pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonMap::radon_type_name(),
@@ -88,6 +72,22 @@ pub fn keys(input: &RadonMap) -> RadonArray {
         .map(|key| RadonTypes::from(RadonString::from(key.to_string())))
         .collect();
     RadonArray::from(v)
+}
+
+pub fn replace_separators(
+    value: RadonTypes,
+    thousand_separator: serde_cbor::Value,
+    decimal_separator: serde_cbor::Value,
+) -> RadonTypes {
+    let rad_str_value: RadonString = value.try_into().unwrap();
+    let thousand = from_value::<String>(thousand_separator).unwrap_or_else(|_| "".to_string());
+    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
+    RadonTypes::from(RadonString::from(
+        rad_str_value
+            .value()
+            .replace(&thousand, "")
+            .replace(&decimal, "."),
+    ))
 }
 
 pub fn values(input: &RadonMap) -> RadonArray {
@@ -482,5 +482,28 @@ mod tests {
             to: RadonString::radon_type_name(),
         };
         assert_eq!(output, expected_err);
+    }
+
+    #[test]
+    fn test_replace_separators() {
+        // English format
+        assert_eq!(
+            replace_separators(
+                RadonTypes::String(RadonString::from("1,234.567")),
+                Value::from(String::from(",")),
+                Value::from(String::from("."))
+            ),
+            RadonTypes::String(RadonString::from("1234.567"))
+        );
+
+        // Spanish format
+        assert_eq!(
+            replace_separators(
+                RadonTypes::String(RadonString::from("1.234,567")),
+                Value::from(String::from(".")),
+                Value::from(String::from(","))
+            ),
+            RadonTypes::String(RadonString::from("1234.567"))
+        );
     }
 }
