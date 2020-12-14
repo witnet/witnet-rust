@@ -11,7 +11,7 @@ use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage};
 use crate::{
     error::RadError,
     filters::{self, RadonFilters},
-    operators::RadonOpCodes,
+    operators::{map::replace_separators, RadonOpCodes},
     reducers::{self, RadonReducers},
     script::{execute_radon_script, unpack_subscript, RadonCall, RadonScriptExecutionSettings},
     types::{
@@ -86,11 +86,23 @@ pub fn get_bytes(input: &RadonArray, args: &[Value]) -> Result<RadonBytes, RadEr
 }
 pub fn get_integer(input: &RadonArray, args: &[Value]) -> Result<RadonInteger, RadError> {
     let item = get(input, args)?;
-    item.try_into()
+    let value = if args.len() == 3 {
+        replace_separators(item, args[1].clone(), args[2].clone())
+    } else {
+        item
+    };
+
+    value.try_into()
 }
 pub fn get_float(input: &RadonArray, args: &[Value]) -> Result<RadonFloat, RadError> {
     let item = get(input, args)?;
-    item.try_into()
+    let value = if args.len() == 3 {
+        replace_separators(item, args[1].clone(), args[2].clone())
+    } else {
+        item
+    };
+
+    value.try_into()
 }
 pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError> {
     let item = get(input, args)?;

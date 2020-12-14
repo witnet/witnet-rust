@@ -82,10 +82,10 @@ impl Operable for RadonString {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::StringAsFloat, None) => string_operators::to_float(self)
+            (RadonOpCodes::StringAsFloat, args) => string_operators::to_float(self, args)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
-            (RadonOpCodes::StringAsInteger, None) => string_operators::to_int(self)
+            (RadonOpCodes::StringAsInteger, args) => string_operators::to_int(self, args)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(self)
