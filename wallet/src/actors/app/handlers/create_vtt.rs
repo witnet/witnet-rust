@@ -1,5 +1,8 @@
 use actix::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+ use core::fmt::Display;
+ use crate::types::FromStr;
 
 use crate::{
     actors::app,
@@ -11,7 +14,7 @@ use witnet_data_structures::{
     transaction_factory::FeeType,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VttOutputParams {
     pub address: String,
     pub amount: u64,
@@ -20,8 +23,10 @@ pub struct VttOutputParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVttRequest {
+     #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     fee: u64,
     label: Option<String>,
+    #[serde(serialize_with = "into_generic_type_vtt::<_, VttOutputParamsHelper, _>", deserialize_with = "from_generic_type_vtt::<_, VttOutputParamsHelper, _>")]
     outputs: Vec<VttOutputParams>,
     session_id: types::SessionId,
     wallet_id: String,
@@ -126,6 +131,115 @@ pub fn validate_output_addresses(
 
         Ok(acc)
     })
+}
+
+// Serialization helper
+
+/// Value transfer output transaction data structure
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash, Default)]
+pub struct VttOutputParamsHelper {
+    pub address: String,
+    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    pub amount: u64,
+    pub time_lock: Option<u64>,
+}
+
+impl From<VttOutputParams> for VttOutputParamsHelper {
+    fn from(x: VttOutputParams) -> Self {
+         VttOutputParamsHelper {
+                address: x.address,
+                amount: x.amount,
+                time_lock: x.time_lock,
+            }
+    }
+}
+
+impl From<VttOutputParamsHelper> for VttOutputParams {
+    fn from(x: VttOutputParamsHelper) -> Self {
+             VttOutputParams{
+                address: x.address,
+                amount: x.amount,
+                time_lock: x.time_lock,
+            }}
+    
+}
+
+fn from_generic_type_vtt<'de, D, T, U>(deserializer: D) -> Result<Vec<U>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+    U: From<T>,
+{
+    Ok(Vec::<T>::deserialize(deserializer)?
+        .into_iter()
+        .map(|x| x.into())
+        .collect())
+}
+
+fn into_generic_type_vtt<S, U, T>(val: &[T], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: Clone,
+    U: From<T>,
+    U: Serialize
+{
+    let x: Vec<U> = val.iter().map(|x| x.clone().into()).collect();
+    x.serialize(serializer)
+}
+
+pub fn u16_to_string<S>(val: &u16, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u16(*val)
+    }
+}
+
+pub fn u32_to_string<S>(val: &u32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u32(*val)
+    }
+}
+
+pub fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u64(*val)
+    }
+}
+
+pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + serde::Deserialize<'de>,
+    <T as FromStr>::Err: Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+    if deserializer.is_human_readable() {
+        match StringOrInt::<T>::deserialize(deserializer)? {
+            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+            StringOrInt::Number(i) => Ok(i),
+        }
+    } else {
+        T::deserialize(deserializer)
+    }
 }
 
 #[cfg(test)]

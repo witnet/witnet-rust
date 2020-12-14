@@ -1,28 +1,33 @@
 use actix::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+ use core::fmt::Display;
+ use crate::types::FromStr;
 
 use crate::{
     actors::app,
     types::{self, Hashable as _, ProtobufConvert as _},
 };
-use witnet_data_structures::{chain::DataRequestOutput, transaction_factory::FeeType};
+pub use witnet_data_structures::{chain::{DataRequestOutput, RADRequest}, transaction_factory::FeeType};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDataReqRequest {
     session_id: types::SessionId,
     wallet_id: String,
+    #[serde(serialize_with = "into_generic_type::<_, DataRequestOutputHelper, _>", deserialize_with = "from_generic_type::<_, DataRequestOutputHelper, _>")]
     request: DataRequestOutput,
+     #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     fee: u64,
     fee_type: Option<types::FeeType>,
 }
 
-#[derive(Debug, Deserialize)]
-struct RADRequest {
-    time_lock: u64,
-    retrieve: Vec<types::RADRetrieve>,
-    aggregate: types::RADAggregate,
-    tally: types::RADTally,
-}
+// #[derive(Debug, PartialEq, Deserialize)]
+// struct RADRequest {
+//     time_lock: u64,
+//     retrieve: Vec<types::RADRetrieve>,
+//     aggregate: types::RADAggregate,
+//     tally: types::RADTally,
+// }
 
 #[derive(Debug, Serialize)]
 pub struct CreateDataReqResponse {
@@ -89,4 +94,130 @@ fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app:
         .map_err(|err| app::field_error("dataRequest", format!("{}", err)));
 
     app::combine_field_errors(request, data_request, move |_, _| req)
+}
+
+
+// Serialization helper
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash, Default)]
+struct DataRequestOutputHelper {
+    pub data_request: RADRequest,
+     #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    pub witness_reward: u64,
+     #[serde(serialize_with = "u16_to_string", deserialize_with = "number_from_string")]
+    pub witnesses: u16,
+    // This fee will be earn by the miner when include commits and/or reveals in the block
+     #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    pub commit_and_reveal_fee: u64,
+    // This field must be >50 and <100.
+    // >50 because simple majority
+    // <100 because a 100% consensus encourages to commit a RadError for free
+     #[serde(serialize_with = "u32_to_string", deserialize_with = "number_from_string")]
+    pub min_consensus_percentage: u32,
+    // This field must be >= collateral_minimum, or zero
+    // If zero, it will be treated as collateral_minimum
+    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    pub collateral: u64,
+}
+
+impl From<DataRequestOutput> for DataRequestOutputHelper {
+    fn from(x: DataRequestOutput) -> Self {
+         DataRequestOutputHelper {
+                data_request: x.data_request,
+                witness_reward: x.witness_reward,
+                witnesses: x.witnesses,
+                commit_and_reveal_fee: x.commit_and_reveal_fee,
+                min_consensus_percentage: x.min_consensus_percentage,
+                collateral: x.collateral,
+            }
+    }
+}
+
+
+impl From<DataRequestOutputHelper> for DataRequestOutput {
+    fn from(x: DataRequestOutputHelper) -> Self {
+             DataRequestOutput{
+                data_request: x.data_request,
+                witness_reward: x.witness_reward,
+                witnesses: x.witnesses,
+                commit_and_reveal_fee: x.commit_and_reveal_fee,
+                min_consensus_percentage: x.min_consensus_percentage,
+                collateral: x.collateral,
+            }}
+    
+}
+
+fn from_generic_type<'de, D, T, U>(deserializer: D) -> Result<U, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+    U: From<T>,
+{
+    Ok(T::deserialize(deserializer)?.into())
+}
+
+fn into_generic_type<S, U, T>(val: &T, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: Clone,
+    U: From<T>,
+    U: Serialize
+{
+    let x = U::from(val.clone());
+    x.serialize(serializer)
+}
+
+pub fn u16_to_string<S>(val: &u16, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u16(*val)
+    }
+}
+
+pub fn u32_to_string<S>(val: &u32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u32(*val)
+    }
+}
+
+pub fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u64(*val)
+    }
+}
+
+pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + serde::Deserialize<'de>,
+    <T as FromStr>::Err: Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+    if deserializer.is_human_readable() {
+        match StringOrInt::<T>::deserialize(deserializer)? {
+            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+            StringOrInt::Number(i) => Ok(i),
+        }
+    } else {
+        T::deserialize(deserializer)
+    }
 }

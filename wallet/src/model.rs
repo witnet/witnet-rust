@@ -1,8 +1,11 @@
 //! Types that are serializable and can be returned as a response.
 use std::{collections::HashMap, fmt};
 
+use std::fmt::Display;
+use std::str::FromStr;
+
 use failure::_core::fmt::Formatter;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::repository::keys::Key;
 use crate::{account, types};
@@ -23,6 +26,8 @@ pub struct UnlockedWallet {
     pub session_id: String,
     pub available_accounts: Vec<u32>,
 }
+
+
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Address {
@@ -58,8 +63,10 @@ pub struct AddressInfo {
 #[derive(Copy, Clone, Debug, Eq, Default, Deserialize, PartialEq, Serialize)]
 pub struct BalanceInfo {
     /// Expendable funds
+    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub available: u64,
     /// Time-locked funds
+    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub locked: u64,
 }
 
@@ -69,6 +76,7 @@ pub struct WalletBalance {
     /// Total amount of wallet's funds after last confirmed superblock
     pub confirmed: BalanceInfo,
     /// Amount of local pending movements not yet indexed in a block
+    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub local: u64,
     /// Total amount of wallet's funds after last block
     pub unconfirmed: BalanceInfo,
@@ -105,12 +113,17 @@ where
 pub struct BalanceMovement {
     /// Database key for storing `BalanceMovement` objects
     #[serde(skip)]
+    // #[serde(serialize_with = "u32_to_string", deserialize_with = "number_from_string")]
     pub db_key: u32,
     /// Balance movement from the wallet perspective: `value = own_outputs - own_inputs`
     /// - A positive value means that the wallet received WITs from others.
     /// - A negative value means that the wallet sent WITs to others.
     #[serde(rename = "type")]
     pub kind: MovementType,
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub amount: u64,
     pub transaction: Transaction,
 }
@@ -144,8 +157,13 @@ pub struct Transaction {
     /// Transaction hash (used as identifier)
     pub hash: String,
     /// Reward to miner for including transaction in the block
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub miner_fee: u64,
     /// Date when transaction was included a block (same as block date)
+    // #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub timestamp: u64,
 }
 
@@ -191,13 +209,16 @@ pub struct MintData {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Input {
     pub address: String,
+    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub value: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Output {
     pub address: String,
+    //#[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub time_lock: u64,
+    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub value: u64,
     pub output_type: OutputType,
 }
@@ -217,12 +238,17 @@ pub struct Reveal {
 #[derive(Debug, Eq, PartialEq, Serialize)]
 pub struct Transactions {
     pub transactions: Vec<BalanceMovement>,
+    #[serde(
+        serialize_with = "u32_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub total: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct OutPtr {
     pub txn_hash: Vec<u8>,
+    //#[serde(serialize_with = "u32_to_string", deserialize_with = "number_from_string")]
     pub output_index: u32,
 }
 
@@ -282,15 +308,27 @@ pub enum OutputType {
 #[derive(Clone, Debug, Eq, Deserialize, PartialEq, Serialize)]
 pub struct OutputInfo {
     /// Amount of the UTXO
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub amount: u64,
     /// PKH receiving this balance
     pub pkh: PublicKeyHash,
     /// Timestamp in which UTXO is unlocked
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub time_lock: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct Beacon {
+    #[serde(
+        serialize_with = "u32_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub epoch: u32,
     pub block_hash: types::Hash,
 }
@@ -351,6 +389,63 @@ pub struct ExtendedTransaction {
 pub enum TransactionMetadata {
     InputValues(Vec<ValueTransferOutput>),
     Tally(Box<types::DataRequestInfo>),
+}
+
+// Serialization helper
+
+pub fn u16_to_string<S>(val: &u16, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u16(*val)
+    }
+}
+
+pub fn u32_to_string<S>(val: &u32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u32(*val)
+    }
+}
+
+pub fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u64(*val)
+    }
+}
+
+pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + serde::Deserialize<'de>,
+    <T as FromStr>::Err: Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+    if deserializer.is_human_readable() {
+        match StringOrInt::<T>::deserialize(deserializer)? {
+            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+            StringOrInt::Number(i) => Ok(i),
+        }
+    } else {
+        T::deserialize(deserializer)
+    }
 }
 
 #[cfg(tests)]
