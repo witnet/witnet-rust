@@ -84,7 +84,7 @@ pub fn _replace_separators(
     let thousand = from_value::<String>(thousand_separator).unwrap_or_else(|_| "".to_string());
     let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
 
-    value.replace(&thousand, "").replace(&decimal, ",")
+    value.replace(&thousand, "").replace(&decimal, ".")
 }
 
 pub fn replace_separators(
