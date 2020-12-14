@@ -159,23 +159,26 @@ pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
 
 /// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
 /// a valid floating point number.
-pub fn to_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
-    f64::from_str(&to_number(input, args))
+pub fn as_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
+    f64::from_str(&as_numeric_string(input, args))
         .map(RadonFloat::from)
         .map_err(Into::into)
 }
 
 /// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
 /// a valid integer number.
-pub fn to_int(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonInteger, RadError> {
-    i128::from_str(&to_number(input, args))
+pub fn as_integer(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonInteger, RadError> {
+    i128::from_str(&as_numeric_string(input, args))
         .map(RadonInteger::from)
         .map_err(Into::into)
 }
 
 /// Converts a `RadonString` into a `String` containing a numeric value, provided that the input
 /// string actually represents a valid number.
-pub fn to_number(input: &RadonString, args: &Option<Vec<Value>>) -> String {
+pub fn as_numeric_string(input: &RadonString, args: &Option<Vec<Value>>) -> String {
     let str_value = radon_trim(input);
 
     match args {
@@ -559,7 +562,7 @@ mod tests {
         let rad_int = RadonInteger::from(10);
         let rad_string: RadonString = RadonString::from("10");
 
-        assert_eq!(to_int(&rad_string, &None).unwrap(), rad_int);
+        assert_eq!(as_integer(&rad_string, &None).unwrap(), rad_int);
     }
 
     #[test]
@@ -567,7 +570,7 @@ mod tests {
         let rad_float = RadonFloat::from(10.2);
         let rad_string: RadonString = RadonString::from("10.2");
 
-        assert_eq!(to_float(&rad_string, &None).unwrap(), rad_float);
+        assert_eq!(as_float(&rad_string, &None).unwrap(), rad_float);
     }
 
     #[test]
