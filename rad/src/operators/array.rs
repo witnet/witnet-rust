@@ -88,13 +88,13 @@ pub fn get_bytes(input: &RadonArray, args: &[Value]) -> Result<RadonBytes, RadEr
 /// Try to get a `RadonFloat` from a position in the input `RadonArray`, as specified by the first
 /// argument, which is used as the positional index.
 pub fn get_float(input: &RadonArray, args: &[Value]) -> Result<RadonFloat, RadError> {
-    get_number(input, args)?.try_into()
+    get_numeric_string(input, args)?.try_into()
 }
 
 /// Try to get a `RadonInteger` from a position in the input `RadonArray`, as specified by the first
 /// argument, which is used as the positional index.
 pub fn get_integer(input: &RadonArray, args: &[Value]) -> Result<RadonInteger, RadError> {
-    get_number(input, args)?.try_into()
+    get_numeric_string(input, args)?.try_into()
 }
 
 pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError> {
@@ -107,7 +107,7 @@ pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError>
 ///
 /// This simply assumes that the element in that position is a number (i.e., `RadonFloat` or
 /// `RadonInteger`). If it is not, it will fail with a `RadError` because of `replace_separators`.
-fn get_number(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let item = get(input, args)?;
 
     if args.len() == 3 {
