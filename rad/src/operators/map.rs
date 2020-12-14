@@ -55,11 +55,11 @@ pub fn get_map(input: &RadonMap, args: &[Value]) -> Result<RadonMap, RadError> {
 fn get_number(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
     let item = get(input, args)?;
 
-    Ok(if args.len() == 3 {
+    if args.len() == 3 {
         replace_separators(item, args[1].clone(), args[2].clone())
     } else {
-        item
-    })
+        Ok(item)
+    }
 }
 
 pub fn get_string(input: &RadonMap, args: &[Value]) -> Result<RadonString, RadError> {
@@ -91,14 +91,14 @@ pub fn replace_separators(
     value: RadonTypes,
     thousand_separator: serde_cbor::Value,
     decimal_separator: serde_cbor::Value,
-) -> RadonTypes {
-    let rad_str_value: RadonString = value.try_into().unwrap();
+) -> Result<RadonTypes, RadError> {
+    let rad_str_value: RadonString = value.try_into()?;
 
-    RadonTypes::from(RadonString::from(_replace_separators(
+    Ok(RadonTypes::from(RadonString::from(_replace_separators(
         rad_str_value.value(),
         thousand_separator,
         decimal_separator,
-    )))
+    ))))
 }
 
 pub fn values(input: &RadonMap) -> RadonArray {
@@ -503,7 +503,8 @@ mod tests {
                 RadonTypes::String(RadonString::from("1,234.567")),
                 Value::from(String::from(",")),
                 Value::from(String::from("."))
-            ),
+            )
+            .unwrap(),
             RadonTypes::String(RadonString::from("1234.567"))
         );
 
@@ -513,7 +514,8 @@ mod tests {
                 RadonTypes::String(RadonString::from("1.234,567")),
                 Value::from(String::from(".")),
                 Value::from(String::from(","))
-            ),
+            )
+            .unwrap(),
             RadonTypes::String(RadonString::from("1234.567"))
         );
     }
