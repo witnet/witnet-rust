@@ -19,8 +19,8 @@ pub struct DataRequestPool {
     /// Current active data request, in which this node has announced commitments.
     /// Key: DRTransaction hash, Value: Reveal Transaction
     pub waiting_for_reveal: HashMap<Hash, RevealTransaction>,
-    /// List of active data request output pointers ordered by epoch (for mining purposes)
-    pub data_requests_by_epoch: BTreeMap<Epoch, HashSet<Hash>>,
+    // TODO: unused field, remove on next storage version
+    _data_requests_by_epoch: BTreeMap<Epoch, HashSet<Hash>>,
     /// List of active data requests indexed by output pointer
     pub data_request_pool: HashMap<Hash, DataRequestState>,
     /// List of data requests that should be persisted into storage
@@ -36,15 +36,6 @@ impl DataRequestPool {
             extra_rounds,
             ..Default::default()
         }
-    }
-
-    /// Get all available data requests output pointers for an epoch
-    pub fn get_dr_output_pointers_by_epoch(&self, epoch: Epoch) -> Vec<Hash> {
-        let range = 0..=epoch;
-        self.data_requests_by_epoch
-            .range(range)
-            .flat_map(|(_epoch, hashset)| hashset.iter().cloned())
-            .collect()
     }
 
     /// Get a `DataRequestOuput` for a DRTransaction `Hash`
@@ -116,10 +107,6 @@ impl DataRequestPool {
         let pkh = data_request.signatures[0].public_key.pkh();
         let dr_state = DataRequestState::new(data_request.body.dr_output, pkh, epoch, block_hash);
 
-        self.data_requests_by_epoch
-            .entry(epoch)
-            .or_insert_with(HashSet::new)
-            .insert(dr_hash);
         self.data_request_pool.insert(dr_hash, dr_state);
 
         Ok(())
@@ -219,7 +206,6 @@ impl DataRequestPool {
     /// the stage of all the data requests.
     pub fn update_data_request_stages(&mut self) -> Vec<RevealTransaction> {
         let waiting_for_reveal = &mut self.waiting_for_reveal;
-        let data_requests_by_epoch = &mut self.data_requests_by_epoch;
         let extra_rounds = self.extra_rounds;
         // Update the stage of the active data requests
         self.data_request_pool
@@ -230,26 +216,6 @@ impl DataRequestPool {
                 dr_state.update_stage(extra_rounds);
                 match dr_state.stage {
                     DataRequestStage::REVEAL => {
-                        // When a data request changes from commit stage to reveal stage, it should
-                        // be removed from the "data_requests_by_epoch" map, which stores the data
-                        // requests potentially available for commitment
-                        if dr_state.info.current_reveal_round == 1 {
-                            if let Some(hs) = data_requests_by_epoch.get_mut(&dr_state.epoch) {
-                                let present = hs.remove(dr_pointer);
-                                if hs.is_empty() {
-                                    data_requests_by_epoch.remove(&dr_state.epoch);
-                                }
-                                if !present {
-                                    log::error!(
-                                        "Data request {:?} was not present in the \
-                                         data_requests_by_epoch map (epoch #{})",
-                                        dr_pointer,
-                                        dr_state.epoch
-                                    );
-                                }
-                            }
-                        }
-
                         if let Some(transaction) = waiting_for_reveal.get(dr_pointer) {
                             // We submitted a commit for this data request!
                             // But has it been included into the block?
@@ -275,15 +241,6 @@ impl DataRequestPool {
                     }
 
                     DataRequestStage::TALLY => {
-                        // When a data request changes from commit stage to tally stage
-                        // (not enough commits to go into reveal stage)
-                        // it should be removed from the "data_requests_by_epoch" map
-                        if let Some(hs) = data_requests_by_epoch.get_mut(&dr_state.epoch) {
-                            hs.remove(dr_pointer);
-                            if hs.is_empty() {
-                                data_requests_by_epoch.remove(&dr_state.epoch);
-                            }
-                        }
                         // Remove pending reveals in Tally stage
                         waiting_for_reveal.remove(dr_pointer);
                     }
@@ -577,7 +534,6 @@ mod tests {
         .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
-        assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
         assert_eq!(p.data_request_pool[&dr_pointer].info, empty_info);
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -617,7 +573,6 @@ mod tests {
         .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
-        assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
         assert_eq!(p.data_request_pool[&dr_pointer].info, empty_info);
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -657,7 +612,6 @@ mod tests {
         .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
-        assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
         assert_eq!(p.data_request_pool[&dr_pointer].info, empty_info);
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -671,7 +625,7 @@ mod tests {
     }
 
     fn from_commit_to_reveal(
-        epoch: u32,
+        _epoch: u32,
         fake_block_hash: Hash,
         mut p: DataRequestPool,
         dr_pointer: Hash,
@@ -704,8 +658,6 @@ mod tests {
             DataRequestStage::COMMIT
         );
 
-        assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
-
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
 
@@ -714,13 +666,6 @@ mod tests {
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::REVEAL
         );
-
-        // The data request was removed from the data_requests_by_epoch map
-        assert!(!p
-            .data_requests_by_epoch
-            .get(&epoch)
-            .map(|x| x.contains(&dr_pointer))
-            .unwrap_or(false));
 
         (fake_block_hash, p, dr_pointer)
     }

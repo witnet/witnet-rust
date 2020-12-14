@@ -263,12 +263,6 @@ impl ChainManager {
         let data_request_timeout = self.data_request_timeout;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        // Data Request mining
-        let dr_pointers = self
-            .chain_state
-            .data_request_pool
-            .get_dr_output_pointers_by_epoch(current_epoch);
-
         let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
         let is_ars_member = rep_eng.is_ars_member(&own_pkh);
 
@@ -277,7 +271,10 @@ impl ChainManager {
         let total_active_reputation = rep_eng.total_active_reputation();
         let num_active_identities =
             u32::try_from(rep_eng.ars().active_identities_number()).unwrap();
-        log::debug!("{} data requests for this epoch", dr_pointers.len());
+        log::debug!(
+            "{} active data requests",
+            self.chain_state.data_request_pool.data_request_pool.len()
+        );
         log::debug!(
             "Reputation: {}, eligibility: {}, total: {}, active identities: {}",
             my_reputation,
@@ -291,13 +288,14 @@ impl ChainManager {
         let current_retrieval_count = Arc::new(AtomicU16::new(0u16));
         let maximum_retrieval_count = self.data_request_max_retrievals_per_epoch;
 
-        for (dr_pointer, dr_state) in dr_pointers.into_iter().filter_map(|dr_pointer| {
-            // Filter data requests that are not in data_request_pool
-            self.chain_state
-                .data_request_pool
-                .data_request_state(&dr_pointer)
-                .map(|dr_state| (dr_pointer, dr_state.clone()))
-        }) {
+        for (dr_pointer, dr_state) in self
+            .chain_state
+            .data_request_pool
+            .data_request_pool
+            .iter()
+            // Clone the dr_state because it must be valid for a static lifetime
+            .map(|(dr_pointer, dr_state)| (*dr_pointer, dr_state.clone()))
+        {
             let num_witnesses = dr_state.data_request.witnesses;
             let num_backup_witnesses = dr_state.backup_witnesses();
             // The vrf_input used to create and verify data requests must be set to the current epoch
@@ -787,10 +785,7 @@ pub fn build_block(
     transaction_fees += reveals_fees;
 
     // Calculate data request not solved weight
-    let mut dr_pointers: HashSet<Hash> = dr_pool
-        .get_dr_output_pointers_by_epoch(epoch)
-        .into_iter()
-        .collect();
+    let mut dr_pointers: HashSet<Hash> = dr_pool.data_request_pool.keys().copied().collect();
     for dr in solved_dr_pointers {
         dr_pointers.remove(&dr);
     }
