@@ -38,28 +38,30 @@ pub fn get_bytes(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadErro
     let item = get(input, args)?;
     item.try_into()
 }
-pub fn get_integer(input: &RadonMap, args: &[Value]) -> Result<RadonInteger, RadError> {
-    let item = get(input, args)?;
-    let value = if args.len() == 3 {
-        replace_separators(item, args[1].clone(), args[2].clone())
-    } else {
-        item
-    };
-    value.try_into()
-}
+
 pub fn get_float(input: &RadonMap, args: &[Value]) -> Result<RadonFloat, RadError> {
-    let item = get(input, args)?;
-    let value = if args.len() == 3 {
-        replace_separators(item, args[1].clone(), args[2].clone())
-    } else {
-        item
-    };
-    value.try_into()
+    get_number(input, args)?.try_into()
 }
+
+pub fn get_integer(input: &RadonMap, args: &[Value]) -> Result<RadonInteger, RadError> {
+    get_number(input, args)?.try_into()
+}
+
 pub fn get_map(input: &RadonMap, args: &[Value]) -> Result<RadonMap, RadError> {
     let item = get(input, args)?;
     item.try_into()
 }
+
+fn get_number(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
+    let item = get(input, args)?;
+
+    Ok(if args.len() == 3 {
+        replace_separators(item, args[1].clone(), args[2].clone())
+    } else {
+        item
+    })
+}
+
 pub fn get_string(input: &RadonMap, args: &[Value]) -> Result<RadonString, RadError> {
     let item = get(input, args)?;
     item.try_into()
