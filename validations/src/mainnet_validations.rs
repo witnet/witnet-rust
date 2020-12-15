@@ -12,6 +12,8 @@ const FIRST_EMERGENCY_COMMITTEE: [&str; 7] = [
     "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z",
 ];
 
+// FIXME(#1791): decide first hard fork epoch
+const FIRST_HARD_FORK: u32 = u32::MAX;
 /// Return a hard-coded signing committee if the provided epoch belongs to an emergency period.
 /// 750 and 1344: Between those indices, a special committee of 7 nodes was set.
 pub fn in_emergency_period(
@@ -28,6 +30,12 @@ pub fn in_emergency_period(
     } else {
         None
     }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+/// Returns a boolean indicating whether the epoch provided is after the first hard fork date
+pub fn after_first_hard_fork(epoch: Epoch) -> bool {
+    epoch >= FIRST_HARD_FORK
 }
 
 #[cfg(test)]
