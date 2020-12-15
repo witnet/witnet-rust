@@ -808,15 +808,18 @@ pub fn validate_commit_transaction(
         collateral_age,
     )?;
 
-    // Verify that commits are only accepted after the time lock expired
-    let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
-    let dr_time_lock = i64::try_from(dr_output.data_request.time_lock)?;
-    if dr_time_lock > epoch_timestamp {
-        return Err(TransactionError::TimeLock {
-            expected: dr_time_lock,
-            current: epoch_timestamp,
+    // commit time_lock was disabled in the first hard fork
+    if !after_first_hard_fork(epoch, get_environment()) {
+        // Verify that commits are only accepted after the time lock expired
+        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+        let dr_time_lock = i64::try_from(dr_output.data_request.time_lock)?;
+        if dr_time_lock > epoch_timestamp {
+            return Err(TransactionError::TimeLock {
+                expected: dr_time_lock,
+                current: epoch_timestamp,
+            }
+            .into());
         }
-        .into());
     }
 
     let commit_signature =

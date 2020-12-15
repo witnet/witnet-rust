@@ -3318,6 +3318,9 @@ fn commitment_timelock() {
         verify_signatures_test(signatures_to_verify)
     };
 
+    let first_timestamp =
+        u64::from(FIRST_HARD_FORK) * u64::from(epoch_constants.checkpoints_period);
+
     // (epoch, time_lock, should_be_accepted_into_block)
     let tests = vec![
         (0, 0, true),
@@ -3330,6 +3333,10 @@ fn commitment_timelock() {
         (1000, 1_000_001, false),
         (1001, 1_000_000, true),
         (1001, 1_000_001, true),
+        // After FIRST_HARD_FORK epoch, this validation is disabled
+        (FIRST_HARD_FORK - 1, first_timestamp + 1_000_000, false),
+        (FIRST_HARD_FORK, first_timestamp, true),
+        (FIRST_HARD_FORK, first_timestamp + 1_000_000, true),
     ];
 
     for (epoch, time_lock, is_ok) in tests {

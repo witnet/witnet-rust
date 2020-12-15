@@ -9,6 +9,8 @@ use crate::{
         EpochConstants, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
+    get_environment,
+    mainnet_validations::after_first_hard_fork,
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
@@ -327,17 +329,23 @@ impl DataRequestPool {
         // A data request output should have a valid value transfer input
         // Which we assume valid as it should have been already verified
 
-        // time_lock_epoch: The epoch during which we will start accepting
-        // commitments for this data request
-        // This is not the epoch which contains the timestamp, but the next one
-        let time_lock_epoch = epoch_constants
-            .epoch_at(
-                i64::try_from(dr_transaction.body.dr_output.data_request.time_lock)?
-                    .saturating_add(i64::from(epoch_constants.checkpoints_period - 1)),
-            )
-            // Any data request with time lock set to before checkpoint zero
-            // will be executed as soon as possible.
-            .unwrap_or(0);
+        // FIXME(#1796): remove this check after the first hard fork occurs
+        let time_lock_epoch = if after_first_hard_fork(epoch, get_environment()) {
+            // commit time_lock was disabled in the first hard fork
+            0
+        } else {
+            // time_lock_epoch: The epoch during which we will start accepting
+            // commitments for this data request
+            // This is not the epoch which contains the timestamp, but the next one
+            epoch_constants
+                .epoch_at(
+                    i64::try_from(dr_transaction.body.dr_output.data_request.time_lock)?
+                        .saturating_add(i64::from(epoch_constants.checkpoints_period - 1)),
+                )
+                // Any data request with time lock set to before checkpoint zero
+                // will be executed as soon as possible.
+                .unwrap_or(0)
+        };
         let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
         self.add_data_request(dr_epoch, dr_transaction.clone(), block_hash)
     }
