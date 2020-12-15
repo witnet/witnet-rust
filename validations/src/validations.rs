@@ -24,6 +24,8 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
+    get_environment,
+    mainnet_validations::after_first_hard_fork,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
@@ -1496,41 +1498,6 @@ pub fn validate_block_transactions(
     }
     let vt_hash_merkle_root = vt_mt.root();
 
-    // Validate data request transactions in a block
-    let mut dr_mt = ProgressiveMerkleTree::sha256();
-    let mut dr_weight: u32 = 0;
-    for transaction in &block.txns.data_request_txns {
-        let (inputs, outputs, fee) = validate_dr_transaction(
-            transaction,
-            &utxo_diff,
-            epoch,
-            epoch_constants,
-            signatures_to_verify,
-            consensus_constants.collateral_minimum,
-            consensus_constants.max_dr_weight,
-        )?;
-        total_fee += fee;
-
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
-
-        // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
-        let Hash::SHA256(sha) = txn_hash;
-        dr_mt.push(Sha256(sha));
-
-        // Update dr weight
-        let acc_weight = dr_weight.saturating_add(transaction.weight());
-        if acc_weight > consensus_constants.max_dr_weight {
-            return Err(BlockError::TotalDataRequestWeightLimitExceeded {
-                weight: acc_weight,
-                max_weight: consensus_constants.max_dr_weight,
-            }
-            .into());
-        }
-        dr_weight = acc_weight;
-    }
-    let dr_hash_merkle_root = dr_mt.root();
-
     // Validate commit transactions in a block
     let mut co_mt = ProgressiveMerkleTree::sha256();
     let mut commits_number = HashMap::new();
@@ -1647,6 +1614,60 @@ pub fn validate_block_transactions(
         }
         .into());
     }
+
+    let mut dr_weight: u32 = 0;
+    if after_first_hard_fork(epoch, get_environment()) {
+        // Calculate data request not solved weight
+        let mut dr_pointers: HashSet<Hash> = dr_pool
+            .get_dr_output_pointers_by_epoch(epoch)
+            .into_iter()
+            .collect();
+        for dr in commits_number.keys() {
+            dr_pointers.remove(dr);
+        }
+        for dr in dr_pointers {
+            let unsolved_dro = dr_pool.get_dr_output(&dr);
+            if let Some(dro) = unsolved_dro {
+                dr_weight = dr_weight
+                    .saturating_add(dro.weight())
+                    .saturating_add(dro.extra_weight());
+            }
+        }
+    }
+
+    // Validate data request transactions in a block
+    let mut dr_mt = ProgressiveMerkleTree::sha256();
+    for transaction in &block.txns.data_request_txns {
+        let (inputs, outputs, fee) = validate_dr_transaction(
+            transaction,
+            &utxo_diff,
+            epoch,
+            epoch_constants,
+            signatures_to_verify,
+            consensus_constants.collateral_minimum,
+            consensus_constants.max_dr_weight,
+        )?;
+        total_fee += fee;
+
+        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        dr_mt.push(Sha256(sha));
+
+        // Update dr weight
+        let acc_weight = dr_weight.saturating_add(transaction.weight());
+        if acc_weight > consensus_constants.max_dr_weight {
+            return Err(BlockError::TotalDataRequestWeightLimitExceeded {
+                weight: acc_weight,
+                max_weight: consensus_constants.max_dr_weight,
+            }
+            .into());
+        }
+        dr_weight = acc_weight;
+    }
+    let dr_hash_merkle_root = dr_mt.root();
 
     if !is_genesis {
         // Validate mint
