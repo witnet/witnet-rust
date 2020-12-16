@@ -5431,6 +5431,18 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut_block: F) -> Result<(), failure:
     test_block_with_drpool(mut_block, DataRequestPool::default())
 }
 
+fn test_block_with_epoch<F: FnMut(&mut Block) -> bool>(
+    mut_block: F,
+    epoch: Epoch,
+) -> Result<(), failure::Error> {
+    test_block_with_drpool_and_utxo_set(
+        mut_block,
+        DataRequestPool::default(),
+        UnspentOutputsPool::default(),
+        epoch,
+    )
+}
+
 fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     mut_block: F,
     dr_pool: DataRequestPool,
@@ -5586,12 +5598,15 @@ fn block_from_the_future() {
     let current_epoch = 1000;
     let block_epoch = current_epoch + 1;
 
-    let x = test_block(|b| {
-        assert_eq!(current_epoch, b.block_header.beacon.checkpoint);
-        b.block_header.beacon.checkpoint = block_epoch;
+    let x = test_block_with_epoch(
+        |b| {
+            assert_eq!(current_epoch, b.block_header.beacon.checkpoint);
+            b.block_header.beacon.checkpoint = block_epoch;
 
-        true
-    });
+            true
+        },
+        current_epoch,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::BlockFromFuture {
@@ -5606,12 +5621,15 @@ fn block_from_the_past() {
     let current_epoch = 1000;
     let block_epoch = current_epoch - 1;
 
-    let x = test_block(|b| {
-        assert_eq!(current_epoch, b.block_header.beacon.checkpoint);
-        b.block_header.beacon.checkpoint = block_epoch;
+    let x = test_block_with_epoch(
+        |b| {
+            assert_eq!(current_epoch, b.block_header.beacon.checkpoint);
+            b.block_header.beacon.checkpoint = block_epoch;
 
-        true
-    });
+            true
+        },
+        current_epoch,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::BlockOlderThanTip {
