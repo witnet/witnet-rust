@@ -91,10 +91,7 @@ impl Peers {
     /// period that is more permissive and allows for more agile peers discovery during
     /// the process of bootstrapping the network.
     pub fn current_ice_period(&self) -> i64 {
-        // FIXME(#1646): Remove this hack
-        let now = get_timestamp();
-        // Tuesday, October 20, 2020 09:00:00 AM UTC
-        if self.bootstrapped && now > 1_603_184_400 {
+        if self.bootstrapped {
             i64::try_from(self.ice_period.as_secs())
                 .expect("Ice period should fit in the range of u64")
         } else {

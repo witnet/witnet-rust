@@ -52,8 +52,6 @@ mod ice {
     }
 
     #[test]
-    // FIXME(#1646): Remove this ignore
-    #[ignore]
     fn test_ice_melts_ater_some_time() {
         let ice_period = Duration::from_secs(1000);
         let mut peers = Peers {
