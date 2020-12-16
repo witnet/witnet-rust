@@ -35,6 +35,9 @@ pub mod error;
 /// Module containing data_request structures
 pub mod data_request;
 
+/// Module containing post mainnet validations
+pub mod mainnet_validations;
+
 /// Module containing superblock structures
 pub mod superblock;
 

@@ -53,6 +53,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment,
+    mainnet_validations::in_emergency_period,
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
@@ -62,12 +63,9 @@ use witnet_data_structures::{
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
-use witnet_validations::{
-    mainnet_validations::in_emergency_period,
-    validations::{
-        compare_block_candidates, validate_block, validate_block_transactions,
-        validate_new_transaction, verify_signatures, VrfSlots,
-    },
+use witnet_validations::validations::{
+    compare_block_candidates, validate_block, validate_block_transactions,
+    validate_new_transaction, verify_signatures, VrfSlots,
 };
 
 use crate::{
