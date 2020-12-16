@@ -17,6 +17,7 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
+    mainnet_validations::FIRST_HARD_FORK,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
@@ -5434,13 +5435,19 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     mut_block: F,
     dr_pool: DataRequestPool,
 ) -> Result<(), failure::Error> {
-    test_block_with_drpool_and_utxo_set(mut_block, dr_pool, UnspentOutputsPool::default())
+    test_block_with_drpool_and_utxo_set(
+        mut_block,
+        dr_pool,
+        UnspentOutputsPool::default(),
+        FIRST_HARD_FORK,
+    )
 }
 
 fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     mut mut_block: F,
     dr_pool: DataRequestPool,
     mut utxo_set: UnspentOutputsPool,
+    current_epoch: u32,
 ) -> Result<(), failure::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
@@ -5488,7 +5495,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let secret_key = SecretKey {
         bytes: Protected::from(PRIV_KEY_1.to_vec()),
     };
-    let current_epoch = 1000;
     let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let last_vrf_input = LAST_VRF_INPUT.parse().unwrap();
     let chain_beacon = CheckpointBeacon {
@@ -6010,6 +6016,7 @@ fn block_duplicated_commits() {
         },
         dr_pool,
         utxo_set,
+        FIRST_HARD_FORK,
     );
 
     assert_eq!(
@@ -6193,6 +6200,95 @@ fn block_duplicated_tallies() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DuplicatedTally { dr_pointer },
+    );
+}
+
+#[test]
+fn block_before_and_after_hard_fork() {
+    let mut dr_pool = DataRequestPool::default();
+    let dro = DataRequestOutput {
+        witness_reward: 1000,
+        witnesses: 100,
+        commit_and_reveal_fee: 50,
+        min_consensus_percentage: 51,
+        data_request: example_data_request(),
+        collateral: ONE_WIT,
+    };
+    let dr_body = DRTransactionBody::new(vec![], vec![], dro.clone());
+    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+    let dr_epoch = 0;
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+
+    // Another data request to insert in the block
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 110020,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dro);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+    let x = test_block_with_drpool_and_utxo_set(
+        |b| {
+            b.txns.data_request_txns.push(dr_transaction.clone());
+
+            b.txns.mint = MintTransaction::new(
+                b.txns.mint.epoch,
+                vec![ValueTransferOutput {
+                    time_lock: 0,
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 20,
+                    ..b.txns.mint.outputs[0]
+                }],
+            );
+
+            build_merkle_tree(&mut b.block_header, &b.txns);
+
+            true
+        },
+        dr_pool.clone(),
+        utxo_set.clone(),
+        FIRST_HARD_FORK - 1,
+    );
+    x.unwrap();
+
+    let x = test_block_with_drpool_and_utxo_set(
+        |b| {
+            b.txns.data_request_txns.push(dr_transaction.clone());
+
+            b.txns.mint = MintTransaction::new(
+                b.txns.mint.epoch,
+                vec![ValueTransferOutput {
+                    time_lock: 0,
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 20,
+                    ..b.txns.mint.outputs[0]
+                }],
+            );
+
+            build_merkle_tree(&mut b.block_header, &b.txns);
+
+            true
+        },
+        dr_pool,
+        utxo_set,
+        FIRST_HARD_FORK,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::TotalDataRequestWeightLimitExceeded {
+            weight: 127701,
+            max_weight: 80000
+        },
     );
 }
 

@@ -12,7 +12,7 @@ const FIRST_EMERGENCY_COMMITTEE: [&str; 7] = [
 ];
 
 /// 22 January 2021 @ 09:00:00 UTC
-const FIRST_HARD_FORK: Epoch = 192000;
+pub const FIRST_HARD_FORK: Epoch = 192000;
 
 /// Return a hard-coded signing committee if the provided epoch belongs to an emergency period.
 /// 750 and 1344: Between those indices, a special committee of 7 nodes was set.
