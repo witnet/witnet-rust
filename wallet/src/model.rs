@@ -404,7 +404,7 @@ pub enum TransactionMetadata {
     Tally(Box<types::DataRequestInfo>),
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -417,7 +417,8 @@ mod tests {
             output_index,
         };
         let id = p.transaction_id();
+        let txn = vec![0; 32];
 
-        assert_eq!(&txn_hash, id.as_ref());
+        assert_eq!(&txn.as_slice(), &id.as_ref());
     }
 }
