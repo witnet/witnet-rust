@@ -1,12 +1,20 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{actors::app, model, types};
+use crate::{
+    actors::app,
+    model,
+    types::{self, from_generic_type, into_generic_type, TransactionHelper},
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SendTransactionRequest {
     session_id: types::SessionId,
     wallet_id: String,
+    #[serde(
+        serialize_with = "into_generic_type::<_, TransactionHelper, _>",
+        deserialize_with = "from_generic_type::<_, TransactionHelper, _>"
+    )]
     transaction: types::Transaction,
 }
 

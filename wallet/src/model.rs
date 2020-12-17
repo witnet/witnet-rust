@@ -1,14 +1,14 @@
 //! Types that are serializable and can be returned as a response.
 use std::{collections::HashMap, fmt};
 
-use std::fmt::Display;
-use std::str::FromStr;
-
 use failure::_core::fmt::Formatter;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
-use crate::repository::keys::Key;
-use crate::{account, types};
+use crate::{
+    account,
+    repository::keys::Key,
+    types::{self, number_from_string, u32_to_string, u64_to_string},
+};
 use witnet_data_structures::chain::{OutputPointer, PublicKeyHash, ValueTransferOutput};
 use witnet_util::timestamp::get_timestamp;
 
@@ -120,7 +120,6 @@ where
 pub struct BalanceMovement {
     /// Database key for storing `BalanceMovement` objects
     #[serde(skip)]
-    // #[serde(serialize_with = "u32_to_string", deserialize_with = "number_from_string")]
     pub db_key: u32,
     /// Balance movement from the wallet perspective: `value = own_outputs - own_inputs`
     /// - A positive value means that the wallet received WITs from others.
@@ -170,7 +169,6 @@ pub struct Transaction {
     )]
     pub miner_fee: u64,
     /// Date when transaction was included a block (same as block date)
-    // #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub timestamp: u64,
 }
 
@@ -226,7 +224,6 @@ pub struct Input {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Output {
     pub address: String,
-    //#[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub time_lock: u64,
     #[serde(
         serialize_with = "u64_to_string",
@@ -261,7 +258,6 @@ pub struct Transactions {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct OutPtr {
     pub txn_hash: Vec<u8>,
-    //#[serde(serialize_with = "u32_to_string", deserialize_with = "number_from_string")]
     pub output_index: u32,
 }
 
@@ -402,63 +398,6 @@ pub struct ExtendedTransaction {
 pub enum TransactionMetadata {
     InputValues(Vec<ValueTransferOutput>),
     Tally(Box<types::DataRequestInfo>),
-}
-
-// Serialization helper
-
-pub fn u16_to_string<S>(val: &u16, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(&val.to_string())
-    } else {
-        serializer.serialize_u16(*val)
-    }
-}
-
-pub fn u32_to_string<S>(val: &u32, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(&val.to_string())
-    } else {
-        serializer.serialize_u32(*val)
-    }
-}
-
-pub fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(&val.to_string())
-    } else {
-        serializer.serialize_u64(*val)
-    }
-}
-
-pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-where
-    D: Deserializer<'de>,
-    T: FromStr + serde::Deserialize<'de>,
-    <T as FromStr>::Err: Display,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrInt<T> {
-        String(String),
-        Number(T),
-    }
-    if deserializer.is_human_readable() {
-        match StringOrInt::<T>::deserialize(deserializer)? {
-            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-            StringOrInt::Number(i) => Ok(i),
-        }
-    } else {
-        T::deserialize(deserializer)
-    }
 }
 
 #[cfg(tests)]
