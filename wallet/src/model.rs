@@ -27,8 +27,6 @@ pub struct UnlockedWallet {
     pub available_accounts: Vec<u32>,
 }
 
-
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Address {
     pub address: String,
@@ -63,10 +61,16 @@ pub struct AddressInfo {
 #[derive(Copy, Clone, Debug, Eq, Default, Deserialize, PartialEq, Serialize)]
 pub struct BalanceInfo {
     /// Expendable funds
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub available: u64,
     /// Time-locked funds
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub locked: u64,
 }
 
@@ -76,7 +80,10 @@ pub struct WalletBalance {
     /// Total amount of wallet's funds after last confirmed superblock
     pub confirmed: BalanceInfo,
     /// Amount of local pending movements not yet indexed in a block
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub local: u64,
     /// Total amount of wallet's funds after last block
     pub unconfirmed: BalanceInfo,
@@ -209,7 +216,10 @@ pub struct MintData {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Input {
     pub address: String,
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub value: u64,
 }
 
@@ -218,7 +228,10 @@ pub struct Output {
     pub address: String,
     //#[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
     pub time_lock: u64,
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub value: u64,
     pub output_type: OutputType,
 }

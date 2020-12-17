@@ -2,13 +2,9 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::sync::{Arc, RwLock};
 
-use std::fmt::Display;
 pub use std::str::FromStr;
 
-use crate::model::number_from_string;
-use crate::model::u16_to_string;
-use crate::model::u32_to_string;
-use crate::model::u64_to_string;
+use crate::model::{number_from_string, u16_to_string, u32_to_string, u64_to_string};
 
 use failure::Fail;
 pub use jsonrpc_core::{Params as RpcParams, Value as RpcValue};
@@ -161,18 +157,30 @@ pub struct CreateWalletData<'a> {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VttParams {
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub fee: u64,
-    #[serde(serialize_with = "into_generic_type_vtt::<_, ValueTransferOutputHelper, _>", deserialize_with = "from_generic_type_vtt::<_, ValueTransferOutputHelper, _>")]
+    #[serde(
+        serialize_with = "into_generic_type_vec::<_, ValueTransferOutputHelper, _>",
+        deserialize_with = "from_generic_type_vec::<_, ValueTransferOutputHelper, _>"
+    )]
     pub outputs: Vec<ValueTransferOutput>,
     pub fee_type: FeeType,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DataReqParams {
-    #[serde(serialize_with = "u64_to_string", deserialize_with =  "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub fee: u64,
-    #[serde(serialize_with = "into_generic_type::<_, DataRequestOutputHelper, _>", deserialize_with = "from_generic_type::<_, DataRequestOutputHelper, _>")]
+    #[serde(
+        serialize_with = "into_generic_type::<_, DataRequestOutputHelper, _>",
+        deserialize_with = "from_generic_type::<_, DataRequestOutputHelper, _>"
+    )]
     pub request: DataRequestOutput,
     pub fee_type: FeeType,
 }
@@ -290,14 +298,16 @@ pub struct SuperBlockNotification {
     pub consolidated_block_hashes: Vec<String>,
 }
 
-
 // Serialization helper
 
 /// Value transfer output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash, Default)]
 pub struct ValueTransferOutputHelper {
     pub pkh: PublicKeyHash,
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub value: u64,
     /// The value attached to a time-locked output cannot be spent before the specified
     /// timestamp. That is, they cannot be used as an input in any transaction of a
@@ -307,25 +317,25 @@ pub struct ValueTransferOutputHelper {
 
 impl From<ValueTransferOutput> for ValueTransferOutputHelper {
     fn from(x: ValueTransferOutput) -> Self {
-         ValueTransferOutputHelper {
-                pkh: x.pkh,
-                value: x.value,
-                time_lock: x.time_lock,
-            }
+        ValueTransferOutputHelper {
+            pkh: x.pkh,
+            value: x.value,
+            time_lock: x.time_lock,
+        }
     }
 }
 
 impl From<ValueTransferOutputHelper> for ValueTransferOutput {
     fn from(x: ValueTransferOutputHelper) -> Self {
-             ValueTransferOutput{
-                pkh: x.pkh,
-                value: x.value,
-                time_lock: x.time_lock,
-            }}
-    
+        ValueTransferOutput {
+            pkh: x.pkh,
+            value: x.value,
+            time_lock: x.time_lock,
+        }
+    }
 }
 
-fn from_generic_type_vtt<'de, D, T, U>(deserializer: D) -> Result<Vec<U>, D::Error>
+fn from_generic_type_vec<'de, D, T, U>(deserializer: D) -> Result<Vec<U>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -337,12 +347,12 @@ where
         .collect())
 }
 
-fn into_generic_type_vtt<S, U, T>(val: &[T], serializer: S) -> Result<S::Ok, S::Error>
+fn into_generic_type_vec<S, U, T>(val: &[T], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
     T: Clone,
     U: From<T>,
-    U: Serialize
+    U: Serialize,
 {
     let x: Vec<U> = val.iter().map(|x| x.clone().into()).collect();
     x.serialize(serializer)
@@ -351,49 +361,63 @@ where
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash, Default)]
 struct DataRequestOutputHelper {
     pub data_request: RADRequest,
-     #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub witness_reward: u64,
-     #[serde(serialize_with = "u16_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u16_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub witnesses: u16,
     // This fee will be earn by the miner when include commits and/or reveals in the block
-     #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub commit_and_reveal_fee: u64,
     // This field must be >50 and <100.
     // >50 because simple majority
     // <100 because a 100% consensus encourages to commit a RadError for free
-     #[serde(serialize_with = "u32_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u32_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub min_consensus_percentage: u32,
     // This field must be >= collateral_minimum, or zero
     // If zero, it will be treated as collateral_minimum
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub collateral: u64,
 }
 
 impl From<DataRequestOutput> for DataRequestOutputHelper {
     fn from(x: DataRequestOutput) -> Self {
-         DataRequestOutputHelper {
-                data_request: x.data_request,
-                witness_reward: x.witness_reward,
-                witnesses: x.witnesses,
-                commit_and_reveal_fee: x.commit_and_reveal_fee,
-                min_consensus_percentage: x.min_consensus_percentage,
-                collateral: x.collateral,
-            }
+        DataRequestOutputHelper {
+            data_request: x.data_request,
+            witness_reward: x.witness_reward,
+            witnesses: x.witnesses,
+            commit_and_reveal_fee: x.commit_and_reveal_fee,
+            min_consensus_percentage: x.min_consensus_percentage,
+            collateral: x.collateral,
+        }
     }
 }
 
-
 impl From<DataRequestOutputHelper> for DataRequestOutput {
     fn from(x: DataRequestOutputHelper) -> Self {
-             DataRequestOutput{
-                data_request: x.data_request,
-                witness_reward: x.witness_reward,
-                witnesses: x.witnesses,
-                commit_and_reveal_fee: x.commit_and_reveal_fee,
-                min_consensus_percentage: x.min_consensus_percentage,
-                collateral: x.collateral,
-            }}
-    
+        DataRequestOutput {
+            data_request: x.data_request,
+            witness_reward: x.witness_reward,
+            witnesses: x.witnesses,
+            commit_and_reveal_fee: x.commit_and_reveal_fee,
+            min_consensus_percentage: x.min_consensus_percentage,
+            collateral: x.collateral,
+        }
+    }
 }
 
 fn from_generic_type<'de, D, T, U>(deserializer: D) -> Result<U, D::Error>
@@ -410,99 +434,16 @@ where
     S: serde::Serializer,
     T: Clone,
     U: From<T>,
-    U: Serialize
+    U: Serialize,
 {
     let x = U::from(val.clone());
     x.serialize(serializer)
 }
 
-// fn from_wallet_type<'de, D>(deserializer: D) -> Result<DataRequestOutput, D::Error>
-// where
-//     D: Deserializer<'de>,
-// {
-//     Ok(DataRequestOutputHelper::deserialize(deserializer)?.into())
-// }
-
-// fn into_wallet_type<S>(val: &DataRequestOutput, serializer: S) -> Result<S::Ok, S::Error>
-// where
-//     S: serde::Serializer,
-// {
-//     let x = DataRequestOutputHelper::from(val.clone());
-//     x.serialize(serializer)
-// }
-
-// fn u16_to_string<S>(val: &u16, serializer: S) -> Result<S::Ok, S::Error>
-// where
-//     S: serde::Serializer,
-// {
-//     if serializer.is_human_readable() {
-//         serializer.serialize_str(&val.to_string())
-//     } else {
-//         serializer.serialize_u16(*val)
-//     }
-// }
-
-// fn u32_to_string<S>(val: &u32, serializer: S) -> Result<S::Ok, S::Error>
-// where
-//     S: serde::Serializer,
-// {
-//     if serializer.is_human_readable() {
-//         serializer.serialize_str(&val.to_string())
-//     } else {
-//         serializer.serialize_u32(*val)
-//     }
-// }
-
-// fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
-// where
-//     S: serde::Serializer,
-// {
-//     if serializer.is_human_readable() {
-//         serializer.serialize_str(&val.to_string())
-//     } else {
-//         serializer.serialize_u64(*val)
-//     }
-// }
-
-
-// fn deserialize_from_str<'de, S, D>(deserializer: D) -> Result<S, D::Error>
-// where
-//     S: FromStr,
-//     S::Err: Display,
-//     D: Deserializer<'de>,
-// {
-//     let s: &str = Deserialize::deserialize(deserializer)?;
-//     S::from_str(s).map_err(de::Error::custom)
-// }
-
-// fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-// where
-//     D: Deserializer<'de>,
-//     T: FromStr + serde::Deserialize<'de>,
-//     <T as FromStr>::Err: Display,
-// {
-//     #[derive(Deserialize)]
-//     #[serde(untagged)]
-//     enum StringOrInt<T> {
-//         String(String),
-//         Number(T),
-//     }
-//     if deserializer.is_human_readable() {
-//         match StringOrInt::<T>::deserialize(deserializer)? {
-//             StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-//             StringOrInt::Number(i) => Ok(i),
-//         }
-//     } else {
-//         T::deserialize(deserializer)
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-use crate::app::CreateVttRequest;
-use crate::app::CreateDataReqRequest;
+    use crate::app::CreateDataReqRequest;
+    use crate::app::CreateVttRequest;
 
     #[test]
     fn test_desarialize_vtt() {
@@ -512,9 +453,5 @@ use crate::app::CreateDataReqRequest;
     #[test]
     fn test_desarialize_create_dr() {
         let _e1: CreateDataReqRequest = serde_json::from_str(r#"{"session_id":"a273d76ab9870976ab82a5dddced02fcd3ab5ff4fac51a1cf9437c762f317101","wallet_id":"87575c9031c01cf84dffc33fe2d28474d620dacd673f06990dc0318079ddfde7","fee":"1","request":{"data_request":{"timeLock":0,"time_lock":0,"retrieve":[{"contentType":"JSON API","kind":"HTTP-GET","script":[128],"url":"https://blockchain.info/q/latesthash"},{"contentType":"JSON API","kind":"HTTP-GET","script":[130,24,119,130,24,103,100,104,97,115,104],"url":"https://api-r.bitcoinchain.com/v1/status"},{"contentType":"JSON API","kind":"HTTP-GET","script":[131,24,119,130,24,102,100,100,97,116,97,130,24,103,111,98,101,115,116,95,98,108,111,99,107,95,104,97,115,104],"url":"https://api.blockchair.com/bitcoin/stats"}],"aggregate":{"filters":[],"reducer":2},"tally":{"filters":[{"op":8,"args":[]}],"reducer":2}},"collateral":"1000000000","witness_reward":"1","witnesses":"3","commit_and_reveal_fee":"1","min_consensus_percentage":"51"}}"#).unwrap();
-    }    
-
-
+    }
 }
-
-

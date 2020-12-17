@@ -1,18 +1,19 @@
 use actix::prelude::*;
+use core::fmt::Display;
 use serde::{Deserialize, Deserializer, Serialize};
-
- use core::fmt::Display;
- use crate::types::FromStr;
 
 use crate::{
     actors::app,
-    types::{self, Hashable as _, ProtobufConvert as _},
+    types::{self, FromStr, Hashable as _, ProtobufConvert as _},
 };
 
 use witnet_data_structures::{
-    chain::{Environment, PublicKeyHash, Input, ValueTransferOutput, KeyedSignature},
+    chain::{Environment, Input, KeyedSignature, PublicKeyHash, ValueTransferOutput},
+    transaction::{
+        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
+        Transaction, VTTransaction, VTTransactionBody,
+    },
     transaction_factory::FeeType,
-    transaction::{Transaction, VTTransactionBody, VTTransaction, DRTransaction, CommitTransaction, RevealTransaction, TallyTransaction, MintTransaction},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,10 +25,16 @@ pub struct VttOutputParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVttRequest {
-     #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     fee: u64,
     label: Option<String>,
-    #[serde(serialize_with = "into_generic_type_vtt::<_, VttOutputParamsHelper, _>", deserialize_with = "from_generic_type_vtt::<_, VttOutputParamsHelper, _>")]
+    #[serde(
+        serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
+        deserialize_with = "from_generic_type_vec::<_, VttOutputParamsHelper, _>"
+    )]
     outputs: Vec<VttOutputParams>,
     session_id: types::SessionId,
     wallet_id: String,
@@ -38,14 +45,25 @@ pub struct CreateVttRequest {
 /// (e.g. in a confirmation screen)
 #[derive(Debug, Serialize)]
 pub struct VttMetadata {
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     fee: u64,
+    #[serde(
+        serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
+        deserialize_with = "from_generic_type_vec::<_, VttOutputParamsHelper, _>"
+    )]
     outputs: Vec<VttOutputParams>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct CreateVttResponse {
     pub transaction_id: String,
-    #[serde(serialize_with = "into_generic_type::<_, TransactionHelper, _>", deserialize_with = "from_generic_type::<_, TransactionHelper, _>")]
+    #[serde(
+        serialize_with = "into_generic_type::<_, TransactionHelper, _>",
+        deserialize_with = "from_generic_type::<_, TransactionHelper, _>"
+    )]
     pub transaction: types::Transaction,
     pub bytes: String,
     pub metadata: VttMetadata,
@@ -141,29 +159,32 @@ pub fn validate_output_addresses(
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash, Default)]
 pub struct VttOutputParamsHelper {
     pub address: String,
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub amount: u64,
     pub time_lock: Option<u64>,
 }
 
 impl From<VttOutputParams> for VttOutputParamsHelper {
     fn from(x: VttOutputParams) -> Self {
-         VttOutputParamsHelper {
-                address: x.address,
-                amount: x.amount,
-                time_lock: x.time_lock,
-            }
+        VttOutputParamsHelper {
+            address: x.address,
+            amount: x.amount,
+            time_lock: x.time_lock,
+        }
     }
 }
 
 impl From<VttOutputParamsHelper> for VttOutputParams {
     fn from(x: VttOutputParamsHelper) -> Self {
-             VttOutputParams{
-                address: x.address,
-                amount: x.amount,
-                time_lock: x.time_lock,
-            }}
-    
+        VttOutputParams {
+            address: x.address,
+            amount: x.amount,
+            time_lock: x.time_lock,
+        }
+    }
 }
 
 /// Transaction data structure
@@ -171,7 +192,10 @@ impl From<VttOutputParamsHelper> for VttOutputParams {
 // FIXME(#649): Remove clippy skip error
 #[allow(clippy::large_enum_variant)]
 pub enum TransactionHelper {
-    #[serde(serialize_with = "into_generic_type::<_, VTTransactionHelper, _>", deserialize_with = "from_generic_type::<_, VTTransactionHelper, _>")]
+    #[serde(
+        serialize_with = "into_generic_type::<_, VTTransactionHelper, _>",
+        deserialize_with = "from_generic_type::<_, VTTransactionHelper, _>"
+    )]
     ValueTransfer(VTTransaction),
     DataRequest(DRTransaction),
     Commit(CommitTransaction),
@@ -183,12 +207,16 @@ pub enum TransactionHelper {
 impl From<Transaction> for TransactionHelper {
     fn from(x: Transaction) -> Self {
         match x {
-            Transaction::ValueTransfer(vttransaction)=> TransactionHelper::ValueTransfer(vttransaction),
-            Transaction::DataRequest(drtransaction) => TransactionHelper::DataRequest(drtransaction),
+            Transaction::ValueTransfer(vttransaction) => {
+                TransactionHelper::ValueTransfer(vttransaction)
+            }
+            Transaction::DataRequest(drtransaction) => {
+                TransactionHelper::DataRequest(drtransaction)
+            }
             Transaction::Commit(committransaction) => TransactionHelper::Commit(committransaction),
             Transaction::Reveal(revealtransaction) => TransactionHelper::Reveal(revealtransaction),
             Transaction::Tally(tallytransaction) => TransactionHelper::Tally(tallytransaction),
-            Transaction::Mint(minttransaction) => TransactionHelper::Mint(minttransaction), 
+            Transaction::Mint(minttransaction) => TransactionHelper::Mint(minttransaction),
         }
     }
 }
@@ -196,62 +224,71 @@ impl From<Transaction> for TransactionHelper {
 impl From<TransactionHelper> for Transaction {
     fn from(x: TransactionHelper) -> Self {
         match x {
-            TransactionHelper::ValueTransfer(vttransaction)=> Transaction::ValueTransfer(vttransaction),
-            TransactionHelper::DataRequest(drtransaction) => Transaction::DataRequest(drtransaction),
+            TransactionHelper::ValueTransfer(vttransaction) => {
+                Transaction::ValueTransfer(vttransaction)
+            }
+            TransactionHelper::DataRequest(drtransaction) => {
+                Transaction::DataRequest(drtransaction)
+            }
             TransactionHelper::Commit(committransaction) => Transaction::Commit(committransaction),
             TransactionHelper::Reveal(revealtransaction) => Transaction::Reveal(revealtransaction),
             TransactionHelper::Tally(tallytransaction) => Transaction::Tally(tallytransaction),
-            TransactionHelper::Mint(minttransaction) => Transaction::Mint(minttransaction), 
+            TransactionHelper::Mint(minttransaction) => Transaction::Mint(minttransaction),
         }
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct VTTransactionHelper {
-    #[serde(serialize_with = "into_generic_type::<_, VTTransactionBodyHelper, _>", deserialize_with = "from_generic_type::<_, VTTransactionBodyHelper, _>")]
+    #[serde(
+        serialize_with = "into_generic_type::<_, VTTransactionBodyHelper, _>",
+        deserialize_with = "from_generic_type::<_, VTTransactionBodyHelper, _>"
+    )]
     pub body: VTTransactionBody,
     pub signatures: Vec<KeyedSignature>,
 }
 
 impl From<VTTransaction> for VTTransactionHelper {
     fn from(x: VTTransaction) -> Self {
-         VTTransactionHelper {
-                body: x.body,
-                signatures: x.signatures,
-            }
+        VTTransactionHelper {
+            body: x.body,
+            signatures: x.signatures,
+        }
     }
 }
 
 impl From<VTTransactionHelper> for VTTransaction {
     fn from(x: VTTransactionHelper) -> Self {
-             VTTransaction{
-                body: x.body,
-                signatures: x.signatures,
-            }}
-    
+        VTTransaction {
+            body: x.body,
+            signatures: x.signatures,
+        }
+    }
 }
-
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct VTTransactionBodyHelper {
     pub inputs: Vec<Input>,
-    #[serde(serialize_with = "into_generic_type_vtt::<_, ValueTransferOutputHelper, _>", deserialize_with = "from_generic_type_vtt::<_, ValueTransferOutputHelper, _>")]
+    #[serde(
+        serialize_with = "into_generic_type_vec::<_, ValueTransferOutputHelper, _>",
+        deserialize_with = "from_generic_type_vec::<_, ValueTransferOutputHelper, _>"
+    )]
     pub outputs: Vec<ValueTransferOutput>,
 }
 
 impl From<VTTransactionBody> for VTTransactionBodyHelper {
     fn from(x: VTTransactionBody) -> Self {
-         VTTransactionBodyHelper {
-                inputs: x.inputs,
-                outputs: x.outputs,
-            }
+        VTTransactionBodyHelper {
+            inputs: x.inputs,
+            outputs: x.outputs,
+        }
     }
 }
 
 impl From<VTTransactionBodyHelper> for VTTransactionBody {
     fn from(x: VTTransactionBodyHelper) -> Self {
-             VTTransactionBody::new(x.inputs, x.outputs)}
-    
+        VTTransactionBody::new(x.inputs, x.outputs)
+    }
 }
 
 fn from_generic_type<'de, D, T, U>(deserializer: D) -> Result<U, D::Error>
@@ -268,7 +305,7 @@ where
     S: serde::Serializer,
     T: Clone,
     U: From<T>,
-    U: Serialize
+    U: Serialize,
 {
     let x = U::from(val.clone());
     x.serialize(serializer)
@@ -278,7 +315,10 @@ where
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash, Default)]
 pub struct ValueTransferOutputHelper {
     pub pkh: PublicKeyHash,
-    #[serde(serialize_with = "u64_to_string", deserialize_with = "number_from_string")]
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub value: u64,
     /// The value attached to a time-locked output cannot be spent before the specified
     /// timestamp. That is, they cannot be used as an input in any transaction of a
@@ -288,49 +328,25 @@ pub struct ValueTransferOutputHelper {
 
 impl From<ValueTransferOutput> for ValueTransferOutputHelper {
     fn from(x: ValueTransferOutput) -> Self {
-         ValueTransferOutputHelper {
-                pkh: x.pkh,
-                value: x.value,
-                time_lock: x.time_lock,
-            }
+        ValueTransferOutputHelper {
+            pkh: x.pkh,
+            value: x.value,
+            time_lock: x.time_lock,
+        }
     }
 }
 
 impl From<ValueTransferOutputHelper> for ValueTransferOutput {
     fn from(x: ValueTransferOutputHelper) -> Self {
-             ValueTransferOutput{
-                pkh: x.pkh,
-                value: x.value,
-                time_lock: x.time_lock,
-            }}
-    
+        ValueTransferOutput {
+            pkh: x.pkh,
+            value: x.value,
+            time_lock: x.time_lock,
+        }
+    }
 }
 
-// fn from_generic_type_vtt<'de, D, T, U>(deserializer: D) -> Result<Vec<U>, D::Error>
-// where
-//     D: Deserializer<'de>,
-//     T: Deserialize<'de>,
-//     U: From<T>,
-// {
-//     Ok(Vec::<T>::deserialize(deserializer)?
-//         .into_iter()
-//         .map(|x| x.into())
-//         .collect())
-// }
-
-// fn into_generic_type_vtt<S, U, T>(val: &[T], serializer: S) -> Result<S::Ok, S::Error>
-// where
-//     S: serde::Serializer,
-//     T: Clone,
-//     U: From<T>,
-//     U: Serialize
-// {
-//     let x: Vec<U> = val.iter().map(|x| x.clone().into()).collect();
-//     x.serialize(serializer)
-// }
-
-
-fn from_generic_type_vtt<'de, D, T, U>(deserializer: D) -> Result<Vec<U>, D::Error>
+fn from_generic_type_vec<'de, D, T, U>(deserializer: D) -> Result<Vec<U>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -342,37 +358,15 @@ where
         .collect())
 }
 
-fn into_generic_type_vtt<S, U, T>(val: &[T], serializer: S) -> Result<S::Ok, S::Error>
+fn into_generic_type_vec<S, U, T>(val: &[T], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
     T: Clone,
     U: From<T>,
-    U: Serialize
+    U: Serialize,
 {
     let x: Vec<U> = val.iter().map(|x| x.clone().into()).collect();
     x.serialize(serializer)
-}
-
-pub fn u16_to_string<S>(val: &u16, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(&val.to_string())
-    } else {
-        serializer.serialize_u16(*val)
-    }
-}
-
-pub fn u32_to_string<S>(val: &u32, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(&val.to_string())
-    } else {
-        serializer.serialize_u32(*val)
-    }
 }
 
 pub fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
