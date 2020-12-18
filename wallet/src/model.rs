@@ -52,6 +52,10 @@ pub struct AddressInfo {
     pub db_key: Key<String, AddressInfo>,
     pub label: Option<String>,
     pub received_payments: Vec<String>,
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub received_amount: u64,
     pub first_payment_date: Option<u64>,
     pub last_payment_date: Option<u64>,

@@ -567,7 +567,7 @@ impl From<ValueTransferOutputHelper> for ValueTransferOutput {
 /// Value transfer output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash, Default)]
 pub struct VttOutputParamsHelper {
-    pub address: String,
+    pub address: PublicKeyHash,
     #[serde(
         serialize_with = "u64_to_string",
         deserialize_with = "number_from_string"
@@ -579,7 +579,7 @@ pub struct VttOutputParamsHelper {
 impl From<VttOutputParams> for VttOutputParamsHelper {
     fn from(x: VttOutputParams) -> Self {
         VttOutputParamsHelper {
-            address: x.address,
+            address: x.address.parse().unwrap(),
             amount: x.amount,
             time_lock: x.time_lock,
         }
@@ -589,7 +589,7 @@ impl From<VttOutputParams> for VttOutputParamsHelper {
 impl From<VttOutputParamsHelper> for VttOutputParams {
     fn from(x: VttOutputParamsHelper) -> Self {
         VttOutputParams {
-            address: x.address,
+            address: x.address.to_string(),
             amount: x.amount,
             time_lock: x.time_lock,
         }
@@ -703,12 +703,12 @@ mod tests {
 
     #[test]
     fn test_deserialize_create_vtt() {
-        let _e1: CreateVttRequest = serde_json::from_str(r#"{"session_id":"f29f2c88b8239fef509ccaaa504f943c3badcaff71d78d908d34cd461ea09f15","wallet_id":"87575c9031c01cf84dffc33fe2d28474d620dacd673f06990dc0318079ddfde7","outputs":[{"address":"twit1t4asz498h980446cfps0cpqatgvvkxv5zgll9e","amount":"1"}],"fee":"1","label":""}"#).unwrap();
+        let _e1: CreateVttRequest = serde_json::from_str(r#"{"session_id":"f29f2c88b8239fef509ccaaa504f943c3badcaff71d78d908d34cd461ea09f15","wallet_id":"87575c9031c01cf84dffc33fe2d28474d620dacd673f06990dc0318079ddfde7","outputs":[{"address":"wit1hrgcchsxezpf4cqy73djdelp03c9duwd4gx6yx","amount":"1"}],"fee":"1","label":""}"#).unwrap();
     }
 
     #[test]
     fn test_deserialize_vtt_response() {
-        let _e1: CreateVttResponse = serde_json::from_str(r#"{"bytes":"0ad9010a630a260a240a220a20aa27cffcdc685c99c030e67a4d65b49803870f4277a7620e83b2e55fc6ed5bc2121a0a160a14153f9050e14523266b9e500bb667e1ae4ad188421001121d0a160a141de42db8d29472378197eaf88b9dfeba4ec0bf5e10b18be80312720a4b0a490a47304502210081ffe5c085a8aa95b71b91ba987f97265054b58a742bcebcc1a3a2bba21f4e3202206d7d82b5519b82063b6aeb962ec2fde7fc602c870cbbf150750f652dddaf28fa12230a2102fe4a2f859572fed6076fceb66ea8f56daac889616c72e5c2cd1ade5a0784fb2f","metadata":{"fee":"853","outputs":[{"address":"twit1z5leq58pg53jv6u72q9mvelp4e9drzzztadmmp","amount":"1","time_lock":null}]},"transaction":{"ValueTransfer":{"body":{"inputs":[{"output_pointer":"aa27cffcdc685c99c030e67a4d65b49803870f4277a7620e83b2e55fc6ed5bc2:0"}],"outputs":[{"pkh":"wit1hrgcchsxezpf4cqy73djdelp03c9duwd4gx6yx","time_lock":0,"value":"1"},{"pkh":"wit1dm0rm5hc2uqa5japlpc0n2adfu0tmyx95h3nec","time_lock":0,"value":"7996849"}]},"signatures":[{"public_key":{"bytes":[254,74,47,133,149,114,254,214,7,111,206,182,110,168,245,109,170,200,137,97,108,114,229,194,205,26,222,90,7,132,251,47],"compressed":2},"signature":{"Secp256k1":{"der":[48,69,2,33,0,129,255,229,192,133,168,170,149,183,27,145,186,152,127,151,38,80,84,181,138,116,43,206,188,193,163,162,187,162,31,78,50,2,32,109,125,130,181,81,155,130,6,59,106,235,150,46,194,253,231,252,96,44,135,12,187,241,80,117,15,101,45,221,175,40,250]}}}]}},"transaction_id":"dbb328838b6dc40ba6fabe007f97d6f948532e68590db0ff8ea6a75b11ae432d"}"#).unwrap();
+        let _e1: CreateVttResponse = serde_json::from_str(r#"{"bytes":"0ad9010a630a260a240a220a20aa27cffcdc685c99c030e67a4d65b49803870f4277a7620e83b2e55fc6ed5bc2121a0a160a14153f9050e14523266b9e500bb667e1ae4ad188421001121d0a160a141de42db8d29472378197eaf88b9dfeba4ec0bf5e10b18be80312720a4b0a490a47304502210081ffe5c085a8aa95b71b91ba987f97265054b58a742bcebcc1a3a2bba21f4e3202206d7d82b5519b82063b6aeb962ec2fde7fc602c870cbbf150750f652dddaf28fa12230a2102fe4a2f859572fed6076fceb66ea8f56daac889616c72e5c2cd1ade5a0784fb2f","metadata":{"fee":"853","outputs":[{"address":"wit1hrgcchsxezpf4cqy73djdelp03c9duwd4gx6yx","amount":"1","time_lock":null}]},"transaction":{"ValueTransfer":{"body":{"inputs":[{"output_pointer":"aa27cffcdc685c99c030e67a4d65b49803870f4277a7620e83b2e55fc6ed5bc2:0"}],"outputs":[{"pkh":"wit1hrgcchsxezpf4cqy73djdelp03c9duwd4gx6yx","time_lock":0,"value":"1"},{"pkh":"wit1dm0rm5hc2uqa5japlpc0n2adfu0tmyx95h3nec","time_lock":0,"value":"7996849"}]},"signatures":[{"public_key":{"bytes":[254,74,47,133,149,114,254,214,7,111,206,182,110,168,245,109,170,200,137,97,108,114,229,194,205,26,222,90,7,132,251,47],"compressed":2},"signature":{"Secp256k1":{"der":[48,69,2,33,0,129,255,229,192,133,168,170,149,183,27,145,186,152,127,151,38,80,84,181,138,116,43,206,188,193,163,162,187,162,31,78,50,2,32,109,125,130,181,81,155,130,6,59,106,235,150,46,194,253,231,252,96,44,135,12,187,241,80,117,15,101,45,221,175,40,250]}}}]}},"transaction_id":"dbb328838b6dc40ba6fabe007f97d6f948532e68590db0ff8ea6a75b11ae432d"}"#).unwrap();
     }
 
     #[test]
