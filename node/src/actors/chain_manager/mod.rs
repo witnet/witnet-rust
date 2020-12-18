@@ -1406,8 +1406,8 @@ impl ChainManager {
                         }
                     };
                     let sessions_manager_addr = SessionsManager::from_registry();
-
                     sessions_manager_addr.do_send(DropOutboundPeers {peers_to_drop: peers_to_unregister});
+
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -1840,6 +1840,19 @@ impl ChainManager {
         .map_err(|e, _, _| log::error!("{:?}", e));
 
         Box::new(fut)
+    }
+
+    /// This function send a message to SessionsManager to drop all outbounds peers
+    pub fn drop_all_outbounds(&self) {
+        let peers_to_unregister = self
+            .last_received_beacons
+            .iter()
+            .map(|(addr, _)| *addr)
+            .collect();
+        let sessions_manager_addr = SessionsManager::from_registry();
+        sessions_manager_addr.do_send(DropOutboundPeers {
+            peers_to_drop: peers_to_unregister,
+        });
     }
 }
 

@@ -403,6 +403,11 @@ impl Handler<AddBlocks> for ChainManager {
                         let (batch_succeeded, num_processed_blocks) =
                             self.process_first_batch(ctx, &sync_target, &blocks);
                         if !batch_succeeded {
+                            // We receive an invalid batch of blocks. So we need to throw away our
+                            // outbound peers in order to find new ones that can give us the blocks
+                            // consolidated by the network
+                            self.drop_all_outbounds();
+
                             return;
                         }
 
@@ -427,6 +432,11 @@ impl Handler<AddBlocks> for ChainManager {
                         let (batch_succeeded, num_processed_blocks) =
                             self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
                         if !batch_succeeded {
+                            // We receive an invalid batch of blocks. So we need to throw away our
+                            // outbound peers in order to find new ones that can give us the blocks
+                            // consolidated by the network
+                            self.drop_all_outbounds();
+
                             return;
                         }
                         log_sync_progress(
@@ -458,6 +468,11 @@ impl Handler<AddBlocks> for ChainManager {
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remainig_blocks);
                                 if !batch_succeeded {
+                                    // We receive an invalid batch of blocks. So we need to throw away our
+                                    // outbound peers in order to find new ones that can give us the blocks
+                                    // consolidated by the network
+                                    act.drop_all_outbounds();
+
                                     return actix::fut::err(());
                                 }
                                 log_sync_progress(&sync_target, &remainig_blocks, num_processed_blocks, "SyncWithoutCandidate(remaining)");
@@ -479,6 +494,11 @@ impl Handler<AddBlocks> for ChainManager {
                         let (batch_succeeded, num_processed_blocks) =
                             self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
                         if !batch_succeeded {
+                            // We receive an invalid batch of blocks. So we need to throw away our
+                            // outbound peers in order to find new ones that can give us the blocks
+                            // consolidated by the network
+                            self.drop_all_outbounds();
+
                             return;
                         }
                         log_sync_progress(
@@ -510,6 +530,11 @@ impl Handler<AddBlocks> for ChainManager {
                                     // Process remaining blocks
                                     let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &candidate_blocks);
                                     if !batch_succeeded {
+                                        // We receive an invalid batch of blocks. So we need to throw away our
+                                        // outbound peers in order to find new ones that can give us the blocks
+                                        // consolidated by the network
+                                        act.drop_all_outbounds();
+
                                         act.update_state_machine(StateMachine::WaitingConsensus);
 
                                         return actix::fut::err(());
@@ -554,6 +579,11 @@ impl Handler<AddBlocks> for ChainManager {
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
+                                    // We receive an invalid batch of blocks. So we need to throw away our
+                                    // outbound peers in order to find new ones that can give us the blocks
+                                    // consolidated by the network
+                                    act.drop_all_outbounds();
+
                                     log::error!("Received invalid blocks batch...");
                                     act.update_state_machine(StateMachine::WaitingConsensus);
                                     act.sync_waiting_for_add_blocks_since = None;
