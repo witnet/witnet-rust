@@ -1,12 +1,14 @@
-use serde_cbor::value::{from_value, Value};
 use std::{
     convert::{TryFrom, TryInto},
     str::FromStr,
 };
 
+use serde_cbor::value::{from_value, Value};
+
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
+    operators::map::_replace_separators,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
@@ -43,25 +45,43 @@ pub fn radon_trim(input: &RadonString) -> String {
     }
 }
 
-pub fn to_float(input: &RadonString) -> Result<RadonFloat, RadError> {
-    let str_value = radon_trim(input);
-    f64::from_str(&str_value)
-        .map(RadonFloat::from)
-        .map_err(Into::into)
-}
-
-pub fn to_int(input: &RadonString) -> Result<RadonInteger, RadError> {
-    let str_value = radon_trim(input);
-    i128::from_str(&str_value)
-        .map(RadonInteger::from)
-        .map_err(Into::into)
-}
-
 pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
     let str_value = radon_trim(input);
     bool::from_str(&str_value)
         .map(RadonBoolean::from)
         .map_err(Into::into)
+}
+
+/// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
+/// a valid floating point number.
+pub fn as_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
+    f64::from_str(&as_numeric_string(input, args))
+        .map(RadonFloat::from)
+        .map_err(Into::into)
+}
+
+/// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
+/// a valid integer number.
+pub fn as_integer(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonInteger, RadError> {
+    i128::from_str(&as_numeric_string(input, args))
+        .map(RadonInteger::from)
+        .map_err(Into::into)
+}
+
+/// Converts a `RadonString` into a `String` containing a numeric value, provided that the input
+/// string actually represents a valid number.
+pub fn as_numeric_string(input: &RadonString, args: &Option<Vec<Value>>) -> String {
+    let str_value = radon_trim(input);
+
+    match args {
+        Some(args) if args.len() == 3 => {
+            _replace_separators(str_value, args[1].clone(), args[2].clone())
+        }
+        _ => str_value,
+    }
 }
 
 pub fn length(input: &RadonString) -> RadonInteger {
@@ -160,9 +180,11 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::types::{array::RadonArray, bytes::RadonBytes};
     use std::collections::{BTreeMap, HashMap};
+
+    use crate::types::{array::RadonArray, bytes::RadonBytes};
+
+    use super::*;
 
     #[test]
     fn test_parse_json_map() {
@@ -260,7 +282,7 @@ mod tests {
         let rad_int = RadonInteger::from(10);
         let rad_string: RadonString = RadonString::from("10");
 
-        assert_eq!(to_int(&rad_string).unwrap(), rad_int);
+        assert_eq!(as_integer(&rad_string, &None).unwrap(), rad_int);
     }
 
     #[test]
@@ -268,7 +290,7 @@ mod tests {
         let rad_float = RadonFloat::from(10.2);
         let rad_string: RadonString = RadonString::from("10.2");
 
-        assert_eq!(to_float(&rad_string).unwrap(), rad_float);
+        assert_eq!(as_float(&rad_string, &None).unwrap(), rad_float);
     }
 
     #[test]

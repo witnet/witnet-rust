@@ -131,10 +131,10 @@ impl Operable for RadonArray {
                 array_operators::get_bytes(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetInteger, Some(args)) => {
-                array_operators::get_integer(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::get_integer(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetFloat, Some(args)) => {
-                array_operators::get_float(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::get_float(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetMap, Some(args)) => {
                 array_operators::get_map(self, args.as_slice()).map(RadonTypes::from)
