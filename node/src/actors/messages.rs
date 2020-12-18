@@ -70,6 +70,8 @@ impl Message for GetSuperBlockVotes {
 pub struct AddBlocks {
     /// Blocks
     pub blocks: Vec<Block>,
+    /// Sender peer
+    pub sender: Option<SocketAddr>,
 }
 
 impl Message for AddBlocks {

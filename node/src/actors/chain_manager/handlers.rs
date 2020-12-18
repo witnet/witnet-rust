@@ -294,6 +294,7 @@ impl Handler<AddBlocks> for ChainManager {
         );
 
         let consensus_constants = self.consensus_constants();
+        let sender = msg.sender;
 
         match self.sm_state {
             StateMachine::WaitingConsensus | StateMachine::AlmostSynced => {
@@ -403,10 +404,7 @@ impl Handler<AddBlocks> for ChainManager {
                         let (batch_succeeded, num_processed_blocks) =
                             self.process_first_batch(ctx, &sync_target, &blocks);
                         if !batch_succeeded {
-                            // We receive an invalid batch of blocks. So we need to throw away our
-                            // outbound peers in order to find new ones that can give us the blocks
-                            // consolidated by the network
-                            self.drop_all_outbounds();
+                            self.drop_all_outbounds_and_ice_sender(sender);
 
                             return;
                         }
@@ -432,10 +430,7 @@ impl Handler<AddBlocks> for ChainManager {
                         let (batch_succeeded, num_processed_blocks) =
                             self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
                         if !batch_succeeded {
-                            // We receive an invalid batch of blocks. So we need to throw away our
-                            // outbound peers in order to find new ones that can give us the blocks
-                            // consolidated by the network
-                            self.drop_all_outbounds();
+                            self.drop_all_outbounds_and_ice_sender(sender);
 
                             return;
                         }
@@ -468,10 +463,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remainig_blocks);
                                 if !batch_succeeded {
-                                    // We receive an invalid batch of blocks. So we need to throw away our
-                                    // outbound peers in order to find new ones that can give us the blocks
-                                    // consolidated by the network
-                                    act.drop_all_outbounds();
+                                    act.drop_all_outbounds_and_ice_sender(sender);
 
                                     return actix::fut::err(());
                                 }
@@ -494,10 +486,7 @@ impl Handler<AddBlocks> for ChainManager {
                         let (batch_succeeded, num_processed_blocks) =
                             self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
                         if !batch_succeeded {
-                            // We receive an invalid batch of blocks. So we need to throw away our
-                            // outbound peers in order to find new ones that can give us the blocks
-                            // consolidated by the network
-                            self.drop_all_outbounds();
+                            self.drop_all_outbounds_and_ice_sender(sender);
 
                             return;
                         }
@@ -530,10 +519,7 @@ impl Handler<AddBlocks> for ChainManager {
                                     // Process remaining blocks
                                     let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &candidate_blocks);
                                     if !batch_succeeded {
-                                        // We receive an invalid batch of blocks. So we need to throw away our
-                                        // outbound peers in order to find new ones that can give us the blocks
-                                        // consolidated by the network
-                                        act.drop_all_outbounds();
+                                        act.drop_all_outbounds_and_ice_sender(sender);
 
                                         act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -579,10 +565,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
                                 if !batch_succeeded {
-                                    // We receive an invalid batch of blocks. So we need to throw away our
-                                    // outbound peers in order to find new ones that can give us the blocks
-                                    // consolidated by the network
-                                    act.drop_all_outbounds();
+                                    act.drop_all_outbounds_and_ice_sender(sender);
 
                                     log::error!("Received invalid blocks batch...");
                                     act.update_state_machine(StateMachine::WaitingConsensus);

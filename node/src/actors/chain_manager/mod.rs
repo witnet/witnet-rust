@@ -75,10 +75,11 @@ use crate::{
         json_rpc::JsonRpcServer,
         messages::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
-            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, SendInventoryItem,
-            SendInventoryRequest, SendLastBeacon, SendSuperBlockVote, StoreInventoryItem,
-            SuperBlockNotify,
+            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
+            SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
+            StoreInventoryItem, SuperBlockNotify,
         },
+        peers_manager::PeersManager,
         sessions_manager::SessionsManager,
         storage_keys,
     },
@@ -1842,7 +1843,7 @@ impl ChainManager {
         Box::new(fut)
     }
 
-    /// This function send a message to SessionsManager to drop all outbounds peers
+    /// Send a message to `SessionsManager` to drop all outbound peers.
     pub fn drop_all_outbounds(&self) {
         let peers_to_unregister = self
             .last_received_beacons
@@ -1853,6 +1854,28 @@ impl ChainManager {
         sessions_manager_addr.do_send(DropOutboundPeers {
             peers_to_drop: peers_to_unregister,
         });
+    }
+
+    /// Send a message to `PeersManager` to ice a specific peer.
+    pub fn ice_peer(&self, addr: Option<SocketAddr>) {
+        if let Some(addr) = addr {
+            let peers_manager_addr = PeersManager::from_registry();
+            peers_manager_addr.do_send(RemoveAddressesFromTried {
+                addresses: vec![addr],
+                ice: true,
+            });
+        }
+    }
+
+    /// Execute `drop_all_outbounds` and `ice_peer` at once.
+    ///
+    /// This is called when we receive an invalid batch of blocks. It will throw away our outbound
+    /// peers in order to find new ones that can give us the blocks consolidated by the network,
+    /// and ice the node that sent the invalid batch.
+    pub fn drop_all_outbounds_and_ice_sender(&self, sender: Option<SocketAddr>) {
+        self.drop_all_outbounds();
+        // Ice the invalid blocks' batch sender
+        self.ice_peer(sender);
     }
 }
 

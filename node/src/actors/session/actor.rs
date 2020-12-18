@@ -114,7 +114,10 @@ impl Actor for Session {
             // Get ChainManager address
             let chain_manager_addr = ChainManager::from_registry();
 
-            chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+            chain_manager_addr.do_send(AddBlocks {
+                blocks: vec![],
+                sender: None,
+            });
             log::warn!("Session disconnected during block exchange");
         }
 

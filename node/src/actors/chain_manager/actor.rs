@@ -235,6 +235,7 @@ impl ChainManager {
                         let genesis_block = ig.build_genesis_block(consensus_constants.bootstrap_hash);
                         ctx.notify(AddBlocks {
                             blocks: vec![genesis_block],
+                            sender: None,
                         });
                     }
                 }

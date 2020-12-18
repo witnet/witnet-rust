@@ -109,7 +109,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
             // Get ChainManager address
             let chain_manager_addr = ChainManager::from_registry();
 
-            chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+            chain_manager_addr.do_send(AddBlocks {
+                blocks: vec![],
+                sender: None,
+            });
             log::warn!("Timeout for waiting blocks achieved");
             ctx.stop();
         }
@@ -667,6 +670,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
             // Send a message to the ChainManager to try to add a new block
             chain_manager_addr.do_send(AddBlocks {
                 blocks: blocks_vector,
+                sender: session.public_addr,
             });
 
             // Clear requested block structures
