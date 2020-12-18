@@ -155,32 +155,14 @@ pub struct CreateWalletData<'a> {
     pub master_key: Option<ExtendedSK>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VttParams {
-    #[serde(
-        serialize_with = "u64_to_string",
-        deserialize_with = "number_from_string"
-    )]
     pub fee: u64,
-    #[serde(
-        serialize_with = "into_generic_type_vec::<_, ValueTransferOutputHelper, _>",
-        deserialize_with = "from_generic_type_vec::<_, ValueTransferOutputHelper, _>"
-    )]
     pub outputs: Vec<ValueTransferOutput>,
     pub fee_type: FeeType,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DataReqParams {
-    #[serde(
-        serialize_with = "u64_to_string",
-        deserialize_with = "number_from_string"
-    )]
     pub fee: u64,
-    #[serde(
-        serialize_with = "into_generic_type::<_, DataRequestOutputHelper, _>",
-        deserialize_with = "from_generic_type::<_, DataRequestOutputHelper, _>"
-    )]
     pub request: DataRequestOutput,
     pub fee_type: FeeType,
 }
