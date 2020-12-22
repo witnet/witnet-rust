@@ -55,7 +55,7 @@ use witnet_rad::{
 /// their value.
 pub fn vt_transaction_fee(
     vt_tx: &VTTransaction,
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
@@ -77,7 +77,7 @@ pub fn vt_transaction_fee(
 /// their value.
 pub fn dr_transaction_fee(
     dr_tx: &DRTransaction,
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
@@ -101,7 +101,7 @@ pub fn dr_transaction_fee(
 /// their value.
 pub fn validate_commit_collateral(
     co_tx: &CommitTransaction,
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
     required_collateral: u64,
@@ -326,12 +326,18 @@ fn update_liars(liars: &mut Vec<bool>, item: RadonTypes, condition: bool) -> Opt
 /// `evaluate_tally_precondition_clause` method.
 #[derive(Debug)]
 pub enum TallyPreconditionClauseResult {
+    /// The result of the data request is a valid value
     MajorityOfValues {
+        /// All the values reported by witnesses, including errors
         values: Vec<RadonTypes>,
+        /// Bit vector marking witnesses as liars
         liars: Vec<bool>,
+        /// Bit vector marking witnesses as errors
         errors: Vec<bool>,
     },
+    /// The result of the data request is an error
     MajorityOfErrors {
+        /// Mode of all the reported RadonErrors, or ModeError if there is no mode
         errors_mode: RadonError<RadError>,
     },
 }
@@ -535,7 +541,7 @@ pub fn construct_report_from_clause_result(
 /// Function to validate a value transfer transaction
 pub fn validate_vt_transaction<'a>(
     vt_tx: &'a VTTransaction,
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
@@ -628,7 +634,7 @@ pub fn validate_genesis_vt_transaction(
 /// Function to validate a data request transaction
 pub fn validate_dr_transaction<'a>(
     dr_tx: &'a DRTransaction,
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
@@ -754,7 +760,7 @@ pub fn validate_commit_transaction(
     rep_eng: &ReputationEngine,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
     collateral_minimum: u64,
     collateral_age: u32,
     block_number: u32,
@@ -977,6 +983,7 @@ fn create_expected_tally_transaction(
     Ok((ta_tx, dr_state.clone()))
 }
 
+/// Return (number_of_lies, number_of_errors) in `TallyTransaction`
 pub fn calculate_liars_and_errors_count_from_tally(tally_tx: &TallyTransaction) -> (usize, usize) {
     tally_tx
         .out_of_consensus
@@ -1191,7 +1198,7 @@ pub fn validate_block_signature(
 pub fn validate_pkh_signature(
     input: &Input,
     keyed_signature: &KeyedSignature,
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
 ) -> Result<(), failure::Error> {
     let output = utxo_diff.get(&input.output_pointer());
     if let Some(x) = output {
@@ -1313,7 +1320,7 @@ pub fn validate_transaction_signature(
     signatures: &[KeyedSignature],
     inputs: &[Input],
     tx_hash: Hash,
-    utxo_set: &UtxoDiff,
+    utxo_set: &UtxoDiff<'_>,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
@@ -1378,8 +1385,9 @@ fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
         .current += 1;
 }
 
+/// Update UTXO diff with the provided inputs and outputs
 pub fn update_utxo_diff(
-    utxo_diff: &mut UtxoDiff,
+    utxo_diff: &mut UtxoDiff<'_>,
     inputs: Vec<&Input>,
     outputs: Vec<&ValueTransferOutput>,
     tx_hash: Hash,
@@ -1860,6 +1868,8 @@ pub fn validate_new_transaction(
     }
 }
 
+/// Calculate the target hash needed to create a valid VRF proof of eligibility used for block
+/// mining.
 pub fn calculate_randpoe_threshold(
     total_identities: u32,
     replication_factor: u32,
@@ -1882,6 +1892,8 @@ pub fn calculate_randpoe_threshold(
     (Hash::with_first_u32(target), probability)
 }
 
+/// Calculate the target hash needed to create a valid VRF proof of eligibility used for data
+/// request witnessing.
 pub fn calculate_reppoe_threshold(
     rep_eng: &ReputationEngine,
     pkh: &PublicKeyHash,
@@ -1924,11 +1936,14 @@ pub struct VrfSlots {
 }
 
 impl VrfSlots {
+    /// Create new list of slots with the given target hashes.
+    ///
     /// `target_hashes` must be sorted
     pub fn new(target_hashes: Vec<Hash>) -> Self {
         Self { target_hashes }
     }
 
+    /// Create new list of slots with the given parameters
     pub fn from_rf(
         total_identities: u32,
         replication_factor: u32,
@@ -1953,6 +1968,7 @@ impl VrfSlots {
         )
     }
 
+    /// Return the slot number that contains the given hash
     pub fn slot(&self, hash: &Hash) -> u32 {
         let num_sections = self.target_hashes.len();
         u32::try_from(
@@ -2022,9 +2038,11 @@ pub const WIT_DECIMAL_PLACES: u8 = 9;
 pub struct Wit(u64);
 
 impl Wit {
+    /// Create from wits
     pub fn from_wits(wits: u64) -> Self {
-        Self(wits * NANOWITS_PER_WIT)
+        Self(wits.checked_mul(NANOWITS_PER_WIT).expect("overflow"))
     }
+    /// Create from nanowits
     pub fn from_nanowits(nanowits: u64) -> Self {
         Self(nanowits)
     }
