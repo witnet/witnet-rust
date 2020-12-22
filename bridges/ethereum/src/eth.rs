@@ -1,6 +1,5 @@
-use crate::config::Config;
-use crate::multibimap::MultiBiMap;
-use ethabi::{Bytes, Token};
+use crate::{config::Config, multibimap::MultiBiMap};
+use ethabi::Bytes;
 use futures::Future;
 use futures_locks::RwLock;
 use std::collections::{HashMap, HashSet};
@@ -424,19 +423,6 @@ impl EthState {
             post_tally_event_sig,
             wrb_requests,
         })
-    }
-}
-
-/// Assume the first return value of an event log is a U256 and return it
-pub fn read_u256_from_event_log(value: &web3::types::Log) -> Result<U256, ()> {
-    let event_types = vec![ethabi::ParamType::Uint(0)];
-    let event_data = ethabi::decode(&event_types, &value.data.0);
-    log::debug!("Event data: {:?}", event_data);
-
-    // Errors are handled by the caller, if this fails there is nothing we can do
-    match event_data.map_err(|_| ())?.get(0).ok_or(())? {
-        Token::Uint(x) => Ok(*x),
-        _ => Err(()),
     }
 }
 

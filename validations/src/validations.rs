@@ -246,7 +246,7 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
     }
     for path in retrieval_paths {
         // If the sources are empty the data request is set as invalid
-        if path.url == "" {
+        if path.url.is_empty() {
             return Err(DataRequestError::NoRetrievalSources.into());
         }
         unpack_radon_script(path.script.as_slice())?;

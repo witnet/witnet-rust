@@ -68,8 +68,10 @@ mod tests {
         let input = vec![];
         let expected = RadError::ModeEmpty;
 
-        let mut ctx = ReportContext::default();
-        ctx.stage = Stage::Tally(TallyMetaData::default());
+        let mut ctx = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
         let output = imode(&input, &mut ctx).unwrap_err();
         assert_eq!(output, expected);
     }
@@ -79,8 +81,10 @@ mod tests {
         let input = vec![1];
         let expected = input.clone();
 
-        let mut ctx = ReportContext::default();
-        ctx.stage = Stage::Tally(TallyMetaData::default());
+        let mut ctx = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
         let output = imode(&input, &mut ctx).unwrap();
         assert_eq!(output, expected);
 
@@ -102,8 +106,10 @@ mod tests {
             max_count: 1,
         };
 
-        let mut ctx = ReportContext::default();
-        ctx.stage = Stage::Tally(TallyMetaData::default());
+        let mut ctx = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
         let output = imode(&input, &mut ctx).unwrap_err();
         assert_eq!(output, expected);
     }
@@ -113,8 +119,10 @@ mod tests {
         let input = vec![1, 2, 2, 2, 3, 1];
         let expected = vec![2, 2, 2];
 
-        let mut ctx = ReportContext::default();
-        ctx.stage = Stage::Tally(TallyMetaData::default());
+        let mut ctx = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
         let output = imode(&input, &mut ctx).unwrap();
         assert_eq!(output, expected);
 
@@ -158,8 +166,10 @@ mod tests {
         let input = vec!["Hello".to_string()];
         let expected = input.clone();
 
-        let mut ctx = ReportContext::default();
-        ctx.stage = Stage::Tally(TallyMetaData::default());
+        let mut ctx = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
         let output = strmode(&input, &mut ctx).unwrap();
         assert_eq!(output, expected);
 
@@ -181,8 +191,10 @@ mod tests {
             max_count: 1,
         };
 
-        let mut ctx = ReportContext::default();
-        ctx.stage = Stage::Tally(TallyMetaData::default());
+        let mut ctx = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
         let output = strmode(&input, &mut ctx).unwrap_err();
         assert_eq!(output, expected);
     }
@@ -202,8 +214,10 @@ mod tests {
         ];
         let expected = vec![str2.clone(), str2.clone(), str2];
 
-        let mut ctx = ReportContext::default();
-        ctx.stage = Stage::Tally(TallyMetaData::default());
+        let mut ctx = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
         let output = strmode(&input, &mut ctx).unwrap();
         assert_eq!(output, expected);
 

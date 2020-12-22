@@ -396,8 +396,10 @@ mod tests {
         let dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block
-        let mut block_beacon = CheckpointBeacon::default();
-        block_beacon.checkpoint = block_epoch;
+        let block_beacon = CheckpointBeacon {
+            checkpoint: block_epoch,
+            hash_prev_block: Hash::default(),
+        };
         let block_number = 1;
         let block_proof = BlockEligibilityClaim::default();
         let collateral_minimum = 1_000_000_000;

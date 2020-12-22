@@ -459,7 +459,7 @@ mod tests {
             Value::Integer(RadonOpCodes::StringParseJSONArray as i128),
             Value::Array(vec![
                 Value::Integer(RadonOpCodes::ArrayGetMap as i128),
-                Value::Integer(0 as i128),
+                Value::Integer(0_i128),
             ]),
             Value::Array(vec![
                 Value::Integer(RadonOpCodes::MapGetMap as i128),

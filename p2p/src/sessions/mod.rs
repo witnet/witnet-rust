@@ -73,7 +73,7 @@ where
             inbound_consolidated: BoundedSessions::default(),
             inbound_network_ranges: Default::default(),
             inbound_unconsolidated: BoundedSessions::default(),
-            magic_number: 0 as u16,
+            magic_number: 0,
             outbound_consolidated: BoundedSessions::default(),
             outbound_consolidated_consensus: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),

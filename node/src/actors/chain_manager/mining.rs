@@ -1070,8 +1070,10 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
 
-        let mut vrf_input = CheckpointVRF::default();
-        vrf_input.hash_prev_vrf = LAST_VRF_INPUT.parse().unwrap();
+        let vrf_input = CheckpointVRF {
+            hash_prev_vrf: LAST_VRF_INPUT.parse().unwrap(),
+            checkpoint: 0,
+        };
 
         // Add valid vrf proof
         let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -1573,7 +1575,7 @@ mod tests {
             probs.push(calculate_mining_probability(&rep_engine, id, rf, bf))
         }
 
-        let new_pkh = PublicKeyHash::from_bytes(&[0xFF as u8; 20]).unwrap();
+        let new_pkh = PublicKeyHash::from_bytes(&[0xFF; 20]).unwrap();
         let new_prob = calculate_mining_probability(&rep_engine, new_pkh, rf, bf);
 
         (probs, new_prob)
@@ -1589,20 +1591,20 @@ mod tests {
         for &prob in &probs[0..8] {
             assert_eq!(
                 (prob * 10_000.0).round() as u32,
-                (7.12 as f64 * 100.0).round() as u32
+                (7.12_f64 * 100.0).round() as u32
             );
         }
 
         for &prob in &probs[8..10] {
             assert_eq!(
                 (prob * 10_000.0).round() as u32,
-                (4.09 as f64 * 100.0).round() as u32
+                (4.09_f64 * 100.0).round() as u32
             );
         }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (3.89 as f64 * 100.0).round() as u32
+            (3.89_f64 * 100.0).round() as u32
         );
     }
 
@@ -1616,13 +1618,13 @@ mod tests {
         for prob in probs {
             assert_eq!(
                 (prob * 10_000.0).round() as u32,
-                (9.04 as f64 * 100.0).round() as u32
+                (9.04_f64 * 100.0).round() as u32
             );
         }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (4.56 as f64 * 100.0).round() as u32
+            (4.56_f64 * 100.0).round() as u32
         );
     }
 
@@ -1636,13 +1638,13 @@ mod tests {
         for prob in probs {
             assert_eq!(
                 (prob * 10_000.0).round() as u32,
-                (8.93 as f64 * 100.0).round() as u32
+                (8.93_f64 * 100.0).round() as u32
             );
         }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (2.15 as f64 * 100.0).round() as u32
+            (2.15_f64 * 100.0).round() as u32
         );
     }
 
@@ -1656,13 +1658,13 @@ mod tests {
         for prob in probs {
             assert_eq!(
                 (prob * 10_000.0).round() as u32,
-                (10.02 as f64 * 100.0).round() as u32
+                (10.02_f64 * 100.0).round() as u32
             );
         }
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (0.25 as f64 * 100.0).round() as u32
+            (0.25_f64 * 100.0).round() as u32
         );
     }
 
@@ -1675,12 +1677,12 @@ mod tests {
 
         assert_eq!(
             (probs[0] * 10_000.0).round() as u32,
-            (6.51 as f64 * 100.0).round() as u32
+            (6.51_f64 * 100.0).round() as u32
         );
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (3.49 as f64 * 100.0).round() as u32
+            (3.49_f64 * 100.0).round() as u32
         );
     }
 
@@ -1693,12 +1695,12 @@ mod tests {
 
         assert_eq!(
             (probs[0] * 10_000.0).round() as u32,
-            (0.63 as f64 * 100.0).round() as u32
+            (0.63_f64 * 100.0).round() as u32
         );
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (0.37 as f64 * 100.0).round() as u32
+            (0.37_f64 * 100.0).round() as u32
         );
     }
 
@@ -1711,12 +1713,12 @@ mod tests {
 
         assert_eq!(
             (probs[0] * 10_000.0).round() as u32,
-            (1.0 as f64 * 100.0).round() as u32
+            (1.0_f64 * 100.0).round() as u32
         );
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (0.08 as f64 * 100.0).round() as u32
+            (0.08_f64 * 100.0).round() as u32
         );
     }
 
@@ -1749,7 +1751,7 @@ mod tests {
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (0.08 as f64 * 100.0).round() as u32
+            (0.08_f64 * 100.0).round() as u32
         );
     }
 
@@ -1769,7 +1771,7 @@ mod tests {
 
         assert_eq!(
             (new_prob * 10_000.0).round() as u32,
-            (0.0 as f64 * 100.0).round() as u32
+            (0_f64 * 100.0).round() as u32
         );
     }
 }

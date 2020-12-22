@@ -5404,14 +5404,22 @@ mod tests {
 
     #[test]
     fn test_sort_own_utxos() {
-        let mut vto1 = ValueTransferOutput::default();
-        vto1.value = 100;
-        let mut vto2 = ValueTransferOutput::default();
-        vto2.value = 500;
-        let mut vto3 = ValueTransferOutput::default();
-        vto3.value = 200;
-        let mut vto4 = ValueTransferOutput::default();
-        vto4.value = 300;
+        let vto1 = ValueTransferOutput {
+            value: 100,
+            ..ValueTransferOutput::default()
+        };
+        let vto2 = ValueTransferOutput {
+            value: 500,
+            ..ValueTransferOutput::default()
+        };
+        let vto3 = ValueTransferOutput {
+            value: 200,
+            ..ValueTransferOutput::default()
+        };
+        let vto4 = ValueTransferOutput {
+            value: 300,
+            ..ValueTransferOutput::default()
+        };
 
         let vt = Transaction::ValueTransfer(VTTransaction::new(
             VTTransactionBody::new(vec![], vec![vto1, vto2, vto3, vto4]),
@@ -5461,9 +5469,9 @@ mod tests {
     fn test_ordered_alts_no_tie() {
         let mut alt_keys = AltKeys::default();
 
-        let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
-        let p2 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
-        let p3 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
+        let p1 = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x02; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x03; 20]).unwrap();
 
         let p1_bls =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
@@ -5505,9 +5513,9 @@ mod tests {
     fn test_ordered_alts_with_tie() {
         let mut alt_keys = AltKeys::default();
 
-        let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
-        let p2 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
-        let p3 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
+        let p1 = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x02; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x03; 20]).unwrap();
 
         let p1_bls =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())
@@ -5547,11 +5555,11 @@ mod tests {
     fn test_ordered_alts_with_tie_2() {
         let mut alt_keys = AltKeys::default();
 
-        let p1 = PublicKeyHash::from_bytes(&[0x01 as u8; 20]).unwrap();
-        let p2 = PublicKeyHash::from_bytes(&[0x02 as u8; 20]).unwrap();
-        let p3 = PublicKeyHash::from_bytes(&[0x03 as u8; 20]).unwrap();
-        let p4 = PublicKeyHash::from_bytes(&[0x04 as u8; 20]).unwrap();
-        let p5 = PublicKeyHash::from_bytes(&[0x05 as u8; 20]).unwrap();
+        let p1 = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
+        let p2 = PublicKeyHash::from_bytes(&[0x02; 20]).unwrap();
+        let p3 = PublicKeyHash::from_bytes(&[0x03; 20]).unwrap();
+        let p4 = PublicKeyHash::from_bytes(&[0x04; 20]).unwrap();
+        let p5 = PublicKeyHash::from_bytes(&[0x05; 20]).unwrap();
 
         let p1_bls =
             Bn256PublicKey::from_secret_key(&Bn256SecretKey::from_slice(&[1; 32]).unwrap())

@@ -120,7 +120,8 @@ where
         let seed_bytes = self.seed.as_ref();
         let seed_len = seed_bytes.len();
 
-        if seed_len < 16 || seed_len > 64 {
+        // Seed length must be between 16 and 64 bytes (128 and 512 bits)
+        if !(16..=64).contains(&seed_len) {
             return Err(MasterKeyGenError::InvalidSeedLength);
         }
 
@@ -148,7 +149,7 @@ pub enum KeyDerivationError {
     #[fail(display = "The length of the hmac key is invalid")]
     InvalidKeyLength,
     /// Invalid seed length
-    #[fail(display = "The length of the seed is invalid, must be between 128/256 bits")]
+    #[fail(display = "The length of the seed is invalid, must be between 128/512 bits")]
     InvalidSeedLength,
     /// Secp256k1 internal error
     #[fail(display = "Error in secp256k1 crate")]

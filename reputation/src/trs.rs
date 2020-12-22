@@ -349,6 +349,10 @@ where
     }
 }
 
+/// Tried to decrement a cache entry when there is not enough to subtract.
+#[derive(Copy, Clone, Debug)]
+pub struct InconsistentCacheError;
+
 /// Increment a cache entry
 pub fn increment_cache<K, V, S>(map: &mut HashMap<K, V, S>, k: K, v: V)
 where
@@ -365,7 +369,11 @@ where
 /// Decrement a cache entry.
 /// This function returns an error when there is not enough to subtract,
 /// or the identity does not exist
-pub fn decrement_cache<K, V, S>(map: &mut HashMap<K, V, S>, k: K, v: V) -> Result<(), ()>
+pub fn decrement_cache<K, V, S>(
+    map: &mut HashMap<K, V, S>,
+    k: K,
+    v: V,
+) -> Result<(), InconsistentCacheError>
 where
     K: Eq + Hash,
     V: Default + SubAssign + Ord,
@@ -389,12 +397,12 @@ where
             }
             Ordering::Less => {
                 // Error: not enough to subtract
-                Err(())
+                Err(InconsistentCacheError)
             }
         }
     } else {
         // Error: identity does not exist
-        Err(())
+        Err(InconsistentCacheError)
     }
 }
 

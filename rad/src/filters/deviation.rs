@@ -50,7 +50,7 @@ pub fn standard_filter(
             }
             let bool_matrix = boolean_standard_filter(&input, sigmas_float)?;
 
-            keep_rows(input, &bool_matrix, context)
+            Ok(keep_rows(input, &bool_matrix, context))
         }
         Some(_rad_types) => {
             // 1D array
@@ -87,7 +87,7 @@ fn keep_rows(
     input: &RadonArray,
     keep: &RadonArray,
     context: &mut ReportContext<RadonTypes>,
-) -> Result<RadonTypes, RadError> {
+) -> RadonTypes {
     let mut result = vec![];
     let mut bool_vec = vec![];
     for (item, keep_array) in input.value().into_iter().zip(keep.value()) {
@@ -115,7 +115,7 @@ fn keep_rows(
         metadata.update_liars(bool_vec);
     }
 
-    Ok(RadonTypes::from(RadonArray::from(result)))
+    RadonTypes::from(RadonArray::from(result))
 }
 
 // Return an array with the same dimensions as the input, with a boolean indicating
@@ -314,8 +314,10 @@ mod tests {
             vec![RadonTypes::Array(expected1), RadonTypes::Array(expected2)];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let mut context = ReportContext::default();
-        context.stage = Stage::Tally(TallyMetaData::default());
+        let mut context = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
 
         let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 
@@ -348,8 +350,10 @@ mod tests {
             vec![RadonTypes::Array(expected1), RadonTypes::Array(expected2)];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let mut context = ReportContext::default();
-        context.stage = Stage::Tally(TallyMetaData::default());
+        let mut context = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
 
         let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 
@@ -380,8 +384,10 @@ mod tests {
         let expected_vec: Vec<RadonTypes> = vec![RadonTypes::Array(expected1)];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let mut context = ReportContext::default();
-        context.stage = Stage::Tally(TallyMetaData::default());
+        let mut context = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
 
         let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 
@@ -410,8 +416,10 @@ mod tests {
         let expected_vec: Vec<RadonTypes> = vec![];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let mut context = ReportContext::default();
-        context.stage = Stage::Tally(TallyMetaData::default());
+        let mut context = ReportContext {
+            stage: Stage::Tally(TallyMetaData::default()),
+            ..ReportContext::default()
+        };
 
         let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 

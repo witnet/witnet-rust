@@ -784,15 +784,7 @@ impl ChainManager {
                         let random_waiting = rng.gen_range(checkpoints_period, end_range);
                         ctx.run_later(
                             Duration::from_secs(u64::from(random_waiting)),
-                            |act, ctx| match act.add_superblock_vote(res, ctx) {
-                                Ok(()) => (),
-                                Err(e) => {
-                                    log::error!(
-                                        "Error when broadcasting recently created superblock: {}",
-                                        e
-                                    );
-                                }
-                            },
+                            |act, ctx| act.add_superblock_vote(res, ctx),
                         );
                     })
             })
@@ -812,7 +804,7 @@ impl ChainManager {
         self.chain_state.get_consensus_constants()
     }
 
-    fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) -> Result<(), failure::Error> {
+    fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) {
         let consensus_constants = self.consensus_constants();
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
@@ -821,7 +813,7 @@ impl ChainManager {
             log::debug!("add_temp_superblock_votes {:?}", superblock_vote);
             // Check if we already received this vote
             if self.chain_state.superblock_state.contains(&superblock_vote) {
-                return Ok(());
+                return;
             }
 
             // Validate secp256k1 signature
@@ -847,15 +839,9 @@ impl ChainManager {
             })
             .spawn(ctx);
         }
-
-        Ok(())
     }
 
-    fn add_superblock_vote(
-        &mut self,
-        superblock_vote: SuperBlockVote,
-        ctx: &mut Context<Self>,
-    ) -> Result<(), failure::Error> {
+    fn add_superblock_vote(&mut self, superblock_vote: SuperBlockVote, ctx: &mut Context<Self>) {
         log::trace!(
             "AddSuperBlockVote received while StateMachine is in state {:?}",
             self.sm_state
@@ -870,7 +856,7 @@ impl ChainManager {
 
         // Check if we already received this vote
         if self.chain_state.superblock_state.contains(&superblock_vote) {
-            return Ok(());
+            return;
         }
 
         // Validate secp256k1 signature
@@ -947,8 +933,6 @@ impl ChainManager {
                 .into_actor(act)
         })
         .spawn(ctx);
-
-        Ok(())
     }
 
     #[must_use]
@@ -1124,16 +1108,10 @@ impl ChainManager {
                             })
                     })
                     .into_actor(act)
-                    .and_then(|res, act, ctx| match act.add_superblock_vote(res, ctx) {
-                        Ok(()) => actix::fut::ok(()),
-                        Err(e) => {
-                            log::error!(
-                                "Error when broadcasting recently created superblock: {}",
-                                e
-                            );
+                    .and_then(|res, act, ctx| {
+                        act.add_superblock_vote(res, ctx);
 
-                            actix::fut::err(())
-                        }
+                        actix::fut::ok(())
                     })
             },
         );
@@ -1224,15 +1202,9 @@ impl ChainManager {
         let fut = futures::future::ok(self.get_blocks_epoch_range(
             GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
         ))
-        .and_then(move |res| match res {
-            Ok(v) => {
-                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
-                futures::future::ok(block_hashes)
-            }
-            Err(e) => {
-                log::error!("Error in GetBlocksEpochRange: {}", e);
-                futures::future::err(())
-            }
+        .and_then(move |res| {
+            let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
+            futures::future::ok(block_hashes)
         })
         .and_then(move |block_hashes| {
             let aux = block_hashes.into_iter().map(move |hash| {
@@ -1258,24 +1230,16 @@ impl ChainManager {
             })
             .into_actor(self)
             .and_then(move |block_headers, act, _ctx| {
-                let last_hash = act
+                let v = act
                     .get_blocks_epoch_range(
                         GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
-                    )
-                    .map(move |v| {
-                        v.first()
+                    );
+                let last_hash = v.first()
                             .map(|(_epoch, hash)| *hash)
-                            .unwrap_or(genesis_hash)
-                    });
-                match last_hash {
-                    Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
-                    Err(e) => {
-                        log::error!("Error in GetBlocksEpochRange: {}", e);
-                        actix::fut::err(())
-                    }
-                }
+                            .unwrap_or(genesis_hash);
+
+                actix::fut::ok((block_headers, last_hash))
             })
-            .map_err(|e, _, _| log::error!("Superblock building failed: {:?}", e))
             .and_then(move |(block_headers, last_hash), act, ctx| {
                 let consensus = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
 
@@ -1688,21 +1652,19 @@ impl ChainManager {
 
         // If there is a superblock to consolidate, and we got the confirmed block beacons, send
         // notification
-        if let Ok(beacons) = beacons {
-            let consolidated_block_hashes: Vec<Hash> =
-                beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
-            let superblock_notify = SuperBlockNotify {
-                superblock,
-                consolidated_block_hashes,
-            };
+        let consolidated_block_hashes: Vec<Hash> =
+            beacons.iter().cloned().map(|(_epoch, hash)| hash).collect();
+        let superblock_notify = SuperBlockNotify {
+            superblock,
+            consolidated_block_hashes,
+        };
 
-            // Store the list of block hashes that pertain to this superblock
-            InventoryManager::from_registry().do_send(AddItem {
-                item: StoreInventoryItem::Superblock(superblock_notify.clone()),
-            });
+        // Store the list of block hashes that pertain to this superblock
+        InventoryManager::from_registry().do_send(AddItem {
+            item: StoreInventoryItem::Superblock(superblock_notify.clone()),
+        });
 
-            JsonRpcServer::from_registry().do_send(superblock_notify);
-        }
+        JsonRpcServer::from_registry().do_send(superblock_notify);
     }
 
     /// Let JSON-RPC clients know when the node changes its status
@@ -1719,7 +1681,7 @@ impl ChainManager {
             limit,
             limit_from_end,
         }: GetBlocksEpochRange,
-    ) -> Result<Vec<(Epoch, Hash)>, ChainManagerError> {
+    ) -> Vec<(Epoch, Hash)> {
         log::debug!("GetBlocksEpochRange received {:?}", range);
 
         // Accept this message in any state
@@ -1735,9 +1697,7 @@ impl ChainManager {
 
         if limit == 0 {
             // Return all the blocks from this epoch range
-            let hashes: Vec<(Epoch, Hash)> = block_chain_range.collect();
-
-            Ok(hashes)
+            block_chain_range.collect()
         } else if limit_from_end {
             let mut hashes: Vec<(Epoch, Hash)> = block_chain_range
                 // Take the last "limit" blocks
@@ -1748,14 +1708,12 @@ impl ChainManager {
             // Reverse again to return them in non-reversed order
             hashes.reverse();
 
-            Ok(hashes)
+            hashes
         } else {
-            let hashes: Vec<(Epoch, Hash)> = block_chain_range
+            block_chain_range
                 // Take the first "limit" blocks
                 .take(limit)
-                .collect();
-
-            Ok(hashes)
+                .collect()
         }
     }
 
@@ -1772,15 +1730,9 @@ impl ChainManager {
         let fut = futures::future::ok(
             self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(epoch.., 0)),
         )
-        .and_then(move |res| match res {
-            Ok(v) => {
-                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
-                futures::future::ok(block_hashes)
-            }
-            Err(e) => {
-                log::error!("Error in GetBlocksEpochRange: {}", e);
-                futures::future::err(())
-            }
+        .and_then(move |res| {
+            let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
+            futures::future::ok(block_hashes)
         })
         .and_then(move |block_hashes| {
             // For each block, collect all the transactions that may be valid if this block is
@@ -1838,7 +1790,10 @@ impl ChainManager {
 
             actix::fut::ok(())
         })
-        .map_err(|e, _, _| log::error!("{:?}", e));
+        .map_err(|(), _, _| {
+            // Errors at this point should be impossible because we explicitly ignore them
+            panic!("Unknown error in reinsert_transactions_from_unconfirmed_blocks");
+        });
 
         Box::new(fut)
     }

@@ -5345,8 +5345,10 @@ fn block_signatures() {
     };
 
     let last_vrf_input = LAST_VRF_INPUT.parse().unwrap();
-    let mut vrf_input = CheckpointVRF::default();
-    vrf_input.hash_prev_vrf = last_vrf_input;
+    let vrf_input = CheckpointVRF {
+        hash_prev_vrf: last_vrf_input,
+        checkpoint: 0,
+    };
 
     b.block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
@@ -5532,15 +5534,17 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
 
     let my_pkh = PublicKeyHash::default();
 
-    let mut txns = BlockTransactions::default();
-    txns.mint = MintTransaction::new(
-        current_epoch,
-        vec![ValueTransferOutput {
-            time_lock: 0,
-            pkh: my_pkh,
-            value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
-        }],
-    );
+    let txns = BlockTransactions {
+        mint: MintTransaction::new(
+            current_epoch,
+            vec![ValueTransferOutput {
+                time_lock: 0,
+                pkh: my_pkh,
+                value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
+            }],
+        ),
+        ..BlockTransactions::default()
+    };
 
     let mut block_header = BlockHeader::default();
     build_merkle_tree(&mut block_header, &txns);
@@ -5800,15 +5804,17 @@ fn block_difficult_proof() {
     };
     let my_pkh = PublicKeyHash::default();
 
-    let mut txns = BlockTransactions::default();
-    txns.mint = MintTransaction::new(
-        current_epoch,
-        vec![ValueTransferOutput {
-            time_lock: 0,
-            pkh: my_pkh,
-            value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
-        }],
-    );
+    let txns = BlockTransactions {
+        mint: MintTransaction::new(
+            current_epoch,
+            vec![ValueTransferOutput {
+                time_lock: 0,
+                pkh: my_pkh,
+                value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
+            }],
+        ),
+        ..BlockTransactions::default()
+    };
 
     let mut block_header = BlockHeader::default();
     build_merkle_tree(&mut block_header, &txns);
@@ -7253,15 +7259,17 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         };
         let my_pkh = PublicKeyHash::default();
 
-        let mut txns = BlockTransactions::default();
-        txns.mint = MintTransaction::new(
-            current_epoch,
-            vec![ValueTransferOutput {
-                time_lock: 0,
-                pkh: my_pkh,
-                value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
-            }],
-        );
+        let txns = BlockTransactions {
+            mint: MintTransaction::new(
+                current_epoch,
+                vec![ValueTransferOutput {
+                    time_lock: 0,
+                    pkh: my_pkh,
+                    value: block_reward(current_epoch, INITIAL_BLOCK_REWARD, HALVING_PERIOD),
+                }],
+            ),
+            ..BlockTransactions::default()
+        };
 
         let mut block_header = BlockHeader::default();
         build_merkle_tree(&mut block_header, &txns);
@@ -7483,8 +7491,10 @@ fn validate_commit_transactions_included_in_utxo_diff() {
 #[test]
 fn validate_required_tally_not_found() {
     let dr_pointer = Hash::default();
-    let mut dr_state = DataRequestState::default();
-    dr_state.stage = DataRequestStage::TALLY;
+    let dr_state = DataRequestState {
+        stage: DataRequestStage::TALLY,
+        ..DataRequestState::default()
+    };
 
     let mut dr_pool = DataRequestPool::default();
     dr_pool.data_request_pool.insert(dr_pointer, dr_state);

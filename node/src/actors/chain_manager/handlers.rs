@@ -651,7 +651,9 @@ impl Handler<AddSuperBlockVote> for ChainManager {
         AddSuperBlockVote { superblock_vote }: AddSuperBlockVote,
         ctx: &mut Context<Self>,
     ) -> Self::Result {
-        self.add_superblock_vote(superblock_vote, ctx)
+        self.add_superblock_vote(superblock_vote, ctx);
+
+        Ok(())
     }
 }
 
@@ -670,7 +672,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
     type Result = Result<Vec<(Epoch, Hash)>, ChainManagerError>;
 
     fn handle(&mut self, msg: GetBlocksEpochRange, _ctx: &mut Context<Self>) -> Self::Result {
-        self.get_blocks_epoch_range(msg)
+        Ok(self.get_blocks_epoch_range(msg))
     }
 }
 
@@ -1040,7 +1042,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
                             self.update_state_machine(StateMachine::Synced);
-                            self.add_temp_superblock_votes(ctx).unwrap();
+                            self.add_temp_superblock_votes(ctx);
                         }
                         Ok(peers_to_unregister)
                     }

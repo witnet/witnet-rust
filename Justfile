@@ -33,6 +33,7 @@ export CLIPPY_LINTS := '-D warnings
     -D clippy::cast-precision-loss
     -D clippy::cast-sign-loss
     -D clippy::checked-conversions
+    -A clippy::field-reassign-with-default
 '
 
 # run clippy

@@ -232,10 +232,12 @@ pub fn sort(
     let mapped_array = match map(input, map_args, context)? {
         RadonTypes::Array(x) => x,
         RadonTypes::RadonError(error) => {
-            if let RadError::UnhandledIntercept { inner, message: _ } = error.inner() {
-                if let Some(super_inner) = inner {
-                    return Err(*super_inner.clone());
-                }
+            if let RadError::UnhandledIntercept {
+                inner: Some(super_inner),
+                message: _,
+            } = error.inner()
+            {
+                return Err(*super_inner.clone());
             }
             return Err(error.inner().clone());
         }
