@@ -9,7 +9,7 @@ pub struct SetRequest {
     session_id: types::SessionId,
     wallet_id: String,
     key: String,
-    value: types::RpcParams,
+    value: jsonrpc_core::Params,
 }
 
 impl Message for SetRequest {

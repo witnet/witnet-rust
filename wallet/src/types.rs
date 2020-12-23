@@ -1,18 +1,15 @@
 use std::{
     convert::TryFrom,
     fmt,
+    str::FromStr,
     sync::{Arc, RwLock},
 };
 
 use core::fmt::Display;
-pub use std::str::FromStr;
 
-use crate::app::VttOutputParams;
+use crate::{app::VttOutputParams, model};
 use failure::Fail;
-pub use jsonrpc_core::{Params as RpcParams, Value as RpcValue};
-pub use jsonrpc_pubsub::{Sink, SinkResult, Subscriber, SubscriptionId};
 use serde::{Deserialize, Deserializer, Serialize};
-pub use serde_json::Value as Json;
 
 use witnet_crypto::{
     key::{ExtendedSK, SK},
@@ -32,8 +29,6 @@ use witnet_data_structures::{
 };
 
 use witnet_protected::{Protected, ProtectedString};
-
-use crate::model;
 
 use super::{db, repository};
 use witnet_data_structures::chain::Signature;
@@ -58,19 +53,19 @@ pub enum Errors {
 }
 
 /// Convenient conversion from `SessionId` to `SubscriptionId`
-impl From<&SessionId> for SubscriptionId {
+impl From<&SessionId> for jsonrpc_pubsub::SubscriptionId {
     fn from(id: &SessionId) -> Self {
-        SubscriptionId::String(String::from(id.clone()))
+        jsonrpc_pubsub::SubscriptionId::String(String::from(id.clone()))
     }
 }
 
 /// Convenient conversion from `SubscriptionId` to `SessionId`
-impl TryFrom<&SubscriptionId> for SessionId {
+impl TryFrom<&jsonrpc_pubsub::SubscriptionId> for SessionId {
     type Error = crate::actors::app::Error;
 
-    fn try_from(id: &SubscriptionId) -> Result<Self, Self::Error> {
+    fn try_from(id: &jsonrpc_pubsub::SubscriptionId) -> Result<Self, Self::Error> {
         match id {
-            SubscriptionId::String(string) => Ok(SessionId::from(string.clone())),
+            jsonrpc_pubsub::SubscriptionId::String(string) => Ok(SessionId::from(string.clone())),
             _ => Err(crate::actors::app::error::internal_error(
                 Errors::SubscriptionIdIsNotValidSessionId,
             )),
@@ -221,7 +216,7 @@ impl TryFrom<&ChainEntry> for CheckpointBeacon {
 /// A reference-counted atomic read/write lock over the `Option` of a `Sink`.
 /// Allows swapping, adding and removing sinks in runtime through interior mutability of any
 /// structures that may include this type.
-pub type DynamicSink = Arc<RwLock<Option<Sink>>>;
+pub type DynamicSink = Arc<RwLock<Option<jsonrpc_pubsub::Sink>>>;
 
 /// Friendly events that can be sent to subscribed clients to let them now about significant
 /// activity related to their wallets.

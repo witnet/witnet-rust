@@ -1,13 +1,11 @@
-use std::convert::TryFrom;
 use std::{
     collections::HashMap,
+    convert::TryFrom,
     sync::{Arc, Mutex, RwLock},
 };
 
 use witnet_data_structures::chain::StateMachine;
 use witnet_net::client::tcp::jsonrpc::Subscribe;
-
-use crate::types::SubscriptionId;
 
 use super::*;
 
@@ -39,7 +37,7 @@ impl State {
     fn set_sink(
         &mut self,
         session_id: &types::SessionId,
-        new_sink: Option<types::Sink>,
+        new_sink: Option<jsonrpc_pubsub::Sink>,
     ) -> types::DynamicSink {
         let sink = Arc::new(RwLock::new(new_sink));
         self.client_subscriptions
@@ -52,7 +50,7 @@ impl State {
     pub fn update_sink(
         &mut self,
         session_id: &types::SessionId,
-        new_sink: Option<types::Sink>,
+        new_sink: Option<jsonrpc_pubsub::Sink>,
     ) -> types::DynamicSink {
         match self.client_subscriptions.get(session_id) {
             Some(sink) => {
@@ -103,7 +101,7 @@ impl State {
     pub fn subscribe(
         &mut self,
         session_id: &types::SessionId,
-        sink: types::Sink,
+        sink: jsonrpc_pubsub::Sink,
     ) -> Result<types::DynamicSink> {
         match self.sessions.get_mut(session_id) {
             Some(_) => Ok(self.update_sink(session_id, Some(sink))),
@@ -112,7 +110,7 @@ impl State {
     }
 
     /// Remove a subscription sink from a session.
-    pub fn unsubscribe(&mut self, subscription_id: &types::SubscriptionId) -> Result<()> {
+    pub fn unsubscribe(&mut self, subscription_id: &jsonrpc_pubsub::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing.
         let session_id = types::SessionId::try_from(subscription_id)?;
         match self.sessions.get_mut(&session_id) {
@@ -128,7 +126,7 @@ impl State {
 
     /// Remove a session but keep its wallets.
     pub fn remove_session(&mut self, session_id: &types::SessionId) -> Result<()> {
-        let subscription_id = SubscriptionId::from(session_id);
+        let subscription_id = jsonrpc_pubsub::SubscriptionId::from(session_id);
         self.unsubscribe(&subscription_id).map(|_| ())?;
         self.sessions
             .remove(session_id)

@@ -64,11 +64,11 @@ impl App {
     pub fn next_subscription_id(
         &mut self,
         session_id: &types::SessionId,
-    ) -> Result<types::SubscriptionId> {
+    ) -> Result<jsonrpc_pubsub::SubscriptionId> {
         if self.state.is_session_active(session_id) {
             // We are re-using the session id as the subscription id, this is because using a number
             // can let any client call the unsubscribe method for any other session.
-            Ok(types::SubscriptionId::from(session_id))
+            Ok(jsonrpc_pubsub::SubscriptionId::from(session_id))
         } else {
             Err(Error::SessionNotFound)
         }
@@ -79,8 +79,8 @@ impl App {
     pub fn subscribe(
         &mut self,
         session_id: types::SessionId,
-        _subscription_id: types::SubscriptionId,
-        sink: types::Sink,
+        _subscription_id: jsonrpc_pubsub::SubscriptionId,
+        sink: jsonrpc_pubsub::Sink,
     ) -> Result<()> {
         self.state.subscribe(&session_id, sink).map(|dyn_sink| {
             // If the subscription was successful, notify subscriber about initial status for all
@@ -99,7 +99,7 @@ impl App {
     }
 
     /// Remove a subscription.
-    pub fn unsubscribe(&mut self, id: &types::SubscriptionId) -> Result<()> {
+    pub fn unsubscribe(&mut self, id: &jsonrpc_pubsub::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing. See comment in
         // next_subscription_id method.
         self.state.unsubscribe(id).map(|_| ())
@@ -243,8 +243,8 @@ impl App {
     pub fn forward(
         &mut self,
         method: String,
-        params: types::RpcParams,
-    ) -> ResponseFuture<types::Json> {
+        params: jsonrpc_core::Params,
+    ) -> ResponseFuture<serde_json::Value> {
         let req = jsonrpc::Request::method(method)
             .timeout(self.params.requests_timeout)
             .params(params)
@@ -481,7 +481,7 @@ impl App {
         session_id: types::SessionId,
         wallet_id: String,
         key: String,
-    ) -> ResponseActFuture<Option<types::RpcValue>> {
+    ) -> ResponseActFuture<Option<jsonrpc_core::Value>> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
@@ -512,7 +512,7 @@ impl App {
         session_id: types::SessionId,
         wallet_id: String,
         key: String,
-        value: types::RpcParams,
+        value: jsonrpc_core::Params,
     ) -> ResponseActFuture<()> {
         let f = fut::result(
             self.state
@@ -535,7 +535,7 @@ impl App {
     }
 
     /// Handle any kind of notifications received from a Witnet node.
-    pub fn handle_notification(&mut self, topic: String, value: types::Json) -> Result<()> {
+    pub fn handle_notification(&mut self, topic: String, value: serde_json::Value) -> Result<()> {
         match topic.as_str() {
             "blocks" => self.handle_block_notification(value),
             "superblocks" => self.handle_superblock_notification(value),
@@ -549,7 +549,7 @@ impl App {
     }
 
     /// Handle new block notifications received from a Witnet node.
-    pub fn handle_block_notification(&mut self, value: types::Json) -> Result<()> {
+    pub fn handle_block_notification(&mut self, value: serde_json::Value) -> Result<()> {
         let block = Arc::new(serde_json::from_value::<Block>(value).map_err(node_error)?);
 
         // This iterator is collected early so as to free the immutable reference to `self`.
@@ -569,7 +569,7 @@ impl App {
     }
 
     /// Handle superblock notifications received from a Witnet node.
-    pub fn handle_superblock_notification(&mut self, value: types::Json) -> Result<()> {
+    pub fn handle_superblock_notification(&mut self, value: serde_json::Value) -> Result<()> {
         let superblock_notification =
             serde_json::from_value::<types::SuperBlockNotification>(value).map_err(node_error)?;
 

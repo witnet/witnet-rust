@@ -1,9 +1,8 @@
 use actix::prelude::*;
 
 use crate::actors::app;
-use crate::types;
 
-pub struct UnsubscribeRequest(pub types::SubscriptionId);
+pub struct UnsubscribeRequest(pub jsonrpc_pubsub::SubscriptionId);
 
 impl Message for UnsubscribeRequest {
     type Result = app::Result<()>;

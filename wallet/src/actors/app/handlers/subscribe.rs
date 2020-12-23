@@ -11,8 +11,8 @@ pub struct SubscribeRequest {
 
 pub struct Subscribe(
     pub types::SessionId,
-    pub types::SubscriptionId,
-    pub types::Sink,
+    pub jsonrpc_pubsub::SubscriptionId,
+    pub jsonrpc_pubsub::Sink,
 );
 
 impl Message for Subscribe {

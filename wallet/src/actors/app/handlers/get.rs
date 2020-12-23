@@ -13,7 +13,7 @@ pub struct GetRequest {
 
 #[derive(Serialize)]
 pub struct GetResponse {
-    value: Option<types::RpcValue>,
+    value: Option<jsonrpc_core::Value>,
 }
 
 impl Message for GetRequest {

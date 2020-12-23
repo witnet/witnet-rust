@@ -6,7 +6,7 @@ use crate::types;
 pub struct NextSubscriptionId(pub types::SessionId);
 
 impl Message for NextSubscriptionId {
-    type Result = app::Result<types::SubscriptionId>;
+    type Result = app::Result<jsonrpc_pubsub::SubscriptionId>;
 }
 
 impl Handler<NextSubscriptionId> for app::App {

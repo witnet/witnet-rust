@@ -9,9 +9,8 @@ use crate::{
     repository::keys::Key,
     types::{number_from_string, u32_to_string, u64_to_string},
 };
-use witnet_data_structures::chain::Hash;
 use witnet_data_structures::{
-    chain::{DataRequestInfo, OutputPointer, PublicKeyHash, ValueTransferOutput},
+    chain::{DataRequestInfo, Hash, OutputPointer, PublicKeyHash, ValueTransferOutput},
     transaction::Transaction,
 };
 use witnet_util::timestamp::get_timestamp;
