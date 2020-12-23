@@ -553,7 +553,7 @@ fn test_create_vtt_does_not_spend_utxos() {
                 value,
                 time_lock,
             }],
-            fee_type: types::FeeType::Absolute,
+            fee_type: FeeType::Absolute,
         })
         .unwrap();
 
@@ -633,7 +633,7 @@ fn test_create_data_request_does_not_spend_utxos() {
         .create_data_req(types::DataReqParams {
             fee: 0,
             request,
-            fee_type: types::FeeType::Absolute,
+            fee_type: FeeType::Absolute,
         })
         .unwrap();
 
@@ -850,7 +850,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
                 value: 1,
                 time_lock: 0,
             }],
-            fee_type: types::FeeType::Absolute,
+            fee_type: FeeType::Absolute,
         })
         .unwrap();
 
@@ -964,7 +964,7 @@ fn test_get_transaction() {
                 value: 1,
                 time_lock: 0,
             }],
-            fee_type: types::FeeType::Absolute,
+            fee_type: FeeType::Absolute,
         })
         .unwrap();
 
@@ -1036,7 +1036,7 @@ fn test_get_transactions() {
                 value: 1,
                 time_lock: 0,
             }],
-            fee_type: types::FeeType::Absolute,
+            fee_type: FeeType::Absolute,
         })
         .unwrap();
 
@@ -1108,7 +1108,7 @@ fn test_create_vtt_with_locked_balance() {
                 value: 1,
                 time_lock: 0,
             }],
-            fee_type: types::FeeType::Absolute,
+            fee_type: FeeType::Absolute,
         })
         .unwrap_err();
 

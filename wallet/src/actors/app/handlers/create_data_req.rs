@@ -26,7 +26,7 @@ pub struct CreateDataReqRequest {
         deserialize_with = "number_from_string"
     )]
     fee: u64,
-    fee_type: Option<types::FeeType>,
+    fee_type: Option<FeeType>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -21,9 +21,12 @@ pub use witnet_crypto::{
     signature,
 };
 
-use witnet_data_structures::transaction::{
-    CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
-    TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
+use witnet_data_structures::{
+    transaction::{
+        CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
+        TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
+    },
+    transaction_factory::FeeType,
 };
 
 pub use witnet_data_structures::{
@@ -37,7 +40,6 @@ pub use witnet_data_structures::{
     proto::ProtobufConvert,
     radon_error::{RadonError, RadonErrors},
     radon_report::RadonReport,
-    transaction_factory::FeeType,
 };
 
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;

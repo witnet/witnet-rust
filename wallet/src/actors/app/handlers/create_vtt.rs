@@ -38,7 +38,7 @@ pub struct CreateVttRequest {
     outputs: Vec<VttOutputParams>,
     session_id: types::SessionId,
     wallet_id: String,
-    fee_type: Option<types::FeeType>,
+    fee_type: Option<FeeType>,
 }
 
 /// Part of CreateVttResponse struct, containing additional data to be displayed in clients
