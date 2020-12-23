@@ -5,9 +5,10 @@ use futures::future;
 
 use witnet_crypto::mnemonic::Mnemonic;
 use witnet_data_structures::{
-    chain::{InventoryItem, StateMachine},
+    chain::{Block, InventoryItem, RADRequest, StateMachine, SyncStatus},
     transaction::Transaction,
 };
+use witnet_rad::RADRequestExecutionReport;
 
 use crate::{
     actors::{
@@ -215,8 +216,8 @@ impl App {
     /// Run a RADRequest and return the computed result.
     pub fn run_rad_request(
         &self,
-        request: types::RADRequest,
-    ) -> ResponseFuture<types::RADRequestExecutionReport> {
+        request: RADRequest,
+    ) -> ResponseFuture<RADRequestExecutionReport> {
         let f = self
             .params
             .worker
@@ -549,8 +550,7 @@ impl App {
 
     /// Handle new block notifications received from a Witnet node.
     pub fn handle_block_notification(&mut self, value: types::Json) -> Result<()> {
-        let block =
-            Arc::new(serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?);
+        let block = Arc::new(serde_json::from_value::<Block>(value).map_err(node_error)?);
 
         // This iterator is collected early so as to free the immutable reference to `self`.
         let wallets: Vec<types::SessionWallet> = self
@@ -597,7 +597,7 @@ impl App {
     /// server thread, so as not to lock the rest of the application.
     pub fn handle_block_in_worker(
         &self,
-        block: Arc<types::ChainBlock>,
+        block: Arc<Block>,
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) {
@@ -794,7 +794,7 @@ impl App {
             .flatten()
             .inspect(|res| {
                 log::debug!("Periodic request result: {:?}", res);
-                let status = serde_json::from_value::<types::SyncStatus>(res.clone());
+                let status = serde_json::from_value::<SyncStatus>(res.clone());
                 log::debug!("The result of the node status is {:?}", status);
             })
             .into_actor(self)
@@ -812,7 +812,7 @@ impl App {
                 }
             })
             .map(move |res, act, ctx| {
-                let status = serde_json::from_value::<types::SyncStatus>(res);
+                let status = serde_json::from_value::<SyncStatus>(res);
                 // Notify if the node status is changed
                 if let Ok(status) = status {
                     if Some(status.node_state) != act.state.node_state {

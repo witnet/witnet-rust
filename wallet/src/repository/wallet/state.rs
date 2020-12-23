@@ -45,7 +45,7 @@ pub struct State {
     pub last_sync: CheckpointBeacon,
     /// List of local pending balance movements derived from transaction submissions by wallet clients
     /// (they have not yet been indexed in blocks)
-    pub local_movements: HashMap<types::Hash, model::BalanceMovement>,
+    pub local_movements: HashMap<Hash, model::BalanceMovement>,
     /// Wallet name
     pub name: Option<String>,
     /// Next external index used to derive addresses

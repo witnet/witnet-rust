@@ -90,10 +90,10 @@ pub fn pkh() -> PublicKeyHash {
     PublicKeyHash::from_bytes(&bytes).expect("PKH of 20 bytes failed")
 }
 
-pub fn transaction_id() -> types::Hash {
+pub fn transaction_id() -> Hash {
     let bytes: [u8; 32] = rand::random();
 
-    types::Hash::SHA256(bytes)
+    Hash::SHA256(bytes)
 }
 
 pub fn vtt_from_body(body: VTTransactionBody) -> model::ExtendedTransaction {

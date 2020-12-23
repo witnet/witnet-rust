@@ -1,15 +1,16 @@
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::types;
+use witnet_data_structures::chain::RADRequest;
+use witnet_rad::RADRequestExecutionReport;
 
 /// Execute the containing RAD-request.
 pub struct RunRadRequest {
-    pub request: types::RADRequest,
+    pub request: RADRequest,
 }
 
 impl Message for RunRadRequest {
-    type Result = worker::Result<types::RADRequestExecutionReport>;
+    type Result = worker::Result<RADRequestExecutionReport>;
 }
 
 impl Handler<RunRadRequest> for worker::Worker {

@@ -5,11 +5,13 @@ use crate::{
     actors::app,
     types::{
         self, from_generic_type, into_generic_type, number_from_string, u64_to_string,
-        DataRequestOutputHelper, Hashable as _, TransactionHelper,
+        DataRequestOutputHelper, TransactionHelper,
     },
 };
 use witnet_data_structures::{
-    chain::DataRequestOutput, proto::ProtobufConvert, transaction::Transaction,
+    chain::{DataRequestOutput, Hashable},
+    proto::ProtobufConvert,
+    transaction::Transaction,
     transaction_factory::FeeType,
 };
 
@@ -93,7 +95,7 @@ impl Handler<CreateDataReqRequest> for app::App {
 /// To be valid it must pass these checks:
 /// - value is greater that the sum of `witnesses` times the sum of the fees
 /// - value minus all the fees must divisible by the number of witnesses
-fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app::ValidationErrors> {
+fn validate(request: DataRequestOutput) -> Result<DataRequestOutput, app::ValidationErrors> {
     let req = request;
 
     let request = witnet_validations::validations::validate_data_request_output(&req)

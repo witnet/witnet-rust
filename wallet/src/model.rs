@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use crate::{
     account,
     repository::keys::Key,
-    types::{self, number_from_string, u32_to_string, u64_to_string},
+    types::{number_from_string, u32_to_string, u64_to_string},
 };
+use witnet_data_structures::chain::Hash;
 use witnet_data_structures::{
-    chain::{OutputPointer, PublicKeyHash, ValueTransferOutput},
+    chain::{DataRequestInfo, OutputPointer, PublicKeyHash, ValueTransferOutput},
     transaction::Transaction,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -270,11 +271,11 @@ pub struct OutPtr {
 
 impl OutPtr {
     /// Create a `TransactionId` from a the transaction hash.
-    pub fn transaction_id(&self) -> types::Hash {
+    pub fn transaction_id(&self) -> Hash {
         let mut array_bytes = [0; 32];
         array_bytes.copy_from_slice(&self.txn_hash);
 
-        types::Hash::SHA256(array_bytes)
+        Hash::SHA256(array_bytes)
     }
 }
 
@@ -287,8 +288,8 @@ impl From<&OutPtr> for OutputPointer {
     }
 }
 
-impl From<&types::OutputPointer> for OutPtr {
-    fn from(p: &types::OutputPointer) -> Self {
+impl From<&OutputPointer> for OutPtr {
+    fn from(p: &OutputPointer) -> Self {
         let txn_hash = p.transaction_id.as_ref().to_vec();
         let output_index = p.output_index;
 
@@ -346,7 +347,7 @@ pub struct Beacon {
         deserialize_with = "number_from_string"
     )]
     pub epoch: u32,
-    pub block_hash: types::Hash,
+    pub block_hash: Hash,
 }
 
 impl fmt::Display for Beacon {
@@ -404,7 +405,7 @@ pub struct ExtendedTransaction {
 
 pub enum TransactionMetadata {
     InputValues(Vec<ValueTransferOutput>),
-    Tally(Box<types::DataRequestInfo>),
+    Tally(Box<DataRequestInfo>),
 }
 
 #[cfg(test)]

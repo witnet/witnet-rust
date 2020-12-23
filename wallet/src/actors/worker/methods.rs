@@ -8,18 +8,22 @@ use crate::{
     account, constants, crypto,
     db::Database as _,
     model, params,
-    types::{
-        ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable, StateMachine,
-    },
+    types::{ChainEntry, DynamicSink, GetBlockChainParams},
 };
 use witnet_crypto::key::ExtendedSK;
-use witnet_data_structures::{chain::ValueTransferOutput, transaction::Transaction};
-use witnet_rad::script::RadonScriptExecutionSettings;
+use witnet_data_structures::{
+    chain::{
+        Block, CheckpointBeacon, DataRequestInfo, Hashable, OutputPointer, RADRequest,
+        StateMachine, ValueTransferOutput,
+    },
+    transaction::Transaction,
+};
+use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport};
 
 use super::*;
 
 pub enum IndexTransactionQuery {
-    InputTransactions(Vec<types::OutputPointer>),
+    InputTransactions(Vec<OutputPointer>),
     DataRequestReport(String),
 }
 
@@ -43,7 +47,7 @@ impl Worker {
         })
     }
 
-    pub fn run_rad_request(&self, request: types::RADRequest) -> types::RADRequestExecutionReport {
+    pub fn run_rad_request(&self, request: RADRequest) -> RADRequestExecutionReport {
         witnet_rad::try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None)
     }
 
@@ -524,7 +528,7 @@ impl Worker {
     /// Retrieve Value Transfer Outputs of a list of Output Pointers (aka input fields in transactions).
     pub fn get_vt_outputs_from_pointers(
         &self,
-        output_pointers: &[types::OutputPointer],
+        output_pointers: &[OutputPointer],
     ) -> Result<Vec<ValueTransferOutput>> {
         // Query the node for the required Transactions
         let txn_futures = output_pointers
@@ -621,7 +625,7 @@ impl Worker {
     pub async fn query_data_request_report(
         &self,
         data_request_id: String,
-    ) -> Result<types::DataRequestInfo> {
+    ) -> Result<DataRequestInfo> {
         log::debug!("Getting data request report with id {} ", data_request_id);
         let method = String::from("dataRequestReport");
         let params = data_request_id;
@@ -638,7 +642,7 @@ impl Worker {
             .flatten()
             .map(|json| {
                 log::trace!("dataRequestReport request result: {:?}", json);
-                serde_json::from_value::<types::DataRequestInfo>(json).map_err(node_error)
+                serde_json::from_value::<DataRequestInfo>(json).map_err(node_error)
             })
             .flatten()
             .map_err(|err| {
@@ -894,7 +898,7 @@ impl Worker {
     }
 
     /// Ask a Witnet node for the contents of a single block.
-    pub async fn get_block(&self, block_id: String) -> Result<(types::ChainBlock, bool)> {
+    pub async fn get_block(&self, block_id: String) -> Result<(Block, bool)> {
         log::debug!("Getting block with id {} ", block_id);
         let method = String::from("getBlock");
         let params = vec![Value::String(block_id), Value::Bool(false)];
@@ -920,7 +924,7 @@ impl Worker {
                         }
                     }
                 }
-                serde_json::from_value::<types::ChainBlock>(json)
+                serde_json::from_value::<Block>(json)
                     .map(|block| (block, confirmed))
                     .map_err(node_error)
             })
@@ -935,7 +939,7 @@ impl Worker {
 
     pub fn handle_block(
         &self,
-        block: Arc<types::ChainBlock>,
+        block: Arc<Block>,
         confirmed: bool,
         resynchronizing: bool,
         wallet: types::SessionWallet,
@@ -1081,7 +1085,7 @@ impl Worker {
 
     pub fn handle_node_status(
         &self,
-        status: types::StateMachine,
+        status: StateMachine,
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
@@ -1100,7 +1104,7 @@ impl Worker {
 
     pub fn index_block(
         &self,
-        block: Arc<types::ChainBlock>,
+        block: Arc<Block>,
         confirmed: bool,
         resynchronizing: bool,
         wallet: &types::SessionWallet,

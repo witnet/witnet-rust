@@ -1,10 +1,10 @@
 use std::{collections::HashMap, iter::FromIterator as _, mem};
 
 use super::*;
-use crate::{
-    db::HashMapDb, repository::wallet::tests::factories::vtt_from_body, types::Hashable, *,
+use crate::{db::HashMapDb, repository::wallet::tests::factories::vtt_from_body, *};
+use witnet_data_structures::{
+    chain::Hashable, transaction::VTTransaction, transaction_factory::calculate_weight,
 };
-use witnet_data_structures::{transaction::VTTransaction, transaction_factory::calculate_weight};
 
 mod factories;
 
@@ -548,7 +548,7 @@ fn test_create_vtt_does_not_spend_utxos() {
     let vtt = wallet
         .create_vtt(types::VttParams {
             fee,
-            outputs: vec![types::ValueTransferOutput {
+            outputs: vec![ValueTransferOutput {
                 pkh,
                 value,
                 time_lock,
@@ -623,10 +623,10 @@ fn test_create_data_request_does_not_spend_utxos() {
     assert!(utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
-    let request = types::DataRequestOutput {
+    let request = DataRequestOutput {
         witness_reward: 1,
         witnesses: 1,
-        ..types::DataRequestOutput::default()
+        ..DataRequestOutput::default()
     };
 
     let data_req = wallet
@@ -845,7 +845,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
     let vtt = wallet
         .create_vtt(types::VttParams {
             fee: 0,
-            outputs: vec![types::ValueTransferOutput {
+            outputs: vec![ValueTransferOutput {
                 pkh: their_pkh,
                 value: 1,
                 time_lock: 0,
@@ -959,7 +959,7 @@ fn test_get_transaction() {
     let vtt = wallet
         .create_vtt(types::VttParams {
             fee: 0,
-            outputs: vec![types::ValueTransferOutput {
+            outputs: vec![ValueTransferOutput {
                 pkh: their_pkh,
                 value: 1,
                 time_lock: 0,
@@ -1031,7 +1031,7 @@ fn test_get_transactions() {
     let vtt = wallet
         .create_vtt(types::VttParams {
             fee: 0,
-            outputs: vec![types::ValueTransferOutput {
+            outputs: vec![ValueTransferOutput {
                 pkh: their_pkh,
                 value: 1,
                 time_lock: 0,
@@ -1103,7 +1103,7 @@ fn test_create_vtt_with_locked_balance() {
     let err = wallet
         .create_vtt(types::VttParams {
             fee: 0,
-            outputs: vec![types::ValueTransferOutput {
+            outputs: vec![ValueTransferOutput {
                 pkh: their_pkh,
                 value: 1,
                 time_lock: 0,
@@ -1160,12 +1160,12 @@ fn test_create_vtt_with_multiple_outputs() {
         .create_vtt(types::VttParams {
             fee: 0,
             outputs: vec![
-                types::ValueTransferOutput {
+                ValueTransferOutput {
                     pkh: their_pkh1,
                     value: 1,
                     time_lock: 0,
                 },
-                types::ValueTransferOutput {
+                ValueTransferOutput {
                     pkh: their_pkh2,
                     value: 1,
                     time_lock: 0,
@@ -1808,10 +1808,10 @@ fn test_create_dr_components_weighted_fee_1() {
     db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
 
-    let request = types::DataRequestOutput {
+    let request = DataRequestOutput {
         witness_reward: 1,
         witnesses: 1,
-        ..types::DataRequestOutput::default()
+        ..DataRequestOutput::default()
     };
 
     let mut state = wallet.state.write().unwrap();
@@ -1854,10 +1854,10 @@ fn test_create_dr_components_weighted_fee_2_not_enough_funds() {
     db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
 
-    let request = types::DataRequestOutput {
+    let request = DataRequestOutput {
         witness_reward: 1,
         witnesses: 1,
-        ..types::DataRequestOutput::default()
+        ..DataRequestOutput::default()
     };
 
     let mut state = wallet.state.write().unwrap();
@@ -1905,10 +1905,10 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     db.put(&keys::pkh(&pkh), &path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
 
-    let request = types::DataRequestOutput {
+    let request = DataRequestOutput {
         witness_reward: 1,
         witnesses: 1,
-        ..types::DataRequestOutput::default()
+        ..DataRequestOutput::default()
     };
 
     let mut state = wallet.state.write().unwrap();
@@ -1998,10 +1998,10 @@ fn test_create_dr_components_weighted_fee_without_outputs() {
     let (wallet, _db) = factories::wallet(Some(db));
 
     let mut state = wallet.state.write().unwrap();
-    let request = types::DataRequestOutput {
+    let request = DataRequestOutput {
         witness_reward: 1,
         witnesses: 1,
-        ..types::DataRequestOutput::default()
+        ..DataRequestOutput::default()
     };
 
     let fee = 1;
@@ -2053,10 +2053,10 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
 
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
-    let request = types::DataRequestOutput {
+    let request = DataRequestOutput {
         witness_reward: 0,
         witnesses: 1000,
-        ..types::DataRequestOutput::default()
+        ..DataRequestOutput::default()
     };
     let fee = 0;
     let err = wallet
@@ -2102,10 +2102,10 @@ fn test_create_dr_components_weighted_fee_fee_too_large() {
     db.put(&keys::pkh(&pkh), path).unwrap();
     let (wallet, _db) = factories::wallet(Some(db));
 
-    let request = types::DataRequestOutput {
+    let request = DataRequestOutput {
         witness_reward: 1,
         witnesses: 1,
-        ..types::DataRequestOutput::default()
+        ..DataRequestOutput::default()
     };
 
     let mut state = wallet.state.write().unwrap();

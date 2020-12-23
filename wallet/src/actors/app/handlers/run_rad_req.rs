@@ -2,16 +2,17 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
-use crate::types;
+use witnet_data_structures::chain::RADRequest;
+use witnet_rad::RADRequestExecutionReport;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RunRadReqRequest {
-    pub rad_request: types::RADRequest,
+    pub rad_request: RADRequest,
 }
 
 #[derive(Debug, Serialize)]
 pub struct RunRadReqResponse {
-    pub result: types::RADRequestExecutionReport,
+    pub result: RADRequestExecutionReport,
 }
 
 impl Message for RunRadReqRequest {

@@ -1,6 +1,7 @@
 use failure::Fail;
 
-use crate::{crypto, db, repository, types};
+use crate::{crypto, db, repository};
+use witnet_data_structures::chain::Hash;
 use witnet_net::client::tcp;
 
 #[derive(Debug, Fail)]
@@ -53,8 +54,8 @@ pub enum BlockError {
         block_previous_beacon, local_chain_tip
     )]
     NotConnectedToLocalChainTip {
-        block_previous_beacon: types::Hash,
-        local_chain_tip: types::Hash,
+        block_previous_beacon: Hash,
+        local_chain_tip: Hash,
     },
 }
 

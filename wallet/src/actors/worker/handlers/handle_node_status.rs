@@ -1,10 +1,10 @@
 use actix::{Handler, Message};
 
-use crate::actors::worker;
-use crate::types;
+use crate::{actors::worker, types};
+use witnet_data_structures::chain::StateMachine;
 
 pub struct NodeStatusRequest {
-    pub status: types::StateMachine,
+    pub status: StateMachine,
     pub wallet: types::SessionWallet,
     pub sink: types::DynamicSink,
 }

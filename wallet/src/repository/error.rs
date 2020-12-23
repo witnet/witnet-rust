@@ -1,7 +1,10 @@
 use failure::Fail;
 
 use crate::{crypto, db, types};
-use witnet_data_structures::error::TransactionError;
+use witnet_data_structures::{
+    chain::{DataRequestOutput, HashParseError, PublicKeyHashParseError},
+    error::TransactionError,
+};
 
 #[derive(Debug, Fail)]
 #[fail(display = "Database Error")]
@@ -15,7 +18,7 @@ pub enum Error {
     #[fail(display = "transaction balance underflowed")]
     TransactionBalanceUnderflow,
     #[fail(display = "Invalid PKH: {}", _0)]
-    Pkh(#[cause] types::PublicKeyHashParseError),
+    Pkh(#[cause] PublicKeyHashParseError),
     #[fail(display = "not enough balance in account")]
     InsufficientBalance,
     #[fail(display = "maximum transaction id reached for account")]
@@ -41,7 +44,7 @@ pub enum Error {
     #[fail(display = "block consolidation failed: {}", _0)]
     BlockConsolidation(String),
     #[fail(display = "hash parsing failed: {}", _0)]
-    HashParseError(#[cause] types::HashParseError),
+    HashParseError(#[cause] HashParseError),
     #[fail(display = "failed creating a transaction: {}", _0)]
     TransactionCreation(#[cause] TransactionError),
     #[fail(display = "Bech32 serialization error: {}", _0)]
@@ -61,7 +64,7 @@ pub enum Error {
         display = "Weight limit reached when trying to create a Data Request. \n > {:?}",
         _0
     )]
-    MaximumDRWeightReached(types::DataRequestOutput),
+    MaximumDRWeightReached(DataRequestOutput),
     #[fail(display = "The chosen fee seems too large")]
     FeeTooLarge,
     #[fail(display = "Unknown Fee Type specified")]
@@ -98,14 +101,14 @@ impl From<types::KeyDerivationError> for Error {
     }
 }
 
-impl From<types::PublicKeyHashParseError> for Error {
-    fn from(err: types::PublicKeyHashParseError) -> Self {
+impl From<PublicKeyHashParseError> for Error {
+    fn from(err: PublicKeyHashParseError) -> Self {
         Error::Pkh(err)
     }
 }
 
-impl From<types::HashParseError> for Error {
-    fn from(err: types::HashParseError) -> Self {
+impl From<HashParseError> for Error {
+    fn from(err: HashParseError) -> Self {
         Error::HashParseError(err)
     }
 }

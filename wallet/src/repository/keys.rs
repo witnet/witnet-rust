@@ -1,6 +1,9 @@
 use crate::{model, types::*};
 use std::{fmt, marker::PhantomData};
-use witnet_data_structures::transaction::Transaction;
+use witnet_data_structures::{
+    chain::{CheckpointBeacon, PublicKeyHash},
+    transaction::Transaction,
+};
 
 /// Type-safe database key.
 ///

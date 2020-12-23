@@ -13,8 +13,8 @@ use state::State;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
-        CheckpointBeacon, DataRequestOutput, Environment, Epoch, EpochConstants, Input,
-        OutputPointer, PublicKeyHash, ValueTransferOutput,
+        CheckpointBeacon, DataRequestOutput, Environment, Epoch, EpochConstants, Hash, Hashable,
+        Input, KeyedSignature, OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
     radon_error::RadonError,
@@ -32,7 +32,7 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    types::{self, signature, Hash, Hashable as _},
+    types::{self, signature},
 };
 
 use super::*;
@@ -930,7 +930,7 @@ where
 
         // Write transactional data (index, hash and balance movement)
         for mut movement in balance_movements {
-            let txn_hash = types::Hash::from_str(&movement.transaction.hash)?;
+            let txn_hash = Hash::from_str(&movement.transaction.hash)?;
             movement.transaction.confirmed = true;
             batch.put(
                 &keys::transactions_index(txn_hash.as_ref()),
@@ -1036,7 +1036,7 @@ where
         inputs: Vec<Input>,
         sign_data: Hash,
         state: &mut State,
-    ) -> Result<Vec<types::KeyedSignature>> {
+    ) -> Result<Vec<KeyedSignature>> {
         let mut keyed_signatures = vec![];
 
         for input in inputs {
@@ -1062,7 +1062,7 @@ where
                 sign_data.as_ref(),
             )?);
 
-            keyed_signatures.push(types::KeyedSignature {
+            keyed_signatures.push(KeyedSignature {
                 signature,
                 public_key,
             });

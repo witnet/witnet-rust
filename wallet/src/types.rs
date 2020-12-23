@@ -22,6 +22,10 @@ pub use witnet_crypto::{
 };
 
 use witnet_data_structures::{
+    chain::{
+        CheckpointBeacon, DataRequestOutput, Hash, Input, KeyedSignature, PublicKey, PublicKeyHash,
+        RADRequest, StateMachine, SuperBlock, ValueTransferOutput,
+    },
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
         TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
@@ -29,16 +33,9 @@ use witnet_data_structures::{
     transaction_factory::FeeType,
 };
 
-pub use witnet_data_structures::chain::{
-    Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
-    HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer, PublicKey,
-    PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve, RADTally,
-    StateMachine, SuperBlock, SyncStatus, ValueTransferOutput,
-};
-
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
-pub use witnet_rad::{error::RadError, types::RadonTypes, RADRequestExecutionReport};
+pub use witnet_rad::{error::RadError, types::RadonTypes};
 
 use crate::{model, types::signature::Signature};
 
@@ -171,7 +168,7 @@ pub struct TransactionComponents {
     pub value: u64,
     pub change: u64,
     pub balance: model::BalanceInfo,
-    pub inputs: Vec<TransactionInput>,
+    pub inputs: Vec<Input>,
     pub outputs: Vec<ValueTransferOutput>,
     pub sign_keys: Vec<SK>,
     pub used_utxos: Vec<model::OutPtr>,
@@ -366,7 +363,7 @@ impl From<DRTransactionHelper> for DRTransaction {
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct DRTransactionBodyHelper {
-    pub inputs: Vec<TransactionInput>,
+    pub inputs: Vec<Input>,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, ValueTransferOutputHelper, _>",
         deserialize_with = "from_generic_type_vec::<_, ValueTransferOutputHelper, _>"
@@ -487,7 +484,7 @@ impl From<VTTransactionHelper> for VTTransaction {
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct VTTransactionBodyHelper {
-    pub inputs: Vec<TransactionInput>,
+    pub inputs: Vec<Input>,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, ValueTransferOutputHelper, _>",
         deserialize_with = "from_generic_type_vec::<_, ValueTransferOutputHelper, _>"

@@ -5,12 +5,12 @@ use crate::{
     actors::app,
     types::{
         self, from_generic_type, from_generic_type_vec, into_generic_type, into_generic_type_vec,
-        number_from_string, u64_to_string, Hashable as _, TransactionHelper, VttOutputParamsHelper,
+        number_from_string, u64_to_string, TransactionHelper, VttOutputParamsHelper,
     },
 };
 
 use witnet_data_structures::{
-    chain::{Environment, PublicKeyHash},
+    chain::{Environment, Hashable, PublicKeyHash, ValueTransferOutput},
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,
@@ -128,7 +128,7 @@ impl Handler<CreateVttRequest> for app::App {
 pub fn validate_output_addresses(
     testnet: bool,
     outputs: &[VttOutputParams],
-) -> Result<Vec<types::ValueTransferOutput>, app::ValidationErrors> {
+) -> Result<Vec<ValueTransferOutput>, app::ValidationErrors> {
     let environment = if testnet {
         Environment::Testnet
     } else {
@@ -137,7 +137,7 @@ pub fn validate_output_addresses(
     outputs.iter().try_fold(vec![], |mut acc, output| {
         PublicKeyHash::from_bech32(environment, &output.address)
             .map(|pkh| {
-                acc.push(types::ValueTransferOutput {
+                acc.push(ValueTransferOutput {
                     pkh,
                     value: output.amount,
                     time_lock: output.time_lock.unwrap_or_default(),

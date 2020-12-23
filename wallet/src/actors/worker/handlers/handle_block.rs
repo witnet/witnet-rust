@@ -1,11 +1,11 @@
 use actix::{Handler, Message};
-
-use crate::actors::worker;
-use crate::types;
 use std::sync::Arc;
 
+use crate::{actors::worker, types};
+use witnet_data_structures::chain::Block;
+
 pub struct HandleBlockRequest {
-    pub block: Arc<types::ChainBlock>,
+    pub block: Arc<Block>,
     pub wallet: types::SessionWallet,
     pub sink: types::DynamicSink,
 }
