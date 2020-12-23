@@ -12,7 +12,7 @@ pub struct GetTransactionsRequest {
     limit: Option<u32>,
 }
 
-pub type GetTransactionsResponse = model::Transactions;
+pub type GetTransactionsResponse = model::WalletTransactions;
 
 impl Message for GetTransactionsRequest {
     type Result = app::Result<GetTransactionsResponse>;

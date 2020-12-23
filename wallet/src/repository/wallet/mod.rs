@@ -475,7 +475,7 @@ where
     }
 
     /// Return a list of the transactions.
-    pub fn transactions(&self, offset: u32, limit: u32) -> Result<model::Transactions> {
+    pub fn transactions(&self, offset: u32, limit: u32) -> Result<model::WalletTransactions> {
         let state = self.state.read()?;
         let account = state.account;
 
@@ -572,7 +572,7 @@ where
             }
         }
 
-        Ok(model::Transactions {
+        Ok(model::WalletTransactions {
             transactions,
             total,
         })
@@ -1900,7 +1900,7 @@ fn build_balance_movement(
         db_key: identifier,
         kind,
         amount,
-        transaction: model::Transaction {
+        transaction: model::WalletTransaction {
             block: Some(block_info.clone()),
             confirmed,
             data: transaction_data,

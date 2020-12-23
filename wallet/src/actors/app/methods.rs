@@ -187,7 +187,7 @@ impl App {
         wallet_id: String,
         offset: u32,
         limit: u32,
-    ) -> ResponseActFuture<model::Transactions> {
+    ) -> ResponseActFuture<model::WalletTransactions> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),

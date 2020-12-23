@@ -985,7 +985,7 @@ fn test_get_transaction() {
 fn test_get_transactions() {
     let (wallet, _db) = factories::wallet(None);
 
-    let no_transactions = crate::model::Transactions {
+    let no_transactions = crate::model::WalletTransactions {
         transactions: vec![],
         total: 0,
     };
@@ -1015,7 +1015,7 @@ fn test_get_transactions() {
         .unwrap();
 
     // The total returned by wallet.transactions() will now always be 1, regardless of limit
-    let no_transactions = crate::model::Transactions {
+    let no_transactions = crate::model::WalletTransactions {
         transactions: vec![],
         total: 1,
     };

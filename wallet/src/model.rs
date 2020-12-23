@@ -135,7 +135,7 @@ pub struct BalanceMovement {
         deserialize_with = "number_from_string"
     )]
     pub amount: u64,
-    pub transaction: Transaction,
+    pub transaction: WalletTransaction,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -157,7 +157,7 @@ impl fmt::Display for MovementType {
 
 /// Transaction linked to a balance movement in a wallet
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Transaction {
+pub struct WalletTransaction {
     /// Block in which the transaction is included
     pub block: Option<Beacon>,
     /// Transaction is confirmed if block is consolidated by superblock
@@ -250,7 +250,7 @@ pub struct Reveal {
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
-pub struct Transactions {
+pub struct WalletTransactions {
     pub transactions: Vec<BalanceMovement>,
     #[serde(
         serialize_with = "u32_to_string",

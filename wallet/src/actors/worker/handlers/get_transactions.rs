@@ -12,7 +12,7 @@ pub struct GetTransactions {
 }
 
 impl Message for GetTransactions {
-    type Result = worker::Result<model::Transactions>;
+    type Result = worker::Result<model::WalletTransactions>;
 }
 
 impl Handler<GetTransactions> for worker::Worker {

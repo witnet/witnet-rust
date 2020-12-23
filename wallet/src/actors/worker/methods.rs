@@ -306,7 +306,7 @@ impl Worker {
         wallet: &types::Wallet,
         offset: u32,
         limit: u32,
-    ) -> Result<model::Transactions> {
+    ) -> Result<model::WalletTransactions> {
         let transactions = wallet.transactions(offset, limit)?;
 
         Ok(transactions)
