@@ -29,17 +29,11 @@ use witnet_data_structures::{
     transaction_factory::FeeType,
 };
 
-pub use witnet_data_structures::{
-    chain::{
-        Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
-        HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer,
-        PublicKey, PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve,
-        RADTally, StateMachine, SuperBlock, SyncStatus, ValueTransferOutput,
-    },
-    error::EpochCalculationError,
-    proto::ProtobufConvert,
-    radon_error::{RadonError, RadonErrors},
-    radon_report::RadonReport,
+pub use witnet_data_structures::chain::{
+    Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
+    HashParseError, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer, PublicKey,
+    PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve, RADTally,
+    StateMachine, SuperBlock, SyncStatus, ValueTransferOutput,
 };
 
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;

@@ -5,11 +5,12 @@ use crate::{
     actors::app,
     types::{
         self, from_generic_type, into_generic_type, number_from_string, u64_to_string,
-        DataRequestOutputHelper, Hashable as _, ProtobufConvert as _, TransactionHelper,
+        DataRequestOutputHelper, Hashable as _, TransactionHelper,
     },
 };
 use witnet_data_structures::{
-    chain::DataRequestOutput, transaction::Transaction, transaction_factory::FeeType,
+    chain::DataRequestOutput, proto::ProtobufConvert, transaction::Transaction,
+    transaction_factory::FeeType,
 };
 
 #[derive(Debug, Deserialize)]

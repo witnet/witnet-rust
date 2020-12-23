@@ -17,7 +17,11 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
-    transaction::{DRTransaction, DRTransactionBody, Transaction},
+    radon_error::RadonError,
+    transaction::{
+        DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
+        VTTransactionBody,
+    },
     transaction_factory::{insert_change_output, FeeType, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
@@ -28,11 +32,10 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    types::{self, signature, Hash, Hashable as _, RadonError},
+    types::{self, signature, Hash, Hashable as _},
 };
 
 use super::*;
-use witnet_data_structures::transaction::{TallyTransaction, VTTransaction, VTTransactionBody};
 
 mod state;
 #[cfg(test)]

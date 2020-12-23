@@ -5,13 +5,13 @@ use crate::{
     actors::app,
     types::{
         self, from_generic_type, from_generic_type_vec, into_generic_type, into_generic_type_vec,
-        number_from_string, u64_to_string, Hashable as _, ProtobufConvert as _, TransactionHelper,
-        VttOutputParamsHelper,
+        number_from_string, u64_to_string, Hashable as _, TransactionHelper, VttOutputParamsHelper,
     },
 };
 
 use witnet_data_structures::{
     chain::{Environment, PublicKeyHash},
+    proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,
 };
