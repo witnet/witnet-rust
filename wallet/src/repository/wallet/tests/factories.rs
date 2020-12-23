@@ -2,6 +2,7 @@ use witnet_data_structures::chain::Hash;
 
 use super::*;
 use crate::db::HashMapDb;
+use witnet_crypto::{hash::HashFunction, mnemonic};
 
 pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
     wallet_inner(data, true)
@@ -24,7 +25,7 @@ fn wallet_inner(
         seed_password: "".into(),
         master_key_salt: b"Bitcoin seed".to_vec(),
         id_hash_iterations: 4096,
-        id_hash_function: types::HashFunction::Sha256,
+        id_hash_function: HashFunction::Sha256,
         db_hash_iterations: 10_000,
         db_iv_length: 16,
         db_salt_length: 32,
@@ -36,8 +37,8 @@ fn wallet_inner(
         max_vt_weight: 20_000,
         max_dr_weight: 80_000,
     };
-    let mnemonic = types::MnemonicGen::new()
-        .with_len(types::MnemonicLength::Words12)
+    let mnemonic = mnemonic::MnemonicGen::new()
+        .with_len(mnemonic::Length::Words12)
         .generate();
     let source = types::SeedSource::Mnemonics(mnemonic);
     let master_key = crypto::gen_master_key(
@@ -46,7 +47,7 @@ fn wallet_inner(
         &source,
     )
     .unwrap();
-    let engine = types::CryptoEngine::new();
+    let engine = CryptoEngine::new();
     let default_account_index = 0;
     let default_account =
         account::gen_account(&engine, default_account_index, &master_key).unwrap();

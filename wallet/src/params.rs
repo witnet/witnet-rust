@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use witnet_crypto::hash::HashFunction;
 use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants, Hash};
 use witnet_net::client::tcp::jsonrpc::Subscribe;
 
@@ -16,7 +17,7 @@ pub struct Params {
     pub seed_password: types::Password,
     pub master_key_salt: Vec<u8>,
     pub id_hash_iterations: u32,
-    pub id_hash_function: types::HashFunction,
+    pub id_hash_function: HashFunction,
     pub db_hash_iterations: u32,
     pub db_iv_length: usize,
     pub db_salt_length: usize,

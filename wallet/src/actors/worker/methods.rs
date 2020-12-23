@@ -10,7 +10,10 @@ use crate::{
     model, params,
     types::{ChainEntry, DynamicSink, GetBlockChainParams},
 };
-use witnet_crypto::key::ExtendedSK;
+use witnet_crypto::{
+    key::{CryptoEngine, ExtendedSK},
+    mnemonic,
+};
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, Hashable, OutputPointer, RADRequest,
@@ -34,7 +37,7 @@ impl Worker {
         node: params::NodeParams,
         params: params::Params,
     ) -> Addr<Self> {
-        let engine = types::CryptoEngine::new();
+        let engine = CryptoEngine::new();
         let wallets = Arc::new(repository::Wallets::new(db::PlainDb::new(db.clone())));
 
         SyncArbiter::start(concurrency, move || Self {
@@ -51,8 +54,8 @@ impl Worker {
         witnet_rad::try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None)
     }
 
-    pub fn gen_mnemonic(&self, length: types::MnemonicLength) -> String {
-        let mnemonic = types::MnemonicGen::new().with_len(length).generate();
+    pub fn gen_mnemonic(&self, length: mnemonic::Length) -> String {
+        let mnemonic = mnemonic::MnemonicGen::new().with_len(length).generate();
         let words = mnemonic.words();
 
         words.to_string()

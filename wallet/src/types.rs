@@ -14,11 +14,9 @@ pub use jsonrpc_pubsub::{Sink, SinkResult, Subscriber, SubscriptionId};
 use serde::{Deserialize, Deserializer, Serialize};
 pub use serde_json::Value as Json;
 
-pub use witnet_crypto::{
-    hash::HashFunction,
-    key::{CryptoEngine, ExtendedPK, ExtendedSK, KeyDerivationError, KeyPath, ONE_KEY, PK, SK},
-    mnemonic::{Length as MnemonicLength, Mnemonic, MnemonicGen},
-    signature,
+use witnet_crypto::{
+    key::{ExtendedSK, SK},
+    mnemonic,
 };
 
 use witnet_data_structures::{
@@ -36,9 +34,10 @@ use witnet_data_structures::{
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
 
-use crate::{model, types::signature::Signature};
+use crate::model;
 
 use super::{db, repository};
+use witnet_data_structures::chain::Signature;
 
 pub type Password = ProtectedString;
 
@@ -107,7 +106,7 @@ impl From<String> for SessionId {
 }
 
 pub enum SeedSource {
-    Mnemonics(Mnemonic),
+    Mnemonics(mnemonic::Mnemonic),
     Xprv(ProtectedString),
     XprvDouble((ProtectedString, ProtectedString)),
 }

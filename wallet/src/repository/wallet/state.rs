@@ -1,5 +1,6 @@
 use super::*;
 use std::sync::Arc;
+use witnet_crypto::key::ExtendedSK;
 use witnet_data_structures::chain::EpochConstants;
 
 /// Wallet state snapshot after indexing a block
@@ -38,7 +39,7 @@ pub struct State {
     /// Epoch constants
     pub epoch_constants: EpochConstants,
     /// Keychains used to derive addresses
-    pub keychains: [types::ExtendedSK; 2],
+    pub keychains: [ExtendedSK; 2],
     /// Beacon of last block confirmed by superblock (or during sync process)
     pub last_confirmed: CheckpointBeacon,
     /// Beacon of the last block received during synchronization

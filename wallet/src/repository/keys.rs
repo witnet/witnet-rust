@@ -1,5 +1,6 @@
-use crate::{model, types::*};
+use crate::model;
 use std::{fmt, marker::PhantomData};
+use witnet_crypto::key::ExtendedSK;
 use witnet_data_structures::{
     chain::{CheckpointBeacon, PublicKeyHash},
     transaction::Transaction,

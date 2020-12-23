@@ -39,11 +39,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Generate an HD-Wallet master extended key from a seed.
 ///
 /// The seed can be treated as either, a mnemonic phrase or an xprv
-pub fn gen_master_key(
-    seed: &str,
-    salt: &[u8],
-    source: &types::SeedSource,
-) -> Result<types::ExtendedSK> {
+pub fn gen_master_key(seed: &str, salt: &[u8], source: &types::SeedSource) -> Result<ExtendedSK> {
     let key = match source {
         types::SeedSource::Mnemonics(mnemonic) => {
             let seed = mnemonic.seed_ref(seed);
@@ -76,7 +72,7 @@ pub fn key_from_password(password: &[u8], salt: &[u8], iterations: u32) -> types
 /// Generate a cryptographic wallet id.
 pub fn gen_wallet_id(
     hash: &HashFunction,
-    key: &types::ExtendedSK,
+    key: &ExtendedSK,
     salt: &[u8],
     iterations: u32,
 ) -> String {

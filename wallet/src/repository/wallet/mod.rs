@@ -10,7 +10,11 @@ use std::{
 
 use bech32::ToBase32;
 use state::State;
-use witnet_crypto::hash::calculate_sha256;
+use witnet_crypto::{
+    hash::calculate_sha256,
+    key::{CryptoEngine, ExtendedPK, ExtendedSK, KeyPath, PK},
+    signature,
+};
 use witnet_data_structures::{
     chain::{
         CheckpointBeacon, DataRequestOutput, Environment, Epoch, EpochConstants, Hash, Hashable,
@@ -25,7 +29,7 @@ use witnet_data_structures::{
     transaction_factory::{insert_change_output, FeeType, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
-use witnet_rad::types::RadonTypes;
+use witnet_rad::{error::RadError, types::RadonTypes};
 use witnet_util::timestamp::get_timestamp;
 
 use crate::{
@@ -33,11 +37,10 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    types::{self, signature},
+    types,
 };
 
 use super::*;
-use witnet_rad::error::RadError;
 
 mod state;
 #[cfg(test)]
@@ -116,7 +119,7 @@ pub struct Wallet<T> {
     pub session_id: types::SessionId,
     db: T,
     params: Params,
-    engine: types::CryptoEngine,
+    engine: CryptoEngine,
     state: RwLock<State>,
 }
 
@@ -228,7 +231,7 @@ where
         session_id: types::SessionId,
         db: T,
         params: Params,
-        engine: types::CryptoEngine,
+        engine: CryptoEngine,
     ) -> Result<Self> {
         let id = id.to_owned();
         let name = db.get_opt(&keys::wallet_name())?;
@@ -354,16 +357,14 @@ where
     pub fn derive_and_persist_address(
         &self,
         label: Option<String>,
-        parent_key: &types::ExtendedSK,
+        parent_key: &ExtendedSK,
         account: u32,
         keychain: u32,
         index: u32,
         persist_db: bool,
     ) -> Result<(Arc<model::Address>, u32)> {
-        let extended_sk =
-            parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
-        let types::ExtendedPK { key, .. } =
-            types::ExtendedPK::from_secret_key(&self.engine, &extended_sk);
+        let extended_sk = parent_key.derive(&self.engine, &KeyPath::default().index(index))?;
+        let ExtendedPK { key, .. } = ExtendedPK::from_secret_key(&self.engine, &extended_sk);
 
         let pkh = witnet_data_structures::chain::PublicKey::from(key).pkh();
         let address = pkh.bech32(get_environment());
@@ -1053,16 +1054,13 @@ where
                 .expect("could not get keychain");
 
             let extended_sign_key =
-                parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
+                parent_key.derive(&self.engine, &KeyPath::default().index(index))?;
 
             let sign_key = extended_sign_key.into();
 
-            let public_key = From::from(types::PK::from_secret_key(&self.engine, &sign_key));
-            let signature = From::from(types::signature::sign(
-                &self.engine,
-                sign_key,
-                sign_data.as_ref(),
-            )?);
+            let public_key = From::from(PK::from_secret_key(&self.engine, &sign_key));
+            let signature =
+                From::from(signature::sign(&self.engine, sign_key, sign_data.as_ref())?);
 
             keyed_signatures.push(KeyedSignature {
                 signature,
@@ -1620,7 +1618,7 @@ where
         } else {
             "".to_string()
         };
-        let public_key = types::ExtendedPK::from_secret_key(&self.engine, &parent_key)
+        let public_key = ExtendedPK::from_secret_key(&self.engine, &parent_key)
             .key
             .to_string();
 
@@ -1780,7 +1778,7 @@ where
     pub fn export_master_key(&self, password: types::Password) -> Result<String> {
         let state = self.state.read()?;
         let (tag, key) = if let Some(master_key) = self.db.get_opt(&keys::master_key())? {
-            let master_key_string = match master_key.to_slip32(&types::KeyPath::default()) {
+            let master_key_string = match master_key.to_slip32(&KeyPath::default()) {
                 Ok(x) => x,
                 Err(_e) => return Err(Error::KeySerializationError),
             };
@@ -1788,12 +1786,12 @@ where
         } else {
             let internal_parent_key = &state.keychains[constants::INTERNAL_KEYCHAIN as usize];
             let external_parent_key = &state.keychains[constants::EXTERNAL_KEYCHAIN as usize];
-            let internal_secret_key = internal_parent_key.to_slip32(&types::KeyPath::default());
+            let internal_secret_key = internal_parent_key.to_slip32(&KeyPath::default());
             let mut internal_secret_key_hex = match internal_secret_key {
                 Ok(x) => x,
                 Err(_e) => return Err(Error::KeySerializationError),
             };
-            let external_secret_key = external_parent_key.to_slip32(&types::KeyPath::default());
+            let external_secret_key = external_parent_key.to_slip32(&KeyPath::default());
             let external_secret_key_hex = match external_secret_key {
                 Ok(x) => x,
                 Err(_e) => return Err(Error::KeySerializationError),

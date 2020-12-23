@@ -1,10 +1,10 @@
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::types;
+use witnet_crypto::mnemonic;
 
 pub struct GenMnemonic {
-    pub length: types::MnemonicLength,
+    pub length: mnemonic::Length,
 }
 
 impl Message for GenMnemonic {

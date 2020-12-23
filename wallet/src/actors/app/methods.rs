@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix::utils::TimerFunc;
 use futures::future;
 
-use witnet_crypto::mnemonic::Mnemonic;
+use witnet_crypto::mnemonic;
 use witnet_data_structures::{
     chain::{Block, InventoryItem, RADRequest, StateMachine, SyncStatus},
     transaction::Transaction,
@@ -229,7 +229,7 @@ impl App {
     }
 
     /// Generate a random BIP39 mnemonics sentence
-    pub fn generate_mnemonics(&self, length: types::MnemonicLength) -> ResponseFuture<String> {
+    pub fn generate_mnemonics(&self, length: mnemonic::Length) -> ResponseFuture<String> {
         let f = self
             .params
             .worker
@@ -859,7 +859,7 @@ impl App {
         // Validate mnemonics source and data
         let f = fut::result(match seed_source.as_ref() {
             "xprv" => validate_xprv(seed_data, backup_password),
-            "mnemonics" => types::Mnemonic::from_phrase(seed_data)
+            "mnemonics" => mnemonic::Mnemonic::from_phrase(seed_data)
                 .map_err(|err| Error::Validation(app::field_error("seed_data", format!("{}", err))))
                 .map(types::SeedSource::Mnemonics),
             _ => Err(Error::Validation(app::field_error(
@@ -976,7 +976,7 @@ pub fn validate(
     let source = match seed_source.as_ref() {
         "xprv" => validate_xprv(seed_data, backup_password)
             .map_err(|e| app::field_error("seed_data", e.to_string())),
-        "mnemonics" => Mnemonic::from_phrase(seed_data)
+        "mnemonics" => mnemonic::Mnemonic::from_phrase(seed_data)
             .map_err(|err| app::field_error("seed_data", format!("{}", err)))
             .map(types::SeedSource::Mnemonics),
         _ => Err(app::field_error(
