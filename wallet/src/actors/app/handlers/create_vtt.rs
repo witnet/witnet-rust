@@ -12,6 +12,7 @@ use crate::{
 
 use witnet_data_structures::{
     chain::{Environment, PublicKeyHash},
+    transaction::Transaction,
     transaction_factory::FeeType,
 };
 
@@ -63,7 +64,7 @@ pub struct CreateVttResponse {
         serialize_with = "into_generic_type::<_, TransactionHelper, _>",
         deserialize_with = "from_generic_type::<_, TransactionHelper, _>"
     )]
-    pub transaction: types::Transaction,
+    pub transaction: Transaction,
     pub bytes: String,
     pub metadata: VttMetadata,
 }

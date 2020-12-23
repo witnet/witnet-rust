@@ -1,6 +1,8 @@
-use std::convert::TryFrom;
-use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::{
+    convert::TryFrom,
+    fmt,
+    sync::{Arc, RwLock},
+};
 
 use core::fmt::Display;
 pub use std::str::FromStr;
@@ -18,6 +20,12 @@ pub use witnet_crypto::{
     mnemonic::{Length as MnemonicLength, Mnemonic, MnemonicGen},
     signature,
 };
+
+use witnet_data_structures::transaction::{
+    CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
+    TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
+};
+
 pub use witnet_data_structures::{
     chain::{
         Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash,
@@ -29,11 +37,6 @@ pub use witnet_data_structures::{
     proto::ProtobufConvert,
     radon_error::{RadonError, RadonErrors},
     radon_report::RadonReport,
-    transaction::{
-        CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
-        TallyTransaction, Transaction, VTTransaction, VTTransactionBody, ALPHA, BETA,
-        COMMIT_WEIGHT, GAMMA, INPUT_SIZE, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
-    },
     transaction_factory::FeeType,
 };
 

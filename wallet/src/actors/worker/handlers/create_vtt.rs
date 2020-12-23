@@ -1,7 +1,7 @@
 use actix::prelude::*;
 
-use crate::actors::worker;
-use crate::types;
+use crate::{actors::worker, types};
+use witnet_data_structures::transaction::Transaction;
 
 pub struct CreateVtt {
     pub wallet: types::SessionWallet,
@@ -9,7 +9,7 @@ pub struct CreateVtt {
 }
 
 impl Message for CreateVtt {
-    type Result = worker::Result<types::Transaction>;
+    type Result = worker::Result<Transaction>;
 }
 
 impl Handler<CreateVtt> for worker::Worker {

@@ -678,7 +678,7 @@ fn test_index_transaction_output_affects_balance() {
         value,
         time_lock: 0,
     }];
-    let body = types::VTTransactionBody::new(inputs, outputs);
+    let body = VTTransactionBody::new(inputs, outputs);
 
     wallet
         .index_block_transactions(&block, &[vtt_from_body(body)], true, false)
@@ -710,7 +710,7 @@ fn test_index_transaction_input_affects_balance() {
     let a_block = factories::BlockInfo::default().create();
 
     // txn1 gives a credit of 3 to our pkh
-    let txn1 = types::VTTransactionBody::new(
+    let txn1 = VTTransactionBody::new(
         vec![Input::default()],
         vec![ValueTransferOutput {
             pkh: address.pkh,
@@ -720,7 +720,7 @@ fn test_index_transaction_input_affects_balance() {
     );
 
     // txn2 spends the previous credit and gives back a change of 1 to our pkh
-    let txn2 = types::VTTransactionBody::new(
+    let txn2 = VTTransactionBody::new(
         vec![Input::new(OutputPointer {
             transaction_id: txn1.hash(),
             output_index: 0,
@@ -768,7 +768,7 @@ fn test_index_transaction_does_not_duplicate_transactions() {
         value,
         time_lock: 0,
     }];
-    let txn = types::VTTransactionBody::new(inputs, outputs);
+    let txn = VTTransactionBody::new(inputs, outputs);
 
     wallet
         .index_block_transactions(
@@ -804,7 +804,7 @@ fn test_index_transaction_errors_if_balance_overflow() {
             time_lock: 0,
         },
     ];
-    let txn = types::VTTransactionBody::new(inputs, outputs);
+    let txn = VTTransactionBody::new(inputs, outputs);
 
     let err = wallet
         .index_block_transactions(&block, &[factories::vtt_from_body(txn)], true, false)
@@ -828,7 +828,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
     wallet
         .index_block_transactions(
             &a_block,
-            &[factories::vtt_from_body(types::VTTransactionBody::new(
+            &[factories::vtt_from_body(VTTransactionBody::new(
                 vec![Input::default()],
                 vec![ValueTransferOutput {
                     pkh: our_address.pkh,
@@ -934,7 +934,7 @@ fn test_get_transaction() {
     wallet
         .index_block_transactions(
             &a_block,
-            &[factories::vtt_from_body(types::VTTransactionBody::new(
+            &[factories::vtt_from_body(VTTransactionBody::new(
                 vec![Input::default()],
                 vec![ValueTransferOutput {
                     pkh: our_address.pkh,
@@ -1001,7 +1001,7 @@ fn test_get_transactions() {
     wallet
         .index_block_transactions(
             &a_block,
-            &[factories::vtt_from_body(types::VTTransactionBody::new(
+            &[factories::vtt_from_body(VTTransactionBody::new(
                 vec![Input::default()],
                 vec![ValueTransferOutput {
                     pkh: our_address.pkh,
@@ -1078,7 +1078,7 @@ fn test_create_vtt_with_locked_balance() {
     wallet
         .index_block_transactions(
             &a_block,
-            &[factories::vtt_from_body(types::VTTransactionBody::new(
+            &[factories::vtt_from_body(VTTransactionBody::new(
                 vec![Input::default()],
                 vec![ValueTransferOutput {
                     pkh: our_address.pkh,
@@ -1132,7 +1132,7 @@ fn test_create_vtt_with_multiple_outputs() {
     wallet
         .index_block_transactions(
             &a_block,
-            &[factories::vtt_from_body(types::VTTransactionBody::new(
+            &[factories::vtt_from_body(VTTransactionBody::new(
                 vec![Input::default()],
                 vec![ValueTransferOutput {
                     pkh: our_address.pkh,

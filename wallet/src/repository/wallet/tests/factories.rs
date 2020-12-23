@@ -96,9 +96,9 @@ pub fn transaction_id() -> types::Hash {
     types::Hash::SHA256(bytes)
 }
 
-pub fn vtt_from_body(body: types::VTTransactionBody) -> model::ExtendedTransaction {
+pub fn vtt_from_body(body: VTTransactionBody) -> model::ExtendedTransaction {
     model::ExtendedTransaction {
-        transaction: types::Transaction::ValueTransfer(VTTransaction {
+        transaction: Transaction::ValueTransfer(VTTransaction {
             body,
             signatures: vec![],
         }),

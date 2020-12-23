@@ -4,12 +4,16 @@ use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::{json, Value};
 
-use crate::types::{
-    ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable, StateMachine,
+use crate::{
+    account, constants, crypto,
+    db::Database as _,
+    model, params,
+    types::{
+        ChainEntry, CheckpointBeacon, DynamicSink, GetBlockChainParams, Hashable, StateMachine,
+    },
 };
-use crate::{account, constants, crypto, db::Database as _, model, params};
 use witnet_crypto::key::ExtendedSK;
-use witnet_data_structures::chain::ValueTransferOutput;
+use witnet_data_structures::{chain::ValueTransferOutput, transaction::Transaction};
 use witnet_rad::script::RadonScriptExecutionSettings;
 
 use super::*;
@@ -328,7 +332,7 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         block_info: &model::Beacon,
-        txns: impl Iterator<Item = types::Transaction> + Clone,
+        txns: impl Iterator<Item = Transaction> + Clone,
         confirmed: bool,
         resynchronizing: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
@@ -406,17 +410,17 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::VttParams,
-    ) -> Result<types::Transaction> {
+    ) -> Result<Transaction> {
         let txn = wallet.create_vtt(params)?;
 
-        Ok(types::Transaction::ValueTransfer(txn))
+        Ok(Transaction::ValueTransfer(txn))
     }
 
     pub fn get_transaction(
         &self,
         wallet: &types::Wallet,
         transaction_id: String,
-    ) -> Result<Option<types::Transaction>> {
+    ) -> Result<Option<Transaction>> {
         let vtt = wallet.get_db_transaction(&transaction_id)?;
 
         Ok(vtt)
@@ -426,10 +430,10 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::DataReqParams,
-    ) -> Result<types::Transaction> {
+    ) -> Result<Transaction> {
         let txn = wallet.create_data_req(params)?;
 
-        Ok(types::Transaction::DataRequest(txn))
+        Ok(Transaction::DataRequest(txn))
     }
 
     pub fn sign_data(
@@ -446,40 +450,34 @@ impl Worker {
     /// Extend transactions with metadata requested to the node through JSON-RPC queries.
     pub fn extend_transactions_data(
         &self,
-        txns: Vec<types::Transaction>,
+        txns: Vec<Transaction>,
     ) -> Result<Vec<model::ExtendedTransaction>> {
         let queries: Vec<Option<IndexTransactionQuery>> = txns
             .iter()
             .map(|txn| match txn {
-                types::Transaction::ValueTransfer(vt) => {
-                    Some(IndexTransactionQuery::InputTransactions(
-                        vt.body
-                            .inputs
-                            .iter()
-                            .map(|input| input.output_pointer().clone())
-                            .collect(),
-                    ))
-                }
-                types::Transaction::DataRequest(dr) => {
-                    Some(IndexTransactionQuery::InputTransactions(
-                        dr.body
-                            .inputs
-                            .iter()
-                            .map(|input| input.output_pointer().clone())
-                            .collect(),
-                    ))
-                }
-                types::Transaction::Commit(commit) => {
-                    Some(IndexTransactionQuery::InputTransactions(
-                        commit
-                            .body
-                            .collateral
-                            .iter()
-                            .map(|input| input.output_pointer().clone())
-                            .collect(),
-                    ))
-                }
-                types::Transaction::Tally(tally) => Some(IndexTransactionQuery::DataRequestReport(
+                Transaction::ValueTransfer(vt) => Some(IndexTransactionQuery::InputTransactions(
+                    vt.body
+                        .inputs
+                        .iter()
+                        .map(|input| input.output_pointer().clone())
+                        .collect(),
+                )),
+                Transaction::DataRequest(dr) => Some(IndexTransactionQuery::InputTransactions(
+                    dr.body
+                        .inputs
+                        .iter()
+                        .map(|input| input.output_pointer().clone())
+                        .collect(),
+                )),
+                Transaction::Commit(commit) => Some(IndexTransactionQuery::InputTransactions(
+                    commit
+                        .body
+                        .collateral
+                        .iter()
+                        .map(|input| input.output_pointer().clone())
+                        .collect(),
+                )),
+                Transaction::Tally(tally) => Some(IndexTransactionQuery::DataRequestReport(
                     tally.dr_pointer.to_string(),
                 )),
                 _ => None,
@@ -533,7 +531,7 @@ impl Worker {
             .iter()
             .map(|output| self.query_transaction(output.transaction_id.to_string()));
         let retrieve_responses = async { futures03::future::try_join_all(txn_futures).await };
-        let transactions: Vec<types::Transaction> =
+        let transactions: Vec<Transaction> =
             futures::future::lazy(|| futures03::executor::block_on(retrieve_responses)).wait()?;
 
         log::debug!(
@@ -545,7 +543,7 @@ impl Worker {
             .iter()
             .zip(output_pointers)
             .map(|(txn, output)| match txn {
-                types::Transaction::ValueTransfer(vt) => vt
+                Transaction::ValueTransfer(vt) => vt
                     .body
                     .outputs
                     .get(output.output_index as usize)
@@ -553,7 +551,7 @@ impl Worker {
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
-                types::Transaction::DataRequest(dr) => dr
+                Transaction::DataRequest(dr) => dr
                     .body
                     .outputs
                     .get(output.output_index as usize)
@@ -561,21 +559,21 @@ impl Worker {
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
-                types::Transaction::Tally(tally) => tally
+                Transaction::Tally(tally) => tally
                     .outputs
                     .get(output.output_index as usize)
                     .map(ValueTransferOutput::clone)
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
-                types::Transaction::Mint(mint) => mint
+                Transaction::Mint(mint) => mint
                     .outputs
                     .get(output.output_index as usize)
                     .map(ValueTransferOutput::clone)
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
-                types::Transaction::Commit(commit) => commit
+                Transaction::Commit(commit) => commit
                     .body
                     .outputs
                     .get(output.output_index as usize)
@@ -591,7 +589,7 @@ impl Worker {
     }
 
     /// Ask a Witnet node for the contents of a transaction
-    pub async fn query_transaction(&self, txn_hash: String) -> Result<types::Transaction> {
+    pub async fn query_transaction(&self, txn_hash: String) -> Result<Transaction> {
         log::debug!("Getting transaction with hash {} ", txn_hash);
         let method = String::from("getTransaction");
         let params = txn_hash;
@@ -1124,33 +1122,26 @@ impl Worker {
             .value_transfer_txns
             .iter()
             .cloned()
-            .map(types::Transaction::from);
+            .map(Transaction::from);
         let dr_txns = block
             .txns
             .data_request_txns
             .iter()
             .cloned()
-            .map(types::Transaction::from);
+            .map(Transaction::from);
         let commit_txns = block
             .txns
             .commit_txns
             .iter()
             .cloned()
-            .map(types::Transaction::from);
-        let tally_txns = block
-            .txns
-            .tally_txns
-            .iter()
-            .cloned()
-            .map(types::Transaction::from);
+            .map(Transaction::from);
+        let tally_txns = block.txns.tally_txns.iter().cloned().map(Transaction::from);
 
         let block_txns = vtt_txns
             .chain(dr_txns)
             .chain(commit_txns)
             .chain(tally_txns)
-            .chain(std::iter::once(types::Transaction::Mint(
-                block.txns.mint.clone(),
-            )));
+            .chain(std::iter::once(Transaction::Mint(block.txns.mint.clone())));
 
         let block_info = model::Beacon {
             block_hash,

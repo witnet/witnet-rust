@@ -17,7 +17,7 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
     get_environment,
-    transaction::Transaction,
+    transaction::{DRTransaction, DRTransactionBody, Transaction},
     transaction_factory::{insert_change_output, FeeType, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
@@ -32,6 +32,7 @@ use crate::{
 };
 
 use super::*;
+use witnet_data_structures::transaction::{TallyTransaction, VTTransaction, VTTransactionBody};
 
 mod state;
 #[cfg(test)]
@@ -678,26 +679,24 @@ where
     /// Filter transactions in a block (received from a node) if they belong to wallet accounts.
     pub fn filter_wallet_transactions(
         &self,
-        txns: impl Iterator<Item = types::Transaction>,
-    ) -> Result<Vec<types::Transaction>> {
+        txns: impl Iterator<Item = Transaction>,
+    ) -> Result<Vec<Transaction>> {
         let state = self.state.read()?;
 
         let mut filtered_txns = vec![];
         for txn in txns {
             // Inputs and outputs from different transaction types
             let (inputs, outputs): (&[Input], &[ValueTransferOutput]) = match txn {
-                types::Transaction::ValueTransfer(ref vt) => (&vt.body.inputs, &vt.body.outputs),
-                types::Transaction::DataRequest(ref dr) => (&dr.body.inputs, &dr.body.outputs),
-                types::Transaction::Commit(ref commit) => {
-                    (&commit.body.collateral, &commit.body.outputs)
-                }
-                types::Transaction::Tally(ref tally) => (&[], &tally.outputs),
-                types::Transaction::Mint(ref mint) => (&[], &mint.outputs),
+                Transaction::ValueTransfer(ref vt) => (&vt.body.inputs, &vt.body.outputs),
+                Transaction::DataRequest(ref dr) => (&dr.body.inputs, &dr.body.outputs),
+                Transaction::Commit(ref commit) => (&commit.body.collateral, &commit.body.outputs),
+                Transaction::Tally(ref tally) => (&[], &tally.outputs),
+                Transaction::Mint(ref mint) => (&[], &mint.outputs),
                 _ => continue,
             };
 
             // Check if tally txn corresponds to a wallet sent data request
-            if let types::Transaction::Tally(tally) = &txn {
+            if let Transaction::Tally(tally) = &txn {
                 // There is a DR transaction persisted in database whose tally was found or
                 // there is a DR transaction in pending state whose tally was found
                 if state
@@ -756,7 +755,7 @@ where
                 (None, _) | (_, true) => {
                     match self._index_transaction(&mut state, txn, block_info, confirmed) {
                         Ok(Some((balance_movement, mut new_addresses))) => {
-                            if let types::Transaction::DataRequest(dr_tx) = &txn.transaction {
+                            if let Transaction::DataRequest(dr_tx) = &txn.transaction {
                                 dr_balance_movements.insert(
                                     dr_tx.hash().to_string(),
                                     (block_info.block_hash, block_balance_movements.len()),
@@ -777,7 +776,7 @@ where
                     txn.transaction.hash()
                 ),
             }
-            if let types::Transaction::Tally(tally) = &txn.transaction {
+            if let Transaction::Tally(tally) = &txn.transaction {
                 // The DR transaction is in pending state
                 if let Some((pending_block_hash, index)) = state
                     .pending_dr_movements
@@ -996,16 +995,16 @@ where
             outputs,
             fee_type,
         }: types::VttParams,
-    ) -> Result<types::VTTransaction> {
+    ) -> Result<VTTransaction> {
         let mut state = self.state.write()?;
         let (inputs, outputs) =
             self.create_vt_transaction_components(&mut state, outputs, fee, fee_type)?;
 
-        let body = types::VTTransactionBody::new(inputs.clone(), outputs);
+        let body = VTTransactionBody::new(inputs.clone(), outputs);
         let sign_data = body.hash();
         let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
 
-        Ok(types::VTTransaction::new(body, signatures?))
+        Ok(VTTransaction::new(body, signatures?))
     }
 
     /// Create a new data request transaction using available UTXOs.
@@ -1016,16 +1015,16 @@ where
             request,
             fee_type,
         }: types::DataReqParams,
-    ) -> Result<types::DRTransaction> {
+    ) -> Result<DRTransaction> {
         let mut state = self.state.write()?;
         let (inputs, outputs) =
             self.create_dr_transaction_components(&mut state, request.clone(), fee, fee_type)?;
 
-        let body = types::DRTransactionBody::new(inputs.clone(), outputs, request);
+        let body = DRTransactionBody::new(inputs.clone(), outputs, request);
         let sign_data = body.hash();
         let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
 
-        Ok(types::DRTransaction::new(body, signatures?))
+        Ok(DRTransaction::new(body, signatures?))
     }
 
     /// Create signatures from inputs
@@ -1256,7 +1255,7 @@ where
         // creators. By protocol the tally output can only be set to the first used input of the DR.
         // - Commit and Reveal transactions are ignored as they only contain miners addresses.
         let addresses = match txn.transaction {
-            types::Transaction::ValueTransfer(_) | types::Transaction::Mint(_) => {
+            Transaction::ValueTransfer(_) | Transaction::Mint(_) => {
                 let mut addresses = vec![];
                 for (output_pointer, key_balance) in account_mutation.utxo_inserts {
                     // Retrieve previous address information
@@ -1364,10 +1363,7 @@ where
 
     // During wallet synchronization, generate external and internal addresses
     // if transaction outputs are pointing to transient addresses
-    pub fn _sync_address_generation(
-        &self,
-        txns: impl Iterator<Item = types::Transaction>,
-    ) -> Result<()> {
+    pub fn _sync_address_generation(&self, txns: impl Iterator<Item = Transaction>) -> Result<()> {
         let mut state = self.state.write()?;
 
         // Exit if not syncing
@@ -1379,11 +1375,11 @@ where
 
         let outputs = txns
             .map(|txn| match txn {
-                types::Transaction::ValueTransfer(vt) => vt.body.outputs,
-                types::Transaction::DataRequest(dr) => dr.body.outputs,
-                types::Transaction::Commit(commit) => commit.body.outputs,
-                types::Transaction::Tally(tally) => tally.outputs,
-                types::Transaction::Mint(mint) => mint.outputs,
+                Transaction::ValueTransfer(vt) => vt.body.outputs,
+                Transaction::DataRequest(dr) => dr.body.outputs,
+                Transaction::Commit(commit) => commit.body.outputs,
+                Transaction::Tally(tally) => tally.outputs,
+                Transaction::Mint(mint) => mint.outputs,
                 _ => vec![],
             })
             .flatten()
@@ -1598,7 +1594,7 @@ where
     }
 
     /// Get previously created Transaction by its hash.
-    pub fn get_db_transaction(&self, hex_hash: &str) -> Result<Option<types::Transaction>> {
+    pub fn get_db_transaction(&self, hex_hash: &str) -> Result<Option<Transaction>> {
         let txn = self.db.get_opt(&keys::transaction(hex_hash))?;
 
         Ok(txn)
@@ -1816,17 +1812,17 @@ fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoc
 
 // Extract inputs and output from a transaction
 fn extract_inputs_and_outputs(
-    transaction: &types::Transaction,
+    transaction: &Transaction,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
     // Inputs and outputs from different transaction types
     let (inputs, outputs) = match transaction {
-        types::Transaction::ValueTransfer(vt) => (vt.body.inputs.clone(), vt.body.outputs.clone()),
-        types::Transaction::DataRequest(dr) => (dr.body.inputs.clone(), dr.body.outputs.clone()),
-        types::Transaction::Commit(commit) => {
+        Transaction::ValueTransfer(vt) => (vt.body.inputs.clone(), vt.body.outputs.clone()),
+        Transaction::DataRequest(dr) => (dr.body.inputs.clone(), dr.body.outputs.clone()),
+        Transaction::Commit(commit) => {
             (commit.body.collateral.clone(), commit.body.outputs.clone())
         }
-        types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
-        types::Transaction::Mint(mint) => (vec![], mint.outputs.clone()),
+        Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
+        Transaction::Mint(mint) => (vec![], mint.outputs.clone()),
         _ => {
             return Err(Error::UnsupportedTransactionType(format!(
                 "{:?}",
@@ -1865,25 +1861,23 @@ fn build_balance_movement(
 
     // Transaction Data
     let transaction_data = match &txn.transaction {
-        types::Transaction::ValueTransfer(vtt) => {
-            model::TransactionData::ValueTransfer(model::VtData {
-                inputs: transaction_inputs,
-                outputs: vtt_to_outputs(&vtt.body.outputs, &own_outputs),
-            })
-        }
-        types::Transaction::DataRequest(dr) => model::TransactionData::DataRequest(model::DrData {
+        Transaction::ValueTransfer(vtt) => model::TransactionData::ValueTransfer(model::VtData {
+            inputs: transaction_inputs,
+            outputs: vtt_to_outputs(&vtt.body.outputs, &own_outputs),
+        }),
+        Transaction::DataRequest(dr) => model::TransactionData::DataRequest(model::DrData {
             inputs: transaction_inputs,
             outputs: vtt_to_outputs(&dr.body.outputs, &own_outputs),
             tally: None,
         }),
-        types::Transaction::Commit(commit) => model::TransactionData::Commit(model::VtData {
+        Transaction::Commit(commit) => model::TransactionData::Commit(model::VtData {
             inputs: transaction_inputs,
             outputs: vtt_to_outputs(&commit.body.outputs, &own_outputs),
         }),
-        types::Transaction::Mint(mint) => model::TransactionData::Mint(model::MintData {
+        Transaction::Mint(mint) => model::TransactionData::Mint(model::MintData {
             outputs: vtt_to_outputs(&mint.outputs, &own_outputs),
         }),
-        types::Transaction::Tally(tally) => model::TransactionData::Tally(model::TallyData {
+        Transaction::Tally(tally) => model::TransactionData::Tally(model::TallyData {
             request_transaction_hash: tally.dr_pointer.to_string(),
             outputs: vtt_to_outputs(&tally.outputs, &own_outputs),
             tally: build_tally_report(tally, &txn.metadata)?,
@@ -1912,7 +1906,7 @@ fn build_balance_movement(
 }
 
 fn build_tally_report(
-    tally: &types::TallyTransaction,
+    tally: &TallyTransaction,
     metadata: &Option<model::TransactionMetadata>,
 ) -> Result<model::TallyReport> {
     let reveals = match metadata {
@@ -1971,7 +1965,7 @@ fn build_tally_report(
 // Update DR balance movement with tally
 fn build_updated_dr_transaction_data(
     dr_data: &model::DrData,
-    tally: &types::TallyTransaction,
+    tally: &TallyTransaction,
     txn_metadata: &Option<model::TransactionMetadata>,
 ) -> Result<model::TransactionData> {
     Ok(model::TransactionData::DataRequest(model::DrData {

@@ -9,7 +9,10 @@ use crate::{
     repository::keys::Key,
     types::{self, number_from_string, u32_to_string, u64_to_string},
 };
-use witnet_data_structures::chain::{OutputPointer, PublicKeyHash, ValueTransferOutput};
+use witnet_data_structures::{
+    chain::{OutputPointer, PublicKeyHash, ValueTransferOutput},
+    transaction::Transaction,
+};
 use witnet_util::timestamp::get_timestamp;
 
 #[derive(Debug, Clone, Serialize)]
@@ -395,7 +398,7 @@ impl fmt::Display for Path {
 }
 
 pub struct ExtendedTransaction {
-    pub transaction: types::Transaction,
+    pub transaction: Transaction,
     pub metadata: Option<TransactionMetadata>,
 }
 

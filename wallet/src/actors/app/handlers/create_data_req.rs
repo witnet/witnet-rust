@@ -8,7 +8,9 @@ use crate::{
         DataRequestOutputHelper, Hashable as _, ProtobufConvert as _, TransactionHelper,
     },
 };
-use witnet_data_structures::{chain::DataRequestOutput, transaction_factory::FeeType};
+use witnet_data_structures::{
+    chain::DataRequestOutput, transaction::Transaction, transaction_factory::FeeType,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDataReqRequest {
@@ -34,7 +36,7 @@ pub struct CreateDataReqResponse {
         serialize_with = "into_generic_type::<_, TransactionHelper, _>",
         deserialize_with = "from_generic_type::<_, TransactionHelper, _>"
     )]
-    pub transaction: types::Transaction,
+    pub transaction: Transaction,
     pub bytes: String,
     #[serde(
         serialize_with = "u64_to_string",

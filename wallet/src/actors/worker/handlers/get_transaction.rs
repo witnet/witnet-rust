@@ -1,7 +1,7 @@
 use actix::prelude::*;
 
-use crate::actors::worker;
-use crate::types;
+use crate::{actors::worker, types};
+use witnet_data_structures::transaction::Transaction;
 
 pub struct GetTransaction {
     pub wallet: types::SessionWallet,
@@ -10,7 +10,7 @@ pub struct GetTransaction {
 }
 
 impl Message for GetTransaction {
-    type Result = worker::Result<Option<types::Transaction>>;
+    type Result = worker::Result<Option<Transaction>>;
 }
 
 impl Handler<GetTransaction> for worker::Worker {

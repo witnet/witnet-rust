@@ -6,6 +6,7 @@ use crate::{
     model,
     types::{self, from_generic_type, into_generic_type, TransactionHelper},
 };
+use witnet_data_structures::transaction::Transaction;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SendTransactionRequest {
@@ -15,7 +16,7 @@ pub struct SendTransactionRequest {
         serialize_with = "into_generic_type::<_, TransactionHelper, _>",
         deserialize_with = "from_generic_type::<_, TransactionHelper, _>"
     )]
-    transaction: types::Transaction,
+    transaction: Transaction,
 }
 
 #[derive(Debug, Serialize)]

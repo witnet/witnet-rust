@@ -4,14 +4,18 @@ use actix::utils::TimerFunc;
 use futures::future;
 
 use witnet_crypto::mnemonic::Mnemonic;
-use witnet_data_structures::chain::{InventoryItem, StateMachine};
-
-use crate::actors::{
-    worker::{HandleBlockRequest, HandleSuperBlockRequest, NodeStatusRequest, NotifyStatus},
-    *,
+use witnet_data_structures::{
+    chain::{InventoryItem, StateMachine},
+    transaction::Transaction,
 };
-use crate::crypto;
-use crate::model;
+
+use crate::{
+    actors::{
+        worker::{HandleBlockRequest, HandleSuperBlockRequest, NodeStatusRequest, NotifyStatus},
+        *,
+    },
+    crypto, model,
+};
 
 use super::*;
 
@@ -397,7 +401,7 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         params: types::VttParams,
-    ) -> ResponseActFuture<types::Transaction> {
+    ) -> ResponseActFuture<Transaction> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
@@ -419,7 +423,7 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         params: types::DataReqParams,
-    ) -> ResponseActFuture<types::Transaction> {
+    ) -> ResponseActFuture<Transaction> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(&session_id, &wallet_id),
@@ -620,10 +624,7 @@ impl App {
     }
 
     /// Send a transaction to witnet network using the Inventory method
-    fn send_inventory_transaction(
-        &self,
-        txn: types::Transaction,
-    ) -> ResponseActFuture<serde_json::Value> {
+    fn send_inventory_transaction(&self, txn: Transaction) -> ResponseActFuture<serde_json::Value> {
         let method = "inventory".to_string();
         let params = InventoryItem::Transaction(txn);
 
@@ -655,7 +656,7 @@ impl App {
         &self,
         session_id: types::SessionId,
         wallet_id: String,
-        transaction: types::Transaction,
+        transaction: Transaction,
     ) -> ResponseActFuture<SendTransactionResponse> {
         let f = fut::result(
             self.state

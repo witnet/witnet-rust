@@ -1,7 +1,6 @@
-use crate::model;
-use crate::types::*;
-use std::fmt;
-use std::marker::PhantomData;
+use crate::{model, types::*};
+use std::{fmt, marker::PhantomData};
+use witnet_data_structures::transaction::Transaction;
 
 /// Type-safe database key.
 ///
