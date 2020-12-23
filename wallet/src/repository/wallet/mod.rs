@@ -25,6 +25,7 @@ use witnet_data_structures::{
     transaction_factory::{insert_change_output, FeeType, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
+use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::get_timestamp;
 
 use crate::{
@@ -36,6 +37,7 @@ use crate::{
 };
 
 use super::*;
+use witnet_rad::error::RadError;
 
 mod state;
 #[cfg(test)]
@@ -1919,7 +1921,7 @@ fn build_tally_report(
                 .reveals
                 .iter()
                 .map(|(pkh, reveal_txn)| {
-                    types::RadonTypes::try_from(reveal_txn.body.reveal.as_slice())
+                    RadonTypes::try_from(reveal_txn.body.reveal.as_slice())
                         .map(|x| {
                             (
                                 *pkh,
@@ -1942,8 +1944,8 @@ fn build_tally_report(
                     reveals.insert(
                         *pkh,
                         model::Reveal {
-                            value: types::RadonTypes::from(
-                                RadonError::try_from(types::RadError::NoReveals).unwrap(),
+                            value: RadonTypes::from(
+                                RadonError::try_from(RadError::NoReveals).unwrap(),
                             )
                             .to_string(),
                             in_consensus: false,
@@ -1958,7 +1960,7 @@ fn build_tally_report(
     }?;
 
     Ok(model::TallyReport {
-        result: types::RadonTypes::try_from(tally.tally.as_slice())
+        result: RadonTypes::try_from(tally.tally.as_slice())
             .map_err(|err| Error::TallyRadDecode(err.to_string()))?
             .to_string(),
         reveals,
