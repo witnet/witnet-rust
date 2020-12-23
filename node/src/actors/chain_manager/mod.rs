@@ -86,7 +86,7 @@ use crate::{
     signature_mngr, storage_mngr,
 };
 use witnet_validations::consolidation::{
-    consolidate_block, ConsolidateBlockResult, ReputationInfo,
+    consolidate_block, ConsolidateBlockResult, ReputationInfo, UpdateReputationResult,
 };
 
 mod actor;
@@ -582,6 +582,8 @@ impl ChainManager {
                 let ConsolidateBlockResult {
                     to_be_stored,
                     reveals,
+                    reputation_update,
+                    congratulations,
                 } = consolidate_block(
                     &mut self.chain_state,
                     &mut self.transactions_pool,
@@ -592,6 +594,12 @@ impl ChainManager {
                     own_pkh,
                     epoch_constants,
                 );
+
+                show_reputation_update(reputation_update, self.sm_state);
+
+                if congratulations {
+                    log::info!("Congratulations! Your block was consolidated into the block chain by an apparent majority of peers");
+                }
 
                 match self.sm_state {
                     StateMachine::WaitingConsensus => {
@@ -2036,6 +2044,100 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
             Purple.bold().paint(block_epoch.to_string()),
             White.bold().paint("Data Requests: "),
             White.bold().paint(info),
+        );
+    }
+}
+
+fn show_reputation_update(reputation_update: Option<UpdateReputationResult>, sm_state: StateMachine) {
+    // Print reputation logs on debug level on Synced state,
+    // but on trace level while synchronizing
+    let log_level = if let StateMachine::Synced = sm_state {
+        log::Level::Debug
+    } else {
+        log::Level::Trace
+    };
+    if let Some(UpdateReputationResult {
+        old_alpha,
+        reputation_info,
+        own_slashed_rep,
+        extra_rep_previous_epoch,
+        expired_rep,
+        issued_rep,
+        penalized_rep,
+        reputation_bounty,
+        own_gained_rep,
+        gained_rep,
+        num_honest,
+        rep_reward,
+        extra_reputation,
+    }) = reputation_update
+    {
+        log::log!(log_level, "Reputation Engine Update:\n");
+        log::log!(
+            log_level,
+            "Witnessing acts: Total {} + new {}",
+            old_alpha.0,
+            reputation_info.alpha_diff.0
+        );
+        log::log!(log_level, "Lie count: {{");
+        // TODO: skip this iterator if !log_enabled(log_level)
+        for (pkh, result) in reputation_info
+            .result_count
+            .iter()
+            .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
+        {
+            log::log!(
+                log_level,
+                "    {}: {} truths, {} errors, {} lies",
+                pkh,
+                result.truths,
+                result.errors,
+                result.lies
+            );
+        }
+        log::log!(log_level, "}}");
+
+        if let Some(own_slashed_rep) = own_slashed_rep {
+            log::info!(
+                "Your reputation score has been slashed by {} points",
+                own_slashed_rep.0
+            );
+        }
+
+        log::log!(
+            log_level,
+            "+ {:9} rep from previous epoch",
+            extra_rep_previous_epoch.0
+        );
+        log::log!(log_level, "+ {:9} expired rep", expired_rep.0);
+        log::log!(log_level, "+ {:9} issued rep", issued_rep.0);
+        log::log!(log_level, "+ {:9} penalized rep", penalized_rep.0);
+        log::log!(log_level, "= {:9} reputation bounty", reputation_bounty.0);
+
+        if let Some(own_gained_rep) = own_gained_rep {
+            log::info!(
+                "Your reputation score has increased by {} points",
+                own_gained_rep.0
+            );
+        }
+
+        if num_honest > 0 {
+            log::log!(
+                log_level,
+                "({} rep x {} revealers = {})",
+                rep_reward.0,
+                num_honest,
+                gained_rep.0
+            );
+        } else {
+            log::log!(log_level, "(no revealers for this epoch)");
+        }
+        log::log!(log_level, "- {:9} gained rep", gained_rep.0);
+
+        log::log!(
+            log_level,
+            "= {:9} extra rep for next epoch",
+            extra_reputation.0
         );
     }
 }

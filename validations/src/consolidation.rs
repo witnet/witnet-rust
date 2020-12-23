@@ -1,5 +1,4 @@
 use crate::validations::{validate_block, validate_block_transactions, verify_signatures};
-use itertools::Itertools;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use witnet_config::config::consensus_constants_from_partial;
@@ -20,13 +19,13 @@ use witnet_data_structures::vrf::VrfCtx;
 /// identity that participated (number of truths, lies, and errors).
 #[derive(Debug, Default)]
 pub struct ReputationInfo {
-    // Counter of "witnessing acts".
-    // For every data request with a tally in this block, increment alpha_diff
-    // by the number of reveals present in the tally.
-    alpha_diff: Alpha,
+    /// Counter of "witnessing acts".
+    /// For every data request with a tally in this block, increment alpha_diff
+    /// by the number of reveals present in the tally.
+    pub alpha_diff: Alpha,
 
-    // Map used to count the witnesses results in one epoch
-    result_count: HashMap<PublicKeyHash, RequestResult>,
+    /// Map used to count the witnesses results in one epoch
+    pub result_count: HashMap<PublicKeyHash, RequestResult>,
 }
 
 impl ReputationInfo {
@@ -71,11 +70,14 @@ impl ReputationInfo {
     }
 }
 
-// This struct count the number of truths, lies and errors committed by an identity
+/// This struct count the number of truths, lies and errors committed by an identity
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
-struct RequestResult {
+pub struct RequestResult {
+    /// Truths
     pub truths: u32,
+    /// Lies
     pub lies: u32,
+    /// Errors
     pub errors: u32,
 }
 
@@ -100,6 +102,36 @@ where
     (honests, errors, liars)
 }
 
+/// Result of updating the `ReputationEngine` when consolidating a `Block`
+pub struct UpdateReputationResult {
+    /// Number of witnessing acts before updating reputation
+    pub old_alpha: Alpha,
+    /// alpha_diff and result_count
+    pub reputation_info: ReputationInfo,
+    /// Amount of reputation slashed to `own_pkh`
+    pub own_slashed_rep: Option<Reputation>,
+    /// Leftover reputation from the previous epoch
+    pub extra_rep_previous_epoch: Reputation,
+    /// Reputation that expired
+    pub expired_rep: Reputation,
+    /// Reputation that was created
+    pub issued_rep: Reputation,
+    /// Reputation subtracted from dishonest identities
+    pub penalized_rep: Reputation,
+    /// Total reputation that can be divided amongst all the honest identities
+    pub reputation_bounty: Reputation,
+    /// Amount of reputation added to `own_pkh`
+    pub own_gained_rep: Option<Reputation>,
+    /// Reputation gained by each identity
+    pub gained_rep: Reputation,
+    /// Number of honest identities
+    pub num_honest: u32,
+    /// Total reputation rewarded to nodes
+    pub rep_reward: Reputation,
+    /// Leftover reputation for the next epoch
+    pub extra_reputation: Reputation,
+}
+
 /// Update `ReputationEngine` and `AltKeys` using the provided `ReputationInfo`
 // FIXME(#676): Remove clippy skip error
 #[allow(
@@ -117,36 +149,13 @@ pub fn update_reputation(
         alpha_diff,
         result_count,
     }: ReputationInfo,
-    log_level: log::Level,
     block_epoch: Epoch,
     own_pkh: PublicKeyHash,
-) {
+) -> UpdateReputationResult {
     let old_alpha = rep_eng.current_alpha();
     let new_alpha = Alpha(old_alpha.0 + alpha_diff.0);
-    log::log!(log_level, "Reputation Engine Update:\n");
-    log::log!(
-        log_level,
-        "Witnessing acts: Total {} + new {}",
-        old_alpha.0,
-        alpha_diff.0
-    );
-    log::log!(log_level, "Lie count: {{");
-    for (pkh, result) in result_count
-        .iter()
-        .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
-    {
-        log::log!(
-            log_level,
-            "    {}: {} truths, {} errors, {} lies",
-            pkh,
-            result.truths,
-            result.errors,
-            result.lies
-        );
-    }
-    log::log!(log_level, "}}");
     let (honests, _errors, liars) = separate_honest_errors_and_liars(result_count.clone());
-    let revealers = result_count.into_iter().map(|(pkh, _)| pkh);
+    let revealers = result_count.keys().copied();
     // Leftover reputation from the previous epoch
     let extra_rep_previous_epoch = rep_eng.extra_reputation;
     // Expire in old_alpha to maximize reputation lost in penalizations.
@@ -161,6 +170,7 @@ pub fn update_reputation(
         new_alpha,
     );
     let own_rep = rep_eng.trs().get(&own_pkh);
+    let mut own_slashed_rep = None;
     // Penalize liars and accumulate the reputation
     // The penalization depends on the number of lies from the last epoch
     let liars_and_penalize_function = liars.iter().map(|(pkh, num_lies)| {
@@ -169,11 +179,10 @@ pub fn update_reputation(
                 * consensus_constants
                     .reputation_penalization_factor
                     .powf(f64::from(*num_lies));
-            let slashed_rep = own_rep.0 - (after_slashed_rep as u32);
-            log::info!(
-                "Your reputation score has been slashed by {} points",
-                slashed_rep
-            );
+            let slashed_rep = Reputation(own_rep.0 - (after_slashed_rep as u32));
+            // TODO: I assume that `own_pkh == *pkh` will only be true once
+            assert_eq!(own_slashed_rep, None);
+            own_slashed_rep = Some(slashed_rep);
         }
 
         (
@@ -194,58 +203,33 @@ pub fn update_reputation(
     reputation_bounty += issued_rep;
     reputation_bounty += penalized_rep;
 
+    let mut own_gained_rep = None;
+    let mut gained_rep = Reputation(0);
+    let mut rep_reward = Reputation(0);
     let num_honest = u32::try_from(honests.len()).unwrap();
-
-    log::log!(
-        log_level,
-        "+ {:9} rep from previous epoch",
-        extra_rep_previous_epoch.0
-    );
-    log::log!(log_level, "+ {:9} expired rep", expired_rep.0);
-    log::log!(log_level, "+ {:9} issued rep", issued_rep.0);
-    log::log!(log_level, "+ {:9} penalized rep", penalized_rep.0);
-    log::log!(log_level, "= {:9} reputation bounty", reputation_bounty.0);
 
     // Gain reputation
     if num_honest > 0 {
-        let rep_reward = reputation_bounty.0 / num_honest;
+        rep_reward = Reputation(reputation_bounty.0 / num_honest);
         // Expiration starts counting from new_alpha.
         // All the reputation earned in this block will expire at the same time.
         let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
         let honest_gain = honests.into_iter().map(|pkh| {
             if own_pkh == pkh {
-                log::info!(
-                    "Your reputation score has increased by {} points",
-                    rep_reward
-                );
+                // TODO: I assume that `own_pkh == *pkh` will only be true once
+                assert_eq!(own_gained_rep, None);
+                own_gained_rep = Some(rep_reward);
             }
-            (pkh, Reputation(rep_reward))
+            (pkh, rep_reward)
         });
         rep_eng.trs_mut().gain(expire_alpha, honest_gain).unwrap();
 
-        let gained_rep = Reputation(rep_reward * num_honest);
+        gained_rep = Reputation(rep_reward.0 * num_honest);
         reputation_bounty -= gained_rep;
-
-        log::log!(
-            log_level,
-            "({} rep x {} revealers = {})",
-            rep_reward,
-            num_honest,
-            gained_rep.0
-        );
-        log::log!(log_level, "- {:9} gained rep", gained_rep.0);
-    } else {
-        log::log!(log_level, "(no revealers for this epoch)");
-        log::log!(log_level, "- {:9} gained rep", 0);
     }
 
     let extra_reputation = reputation_bounty;
     rep_eng.extra_reputation = extra_reputation;
-    log::log!(
-        log_level,
-        "= {:9} extra rep for next epoch",
-        extra_reputation.0
-    );
 
     // Update active reputation set
     // Add block miner pkh to active identities
@@ -260,6 +244,25 @@ pub fn update_reputation(
     secp_bls_mapping.retain(|k| rep_eng.is_ars_member(k));
 
     rep_eng.set_current_alpha(new_alpha);
+
+    UpdateReputationResult {
+        old_alpha,
+        reputation_info: ReputationInfo {
+            alpha_diff,
+            result_count,
+        },
+        own_slashed_rep,
+        extra_rep_previous_epoch,
+        expired_rep,
+        issued_rep,
+        penalized_rep,
+        reputation_bounty,
+        own_gained_rep,
+        gained_rep,
+        num_honest,
+        rep_reward,
+        extra_reputation,
+    }
 }
 
 /// Update `UnspentOutputsPool`, `DataRequestPool`, and `TransactionsPool` with a new consolidated
@@ -359,6 +362,10 @@ pub struct ConsolidateBlockResult {
     pub to_be_stored: Vec<DataRequestInfo>,
     /// List of reveal transactions that should be broadcasted to the network
     pub reveals: Vec<RevealTransaction>,
+    /// Info about reputation update
+    pub reputation_update: Option<UpdateReputationResult>,
+    /// True if this block was mined by `own_pkh`
+    pub congratulations: bool,
 }
 
 /// Simplified version of ChainManager used for testing
@@ -544,14 +551,6 @@ pub fn consolidate_block(
         }
     };
 
-    // Print reputation logs on debug level on Synced state,
-    // but on trace level while synchronizing
-    let log_level = if let StateMachine::Synced = sm_state {
-        log::Level::Debug
-    } else {
-        log::Level::Trace
-    };
-
     let chain_info = chain_state.chain_info.as_mut().unwrap();
     let reputation_engine = chain_state.reputation_engine.as_mut().unwrap();
     // Update beacon and vrf output
@@ -573,18 +572,18 @@ pub fn consolidate_block(
 
     let miner_pkh = block.block_header.proof.proof.pkh();
 
+    let mut reputation_update = None;
     // Do not update reputation when consolidating genesis block
     if block_hash != chain_info.consensus_constants.genesis_hash {
-        update_reputation(
+        reputation_update = Some(update_reputation(
             reputation_engine,
             &mut chain_state.alt_keys,
             &chain_info.consensus_constants,
             miner_pkh,
             rep_info,
-            log_level,
             block_epoch,
             own_pkh,
-        );
+        ));
     }
 
     // Update bn256 public keys with block information
@@ -597,10 +596,11 @@ pub fn consolidate_block(
 
     let reveals = chain_state.data_request_pool.update_data_request_stages();
 
+    let mut congratulations = false;
     if miner_pkh == own_pkh {
         chain_state.node_stats.block_mined_count += 1;
         if sm_state == StateMachine::Synced {
-            log::info!("Congratulations! Your block was consolidated into the block chain by an apparent majority of peers");
+            congratulations = true;
         } else {
             // During synchronization, we assume that every consolidated block has, at least, one proposed block.
             chain_state.node_stats.block_proposed_count += 1;
@@ -610,6 +610,8 @@ pub fn consolidate_block(
     ConsolidateBlockResult {
         to_be_stored,
         reveals,
+        reputation_update,
+        congratulations,
     }
 }
 
