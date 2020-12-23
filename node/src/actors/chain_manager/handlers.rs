@@ -19,23 +19,29 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
+use crate::actors::messages::GetItemBlock;
 use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
+        inventory_manager::InventoryManager,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
             GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
-            PeersBeacons, ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon,
-            TryMineBlock,
+            PeersBeacons, ReputationStats, RevalidateBlockChain, SendLastBeacon, SessionUnitResult,
+            SetLastBeacon, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
     signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
+use futures_util::compat::Compat01As03;
+use witnet_crypto::key::CryptoEngine;
+use witnet_data_structures::vrf::VrfCtx;
+use witnet_validations::consolidation::{ChainStateTest, ConsolidateBlockResult};
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -1638,6 +1644,37 @@ where
         candidate_blocks,
         remaining_blocks,
     ))
+}
+
+impl Handler<RevalidateBlockChain> for ChainManager {
+    type Result = ResponseFuture<(), failure::Error>;
+
+    fn handle(&mut self, msg: RevalidateBlockChain, _ctx: &mut Self::Context) -> Self::Result {
+        let block_chain = self.chain_state.block_chain.clone();
+
+        let fut03 = async {
+            let inventory_manager_addr = InventoryManager::from_registry();
+            let mut chain_manager_test = ChainStateTest::new();
+
+            let mut vrf_ctx = VrfCtx::secp256k1().expect("failed to initialize VRF context");
+            let secp_ctx = CryptoEngine::new();
+
+            for (block_epoch, block_hash) in block_chain {
+                let f = inventory_manager_addr.send(GetItemBlock { hash: block_hash });
+                let block = Compat01As03::new(f).await.unwrap().unwrap();
+                let diff = chain_manager_test.validate_block(&block, &mut vrf_ctx, &secp_ctx)?;
+                let ConsolidateBlockResult {
+                    ..
+                } = chain_manager_test.consolidate_block(&block, diff, &mut vrf_ctx);
+
+                log::info!("Re-validated block #{}: {}", block_epoch, block_hash);
+            }
+            Ok(())
+        };
+        // Magic conversion from std::future::Future (futures 0.3) and futures::Future (futures 0.1)
+        let fut = futures_util::compat::Compat::new(Box::pin(fut03));
+        Box::new(fut)
+    }
 }
 
 #[cfg(test)]

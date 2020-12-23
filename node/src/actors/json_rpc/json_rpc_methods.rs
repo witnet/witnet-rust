@@ -32,7 +32,7 @@ use crate::{
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo, InitializePeers, IsConfirmedBlock,
+            GetUtxoInfo, InitializePeers, IsConfirmedBlock, RevalidateBlockChain,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -172,6 +172,13 @@ pub fn jsonrpc_io_handler(
             initialize_peers()
         } else {
             unauthorized_method("initializePeers")
+        }
+    });
+    io.add_method("test_revalidateBlockChain", move |params: Params| {
+        if enable_sensitive_methods {
+            test_revalidate_block_chain(params.parse())
+        } else {
+            unauthorized_method("test_revalidateBlockChain")
         }
     });
     // Enable subscriptions
@@ -1414,6 +1421,25 @@ pub fn get_superblock(
         },
         Err(e) => futures::failed(internal_error_s(e)),
     });
+
+    Box::new(fut)
+}
+
+/// Test method used to validate all the blocks and transactions of the current blockchain again.
+/// This is used to ensure that any changes to the validations do not prevent new nodes from
+/// synchronizing from the beginning.
+pub fn test_revalidate_block_chain(
+    _params: Result<serde_json::Value, jsonrpc_core::Error>,
+) -> JsonRpcResultAsync {
+    // Use None as the source address: this will make adding peers using this method be exactly the
+    // same as adding peers using the configuration file
+
+    let chain_manager_addr = ChainManager::from_registry();
+    let fut = chain_manager_addr
+        .send(RevalidateBlockChain)
+        .flatten()
+        .map_err(internal_error)
+        .map(|()| Value::Bool(true));
 
     Box::new(fut)
 }

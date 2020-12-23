@@ -362,6 +362,15 @@ impl Message for IsConfirmedBlock {
     type Result = Result<bool, failure::Error>;
 }
 
+/// Test method used to validate all the blocks and transactions of the current blockchain again.
+/// This is used to ensure that any changes to the validations do not prevent new nodes from
+/// synchronizing from the beginning.
+pub struct RevalidateBlockChain;
+
+impl Message for RevalidateBlockChain {
+    type Result = Result<(), failure::Error>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////
