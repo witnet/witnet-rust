@@ -21,6 +21,7 @@ use witnet_data_structures::{
     },
     transaction::Transaction,
 };
+use witnet_net::client::tcp::jsonrpc;
 use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport};
 
 use super::*;
@@ -601,7 +602,7 @@ impl Worker {
         let method = String::from("getTransaction");
         let params = txn_hash;
 
-        let req = types::RpcRequest::method(method)
+        let req = jsonrpc::Request::method(method)
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");
@@ -633,7 +634,7 @@ impl Worker {
         let method = String::from("dataRequestReport");
         let params = data_request_id;
 
-        let req = types::RpcRequest::method(method)
+        let req = jsonrpc::Request::method(method)
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");
@@ -873,7 +874,7 @@ impl Worker {
 
         let method = String::from("getBlockChain");
         let params = GetBlockChainParams { epoch, limit };
-        let req = types::RpcRequest::method(method)
+        let req = jsonrpc::Request::method(method)
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");
@@ -906,7 +907,7 @@ impl Worker {
         let method = String::from("getBlock");
         let params = vec![Value::String(block_id), Value::Bool(false)];
 
-        let req = types::RpcRequest::method(method)
+        let req = jsonrpc::Request::method(method)
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");

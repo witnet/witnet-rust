@@ -31,7 +31,6 @@ use witnet_data_structures::{
     transaction_factory::FeeType,
 };
 
-pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
 
 use crate::model;

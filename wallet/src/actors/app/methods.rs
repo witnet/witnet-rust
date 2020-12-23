@@ -245,7 +245,7 @@ impl App {
         method: String,
         params: types::RpcParams,
     ) -> ResponseFuture<types::Json> {
-        let req = types::RpcRequest::method(method)
+        let req = jsonrpc::Request::method(method)
             .timeout(self.params.requests_timeout)
             .params(params)
             .expect("params failed serialization");
@@ -628,7 +628,7 @@ impl App {
         let method = "inventory".to_string();
         let params = InventoryItem::Transaction(txn);
 
-        let req = types::RpcRequest::method(method)
+        let req = jsonrpc::Request::method(method)
             .timeout(self.params.requests_timeout)
             .params(params)
             .expect("params failed serialization");
@@ -753,7 +753,7 @@ impl App {
     pub fn node_subscribe(&self, method: &str, ctx: &mut <Self as Actor>::Context) {
         let recipient = ctx.address().recipient();
 
-        let request = types::RpcRequest::method("witnet_subscribe")
+        let request = jsonrpc::Request::method("witnet_subscribe")
             .timeout(self.params.requests_timeout)
             .value(serde_json::to_value([method]).expect(
                 "Any JSON-RPC method name should be serializable using `serde_json::to_value`",
@@ -780,7 +780,7 @@ impl App {
 
         let events = Some(vec![types::Event::NodeDisconnected]);
 
-        let req = types::RpcRequest::method("syncStatus".to_string())
+        let req = jsonrpc::Request::method("syncStatus".to_string())
             .timeout(self.params.requests_timeout)
             .params(())
             .expect("params failed serialization");
