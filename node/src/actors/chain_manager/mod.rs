@@ -85,6 +85,9 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
+use witnet_validations::consolidation::{
+    consolidate_block, ConsolidateBlockResult, ReputationInfo,
+};
 
 mod actor;
 mod handlers;
@@ -567,15 +570,6 @@ impl ChainManager {
                 reputation_engine: Some(ref mut reputation_engine),
                 ..
             } => {
-                let block_hash = block.hash();
-                let block_epoch = block.block_header.beacon.checkpoint;
-
-                // Update `highest_block_checkpoint`
-                let beacon = CheckpointBeacon {
-                    checkpoint: block_epoch,
-                    hash_prev_block: block_hash,
-                };
-
                 // Get VRF context
                 let vrf_ctx = match self.vrf_ctx.as_mut() {
                     Some(x) => x,
@@ -585,105 +579,37 @@ impl ChainManager {
                     }
                 };
 
-                // Decide the input message for the VRF of this block candidate:
-                // If the candidate builds right on top of the genesis block, use candidate's own checkpoint and the genesis block hash.
-                // Else, use use candidate's own checkpoint and the hash of the VRF proof from the block it builds on.
-                let vrf_input = match block_epoch {
-                    0 => CheckpointVRF {
-                        checkpoint: block_epoch,
-                        hash_prev_vrf: block_hash,
-                    },
-                    _ => {
-                        let proof_hash = block.block_header.proof.proof_to_hash(vrf_ctx).unwrap();
-                        CheckpointVRF {
-                            checkpoint: block_epoch,
-                            hash_prev_vrf: proof_hash,
-                        }
-                    }
-                };
-
-                // Print reputation logs on debug level on Synced state,
-                // but on trace level while synchronizing
-                let log_level = if let StateMachine::Synced = self.sm_state {
-                    log::Level::Debug
-                } else {
-                    log::Level::Trace
-                };
-
-                // Update beacon and vrf output
-                chain_info.highest_block_checkpoint = beacon;
-                chain_info.highest_vrf_output = vrf_input;
-
-                let rep_info = update_pools(
-                    &block,
-                    &mut self.chain_state.unspent_outputs_pool,
-                    &mut self.chain_state.data_request_pool,
+                let ConsolidateBlockResult {
+                    to_be_stored,
+                    reveals,
+                } = consolidate_block(
+                    &mut self.chain_state,
                     &mut self.transactions_pool,
+                    vrf_ctx,
+                    &block,
                     utxo_diff,
-                    own_pkh,
-                    &mut self.chain_state.own_utxos,
-                    epoch_constants,
-                    &mut self.chain_state.node_stats,
                     self.sm_state,
+                    own_pkh,
+                    epoch_constants,
                 );
-
-                let miner_pkh = block.block_header.proof.proof.pkh();
-
-                // Do not update reputation when consolidating genesis block
-                if block_hash != chain_info.consensus_constants.genesis_hash {
-                    update_reputation(
-                        reputation_engine,
-                        &mut self.chain_state.alt_keys,
-                        &chain_info.consensus_constants,
-                        miner_pkh,
-                        rep_info,
-                        log_level,
-                        block_epoch,
-                        self.own_pkh.unwrap_or_default(),
-                    );
-                }
-
-                // Update bn256 public keys with block information
-                self.chain_state.alt_keys.insert_keys_from_block(&block);
-
-                // Insert candidate block into `block_chain` state
-                self.chain_state.block_chain.insert(block_epoch, block_hash);
 
                 match self.sm_state {
                     StateMachine::WaitingConsensus => {
                         // Persist finished data requests into storage
-                        let to_be_stored =
-                            self.chain_state.data_request_pool.finished_data_requests();
                         self.persist_data_requests(ctx, to_be_stored);
-
-                        let _reveals = self
-                            .chain_state
-                            .data_request_pool
-                            .update_data_request_stages();
-
                         self.persist_items(ctx, vec![StoreInventoryItem::Block(Box::new(block))]);
                     }
                     StateMachine::Synchronizing => {
                         // In Synchronizing stage, blocks and data requests are persisted
                         // trough batches in AddBlocks handler
-                        let _reveals = self
-                            .chain_state
-                            .data_request_pool
-                            .update_data_request_stages();
                     }
                     StateMachine::AlmostSynced | StateMachine::Synced => {
+                        let block_epoch = block.block_header.beacon.checkpoint;
                         // Persist finished data requests into storage
-                        let to_be_stored =
-                            self.chain_state.data_request_pool.finished_data_requests();
                         for dr_info in &to_be_stored {
                             show_tally_info(&dr_info.tally.as_ref().unwrap(), block_epoch);
                         }
                         self.persist_data_requests(ctx, to_be_stored);
-
-                        let reveals = self
-                            .chain_state
-                            .data_request_pool
-                            .update_data_request_stages();
 
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 
@@ -709,16 +635,6 @@ impl ChainManager {
 
                         // Send notification to JsonRpcServer
                         JsonRpcServer::from_registry().do_send(BlockNotify { block })
-                    }
-                }
-
-                if miner_pkh == own_pkh {
-                    self.chain_state.node_stats.block_mined_count += 1;
-                    if self.sm_state == StateMachine::Synced {
-                        log::info!("Congratulations! Your block was consolidated into the block chain by an apparent majority of peers");
-                    } else {
-                        // During synchronization, we assume that every consolidated block has, at least, one proposed block.
-                        self.chain_state.node_stats.block_proposed_count += 1;
                     }
                 }
             }
@@ -2054,336 +1970,6 @@ pub fn process_validations(
     Ok(utxo_dif)
 }
 
-// This struct count the number of truths, lies and errors committed by an identity
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
-struct RequestResult {
-    pub truths: u32,
-    pub lies: u32,
-    pub errors: u32,
-}
-
-#[derive(Debug, Default)]
-struct ReputationInfo {
-    // Counter of "witnessing acts".
-    // For every data request with a tally in this block, increment alpha_diff
-    // by the number of reveals present in the tally.
-    alpha_diff: Alpha,
-
-    // Map used to count the witnesses results in one epoch
-    result_count: HashMap<PublicKeyHash, RequestResult>,
-}
-
-impl ReputationInfo {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn update(
-        &mut self,
-        tally_transaction: &TallyTransaction,
-        data_request_pool: &DataRequestPool,
-        own_pkh: PublicKeyHash,
-        node_stats: &mut NodeStats,
-    ) {
-        let dr_pointer = tally_transaction.dr_pointer;
-        let dr_state = &data_request_pool.data_request_pool[&dr_pointer];
-        let commits = &dr_state.info.commits;
-        // 1 reveal = 1 witnessing act
-        let reveals_count = u32::try_from(dr_state.info.reveals.len()).unwrap();
-        self.alpha_diff += Alpha(reveals_count);
-
-        // Set of pkhs which were slashed in the tally transaction
-        let out_of_consensus = &tally_transaction.out_of_consensus;
-        let error_committers = &tally_transaction.error_committers;
-        for pkh in commits.keys() {
-            let result = self.result_count.entry(*pkh).or_default();
-            if error_committers.contains(pkh) {
-                result.errors += 1;
-            } else if out_of_consensus.contains(pkh) {
-                result.lies += 1;
-            } else {
-                result.truths += 1;
-            }
-        }
-
-        // Update node stats
-        if out_of_consensus.contains(&own_pkh) && !error_committers.contains(&own_pkh) {
-            node_stats.slashed_count += 1;
-        }
-    }
-}
-
-// Helper methods
-#[allow(clippy::too_many_arguments)]
-fn update_pools(
-    block: &Block,
-    unspent_outputs_pool: &mut UnspentOutputsPool,
-    data_request_pool: &mut DataRequestPool,
-    transactions_pool: &mut TransactionsPool,
-    utxo_diff: Diff,
-    own_pkh: PublicKeyHash,
-    own_utxos: &mut OwnUnspentOutputsPool,
-    epoch_constants: EpochConstants,
-    node_stats: &mut NodeStats,
-    state_machine: StateMachine,
-) -> ReputationInfo {
-    let mut rep_info = ReputationInfo::new();
-
-    for ta_tx in &block.txns.tally_txns {
-        // Process tally transactions: used to update reputation engine
-        rep_info.update(&ta_tx, data_request_pool, own_pkh, node_stats);
-
-        // IMPORTANT: Update the data request pool after updating reputation info
-        if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash()) {
-            log::error!("Error processing tally transaction:\n{}", e);
-        }
-    }
-
-    for vt_tx in &block.txns.value_transfer_txns {
-        transactions_pool.vt_remove(&vt_tx);
-    }
-
-    for dr_tx in &block.txns.data_request_txns {
-        if let Err(e) = data_request_pool.process_data_request(
-            &dr_tx,
-            block.block_header.beacon.checkpoint,
-            epoch_constants,
-            &block.hash(),
-        ) {
-            log::error!("Error processing data request transaction:\n{}", e);
-        } else {
-            transactions_pool.dr_remove(&dr_tx);
-        }
-    }
-
-    for co_tx in &block.txns.commit_txns {
-        if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
-            log::error!("Error processing commit transaction:\n{}", e);
-        } else {
-            if co_tx.body.proof.proof.pkh() == own_pkh {
-                node_stats.commits_count += 1;
-                if state_machine != StateMachine::Synced {
-                    // During synchronization, we assume that every consolidated commit had,
-                    // at least, one data requests valid proof and one commit proposed
-                    node_stats.dr_eligibility_count += 1;
-                    node_stats.commits_proposed_count += 1;
-                }
-            }
-            transactions_pool.remove_inputs(&co_tx.body.collateral);
-        }
-    }
-
-    for re_tx in &block.txns.reveal_txns {
-        if let Err(e) = data_request_pool.process_reveal(&re_tx, &block.hash()) {
-            log::error!("Error processing reveal transaction:\n{}", e);
-        }
-    }
-
-    // Remove reveals because they expire every consolidated block
-    transactions_pool.clear_reveals();
-
-    // Update own_utxos
-    utxo_diff.visit(
-        own_utxos,
-        |own_utxos, output_pointer, output| {
-            // Insert new outputs
-            if output.pkh == own_pkh {
-                own_utxos.insert(output_pointer.clone(), 0);
-            }
-        },
-        |own_utxos, output_pointer| {
-            // Remove spent inputs
-            own_utxos.remove(&output_pointer);
-        },
-    );
-
-    utxo_diff.apply(unspent_outputs_pool);
-
-    rep_info
-}
-
-fn separate_honest_errors_and_liars<K, I>(rep_info: I) -> (Vec<K>, Vec<K>, Vec<(K, u32)>)
-where
-    I: IntoIterator<Item = (K, RequestResult)>,
-{
-    let mut honests = vec![];
-    let mut liars = vec![];
-    let mut errors = vec![];
-    for (pkh, result) in rep_info {
-        if result.lies > 0 {
-            liars.push((pkh, result.lies));
-        // TODO: Decide which percentage would be fair enough
-        } else if result.truths >= result.errors {
-            honests.push(pkh);
-        } else {
-            errors.push(pkh);
-        }
-    }
-
-    (honests, errors, liars)
-}
-
-// FIXME(#676): Remove clippy skip error
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cognitive_complexity,
-    clippy::too_many_arguments
-)]
-fn update_reputation(
-    rep_eng: &mut ReputationEngine,
-    secp_bls_mapping: &mut AltKeys,
-    consensus_constants: &ConsensusConstants,
-    miner_pkh: PublicKeyHash,
-    ReputationInfo {
-        alpha_diff,
-        result_count,
-    }: ReputationInfo,
-    log_level: log::Level,
-    block_epoch: Epoch,
-    own_pkh: PublicKeyHash,
-) {
-    let old_alpha = rep_eng.current_alpha();
-    let new_alpha = Alpha(old_alpha.0 + alpha_diff.0);
-    log::log!(log_level, "Reputation Engine Update:\n");
-    log::log!(
-        log_level,
-        "Witnessing acts: Total {} + new {}",
-        old_alpha.0,
-        alpha_diff.0
-    );
-    log::log!(log_level, "Lie count: {{");
-    for (pkh, result) in result_count
-        .iter()
-        .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
-    {
-        log::log!(
-            log_level,
-            "    {}: {} truths, {} errors, {} lies",
-            pkh,
-            result.truths,
-            result.errors,
-            result.lies
-        );
-    }
-    log::log!(log_level, "}}");
-    let (honests, _errors, liars) = separate_honest_errors_and_liars(result_count.clone());
-    let revealers = result_count.into_iter().map(|(pkh, _)| pkh);
-    // Leftover reputation from the previous epoch
-    let extra_rep_previous_epoch = rep_eng.extra_reputation;
-    // Expire in old_alpha to maximize reputation lost in penalizations.
-    // Example: we are in old_alpha 10000, new_alpha 5 and some reputation expires in
-    // alpha 10002. This reputation will expire in the next epoch.
-    let expired_rep = rep_eng.trs_mut().expire(&old_alpha);
-    // There is some reputation issued for every witnessing act
-    let issued_rep = reputation_issuance(
-        Reputation(consensus_constants.reputation_issuance),
-        Alpha(consensus_constants.reputation_issuance_stop),
-        old_alpha,
-        new_alpha,
-    );
-    let own_rep = rep_eng.trs().get(&own_pkh);
-    // Penalize liars and accumulate the reputation
-    // The penalization depends on the number of lies from the last epoch
-    let liars_and_penalize_function = liars.iter().map(|(pkh, num_lies)| {
-        if own_pkh == *pkh {
-            let after_slashed_rep = f64::from(own_rep.0)
-                * consensus_constants
-                    .reputation_penalization_factor
-                    .powf(f64::from(*num_lies));
-            let slashed_rep = own_rep.0 - (after_slashed_rep as u32);
-            log::info!(
-                "Your reputation score has been slashed by {} points",
-                slashed_rep
-            );
-        }
-
-        (
-            pkh,
-            penalize_factor(
-                consensus_constants.reputation_penalization_factor,
-                *num_lies,
-            ),
-        )
-    });
-    let penalized_rep = rep_eng
-        .trs_mut()
-        .penalize_many(liars_and_penalize_function)
-        .unwrap();
-
-    let mut reputation_bounty = extra_rep_previous_epoch;
-    reputation_bounty += expired_rep;
-    reputation_bounty += issued_rep;
-    reputation_bounty += penalized_rep;
-
-    let num_honest = u32::try_from(honests.len()).unwrap();
-
-    log::log!(
-        log_level,
-        "+ {:9} rep from previous epoch",
-        extra_rep_previous_epoch.0
-    );
-    log::log!(log_level, "+ {:9} expired rep", expired_rep.0);
-    log::log!(log_level, "+ {:9} issued rep", issued_rep.0);
-    log::log!(log_level, "+ {:9} penalized rep", penalized_rep.0);
-    log::log!(log_level, "= {:9} reputation bounty", reputation_bounty.0);
-
-    // Gain reputation
-    if num_honest > 0 {
-        let rep_reward = reputation_bounty.0 / num_honest;
-        // Expiration starts counting from new_alpha.
-        // All the reputation earned in this block will expire at the same time.
-        let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
-        let honest_gain = honests.into_iter().map(|pkh| {
-            if own_pkh == pkh {
-                log::info!(
-                    "Your reputation score has increased by {} points",
-                    rep_reward
-                );
-            }
-            (pkh, Reputation(rep_reward))
-        });
-        rep_eng.trs_mut().gain(expire_alpha, honest_gain).unwrap();
-
-        let gained_rep = Reputation(rep_reward * num_honest);
-        reputation_bounty -= gained_rep;
-
-        log::log!(
-            log_level,
-            "({} rep x {} revealers = {})",
-            rep_reward,
-            num_honest,
-            gained_rep.0
-        );
-        log::log!(log_level, "- {:9} gained rep", gained_rep.0);
-    } else {
-        log::log!(log_level, "(no revealers for this epoch)");
-        log::log!(log_level, "- {:9} gained rep", 0);
-    }
-
-    let extra_reputation = reputation_bounty;
-    rep_eng.extra_reputation = extra_reputation;
-    log::log!(
-        log_level,
-        "= {:9} extra rep for next epoch",
-        extra_reputation.0
-    );
-
-    // Update active reputation set
-    // Add block miner pkh to active identities
-    if let Err(e) = rep_eng
-        .ars_mut()
-        .update(revealers.chain(vec![miner_pkh]), block_epoch)
-    {
-        log::error!("Error updating reputation in consolidation: {}", e);
-    }
-
-    // Retain identities that exist in the ARS
-    secp_bls_mapping.retain(|k| rep_eng.is_ars_member(k));
-
-    rep_eng.set_current_alpha(new_alpha);
-}
-
 fn show_tally_info(tally_tx: &TallyTransaction, block_epoch: Epoch) {
     let result = RadonTypes::try_from(tally_tx.tally.as_slice());
     let result_str = RadonReport::from_result(result, &ReportContext::default())
@@ -2574,114 +2160,6 @@ mod tests {
 
     pub use super::*;
     use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
-
-    #[test]
-    fn test_rep_info_update() {
-        let mut rep_info = ReputationInfo::default();
-        let mut dr_pool = DataRequestPool::default();
-
-        let pk1 = PublicKey {
-            compressed: 0,
-            bytes: [1; 32],
-        };
-        let pk2 = PublicKey {
-            compressed: 0,
-            bytes: [2; 32],
-        };
-        let pk3 = PublicKey {
-            compressed: 0,
-            bytes: [3; 32],
-        };
-
-        let mut dr_tx = DRTransaction::default();
-        dr_tx.signatures.push(KeyedSignature {
-            public_key: pk1.clone(),
-            ..KeyedSignature::default()
-        });
-        let dr_pointer = dr_tx.hash();
-
-        let mut co_tx = CommitTransaction::default();
-        co_tx.body.dr_pointer = dr_pointer;
-        co_tx.signatures.push(KeyedSignature {
-            public_key: pk1.clone(),
-            ..KeyedSignature::default()
-        });
-        let mut co_tx2 = CommitTransaction::default();
-        co_tx2.body.dr_pointer = dr_pointer;
-        co_tx2.signatures.push(KeyedSignature {
-            public_key: pk2.clone(),
-            ..KeyedSignature::default()
-        });
-        let mut co_tx3 = CommitTransaction::default();
-        co_tx3.body.dr_pointer = dr_pointer;
-        co_tx3.signatures.push(KeyedSignature {
-            public_key: pk3.clone(),
-            ..KeyedSignature::default()
-        });
-        let mut re_tx1 = RevealTransaction::default();
-        re_tx1.body.dr_pointer = dr_pointer;
-        re_tx1.signatures.push(KeyedSignature {
-            public_key: pk1.clone(),
-            ..KeyedSignature::default()
-        });
-        let mut re_tx2 = RevealTransaction::default();
-        re_tx2.body.dr_pointer = dr_pointer;
-        re_tx2.signatures.push(KeyedSignature {
-            public_key: pk2.clone(),
-            ..KeyedSignature::default()
-        });
-
-        let mut ta_tx = TallyTransaction::default();
-        ta_tx.dr_pointer = dr_pointer;
-        ta_tx.outputs = vec![ValueTransferOutput {
-            pkh: pk1.pkh(),
-            ..Default::default()
-        }];
-        ta_tx.out_of_consensus = vec![pk3.pkh()];
-        ta_tx.error_committers = vec![pk2.pkh()];
-
-        dr_pool
-            .add_data_request(1, dr_tx, &Hash::default())
-            .unwrap();
-        dr_pool.process_commit(&co_tx, &Hash::default()).unwrap();
-        dr_pool.process_commit(&co_tx2, &Hash::default()).unwrap();
-        dr_pool.process_commit(&co_tx3, &Hash::default()).unwrap();
-        dr_pool.update_data_request_stages();
-        dr_pool.process_reveal(&re_tx1, &Hash::default()).unwrap();
-        dr_pool.process_reveal(&re_tx2, &Hash::default()).unwrap();
-
-        rep_info.update(
-            &ta_tx,
-            &dr_pool,
-            PublicKeyHash::default(),
-            &mut NodeStats::default(),
-        );
-
-        assert_eq!(
-            rep_info.result_count[&pk1.pkh()],
-            RequestResult {
-                truths: 1,
-                lies: 0,
-                errors: 0,
-            }
-        );
-        assert_eq!(
-            rep_info.result_count[&pk2.pkh()],
-            RequestResult {
-                truths: 0,
-                lies: 0,
-                errors: 1,
-            }
-        );
-        assert_eq!(
-            rep_info.result_count[&pk3.pkh()],
-            RequestResult {
-                truths: 0,
-                lies: 1,
-                errors: 0,
-            }
-        );
-    }
 
     #[test]
     fn get_superblock_beacon() {

@@ -7,6 +7,8 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
+/// Module containing the logic used to update the `ChainState` when consolidating a `Block`
+pub mod consolidation;
 /// Module containing validations
 pub mod validations;
 
