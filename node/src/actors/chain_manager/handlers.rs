@@ -25,8 +25,8 @@ use crate::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
+            AddTransaction, Broadcast, BuildDrt, BuildVtt, DeleteChainState, EpochNotification,
+            GetBalance, GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
             PeersBeacons, ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon,
@@ -1644,6 +1644,15 @@ where
         candidate_blocks,
         remaining_blocks,
     ))
+}
+
+impl Handler<DeleteChainState> for ChainManager {
+    type Result = Result<(), failure::Error>;
+
+    fn handle(&mut self, _msg: DeleteChainState, ctx: &mut Self::Context) -> Self::Result {
+        self.delete_chain_state_and_reinitialize(ctx);
+        Ok(())
+    }
 }
 
 #[cfg(test)]

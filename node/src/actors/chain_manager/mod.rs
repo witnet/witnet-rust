@@ -305,6 +305,25 @@ impl ChainManager {
             .wait(ctx);
     }
 
+    fn delete_chain_state_and_reinitialize(&mut self, ctx: &mut Context<Self>) {
+        let empty_state = ChainState::default();
+        storage_mngr::put(
+            &storage_keys::chain_state_key(self.get_magic()),
+            &empty_state,
+        )
+        .into_actor(self)
+        .and_then(|(), act, ctx| {
+            log::info!("Successfully persisted empty chain state into storage");
+            act.initialize_from_storage(ctx);
+            fut::ok(())
+        })
+        .map_err(|err, _, _| {
+            log::error!("Failed to persist empty chain state into storage: {}", err)
+        })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
+        .wait(ctx);
+    }
+
     /// Replace `previous_chain_state` with current `chain_state`
     fn move_chain_state_forward(&mut self, superblock_index: u32) {
         self.chain_state_snapshot

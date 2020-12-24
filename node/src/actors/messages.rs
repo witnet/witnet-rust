@@ -366,6 +366,14 @@ impl Message for IsConfirmedBlock {
     type Result = Result<bool, failure::Error>;
 }
 
+/// Returns true if the provided block hash is the consolidated block for the provided epoch, and
+/// there exists a superblock with a majority of votes to confirm that.
+pub struct DeleteChainState;
+
+impl Message for DeleteChainState {
+    type Result = Result<(), failure::Error>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

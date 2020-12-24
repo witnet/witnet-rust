@@ -27,11 +27,11 @@ use crate::{
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
-            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, GetBalance,
-            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
-            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo, InitializePeers, IsConfirmedBlock,
+            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers,
+            DeleteChainState, GetBalance, GetBlocksEpochRange, GetConsolidatedPeers,
+            GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
+            GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
+            GetNodeStats, GetReputation, GetState, GetUtxoInfo, InitializePeers, IsConfirmedBlock,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -214,7 +214,14 @@ pub fn jsonrpc_io_handler(
             |_params| initialize_peers(),
         )))
     });
-
+    io.add_method("deleteChainState", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "deleteChainState",
+            params,
+            |_params| delete_chain_state(),
+        )))
+    });
     // Enable subscriptions
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -1421,6 +1428,18 @@ pub async fn initialize_peers() -> JsonRpcResult {
         .await
 }
 
+/// Delete chain state
+pub async fn delete_chain_state() -> JsonRpcResult {
+    let chain_manager_addr = ChainManager::from_registry();
+
+    let res = chain_manager_addr.send(DeleteChainState).await;
+
+    res.map_err(internal_error).and_then(|res| match res {
+        Ok(()) => Ok(Value::Bool(true)),
+        Err(e) => Err(internal_error_s(e)),
+    })
+}
+
 /// Get consensus constants used by the node
 pub async fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResult {
     match params {
@@ -1821,6 +1840,7 @@ mod tests {
                 "clearPeers",
                 "createVRF",
                 "dataRequestReport",
+                "deleteChainState",
                 "getBalance",
                 "getBlock",
                 "getBlockChain",
@@ -1865,6 +1885,7 @@ mod tests {
             "addPeers",
             "clearPeers",
             "createVRF",
+            "deleteChainState",
             "getPkh",
             "getPublicKey",
             "getUtxoInfo",
