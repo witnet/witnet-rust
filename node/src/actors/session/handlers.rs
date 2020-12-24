@@ -6,6 +6,7 @@ use actix::{
 };
 use bytes::BytesMut;
 use failure::Fail;
+use futures::future;
 
 use witnet_data_structures::{
     builders::from_address,
@@ -25,11 +26,11 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 use super::Session;
 use crate::actors::{
     chain_manager::ChainManager,
-    inventory_manager::InventoryManager,
+    inventory_manager::{InventoryManager, InventoryManagerError},
     messages::{
         AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlock, AddSuperBlockVote,
         AddTransaction, CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
-        GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
+        GetHighestCheckpointBeacon, GetItem, GetItemBlock, GetSuperBlockVotes, PeerBeacon,
         RemoveAddressesFromTried, RequestPeers, SendGetPeers, SendInventoryAnnouncement,
         SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
         SessionUnitResult,
@@ -367,7 +368,7 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                     ////////////////////////////
                     // Handle InventoryAnnouncement message
                     (_, SessionStatus::Consolidated, Command::InventoryAnnouncement(inv)) => {
-                        inventory_process_inv(self, &inv);
+                        inventory_process_inv(self, &inv, ctx);
                     }
 
                     /////////////////////
@@ -653,42 +654,50 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
         // Add block to requested_blocks
         session.requested_blocks.insert(block_hash, block);
 
-        if session.requested_blocks.len() == session.requested_block_hashes.len() {
-            let mut blocks_vector = Vec::with_capacity(session.requested_blocks.len());
-            // Iterate over requested block hashes ordered by epoch
-            // TODO: We assume that the received InventoryAnnouncement message returns the list of
-            // block hashes ordered by epoch.
-            // If that is not the case, we can sort blocks_vector by block.block_header.checkpoint
-            for hash in session.requested_block_hashes.drain(..) {
-                if let Some(block) = session.requested_blocks.remove(&hash) {
-                    blocks_vector.push(block);
-                } else {
-                    // Assuming that we always clear requested_blocks after mutating
-                    // requested_block_hashes, this branch should be unreachable.
-                    // But if it happens, immediately exit the for loop and send an empty AddBlocks
-                    // message to ChainManager.
-                    log::warn!("Unexpected missing block: {}", hash);
-                    break;
-                }
-            }
-
-            // Send a message to the ChainManager to try to add a new block
-            chain_manager_addr.do_send(AddBlocks {
-                blocks: blocks_vector,
-                sender: session.public_addr,
-            });
-
-            // Clear requested block structures
-            session.blocks_timestamp = 0;
-            session.requested_blocks.clear();
-            // requested_block_hashes is cleared by using drain(..) above
-        }
+        check_if_all_requested_blocks_are_ready_and_send_add_blocks_to_chain_manager(session)
     } else {
         // If this is not a requested block, assume it is a candidate
         // Send a message to the ChainManager to try to add a new candidate
         chain_manager_addr.do_send(AddCandidates {
             blocks: vec![block],
         });
+    }
+}
+
+fn check_if_all_requested_blocks_are_ready_and_send_add_blocks_to_chain_manager(
+    session: &mut Session,
+) {
+    let chain_manager_addr = ChainManager::from_registry();
+
+    if session.requested_blocks.len() == session.requested_block_hashes.len() {
+        let mut blocks_vector = Vec::with_capacity(session.requested_blocks.len());
+        // Iterate over requested block hashes ordered by epoch
+        // TODO: We assume that the received InventoryAnnouncement message returns the list of
+        // block hashes ordered by epoch.
+        // If that is not the case, we can sort blocks_vector by block.block_header.checkpoint
+        for hash in session.requested_block_hashes.drain(..) {
+            if let Some(block) = session.requested_blocks.remove(&hash) {
+                blocks_vector.push(block);
+            } else {
+                // Assuming that we always clear requested_blocks after mutating
+                // requested_block_hashes, this branch should be unreachable.
+                // But if it happens, immediately exit the for loop and send an empty AddBlocks
+                // message to ChainManager.
+                log::warn!("Unexpected missing block: {}", hash);
+                break;
+            }
+        }
+
+        // Send a message to the ChainManager to try to add a new block
+        chain_manager_addr.do_send(AddBlocks {
+            blocks: blocks_vector,
+            sender: session.public_addr,
+        });
+
+        // Clear requested block structures
+        session.blocks_timestamp = 0;
+        session.requested_blocks.clear();
+        // requested_block_hashes is cleared by using drain(..) above
     }
 }
 
@@ -722,7 +731,11 @@ fn inventory_process_superblock(
 }
 
 /// Function to process an InventoryAnnouncement message
-fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
+fn inventory_process_inv(
+    session: &mut Session,
+    inv: &InventoryAnnouncement,
+    ctx: &mut Context<Session>,
+) {
     if !session.requested_block_hashes.is_empty() {
         log::warn!("Received InventoryAnnouncement message while processing an older InventoryAnnouncement. Will stop processing the old one.");
     }
@@ -755,18 +768,83 @@ fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
     session.requested_blocks.clear();
     session.blocks_timestamp = get_timestamp();
 
-    // Try to create InventoryRequest protocol message to request missing inventory vectors
-    if let Ok(inv_req_msg) = WitnetMessage::build_inventory_request(
-        session.magic_number,
-        session
-            .requested_block_hashes
-            .iter()
-            .map(|hash| InventoryEntry::Block(*hash))
-            .collect(),
-    ) {
-        // Send InventoryRequest message through the session network connection
-        session.send_message(inv_req_msg);
-    }
+    let requested_block_hashes = session.requested_block_hashes.clone();
+    let aux = requested_block_hashes
+        .into_iter()
+        .map(move |hash| async move {
+            let inventory_manager = InventoryManager::from_registry();
+            let res = inventory_manager.send(GetItemBlock { hash }).await;
+            let res = match res {
+                Ok(Ok(block)) => Ok(block),
+                Ok(Err(InventoryManagerError::ItemNotFound)) => {
+                    // This error is excepted, so don't log it
+                    Err(())
+                }
+                Ok(Err(e)) => {
+                    log::error!("Error in GetItemBlock {}: {}", hash, e);
+                    Err(())
+                }
+                Err(e) => {
+                    log::error!("Error in GetItemBlock {}: {}", hash, e);
+                    Err(())
+                }
+            };
+
+            Ok(res.ok())
+        });
+
+    future::try_join_all(aux).into_actor(session).then(|res, session, _ctx| {
+        match res {
+            Ok(blocks) => {
+                for block in blocks {
+                    if let Some(block) = block {
+                        let block_hash = block.hash();
+                        // We need to check if this block hash was requested because the list of
+                        // requested_block_hashes may have changed
+                        if session.requested_block_hashes.contains(&block_hash) {
+                            // Add block to requested_blocks
+                            session.requested_blocks.insert(block_hash, block);
+                        }
+                    }
+                }
+            }
+            Err(()) => {
+                // This should be impossible because we explicitly ignore errors
+            }
+        }
+
+        if session.requested_blocks.len() != session.requested_block_hashes.len() {
+            // Try to create InventoryRequest protocol message to request missing inventory vectors
+            match WitnetMessage::build_inventory_request(
+                session.magic_number,
+                session
+                    .requested_block_hashes
+                    .iter()
+                    // Do not request blocks that were already read from storage
+                    .filter_map(|hash| if !session.requested_blocks.contains_key(hash) {
+                        Some(InventoryEntry::Block(*hash))
+                    } else {
+                        None
+                    })
+                    .collect(),
+            ) {
+                Ok(inv_req_msg) => {
+                    // Send InventoryRequest message through the session network connection
+                    session.send_message(inv_req_msg);
+                }
+                Err(e) => {
+                    log::error!("Failed to build InventoryRequest message: {}", e);
+                    // Check if for some reason we already have all the blocks
+                    check_if_all_requested_blocks_are_ready_and_send_add_blocks_to_chain_manager(session);
+                }
+            }
+        } else {
+            // All the requested blocks were already in the storage!
+            check_if_all_requested_blocks_are_ready_and_send_add_blocks_to_chain_manager(session);
+        }
+
+        actix::fut::ready(())
+    }).spawn(ctx);
 }
 
 /// Function called when Verack message is received
