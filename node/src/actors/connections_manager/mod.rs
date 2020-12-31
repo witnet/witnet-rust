@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
 use actix::prelude::*;
-use futures::Stream;
 use tokio::net::{TcpListener, TcpStream};
 
 use witnet_p2p::sessions::SessionType;
@@ -14,9 +13,11 @@ use crate::{
     },
     config_mngr,
 };
+use witnet_futures_utils::ActorFutureExt;
 
 mod actor;
 mod handlers;
+pub mod resolver;
 
 /// Connections manager actor
 #[derive(Default)]
@@ -33,28 +34,38 @@ impl ConnectionsManager {
     fn start_server(&mut self, ctx: &mut <Self as Actor>::Context) {
         config_mngr::get()
             .into_actor(self)
-            .and_then(|config, _, ctx| {
-                // Bind TCP listener to this address
-                // FIXME(#72): decide what to do with actor when server cannot be started
-                let listener = TcpListener::bind(&config.connections.server_addr).unwrap();
-
-                ctx.add_message_stream(
-                    listener
-                        .incoming()
-                        .map_err(|err| {
-                            log::error!("Error incoming listener: {}", err);
-                        })
-                        .map(InboundTcpConnect::new),
-                );
-
+            .and_then(|config, act, _ctx| {
+                async move {
+                    // Bind TCP listener to this address
+                    // FIXME(#72): decide what to do with actor when server cannot be started
+                    let listener = TcpListener::bind(&config.connections.server_addr)
+                        .await
+                        .unwrap();
+                    Ok((config, listener))
+                }
+                .into_actor(act)
+            })
+            .map_ok(|(config, listener), _act, ctx| {
+                let stream = async_stream::stream! {
+                    loop {
+                        match listener.accept().await {
+                            Ok((st, _addr)) => {
+                                yield InboundTcpConnect::new(st);
+                            }
+                            Err(err) => {
+                                log::error!("Error incoming listener: {}", err);
+                            }
+                        }
+                    }
+                };
+                ctx.add_message_stream(stream);
                 log::info!(
                     "P2P server has been started at {:?}",
                     &config.connections.server_addr
                 );
-
-                fut::ok(())
             })
             .map_err(|err, _, _| log::error!("P2P server failed to start: {}", err))
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 

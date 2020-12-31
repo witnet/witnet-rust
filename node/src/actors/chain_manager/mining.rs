@@ -1,9 +1,11 @@
 use actix::{ActorFuture, AsyncContext, Context, ContextFutureSpawner, SystemService, WrapFuture};
 use ansi_term::Color::{White, Yellow};
-use futures::future::{join_all, Future};
+use futures::future::{try_join_all, FutureExt};
 use std::{
     collections::HashSet,
     convert::TryFrom,
+    future,
+    future::Future,
     sync::{
         atomic::{self, AtomicU16},
         Arc,
@@ -44,6 +46,7 @@ use witnet_data_structures::{
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
+use witnet_futures_utils::{ActorFutureExt, TryFutureExt2};
 
 impl ChainManager {
     /// Try to mine a block
@@ -130,49 +133,55 @@ impl ChainManager {
 
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
-            .map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
-            .map(move |(vrf_proof, vrf_proof_hash)| {
-                // invalid: vrf_hash > target_hash
-                let (target_hash, probability) = calculate_randpoe_threshold(
-                    total_identities,
-                    mining_bf,
-                    current_epoch,
-                    initial_difficulty,
-                    epochs_with_initial_difficulty,
-                );
-                let proof_invalid = vrf_proof_hash > target_hash;
+            .map(move |res| {
+                res.map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
+                    .map(move |(vrf_proof, vrf_proof_hash)| {
+                        // invalid: vrf_hash > target_hash
+                        let (target_hash, probability) = calculate_randpoe_threshold(
+                            total_identities,
+                            mining_bf,
+                            current_epoch,
+                            initial_difficulty,
+                            epochs_with_initial_difficulty,
+                        );
+                        let proof_invalid = vrf_proof_hash > target_hash;
 
-                log::info!(
-                    "Probability to create a valid mining proof: {:.6}%",
-                    probability * 100_f64
-                );
-                log::trace!("Target hash: {}", target_hash);
-                log::trace!("Our proof:   {}", vrf_proof_hash);
-                if proof_invalid {
-                    log::debug!("No eligibility for mining a block");
-                    Err(())
-                } else {
-                    log::info!(
-                        "{} Discovered eligibility for mining a block for epoch #{}",
-                        Yellow.bold().paint("[Mining]"),
-                        Yellow.bold().paint(beacon.checkpoint.to_string())
-                    );
-                    let mining_prob =
-                        calculate_mining_probability(&rep_engine, own_pkh, mining_rf, mining_bf);
-                    // Discount the already reached probability
-                    let mining_prob = mining_prob / probability * 100.0;
-                    log::info!(
-                        "Probability that the mined block will be selected: {:.6}%",
-                        mining_prob
-                    );
-                    Ok(vrf_proof)
-                }
+                        log::info!(
+                            "Probability to create a valid mining proof: {:.6}%",
+                            probability * 100_f64
+                        );
+                        log::trace!("Target hash: {}", target_hash);
+                        log::trace!("Our proof:   {}", vrf_proof_hash);
+                        if proof_invalid {
+                            log::debug!("No eligibility for mining a block");
+                            Err(())
+                        } else {
+                            log::info!(
+                                "{} Discovered eligibility for mining a block for epoch #{}",
+                                Yellow.bold().paint("[Mining]"),
+                                Yellow.bold().paint(beacon.checkpoint.to_string())
+                            );
+                            let mining_prob = calculate_mining_probability(
+                                &rep_engine,
+                                own_pkh,
+                                mining_rf,
+                                mining_bf,
+                            );
+                            // Discount the already reached probability
+                            let mining_prob = mining_prob / probability * 100.0;
+                            log::info!(
+                                "Probability that the mined block will be selected: {:.6}%",
+                                mining_prob
+                            );
+                            Ok(vrf_proof)
+                        }
+                    })
             })
-            .flatten()
+            .flatten_err()
             .into_actor(self)
             .and_then(|vrf_proof, act, _ctx| {
                 act.create_tally_transactions()
-                    .map(|tally_transactions| (vrf_proof, tally_transactions))
+                    .map(|res| res.map(|tally_transactions| (vrf_proof, tally_transactions)))
                     .into_actor(act)
             })
             .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
@@ -210,8 +219,10 @@ impl ChainManager {
 
                 // Sign the block hash
                 signature_mngr::sign(&block_header)
-                    .map_err(|e| log::error!("Couldn't sign beacon: {}", e))
-                    .map(|block_sig| Block::new(block_header, block_sig, txns))
+                    .map(|res| {
+                        res.map_err(|e| log::error!("Couldn't sign beacon: {}", e))
+                            .map(|block_sig| Block::new(block_header, block_sig, txns))
+                    })
                     .into_actor(act)
             })
             .and_then(move |block, act, _ctx| {
@@ -222,7 +233,7 @@ impl ChainManager {
                     beacon,
                     epoch_constants,
                 )
-                .map(|_diff, act, _ctx| {
+                .map_ok(|_diff, act, _ctx| {
                     // Send AddCandidates message to self
                     // This will run all the validations again
 
@@ -239,6 +250,7 @@ impl ChainManager {
                 })
                 .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 
@@ -328,42 +340,44 @@ impl ChainManager {
             };
 
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_vrf_input, dr_pointer))
-                .map_err(move |e| {
-                    log::error!(
-                        "Couldn't create VRF proof for data request {}: {}",
-                        dr_pointer,
-                        e
-                    )
-                })
-                .map(move |(vrf_proof, vrf_proof_hash)| {
-                    // invalid: vrf_hash > target_hash
-                    let proof_invalid = vrf_proof_hash > target_hash;
+                .map(move |res|
+                    res.map_err(move |e| {
+                        log::error!(
+                            "Couldn't create VRF proof for data request {}: {}",
+                            dr_pointer,
+                            e
+                        )
+                    })
+                        .map(move |(vrf_proof, vrf_proof_hash)| {
+                            // invalid: vrf_hash > target_hash
+                            let proof_invalid = vrf_proof_hash > target_hash;
 
-                    log::debug!(
-                        "{} witnesses and {} backup witnesses",
-                        num_witnesses,
-                        num_backup_witnesses
-                    );
-                    log::debug!(
-                        "Probability to be eligible for this data request: {:.6}%",
-                        probability * 100.0
-                    );
-                    log::trace!("[DR] Target hash: {}", target_hash);
-                    log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
-                    if proof_invalid {
-                        log::debug!("No eligibility for data request {}", dr_pointer);
-                        Err(())
-                    } else {
-                        log::info!(
-                            "{} Discovered eligibility for mining a data request {} for epoch #{}",
-                            Yellow.bold().paint("[Mining]"),
-                            Yellow.bold().paint(dr_pointer.to_string()),
-                            Yellow.bold().paint(current_epoch.to_string())
-                        );
-                        Ok(vrf_proof)
-                    }
-                })
-                .flatten()
+                            log::debug!(
+                                "{} witnesses and {} backup witnesses",
+                                num_witnesses,
+                                num_backup_witnesses
+                            );
+                            log::debug!(
+                                "Probability to be eligible for this data request: {:.6}%",
+                                probability * 100.0
+                            );
+                            log::trace!("[DR] Target hash: {}", target_hash);
+                            log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
+                            if proof_invalid {
+                                log::debug!("No eligibility for data request {}", dr_pointer);
+                                Err(())
+                            } else {
+                                log::info!(
+                                    "{} Discovered eligibility for mining a data request {} for epoch #{}",
+                                    Yellow.bold().paint("[Mining]"),
+                                    Yellow.bold().paint(dr_pointer.to_string()),
+                                    Yellow.bold().paint(current_epoch.to_string())
+                                );
+                                Ok(vrf_proof)
+                            }
+                        })
+                )
+                .flatten_err()
                 .into_actor(self)
                 // Refrain from trying to resolve any more requests if we have already hit the limit
                 // of retrievals per epoch.
@@ -472,16 +486,18 @@ impl ChainManager {
                             rad_request,
                             timeout: data_request_timeout,
                         })
-                        .map(move |result| match result {
-                            Ok(value) => Ok((vrf_proof, collateral, value)),
-                            Err(e) => {
-                                log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
-                                Err(())
-                            }
-                        })
-                        .map_err(move |e| {
-                            log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e)
-                        })
+                        .map(move |res|
+                            res.map(move |result| match result {
+                                    Ok(value) => Ok((vrf_proof, collateral, value)),
+                                    Err(e) => {
+                                        log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
+                                        Err(())
+                                    }
+                                })
+                                .map_err(move |e| {
+                                    log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e)
+                                })
+                        )
                         .into_actor(act)
                 })
                 .then(|res, _, _| {
@@ -513,17 +529,20 @@ impl ChainManager {
                         act.bn256_public_key.clone()
                     };
 
-                    signature_mngr::sign_transaction(&reveal_body, 1)
-                        .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
-                        .and_then(move |reveal_signatures| {
-                            // Commitment is the hash of the RevealTransaction signature
-                            // that will be published later
-                            let commitment = reveal_signatures[0].signature.hash();
-                            let (inputs, outputs) = collateral;
-                            let commit_body =
-                                CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr, inputs, outputs, bn256_public_key);
+                    async move {
+                        let reveal_signatures = signature_mngr::sign_transaction(&reveal_body, 1)
+                            .await
+                            .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))?;
 
-                            signature_mngr::sign_transaction(&commit_body, 1)
+                        // Commitment is the hash of the RevealTransaction signature
+                        // that will be published later
+                        let commitment = reveal_signatures[0].signature.hash();
+                        let (inputs, outputs) = collateral;
+                        let commit_body =
+                            CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr, inputs, outputs, bn256_public_key);
+
+                        signature_mngr::sign_transaction(&commit_body, 1)
+                            .map(|res| res
                                 .map(|commit_signatures| {
                                     let commit_transaction =
                                         CommitTransaction::new(commit_body, commit_signatures);
@@ -531,8 +550,9 @@ impl ChainManager {
                                         RevealTransaction::new(reveal_body, reveal_signatures);
                                     (commit_transaction, reveal_transaction)
                                 })
-                                .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
-                        })
+                                .map_err(|e| log::error!("Couldn't sign commit body: {}", e)))
+                            .await
+                    }
                         .into_actor(act)
                 })
                 .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
@@ -545,6 +565,7 @@ impl ChainManager {
 
                     actix::fut::ok(())
                 })
+                .map(|_res: Result<(), ()>, _act, _ctx| ())
                 .spawn(ctx);
         }
     }
@@ -552,7 +573,7 @@ impl ChainManager {
     #[allow(clippy::needless_collect)]
     fn create_tally_transactions(
         &mut self,
-    ) -> impl Future<Item = Vec<TallyTransaction>, Error = ()> {
+    ) -> impl Future<Output = Result<Vec<TallyTransaction>, ()>> {
         let data_request_pool = &self.chain_state.data_request_pool;
         let collateral_minimum = self
             .chain_state
@@ -579,102 +600,101 @@ impl ChainManager {
             dr_reveals
                 .into_iter()
                 .map(move |(dr_pointer, reveals, dr_state)| {
-                    log::debug!("Building tally for data request {}", dr_pointer);
+                    async move {
+                        log::debug!("Building tally for data request {}", dr_pointer);
 
-                    // Use the serial decoder to decode all the reveals in a lossy way, i.e. will
-                    // ignore reveals that cannot be decoded. At this point, reveals that cannot be
-                    // decoded are most likely malformed and therefore their authors shall be
-                    // punished in the same way as non-revealers.
-                    // TODO: leverage `rayon` so as to make this a parallel iterator.
-                    let reports = serial_iter_decode(
-                        &mut reveals
-                            .iter()
-                            .map(|reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
-                        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
-                            log::warn!(
-                            "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
-                            reveal_tx,
-                            &slice,
-                            e
+                        // Use the serial decoder to decode all the reveals in a lossy way, i.e. will
+                        // ignore reveals that cannot be decoded. At this point, reveals that cannot be
+                        // decoded are most likely malformed and therefore their authors shall be
+                        // punished in the same way as non-revealers.
+                        // TODO: leverage `rayon` so as to make this a parallel iterator.
+                        let reports = serial_iter_decode(
+                            &mut reveals
+                                .iter()
+                                .map(|reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
+                            |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
+                                log::warn!(
+                                    "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
+                                    reveal_tx,
+                                    &slice,
+                                    e
+                                );
+                                Some(RadonReport::from_result(
+                                    Err(RadError::MalformedReveal),
+                                    &ReportContext::default(),
+                                ))
+                            },
                         );
-                            Some(RadonReport::from_result(
-                                Err(RadError::MalformedReveal),
-                                &ReportContext::default(),
-                            ))
-                        },
-                    );
 
-                    let min_consensus_ratio =
-                        f64::from(dr_state.data_request.min_consensus_percentage) / 100.0;
+                        let min_consensus_ratio =
+                            f64::from(dr_state.data_request.min_consensus_percentage) / 100.0;
 
-                    let committers: HashSet<PublicKeyHash> =
-                        dr_state.info.commits.keys().cloned().collect();
-                    let commits_count = committers.len();
+                        let committers: HashSet<PublicKeyHash> =
+                            dr_state.info.commits.keys().cloned().collect();
+                        let commits_count = committers.len();
 
-                    let rad_manager_addr = RadManager::from_registry();
-                    rad_manager_addr
-                        .send(RunTally {
-                            min_consensus_ratio,
-                            reports: reports.clone(),
-                            script: dr_state.data_request.data_request.tally.clone(),
-                            commits_count,
-                        })
-                        .then(|result| match result {
-                            // The result of `RunTally` will be published as tally
-                            Ok(value) => futures::future::ok(value),
+                        let rad_manager_addr = RadManager::from_registry();
+
+                        // The result of `RunTally` will be published as tally
+                        let tally_result = rad_manager_addr
+                            .send(RunTally {
+                                min_consensus_ratio,
+                                reports: reports.clone(),
+                                script: dr_state.data_request.data_request.tally.clone(),
+                                commits_count,
+                            })
+                            .await
                             // Mailbox error
+                            .map_err(|e| log::error!("Couldn't run tally: {}", e))?;
+
+                        let tally = create_tally(
+                            dr_pointer,
+                            &dr_state.data_request,
+                            dr_state.pkh,
+                            &tally_result,
+                            reveals.iter().map(|r| r.body.pkh).collect(),
+                            committers,
+                            collateral_minimum,
+                        );
+
+                        match tally {
+                            Ok(t) => {
+                                log::info!(
+                                    "{} Created Tally for Data Request {} with result: {}\n{}",
+                                    Yellow.bold().paint("[Data Request]"),
+                                    Yellow.bold().paint(&dr_pointer.to_string()),
+                                    Yellow
+                                        .bold()
+                                        .paint(format!("{}", &tally_result.into_inner())),
+                                    White.bold().paint(reports.into_iter().fold(
+                                        String::from("Reveals:"),
+                                        |acc, item| format!(
+                                            "{}\n\t* {}",
+                                            acc,
+                                            item.into_inner()
+                                        )
+                                    )),
+                                );
+
+                                Ok(t)
+                            }
                             Err(e) => {
-                                log::error!("Couldn't run tally: {}", e);
-                                futures::future::err(())
+                                log::error!("Couldn't create tally: {}", e);
+                                Err(())
                             }
-                        })
-                        .and_then(move |tally_result| {
-                            let tally = create_tally(
-                                dr_pointer,
-                                &dr_state.data_request,
-                                dr_state.pkh,
-                                &tally_result,
-                                reveals.iter().map(|r| r.body.pkh).collect(),
-                                committers,
-                                collateral_minimum,
-                            );
-
-                            match tally {
-                                Ok(t) => {
-                                    log::info!(
-                                        "{} Created Tally for Data Request {} with result: {}\n{}",
-                                        Yellow.bold().paint("[Data Request]"),
-                                        Yellow.bold().paint(&dr_pointer.to_string()),
-                                        Yellow
-                                            .bold()
-                                            .paint(format!("{}", &tally_result.into_inner())),
-                                        White.bold().paint(reports.into_iter().fold(
-                                            String::from("Reveals:"),
-                                            |acc, item| format!(
-                                                "{}\n\t* {}",
-                                                acc,
-                                                item.into_inner()
-                                            )
-                                        )),
-                                    );
-
-                                    futures::future::ok(t)
-                                }
-                                Err(e) => {
-                                    log::error!("Couldn't create tally: {}", e);
-                                    futures::future::err(())
-                                }
-                            }
-                        })
-                        // This future should always return Ok because join_all short-circuits on the
-                        // first Err, and we want to keep creating tallies after the first error
-                        // Map Result<T, E> to Result<Option<T>, ()>
-                        .then(|x| futures::future::ok(x.ok()))
+                        }
+                    }
+                    // This future should always return Ok because join_all short-circuits on the
+                    // first Err, and we want to keep creating tallies after the first error
+                    // Map Result<T, E> to Result<Option<T>, ()>
+                    .then(|x| future::ready(Ok(x.ok())))
                 });
 
-        join_all(future_tally_transactions)
+        async {
+            let res = try_join_all(future_tally_transactions).await;
             // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
-            .map(|x| x.into_iter().flatten().collect())
+            res.map(|x| x.into_iter().flatten().collect())
+        }
     }
 }
 

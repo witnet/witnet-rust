@@ -23,6 +23,7 @@ use witnet_data_structures::{
     utxo_pool::OwnUnspentOutputsPool,
     vrf::VrfCtx,
 };
+use witnet_futures_utils::ActorFutureExt;
 use witnet_util::timestamp::pretty_print;
 
 /// Implement Actor trait for `ChainManager`
@@ -116,7 +117,7 @@ impl ChainManager {
                         actix::fut::ok(result)
                     })
             })
-            .map(move |(chain_state_from_storage, config), act, ctx| {
+            .map_ok(move |(chain_state_from_storage, config), act, ctx| {
                 // Get environment and consensus_constants parameters from config
                 let environment = config.environment;
                 let consensus_constants = &config.consensus_constants;
@@ -272,7 +273,9 @@ impl ChainManager {
                     },
                 });
 
-            }).wait(ctx);
+            })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
+            .wait(ctx);
     }
 
     /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs
@@ -326,6 +329,7 @@ impl ChainManager {
 
                 actix::fut::ok(())
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 
@@ -350,6 +354,7 @@ impl ChainManager {
 
                 actix::fut::ok(())
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 
@@ -368,6 +373,7 @@ impl ChainManager {
                 log::debug!("Bn256 public key successfully loaded from signature manager");
                 actix::fut::ok(())
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 

@@ -1,5 +1,6 @@
 use std::{
     fmt::{Debug, Display},
+    future,
     marker::Send,
 };
 
@@ -8,8 +9,7 @@ use actix::{
     SystemService,
 };
 use ansi_term::Color::Cyan;
-use futures::future::Future;
-use tokio::{codec::FramedRead, io::AsyncRead};
+use tokio_util::codec::FramedRead;
 
 use super::{NotSendingPeersBeaconsBecause, SessionsManager};
 use crate::actors::{
@@ -87,7 +87,7 @@ impl Handler<Create> for SessionsManager {
             let public_addr = public_address;
 
             // Split TCP stream into read and write parts
-            let (r, w) = msg.stream.split();
+            let (r, w) = msg.stream.into_split();
 
             // Add stream in session actor from the read part of the tcp stream
             Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
@@ -265,7 +265,7 @@ where
     T::Result: Send,
     Session: Handler<T>,
 {
-    type Result = ResponseFuture<T::Result, ()>;
+    type Result = ResponseFuture<Result<T::Result, ()>>;
 
     fn handle(&mut self, msg: Anycast<T>, _ctx: &mut Context<Self>) -> Self::Result {
         log::debug!(
@@ -278,21 +278,24 @@ where
             .get_random_anycast_session(msg.safu)
             .map(|session_addr| {
                 // Send message to session and await for response
-                session_addr
-                    // Send SendMessage message to session actor
-                    // This returns a Request Future, representing an asynchronous message sending process
-                    .send(msg.command)
-                    .map_err(|e| {
-                        log::error!("Anycast error: {}", e);
-                    })
+                async move {
+                    session_addr
+                        // Send SendMessage message to session actor
+                        // This returns a Request Future, representing an asynchronous message sending process
+                        .send(msg.command)
+                        .await
+                        .map_err(|e| {
+                            log::error!("Anycast error: {}", e);
+                        })
+                }
             })
             .map(|fut| {
-                let b: Box<dyn Future<Item = T::Result, Error = ()>> = Box::new(fut);
+                let b: ResponseFuture<Result<T::Result, ()>> = Box::pin(fut);
                 b
             })
             .unwrap_or_else(|| {
                 log::warn!("No consolidated outbound session was found");
-                Box::new(futures::future::err(()))
+                Box::pin(future::ready(Err(())))
             })
     }
 }

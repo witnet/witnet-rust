@@ -1,12 +1,12 @@
-use actix::{
-    actors::resolver::{ConnectAddr, Resolver},
-    ActorFuture, ContextFutureSpawner, Handler, SystemService, WrapFuture,
-};
+use actix::{ActorFuture, ContextFutureSpawner, Handler, SystemService, WrapFuture};
 
 use witnet_p2p::sessions::SessionType;
 
 use super::ConnectionsManager;
-use crate::actors::messages::{InboundTcpConnect, OutboundTcpConnect};
+use crate::actors::{
+    connections_manager::resolver::{ConnectAddr, Resolver},
+    messages::{InboundTcpConnect, OutboundTcpConnect},
+};
 
 /// Handler for InboundTcpConnect messages (built from inbound connections)
 impl Handler<InboundTcpConnect> for ConnectionsManager {
@@ -38,6 +38,7 @@ impl Handler<OutboundTcpConnect> for ConnectionsManager {
                     &msg.address,
                 )
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 }

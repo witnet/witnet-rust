@@ -1,11 +1,8 @@
 use actix::prelude::*;
-use tokio::{
-    codec::FramedRead,
-    io::AsyncRead,
-    net::{TcpListener, TcpStream},
-};
+use actix::StreamHandler;
+use tokio::net::{TcpListener, TcpStream};
+use tokio_util::codec::FramedRead;
 
-use futures::{sync::mpsc, Stream};
 use std::{collections::HashMap, collections::HashSet, net::SocketAddr, rc::Rc, sync::Arc};
 
 use super::{
@@ -16,7 +13,9 @@ use crate::{
     actors::messages::{BlockNotify, InboundTcpConnect, NodeStatusNotify, SuperBlockNotify},
     config_mngr,
 };
+use futures_util::compat::Compat01As03;
 use jsonrpc_pubsub::{PubSubHandler, Session};
+use witnet_futures_utils::ActorFutureExt;
 
 /// JSON RPC server
 #[derive(Default)]
@@ -48,7 +47,7 @@ impl JsonRpcServer {
                 if !enabled {
                     log::debug!("JSON-RPC interface explicitly disabled by configuration.");
                     ctx.stop();
-                    return fut::ok(());
+                    return fut::Either::left(fut::result(Ok(None)));
                 }
 
                 log::debug!("Starting JSON-RPC interface.");
@@ -61,32 +60,53 @@ impl JsonRpcServer {
                 );
                 act.jsonrpc_io = Some(Rc::new(jsonrpc_io));
 
-                // Bind TCP listener to this address
-                // FIXME(#176): running `yes | nc 127.0.0.1 1234` freezes the entire actor system
-                let listener = match TcpListener::bind(&server_addr) {
-                    Ok(listener) => listener,
-                    Err(e) => {
-                        // Shutdown the entire system on error
-                        // For example, when the server_addr is already in use
-                        // FIXME(#72): gracefully stop the system?
-                        log::error!("Could not start JSON-RPC server: {:?}", e);
-                        panic!("Could not start JSON-RPC server: {:?}", e);
+                let fut = async move {
+                    // Bind TCP listener to this address
+                    // FIXME(#176): running `yes | nc 127.0.0.1 1234` freezes the entire actor system
+                    let listener = match TcpListener::bind(&server_addr).await {
+                        Ok(listener) => listener,
+                        Err(e) => {
+                            // Shutdown the entire system on error
+                            // For example, when the server_addr is already in use
+                            // FIXME(#72): gracefully stop the system?
+                            log::error!("Could not start JSON-RPC server: {:?}", e);
+                            panic!("Could not start JSON-RPC server: {:?}", e);
+                        }
+                    };
+
+                    Ok(Some((server_addr, listener)))
+                }
+                .into_actor(act);
+
+                fut::Either::right(fut)
+            })
+            .and_then(|opt, _act, ctx| {
+                if opt.is_none() {
+                    return fut::ok(());
+                }
+
+                let (server_addr, listener) = opt.unwrap();
+                // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
+                let stream = async_stream::stream! {
+                    loop {
+                        match listener.accept().await {
+                            Ok((st, _addr)) => {
+                                yield InboundTcpConnect::new(st);
+                            }
+                            Err(err) => {
+                                log::error!("Error incoming listener: {}", err);
+                            }
+                        }
                     }
                 };
-
-                // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
-                ctx.add_message_stream(
-                    listener
-                        .incoming()
-                        .map_err(|_| ())
-                        .map(InboundTcpConnect::new),
-                );
+                ctx.add_message_stream(stream);
 
                 log::debug!("JSON-RPC interface is now running at {}", server_addr);
 
                 fut::ok(())
             })
             .map_err(|err, _, _| log::error!("JsonRpcServer config failed: {}", err))
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 
@@ -98,18 +118,20 @@ impl JsonRpcServer {
 
         // Get a reference to the JSON-RPC method handler
         let jsonrpc_io = Rc::clone(self.jsonrpc_io.as_ref().unwrap());
-        let (transport_sender, transport_receiver) = mpsc::channel(16);
+        let (transport_sender_01, transport_receiver_01) =
+            jsonrpc_core::futures::sync::mpsc::channel(16);
+        let transport_receiver = Compat01As03::new(transport_receiver_01);
 
         // Create a new `JsonRpc` actor which will listen to this stream
         let addr = JsonRpc::create(|ctx| {
-            let (r, w) = stream.split();
+            let (r, w) = stream.into_split();
             JsonRpc::add_stream(FramedRead::new(r, NewLineCodec), ctx);
             JsonRpc::add_stream(transport_receiver, ctx);
             JsonRpc {
                 framed: io::FramedWrite::new(w, NewLineCodec, ctx),
                 parent,
                 jsonrpc_io,
-                session: Arc::new(Session::new(transport_sender)),
+                session: Arc::new(Session::new(transport_sender_01)),
             }
         });
 
@@ -147,10 +169,13 @@ impl Handler<InboundTcpConnect> for JsonRpcServer {
     }
 }
 
-#[derive(Message)]
 /// Unregister a closed connection from the list of open connections
 pub struct Unregister {
     pub addr: Addr<JsonRpc>,
+}
+
+impl Message for Unregister {
+    type Result = ();
 }
 
 impl Handler<Unregister> for JsonRpcServer {
@@ -178,8 +203,9 @@ impl Handler<BlockNotify> for JsonRpcServer {
                     result: block.clone(),
                     subscription: subscription.clone(),
                 };
+                let fut01 = sink.notify(r.into());
                 ctx.spawn(
-                    sink.notify(r.into())
+                    Compat01As03::new(fut01)
                         .into_actor(self)
                         .then(move |res, _act, _ctx| {
                             if let Err(e) = res {
@@ -187,7 +213,8 @@ impl Handler<BlockNotify> for JsonRpcServer {
                             }
 
                             actix::fut::ok(())
-                        }),
+                        })
+                        .map(|_res: Result<(), ()>, _act, _ctx| ()),
                 );
             }
         } else {
@@ -217,13 +244,19 @@ impl Handler<SuperBlockNotify> for JsonRpcServer {
                         result: hashes.clone(),
                         subscription: subscription.clone(),
                     });
-                    ctx.spawn(sink.notify(params).into_actor(self).then(move |res, _, _| {
-                        if let Err(e) = res {
-                            log::error!("Failed to send notification: {:?}", e);
-                        }
+                    let fut01 = sink.notify(params);
+                    ctx.spawn(
+                        Compat01As03::new(fut01)
+                            .into_actor(self)
+                            .then(move |res, _, _| {
+                                if let Err(e) = res {
+                                    log::error!("Failed to send notification: {:?}", e);
+                                }
 
-                        actix::fut::ok(())
-                    }));
+                                actix::fut::ok(())
+                            })
+                            .map(|_res: Result<(), ()>, _act, _ctx| ()),
+                    );
                 }
             } else {
                 log::debug!("No subscriptions for superblocks notifications");
@@ -248,8 +281,9 @@ impl Handler<NodeStatusNotify> for JsonRpcServer {
                     result: serde_json::to_value(msg.node_status).unwrap(),
                     subscription: subscription.clone(),
                 };
+                let fut01 = sink.notify(r.into());
                 ctx.spawn(
-                    sink.notify(r.into())
+                    Compat01As03::new(fut01)
                         .into_actor(self)
                         .then(move |res, _act, _ctx| {
                             if let Err(e) = res {
@@ -257,7 +291,8 @@ impl Handler<NodeStatusNotify> for JsonRpcServer {
                             }
 
                             actix::fut::ok(())
-                        }),
+                        })
+                        .map(|_res: Result<(), ()>, _act, _ctx| ()),
                 );
             }
         } else {

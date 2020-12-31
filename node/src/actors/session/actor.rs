@@ -13,6 +13,7 @@ use crate::actors::{
     messages::{AddBlocks, GetEpoch, Register, Subscribe, Unregister},
     sessions_manager::SessionsManager,
 };
+use witnet_futures_utils::ActorFutureExt;
 use witnet_util::timestamp::pretty_print;
 
 /// Implement actor trait for Session
@@ -93,6 +94,7 @@ impl Actor for Session {
 
                     actix::fut::ok(())
                 })
+                .map(|_res: Result<(), ()>, _act, _ctx| ())
                 .wait(ctx);
         }
     }
@@ -168,6 +170,7 @@ impl Session {
 
                 actix::fut::ok(())
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 }

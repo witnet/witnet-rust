@@ -2,7 +2,6 @@ use actix::{
     io::FramedWrite, io::WriteHandler, Actor, ActorFuture, Addr, AsyncContext, Context,
     ContextFutureSpawner, Running, StreamHandler, WrapFuture,
 };
-use tokio::{io::WriteHalf, net::TcpStream};
 
 use bytes::BytesMut;
 use std::{io, rc::Rc};
@@ -11,13 +10,14 @@ use super::{
     newline_codec::NewLineCodec,
     server::{JsonRpcServer, Unregister},
 };
+use futures_util::compat::Compat01As03;
 use jsonrpc_pubsub::{PubSubHandler, Session};
 use std::sync::Arc;
 
 /// A single JSON-RPC connection
 pub struct JsonRpc {
     /// Stream
-    pub framed: FramedWrite<WriteHalf<TcpStream>, NewLineCodec>,
+    pub framed: FramedWrite<BytesMut, tokio::net::tcp::OwnedWriteHalf, NewLineCodec>,
     /// Reference to parent
     // Needed to send the `Unregister` message when the connection closes
     pub parent: Addr<JsonRpcServer>,
@@ -44,9 +44,14 @@ impl Actor for JsonRpc {
 impl WriteHandler<io::Error> for JsonRpc {}
 
 /// Implement `StreamHandler` trait in order to use `Framed` with an actor
-impl StreamHandler<BytesMut, io::Error> for JsonRpc {
+impl StreamHandler<Result<BytesMut, io::Error>> for JsonRpc {
     /// This is main event loop for client requests
-    fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
+    fn handle(&mut self, result: Result<BytesMut, io::Error>, ctx: &mut Self::Context) {
+        if result.is_err() {
+            // TODO: how to handle this error?
+            return;
+        }
+        let bytes = result.unwrap();
         log::debug!("Got JSON-RPC message");
         let msg = match String::from_utf8(bytes.to_vec()) {
             Ok(msg) => {
@@ -72,22 +77,27 @@ impl StreamHandler<BytesMut, io::Error> for JsonRpc {
         let session = Arc::clone(&self.session);
 
         // Handle response asynchronously
-        self.jsonrpc_io
-            .handle_request(&msg, session)
-            .into_actor(self)
-            .then(|res, act, _ctx| {
-                if let Ok(Some(response)) = res {
-                    act.framed.write(BytesMut::from(response));
-                }
+        let fut01 = self.jsonrpc_io.handle_request(&msg, session);
 
-                actix::fut::ok(())
+        Compat01As03::new(fut01)
+            .into_actor(self)
+            .map(|res, act, _ctx| {
+                if let Ok(Some(response)) = res {
+                    act.framed.write(BytesMut::from(response.as_str()));
+                }
             })
             .wait(ctx);
     }
 }
 
-impl StreamHandler<String, ()> for JsonRpc {
-    fn handle(&mut self, item: String, _ctx: &mut Self::Context) {
-        self.framed.write(BytesMut::from(item));
+impl StreamHandler<Result<String, ()>> for JsonRpc {
+    fn handle(&mut self, result: Result<String, ()>, _ctx: &mut Self::Context) {
+        if result.is_err() {
+            // TODO: how to handle this error?
+            return;
+        }
+
+        let item = result.unwrap();
+        self.framed.write(BytesMut::from(item.as_str()));
     }
 }

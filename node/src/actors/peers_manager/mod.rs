@@ -1,8 +1,7 @@
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
-    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised,
-    SystemService, WrapFuture,
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, SystemService, WrapFuture,
 };
 
 use witnet_p2p::{peers::Peers, sessions::SessionType};
@@ -64,12 +63,11 @@ impl PeersManager {
         ctx.run_later(storage_peers_period, move |act, ctx| {
             storage_mngr::put(&storage_keys::peers_key(act.get_magic()), &act.peers)
                 .into_actor(act)
-                .and_then(|_, _, _| {
-                    log::trace!("PeersManager successfully persisted peers to storage");
-                    fut::ok(())
-                })
-                .map_err(|err, _, _| {
-                    log::error!("Peers manager persist peers to storage failed: {}", err)
+                .map(|res, _act, _ctx| match res {
+                    Ok(_) => log::trace!("PeersManager successfully persisted peers to storage"),
+                    Err(err) => {
+                        log::error!("Peers manager persist peers to storage failed: {}", err)
+                    }
                 })
                 .spawn(ctx);
 

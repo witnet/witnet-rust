@@ -1,14 +1,18 @@
 use actix::Message;
 use bytes::BytesMut;
 use std::io;
-use tokio::codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder, Encoder};
 
 /// Codec for JSON-RPC transport
 ///
 /// Read until the first newline (`\n`).
 /// The newline is stripped from the returned message.
-#[derive(Debug, Message, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NewLineCodec;
+
+impl Message for NewLineCodec {
+    type Result = ();
+}
 
 /// Implement decoder trait for NewLineCodec
 impl Decoder for NewLineCodec {
@@ -35,8 +39,7 @@ impl Decoder for NewLineCodec {
 }
 
 /// Implement encoder trait for NewLineCodec
-impl Encoder for NewLineCodec {
-    type Item = BytesMut;
+impl Encoder<BytesMut> for NewLineCodec {
     type Error = io::Error;
 
     /// Method to encode a response into bytes. The input should not contain
@@ -49,7 +52,7 @@ impl Encoder for NewLineCodec {
         // finish with a newline
         encoded_msg.push(b'\n');
         // push message to destination
-        dst.unsplit(BytesMut::from(encoded_msg));
+        dst.unsplit(BytesMut::from(encoded_msg.as_slice()));
         Ok(())
     }
 }
@@ -60,14 +63,14 @@ mod tests {
 
     #[test]
     fn empty() {
-        let mut empty_buf = BytesMut::from(vec![]);
+        let mut empty_buf = BytesMut::from(&[][..]);
         let mut c = NewLineCodec;
         assert_eq!(None, c.decode(&mut empty_buf).unwrap());
     }
 
     #[test]
     fn no_newline() {
-        let mut input = BytesMut::from(b"abcd".to_vec());
+        let mut input = BytesMut::from(&b"abcd"[..]);
         let original = input.clone();
         let mut c = NewLineCodec;
         // When there is no newline, the codec returns None
@@ -78,15 +81,15 @@ mod tests {
 
     #[test]
     fn only_newlines() {
-        let mut empty_bytes = BytesMut::from(b"\n\n\n\n".to_vec());
-        let expected = BytesMut::from(vec![]);
+        let mut empty_bytes = BytesMut::from(&b"\n\n\n\n"[..]);
+        let expected = BytesMut::from(&[][..]);
         let mut c = NewLineCodec;
         // Exactly 4 newlines
         assert_eq!(Some(expected.clone()), c.decode(&mut empty_bytes).unwrap());
         assert_eq!(Some(expected.clone()), c.decode(&mut empty_bytes).unwrap());
         assert_eq!(Some(expected.clone()), c.decode(&mut empty_bytes).unwrap());
         // Now the buffer only contains one \n
-        assert_eq!(BytesMut::from(b"\n".to_vec()), empty_bytes);
+        assert_eq!(BytesMut::from(&b"\n"[..]), empty_bytes);
         assert_eq!(Some(expected.clone()), c.decode(&mut empty_bytes).unwrap());
         // Now the buffer is empty
         assert_eq!(expected, empty_bytes);
@@ -95,26 +98,26 @@ mod tests {
 
     #[test]
     fn newlines_and_as() {
-        let mut empty_bytes = BytesMut::from(b"a\na\na\na\na".to_vec());
-        let expected = BytesMut::from(b"a".to_vec());
+        let mut empty_bytes = BytesMut::from(&b"a\na\na\na\na"[..]);
+        let expected = BytesMut::from(&b"a"[..]);
         let mut c = NewLineCodec;
         // Exactly 4 newlines
         assert_eq!(Some(expected.clone()), c.decode(&mut empty_bytes).unwrap());
         assert_eq!(Some(expected.clone()), c.decode(&mut empty_bytes).unwrap());
         assert_eq!(Some(expected.clone()), c.decode(&mut empty_bytes).unwrap());
         // Now the buffer only contains "a\na"
-        assert_eq!(BytesMut::from(b"a\na".to_vec()), empty_bytes);
+        assert_eq!(BytesMut::from(&b"a\na"[..]), empty_bytes);
         assert_eq!(Some(expected), c.decode(&mut empty_bytes).unwrap());
         // Now the buffer only contains an "a", with no newline,
         // so the codec will return None and wait for more bytes to arrive
-        assert_eq!(BytesMut::from(b"a".to_vec()), empty_bytes);
+        assert_eq!(BytesMut::from(&b"a"[..]), empty_bytes);
         assert_eq!(None, c.decode(&mut empty_bytes).unwrap());
-        assert_eq!(BytesMut::from(b"a".to_vec()), empty_bytes);
+        assert_eq!(BytesMut::from(&b"a"[..]), empty_bytes);
     }
 
     #[test]
     fn isomorphic() {
-        let mut input = BytesMut::from(b"A long string with some\n newlines.\n".to_vec());
+        let mut input = BytesMut::from(&b"A long string with some\n newlines.\n"[..]);
         let original = input.clone();
         let mut decoded = vec![];
         let mut c = NewLineCodec;
@@ -124,7 +127,7 @@ mod tests {
             decoded.push(x);
         }
 
-        let mut buf = BytesMut::from(vec![]);
+        let mut buf = BytesMut::from(&[][..]);
         for d in decoded {
             c.encode(d, &mut buf).unwrap();
         }

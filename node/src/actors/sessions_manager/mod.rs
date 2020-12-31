@@ -27,6 +27,7 @@ use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
     types::LastBeacon,
 };
+use witnet_futures_utils::ActorFutureExt;
 
 mod actor;
 mod beacons;
@@ -105,7 +106,7 @@ impl SessionsManager {
                     })
                     // Process the socket address received
                     // This returns a FutureResult containing a success or error
-                    .and_then(|addresses, _act, _ctx| {
+                    .map_ok(|addresses, _act, _ctx| {
                         log::debug!(
                             "Trying to create a new outbound connection to {:?}",
                             addresses
@@ -119,9 +120,8 @@ impl SessionsManager {
                                 session_type: SessionType::Outbound,
                             });
                         }
-
-                        actix::fut::ok(())
                     })
+                    .map(|_res: Result<(), ()>, _act, _ctx| ())
                     .wait(ctx);
             }
             // Reschedule the bootstrap peers task
@@ -182,12 +182,10 @@ impl SessionsManager {
         epoch_manager_addr
             .send(GetEpochConstants)
             .into_actor(self)
-            .map_err(|err, _, _| {
-                log::error!("Failed to get epoch constants: {:?}", err);
-            })
             .map(move |res, act, _ctx| match res {
-                Some(f) => act.epoch_constants = Some(f),
-                None => log::error!("Failed to get epoch constants"),
+                Ok(Some(f)) => act.epoch_constants = Some(f),
+                Ok(None) => log::error!("Failed to get epoch constants"),
+                Err(err) => log::error!("Failed to get epoch constants: {:?}", err),
             })
             .wait(ctx);
     }
@@ -244,7 +242,7 @@ impl SessionsManager {
         ChainManager::from_registry()
             .send(PeersBeacons { pb, outbound_limit })
             .into_actor(self)
-            .then(|res, act, _ctx| {
+            .map(|res, act, _ctx| {
                 match res {
                     Err(_e) => {
                         // Actix error, ignore
@@ -270,8 +268,6 @@ impl SessionsManager {
                         }
                     }
                 }
-
-                actix::fut::ok(())
             })
             .wait(ctx);
     }

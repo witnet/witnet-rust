@@ -14,6 +14,7 @@ use witnet_util::timestamp::{
 
 use crate::actors::messages::{EpochNotification, EpochResult};
 use crate::config_mngr;
+use witnet_futures_utils::ActorFutureExt;
 
 mod actor;
 mod handlers;
@@ -137,6 +138,7 @@ impl EpochManager {
             .map_err(|err, _, _| {
                 log::error!("Couldn't process config: {}", err);
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
     /// Method to compute time remaining to next checkpoint

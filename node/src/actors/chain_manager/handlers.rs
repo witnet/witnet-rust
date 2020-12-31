@@ -1,7 +1,7 @@
 use actix::{fut::WrapFuture, prelude::*};
-use futures::future::Future;
 use std::{
-    collections::BTreeMap, collections::HashSet, convert::TryFrom, net::SocketAddr, time::Duration,
+    collections::BTreeMap, collections::HashSet, convert::TryFrom, future, net::SocketAddr,
+    time::Duration,
 };
 
 use witnet_data_structures::{
@@ -15,6 +15,7 @@ use witnet_data_structures::{
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
+use witnet_futures_utils::ActorFutureExt;
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
@@ -451,12 +452,12 @@ impl Handler<AddBlocks> for ChainManager {
                             // Create superblocks while synchronizing but do not broadcast them
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
-                            actix::fut::Either::A(
+                            actix::fut::Either::left(
                                 self.try_consolidate_superblock(consolidate_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,
-                            actix::fut::Either::B(actix::fut::ok(()))
+                            actix::fut::Either::right(actix::fut::ok(()))
                         }
                             .and_then(move |(), act, ctx| {
                                 act.update_state_machine(StateMachine::WaitingConsensus);
@@ -471,6 +472,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                 actix::fut::ok(())
                             })
+                            .map(|_res: Result<(), ()>, _act, _ctx| ())
                             .wait(ctx);
                     }
                     // SyncWithCandidate:
@@ -507,12 +509,12 @@ impl Handler<AddBlocks> for ChainManager {
                             // Create superblocks while synchronizing but do not broadcast them
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
-                            actix::fut::Either::A(
+                            actix::fut::Either::left(
                                 self.try_consolidate_superblock(consolidate_superblock_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,
-                            actix::fut::Either::B(actix::fut::ok(()))
+                            actix::fut::Either::right(actix::fut::ok(()))
                         }
                             .and_then({
                                 move |(), act, ctx| {
@@ -551,14 +553,14 @@ impl Handler<AddBlocks> for ChainManager {
                             })
                             .and_then(move |candidate_superblock_checkpoint, act, _ctx| {
                                 if let Some(candidate_superblock_epoch) = act.superblock_candidate_is_needed(candidate_superblock_checkpoint, superblock_period) {
-                                    actix::fut::Either::A(act.build_and_vote_candidate_superblock(candidate_superblock_epoch).map(move |_, act, _| {
+                                    actix::fut::Either::left(act.build_and_vote_candidate_superblock(candidate_superblock_epoch).map_ok(move |_, act, _| {
                                         let superblock_index = candidate_superblock_epoch / superblock_period;
                                         // Copy current chain state into previous chain state, but do not persist it yet
                                         act.move_chain_state_forward(superblock_index);
                                     }))
                                 }
                                 else{
-                                    actix::fut::Either::B(actix::fut::ok(()))
+                                    actix::fut::Either::right(actix::fut::ok(()))
                                 }
                             })
                             .and_then(move |_, act, ctx| {
@@ -579,6 +581,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 act.update_state_machine(StateMachine::WaitingConsensus);
                                 actix::fut::ok(())
                             })
+                            .map(|_res: Result<(), ()>, _act, _ctx| ())
                             .wait(ctx);
                     }
                     Err(ChainManagerError::WrongBlocksForSuperblock {
@@ -659,7 +662,7 @@ impl Handler<AddSuperBlockVote> for ChainManager {
 
 /// Handler for AddTransaction message
 impl Handler<AddTransaction> for ChainManager {
-    type Result = ResponseActFuture<Self, (), failure::Error>;
+    type Result = ResponseActFuture<Self, Result<(), failure::Error>>;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         let timestamp_now = get_timestamp();
@@ -1126,11 +1129,11 @@ impl Handler<PeersBeacons> for ChainManager {
 }
 
 impl Handler<BuildVtt> for ChainManager {
-    type Result = ResponseActFuture<Self, Hash, failure::Error>;
+    type Result = ResponseActFuture<Self, Result<Hash, failure::Error>>;
 
     fn handle(&mut self, msg: BuildVtt, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
-            return Box::new(actix::fut::err(
+            return Box::pin(actix::fut::err(
                 ChainManagerError::NotSynced {
                     current_state: self.sm_state,
                 }
@@ -1152,7 +1155,7 @@ impl Handler<BuildVtt> for ChainManager {
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
-                Box::new(actix::fut::err(e.into()))
+                Box::pin(actix::fut::err(e.into()))
             }
             Ok(vtt) => {
                 let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
@@ -1162,7 +1165,7 @@ impl Handler<BuildVtt> for ChainManager {
                             let transaction =
                                 Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
                             let tx_hash = transaction.hash();
-                            Box::new(
+                            actix::fut::Either::left(
                                 act.add_transaction(
                                     AddTransaction {
                                         transaction,
@@ -1170,35 +1173,27 @@ impl Handler<BuildVtt> for ChainManager {
                                     },
                                     get_timestamp(),
                                 )
-                                .map(move |_, _, _| tx_hash),
+                                .map_ok(move |_, _, _| tx_hash),
                             )
                         }
                         Err(e) => {
                             log::error!("Failed to sign value transfer transaction: {}", e);
-
-                            let res: Box<
-                                dyn ActorFuture<
-                                    Item = Hash,
-                                    Error = failure::Error,
-                                    Actor = ChainManager,
-                                >,
-                            > = Box::new(actix::fut::err(e));
-                            res
+                            actix::fut::Either::right(actix::fut::result(Err(e)))
                         }
                     });
 
-                Box::new(fut)
+                Box::pin(fut)
             }
         }
     }
 }
 
 impl Handler<BuildDrt> for ChainManager {
-    type Result = ResponseActFuture<Self, Hash, failure::Error>;
+    type Result = ResponseActFuture<Self, Result<Hash, failure::Error>>;
 
     fn handle(&mut self, msg: BuildDrt, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
-            return Box::new(actix::fut::err(
+            return Box::pin(actix::fut::err(
                 ChainManagerError::NotSynced {
                     current_state: self.sm_state,
                 }
@@ -1206,7 +1201,7 @@ impl Handler<BuildDrt> for ChainManager {
             ));
         }
         if let Err(e) = validate_rad_request(&msg.dro.data_request) {
-            return Box::new(actix::fut::err(e));
+            return Box::pin(actix::fut::err(e));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         let max_dr_weight = self.consensus_constants().max_dr_weight;
@@ -1222,7 +1217,7 @@ impl Handler<BuildDrt> for ChainManager {
         ) {
             Err(e) => {
                 log::error!("Error when building data request transaction: {}", e);
-                Box::new(actix::fut::err(e.into()))
+                Box::pin(actix::fut::err(e.into()))
             }
             Ok(drt) => {
                 log::debug!("Created drt:\n{:?}", drt);
@@ -1233,7 +1228,7 @@ impl Handler<BuildDrt> for ChainManager {
                             let transaction =
                                 Transaction::DataRequest(DRTransaction::new(drt, signatures));
                             let tx_hash = transaction.hash();
-                            Box::new(
+                            actix::fut::Either::left(
                                 act.add_transaction(
                                     AddTransaction {
                                         transaction,
@@ -1241,24 +1236,16 @@ impl Handler<BuildDrt> for ChainManager {
                                     },
                                     get_timestamp(),
                                 )
-                                .map(move |_, _, _| tx_hash),
+                                .map_ok(move |_, _, _| tx_hash),
                             )
                         }
                         Err(e) => {
                             log::error!("Failed to sign data request transaction: {}", e);
-
-                            let res: Box<
-                                dyn ActorFuture<
-                                    Item = Hash,
-                                    Error = failure::Error,
-                                    Actor = ChainManager,
-                                >,
-                            > = Box::new(actix::fut::err(e));
-                            res
+                            actix::fut::Either::right(actix::fut::result(Err(e)))
                         }
                     });
 
-                Box::new(fut)
+                Box::pin(fut)
             }
         }
     }
@@ -1273,7 +1260,7 @@ impl Handler<GetState> for ChainManager {
 }
 
 impl Handler<GetDataRequestInfo> for ChainManager {
-    type Result = ResponseFuture<DataRequestInfo, failure::Error>;
+    type Result = ResponseFuture<Result<DataRequestInfo, failure::Error>>;
 
     fn handle(&mut self, msg: GetDataRequestInfo, _ctx: &mut Self::Context) -> Self::Result {
         let dr_pointer = msg.dr_pointer;
@@ -1286,18 +1273,20 @@ impl Handler<GetDataRequestInfo> for ChainManager {
             .get(&dr_pointer)
             .map(|dr_state| dr_state.info.clone())
         {
-            Box::new(futures::finished(dr_info))
+            Box::pin(future::ready(Ok(dr_info)))
         } else {
             let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
             // Otherwise, try to get it from storage
-            let fut = storage_mngr::get::<_, DataRequestInfo>(&dr_pointer_string).and_then(
-                move |dr_info| match dr_info {
-                    Some(x) => futures::finished(x),
-                    None => futures::failed(DataRequestNotFound { hash: dr_pointer }.into()),
-                },
-            );
+            let fut = async move {
+                let dr_info = storage_mngr::get::<_, DataRequestInfo>(&dr_pointer_string).await?;
 
-            Box::new(fut)
+                match dr_info {
+                    Some(x) => Ok(x),
+                    None => Err(DataRequestNotFound { hash: dr_pointer }.into()),
+                }
+            };
+
+            Box::pin(fut)
         }
     }
 }
@@ -1427,7 +1416,7 @@ impl Handler<TryMineBlock> for ChainManager {
 }
 
 impl Handler<AddCommitReveal> for ChainManager {
-    type Result = ResponseActFuture<Self, (), failure::Error>;
+    type Result = ResponseActFuture<Self, Result<(), failure::Error>>;
 
     fn handle(
         &mut self,
@@ -1445,7 +1434,7 @@ impl Handler<AddCommitReveal> for ChainManager {
 
         // Send AddTransaction message to self
         // And broadcast it to all of peers
-        Box::new(
+        Box::pin(
             self.add_transaction(
                 AddTransaction {
                     transaction: Transaction::Commit(commit_transaction),

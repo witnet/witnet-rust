@@ -29,6 +29,7 @@ use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
     convert::TryFrom,
+    future,
     net::SocketAddr,
     time::Duration,
 };
@@ -39,7 +40,7 @@ use actix::{
 };
 use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
-use futures::future::{join_all, Future};
+use futures::future::{try_join_all, FutureExt};
 use itertools::Itertools;
 use rand::Rng;
 use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
@@ -85,6 +86,7 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
+use witnet_futures_utils::ActorFutureExt;
 
 mod actor;
 mod handlers;
@@ -299,6 +301,7 @@ impl ChainManager {
                     err
                 )
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 
@@ -328,6 +331,7 @@ impl ChainManager {
                 }
                 Ok(_) => actix::fut::ok(()),
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx)
     }
 
@@ -355,6 +359,7 @@ impl ChainManager {
                 );
                 fut::ok(())
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 
@@ -746,10 +751,13 @@ impl ChainManager {
                 let bn256_message = superblock_vote.bn256_signature_message();
 
                 signature_mngr::bn256_sign(bn256_message)
-                    .map_err(|e| {
-                        log::error!("Failed to sign superblock with bn256 key: {}", e);
+                    .map(|res| {
+                        res.map_err(|e| {
+                            log::error!("Failed to sign superblock with bn256 key: {}", e);
+                        })
                     })
-                    .and_then(move |bn256_keyed_signature| {
+                    .into_actor(act)
+                    .and_then(move |bn256_keyed_signature, act, _ctx| {
                         // Actually, we don't need to include the BN256 public key because
                         // it is stored in the `alt_keys` mapping, indexed by the
                         // secp256k1 public key hash
@@ -758,17 +766,22 @@ impl ChainManager {
                         let secp256k1_message = superblock_vote.secp256k1_signature_message();
                         let sign_bytes = calculate_sha256(&secp256k1_message).0;
                         signature_mngr::sign_data(sign_bytes)
-                            .map(move |secp256k1_signature| {
-                                superblock_vote.set_secp256k1_signature(secp256k1_signature);
+                            .map(move |res| {
+                                res.map(|secp256k1_signature| {
+                                    superblock_vote.set_secp256k1_signature(secp256k1_signature);
 
-                                superblock_vote
+                                    superblock_vote
+                                })
+                                .map_err(|e| {
+                                    log::error!(
+                                        "Failed to sign superblock with secp256k1 key: {}",
+                                        e
+                                    );
+                                })
                             })
-                            .map_err(|e| {
-                                log::error!("Failed to sign superblock with secp256k1 key: {}", e);
-                            })
+                            .into_actor(act)
                     })
-                    .into_actor(act)
-                    .map(|res, act, ctx| {
+                    .map_ok(|res, act, ctx| {
                         // Broadcast vote between one and ("superblock_period" - 3) epoch checkpoints later.
                         // This is used to prevent the race condition described in issue #1573
                         // It is also used to spread the CPU load by checking superblock votes along
@@ -788,6 +801,7 @@ impl ChainManager {
                         );
                     })
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx)
     }
 
@@ -820,8 +834,10 @@ impl ChainManager {
             signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
                 superblock_vote: superblock_vote.clone(),
             }])
-            .map_err(|e| {
-                log::error!("Verify superblock vote signature: {}", e);
+            .map(|res| {
+                res.map_err(|e| {
+                    log::error!("Verify superblock vote signature: {}", e);
+                })
             })
             .into_actor(self)
             .and_then(move |(), act, _ctx| {
@@ -837,6 +853,7 @@ impl ChainManager {
 
                 actix::fut::ok(())
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .spawn(ctx);
         }
     }
@@ -863,10 +880,10 @@ impl ChainManager {
         signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
             superblock_vote: superblock_vote.clone(),
         }])
-        .map_err(|e| {
+        .into_actor(self)
+        .map_err(|e, _act, _ctx| {
             log::error!("Verify superblock vote signature: {}", e);
         })
-        .into_actor(self)
         .and_then(move |(), act, _ctx| {
             // Check if we already received this vote (again, because this future can be executed
             // by multiple tasks concurrently)
@@ -927,11 +944,12 @@ impl ChainManager {
                     command: SendSuperBlockVote { superblock_vote },
                     only_inbound: false,
                 })
-                .map_err(|e| {
+                .into_actor(act)
+                .map_err(|e, _act, _ctx| {
                     log::error!("Forward superblock vote: {}", e);
                 })
-                .into_actor(act)
         })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
         .spawn(ctx);
     }
 
@@ -940,7 +958,7 @@ impl ChainManager {
         &mut self,
         msg: AddTransaction,
         timestamp_now: i64,
-    ) -> ResponseActFuture<Self, (), failure::Error> {
+    ) -> ResponseActFuture<Self, Result<(), failure::Error>> {
         log::trace!(
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
@@ -949,7 +967,7 @@ impl ChainManager {
         match self.sm_state {
             StateMachine::Synced => {}
             _ => {
-                return Box::new(actix::fut::err(
+                return Box::pin(actix::fut::err(
                     ChainManagerError::NotSynced {
                         current_state: self.sm_state,
                     }
@@ -970,11 +988,11 @@ impl ChainManager {
                     "Transaction is already in the pool: {}",
                     msg.transaction.hash()
                 );
-                return Box::new(actix::fut::ok(()));
+                return Box::pin(actix::fut::ok(()));
             }
             Err(e) => {
                 log::warn!("Cannot add transaction: {}", e);
-                return Box::new(actix::fut::err(e.into()));
+                return Box::pin(actix::fut::err(e.into()));
             }
         }
 
@@ -996,14 +1014,14 @@ impl ChainManager {
 
                 if timestamp_now > timestamp_mining {
                     self.temp_commits_and_reveals.push(msg.transaction);
-                    return Box::new(actix::fut::ok(()));
+                    return Box::pin(actix::fut::ok(()));
                 }
             }
 
             let mut signatures_to_verify = vec![];
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = current_epoch;
-            let fut = futures::future::result(validate_new_transaction(
+            let fut = future::ready(validate_new_transaction(
                 &msg.transaction,
                 (
                     reputation_engine,
@@ -1023,7 +1041,7 @@ impl ChainManager {
             .into_actor(self)
             .and_then(|fee, act, _ctx| {
                 signature_mngr::verify_signatures(signatures_to_verify)
-                    .map(move |_| fee)
+                    .map(move |res| res.map(|()| fee))
                     .into_actor(act)
             })
             .then(move |res, act, _ctx| match res {
@@ -1051,9 +1069,9 @@ impl ChainManager {
                 }
             });
 
-            Box::new(fut)
+            Box::pin(fut)
         } else {
-            Box::new(actix::fut::err(ChainManagerError::ChainNotReady.into()))
+            Box::pin(actix::fut::err(ChainManagerError::ChainNotReady.into()))
         }
     }
 
@@ -1072,7 +1090,7 @@ impl ChainManager {
     pub fn build_and_vote_candidate_superblock(
         &mut self,
         superblock_epoch: u32,
-    ) -> ResponseActFuture<Self, (), ()> {
+    ) -> ResponseActFuture<Self, Result<(), ()>> {
         let fut = self.construct_superblock(superblock_epoch, None).and_then(
             move |superblock, act, _ctx| {
                 let superblock_hash = superblock.hash();
@@ -1087,36 +1105,44 @@ impl ChainManager {
                     SuperBlockVote::new_unsigned(superblock_hash, superblock.index);
                 let bn256_message = superblock_vote.bn256_signature_message();
 
-                signature_mngr::bn256_sign(bn256_message)
-                    .map_err(|e| {
-                        log::error!("Failed to sign superblock with bn256 key: {}", e);
-                    })
-                    .and_then(move |bn256_keyed_signature| {
-                        // There is no need to include the BN256 public key because it is stored in
-                        // the `alt_keys` mapping, indexed by the secp256k1 public key hash
-                        superblock_vote.set_bn256_signature(bn256_keyed_signature.signature);
-                        let secp256k1_message = superblock_vote.secp256k1_signature_message();
-                        let sign_bytes = calculate_sha256(&secp256k1_message).0;
-                        signature_mngr::sign_data(sign_bytes)
-                            .map(move |secp256k1_signature| {
-                                superblock_vote.set_secp256k1_signature(secp256k1_signature);
+                async {
+                    match signature_mngr::bn256_sign(bn256_message).await {
+                        Err(e) => {
+                            log::error!("Failed to sign superblock with bn256 key: {}", e);
+                            Err(())
+                        }
+                        Ok(bn256_keyed_signature) => {
+                            // There is no need to include the BN256 public key because it is stored in
+                            // the `alt_keys` mapping, indexed by the secp256k1 public key hash
+                            superblock_vote.set_bn256_signature(bn256_keyed_signature.signature);
+                            let secp256k1_message = superblock_vote.secp256k1_signature_message();
+                            let sign_bytes = calculate_sha256(&secp256k1_message).0;
+                            signature_mngr::sign_data(sign_bytes)
+                                .await
+                                .map(move |secp256k1_signature| {
+                                    superblock_vote.set_secp256k1_signature(secp256k1_signature);
 
-                                superblock_vote
-                            })
-                            .map_err(|e| {
-                                log::error!("Failed to sign superblock with secp256k1 key: {}", e);
-                            })
-                    })
-                    .into_actor(act)
-                    .and_then(|res, act, ctx| {
-                        act.add_superblock_vote(res, ctx);
+                                    superblock_vote
+                                })
+                                .map_err(|e| {
+                                    log::error!(
+                                        "Failed to sign superblock with secp256k1 key: {}",
+                                        e
+                                    );
+                                })
+                        }
+                    }
+                }
+                .into_actor(act)
+                .and_then(|res, act, ctx| {
+                    act.add_superblock_vote(res, ctx);
 
-                        actix::fut::ok(())
-                    })
+                    actix::fut::ok(())
+                })
             },
         );
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 
     /// Try to consolidate superblock process which uses futures
@@ -1126,7 +1152,7 @@ impl ChainManager {
         block_epoch: u32,
         sync_target: SyncTarget,
         sync_superblock: Option<SuperBlock>,
-    ) -> ResponseActFuture<Self, (), ()> {
+    ) -> ResponseActFuture<Self, Result<(), ()>> {
         let fut = self
             .construct_superblock(block_epoch, sync_superblock)
             .and_then(move |superblock, act, ctx| {
@@ -1167,7 +1193,7 @@ impl ChainManager {
                 }
             });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 
     /// Construct superblock process which uses futures
@@ -1176,7 +1202,7 @@ impl ChainManager {
         &mut self,
         block_epoch: u32,
         sync_superblock: Option<SuperBlock>,
-    ) -> ResponseActFuture<Self, SuperBlock, ()> {
+    ) -> ResponseActFuture<Self, Result<SuperBlock, ()>> {
         let consensus_constants = self.consensus_constants();
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
@@ -1198,36 +1224,34 @@ impl ChainManager {
         let init_epoch = block_epoch - superblock_period;
         let final_epoch = block_epoch.saturating_sub(1);
         let genesis_hash = consensus_constants.genesis_hash;
+        let res = self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(
+            init_epoch..=final_epoch,
+            0,
+        ));
 
-        let fut = futures::future::ok(self.get_blocks_epoch_range(
-            GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
-        ))
-        .and_then(move |res| {
+        let fut = async move {
             let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
-            futures::future::ok(block_hashes)
-        })
-        .and_then(move |block_hashes| {
             let aux = block_hashes.into_iter().map(move |hash| {
                 inventory_manager
                     .send(GetItemBlock { hash })
                     .then(move |res| match res {
-                        Ok(Ok(block)) => futures::future::ok(block.block_header),
+                        Ok(Ok(block)) => future::ready(Ok(block.block_header)),
                         Ok(Err(e)) => {
                             log::error!("Error in GetItemBlock {}: {}", hash, e);
-                            futures::future::err(())
+                            future::ready(Err(()))
                         }
                         Err(e) => {
                             log::error!("Error in GetItemBlock {}: {}", hash, e);
-                            futures::future::err(())
+                            future::ready(Err(()))
                         }
                     })
-                    .then(|x| futures::future::ok(x.ok()))
+                    .then(|x| future::ready(Ok(x.ok())))
             });
 
-                join_all(aux)
-                    // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
-                    .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
-            })
+            try_join_all(aux).await
+                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+        }
             .into_actor(self)
             .and_then(move |block_headers, act, _ctx| {
                 let v = act
@@ -1382,7 +1406,7 @@ impl ChainManager {
                     // No consensus: move to AlmostSynced and restore chain_state from storage
                     log::warn!("No superblock consensus");
 
-                    act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).wait(ctx);
+                    act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::AlmostSynced);
@@ -1393,7 +1417,7 @@ impl ChainManager {
                     // Consensus unknown: move to waiting consensus and restore chain_state from storage
                     log::warn!("Superblock consensus unknown");
 
-                    act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).wait(ctx);
+                    act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
@@ -1403,7 +1427,7 @@ impl ChainManager {
             }
         });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 
     /// Block validation process which uses futures
@@ -1415,12 +1439,11 @@ impl ChainManager {
         vrf_input: CheckpointVRF,
         chain_beacon: CheckpointBeacon,
         epoch_constants: EpochConstants,
-    ) -> ResponseActFuture<Self, Diff, failure::Error> {
+    ) -> ResponseActFuture<Self, Result<Diff, failure::Error>> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
         let consensus_constants = self.consensus_constants();
-
-        let fut = futures::future::result(validate_block(
+        let res = validate_block(
             &block,
             current_epoch,
             vrf_input,
@@ -1428,12 +1451,18 @@ impl ChainManager {
             &mut signatures_to_verify,
             self.chain_state.reputation_engine.as_ref().unwrap(),
             &consensus_constants,
-        ))
-        .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
+        );
+
+        let fut = async {
+            // Short-circuit if validation failed
+            res?;
+
+            signature_mngr::verify_signatures(signatures_to_verify).await
+        }
         .into_actor(self)
         .and_then(move |(), act, _ctx| {
             let mut signatures_to_verify = vec![];
-            futures::future::result(validate_block_transactions(
+            let res = validate_block_transactions(
                 &act.chain_state.unspent_outputs_pool,
                 &act.chain_state.data_request_pool,
                 &block,
@@ -1443,12 +1472,19 @@ impl ChainManager {
                 epoch_constants,
                 block_number,
                 &consensus_constants,
-            ))
-            .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
+            );
+            async {
+                // Short-circuit if validation failed
+                let diff = res?;
+
+                signature_mngr::verify_signatures(signatures_to_verify)
+                    .await
+                    .map(|()| diff)
+            }
             .into_actor(act)
         });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 
     /// Transition the ChainManager state machine into a new state.
@@ -1501,6 +1537,7 @@ impl ChainManager {
                     actix::fut::err(())
                 }
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .spawn(ctx);
         let epoch = self.current_epoch.unwrap();
         self.sync_waiting_for_add_blocks_since = Some(epoch);
@@ -1551,6 +1588,7 @@ impl ChainManager {
                         actix::fut::err(())
                     }
                 })
+                .map(|_res: Result<(), ()>, _act, _ctx| ())
                 .spawn(ctx);
         }
     }
@@ -1723,18 +1761,14 @@ impl ChainManager {
     fn reinsert_transactions_from_unconfirmed_blocks(
         &mut self,
         epoch: Epoch,
-    ) -> ResponseActFuture<Self, (), ()> {
+    ) -> ResponseActFuture<Self, Result<(), ()>> {
         let inventory_manager = InventoryManager::from_registry();
 
         // Get all blocks since epoch
-        let fut = futures::future::ok(
-            self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(epoch.., 0)),
-        )
-        .and_then(move |res| {
+        let res = self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(epoch.., 0));
+
+        let fut = async {
             let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
-            futures::future::ok(block_hashes)
-        })
-        .and_then(move |block_hashes| {
             // For each block, collect all the transactions that may be valid if this block is
             // reverted. This includes value transfer transactions and data request transactions.
             let aux = block_hashes.into_iter().map(move |hash| {
@@ -1759,22 +1793,22 @@ impl ChainManager {
                             // We do not reinsert RevealTransactions due to each node resend
                             // their reveal in case of a data request would be in REVEAL stage
 
-                            futures::future::ok(transactions)
+                            future::ready(Ok(transactions))
                         }
                         Ok(Err(e)) => {
                             log::error!("Error in GetItemBlock {}: {}", hash, e);
-                            futures::future::err(())
+                            future::ready(Err(()))
                         }
                         Err(e) => {
                             log::error!("Error in GetItemBlock {}: {}", hash, e);
-                            futures::future::err(())
+                            future::ready(Err(()))
                         }
                     })
                     // TODO: make sure that we want to ignore errors
-                    .then(|x| futures::future::ok(x.ok()))
+                    .then(|x| future::ready(Ok(x.ok())))
             });
-
-            join_all(aux)
+            try_join_all(aux)
+                .await
                 // Map Option<Vec<Vec<T>>> to Vec<T>, this returns all the non-error results
                 .map(|x| {
                     x.into_iter()
@@ -1782,7 +1816,7 @@ impl ChainManager {
                         .flatten()
                         .collect::<Vec<Transaction>>()
                 })
-        })
+        }
         .into_actor(self)
         .and_then(move |transactions, act, _ctx| {
             // Include in temporal vts and drs to include them later
@@ -1795,7 +1829,7 @@ impl ChainManager {
             panic!("Unknown error in reinsert_transactions_from_unconfirmed_blocks");
         });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 
     /// Send a message to `SessionsManager` to drop all outbound peers.

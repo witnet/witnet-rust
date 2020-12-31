@@ -9,6 +9,7 @@ use crate::{
     },
     config_mngr, storage_mngr,
 };
+use witnet_futures_utils::ActorFutureExt;
 use witnet_p2p::peers::Peers;
 
 /// Make actor from PeersManager
@@ -48,16 +49,18 @@ impl Actor for PeersManager {
 
                 storage_mngr::get::<_, Peers>(&storage_keys::peers_key(magic))
                     .into_actor(act)
-                    .map_err(|e, _, _| log::error!("Couldn't get peers from storage: {}", e))
-                    .and_then(move |peers_from_storage, act, _ctx| {
-                        // peers_from_storage can be None if the storage does not contain that key
-                        if let Some(peers_from_storage) = peers_from_storage {
-                            // Add all the peers from storage
-                            // The add method handles duplicates by overwriting the old values
-                            act.import_peers(peers_from_storage, known_peers);
+                    .map(move |res, act, _ctx| {
+                        match res {
+                            Ok(Some(peers_from_storage)) => {
+                                // Add all the peers from storage
+                                // The add method handles duplicates by overwriting the old values
+                                act.import_peers(peers_from_storage, known_peers);
+                            }
+                            Ok(None) => {
+                                // peers_from_storage can be None if the storage does not contain that key
+                            }
+                            Err(e) => log::error!("Couldn't get peers from storage: {}", e),
                         }
-
-                        fut::ok(())
                     })
                     .spawn(ctx);
 
@@ -68,18 +71,16 @@ impl Actor for PeersManager {
                 epoch_manager
                     .send(GetEpoch)
                     .into_actor(act)
-                    .then(move |epoch, act, ctx| {
+                    .map(move |epoch, act, ctx| {
                         if epoch.expect("Error when asking for current epoch while initializing PeersManager").is_ok() {
                             act.peers.bootstrapped = true
                         } else {
                             epoch_manager
                                 .send(Subscribe::to_epoch(0, ctx.address(), ()))
                                 .into_actor(act)
-                                .then(|_, _, _| fut::ok(()))
+                                .map(|_, _, _| ())
                                 .spawn(ctx);
                         }
-
-                        fut::ok(())
                     })
                     .spawn(ctx);
 
@@ -94,7 +95,10 @@ impl Actor for PeersManager {
 
                 fut::ok(())
             })
-            .map_err(|err, _, _| log::error!("Peer discovery failed: {}", err))
+            .map(|res, _, _| match res {
+                Ok(()) => {}
+                Err(err) => log::error!("Peer discovery failed: {}", err),
+            })
             .wait(ctx);
     }
 }

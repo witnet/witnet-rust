@@ -4,8 +4,6 @@ use actix::{io::FramedWrite, SystemService};
 
 use ansi_term::Color::Green;
 
-use tokio::{io::WriteHalf, net::TcpStream};
-
 use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{Block, Epoch, Hash},
@@ -15,6 +13,8 @@ use witnet_data_structures::{
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use crate::actors::{codec::P2PCodec, messages::LogMessage, sessions_manager::SessionsManager};
+use bytes::BytesMut;
+use tokio::net::tcp::OwnedWriteHalf;
 
 mod actor;
 
@@ -53,7 +53,7 @@ pub struct Session {
     session_type: SessionType,
 
     /// Framed wrapper to send messages through the TCP connection
-    framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
+    framed: FramedWrite<BytesMut, OwnedWriteHalf, P2PCodec>,
 
     /// Session status
     status: SessionStatus,
@@ -97,7 +97,7 @@ impl Session {
         public_addr: Option<SocketAddr>,
         remote_addr: SocketAddr,
         session_type: SessionType,
-        framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
+        framed: FramedWrite<BytesMut, OwnedWriteHalf, P2PCodec>,
         magic_number: u16,
         current_epoch: Epoch,
         last_beacon: LastBeacon,
@@ -151,7 +151,7 @@ impl Session {
                     }
                 }
                 log::trace!("\t{:?}", msg);
-                self.framed.write(bytes.into());
+                self.framed.write(bytes.as_slice().into());
             }
             Err(e) => {
                 log::error!(

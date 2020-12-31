@@ -11,6 +11,7 @@ use witnet_data_structures::chain::{
     Block, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock,
 };
 use witnet_data_structures::transaction::Transaction;
+use witnet_futures_utils::ActorFutureExt;
 
 fn key_superblock(superblock_index: u32) -> Vec<u8> {
     // Add 0 padding to the left of the superblock index to make sorted keys represent consecutive
@@ -22,7 +23,7 @@ impl InventoryManager {
     fn handle_add_items(
         &mut self,
         msg: AddItems,
-    ) -> ResponseActFuture<Self, (), InventoryManagerError> {
+    ) -> ResponseActFuture<Self, Result<(), InventoryManagerError>> {
         let mut blocks_to_add = vec![];
         let mut transactions_to_add = vec![];
         let mut superblocks_to_add = vec![];
@@ -69,7 +70,7 @@ impl InventoryManager {
         log::trace!("Persisting {} blocks to storage", block_len);
 
         // Store all the blocks, and then store all the transactions
-        Box::new(
+        Box::pin(
             storage_mngr::put_batch(&blocks_to_add)
                 .into_actor(self)
                 .map_err(|e, _, _| {
@@ -114,7 +115,7 @@ impl InventoryManager {
     fn handle_get_item_block(
         &mut self,
         msg: GetItemBlock,
-    ) -> ResponseActFuture<Self, Block, InventoryManagerError> {
+    ) -> ResponseActFuture<Self, Result<Block, InventoryManagerError>> {
         let key = match msg.hash {
             Hash::SHA256(x) => x.to_vec(),
         };
@@ -133,13 +134,13 @@ impl InventoryManager {
                 }
             });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 
     fn handle_get_item_transaction(
         &mut self,
         msg: GetItemTransaction,
-    ) -> ResponseActFuture<Self, (Transaction, PointerToBlock), InventoryManagerError> {
+    ) -> ResponseActFuture<Self, Result<(Transaction, PointerToBlock), InventoryManagerError>> {
         let key = match msg.hash {
             Hash::SHA256(x) => x.to_vec(),
         };
@@ -187,34 +188,32 @@ impl InventoryManager {
                             }
                         });
 
-                    Box::new(fut)
+                    Box::pin(fut)
                 }
                 Ok(None) => {
                     let fut: ResponseActFuture<
                         Self,
-                        (Transaction, PointerToBlock),
-                        InventoryManagerError,
-                    > = Box::new(fut::err(InventoryManagerError::ItemNotFound));
+                        Result<(Transaction, PointerToBlock), InventoryManagerError>,
+                    > = Box::pin(fut::err(InventoryManagerError::ItemNotFound));
                     fut
                 }
                 Err(e) => {
                     log::error!("Couldn't get item from storage: {}", e);
                     let fut: ResponseActFuture<
                         Self,
-                        (Transaction, PointerToBlock),
-                        InventoryManagerError,
-                    > = Box::new(fut::err(InventoryManagerError::MailBoxError(e)));
+                        Result<(Transaction, PointerToBlock), InventoryManagerError>,
+                    > = Box::pin(fut::err(InventoryManagerError::MailBoxError(e)));
                     fut
                 }
             });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 
     fn handle_get_item_superblock(
         &mut self,
         msg: GetItemSuperblock,
-    ) -> ResponseActFuture<Self, SuperBlockNotify, InventoryManagerError> {
+    ) -> ResponseActFuture<Self, Result<SuperBlockNotify, InventoryManagerError>> {
         let key = key_superblock(msg.superblock_index);
 
         let fut = storage_mngr::get::<_, SuperBlockNotify>(&key)
@@ -231,7 +230,7 @@ impl InventoryManager {
                 }
             });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 }
 
@@ -241,7 +240,7 @@ impl InventoryManager {
 
 /// Handler for AddItem message
 impl Handler<AddItem> for InventoryManager {
-    type Result = ResponseActFuture<Self, (), InventoryManagerError>;
+    type Result = ResponseActFuture<Self, Result<(), InventoryManagerError>>;
 
     fn handle(&mut self, msg: AddItem, _ctx: &mut Context<Self>) -> Self::Result {
         // Simply calls AddItems with 1 item
@@ -253,7 +252,7 @@ impl Handler<AddItem> for InventoryManager {
 
 /// Handler for AddItems message
 impl Handler<AddItems> for InventoryManager {
-    type Result = ResponseActFuture<Self, (), InventoryManagerError>;
+    type Result = ResponseActFuture<Self, Result<(), InventoryManagerError>>;
 
     fn handle(&mut self, msg: AddItems, _ctx: &mut Context<Self>) -> Self::Result {
         self.handle_add_items(msg)
@@ -262,21 +261,21 @@ impl Handler<AddItems> for InventoryManager {
 
 /// Handler for GetItem message
 impl Handler<GetItem> for InventoryManager {
-    type Result = ResponseActFuture<Self, InventoryItem, InventoryManagerError>;
+    type Result = ResponseActFuture<Self, Result<InventoryItem, InventoryManagerError>>;
 
     fn handle(&mut self, msg: GetItem, _ctx: &mut Context<Self>) -> Self::Result {
         let fut: Self::Result = match msg.item {
-            InventoryEntry::Tx(hash) => Box::new(
+            InventoryEntry::Tx(hash) => Box::pin(
                 self.handle_get_item_transaction(GetItemTransaction { hash })
-                    .map(|(tx, _pointer_to_block), _, _| InventoryItem::Transaction(tx)),
+                    .map_ok(|(tx, _pointer_to_block), _, _| InventoryItem::Transaction(tx)),
             ),
-            InventoryEntry::Block(hash) => Box::new(
+            InventoryEntry::Block(hash) => Box::pin(
                 self.handle_get_item_block(GetItemBlock { hash })
-                    .map(|block, _, _| InventoryItem::Block(block)),
+                    .map_ok(|block, _, _| InventoryItem::Block(block)),
             ),
-            InventoryEntry::SuperBlock(superblock_index) => Box::new(
+            InventoryEntry::SuperBlock(superblock_index) => Box::pin(
                 self.handle_get_item_superblock(GetItemSuperblock { superblock_index })
-                    .map(|superblock_notify, _, _| {
+                    .map_ok(|superblock_notify, _, _| {
                         InventoryItem::SuperBlock(superblock_notify.superblock)
                     }),
             ),
@@ -288,7 +287,7 @@ impl Handler<GetItem> for InventoryManager {
 
 /// Handler for GetItem message
 impl Handler<GetItemBlock> for InventoryManager {
-    type Result = ResponseActFuture<Self, Block, InventoryManagerError>;
+    type Result = ResponseActFuture<Self, Result<Block, InventoryManagerError>>;
 
     fn handle(&mut self, msg: GetItemBlock, _ctx: &mut Context<Self>) -> Self::Result {
         self.handle_get_item_block(msg)
@@ -297,7 +296,8 @@ impl Handler<GetItemBlock> for InventoryManager {
 
 /// Handler for GetItem message
 impl Handler<GetItemTransaction> for InventoryManager {
-    type Result = ResponseActFuture<Self, (Transaction, PointerToBlock), InventoryManagerError>;
+    type Result =
+        ResponseActFuture<Self, Result<(Transaction, PointerToBlock), InventoryManagerError>>;
 
     fn handle(&mut self, msg: GetItemTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         self.handle_get_item_transaction(msg)
@@ -306,7 +306,7 @@ impl Handler<GetItemTransaction> for InventoryManager {
 
 /// Handler for GetItemSuperblock message
 impl Handler<GetItemSuperblock> for InventoryManager {
-    type Result = ResponseActFuture<Self, SuperBlockNotify, InventoryManagerError>;
+    type Result = ResponseActFuture<Self, Result<SuperBlockNotify, InventoryManagerError>>;
 
     fn handle(&mut self, msg: GetItemSuperblock, _ctx: &mut Context<Self>) -> Self::Result {
         self.handle_get_item_superblock(msg)
@@ -320,7 +320,6 @@ mod tests {
         actors::chain_manager::mining::build_block, config_mngr, storage_mngr,
         utils::test_actix_system,
     };
-    use futures_util::compat::Compat01As03;
     use std::sync::Arc;
     use witnet_config::config::{Config, StorageBackend};
     use witnet_data_structures::{
@@ -449,13 +448,14 @@ mod tests {
             let item = StoreInventoryItem::Block(Box::new(block));
 
             // Persist first block
-            let f = inventory_manager.send(AddItem { item });
-            let res = Compat01As03::new(f).await.unwrap();
+            let res = inventory_manager.send(AddItem { item }).await.unwrap();
             res.unwrap();
 
             // Get first transaction of that block
-            let f = inventory_manager.send(GetItemTransaction { hash: tx_hash1 });
-            let res = Compat01As03::new(f).await.unwrap();
+            let res = inventory_manager
+                .send(GetItemTransaction { hash: tx_hash1 })
+                .await
+                .unwrap();
 
             // The transaction pointer should point to that block
             let (_tx, tx_pointer1) = res.unwrap();
@@ -470,13 +470,14 @@ mod tests {
             let item = StoreInventoryItem::Block(Box::new(block));
 
             // Persist second block
-            let f = inventory_manager.send(AddItem { item });
-            let res = Compat01As03::new(f).await.unwrap();
+            let res = inventory_manager.send(AddItem { item }).await.unwrap();
             res.unwrap();
 
             // Get first transaction again
-            let f = inventory_manager.send(GetItemTransaction { hash: tx_hash1 });
-            let res = Compat01As03::new(f).await.unwrap();
+            let res = inventory_manager
+                .send(GetItemTransaction { hash: tx_hash1 })
+                .await
+                .unwrap();
 
             // Now, the transaction pointer should point to the second block
             let (_tx, tx_pointer2) = res.unwrap();

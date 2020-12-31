@@ -28,18 +28,13 @@ where
 
 #[cfg(test)]
 /// Helper function used to test actors
-pub fn test_actix_system<F: 'static + FnOnce() -> Fut, Fut: futures03::Future>(f: F) {
+pub fn test_actix_system<F: 'static + FnOnce() -> Fut, Fut: futures::Future>(f: F) {
     actix::System::run(|| {
-        let fut03 = async move {
+        let fut = async move {
             f().await;
 
             actix::System::current().stop();
-            Result::<(), ()>::Ok(())
         };
-
-        // Magic conversion from std::future::Future (futures 0.3) and futures::Future (futures 0.1)
-        let fut = futures_util::compat::Compat::new(Box::pin(fut03));
-
         actix::Arbiter::spawn(fut);
     })
     .unwrap();

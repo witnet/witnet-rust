@@ -2,6 +2,7 @@ use super::SessionsManager;
 use crate::config_mngr;
 use actix::prelude::*;
 use witnet_data_structures::chain::EpochConstants;
+use witnet_futures_utils::ActorFutureExt;
 use witnet_util::timestamp::get_timestamp;
 
 /// Make actor from `SessionsManager`
@@ -60,6 +61,7 @@ impl Actor for SessionsManager {
                 fut::ok(())
             })
             .map_err(|err, _, _| log::error!("Sessions manager startup error: {}", err))
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
 
         self.subscribe_to_epoch_manager(ctx);

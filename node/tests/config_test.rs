@@ -1,26 +1,18 @@
-use futures::Future;
 use witnet_data_structures::chain::Environment;
 use witnet_node::config_mngr;
-
-fn ignore<T>(_: T) {}
 
 #[test]
 fn test_get_config() {
     actix::System::run(|| {
         config_mngr::start_default();
 
-        let fut = config_mngr::get()
-            .and_then(|config| {
-                assert_eq!(Environment::Mainnet, config.environment);
+        let fut = async {
+            let config = config_mngr::get().await.unwrap();
+            assert_eq!(Environment::Mainnet, config.environment);
+            actix::System::current().stop();
+        };
 
-                Ok(())
-            })
-            .then(|r| {
-                actix::System::current().stop();
-                futures::future::result(r)
-            });
-
-        actix::Arbiter::spawn(fut.map_err(ignore));
+        actix::Arbiter::spawn(fut);
     })
     .unwrap();
 }
@@ -30,19 +22,16 @@ fn test_load_config_from_file() {
     actix::System::run(|| {
         config_mngr::start_default();
 
-        let fut = config_mngr::load_from_file("tests/fixtures/config.toml".into())
-            .and_then(|_| config_mngr::get())
-            .and_then(|config| {
-                assert_eq!(64, config.connections.outbound_limit);
+        let fut = async {
+            config_mngr::load_from_file("tests/fixtures/config.toml".into())
+                .await
+                .unwrap();
+            let config = config_mngr::get().await.unwrap();
+            assert_eq!(64, config.connections.outbound_limit);
+            actix::System::current().stop();
+        };
 
-                Ok(())
-            })
-            .then(|r| {
-                actix::System::current().stop();
-                futures::future::result(r)
-            });
-
-        actix::Arbiter::spawn(fut.map_err(ignore));
+        actix::Arbiter::spawn(fut);
     })
     .unwrap();
 }

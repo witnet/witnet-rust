@@ -9,7 +9,6 @@ use std::{
 };
 
 use actix::{
-    actors::resolver::ResolverError,
     dev::{MessageResponse, ResponseChannel, ToEnvelope},
     Actor, Addr, Handler, Message,
 };
@@ -35,6 +34,7 @@ use witnet_rad::{error::RadError, types::RadonTypes};
 
 use super::{
     chain_manager::{ChainManagerError, MAX_BLOCKS_SYNC},
+    connections_manager::resolver::ResolverError,
     epoch_manager::{
         AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
     },
@@ -343,10 +343,13 @@ impl Message for GetMemoryTransaction {
 }
 
 /// Used to set the target superblock needed for synchronization
-#[derive(Message)]
 pub struct AddSuperBlock {
     /// Superblock
     pub superblock: SuperBlock,
+}
+
+impl Message for AddSuperBlock {
+    type Result = ();
 }
 
 /// Returns true if the provided block hash is the consolidated block for the provided epoch, and
@@ -367,10 +370,13 @@ impl Message for IsConfirmedBlock {
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// Actor message that holds the TCP stream from an inbound TCP connection
-#[derive(Message)]
 pub struct InboundTcpConnect {
     /// Tcp stream of the inbound connections
     pub stream: TcpStream,
+}
+
+impl Message for InboundTcpConnect {
+    type Result = ();
 }
 
 impl InboundTcpConnect {
@@ -381,12 +387,15 @@ impl InboundTcpConnect {
 }
 
 /// Actor message to request the creation of an outbound TCP connection to a peer.
-#[derive(Message)]
 pub struct OutboundTcpConnect {
     /// Address of the outbound connection
     pub address: SocketAddr,
     /// Flag to indicate if it is a peers provided from the feeler function
     pub session_type: SessionType,
+}
+
+impl Message for OutboundTcpConnect {
+    type Result = ();
 }
 
 /// Returned type by the Resolver actor for the ConnectAddr message
@@ -409,7 +418,6 @@ impl Message for GetEpoch {
 pub struct Subscribe;
 
 /// Subscribe to a single checkpoint
-#[derive(Message)]
 pub struct SubscribeEpoch {
     /// Checkpoint to be subscribed to
     pub checkpoint: Epoch,
@@ -418,11 +426,18 @@ pub struct SubscribeEpoch {
     pub notification: Box<dyn SendableNotification>,
 }
 
+impl Message for SubscribeEpoch {
+    type Result = ();
+}
+
 /// Subscribe to all new checkpoints
-#[derive(Message)]
 pub struct SubscribeAll {
     /// Notification
     pub notification: Box<dyn SendableNotification>,
+}
+
+impl Message for SubscribeAll {
+    type Result = ();
 }
 
 impl Subscribe {
@@ -463,7 +478,6 @@ impl Subscribe {
 }
 
 /// Message that the EpochManager sends to subscriber actors to notify a new epoch
-#[derive(Message)]
 pub struct EpochNotification<T: Send> {
     /// Epoch that has just started
     pub checkpoint: Epoch,
@@ -474,6 +488,10 @@ pub struct EpochNotification<T: Send> {
 
     /// Payload for the epoch notification
     pub payload: T,
+}
+
+impl<T: Send> Message for EpochNotification<T> {
+    type Result = ();
 }
 
 /// Return a function which can be used to calculate the timestamp for a
@@ -726,10 +744,14 @@ impl fmt::Display for SendGetPeers {
 }
 
 /// Message to announce new inventory entries through the network
-#[derive(Clone, Debug, Message)]
+#[derive(Clone, Debug)]
 pub struct SendInventoryAnnouncement {
     /// Inventory entries
     pub items: Vec<InventoryEntry>,
+}
+
+impl Message for SendInventoryAnnouncement {
+    type Result = ();
 }
 
 impl fmt::Display for SendInventoryAnnouncement {
@@ -739,10 +761,14 @@ impl fmt::Display for SendInventoryAnnouncement {
 }
 
 /// Message to request new inventory entries through the network
-#[derive(Clone, Debug, Message)]
+#[derive(Clone, Debug)]
 pub struct SendInventoryRequest {
     /// Inventory entries
     pub items: Vec<InventoryEntry>,
+}
+
+impl Message for SendInventoryRequest {
+    type Result = ();
 }
 
 impl fmt::Display for SendInventoryRequest {
@@ -752,10 +778,14 @@ impl fmt::Display for SendInventoryRequest {
 }
 
 /// Message to send inventory items through the network
-#[derive(Clone, Debug, Message)]
+#[derive(Clone, Debug)]
 pub struct SendInventoryItem {
     /// InventoryItem
     pub item: InventoryItem,
+}
+
+impl Message for SendInventoryItem {
+    type Result = ();
 }
 
 impl fmt::Display for SendInventoryItem {
@@ -765,10 +795,14 @@ impl fmt::Display for SendInventoryItem {
 }
 
 /// Message to send beacon through the network
-#[derive(Clone, Debug, Message)]
+#[derive(Clone, Debug)]
 pub struct SendLastBeacon {
     /// Last block and superblock checkpoints
     pub last_beacon: LastBeacon,
+}
+
+impl Message for SendLastBeacon {
+    type Result = ();
 }
 
 impl fmt::Display for SendLastBeacon {
@@ -778,10 +812,14 @@ impl fmt::Display for SendLastBeacon {
 }
 
 /// Message to send beacon through the network
-#[derive(Clone, Debug, Message)]
+#[derive(Clone, Debug)]
 pub struct SendSuperBlockVote {
     /// The superblock vote
     pub superblock_vote: SuperBlockVote,
+}
+
+impl Message for SendSuperBlockVote {
+    type Result = ();
 }
 
 impl fmt::Display for SendSuperBlockVote {
@@ -791,8 +829,12 @@ impl fmt::Display for SendSuperBlockVote {
 }
 
 /// Message to close an open session
-#[derive(Clone, Debug, Message)]
+#[derive(Clone, Debug)]
 pub struct CloseSession;
+
+impl Message for CloseSession {
+    type Result = ();
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM SESSIONS MANAGER
@@ -899,12 +941,16 @@ where
 }
 
 /// Message indicating the last beacon received from a peer
-#[derive(Clone, Debug, Message)]
+#[derive(Clone, Debug)]
 pub struct PeerBeacon {
     /// Socket address which identifies the peer
     pub address: SocketAddr,
     /// Last beacon received from peer
     pub beacon: LastBeacon,
+}
+
+impl Message for PeerBeacon {
+    type Result = ();
 }
 
 /// Get number of inbound and outbound sessions
@@ -969,22 +1015,29 @@ impl Message for SetLastBeacon {
 // JsonRpcServer messages (notifications)
 
 /// New block notification
-#[derive(Message)]
 pub struct BlockNotify {
     /// Block
     pub block: Block,
+}
+
+impl Message for BlockNotify {
+    type Result = ();
 }
 
 /// Notification signaling that a superblock has been consolidated.
 ///
 /// As per current consensus algorithm, "consolidated blocks" implies that there exists at least one
 /// superblock in the chain that builds upon the superblock where those blocks were anchored.
-#[derive(Clone, Debug, Deserialize, Eq, Message, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SuperBlockNotify {
     /// The superblock that we are signaling as consolidated.
     pub superblock: SuperBlock,
     /// The hashes of the blocks that we are signaling as consolidated.
     pub consolidated_block_hashes: Vec<Hash>,
+}
+
+impl Message for SuperBlockNotify {
+    type Result = ();
 }
 
 /// Notification signaling that the node's state has changed.

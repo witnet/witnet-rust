@@ -9,9 +9,8 @@ use std::{
 use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
-use futures::future::FutureResult;
 use itertools::Itertools;
-use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Params, Value};
+use jsonrpc_core::{MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
 
@@ -44,8 +43,11 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
+use futures::FutureExt;
+use futures_util::compat::Compat;
+use std::future::Future;
 
-type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
+type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 
 /// Define the JSON-RPC interface:
 /// All the methods available through JSON-RPC
@@ -55,125 +57,164 @@ pub fn jsonrpc_io_handler(
 ) -> PubSubHandler<Arc<Session>> {
     let mut io = PubSubHandler::new(MetaIoHandler::default());
 
-    io.add_method("inventory", |params: Params| inventory(params.parse()));
-    io.add_method("getBlockChain", |params: Params| {
-        get_block_chain(params.parse())
+    io.add_method("inventory", |params: Params| {
+        Compat::new(Box::pin(inventory(params.parse())))
     });
-    io.add_method("getBlock", get_block);
+    io.add_method("getBlockChain", |params: Params| {
+        Compat::new(Box::pin(get_block_chain(params.parse())))
+    });
+    io.add_method("getBlock", |params: Params| {
+        Compat::new(Box::pin(get_block(params)))
+    });
     io.add_method("getTransaction", |params: Params| {
-        get_transaction(params.parse())
+        Compat::new(Box::pin(get_transaction(params.parse())))
     });
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
-    io.add_method("syncStatus", |_params: Params| status());
-    io.add_method("dataRequestReport", |params: Params| {
-        data_request_report(params.parse())
+    io.add_method("syncStatus", |_params: Params| {
+        Compat::new(Box::pin(status()))
     });
-    io.add_method("getBalance", |params: Params| get_balance(params.parse()));
+    io.add_method("dataRequestReport", |params: Params| {
+        Compat::new(Box::pin(data_request_report(params.parse())))
+    });
+    io.add_method("getBalance", |params: Params| {
+        Compat::new(Box::pin(get_balance(params.parse())))
+    });
     io.add_method("getReputation", |params: Params| {
-        get_reputation(params.parse(), false)
+        Compat::new(Box::pin(get_reputation(params.parse(), false)))
     });
     io.add_method("getReputationAll", |_params: Params| {
-        get_reputation(Ok((PublicKeyHash::default(),)), true)
+        Compat::new(Box::pin(get_reputation(
+            Ok((PublicKeyHash::default(),)),
+            true,
+        )))
     });
-    io.add_method("peers", |_params: Params| peers());
-    io.add_method("knownPeers", |_params: Params| known_peers());
-    io.add_method("nodeStats", |_params: Params| node_stats());
-    io.add_method("getMempool", |params: Params| get_mempool(params.parse()));
+    io.add_method("peers", |_params: Params| Compat::new(Box::pin(peers())));
+    io.add_method("knownPeers", |_params: Params| {
+        Compat::new(Box::pin(known_peers()))
+    });
+    io.add_method("nodeStats", |_params: Params| {
+        Compat::new(Box::pin(node_stats()))
+    });
+    io.add_method("getMempool", |params: Params| {
+        Compat::new(Box::pin(get_mempool(params.parse())))
+    });
     io.add_method("getConsensusConstants", |params: Params| {
-        get_consensus_constants(params.parse())
+        Compat::new(Box::pin(get_consensus_constants(params.parse())))
     });
     io.add_method("getSuperblock", |params: Params| {
-        get_superblock(params.parse())
+        Compat::new(Box::pin(get_superblock(params.parse())))
     });
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
     // A method is sensitive if it touches in some way the master key of the node.
     // For example: methods that can be used to create transactions (spending value from this node),
     // sign arbitrary messages with the node master key, and even export the master key.
-    let unauthorized_method = |method_name| {
-        Box::new(futures::failed(internal_error_s(unauthorized_message(
-            method_name,
-        ))))
-    };
-    io.add_method("sendRequest", move |params: Params| {
+    async fn call_if_authorized<F, Fut>(
+        enable_sensitive_methods: bool,
+        method_name: &str,
+        params: Params,
+        method: F,
+    ) -> JsonRpcResult
+    where
+        F: FnOnce(Params) -> Fut,
+        Fut: Future<Output = JsonRpcResult>,
+    {
         if enable_sensitive_methods {
-            send_request(params.parse())
+            method(params).await
         } else {
-            unauthorized_method("sendRequest")
+            Err(internal_error_s(unauthorized_message(method_name)))
         }
+    }
+
+    io.add_method("sendRequest", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "sendRequest",
+            params,
+            |params| send_request(params.parse()),
+        )))
     });
-    io.add_method("sendValue", move |params: Params| {
-        if enable_sensitive_methods {
-            send_value(params.parse())
-        } else {
-            unauthorized_method("sendValue")
-        }
+    io.add_method("sendValue", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "sendValue",
+            params,
+            |params| send_value(params.parse()),
+        )))
     });
-    io.add_method("getPublicKey", move |_params: Params| {
-        if enable_sensitive_methods {
-            get_public_key()
-        } else {
-            unauthorized_method("getPublicKey")
-        }
+    io.add_method("getPublicKey", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "getPublicKey",
+            params,
+            |_params| get_public_key(),
+        )))
     });
-    io.add_method("getPkh", move |_params: Params| {
-        if enable_sensitive_methods {
-            get_pkh()
-        } else {
-            unauthorized_method("getPkh")
-        }
+    io.add_method("getPkh", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "getPkh",
+            params,
+            |_params| get_pkh(),
+        )))
     });
-    io.add_method("getUtxoInfo", move |params: Params| {
-        if enable_sensitive_methods {
-            get_utxo_info(params.parse())
-        } else {
-            unauthorized_method("getUtxoInfo")
-        }
+    io.add_method("getUtxoInfo", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "getUtxoInfo",
+            params,
+            |params| get_utxo_info(params.parse()),
+        )))
     });
-    io.add_method("sign", move |params: Params| {
-        if enable_sensitive_methods {
-            sign_data(params.parse())
-        } else {
-            unauthorized_method("sign")
-        }
+    io.add_method("sign", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "sign",
+            params,
+            |params| sign_data(params.parse()),
+        )))
     });
-    io.add_method("createVRF", move |params: Params| {
-        if enable_sensitive_methods {
-            create_vrf(params.parse())
-        } else {
-            unauthorized_method("createVRF")
-        }
+    io.add_method("createVRF", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "createVRF",
+            params,
+            |params| create_vrf(params.parse()),
+        )))
     });
-    io.add_method("masterKeyExport", move |_params: Params| {
-        if enable_sensitive_methods {
-            master_key_export()
-        } else {
-            unauthorized_method("masterKeyExport")
-        }
+    io.add_method("masterKeyExport", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "masterKeyExport",
+            params,
+            |_params| master_key_export(),
+        )))
     });
-    io.add_method("addPeers", move |params: Params| {
-        if enable_sensitive_methods {
-            add_peers(params.parse())
-        } else {
-            unauthorized_method("addPeers")
-        }
+    io.add_method("addPeers", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "addPeers",
+            params,
+            |params| add_peers(params.parse()),
+        )))
+    });
+    io.add_method("clearPeers", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "clearPeers",
+            params,
+            |_params| clear_peers(),
+        )))
+    });
+    io.add_method("initializePeers", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "initializePeers",
+            params,
+            |_params| initialize_peers(),
+        )))
     });
 
-    io.add_method("clearPeers", move |_params: Params| {
-        if enable_sensitive_methods {
-            clear_peers()
-        } else {
-            unauthorized_method("clearPeers")
-        }
-    });
-
-    io.add_method("initializePeers", move |_params: Params| {
-        if enable_sensitive_methods {
-            initialize_peers()
-        } else {
-            unauthorized_method("initializePeers")
-        }
-    });
     // Enable subscriptions
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -279,7 +320,9 @@ pub fn jsonrpc_io_handler(
         ),
         (
             "witnet_unsubscribe",
-            move |id: SubscriptionId, _meta: Option<Arc<Session>>| -> BoxFuture<Value> {
+            move |id: SubscriptionId,
+                  _meta: Option<Arc<Session>>|
+                  -> jsonrpc_core::BoxFuture<Value> {
                 // If meta is None it means that the session is now closed
                 // If meta is Some it means that the client called witnet_unsubscribe for this id,
                 // but the session is still open
@@ -295,11 +338,11 @@ pub fn jsonrpc_io_handler(
                             }
                         }
 
-                        Box::new(futures::future::ok(Value::Bool(found)))
+                        Box::new(jsonrpc_core::futures::future::ok(Value::Bool(found)))
                     }
                     Err(e) => {
                         log::error!("Failed to acquire lock in witnet_unsubscribe");
-                        Box::new(futures::future::err(internal_error(e)))
+                        Box::new(jsonrpc_core::futures::future::err(internal_error(e)))
                     }
                 }
             },
@@ -354,10 +397,10 @@ pub enum InventoryItem {
 /* Test string:
 {"jsonrpc": "2.0","method": "inventory","params": {"block": {"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block": {"SHA256": [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig": null}"txns":[null]}},"id": 1}
 */
-pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcResult {
     let inv_elem = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
     match inv_elem {
@@ -365,32 +408,30 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
             log::debug!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
             let chain_manager_addr = ChainManager::from_registry();
-            let fut = chain_manager_addr
+            let res = chain_manager_addr
                 .send(AddCandidates {
                     blocks: vec![block],
                 })
-                .map_err(internal_error)
-                .map(|()| Value::Bool(true));
+                .await;
 
-            Box::new(fut)
+            res.map_err(internal_error).map(|()| Value::Bool(true))
         }
 
         InventoryItem::Transaction(transaction) => {
             log::debug!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
 
             let chain_manager_addr = ChainManager::from_registry();
-            let fut = chain_manager_addr
+            chain_manager_addr
                 .send(AddTransaction {
                     transaction,
                     broadcast_flag: true,
                 })
+                .await
                 .map_err(internal_error)
                 .and_then(|res| match res {
-                    Ok(()) => futures::finished(Value::Bool(true)),
-                    Err(e) => futures::failed(internal_error_s(e)),
-                });
-
-            Box::new(fut)
+                    Ok(()) => Ok(Value::Bool(true)),
+                    Err(e) => Err(internal_error_s(e)),
+                })
         }
 
         inv_elem => {
@@ -398,11 +439,9 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
                 "Invalid type of inventory item from JSON-RPC: {:?}",
                 inv_elem
             );
-            let fut = futures::failed(jsonrpc_core::Error::invalid_params(
+            Err(jsonrpc_core::Error::invalid_params(
                 "Item type not implemented",
-            ));
-
-            Box::new(fut)
+            ))
         }
     }
 }
@@ -427,13 +466,13 @@ pub struct GetBlockChainParams {
 /* test
 {"jsonrpc": "2.0","method": "getBlockChain", "id": 1}
 */
-pub fn get_block_chain(
+pub async fn get_block_chain(
     params: Result<Option<GetBlockChainParams>, jsonrpc_core::Error>,
-) -> JsonRpcResultAsync {
+) -> JsonRpcResult {
     // Helper function to convert the result of GetBlockEpochRange to a JSON value, or a JSON-RPC error
-    fn process_get_block_chain(
+    async fn process_get_block_chain(
         res: Result<Result<Vec<(u32, Hash)>, ChainManagerError>, MailboxError>,
-    ) -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
+    ) -> JsonRpcResult {
         match res {
             Ok(Ok(vec_inv_entry)) => {
                 let epoch_and_hash: Vec<_> = vec_inv_entry
@@ -447,18 +486,18 @@ pub fn get_block_chain(
                     Ok(x) => x,
                     Err(e) => {
                         let err = internal_error(e);
-                        return futures::failed(err);
+                        return Err(err);
                     }
                 };
-                futures::finished(value)
+                Ok(value)
             }
             Ok(Err(e)) => {
                 let err = internal_error(e);
-                futures::failed(err)
+                Err(err)
             }
             Err(e) => {
                 let err = internal_error(e);
-                futures::failed(err)
+                Err(err)
             }
         }
     }
@@ -486,14 +525,14 @@ pub fn get_block_chain(
 
     let GetBlockChainParams { epoch, limit } = match params {
         Ok(x) => x.unwrap_or_default(),
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
     let (epoch, epoch_negative) = match convert_negative_to_positive_with_negative_flag(epoch) {
         Ok(x) => x,
         Err(mut err_str) => {
             err_str.insert_str(0, "Epoch ");
-            return Box::new(futures::failed(internal_error_s(err_str)));
+            return Err(internal_error_s(err_str));
         }
     };
 
@@ -501,7 +540,7 @@ pub fn get_block_chain(
         Ok(x) => x,
         Err(mut err_str) => {
             err_str.insert_str(0, "Limit ");
-            return Box::new(futures::failed(internal_error_s(err_str)));
+            return Err(internal_error_s(err_str));
         }
     };
 
@@ -509,34 +548,32 @@ pub fn get_block_chain(
     if epoch_negative {
         // On negative epoch, get blocks from last n epochs
         // But, what is the current epoch?
-        let fut = EpochManager::from_registry()
-            .send(GetEpoch)
-            .then(move |res| match res {
-                Ok(Ok(current_epoch)) => {
-                    let epoch = current_epoch.saturating_sub(epoch);
+        let res = EpochManager::from_registry().send(GetEpoch).await;
 
-                    futures::finished(epoch)
-                }
-                Ok(Err(e)) => {
-                    let err = internal_error(e);
-                    futures::failed(err)
-                }
-                Err(e) => {
-                    let err = internal_error(e);
-                    futures::failed(err)
-                }
-            })
-            .and_then(move |epoch| {
-                chain_manager_addr
+        match res {
+            Ok(Ok(current_epoch)) => {
+                let epoch = current_epoch.saturating_sub(epoch);
+
+                let res = chain_manager_addr
                     .send(epoch_range(epoch, limit, limit_negative))
-                    .then(process_get_block_chain)
-            });
-        Box::new(fut)
+                    .await;
+
+                process_get_block_chain(res).await
+            }
+            Ok(Err(e)) => {
+                let err = internal_error(e);
+                Err(err)
+            }
+            Err(e) => {
+                let err = internal_error(e);
+                Err(err)
+            }
+        }
     } else {
-        let fut = chain_manager_addr
+        let res = chain_manager_addr
             .send(epoch_range(epoch, limit, limit_negative))
-            .then(process_get_block_chain);
-        Box::new(fut)
+            .await;
+        process_get_block_chain(res).await
     }
 }
 
@@ -548,7 +585,7 @@ pub fn get_block_chain(
 /* test
 {"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb", false]}
 */
-pub fn get_block(params: Params) -> JsonRpcResultAsync {
+pub async fn get_block(params: Params) -> Result<Value, jsonrpc_core::Error> {
     let (block_hash, include_txns_hashes): (Hash, bool);
 
     // Handle parameters as an array with a first obligatory hash field plus an optional bool field
@@ -557,16 +594,12 @@ pub fn get_block(params: Params) -> JsonRpcResultAsync {
             match hash.parse() {
                 Ok(hash) => block_hash = hash,
                 Err(e) => {
-                    return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
-                        futures::failed(internal_error(e)),
-                    ))
+                    return Err(internal_error(e));
                 }
             }
         } else {
-            return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
-                futures::failed(jsonrpc_core::Error::invalid_params(
-                    "First argument of `get_block` must have type `Hash`",
-                )),
+            return Err(jsonrpc_core::Error::invalid_params(
+                "First argument of `get_block` must have type `Hash`",
             ));
         };
 
@@ -574,132 +607,129 @@ pub fn get_block(params: Params) -> JsonRpcResultAsync {
             None => include_txns_hashes = true,
             Some(Value::Bool(ith)) => include_txns_hashes = *ith,
             Some(_) => {
-                return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
-                    futures::failed(jsonrpc_core::Error::invalid_params(
-                        "Second argument of `get_block` must have type `Bool`",
-                    )),
+                return Err(jsonrpc_core::Error::invalid_params(
+                    "Second argument of `get_block` must have type `Bool`",
                 ))
             }
         };
     } else {
-        return Box::new(futures::future::Either::<FutureResult<_, _>, _>::B(
-            futures::failed(jsonrpc_core::Error::invalid_params(
-                "Params of `get_block` method must have type `Array`",
-            )),
+        return Err(jsonrpc_core::Error::invalid_params(
+            "Params of `get_block` method must have type `Array`",
         ));
     };
 
     let inventory_manager = InventoryManager::from_registry();
-    Box::new(
-        inventory_manager
-            .send(GetItemBlock { hash: block_hash })
-            .then(move |res| match res {
-                Ok(Ok(output)) => {
-                    let block_epoch = output.block_header.beacon.checkpoint;
-                    let block_hash = output.hash();
 
-                    // Only include the `txns_hashes` field if explicitly requested, as hash
-                    // operations are quite expensive, and transactions read from storage cannot
-                    // benefit from hash memoization
-                    let txns_hashes = if include_txns_hashes {
-                        let vtt_hashes: Vec<_> = output
-                            .txns
-                            .value_transfer_txns
-                            .iter()
-                            .map(|txn| txn.hash())
-                            .collect();
-                        let drt_hashes: Vec<_> = output
-                            .txns
-                            .data_request_txns
-                            .iter()
-                            .map(|txn| txn.hash())
-                            .collect();
-                        let ct_hashes: Vec<_> = output
-                            .txns
-                            .commit_txns
-                            .iter()
-                            .map(|txn| txn.hash())
-                            .collect();
-                        let rt_hashes: Vec<_> = output
-                            .txns
-                            .reveal_txns
-                            .iter()
-                            .map(|txn| txn.hash())
-                            .collect();
-                        let tt_hashes: Vec<_> = output
-                            .txns
-                            .tally_txns
-                            .iter()
-                            .map(|txn| txn.hash())
-                            .collect();
+    let res = inventory_manager
+        .send(GetItemBlock { hash: block_hash })
+        .await;
 
-                        Some(serde_json::json!({
-                            "mint" : output.txns.mint.hash(),
-                            "value_transfer" : vtt_hashes,
-                            "data_request" : drt_hashes,
-                            "commit" : ct_hashes,
-                            "reveal" : rt_hashes,
-                            "tally" : tt_hashes
-                        }))
-                    } else {
-                        None
-                    };
+    match res {
+        Ok(Ok(output)) => {
+            let block_epoch = output.block_header.beacon.checkpoint;
+            let block_hash = output.hash();
 
-                    let mut value = match serde_json::to_value(output) {
-                        Ok(x) => x,
-                        Err(e) => {
-                            let err = internal_error(e);
-                            return futures::future::Either::B(futures::failed(err));
-                        }
-                    };
+            // Only include the `txns_hashes` field if explicitly requested, as hash
+            // operations are quite expensive, and transactions read from storage cannot
+            // benefit from hash memoization
+            let txns_hashes = if include_txns_hashes {
+                let vtt_hashes: Vec<_> = output
+                    .txns
+                    .value_transfer_txns
+                    .iter()
+                    .map(|txn| txn.hash())
+                    .collect();
+                let drt_hashes: Vec<_> = output
+                    .txns
+                    .data_request_txns
+                    .iter()
+                    .map(|txn| txn.hash())
+                    .collect();
+                let ct_hashes: Vec<_> = output
+                    .txns
+                    .commit_txns
+                    .iter()
+                    .map(|txn| txn.hash())
+                    .collect();
+                let rt_hashes: Vec<_> = output
+                    .txns
+                    .reveal_txns
+                    .iter()
+                    .map(|txn| txn.hash())
+                    .collect();
+                let tt_hashes: Vec<_> = output
+                    .txns
+                    .tally_txns
+                    .iter()
+                    .map(|txn| txn.hash())
+                    .collect();
 
-                    // See explanation above about optional `txns_hashes` field
-                    if let Some(txns_hashes) = txns_hashes {
-                        value
-                            .as_object_mut()
-                            .expect("The result of getBlock should be an object")
-                            .insert("txns_hashes".to_string(), txns_hashes);
-                    }
+                Some(serde_json::json!({
+                    "mint" : output.txns.mint.hash(),
+                    "value_transfer" : vtt_hashes,
+                    "data_request" : drt_hashes,
+                    "commit" : ct_hashes,
+                    "reveal" : rt_hashes,
+                    "tally" : tt_hashes
+                }))
+            } else {
+                None
+            };
 
-                    // Check if this block is confirmed by a majority of superblock votes
-                    let chain_manager = ChainManager::from_registry();
-                    let fut = chain_manager
-                        .send(IsConfirmedBlock {
-                            block_hash,
-                            block_epoch,
-                        })
-                        .then(|res| match res {
-                            Ok(Ok(confirmed)) => {
-                                // Append {"confirmed":true} to the result
-                                value
-                                    .as_object_mut()
-                                    .expect("The result of getBlock should be an object")
-                                    .insert("confirmed".to_string(), Value::Bool(confirmed));
+            let mut value = match serde_json::to_value(output) {
+                Ok(x) => x,
+                Err(e) => {
+                    let err = internal_error(e);
+                    return Err(err);
+                }
+            };
 
-                                futures::finished(value)
-                            }
-                            Ok(Err(e)) => {
-                                let err = internal_error(e);
-                                futures::failed(err)
-                            }
-                            Err(e) => {
-                                let err = internal_error(e);
-                                futures::failed(err)
-                            }
-                        });
+            // See explanation above about optional `txns_hashes` field
+            if let Some(txns_hashes) = txns_hashes {
+                value
+                    .as_object_mut()
+                    .expect("The result of getBlock should be an object")
+                    .insert("txns_hashes".to_string(), txns_hashes);
+            }
 
-                    futures::future::Either::A(fut)
+            // Check if this block is confirmed by a majority of superblock votes
+            let chain_manager = ChainManager::from_registry();
+            let res = chain_manager
+                .send(IsConfirmedBlock {
+                    block_hash,
+                    block_epoch,
+                })
+                .await;
+
+            match res {
+                Ok(Ok(confirmed)) => {
+                    // Append {"confirmed":true} to the result
+                    value
+                        .as_object_mut()
+                        .expect("The result of getBlock should be an object")
+                        .insert("confirmed".to_string(), Value::Bool(confirmed));
+
+                    Ok(value)
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);
-                    futures::future::Either::B(futures::failed(err))
+                    Err(err)
                 }
                 Err(e) => {
                     let err = internal_error(e);
-                    futures::future::Either::B(futures::failed(err))
+                    Err(err)
                 }
-            }),
-    )
+            }
+        }
+        Ok(Err(e)) => {
+            let err = internal_error(e);
+            Err(err)
+        }
+        Err(e) => {
+            let err = internal_error(e);
+            Err(err)
+        }
+    }
 }
 
 /// Format of the output of getTransaction
@@ -716,91 +746,90 @@ pub struct GetTransactionOutput {
 }
 
 /// Get transaction by hash
-pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResult {
     let hash = match hash {
         Ok(x) => x.0,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
     let inventory_manager = InventoryManager::from_registry();
-    Box::new(
-        inventory_manager
-            .send(GetItemTransaction { hash })
-            .then(move |res| match res {
-                Ok(Ok((transaction, pointer_to_block))) => {
+
+    let res = inventory_manager.send(GetItemTransaction { hash }).await;
+
+    match res {
+        Ok(Ok((transaction, pointer_to_block))) => {
+            let weight = transaction.weight();
+            let output = GetTransactionOutput {
+                transaction,
+                weight,
+                block_hash: pointer_to_block.block_hash.to_string(),
+            };
+            let value = match serde_json::to_value(output) {
+                Ok(x) => x,
+                Err(e) => {
+                    let err = internal_error(e);
+                    let fut: JsonRpcResult = Err(err);
+                    return fut;
+                }
+            };
+            let fut: JsonRpcResult = Ok(value);
+            fut
+        }
+        Ok(Err(InventoryManagerError::ItemNotFound)) => {
+            let chain_manager = ChainManager::from_registry();
+            let res = chain_manager.send(GetMemoryTransaction { hash }).await;
+
+            match res {
+                Ok(Ok(transaction)) => {
                     let weight = transaction.weight();
                     let output = GetTransactionOutput {
                         transaction,
                         weight,
-                        block_hash: pointer_to_block.block_hash.to_string(),
+                        block_hash: "pending".to_string(),
                     };
                     let value = match serde_json::to_value(output) {
                         Ok(x) => x,
                         Err(e) => {
                             let err = internal_error(e);
-                            let fut: JsonRpcResultAsync = Box::new(futures::failed(err));
-                            return fut;
+                            return Err(err);
                         }
                     };
-                    let fut: JsonRpcResultAsync = Box::new(futures::finished(value));
-                    fut
+                    Ok(value)
                 }
-                Ok(Err(InventoryManagerError::ItemNotFound)) => {
-                    let chain_manager = ChainManager::from_registry();
-                    Box::new(chain_manager.send(GetMemoryTransaction { hash }).then(
-                        |res| match res {
-                            Ok(Ok(transaction)) => {
-                                let weight = transaction.weight();
-                                let output = GetTransactionOutput {
-                                    transaction,
-                                    weight,
-                                    block_hash: "pending".to_string(),
-                                };
-                                let value = match serde_json::to_value(output) {
-                                    Ok(x) => x,
-                                    Err(e) => {
-                                        let err = internal_error(e);
-                                        return futures::failed(err);
-                                    }
-                                };
-                                futures::finished(value)
-                            }
-                            Ok(Err(())) => {
-                                let err = internal_error(InventoryManagerError::ItemNotFound);
-                                futures::failed(err)
-                            }
-                            Err(e) => {
-                                let err = internal_error(e);
-                                futures::failed(err)
-                            }
-                        },
-                    ))
-                }
-                Ok(Err(e)) => {
-                    let err = internal_error(e);
-                    Box::new(futures::failed(err))
+                Ok(Err(())) => {
+                    let err = internal_error(InventoryManagerError::ItemNotFound);
+                    Err(err)
                 }
                 Err(e) => {
                     let err = internal_error(e);
-                    Box::new(futures::failed(err))
+                    Err(err)
                 }
-            }),
-    )
+            }
+        }
+        Ok(Err(e)) => {
+            let err = internal_error(e);
+            Err(err)
+        }
+        Err(e) => {
+            let err = internal_error(e);
+            Err(err)
+        }
+    }
 }
 
 /*
 /// get output
-pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> JsonRpcResult {
     let output_pointer = match output_pointer {
         Ok(x) => match OutputPointer::from_str(&x.0) {
             Ok(x) => x,
             Err(e) => {
                 let err = internal_error(e);
-                return Box::new(futures::failed(err));
+                return Box::new(Err(err));
             }
         },
         Err(e) => {
-            return Box::new(futures::failed(e));
+            return Box::new(Err(e));
         }
     };
     let chain_manager_addr = ChainManager::from_registry();
@@ -813,316 +842,335 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
                         Ok(x) => x,
                         Err(e) => {
                             let err = internal_error(e);
-                            return futures::failed(err);
+                            return Err(err);
                         }
                     };
-                    futures::finished(value)
+                    Ok(value)
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);
-                    futures::failed(err)
+                    Err(err)
                 }
                 Err(e) => {
                     let err = internal_error(e);
-                    futures::failed(err)
+                    Err(err)
                 }
             }),
     )
 }
 */
 /// Build data request transaction
-pub fn send_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn send_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> JsonRpcResult {
     log::debug!("Creating data request from JSON-RPC.");
 
     match params {
-        Ok(msg) => Box::new(
+        Ok(msg) => {
             ChainManager::from_registry()
                 .send(msg)
-                .then(|res| match res {
+                .map(|res| match res {
                     Ok(Ok(hash)) => match serde_json::to_value(hash) {
-                        Ok(x) => Box::new(futures::finished(x)),
+                        Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
-                            Box::new(futures::failed(err))
+                            Err(err)
                         }
                     },
                     Ok(Err(e)) => {
                         let err = internal_error_s(e);
-                        Box::new(futures::failed(err))
+                        Err(err)
                     }
                     Err(e) => {
                         let err = internal_error_s(e);
-                        Box::new(futures::failed(err))
+                        Err(err)
                     }
-                }),
-        ),
-        Err(err) => Box::new(futures::failed(err)),
+                })
+                .await
+        }
+        Err(err) => Err(err),
     }
 }
 
 /// Build value transfer transaction
-pub fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResult {
     log::debug!("Creating value transfer from JSON-RPC.");
 
     match params {
-        Ok(msg) => Box::new(
+        Ok(msg) => {
             ChainManager::from_registry()
                 .send(msg)
-                .then(|res| match res {
+                .map(|res| match res {
                     Ok(Ok(hash)) => match serde_json::to_value(hash) {
-                        Ok(x) => Box::new(futures::finished(x)),
+                        Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
-                            Box::new(futures::failed(err))
+                            Err(err)
                         }
                     },
                     Ok(Err(e)) => {
                         let err = internal_error_s(e);
-                        Box::new(futures::failed(err))
+                        Err(err)
                     }
                     Err(e) => {
                         let err = internal_error_s(e);
-                        Box::new(futures::failed(err))
+                        Err(err)
                     }
-                }),
-        ),
-        Err(err) => Box::new(futures::failed(err)),
+                })
+                .await
+        }
+        Err(err) => Err(err),
     }
 }
 
 /// Get node status
-pub fn status() -> JsonRpcResultAsync {
+pub async fn status() -> JsonRpcResult {
     let chain_manager = ChainManager::from_registry();
     let epoch_manager = EpochManager::from_registry();
-    let node_state_fut =
-        chain_manager
-            .send(GetState)
-            .map_err(internal_error_s)
-            .then(|res| match res {
-                Ok(Ok(StateMachine::Synced)) => Ok(StateMachine::Synced),
-                Ok(Ok(StateMachine::AlmostSynced)) => Ok(StateMachine::AlmostSynced),
-                Ok(Ok(StateMachine::WaitingConsensus)) => Ok(StateMachine::WaitingConsensus),
-                Ok(Ok(StateMachine::Synchronizing)) => Ok(StateMachine::Synchronizing),
-                Ok(Err(())) => Err(internal_error(())),
-                Err(e) => Err(internal_error(e)),
-            });
+    let node_state_fut = async {
+        let res = chain_manager.send(GetState).await.map_err(internal_error_s);
 
-    let chain_beacon_fut = chain_manager
-        .send(GetHighestCheckpointBeacon)
-        .then(|res| match res {
+        match res {
+            Ok(Ok(StateMachine::Synced)) => Ok(StateMachine::Synced),
+            Ok(Ok(StateMachine::AlmostSynced)) => Ok(StateMachine::AlmostSynced),
+            Ok(Ok(StateMachine::WaitingConsensus)) => Ok(StateMachine::WaitingConsensus),
+            Ok(Ok(StateMachine::Synchronizing)) => Ok(StateMachine::Synchronizing),
+            Ok(Err(())) => Err(internal_error(())),
+            Err(e) => Err(internal_error(e)),
+        }
+    };
+
+    let chain_beacon_fut = async {
+        let res = chain_manager.send(GetHighestCheckpointBeacon).await;
+
+        match res {
             Ok(Ok(x)) => Ok(x),
             Ok(Err(e)) => Err(internal_error_s(e)),
             Err(e) => Err(internal_error_s(e)),
-        });
+        }
+    };
 
-    let current_epoch_fut = epoch_manager.send(GetEpoch).then(|res| match res {
-        Ok(Ok(x)) => Ok(Some(x)),
-        Ok(Err(EpochManagerError::CheckpointZeroInTheFuture(_))) => Ok(None),
-        Ok(Err(e)) => Err(internal_error(e)),
-        Err(e) => Err(internal_error_s(e)),
-    });
+    let current_epoch_fut = async {
+        let res = epoch_manager.send(GetEpoch).await;
 
-    let j = Future::join3(chain_beacon_fut, current_epoch_fut, node_state_fut)
-        .map(|(chain_beacon, current_epoch, node_state)| SyncStatus {
-            chain_beacon,
-            current_epoch,
-            node_state,
+        match res {
+            Ok(Ok(x)) => Ok(Some(x)),
+            Ok(Err(EpochManagerError::CheckpointZeroInTheFuture(_))) => Ok(None),
+            Ok(Err(e)) => Err(internal_error(e)),
+            Err(e) => Err(internal_error_s(e)),
+        }
+    };
+
+    futures_util::future::try_join3(chain_beacon_fut, current_epoch_fut, node_state_fut)
+        .map(|res| {
+            res.map(|(chain_beacon, current_epoch, node_state)| SyncStatus {
+                chain_beacon,
+                current_epoch,
+                node_state,
+            })
         })
-        .and_then(|res| match serde_json::to_value(res) {
-            Ok(x) => futures::finished(x),
-            Err(e) => {
-                let err = internal_error_s(e);
-                futures::failed(err)
-            }
-        });
-
-    Box::new(j)
+        .map(|res| {
+            res.and_then(|res| match serde_json::to_value(res) {
+                Ok(x) => Ok(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    Err(err)
+                }
+            })
+        })
+        .await
 }
 
 /// Get public key
-pub fn get_public_key() -> JsonRpcResultAsync {
-    let fut = signature_mngr::public_key()
-        .map_err(internal_error)
-        .map(|pk| {
-            log::debug!("{:?}", pk);
-            pk.to_bytes().to_vec().into()
-        });
-
-    Box::new(fut)
+pub async fn get_public_key() -> JsonRpcResult {
+    signature_mngr::public_key()
+        .map(|res| {
+            res.map_err(internal_error).map(|pk| {
+                log::debug!("{:?}", pk);
+                pk.to_bytes().to_vec().into()
+            })
+        })
+        .await
 }
 
 /// Get public key hash
-pub fn get_pkh() -> JsonRpcResultAsync {
-    let fut = signature_mngr::pkh()
-        .map_err(internal_error)
-        .map(|pkh| Value::String(pkh.to_string()));
-
-    Box::new(fut)
+pub async fn get_pkh() -> JsonRpcResult {
+    signature_mngr::pkh()
+        .map(|res| {
+            res.map_err(internal_error)
+                .map(|pkh| Value::String(pkh.to_string()))
+        })
+        .await
 }
 
 /// Sign Data
-pub fn sign_data(params: Result<[u8; 32], jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn sign_data(params: Result<[u8; 32], jsonrpc_core::Error>) -> JsonRpcResult {
     let data = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
-    let fut = signature_mngr::sign_data(data)
-        .map_err(internal_error)
-        .and_then(|ks| match serde_json::to_value(ks) {
-            Ok(value) => futures::finished(value),
-            Err(e) => {
-                let err = internal_error_s(e);
-                futures::failed(err)
-            }
-        });
-
-    Box::new(fut)
+    signature_mngr::sign_data(data)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|ks| match serde_json::to_value(ks) {
+                    Ok(value) => Ok(value),
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        Err(err)
+                    }
+                })
+        })
+        .await
 }
 
 /// Create VRF
-pub fn create_vrf(params: Result<Vec<u8>, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn create_vrf(params: Result<Vec<u8>, jsonrpc_core::Error>) -> JsonRpcResult {
     let data = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
-    let fut = signature_mngr::vrf_prove(VrfMessage::set_data(data))
-        .map_err(internal_error)
-        .map(|(proof, _hash)| {
-            log::debug!("{:?}", proof);
-            proof.get_proof().into()
-        });
-
-    Box::new(fut)
+    signature_mngr::vrf_prove(VrfMessage::set_data(data))
+        .map(|res| {
+            res.map_err(internal_error).map(|(proof, _hash)| {
+                log::debug!("{:?}", proof);
+                proof.get_proof().into()
+            })
+        })
+        .await
 }
 
 /// Data request info
-pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResult {
     let dr_pointer = match params {
         Ok(x) => x.0,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
     let chain_manager_addr = ChainManager::from_registry();
 
-    let fut = chain_manager_addr
+    chain_manager_addr
         .send(GetDataRequestInfo { dr_pointer })
-        .map_err(internal_error)
-        .and_then(|dr_info| match dr_info {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|dr_info| match dr_info {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 /// Get balance
-pub fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResult {
     let pkh = match params {
         Ok(x) => x.0,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
     let chain_manager_addr = ChainManager::from_registry();
 
-    let fut = chain_manager_addr
+    chain_manager_addr
         .send(GetBalance { pkh })
-        .map_err(internal_error)
-        .and_then(|dr_info| match dr_info {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|dr_info| match dr_info {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 /// Get utxos
-pub fn get_utxo_info(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn get_utxo_info(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
     let pkh = match params {
         Ok(x) => x.0,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
-    let fut = chain_manager_addr
+    chain_manager_addr
         .send(GetUtxoInfo { pkh })
-        .map_err(internal_error)
-        .and_then(|dr_info| match dr_info {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|dr_info| match dr_info {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 /// Get Reputation of one pkh
-pub fn get_reputation(
+pub async fn get_reputation(
     params: Result<(PublicKeyHash,), jsonrpc_core::Error>,
     all: bool,
-) -> JsonRpcResultAsync {
+) -> JsonRpcResult {
     let pkh = match params {
         Ok(x) => x.0,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
     let chain_manager_addr = ChainManager::from_registry();
 
-    let fut = chain_manager_addr
+    chain_manager_addr
         .send(GetReputation { pkh, all })
-        .map_err(internal_error)
-        .and_then(|dr_info| match dr_info {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|dr_info| match dr_info {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 /// Export private key associated with the node identity
-pub fn master_key_export() -> JsonRpcResultAsync {
-    let fut = signature_mngr::key_pair().map_err(internal_error).and_then(
-        move |(_extended_pk, extended_sk)| {
-            let master_path = KeyPath::default();
-            let secret_key_hex = extended_sk.to_slip32(&master_path);
-            let secret_key_hex = match secret_key_hex {
-                Ok(x) => x,
-                Err(e) => return futures::failed(internal_error_s(e)),
-            };
-            match serde_json::to_value(secret_key_hex) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            }
-        },
-    );
-    Box::new(fut)
+pub async fn master_key_export() -> JsonRpcResult {
+    signature_mngr::key_pair()
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(move |(_extended_pk, extended_sk)| {
+                    let master_path = KeyPath::default();
+                    let secret_key_hex = extended_sk.to_slip32(&master_path);
+                    let secret_key_hex = match secret_key_hex {
+                        Ok(x) => x,
+                        Err(e) => return Err(internal_error_s(e)),
+                    };
+                    match serde_json::to_value(secret_key_hex) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    }
+                })
+        })
+        .await
 }
 
 /// Named tuple of `(address, type)`
@@ -1140,224 +1188,235 @@ pub struct AddrType {
 pub type PeersResult = Vec<AddrType>;
 
 /// Get list of consolidated peers
-pub fn peers() -> JsonRpcResultAsync {
+pub async fn peers() -> JsonRpcResult {
     let sessions_manager_addr = SessionsManager::from_registry();
 
-    let fut = sessions_manager_addr
+    sessions_manager_addr
         .send(GetConsolidatedPeers)
-        .map_err(internal_error)
-        .and_then(|consolidated_peers| match consolidated_peers {
-            Ok(x) => {
-                let peers: Vec<_> = x
-                    .inbound
-                    .into_iter()
-                    .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
-                    .map(|p| AddrType {
-                        address: p.to_string(),
-                        type_: "inbound".to_string(),
-                    })
-                    .chain(
-                        x.outbound
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|consolidated_peers| match consolidated_peers {
+                    Ok(x) => {
+                        let peers: Vec<_> = x
+                            .inbound
                             .into_iter()
                             .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
                             .map(|p| AddrType {
                                 address: p.to_string(),
-                                type_: "outbound".to_string(),
-                            }),
-                    )
-                    .collect();
+                                type_: "inbound".to_string(),
+                            })
+                            .chain(
+                                x.outbound
+                                    .into_iter()
+                                    .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
+                                    .map(|p| AddrType {
+                                        address: p.to_string(),
+                                        type_: "outbound".to_string(),
+                                    }),
+                            )
+                            .collect();
 
-                match serde_json::to_value(&peers) {
-                    Ok(x) => futures::finished(x),
-                    Err(e) => {
-                        let err = internal_error_s(e);
-                        futures::failed(err)
+                        match serde_json::to_value(&peers) {
+                            Ok(x) => Ok(x),
+                            Err(e) => {
+                                let err = internal_error_s(e);
+                                Err(err)
+                            }
+                        }
                     }
-                }
-            }
-            Err(()) => futures::failed(internal_error(())),
-        });
-
-    Box::new(fut)
+                    Err(()) => Err(internal_error(())),
+                })
+        })
+        .await
 }
 
 /// Get list of known peers
-pub fn known_peers() -> JsonRpcResultAsync {
+pub async fn known_peers() -> JsonRpcResult {
     let peers_manager_addr = PeersManager::from_registry();
 
-    let fut = peers_manager_addr
+    peers_manager_addr
         .send(GetKnownPeers)
-        .map_err(internal_error)
-        .and_then(|known_peers| match known_peers {
-            Ok(x) => {
-                let peers: Vec<_> = x
-                    .new
-                    .into_iter()
-                    .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
-                    .map(|p| AddrType {
-                        address: p.to_string(),
-                        type_: "new".to_string(),
-                    })
-                    .chain(
-                        x.tried
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|known_peers| match known_peers {
+                    Ok(x) => {
+                        let peers: Vec<_> = x
+                            .new
                             .into_iter()
                             .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
                             .map(|p| AddrType {
                                 address: p.to_string(),
-                                type_: "tried".to_string(),
-                            }),
-                    )
-                    .collect();
+                                type_: "new".to_string(),
+                            })
+                            .chain(
+                                x.tried
+                                    .into_iter()
+                                    .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
+                                    .map(|p| AddrType {
+                                        address: p.to_string(),
+                                        type_: "tried".to_string(),
+                                    }),
+                            )
+                            .collect();
 
-                match serde_json::to_value(&peers) {
-                    Ok(x) => futures::finished(x),
-                    Err(e) => {
-                        let err = internal_error_s(e);
-                        futures::failed(err)
+                        match serde_json::to_value(&peers) {
+                            Ok(x) => Ok(x),
+                            Err(e) => {
+                                let err = internal_error_s(e);
+                                Err(err)
+                            }
+                        }
                     }
-                }
-            }
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 /// Get the node stats
-pub fn node_stats() -> JsonRpcResultAsync {
+pub async fn node_stats() -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
 
-    let fut = chain_manager_addr
+    chain_manager_addr
         .send(GetNodeStats)
-        .map_err(internal_error)
-        .and_then(|node_stats| match node_stats {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|node_stats| match node_stats {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 /// Get all the pending transactions
-pub fn get_mempool(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn get_mempool(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResult {
     match params {
         Ok(()) => (),
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
     let chain_manager_addr = ChainManager::from_registry();
 
-    let fut = chain_manager_addr
+    chain_manager_addr
         .send(GetMempool)
-        .map_err(internal_error)
-        .and_then(|dr_info| match dr_info {
-            Ok(x) => match serde_json::to_value(&x) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
-                }
-            },
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|dr_info| match dr_info {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 /// Add peers
-pub fn add_peers(params: Result<Vec<SocketAddr>, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn add_peers(params: Result<Vec<SocketAddr>, jsonrpc_core::Error>) -> JsonRpcResult {
     let addresses = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
     // Use None as the source address: this will make adding peers using this method be exactly the
     // same as adding peers using the configuration file
     let src_address = None;
     let peers_manager_addr = PeersManager::from_registry();
 
-    let fut = peers_manager_addr
+    peers_manager_addr
         .send(AddPeers {
             addresses,
             src_address,
         })
-        .map_err(internal_error)
-        .and_then(|res| match res {
-            Ok(_overwritten_peers) => {
-                // Ignore overwritten peers, just return true on success
-                futures::finished(Value::Bool(true))
-            }
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error).and_then(|res| match res {
+                Ok(_overwritten_peers) => {
+                    // Ignore overwritten peers, just return true on success
+                    Ok(Value::Bool(true))
+                }
+                Err(e) => Err(internal_error_s(e)),
+            })
+        })
+        .await
 }
 
 /// Clear peers
-pub fn clear_peers() -> JsonRpcResultAsync {
+pub async fn clear_peers() -> JsonRpcResult {
     let peers_manager_addr = PeersManager::from_registry();
 
-    let fut = peers_manager_addr
+    peers_manager_addr
         .send(ClearPeers)
-        .map_err(internal_error)
-        .and_then(|res| match res {
-            Ok(_overwritten_peers) => {
-                // Ignore overwritten peers, just return true on success
-                futures::finished(Value::Bool(true))
-            }
-            Err(e) => futures::failed(internal_error_s(e)),
-        });
-
-    Box::new(fut)
+        .map(|res| {
+            res.map_err(internal_error).and_then(|res| match res {
+                Ok(_overwritten_peers) => {
+                    // Ignore overwritten peers, just return true on success
+                    Ok(Value::Bool(true))
+                }
+                Err(e) => Err(internal_error_s(e)),
+            })
+        })
+        .await
 }
 
 /// Initialize peers
-pub fn initialize_peers() -> JsonRpcResultAsync {
-    let fut = config_mngr::get()
-        .map_err(internal_error)
-        .and_then(|config| {
-            let known_peers: Vec<_> = config.connections.known_peers.iter().cloned().collect();
-            let peers_manager_addr = PeersManager::from_registry();
-            peers_manager_addr
-                .send(InitializePeers { known_peers })
-                .map_err(internal_error)
-                .and_then(|res| match res {
-                    Ok(_overwritten_peers) => {
-                        // Ignore overwritten peers, just return true on success
-                        futures::finished(Value::Bool(true))
-                    }
-                    Err(e) => futures::failed(internal_error_s(e)),
-                })
-        });
-
-    Box::new(fut)
+pub async fn initialize_peers() -> JsonRpcResult {
+    config_mngr::get()
+        .map(|res| res.map_err(internal_error))
+        .then(|res| async {
+            match res {
+                Ok(config) => {
+                    let known_peers: Vec<_> =
+                        config.connections.known_peers.iter().cloned().collect();
+                    let peers_manager_addr = PeersManager::from_registry();
+                    peers_manager_addr
+                        .send(InitializePeers { known_peers })
+                        .map(|res| {
+                            res.map_err(internal_error).and_then(|res| match res {
+                                Ok(_overwritten_peers) => {
+                                    // Ignore overwritten peers, just return true on success
+                                    Ok(Value::Bool(true))
+                                }
+                                Err(e) => Err(internal_error_s(e)),
+                            })
+                        })
+                        .await
+                }
+                Err(e) => Err(e),
+            }
+        })
+        .await
 }
 
 /// Get consensus constants used by the node
-pub fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub async fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResult {
     match params {
         Ok(()) => (),
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
-    let fut = config_mngr::get()
-        .map_err(internal_error)
-        .and_then(
-            |config| match serde_json::to_value(&config.consensus_constants) {
-                Ok(x) => futures::finished(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    futures::failed(err)
+    config_mngr::get()
+        .map(|res| {
+            res.map_err(internal_error).and_then(|config| {
+                match serde_json::to_value(&config.consensus_constants) {
+                    Ok(x) => Ok(x),
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        Err(err)
+                    }
                 }
-            },
-        );
-
-    Box::new(fut)
+            })
+        })
+        .await
 }
 
 /// Parameter of getSuperblock: can be either block epoch or superblock index
@@ -1372,66 +1431,62 @@ pub enum GetSuperblockBlocksParams {
 }
 
 /// Get the blocks that pertain to the superblock index
-pub fn get_superblock(
+pub async fn get_superblock(
     params: Result<GetSuperblockBlocksParams, jsonrpc_core::Error>,
-) -> JsonRpcResultAsync {
+) -> JsonRpcResult {
     let params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e)),
+        Err(e) => return Err(e),
     };
 
-    let fut = match params {
-        GetSuperblockBlocksParams::SuperblockIndex(superblock_index) => {
-            futures::future::Either::A(futures::finished(superblock_index))
-        }
+    let superblock_index = match params {
+        GetSuperblockBlocksParams::SuperblockIndex(superblock_index) => Ok(superblock_index),
         GetSuperblockBlocksParams::BlockEpoch(block_epoch) => {
-            futures::future::Either::B(config_mngr::get().map_err(internal_error).map(
-                move |config| {
-                    let superblock_period = u32::from(config.consensus_constants.superblock_period);
-                    // Calculate the superblock_index that contains the block_epoch.
-                    // The +1 is needed because block_epoch/superblock_period will be the current
-                    // top superblock, and we want the next one because that's the one that
-                    // consolidates this block.
-                    (block_epoch / superblock_period) + 1
-                },
-            ))
+            config_mngr::get()
+                .map(|res| {
+                    res.map_err(internal_error).map(move |config| {
+                        let superblock_period =
+                            u32::from(config.consensus_constants.superblock_period);
+                        // Calculate the superblock_index that contains the block_epoch.
+                        // The +1 is needed because block_epoch/superblock_period will be the current
+                        // top superblock, and we want the next one because that's the one that
+                        // consolidates this block.
+                        (block_epoch / superblock_period) + 1
+                    })
+                })
+                .await
         }
-    }
-    .and_then(|superblock_index| {
-        let inventory_manager_addr = InventoryManager::from_registry();
+    }?;
 
-        inventory_manager_addr
-            .send(GetItemSuperblock { superblock_index })
-            .map_err(internal_error)
-    })
-    .and_then(|dr_info| match dr_info {
+    let inventory_manager_addr = InventoryManager::from_registry();
+
+    let dr_info = inventory_manager_addr
+        .send(GetItemSuperblock { superblock_index })
+        .await
+        .map_err(internal_error)?;
+
+    match dr_info {
         Ok(x) => match serde_json::to_value(&x) {
-            Ok(x) => futures::finished(x),
+            Ok(x) => Ok(x),
             Err(e) => {
                 let err = internal_error_s(e);
-                futures::failed(err)
+                Err(err)
             }
         },
-        Err(e) => futures::failed(internal_error_s(e)),
-    });
-
-    Box::new(fut)
+        Err(e) => Err(internal_error_s(e)),
+    }
 }
 
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
-    use futures::Future;
 
     pub struct Addr;
 
     impl Addr {
-        pub fn send<T: Message>(
-            &self,
-            _msg: T,
-        ) -> impl Future<Item = T::Result, Error = MailboxError> {
+        pub async fn send<T: Message>(&self, _msg: T) -> Result<T::Result, MailboxError> {
             // We cannot test methods which use `send`, so return an error
-            futures::failed(MailboxError::Closed)
+            Err(MailboxError::Closed)
         }
     }
 
@@ -1448,7 +1503,7 @@ mod mock_actix {
 mod tests {
     use std::collections::BTreeSet;
 
-    use futures::sync::mpsc;
+    use jsonrpc_core::futures::sync::mpsc;
 
     use witnet_data_structures::{chain::RADRequest, transaction::*};
 

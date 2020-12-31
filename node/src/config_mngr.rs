@@ -1,9 +1,9 @@
 use actix::{Actor, SystemService};
-use futures::future::Future;
 use std::default::Default;
 use std::path::PathBuf;
 use std::sync::Arc;
 use witnet_config::{config::Config, loaders::toml};
+use witnet_futures_utils::TryFutureExt2;
 
 /// Start the configuration manager with an initial configuration
 pub fn start(config: Arc<Config>) {
@@ -21,16 +21,16 @@ pub fn start_default() {
 }
 
 /// Get a reference to the current configuration stored in the manager
-pub fn get() -> impl Future<Item = Arc<Config>, Error = failure::Error> {
+pub async fn get() -> Result<Arc<Config>, failure::Error> {
     let addr = ConfigManager::from_registry();
-    addr.send(Get).flatten()
+    addr.send(Get).flatten_err().await
 }
 
 /// Substitute configuration in the manager with the one loaded from the
 /// given filename.
-pub fn load_from_file(filename: PathBuf) -> impl Future<Item = (), Error = failure::Error> {
+pub async fn load_from_file(filename: PathBuf) -> Result<(), failure::Error> {
     let addr = ConfigManager::from_registry();
-    addr.send(Load(Source::File(filename))).flatten()
+    addr.send(Load(Source::File(filename))).flatten_err().await
 }
 
 /// Config manager: Actor that manages the application configuration

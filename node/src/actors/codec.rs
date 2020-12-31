@@ -5,20 +5,10 @@ use std::io::Cursor;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use actix::Message;
-use tokio::codec::{Decoder, Encoder};
+use bytes::{Buf, BytesMut};
+use tokio_util::codec::{Decoder, Encoder};
 
 const HEADER_SIZE: usize = 4; // bytes
-
-/// Type alias for BytesMut
-pub type BytesMut = bytes::BytesMut;
-
-// /// Message coming from the network
-// #[derive(Debug, Message, Eq, PartialEq, Clone)]
-// pub struct Request(pub BytesMut);
-
-// /// Message going to the network
-// #[derive(Debug, Message, Eq, PartialEq, Clone)]
-// pub struct Response(pub BytesMut);
 
 /// Codec for client -> server transport
 ///
@@ -31,8 +21,12 @@ pub type BytesMut = bytes::BytesMut;
 /// The message format is described in the file [schemas/protocol.fbs][protocol]
 ///
 /// [protocol]: https://github.com/witnet/witnet-rust/blob/master/schemas/protocol.fbs
-#[derive(Debug, Message, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct P2PCodec;
+
+impl Message for P2PCodec {
+    type Result = ();
+}
 
 /// Implement decoder trait for P2P codec
 impl Decoder for P2PCodec {
@@ -47,7 +41,7 @@ impl Decoder for P2PCodec {
             let mut header_vec = Cursor::new(&src[0..HEADER_SIZE]);
             let msg_size = header_vec.read_u32::<BigEndian>().unwrap() as usize;
             if msg_len >= msg_size + HEADER_SIZE {
-                src.split_to(HEADER_SIZE);
+                src.advance(HEADER_SIZE);
                 ftb = Some(src.split_to(msg_size));
             }
         }
@@ -59,8 +53,7 @@ impl Decoder for P2PCodec {
 }
 
 /// Implement encoder trait for P2P codec
-impl Encoder for P2PCodec {
-    type Item = BytesMut;
+impl Encoder<BytesMut> for P2PCodec {
     type Error = io::Error;
 
     /// Method to encode a response into bytes
@@ -80,7 +73,7 @@ impl Encoder for P2PCodec {
         // push message
         encoded_msg.append(&mut bytes.to_vec());
         // push message to destination
-        dst.unsplit(BytesMut::from(encoded_msg));
+        dst.unsplit(BytesMut::from(encoded_msg.as_slice()));
         Ok(())
     }
 }

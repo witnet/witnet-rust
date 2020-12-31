@@ -4,8 +4,8 @@ use actix::{
     io::WriteHandler, ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler,
     StreamHandler, SystemService, WrapFuture,
 };
+use bytes::BytesMut;
 use failure::Fail;
-use futures::future;
 
 use witnet_data_structures::{
     builders::from_address,
@@ -25,7 +25,6 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 use super::Session;
 use crate::actors::{
     chain_manager::ChainManager,
-    codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
         AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlock, AddSuperBlockVote,
@@ -38,6 +37,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
+use witnet_futures_utils::ActorFutureExt;
 use witnet_util::timestamp::get_timestamp;
 
 #[derive(Debug, Eq, Fail, PartialEq)]
@@ -120,9 +120,15 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
 }
 
 /// Implement `StreamHandler` trait in order to use `Framed` with an actor
-impl StreamHandler<BytesMut, Error> for Session {
+impl StreamHandler<Result<BytesMut, Error>> for Session {
     /// This is main event loop for client requests
-    fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
+    fn handle(&mut self, res: Result<BytesMut, Error>, ctx: &mut Self::Context) {
+        if res.is_err() {
+            // TODO: how to handle this error?
+            return;
+        }
+
+        let bytes = res.unwrap();
         let result = WitnetMessage::from_pb_bytes(&bytes);
 
         match result {
@@ -228,7 +234,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                             .map(|item| inventory_mngr.send(GetItem { item: item.clone() }))
                             .collect();
 
-                        future::join_all(item_requests)
+                        futures::future::try_join_all(item_requests)
                             .into_actor(self)
                             .map_err(|e, _, _| log::error!("Inventory request error: {}", e))
                             .and_then(move |item_responses, session, _| {
@@ -292,7 +298,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                                 let fut = chain_manager_addr
                                     .send(GetSuperBlockVotes)
                                     .into_actor(session)
-                                    .map(|res, session, _ctx| match res {
+                                    .map_ok(|res, session, _ctx| match res {
                                         Ok(votes) => {
                                             for vote in votes {
                                                 send_superblock_vote(session, vote);
@@ -307,11 +313,12 @@ impl StreamHandler<BytesMut, Error> for Session {
                                     });
 
                                 if send_superblock_votes {
-                                    actix::fut::Either::A(fut)
+                                    actix::fut::Either::left(fut)
                                 } else {
-                                    actix::fut::Either::B(actix::fut::ok(()))
+                                    actix::fut::Either::right(actix::fut::ok(()))
                                 }
                             })
+                            .map(|_res: Result<(), ()>, _act, _ctx| ())
                             .wait(ctx);
                     }
                     //////////////////////////
@@ -557,6 +564,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                     }
                 }
             })
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 }
@@ -592,6 +600,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
             }
             actix::fut::ok(())
         })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
         .wait(ctx);
 }
 
@@ -975,6 +984,7 @@ fn session_last_beacon_inbound(
                                         actix::fut::err(())
                                     }
                                 })
+                                .map(|_res: Result<(), ()>, _act, _ctx| ())
                                 .wait(ctx);
                         }
                     }
@@ -989,6 +999,7 @@ fn session_last_beacon_inbound(
                 }
             }
         })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
         .wait(ctx);
 }
 

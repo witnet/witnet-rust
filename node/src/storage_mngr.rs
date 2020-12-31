@@ -1,14 +1,15 @@
 //! # Storage Manager
 //!
 //! This module provides a Storage Manager
+use std::future;
 use std::sync::Arc;
 
 use actix::prelude::*;
 use bincode::{deserialize, serialize};
-use futures::future::{Either, Future};
 
 use crate::config_mngr;
 use witnet_config::config;
+use witnet_futures_utils::{ActorFutureExt, TryFutureExt2};
 use witnet_storage::{backends, storage};
 
 macro_rules! as_failure {
@@ -24,41 +25,64 @@ pub fn start() {
 }
 
 /// Get value associated to key
-pub fn get<K, T>(key: &K) -> impl Future<Item = Option<T>, Error = failure::Error>
+pub fn get<K, T>(key: &K) -> impl Future<Output = Result<Option<T>, failure::Error>>
 where
     K: serde::Serialize,
     T: serde::de::DeserializeOwned,
 {
     let addr = StorageManagerAdapter::from_registry();
 
-    futures::future::result(serialize(key))
-        .map_err(|e| as_failure!(e))
-        .and_then(move |key_bytes| addr.send(Get(key_bytes)).flatten())
-        .and_then(|opt| match opt {
+    let key_bytes = match serialize(key) {
+        Ok(x) => x,
+        Err(e) => return futures::future::Either::Left(future::ready(Err(e.into()))),
+    };
+
+    let fut = async move {
+        let opt = addr.send(Get(key_bytes)).await??;
+
+        match opt {
             Some(bytes) => match deserialize(bytes.as_slice()) {
-                Ok(v) => futures::future::ok(Some(v)),
-                Err(e) => futures::future::err(as_failure!(e)),
+                Ok(v) => Ok(Some(v)),
+                Err(e) => Err(as_failure!(e)),
             },
-            None => futures::future::ok(None),
-        })
+            None => Ok(None),
+        }
+    };
+
+    futures::future::Either::Right(fut)
 }
 
 /// Put a value associated to the key into the storage
-pub fn put<K, V>(key: &K, value: &V) -> impl Future<Item = (), Error = failure::Error>
+pub fn put<K, V>(key: &K, value: &V) -> impl Future<Output = Result<(), failure::Error>>
 where
     K: serde::Serialize,
     V: serde::Serialize,
 {
     let addr = StorageManagerAdapter::from_registry();
 
-    futures::future::result(serialize(key))
-        .join(futures::future::result(serialize(value)))
-        .map_err(|e| as_failure!(e))
-        .and_then(move |(key_bytes, value_bytes)| addr.send(Put(key_bytes, value_bytes)).flatten())
+    let key_bytes = match serialize(key) {
+        Ok(x) => x,
+        Err(e) => {
+            return futures::future::Either::Left(futures::future::Either::Left(future::ready(
+                Err(e.into()),
+            )))
+        }
+    };
+
+    let value_bytes = match serialize(value) {
+        Ok(x) => x,
+        Err(e) => {
+            return futures::future::Either::Left(futures::future::Either::Right(future::ready(
+                Err(e.into()),
+            )))
+        }
+    };
+
+    futures::future::Either::Right(async move { addr.send(Put(key_bytes, value_bytes)).await? })
 }
 
 /// Put a batch of values into the storage
-pub fn put_batch<K, V>(kv: &[(K, V)]) -> impl Future<Item = (), Error = failure::Error>
+pub fn put_batch<K, V>(kv: &[(K, V)]) -> impl Future<Output = Result<(), failure::Error>>
 where
     K: serde::Serialize,
     V: serde::Serialize,
@@ -70,23 +94,30 @@ where
         .map(|(k, v)| Ok((serialize(k)?, serialize(v)?)))
         .collect();
 
-    match kv_bytes {
-        Ok(kv_bytes) if kv_bytes.is_empty() => Either::B(futures::future::finished(())),
-        Ok(kv_bytes) => Either::A(addr.send(PutBatch(kv_bytes)).flatten()),
-        Err(e) => Either::B(futures::future::failed(e)),
+    async move {
+        match kv_bytes {
+            Ok(kv_bytes) if kv_bytes.is_empty() => Ok(()),
+            Ok(kv_bytes) => addr.send(PutBatch(kv_bytes)).await?,
+            Err(e) => Err(e),
+        }
     }
 }
 
 /// Delete value associated to key
-pub fn delete<K>(key: &K) -> impl Future<Item = (), Error = failure::Error>
+pub fn delete<K>(key: &K) -> impl Future<Output = Result<(), failure::Error>>
 where
     K: serde::Serialize,
 {
     let addr = StorageManagerAdapter::from_registry();
 
-    futures::future::result(serialize(key))
-        .map_err(|e| as_failure!(e))
-        .and_then(move |key_bytes| addr.send(Delete(key_bytes)).flatten())
+    let key_bytes = match serialize(key) {
+        Ok(x) => x,
+        Err(e) => return futures::future::Either::Left(future::ready(Err(e.into()))),
+    };
+
+    let fut = async move { addr.send(Delete(key_bytes)).await? };
+
+    futures::future::Either::Right(fut)
 }
 
 struct StorageManager {
@@ -240,14 +271,17 @@ impl Actor for StorageManagerAdapter {
         log::debug!("Storage Manager actor has been started!");
         let storage = self.storage.clone();
 
-        config_mngr::get()
-            .and_then(move |conf| storage.send(Configure(conf)).flatten())
-            .map_err(|err| {
-                log::error!("Failed to configure backend: {}", err);
-                System::current().stop_with_code(1);
-            })
-            .into_actor(self)
-            .wait(ctx);
+        async move {
+            let conf = config_mngr::get().await?;
+            storage.send(Configure(conf)).await?
+        }
+        .into_actor(self)
+        .map_err(|err, _act, _ctx| {
+            log::error!("Failed to configure backend: {}", err);
+            System::current().stop_with_code(1);
+        })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
+        .wait(ctx);
     }
 }
 
@@ -256,33 +290,33 @@ impl Supervised for StorageManagerAdapter {}
 impl SystemService for StorageManagerAdapter {}
 
 impl Handler<Get> for StorageManagerAdapter {
-    type Result = ResponseFuture<Option<Vec<u8>>, failure::Error>;
+    type Result = ResponseFuture<Result<Option<Vec<u8>>, failure::Error>>;
 
     fn handle(&mut self, msg: Get, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.storage.send(msg).flatten())
+        Box::pin(self.storage.send(msg).flatten_err())
     }
 }
 
 impl Handler<Put> for StorageManagerAdapter {
-    type Result = ResponseFuture<(), failure::Error>;
+    type Result = ResponseFuture<Result<(), failure::Error>>;
 
     fn handle(&mut self, msg: Put, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.storage.send(msg).flatten())
+        Box::pin(self.storage.send(msg).flatten_err())
     }
 }
 
 impl Handler<PutBatch> for StorageManagerAdapter {
-    type Result = ResponseFuture<(), failure::Error>;
+    type Result = ResponseFuture<Result<(), failure::Error>>;
 
     fn handle(&mut self, msg: PutBatch, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.storage.send(msg).flatten())
+        Box::pin(self.storage.send(msg).flatten_err())
     }
 }
 
 impl Handler<Delete> for StorageManagerAdapter {
-    type Result = ResponseFuture<(), failure::Error>;
+    type Result = ResponseFuture<Result<(), failure::Error>>;
 
     fn handle(&mut self, msg: Delete, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.storage.send(msg).flatten())
+        Box::pin(self.storage.send(msg).flatten_err())
     }
 }

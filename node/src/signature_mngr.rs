@@ -5,7 +5,7 @@
 //! that key.
 use actix::prelude::*;
 use failure::{bail, format_err};
-use futures::future::Future;
+use futures_util::FutureExt;
 
 use crate::{
     actors::storage_keys::{BN256_SECRET_KEY, MASTER_KEY},
@@ -27,6 +27,7 @@ use witnet_data_structures::{
     transaction::MemoizedHashable,
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
+use witnet_futures_utils::{ActorFutureExt, TryFutureExt2};
 use witnet_protected::ProtectedString;
 use witnet_validations::validations;
 
@@ -36,24 +37,27 @@ use witnet_validations::validations;
 pub fn sign_transaction<T>(
     tx: &T,
     inputs_len: usize,
-) -> impl Future<Item = Vec<KeyedSignature>, Error = failure::Error>
+) -> impl Future<Output = Result<Vec<KeyedSignature>, failure::Error>>
 where
     T: MemoizedHashable + Hashable,
 {
-    // Assuming that all the inputs have the same pkh
-    sign(tx).map(move |signature| {
-        // TODO: do we need to sign:
-        // value transfer inputs,
-        // data request inputs (for commits),
-        // commit inputs (for reveals),
-        //
-        // We do not need to sign:
-        // reveal inputs (for tallies)
-        //
-        // But currently we just sign everything, hoping that the validations
-        // work
-        vec![signature; inputs_len]
-    })
+    let a = sign(tx);
+    async move {
+        // Assuming that all the inputs have the same pkh
+        a.await.map(move |signature| {
+            // TODO: do we need to sign:
+            // value transfer inputs,
+            // data request inputs (for commits),
+            // commit inputs (for reveals),
+            //
+            // We do not need to sign:
+            // reveal inputs (for tallies)
+            //
+            // But currently we just sign everything, hoping that the validations
+            // work
+            vec![signature; inputs_len]
+        })
+    }
 }
 
 /// Start the signature manager
@@ -65,88 +69,81 @@ pub fn start() {
 /// Sign a piece of (Hashable) data with the stored key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn sign<T>(data: &T) -> impl Future<Item = KeyedSignature, Error = failure::Error>
+pub fn sign<T>(data: &T) -> impl Future<Output = Result<KeyedSignature, failure::Error>>
 where
     T: Hashable,
 {
     let Hash::SHA256(data_hash) = data.hash();
 
-    sign_data(data_hash)
+    async move { sign_data(data_hash).await }
 }
 
 /// Sign a piece of data with the stored key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn sign_data(data: [u8; 32]) -> impl Future<Item = KeyedSignature, Error = failure::Error> {
+pub async fn sign_data(data: [u8; 32]) -> Result<KeyedSignature, failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(Sign(data.to_vec())).flatten()
+    addr.send(Sign(data.to_vec())).flatten_err().await
 }
 
 /// Sign a piece of (Hashable) data with the stored key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn bn256_sign(
-    message: Vec<u8>,
-) -> impl Future<Item = Bn256KeyedSignature, Error = failure::Error> {
+pub async fn bn256_sign(message: Vec<u8>) -> Result<Bn256KeyedSignature, failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(Bn256Sign(message)).flatten()
+    addr.send(Bn256Sign(message)).flatten_err().await
 }
 
 /// Get the public key hash.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
+pub async fn pkh() -> Result<PublicKeyHash, failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(GetPkh).flatten()
+    addr.send(GetPkh).flatten_err().await
 }
 
 /// Get the public key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
+pub async fn public_key() -> Result<PublicKey, failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(GetPublicKey).flatten()
+    addr.send(GetPublicKey).flatten_err().await
 }
 
 /// Get the BN256 public key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn bn256_public_key() -> impl Future<Item = Bn256PublicKey, Error = failure::Error> {
+pub async fn bn256_public_key() -> Result<Bn256PublicKey, failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(GetBn256PublicKey).flatten()
+    addr.send(GetBn256PublicKey).flatten_err().await
 }
 
 /// Get the public key and secret key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn key_pair() -> impl Future<Item = (ExtendedPK, ExtendedSK), Error = failure::Error> {
+pub async fn key_pair() -> Result<(ExtendedPK, ExtendedSK), failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(GetKeyPair).flatten()
+    addr.send(GetKeyPair).flatten_err().await
 }
 
 /// Get the BN256 public key and secret key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn bn256_key_pair(
-) -> impl Future<Item = (Bn256PublicKey, Bn256SecretKey), Error = failure::Error> {
+pub async fn bn256_key_pair() -> Result<(Bn256PublicKey, Bn256SecretKey), failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(GetBn256KeyPair).flatten()
+    addr.send(GetBn256KeyPair).flatten_err().await
 }
 
 /// Create a VRF proof for the provided message with the stored key
-pub fn vrf_prove(
-    message: VrfMessage,
-) -> impl Future<Item = (VrfProof, Hash), Error = failure::Error> {
+pub async fn vrf_prove(message: VrfMessage) -> Result<(VrfProof, Hash), failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(VrfProve(message)).flatten()
+    addr.send(VrfProve(message)).flatten_err().await
 }
 
 /// Verify signatures async
-pub fn verify_signatures(
-    message: Vec<SignaturesToVerify>,
-) -> impl Future<Item = (), Error = failure::Error> {
+pub async fn verify_signatures(message: Vec<SignaturesToVerify>) -> Result<(), failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(VerifySignatures(message)).flatten()
+    addr.send(VerifySignatures(message)).flatten_err().await
 }
 
 #[derive(Debug, Default)]
@@ -185,43 +182,39 @@ struct VrfProve(VrfMessage);
 
 struct VerifySignatures(Vec<SignaturesToVerify>);
 
-fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = failure::Error> {
+async fn persist_master_key(master_key: ExtendedSK) -> Result<(), failure::Error> {
     let master_key = ExtendedSecretKey::from(master_key);
 
-    storage_mngr::put(&MASTER_KEY, &master_key).inspect(|_| {
-        log::trace!("Successfully persisted the extended secret key into storage");
-    })
+    storage_mngr::put(&MASTER_KEY, &master_key)
+        .inspect(|_| {
+            log::trace!("Successfully persisted the extended secret key into storage");
+        })
+        .await
 }
 
-fn persist_bn256_key(
-    bn256_secret_key: Bn256SecretKey,
-) -> impl Future<Item = (), Error = failure::Error> {
-    storage_mngr::put(&BN256_SECRET_KEY, &bn256_secret_key).inspect(|_| {
-        log::trace!("Successfully persisted the BN256 secret key into storage");
-    })
+async fn persist_bn256_key(bn256_secret_key: Bn256SecretKey) -> Result<(), failure::Error> {
+    storage_mngr::put(&BN256_SECRET_KEY, &bn256_secret_key)
+        .inspect(|_| {
+            log::trace!("Successfully persisted the BN256 secret key into storage");
+        })
+        .await
 }
 
-fn create_master_key() -> Box<dyn Future<Item = ExtendedSK, Error = failure::Error>> {
+async fn create_master_key() -> Result<ExtendedSK, failure::Error> {
     log::info!("Generating and persisting a new master key for this node");
 
     // Create a new master key
     let mnemonic = MnemonicGen::new().generate();
     let seed = mnemonic.seed(&ProtectedString::new(""));
     match MasterKeyGen::new(seed).generate() {
-        Ok(master_key) => {
-            let fut = persist_master_key(master_key.clone()).map(move |_| master_key);
-
-            Box::new(fut)
-        }
-        Err(e) => {
-            let fut = futures::future::err(e.into());
-
-            Box::new(fut)
-        }
+        Ok(master_key) => persist_master_key(master_key.clone())
+            .await
+            .map(move |_| master_key),
+        Err(e) => Err(e.into()),
     }
 }
 
-fn create_bn256_key() -> Box<dyn Future<Item = Bn256SecretKey, Error = failure::Error>> {
+async fn create_bn256_key() -> Result<Bn256SecretKey, failure::Error> {
     // The secret key is 32 bytes
     let secret: [u8; 32] = thread_rng().gen();
     let bls_secret = match Bn256SecretKey::from_slice(&secret) {
@@ -230,24 +223,19 @@ fn create_bn256_key() -> Box<dyn Future<Item = Bn256SecretKey, Error = failure::
             // This should never happen, as any 256-bit integer can be converted into a valid
             // BN256 secret key
             log::error!("Failed to generate BN256 secret key: {}", e);
-            let fut = futures::future::err(e);
-            return Box::new(fut);
+            return Err(e);
         }
     };
 
     match Bn256PublicKey::from_secret_key(&bls_secret) {
-        Ok(_bls_public) => {
-            let fut = persist_bn256_key(bls_secret.clone()).map(move |_| bls_secret);
-
-            Box::new(fut)
-        }
+        Ok(_bls_public) => persist_bn256_key(bls_secret.clone())
+            .await
+            .map(move |_| bls_secret),
         Err(e) => {
             // This should never happen, as any valid private key can be used to derive a valid
             // BN256 public key
             log::error!("Failed to derive BN256 public key: {}", e);
-            let fut = futures::future::err(e);
-
-            Box::new(fut)
+            Err(e)
         }
     }
 }
@@ -501,166 +489,165 @@ impl Actor for SignatureManagerAdapter {
         log::debug!("Signature Manager Adapter actor has been started!");
         let crypto = self.crypto.clone();
 
-        config_mngr::get()
-            .and_then(move |config| {
-                if let Some(master_key_path) = &config.storage.master_key_import_path {
-                    futures::done(master_key_import_from_file(master_key_path).map(Some))
-                } else {
-                    futures::finished(None)
-                }
-            })
-            .and_then(|master_key_from_file| {
-                storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY).map(|master_key| {
-                    let master_key_from_storage: Option<ExtendedSK> = master_key.map(Into::into);
-                    (master_key_from_file, master_key_from_storage)
-                })
-            })
-            .and_then(move |(master_key_from_file, master_key_from_storage)| {
-                match (master_key_from_file, master_key_from_storage) {
-                    // Didn't ask to import master key and no master key in storage:
-                    // Create new master key
-                    (None, None) => create_master_key(),
-                    // There is a master key in storage or imported, but not both:
-                    // Use that master key
-                    (None, Some(from_storage)) => Box::new(futures::finished(from_storage)),
-                    (Some(from_file), None) => {
-                        // Save the key into the storage
-                        Box::new(persist_master_key(from_file.clone()).map(|()| from_file))
-                    },
-                    // There is a master key in storage and imported:
-                    (Some(from_file), Some(from_storage)) => {
-                        if from_file == from_storage {
-                            // If they are equal, use that master key
-                            Box::new(futures::finished(from_file))
-                        } else {
-                            // Else, throw error to avoid overwriting the old master key in storage
-                            let node_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_storage);
-                            let node_pkh = PublicKey::from(node_public_key.key).pkh();
+        async move {
+            let config = config_mngr::get().await?;
+            let master_key_from_file = if let Some(master_key_path) = &config.storage.master_key_import_path {
+                master_key_import_from_file(master_key_path).map(Some)
+            } else {
+                Ok(None)
+            }?;
+            let master_key_from_storage: Option<ExtendedSK> = storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY).await?.map(Into::into);
 
-                            let imported_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_file);
-                            let imported_pkh = PublicKey::from(imported_public_key.key).pkh();
+            let master_key = match (master_key_from_file, master_key_from_storage) {
+                // Didn't ask to import master key and no master key in storage:
+                // Create new master key
+                (None, None) => create_master_key().await,
+                // There is a master key in storage or imported, but not both:
+                // Use that master key
+                (None, Some(from_storage)) => Ok(from_storage),
+                (Some(from_file), None) => {
+                    // Save the key into the storage
+                    persist_master_key(from_file.clone()).await.map(|()| from_file)
+                },
+                // There is a master key in storage and imported:
+                (Some(from_file), Some(from_storage)) => {
+                    if from_file == from_storage {
+                        // If they are equal, use that master key
+                        Ok(from_file)
+                    } else {
+                        // Else, throw error to avoid overwriting the old master key in storage
+                        let node_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_storage);
+                        let node_pkh = PublicKey::from(node_public_key.key).pkh();
 
-                            Box::new(futures::failed(format_err!(
-                                "Tried to overwrite node master key with a different one.\n\
-                                 Node pkh:     {}\n\
-                                 Imported pkh: {}\n\
-                                 \n\
-                                 In order to import a different master key, you first need to export the current master key and delete the storage",
-                                 node_pkh,
-                                 imported_pkh,
-                            )))
-                        }
+                        let imported_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_file);
+                        let imported_pkh = PublicKey::from(imported_public_key.key).pkh();
+
+                        Err(format_err!(
+                            "Tried to overwrite node master key with a different one.\n\
+                             Node pkh:     {}\n\
+                             Imported pkh: {}\n\
+                             \n\
+                             In order to import a different master key, you first need to export the current master key and delete the storage",
+                             node_pkh,
+                             imported_pkh,
+                        ))
                     }
                 }
-            })
-            .and_then(move |master_key| crypto.send(SetKey(master_key)).flatten())
-            .map_err(|err| {
+            }?;
+
+            crypto.send(SetKey(master_key)).await?
+        }.into_actor(self)
+            .map_err(|err, _act, _ctx| {
                 log::error!("Failed to configure master key: {}", err);
                 System::current().stop_with_code(1);
             })
-            .into_actor(self)
-            .wait(ctx);
+            .map(|_res: Result<(), ()>, _act, _ctx| ())
+             .wait(ctx);
 
         let crypto = self.crypto.clone();
-        storage_mngr::get::<_, Bn256SecretKey>(&BN256_SECRET_KEY)
-            .and_then(|secret_key| match secret_key {
-                None => create_bn256_key(),
-                Some(from_storage) => Box::new(futures::finished(from_storage)),
-            })
-            .and_then(move |secret_key| crypto.send(SetBn256Key(secret_key)).flatten())
-            .map_err(|err| {
-                log::warn!("Failed to configure BN256 key: {}", err);
-            })
-            .into_actor(self)
-            .wait(ctx);
+        async move {
+            let secret_key = storage_mngr::get::<_, Bn256SecretKey>(&BN256_SECRET_KEY).await?;
+            let secret_key = match secret_key {
+                None => create_bn256_key().await,
+                Some(from_storage) => Ok(from_storage),
+            }?;
+
+            crypto.send(SetBn256Key(secret_key)).flatten_err().await
+        }
+        .into_actor(self)
+        .map_err(|err: failure::Error, _act, _ctx| {
+            log::warn!("Failed to configure BN256 key: {}", err);
+        })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
+        .wait(ctx);
     }
 }
 
 impl Handler<SetKey> for SignatureManagerAdapter {
-    type Result = ResponseFuture<(), failure::Error>;
+    type Result = ResponseFuture<Result<(), failure::Error>>;
 
     fn handle(&mut self, msg: SetKey, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<SetBn256Key> for SignatureManagerAdapter {
-    type Result = ResponseFuture<(), failure::Error>;
+    type Result = ResponseFuture<Result<(), failure::Error>>;
 
     fn handle(&mut self, msg: SetBn256Key, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<Sign> for SignatureManagerAdapter {
-    type Result = ResponseFuture<KeyedSignature, failure::Error>;
+    type Result = ResponseFuture<Result<KeyedSignature, failure::Error>>;
 
     fn handle(&mut self, msg: Sign, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<Bn256Sign> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Bn256KeyedSignature, failure::Error>;
+    type Result = ResponseFuture<Result<Bn256KeyedSignature, failure::Error>>;
 
     fn handle(&mut self, msg: Bn256Sign, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<GetPkh> for SignatureManagerAdapter {
-    type Result = ResponseFuture<PublicKeyHash, failure::Error>;
+    type Result = ResponseFuture<Result<PublicKeyHash, failure::Error>>;
 
     fn handle(&mut self, msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<GetPublicKey> for SignatureManagerAdapter {
-    type Result = ResponseFuture<PublicKey, failure::Error>;
+    type Result = ResponseFuture<Result<PublicKey, failure::Error>>;
 
     fn handle(&mut self, msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<GetBn256PublicKey> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Bn256PublicKey, failure::Error>;
+    type Result = ResponseFuture<Result<Bn256PublicKey, failure::Error>>;
 
     fn handle(&mut self, msg: GetBn256PublicKey, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<GetKeyPair> for SignatureManagerAdapter {
-    type Result = ResponseFuture<(ExtendedPK, ExtendedSK), failure::Error>;
+    type Result = ResponseFuture<Result<(ExtendedPK, ExtendedSK), failure::Error>>;
 
     fn handle(&mut self, msg: GetKeyPair, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<GetBn256KeyPair> for SignatureManagerAdapter {
-    type Result = ResponseFuture<(Bn256PublicKey, Bn256SecretKey), failure::Error>;
+    type Result = ResponseFuture<Result<(Bn256PublicKey, Bn256SecretKey), failure::Error>>;
 
     fn handle(&mut self, msg: GetBn256KeyPair, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<VrfProve> for SignatureManagerAdapter {
-    type Result = ResponseFuture<(VrfProof, Hash), failure::Error>;
+    type Result = ResponseFuture<Result<(VrfProof, Hash), failure::Error>>;
 
     fn handle(&mut self, msg: VrfProve, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
 impl Handler<VerifySignatures> for SignatureManagerAdapter {
-    type Result = ResponseFuture<(), failure::Error>;
+    type Result = ResponseFuture<Result<(), failure::Error>>;
 
     fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
-        Box::new(self.crypto.send(msg).flatten())
+        Box::pin(self.crypto.send(msg).flatten_err())
     }
 }
 
