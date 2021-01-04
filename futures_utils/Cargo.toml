@@ -1,0 +1,12 @@
+[package]
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+edition = "2018"
+name = "witnet_futures_utils"
+version = "0.1.0"
+workspace = ".."
+
+[dependencies]
+actix = "0.11.0-beta.1"
+futures = "0.3.8"
+futures-util = "0.3.8"
+pin-project-lite = "0.2"
