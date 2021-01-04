@@ -21,9 +21,9 @@ pub use routes::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub type ResponseFuture<T> = actix::ResponseFuture<T, Error>;
+pub type ResponseFuture<T> = actix::ResponseFuture<Result<T>>;
 
-pub type ResponseActFuture<T> = actix::ResponseActFuture<App, T, Error>;
+pub type ResponseActFuture<T> = actix::ResponseActFuture<App, Result<T>>;
 
 pub struct App {
     server: Option<Server>,

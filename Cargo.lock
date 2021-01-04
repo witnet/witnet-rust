@@ -4983,17 +4983,17 @@ dependencies = [
 name = "witnet_net"
 version = "0.1.0"
 dependencies = [
- "actix 0.8.3",
+ "actix 0.11.0-beta.1",
  "async-jsonrpc-client",
  "failure",
- "futures 0.1.30",
+ "futures 0.3.8",
+ "futures-util",
  "jsonrpc-core 15.1.0",
  "jsonrpc-pubsub",
  "jsonrpc-ws-server",
  "log 0.4.11",
  "serde",
  "serde_json",
- "tokio 0.2.22",
 ]
 
 [[package]]
@@ -5124,7 +5124,7 @@ dependencies = [
 name = "witnet_wallet"
 version = "0.3.2"
 dependencies = [
- "actix 0.8.3",
+ "actix 0.11.0-beta.1",
  "async-jsonrpc-client",
  "bech32",
  "bincode",
@@ -5148,6 +5148,7 @@ dependencies = [
  "witnet_config",
  "witnet_crypto",
  "witnet_data_structures",
+ "witnet_futures_utils",
  "witnet_net",
  "witnet_protected",
  "witnet_rad",

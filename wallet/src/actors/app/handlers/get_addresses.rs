@@ -28,6 +28,6 @@ impl Handler<GetAddressesRequest> for app::App {
         let external = msg.external.unwrap_or(true);
         let f = self.get_addresses(msg.session_id, msg.wallet_id, offset, limit, external);
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

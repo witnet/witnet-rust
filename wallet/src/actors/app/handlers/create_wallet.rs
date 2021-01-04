@@ -4,6 +4,8 @@ use std::str;
 
 use crate::actors::app;
 use crate::types;
+use futures_util::FutureExt;
+use witnet_futures_utils::ActorFutureExt;
 
 /// Create Wallet request, where name, description and overwrite are optional and backup_password
 /// is only needed if seed_source is xprv
@@ -50,10 +52,10 @@ impl Handler<CreateWalletRequest> for app::App {
                 params.description,
                 params.overwrite,
             )
-            .map(|wallet_id| CreateWalletResponse { wallet_id })
+            .map(|res| res.map(|wallet_id| CreateWalletResponse { wallet_id }))
             .into_actor(slf)
         });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

@@ -26,6 +26,6 @@ impl Handler<GetTransactionsRequest> for app::App {
         let limit = msg.limit.unwrap_or(constants::DEFAULT_PAGINATION_LIMIT);
         let f = self.get_transactions(msg.session_id, msg.wallet_id, offset, limit);
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

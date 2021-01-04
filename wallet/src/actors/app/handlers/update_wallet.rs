@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use witnet_futures_utils::ActorFutureExt;
 
 use crate::actors::app;
 use crate::types;
@@ -27,8 +28,8 @@ impl Handler<UpdateWalletRequest> for app::App {
     fn handle(&mut self, req: UpdateWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .update_wallet(req.session_id, req.wallet_id, req.name, req.description)
-            .map(|(), _, _| UpdateWalletResponse { success: true });
+            .map_ok(|(), _, _| UpdateWalletResponse { success: true });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

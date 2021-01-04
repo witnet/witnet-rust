@@ -1,9 +1,12 @@
-use futures::{future, Future};
+use futures::FutureExt;
 use jsonrpc_core::{Middleware, Params};
 use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata, Subscriber};
 use serde_json::json;
+use std::future;
 
 use super::*;
+use futures_util::compat::{Compat, Compat01As03};
+use witnet_futures_utils::TryFutureExt2;
 
 /// Helper macro to add multiple JSON-RPC methods at once
 macro_rules! routes {
@@ -15,26 +18,31 @@ macro_rules! routes {
                 log::debug!("Handling request for method: {}", $method_jsonrpc);
                 let addr = api_addr.clone();
                 // Try to parse the request params into the actor message
-                future::result(params.parse::<$actor_msg>())
-                    .map_err(|mut err| {
-                        err.data = Some(json!({
-                            "schema": format!("https://github.com/witnet/witnet-rust/wiki/{}", $wiki)
-                        }));
+                let fut03 = future::ready(params.parse::<$actor_msg>())
+                    .then(move |res| match res {
+                        Err(mut err) => {
+                            err.data = Some(json!({
+                                "schema": format!("https://github.com/witnet/witnet-rust/wiki/{}", $wiki)
+                            }));
 
-                        err
-                    })
-                    .and_then(move |msg| {
-                        log::trace!("=> Handling Request: {:?}", &msg);
-                        // Then send the parsed message to the actor
-                        addr.send(msg)
-                            .flatten()
-                            .and_then(
-                                |x|
-                                future::result(serde_json::to_value(x))
-                                    .map_err(internal_error)
-                            )
-                            .map_err(|err| err.into())
-                    })
+                            futures::future::Either::Left(future::ready(Err(err)))
+                        }
+                        Ok(msg) => {
+                            log::trace!("=> Handling Request: {:?}", &msg);
+                            // Then send the parsed message to the actor
+                            let f = addr.send(msg)
+                                .flatten_err()
+                                .map(|res: Result<_>| {
+                                    res.map_err(internal_error)
+                                        .and_then(|x| serde_json::to_value(x).map_err(internal_error))
+                                        .map_err(|e| e.into())
+                                });
+
+                            futures::future::Either::Right(f)
+                        }
+                    });
+
+                Compat::new(Box::pin(fut03))
             });
         }
         routes!($io, $api, $($args)*);
@@ -53,12 +61,14 @@ macro_rules! forwarded_routes {
                     method: $method_node.to_string(),
                     params
                 };
-                api_addr.send(msg)
-                    .flatten()
-                    .and_then(|x| {
-                        future::result(serde_json::to_value(x)).map_err(internal_error)
-                    })
-                    .map_err(|err| err.into())
+                let fut03 = api_addr.send(msg)
+                    .flatten_err()
+                    .map(|res: Result<_>| {
+                        res.map_err(internal_error)
+                            .and_then(|x| serde_json::to_value(x).map_err(internal_error))
+                            .map_err(|e| e.into())
+                    });
+                Compat::new(Box::pin(fut03))
             });
         }
         forwarded_routes!($io, $api, $($args)*);
@@ -80,23 +90,24 @@ pub fn connect_routes<T, S>(
             move |params: Params, _meta, subscriber: Subscriber| {
                 let addr_subscription_id = addr.clone();
                 let addr_subscribe = addr.clone();
-                let f = future::result(params.parse::<SubscribeRequest>())
+                let f = future::ready(params.parse::<SubscribeRequest>())
                     .then(move |result| match result {
                         Ok(request) => {
                             log::info!("New WS notifications subscriber for session {}", request.session_id);
 
-                            future::Either::A({
+                            futures::future::Either::Left({
                                 addr_subscription_id.send(NextSubscriptionId(request.session_id.clone()))
-                                .flatten()
-                                .map_err(|err| err.into())
-                                .then(move |result| match result {
-                                    Ok(subscription_id) => future::Either::A(
-                                        subscriber
-                                            .assign_id_async(subscription_id.clone())
-                                            .map_err(|()| {
+                                    .flatten_err()
+                                    .map(|res| res.map_err(|e: Error| e.into()))
+                                    .then(move |result| match result {
+                                    Ok(subscription_id) => futures::future::Either::Left({
+                                        let fut01 = subscriber
+                                            .assign_id_async(subscription_id.clone());
+
+                                        Compat01As03::new(fut01)
+                                            .map(move |res| res.map_err(|()| {
                                                 log::error!("Failed to assign id");
-                                            })
-                                            .and_then(move |sink| {
+                                            }).map(|sink| {
                                                 addr_subscribe.do_send(
                                                     Subscribe(
                                                         request.session_id,
@@ -104,35 +115,39 @@ pub fn connect_routes<T, S>(
                                                         sink
                                                     )
                                                 );
-                                                future::ok(())
-                                            })
-                                    ),
-                                    Err(err) => future::Either::B(
-                                        subscriber.reject_async(err)
-                                    )
+                                            }))
+                                    }),
+                                    Err(err) => futures::future::Either::Right({
+                                        let fut01 = subscriber.reject_async(err);
+                                        Compat01As03::new(fut01)
+                                    })
                                 })
                         })},
                         Err(mut err) =>
-                            future::Either::B(subscriber.reject_async({
-                                log::trace!("invalid subscription params");
+                            futures::future::Either::Right({
+                                let fut01 = subscriber.reject_async({
+                                    log::trace!("invalid subscription params");
 
-                                err.data = Some(json!({
+                                    err.data = Some(json!({
                                     "schema": "https://github.com/witnet/witnet-rust/wiki/Subscribe-Notifications".to_string()
                                 }));
-                                err
-                            }))
-                    });
+                                    err
+                                });
+                                Compat01As03::new(fut01)
+                            })
+                    }).map(|_: std::result::Result<(), ()>| ());
 
-                system_arbiter.send(f);
+                system_arbiter.send(Box::pin(f));
             }
         }),
         ("rpc.off", {
             let addr = api.clone();
             move |subscription_id, _meta| {
-                addr.send(UnsubscribeRequest(subscription_id))
-                    .flatten()
-                    .map(|()| json!(()))
-                    .map_err(|err| err.into())
+                let fut03 = addr.send(UnsubscribeRequest(subscription_id))
+                    .flatten_err()
+                    .map(|res| res.map(|()| json!(())).map_err(|e: Error| e.into()));
+
+                Compat::new(Box::pin(fut03))
             }
         }),
     );

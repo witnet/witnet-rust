@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use witnet_futures_utils::ActorFutureExt;
 
 use crate::{actors::app, types};
 
@@ -25,8 +26,8 @@ impl Handler<ExportMasterKeyRequest> for app::App {
     fn handle(&mut self, msg: ExportMasterKeyRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .export_master_key(msg.session_id, msg.wallet_id, msg.password)
-            .map(|master_key, _, _| ExportMasterKeyResponse { master_key });
+            .map_ok(|master_key, _, _| ExportMasterKeyResponse { master_key });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

@@ -12,7 +12,8 @@ use async_jsonrpc_client::{
     transports::{shared::EventLoopHandle, tcp::TcpSocket},
     DuplexTransport, ErrorKind as TransportErrorKind, Transport as _,
 };
-use futures::Future;
+use futures::StreamExt;
+use futures_util::compat::Compat01As03;
 use serde::Serialize;
 use serde_json::{value, Value};
 
@@ -120,26 +121,31 @@ impl JsonRpcClient {
     }
 
     /// Send Json-RPC request.
-    pub fn send_request(
-        &self,
+    pub async fn send_request(
+        socket: TcpSocket,
         method: String,
         params: Value,
-    ) -> impl Future<Item = Value, Error = Error> {
+    ) -> Result<Value, Error> {
         log::trace!(
             "<< Sending request, method: {:?}, params: {:?}",
             &method,
             &params
         );
-        self.socket
-            .execute(&method, params)
-            .inspect(|resp| log::trace!(">> Received response: {:?}", resp))
-            .map_err(|err| {
-                log::trace!(">> Received error: {}", err);
-                Error::RequestFailed {
-                    message: err.to_string(),
-                    error_kind: err.0,
-                }
-            })
+        let f = socket.execute(&method, params);
+
+        let res = Compat01As03::new(f).await;
+
+        if let Ok(resp) = &res {
+            log::trace!(">> Received response: {:?}", resp);
+        }
+
+        res.map_err(|err| {
+            log::trace!(">> Received error: {}", err);
+            Error::RequestFailed {
+                message: err.to_string(),
+                error_kind: err.0,
+            }
+        })
     }
 }
 
@@ -229,7 +235,7 @@ impl Message for Request {
 }
 
 impl Handler<Request> for JsonRpcClient {
-    type Result = ResponseActFuture<Self, Value, Error>;
+    type Result = ResponseActFuture<Self, Result<Value, Error>>;
 
     fn handle(
         &mut self,
@@ -246,19 +252,23 @@ impl Handler<Request> for JsonRpcClient {
             params,
             timeout.as_millis()
         );
-        let fut = self
-            .send_request(method, params)
+        let fut = JsonRpcClient::send_request(self.socket.clone(), method, params)
             .into_actor(self)
-            .timeout(timeout, Error::RequestTimedOut(timeout.as_millis()))
-            .map_err(move |err, act, ctx| {
-                log::error!("JSONRPC Request error: {:?}", err);
-                if is_connection_error(&err) {
-                    act.reconnect(ctx);
-                }
-                err
+            .timeout(timeout)
+            .map(move |res, _act, _ctx| {
+                res.unwrap_or_else(|()| Err(Error::RequestTimedOut(timeout.as_millis())))
+            })
+            .map(|res, act, ctx| {
+                res.map_err(|err| {
+                    log::error!("JSONRPC Request error: {:?}", err);
+                    if is_connection_error(&err) {
+                        act.reconnect(ctx);
+                    }
+                    err
+                })
             });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 }
 
@@ -288,30 +298,29 @@ impl Handler<Subscribe> for JsonRpcClient {
 
         ctx.address()
             .send(request.clone())
-            .map_err(|err| log::error!("Couldn't subscribe: {}", err))
             .into_actor(self)
-            .map(move |resp, act, ctx| {
-                match resp {
+            .map(move |res, act, ctx| match res {
+                Ok(resp) => match resp {
                     Ok(Value::String(id)) => {
                         if let Ok(mut subscriptions) = act.active_subscriptions.lock() {
                             (*subscriptions).insert(id.clone(), subscribe.clone());
                         };
 
-                        let stream = act
-                            .socket
-                            .subscribe(&id.clone().into())
-                            .map(move |value| {
+                        let stream_01 = act.socket.subscribe(&id.clone().into());
+
+                        let stream_03 = Compat01As03::new(stream_01);
+                        let stream = stream_03.map(move |res| {
+                            let id = id.clone();
+                            res.map(move |value| {
                                 log::debug!("<< Forwarding notification from node to subscribers",);
                                 log::trace!("<< {:?}", value);
-                                NotifySubscriptionId {
-                                    id: id.clone(),
-                                    value,
-                                }
+                                NotifySubscriptionId { id, value }
                             })
                             .map_err(|err| Error::RequestFailed {
                                 message: err.to_string(),
                                 error_kind: err.0,
-                            });
+                            })
+                        });
                         Self::add_stream(stream, ctx);
                         if let Some(method) = request.params.get(0) {
                             log::info!("Client {} subscription created", method);
@@ -328,28 +337,38 @@ impl Handler<Subscribe> for JsonRpcClient {
                         );
                         act.pending_subscriptions.insert(topic, subscribe);
                     }
-                };
+                },
+                Err(err) => {
+                    log::error!("Couldn't subscribe: {}", err);
+                }
             })
             .spawn(ctx);
     }
 }
 
-impl StreamHandler<NotifySubscriptionId, Error> for JsonRpcClient {
-    fn handle(
-        &mut self,
-        NotifySubscriptionId {
-            id: subscription_id,
-            value,
-        }: NotifySubscriptionId,
-        _ctx: &mut Self::Context,
-    ) {
-        if let Ok(subscriptions) = (*self.active_subscriptions).lock() {
-            if let Some(Subscribe(ref request, ref recipient)) = subscriptions.get(&subscription_id)
-            {
-                let topic = subscription_topic_from_request(request);
-                if let Err(err) = recipient.do_send(NotifySubscriptionTopic { topic, value }) {
-                    log::error!("Client couldn't notify subscriber: {}", err);
+impl StreamHandler<Result<NotifySubscriptionId, Error>> for JsonRpcClient {
+    fn handle(&mut self, res: Result<NotifySubscriptionId, Error>, _ctx: &mut Self::Context) {
+        match res {
+            Ok(NotifySubscriptionId {
+                id: subscription_id,
+                value,
+            }) => {
+                if let Ok(subscriptions) = (*self.active_subscriptions).lock() {
+                    if let Some(Subscribe(ref request, ref recipient)) =
+                        subscriptions.get(&subscription_id)
+                    {
+                        let topic = subscription_topic_from_request(request);
+                        if let Err(err) =
+                            recipient.do_send(NotifySubscriptionTopic { topic, value })
+                        {
+                            log::error!("Client couldn't notify subscriber: {}", err);
+                        }
+                    }
                 }
+            }
+            Err(err) => {
+                // TODO: how to handle this error?
+                log::error!("Subscription failed: {}", err);
             }
         }
     }

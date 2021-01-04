@@ -14,6 +14,7 @@ use witnet_data_structures::{
     transaction::Transaction,
     transaction_factory::FeeType,
 };
+use witnet_futures_utils::ActorFutureExt;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDataReqRequest {
@@ -68,7 +69,7 @@ impl Handler<CreateDataReqRequest> for app::App {
             };
 
             slf.create_data_req(&msg.session_id, &msg.wallet_id, params)
-                .map(move |transaction, _, _| {
+                .map_ok(move |transaction, _, _| {
                     let fee = match fee_type {
                         FeeType::Absolute => msg.fee,
                         FeeType::Weighted => msg.fee * u64::from(transaction.weight()),
@@ -86,7 +87,7 @@ impl Handler<CreateDataReqRequest> for app::App {
                 })
         });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }
 

@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use futures::future;
+use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
@@ -23,8 +23,8 @@ impl Handler<WalletInfosRequest> for app::App {
     fn handle(&mut self, _msg: WalletInfosRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .wallet_infos()
-            .and_then(|infos| future::ok(WalletInfosResponse { infos }));
+            .map(|res| res.map(|infos| WalletInfosResponse { infos }));
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

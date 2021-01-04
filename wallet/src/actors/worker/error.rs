@@ -24,7 +24,7 @@ pub enum Error {
     #[fail(display = "wallet not found")]
     WalletNotFound,
     #[fail(display = "send error: {}", _0)]
-    Send(#[cause] futures::sync::mpsc::SendError<std::string::String>),
+    Send(#[cause] futures01::sync::mpsc::SendError<std::string::String>),
     #[fail(display = "node error: {}", _0)]
     Node(#[cause] failure::Error),
     #[fail(display = "JsonRPC timeout error")]
@@ -110,8 +110,8 @@ impl From<db::Error> for Error {
     }
 }
 
-impl From<futures::sync::mpsc::SendError<std::string::String>> for Error {
-    fn from(err: futures::sync::mpsc::SendError<std::string::String>) -> Self {
+impl From<futures01::sync::mpsc::SendError<std::string::String>> for Error {
+    fn from(err: futures01::sync::mpsc::SendError<std::string::String>) -> Self {
         Error::Send(err)
     }
 }

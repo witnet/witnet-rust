@@ -17,6 +17,6 @@ impl Handler<ForwardRequest> for app::App {
     fn handle(&mut self, msg: ForwardRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self.forward(msg.method, msg.params);
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

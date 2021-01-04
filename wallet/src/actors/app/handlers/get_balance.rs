@@ -22,6 +22,6 @@ impl Handler<GetBalanceRequest> for app::App {
     fn handle(&mut self, msg: GetBalanceRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self.get_balance(msg.session_id, msg.wallet_id);
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

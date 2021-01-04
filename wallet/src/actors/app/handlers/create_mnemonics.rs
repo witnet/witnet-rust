@@ -2,7 +2,9 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
+use futures_util::FutureExt;
 use witnet_crypto::mnemonic;
+use witnet_futures_utils::ActorFutureExt;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateMnemonicsRequest {
@@ -25,11 +27,11 @@ impl Handler<CreateMnemonicsRequest> for app::App {
         let result = validate(req).map_err(app::validation_error);
         let f = fut::result(result).and_then(|length, slf: &mut Self, _| {
             slf.generate_mnemonics(length)
-                .map(|mnemonics| CreateMnemonicsResponse { mnemonics })
+                .map(|res| res.map(|mnemonics| CreateMnemonicsResponse { mnemonics }))
                 .into_actor(slf)
         });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }
 

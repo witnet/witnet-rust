@@ -1,5 +1,6 @@
 //! # Signal handling utility functions
-use actix::prelude::*;
+use futures01::{Future, Stream};
+use futures_util::compat::Compat01As03;
 
 /// It will call `cb` function for Ctrl-c events (or SIGTERM signals in Unix).
 pub fn ctrl_c<T: Fn() + 'static>(cb: T) {
@@ -28,5 +29,7 @@ pub fn ctrl_c<T: Fn() + 'static>(cb: T) {
         })
         .map_err(|_| ());
 
-    actix::spawn(handle_shutdown);
+    let f = futures::FutureExt::map(Compat01As03::new(handle_shutdown), |_res| ());
+
+    actix::spawn(f);
 }

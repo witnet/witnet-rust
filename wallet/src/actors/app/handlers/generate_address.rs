@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use witnet_futures_utils::ActorFutureExt;
 
 use crate::actors::app;
 use crate::{model, types};
@@ -33,13 +34,13 @@ impl Handler<GenerateAddressRequest> for app::App {
                 msg.external.unwrap_or(true),
                 msg.label,
             )
-            .map(
+            .map_ok(
                 |model::Address { address, path, .. }, _, _| GenerateAddressResponse {
                     address,
                     path,
                 },
             );
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

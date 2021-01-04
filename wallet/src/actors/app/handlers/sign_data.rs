@@ -29,6 +29,6 @@ impl Handler<SignDataRequest> for app::App {
     fn handle(&mut self, msg: SignDataRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self.sign_data(&msg.session_id, &msg.wallet_id, msg.data, msg.extended_pk);
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

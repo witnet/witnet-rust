@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use witnet_futures_utils::ActorFutureExt;
 
 use crate::{actors::app, model, types};
 
@@ -28,7 +29,7 @@ impl Handler<UnlockWalletRequest> for app::App {
     type Result = app::ResponseActFuture<UnlockWalletResponse>;
 
     fn handle(&mut self, msg: UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let f = self.unlock_wallet(msg.wallet_id, msg.password).map(
+        let f = self.unlock_wallet(msg.wallet_id, msg.password).map_ok(
             |types::UnlockedWallet { data, session_id }, slf, ctx| {
                 slf.set_session_to_expire(session_id.clone()).spawn(ctx);
 
@@ -44,6 +45,6 @@ impl Handler<UnlockWalletRequest> for app::App {
             },
         );
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

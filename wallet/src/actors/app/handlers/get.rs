@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 use crate::types;
+use witnet_futures_utils::ActorFutureExt;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetRequest {
@@ -26,8 +27,8 @@ impl Handler<GetRequest> for app::App {
     fn handle(&mut self, req: GetRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .get(req.session_id, req.wallet_id, req.key)
-            .map(|value, _, _| GetResponse { value });
+            .map_ok(|value, _, _| GetResponse { value });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

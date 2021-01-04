@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use witnet_futures_utils::ActorFutureExt;
 
 use crate::actors::app;
 use crate::types;
@@ -28,8 +29,8 @@ impl Handler<ResyncWalletRequest> for app::App {
         // here.
         let f = self
             .clear_chain_data_and_resync(msg.session_id, msg.wallet_id)
-            .map(|success, _, _| ResyncWalletResponse { success });
+            .map_ok(|success, _, _| ResyncWalletResponse { success });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

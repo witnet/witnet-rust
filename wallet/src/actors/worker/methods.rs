@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 
-use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::{json, Value};
 
@@ -21,10 +20,12 @@ use witnet_data_structures::{
     },
     transaction::Transaction,
 };
+use witnet_futures_utils::TryFutureExt2;
 use witnet_net::client::tcp::jsonrpc;
 use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport};
 
 use super::*;
+use futures_util::compat::Compat01As03;
 
 pub enum IndexTransactionQuery {
     InputTransactions(Vec<OutputPointer>),
@@ -406,7 +407,7 @@ impl Worker {
                 },
             });
             let send = sink.notify(rpc::Params::Array(vec![payload]));
-            send.wait()?;
+            futures::executor::block_on(Compat01As03::new(send))?;
         } else {
             log::debug!("No sinks need to be notified for wallet {}", wallet.id);
         }
@@ -508,11 +509,7 @@ impl Worker {
                     IndexTransactionQuery::DataRequestReport(dr_id) => {
                         let retrieve_responses =
                             async { self.query_data_request_report(dr_id).await };
-                        let report = futures::future::lazy(|| {
-                            futures03::executor::block_on(retrieve_responses)
-                        })
-                        .wait()?;
-
+                        let report = futures::executor::block_on(retrieve_responses)?;
                         Ok(model::ExtendedTransaction {
                             transaction,
                             metadata: Some(model::TransactionMetadata::Tally(Box::new(report))),
@@ -538,9 +535,8 @@ impl Worker {
         let txn_futures = output_pointers
             .iter()
             .map(|output| self.query_transaction(output.transaction_id.to_string()));
-        let retrieve_responses = async { futures03::future::try_join_all(txn_futures).await };
-        let transactions: Vec<Transaction> =
-            futures::future::lazy(|| futures03::executor::block_on(retrieve_responses)).wait()?;
+        let retrieve_responses = async { futures::future::try_join_all(txn_futures).await };
+        let transactions: Vec<Transaction> = futures::executor::block_on(retrieve_responses)?;
 
         log::debug!(
             "Retrieved value transfer output information from node (queried {} wallet transactions)",
@@ -606,23 +602,17 @@ impl Worker {
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");
-        let f = self
-            .node
-            .get_client()
-            .actor
-            .send(req)
-            .flatten()
-            .map(|json| {
-                serde_json::from_value::<types::GetTransactionResponse>(json).map_err(node_error)
-            })
-            .flatten()
-            .map(|txn_output| txn_output.transaction)
-            .map_err(|err| {
-                log::error!("getTransaction request failed: {}", &err);
-                err
-            });
+        let res = self.node.get_client().actor.send(req).flatten_err().await;
 
-        Compat01As03::new(f).await
+        match res {
+            Ok(json) => serde_json::from_value::<types::GetTransactionResponse>(json)
+                .map_err(node_error)
+                .map(|txn_output| txn_output.transaction),
+            Err(err) => {
+                log::error!("getTransaction request failed: {}", &err);
+                Err(err)
+            }
+        }
     }
 
     /// Ask a Witnet node for the report of a data request.
@@ -638,23 +628,18 @@ impl Worker {
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");
-        let f = self
-            .node
-            .get_client()
-            .actor
-            .send(req)
-            .flatten()
-            .map(|json| {
+        let res = self.node.get_client().actor.send(req).flatten_err().await;
+
+        match res {
+            Ok(json) => {
                 log::trace!("dataRequestReport request result: {:?}", json);
                 serde_json::from_value::<DataRequestInfo>(json).map_err(node_error)
-            })
-            .flatten()
-            .map_err(|err| {
+            }
+            Err(err) => {
                 log::warn!("dataRequestReport request failed: {}", &err);
-                err
-            });
-
-        Compat01As03::new(f).await
+                Err(err)
+            }
+        }
     }
 
     /// Sync wrapper in order to clear transient addresses in case of errors
@@ -720,15 +705,13 @@ impl Worker {
             && wallet_data.last_confirmed.hash_prev_block == wallet.get_bootstrap_hash()
         {
             let gen_fut = self.get_block_chain(0, 1);
-            let gen_res: Vec<ChainEntry> =
-                futures::future::lazy(|| futures03::executor::block_on(gen_fut)).wait()?;
+            let gen_res: Vec<ChainEntry> = futures::executor::block_on(gen_fut)?;
             let gen_entry = gen_res
                 .get(0)
                 .expect("A Witnet chain should always have a genesis block");
 
             let get_gen_future = self.get_block(gen_entry.1.clone());
-            let (block, _confirmed) =
-                futures::future::lazy(|| futures03::executor::block_on(get_gen_future)).wait()?;
+            let (block, _confirmed) = futures::executor::block_on(get_gen_future)?;
             log::debug!(
                 "[SU] Got block #{}: {:?}",
                 block.block_header.beacon.checkpoint,
@@ -750,8 +733,7 @@ impl Worker {
 
         // Query the node for the latest block in the chain
         let tip_fut = self.get_block_chain(0, -1);
-        let tip_res: Vec<ChainEntry> =
-            futures::future::lazy(|| futures03::executor::block_on(tip_fut)).wait()?;
+        let tip_res: Vec<ChainEntry> = futures::executor::block_on(tip_fut)?;
         let tip = CheckpointBeacon::try_from(
             tip_res
                 .get(0)
@@ -792,9 +774,7 @@ impl Worker {
             let get_block_chain_future =
                 self.get_block_chain(i64::from(since_beacon.checkpoint + 1), limit);
 
-            let block_chain: Vec<ChainEntry> =
-                futures::future::lazy(|| futures03::executor::block_on(get_block_chain_future))
-                    .wait()?;
+            let block_chain: Vec<ChainEntry> = futures::executor::block_on(get_block_chain_future)?;
 
             let batch_size = i128::try_from((&block_chain).len()).unwrap();
             log::debug!("[SU] Received chain: {:?}", block_chain);
@@ -802,9 +782,7 @@ impl Worker {
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
             for ChainEntry(_epoch, id) in block_chain {
                 let get_block_future = self.get_block(id.clone());
-                let (block, confirmed) =
-                    futures::future::lazy(|| futures03::executor::block_on(get_block_future))
-                        .wait()?;
+                let (block, confirmed) = futures::executor::block_on(get_block_future)?;
 
                 // Wrap block into an atomic reference count for the sake of avoiding expensive clones
                 let block_arc = Arc::new(block);
@@ -878,27 +856,21 @@ impl Worker {
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");
+        let res = self.node.get_client().actor.send(req).flatten_err().await;
 
-        let f = self
-            .node
-            .get_client()
-            .actor
-            .send(req)
-            .flatten()
-            .map(|json| {
+        match res {
+            Ok(json) => {
                 log::trace!("getBlockChain request result: {:?}", json);
                 match serde_json::from_value::<Vec<types::ChainEntry>>(json).map_err(node_error) {
                     Ok(blocks) => Ok(blocks),
                     Err(e) => Err(e),
                 }
-            })
-            .flatten()
-            .map_err(|err| {
+            }
+            Err(err) => {
                 log::error!("getBlockChain request failed: {}", &err);
-                err
-            });
-
-        Compat01As03::new(f).await
+                Err(err)
+            }
+        }
     }
 
     /// Ask a Witnet node for the contents of a single block.
@@ -911,13 +883,10 @@ impl Worker {
             .timeout(self.node.requests_timeout)
             .params(params)
             .expect("params failed serialization");
-        let f = self
-            .node
-            .get_client()
-            .actor
-            .send(req)
-            .flatten()
-            .map(|json| {
+        let res = self.node.get_client().actor.send(req).flatten_err().await;
+
+        match res {
+            Ok(json) => {
                 log::trace!("getBlock request result: {:?}", json);
                 // Set confirmed to true if the result contains {"confirmed": true}
                 let mut confirmed = false;
@@ -931,14 +900,12 @@ impl Worker {
                 serde_json::from_value::<Block>(json)
                     .map(|block| (block, confirmed))
                     .map_err(node_error)
-            })
-            .flatten()
-            .map_err(|err| {
+            }
+            Err(err) => {
                 log::warn!("getBlock request failed: {}", &err);
-                err
-            });
-
-        Compat01As03::new(f).await
+                Err(err)
+            }
+        }
     }
 
     pub fn handle_block(

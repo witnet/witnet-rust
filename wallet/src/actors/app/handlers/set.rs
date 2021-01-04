@@ -22,6 +22,6 @@ impl Handler<SetRequest> for app::App {
     fn handle(&mut self, req: SetRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self.set(req.session_id, req.wallet_id, req.key, req.value);
 
-        Box::new(f)
+        Box::pin(f)
     }
 }

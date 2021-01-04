@@ -163,7 +163,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         app.do_send(actors::app::Shutdown);
     });
 
-    futures::future::lazy(|| system.run()).wait()?;
+    system.run()?;
 
     log::info!("Waiting for db to shut down...");
     while Arc::strong_count(&db) > 1 {

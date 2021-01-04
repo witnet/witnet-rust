@@ -15,6 +15,7 @@ use witnet_data_structures::{
     transaction::Transaction,
     transaction_factory::FeeType,
 };
+use witnet_futures_utils::ActorFutureExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VttOutputParams {
@@ -91,7 +92,7 @@ impl Handler<CreateVttRequest> for app::App {
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)
-                .map(move |transaction, _, _| {
+                .map_ok(move |transaction, _, _| {
                     let fee = match fee_type {
                         FeeType::Absolute => msg.fee,
                         FeeType::Weighted => msg.fee * u64::from(transaction.weight()),
@@ -117,7 +118,7 @@ impl Handler<CreateVttRequest> for app::App {
                 })
         });
 
-        Box::new(f)
+        Box::pin(f)
     }
 }
 
