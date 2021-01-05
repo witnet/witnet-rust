@@ -101,68 +101,73 @@ pub fn run(conf: Config) -> Result<(), Error> {
         log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, node_client_url);
     }
 
-    let node_subscriptions = Arc::new(Mutex::new(Default::default()));
-    let node_client_actor = JsonRpcClient::start_with_subscriptions(
-        node_client_url.as_ref(),
-        node_subscriptions.clone(),
-    )
-    .map_err(|_| app::Error::NodeNotConnected)?;
-    let node_client = Arc::new(NodeClient {
-        actor: node_client_actor,
-        url: node_client_url.clone(),
-    });
-
     let db = Arc::new(
         ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
             .map_err(|e| failure::format_err!("{}", e))?,
     );
-    let params = params::Params {
-        testnet,
-        seed_password,
-        master_key_salt,
-        id_hash_iterations,
-        id_hash_function,
-        db_hash_iterations,
-        db_iv_length,
-        db_salt_length,
-        epoch_constants,
-        node_sync_batch_size,
-        genesis_hash,
-        genesis_prev_hash,
-        sync_address_batch_length,
-        max_vt_weight,
-        max_dr_weight,
-    };
 
-    let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
-        checkpoint: 0,
-        hash_prev_block: genesis_prev_hash,
-    }));
-    let network = String::from(if testnet { "Testnet" } else { "Mainnet" });
-    let node_params = params::NodeParams {
-        client: node_client.clone(),
-        last_beacon,
-        network,
-        requests_timeout,
-        subscriptions: node_subscriptions,
-    };
+    // Initialize actors inside system context
+    system.block_on(async {
+        let node_subscriptions = Arc::new(Mutex::new(Default::default()));
+        let node_client_actor = JsonRpcClient::start_with_subscriptions(
+            node_client_url.as_ref(),
+            node_subscriptions.clone(),
+        )
+        .map_err(|_| app::Error::NodeNotConnected)?;
+        let node_client = Arc::new(NodeClient {
+            actor: node_client_actor,
+            url: node_client_url.clone(),
+        });
 
-    // Start wallet actors
-    let worker = actors::Worker::start(concurrency, db.clone(), node_params, params);
-    let app = actors::App::start(actors::app::Params {
-        testnet,
-        worker,
-        client: node_client,
-        server_addr,
-        session_expires_in,
-        requests_timeout,
-    });
+        let params = params::Params {
+            testnet,
+            seed_password,
+            master_key_salt,
+            id_hash_iterations,
+            id_hash_function,
+            db_hash_iterations,
+            db_iv_length,
+            db_salt_length,
+            epoch_constants,
+            node_sync_batch_size,
+            genesis_hash,
+            genesis_prev_hash,
+            sync_address_batch_length,
+            max_vt_weight,
+            max_dr_weight,
+        };
 
-    // Intercept SIGTERM signal to gracefully close the wallet
-    signal::ctrl_c(move || {
-        app.do_send(actors::app::Shutdown);
-    });
+        let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: genesis_prev_hash,
+        }));
+        let network = String::from(if testnet { "Testnet" } else { "Mainnet" });
+        let node_params = params::NodeParams {
+            client: node_client.clone(),
+            last_beacon,
+            network,
+            requests_timeout,
+            subscriptions: node_subscriptions,
+        };
 
+        // Start wallet actors
+        let worker = actors::Worker::start(concurrency, db.clone(), node_params, params);
+        let app = actors::App::start(actors::app::Params {
+            testnet,
+            worker,
+            client: node_client,
+            server_addr,
+            session_expires_in,
+            requests_timeout,
+        });
+
+        // Intercept SIGTERM signal to gracefully close the wallet
+        signal::ctrl_c(move || {
+            app.do_send(actors::app::Shutdown);
+        });
+
+        Result::<(), Error>::Ok(())
+    })?;
     system.run()?;
 
     log::info!("Waiting for db to shut down...");
