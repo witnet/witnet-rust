@@ -1,12 +1,18 @@
 #![allow(clippy::type_complexity)]
-use actix::fut::IntoActorFuture;
-use actix::{Actor, ActorFuture};
-use pin_project_lite::pin_project;
-use std::future::Future;
-use std::pin::Pin;
-use std::task;
-use std::task::Poll;
+//! Helper functions to improve developer experience when working with `Future` and `ActorFuture`
+//! traits.
+//!
+//! The implementation of `and_then`, `map_err` and `map_ok` is based on `map` and `then` from the
+//! actix project:
+//!
+//! https://github.com/actix/actix/blob/fdaa5d50e25ffc892f5c1c6fcc51097796debecf/src/fut/map.rs
+//! https://github.com/actix/actix/blob/fdaa5d50e25ffc892f5c1c6fcc51097796debecf/src/fut/then.rs
 
+use actix::{fut::IntoActorFuture, Actor, ActorFuture};
+use pin_project_lite::pin_project;
+use std::{future::Future, pin::Pin, task, task::Poll};
+
+/// `ActorFuture` helpers
 pub trait ActorFutureExt: ActorFuture {
     fn and_then<F, B, T, T2, E>(self, f: F) -> AndThen<Self, B, F, T2, E>
     where
@@ -251,7 +257,7 @@ pub trait TryFutureExt2: Future {
     #[allow(clippy::type_complexity)]
     fn flatten_err<T, E1, E2, E>(
         self,
-    ) -> futures_util::future::Map<Self, fn(Result<Result<T, E1>, E2>) -> Result<T, E>>
+    ) -> futures::future::Map<Self, fn(Result<Result<T, E1>, E2>) -> Result<T, E>>
     where
         Self: Sized,
         Self: Future<Output = Result<Result<T, E1>, E2>>,
