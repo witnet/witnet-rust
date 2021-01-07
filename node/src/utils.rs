@@ -26,7 +26,6 @@ where
     }
 }
 
-#[cfg(test)]
 /// Helper function used to test actors
 pub fn test_actix_system<F: 'static + FnOnce() -> Fut, Fut: futures::Future>(f: F) {
     actix::System::run(|| {
