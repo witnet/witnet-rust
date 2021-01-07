@@ -2,10 +2,10 @@ use std::convert::TryFrom;
 use std::io;
 use std::io::Cursor;
 
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt};
 
 use actix::Message;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 
 const HEADER_SIZE: usize = 4; // bytes
@@ -39,8 +39,8 @@ impl Decoder for P2PCodec {
         let msg_len = src.len();
         if msg_len >= HEADER_SIZE {
             let mut header_vec = Cursor::new(&src[0..HEADER_SIZE]);
-            let msg_size = header_vec.read_u32::<BigEndian>().unwrap() as usize;
-            if msg_len >= msg_size + HEADER_SIZE {
+            let msg_size = usize::try_from(header_vec.read_u32::<BigEndian>().unwrap()).unwrap();
+            if msg_len - HEADER_SIZE >= msg_size {
                 src.advance(HEADER_SIZE);
                 ftb = Some(src.split_to(msg_size));
             }
@@ -58,22 +58,18 @@ impl Encoder<BytesMut> for P2PCodec {
 
     /// Method to encode a response into bytes
     fn encode(&mut self, bytes: BytesMut, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let mut encoded_msg = vec![];
-
-        if bytes.len() > u32::max_value() as usize {
+        let header: u32 = u32::try_from(bytes.len()).map_err(|_| {
             log::error!("Maximum message size exceeded");
-            return Err(io::Error::new(
+
+            io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("Message size {} bytes too big for u32", bytes.len()),
-            ));
-        }
-        let header: u32 = u32::try_from(bytes.len()).unwrap();
+            )
+        })?;
         // push header with msg len
-        encoded_msg.write_u32::<BigEndian>(header).unwrap();
+        dst.put_u32(header);
         // push message
-        encoded_msg.append(&mut bytes.to_vec());
-        // push message to destination
-        dst.unsplit(BytesMut::from(encoded_msg.as_slice()));
+        dst.put(bytes);
         Ok(())
     }
 }

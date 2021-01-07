@@ -53,7 +53,7 @@ impl StreamHandler<Result<BytesMut, io::Error>> for JsonRpc {
         }
         let bytes = result.unwrap();
         log::debug!("Got JSON-RPC message");
-        let msg = match String::from_utf8(bytes.to_vec()) {
+        let msg = match std::str::from_utf8(&bytes) {
             Ok(msg) => {
                 // A valid utf8 string is forwarded to the JSON-RPC parser
                 // The message is assumed to be a valid JSON-RPC, otherwise an
@@ -70,7 +70,7 @@ impl StreamHandler<Result<BytesMut, io::Error>> for JsonRpc {
                 log::debug!("{:?}", e);
 
                 // Generate a ParseError later by trying to parse an empty string
-                "".to_string()
+                ""
             }
         };
 

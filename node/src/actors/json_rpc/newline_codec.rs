@@ -1,5 +1,5 @@
 use actix::Message;
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use std::io;
 use tokio_util::codec::{Decoder, Encoder};
 
@@ -28,7 +28,7 @@ impl Decoder for NewLineCodec {
             // Split the message at the first newline
             let mut msg = src.split_to(new_line_pos + 1);
             // Strip that newline from the returned bytes
-            let _newline = msg.split_off(new_line_pos);
+            msg.truncate(new_line_pos);
             ftb = Some(msg);
         }
         // If the message is incomplete, return without consuming anything.
@@ -46,13 +46,10 @@ impl Encoder<BytesMut> for NewLineCodec {
     /// any newline characters, as the message will not be decoded correctly.
     fn encode(&mut self, bytes: BytesMut, dst: &mut BytesMut) -> Result<(), Self::Error> {
         //log::debug!("Encoding {:?}", bytes);
-        let mut encoded_msg = vec![];
         // push message
-        encoded_msg.append(&mut bytes.to_vec());
+        dst.put(bytes);
         // finish with a newline
-        encoded_msg.push(b'\n');
-        // push message to destination
-        dst.unsplit(BytesMut::from(encoded_msg.as_slice()));
+        dst.put_u8(b'\n');
         Ok(())
     }
 }
