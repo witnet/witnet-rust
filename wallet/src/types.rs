@@ -19,7 +19,7 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         CheckpointBeacon, DataRequestOutput, Hash, Input, KeyedSignature, PublicKey, PublicKeyHash,
-        RADRequest, StateMachine, SuperBlock, ValueTransferOutput,
+        RADRequest, Signature, StateMachine, SuperBlock, ValueTransferOutput,
     },
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
@@ -31,7 +31,6 @@ use witnet_data_structures::{
 use witnet_protected::{Protected, ProtectedString};
 
 use super::{db, repository};
-use witnet_data_structures::chain::Signature;
 
 pub type Password = ProtectedString;
 

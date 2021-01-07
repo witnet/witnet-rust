@@ -1,6 +1,5 @@
 use failure::Fail;
 
-pub use witnet_crypto::hash::calculate_sha256;
 use witnet_crypto::{
     cipher,
     hash::HashFunction,

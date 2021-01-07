@@ -3,13 +3,11 @@ use std::sync::Arc;
 use witnet_crypto::cipher;
 
 use super::*;
-use crate::types;
+use crate::{db::encrypted::write_batch::EncryptedWriteBatch, types};
 
 mod engine;
 mod prefix;
 mod write_batch;
-
-pub use write_batch::*;
 
 #[derive(Clone)]
 pub struct EncryptedDb {

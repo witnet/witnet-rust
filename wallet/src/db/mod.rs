@@ -6,7 +6,8 @@ mod tests;
 
 use std::fmt::Debug;
 
-pub use crate::repository::keys::Key;
+use crate::repository::keys::Key;
+
 pub use encrypted::*;
 pub use error::Error;
 pub use plain::*;
