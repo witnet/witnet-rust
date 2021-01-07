@@ -327,9 +327,8 @@ impl ChainManager {
                     }
                 }
 
-                actix::fut::ok(())
+                actix::fut::ready(())
             })
-            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 

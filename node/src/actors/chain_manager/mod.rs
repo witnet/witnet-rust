@@ -322,16 +322,14 @@ impl ChainManager {
         inventory_manager_addr
             .send(AddItems { items })
             .into_actor(self)
-            .then(|res, _act, _ctx| match res {
-                // Process the response from InventoryManager
-                Err(e) => {
+            .then(|res, _act, _ctx| {
+                if let Err(e) = res {
                     // Error when sending message
                     log::error!("Unsuccessful communication with InventoryManager: {}", e);
-                    actix::fut::err(())
                 }
-                Ok(_) => actix::fut::ok(()),
+
+                actix::fut::ready(())
             })
-            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx)
     }
 
@@ -1525,7 +1523,7 @@ impl ChainManager {
             })
             .into_actor(self)
             .then(|res, act, _ctx| match res {
-                Ok(Ok(())) => actix::fut::ok(()),
+                Ok(Ok(())) => actix::fut::ready(()),
                 _ => {
                     // On error case go back to WaitingConsensus state
                     log::warn!("Failed to send LastBeacon to random peer");
@@ -1534,10 +1532,9 @@ impl ChainManager {
                         act.sync_waiting_for_add_blocks_since = None;
                     }
 
-                    actix::fut::err(())
+                    actix::fut::ready(())
                 }
             })
-            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .spawn(ctx);
         let epoch = self.current_epoch.unwrap();
         self.sync_waiting_for_add_blocks_since = Some(epoch);
@@ -1577,7 +1574,7 @@ impl ChainManager {
                 })
                 .into_actor(self)
                 .then(move |res, _act, ctx| match res {
-                    Ok(Ok(())) => actix::fut::ok(()),
+                    Ok(Ok(())) => actix::fut::ready(()),
                     _ => {
                         // On error case go back to WaitingConsensus state
                         log::debug!("Failed to send InventoryRequest(Superblock) to random peer, retrying...");
@@ -1585,10 +1582,9 @@ impl ChainManager {
                             act.request_sync_target_superblock(ctx, superblock_beacon)
                         });
 
-                        actix::fut::err(())
+                        actix::fut::ready(())
                     }
                 })
-                .map(|_res: Result<(), ()>, _act, _ctx| ())
                 .spawn(ctx);
         }
     }

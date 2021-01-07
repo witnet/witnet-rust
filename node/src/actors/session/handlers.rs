@@ -549,8 +549,6 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                         );
                         // Set status to consolidate
                         act.status = SessionStatus::Consolidated;
-
-                        actix::fut::ok(())
                     }
                     _ => {
                         log::debug!(
@@ -559,12 +557,11 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                         );
 
                         ctx.stop();
-
-                        actix::fut::err(())
                     }
                 }
+
+                actix::fut::ready(())
             })
-            .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
 }
@@ -598,9 +595,8 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
                     ctx.stop();
                 }
             }
-            actix::fut::ok(())
+            actix::fut::ready(())
         })
-        .map(|_res: Result<(), ()>, _act, _ctx| ())
         .wait(ctx);
 }
 
@@ -957,49 +953,45 @@ fn session_last_beacon_inbound(
                             chain_manager_addr
                                 .send(GetBlocksEpochRange::new_with_const_limit(range))
                                 .into_actor(act)
-                                .then(|res, act, _ctx| match res {
-                                    Ok(Ok(blocks)) => {
-                                        // Try to create an Inv protocol message with the items to
-                                        // be announced
-                                        if let Ok(inv_msg) =
-                                            WitnetMessage::build_inventory_announcement(
-                                                act.magic_number,
-                                                blocks
-                                                    .into_iter()
-                                                    .map(|(_epoch, hash)| {
-                                                        InventoryEntry::Block(hash)
-                                                    })
-                                                    .collect(),
-                                            )
-                                        {
-                                            // Send Inv message through the session network connection
-                                            act.send_message(inv_msg);
-                                        };
-
-                                        actix::fut::ok(())
+                                .then(|res, act, _ctx| {
+                                    match res {
+                                        Ok(Ok(blocks)) => {
+                                            // Try to create an Inv protocol message with the items to
+                                            // be announced
+                                            if let Ok(inv_msg) =
+                                                WitnetMessage::build_inventory_announcement(
+                                                    act.magic_number,
+                                                    blocks
+                                                        .into_iter()
+                                                        .map(|(_epoch, hash)| {
+                                                            InventoryEntry::Block(hash)
+                                                        })
+                                                        .collect(),
+                                                )
+                                            {
+                                                // Send Inv message through the session network connection
+                                                act.send_message(inv_msg);
+                                            }
+                                        }
+                                        _ => {
+                                            log::error!("LastBeacon::EpochRange didn't succeeded");
+                                        }
                                     }
-                                    _ => {
-                                        log::error!("LastBeacon::EpochRange didn't succeeded");
 
-                                        actix::fut::err(())
-                                    }
+                                    actix::fut::ready(())
                                 })
-                                .map(|_res: Result<(), ()>, _act, _ctx| ())
                                 .wait(ctx);
                         }
                     }
-
-                    actix::fut::ok(())
                 }
                 _ => {
                     log::warn!("Failed to get highest checkpoint beacon from ChainManager");
                     ctx.stop();
-
-                    actix::fut::err(())
                 }
             }
+
+            actix::fut::ready(())
         })
-        .map(|_res: Result<(), ()>, _act, _ctx| ())
         .wait(ctx);
 }
 

@@ -204,18 +204,15 @@ impl Handler<BlockNotify> for JsonRpcServer {
                     subscription: subscription.clone(),
                 };
                 let fut01 = sink.notify(r.into());
-                ctx.spawn(
-                    Compat01As03::new(fut01)
-                        .into_actor(self)
-                        .then(move |res, _act, _ctx| {
-                            if let Err(e) = res {
-                                log::error!("Failed to send block notification: {:?}", e);
-                            }
+                ctx.spawn(Compat01As03::new(fut01).into_actor(self).then(
+                    move |res, _act, _ctx| {
+                        if let Err(e) = res {
+                            log::error!("Failed to send block notification: {:?}", e);
+                        }
 
-                            actix::fut::ok(())
-                        })
-                        .map(|_res: Result<(), ()>, _act, _ctx| ()),
-                );
+                        actix::fut::ready(())
+                    },
+                ));
             }
         } else {
             log::error!("Failed to acquire lock in BlockNotify handle");
@@ -253,9 +250,8 @@ impl Handler<SuperBlockNotify> for JsonRpcServer {
                                     log::error!("Failed to send notification: {:?}", e);
                                 }
 
-                                actix::fut::ok(())
-                            })
-                            .map(|_res: Result<(), ()>, _act, _ctx| ()),
+                                actix::fut::ready(())
+                            }),
                     );
                 }
             } else {
@@ -282,18 +278,15 @@ impl Handler<NodeStatusNotify> for JsonRpcServer {
                     subscription: subscription.clone(),
                 };
                 let fut01 = sink.notify(r.into());
-                ctx.spawn(
-                    Compat01As03::new(fut01)
-                        .into_actor(self)
-                        .then(move |res, _act, _ctx| {
-                            if let Err(e) = res {
-                                log::error!("Failed to send node status: {:?}", e);
-                            }
+                ctx.spawn(Compat01As03::new(fut01).into_actor(self).then(
+                    move |res, _act, _ctx| {
+                        if let Err(e) = res {
+                            log::error!("Failed to send node status: {:?}", e);
+                        }
 
-                            actix::fut::ok(())
-                        })
-                        .map(|_res: Result<(), ()>, _act, _ctx| ()),
-                );
+                        actix::fut::ready(())
+                    },
+                ));
             }
         } else {
             log::error!("Failed to acquire lock in NodeStatusNotify handle");

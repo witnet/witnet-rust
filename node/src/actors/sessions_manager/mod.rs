@@ -27,7 +27,6 @@ use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
     types::LastBeacon,
 };
-use witnet_futures_utils::ActorFutureExt;
 
 mod actor;
 mod beacons;
@@ -102,11 +101,7 @@ impl SessionsManager {
                     // This returns a FutureResult containing the socket address if present
                     .then(|res, act, _ctx| {
                         // Process the response from peers manager
-                        actix::fut::ok(act.process_get_peer_response(res))
-                    })
-                    // Process the socket address received
-                    // This returns a FutureResult containing a success or error
-                    .map_ok(|addresses, _act, _ctx| {
+                        let addresses = act.process_get_peer_response(res);
                         log::debug!(
                             "Trying to create a new outbound connection to {:?}",
                             addresses
@@ -120,8 +115,9 @@ impl SessionsManager {
                                 session_type: SessionType::Outbound,
                             });
                         }
+
+                        actix::fut::ready(())
                     })
-                    .map(|_res: Result<(), ()>, _act, _ctx| ())
                     .wait(ctx);
             }
             // Reschedule the bootstrap peers task
