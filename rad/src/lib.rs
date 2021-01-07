@@ -150,16 +150,15 @@ pub async fn run_retrieval_report(
     match retrieve.kind {
         RADType::HttpGet => {
             // Validate URL because surf::get panics on invalid URL
-            // It could still panic if surf gets updated and changes their URL parsing library
-            let _valid_url =
-                url::Url::parse(&retrieve.url).map_err(|err| RadError::UrlParseError {
+            let valid_url =
+                surf::Url::parse(&retrieve.url).map_err(|err| RadError::UrlParseError {
                     inner: err,
                     url: retrieve.url.clone(),
                 })?;
 
             // Set a random user-agent from the list
-            let mut response = surf::get(&retrieve.url)
-                .set_header("User-Agent", UserAgent::random())
+            let mut response = surf::RequestBuilder::new(surf::http::Method::Get, valid_url)
+                .header("User-Agent", UserAgent::random())
                 .await
                 .map_err(|x| RadError::HttpOther {
                     message: x.to_string(),
@@ -952,7 +951,11 @@ mod tests {
     #[test]
     fn test_header_correctly_set() {
         let test_header = UserAgent::random();
-        let req = surf::get("https://httpbin.org/get?page=2").set_header("User-Agent", test_header);
-        assert_eq!(req.header("User-Agent"), Some(test_header));
+        let req = surf::get("https://httpbin.org/get?page=2")
+            .header("User-Agent", test_header)
+            .build();
+        let header_values: Vec<_> = req.header("User-Agent").unwrap().into_iter().collect();
+        assert_eq!(header_values.len(), 1);
+        assert_eq!(header_values[0].as_str(), test_header);
     }
 }
