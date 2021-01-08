@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use structopt::StructOpt;
 
-use witnet_config::{config::Config, loaders};
+use witnet_config::config::Config;
 use witnet_wallet as wallet;
 
 pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Error> {
@@ -29,7 +29,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         Command::ShowConfig => {
             println!(
                 "[wallet]\n{}",
-                loaders::toml::to_string(&config.wallet).expect("Config serialization failed.")
+                toml::to_string(&config.wallet).expect("Config serialization failed.")
             );
             Ok(())
         }

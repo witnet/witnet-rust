@@ -19,9 +19,7 @@ use bech32::{FromBase32, ToBase32 as _};
 use byteorder::{BigEndian, ReadBytesExt as _};
 use failure::Fail;
 use hmac::{Hmac, Mac};
-pub use secp256k1::key::ONE_KEY;
-use secp256k1::{PublicKey, Secp256k1, SecretKey, SignOnly, VerifyOnly};
-pub use secp256k1::{Signing, Verification};
+use secp256k1::{PublicKey, Secp256k1, SecretKey, SignOnly, Signing, VerifyOnly};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

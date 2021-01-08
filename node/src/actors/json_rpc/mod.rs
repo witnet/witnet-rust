@@ -5,7 +5,6 @@ mod newline_codec;
 mod server;
 
 pub use self::server::JsonRpcServer;
-use jsonrpc_core::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -14,7 +13,7 @@ pub type Subscriptions = Arc<
     Mutex<
         HashMap<
             &'static str,
-            HashMap<jsonrpc_pubsub::SubscriptionId, (jsonrpc_pubsub::Sink, Value)>,
+            HashMap<jsonrpc_pubsub::SubscriptionId, (jsonrpc_pubsub::Sink, jsonrpc_core::Value)>,
         >,
     >,
 >;

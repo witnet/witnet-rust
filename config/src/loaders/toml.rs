@@ -6,7 +6,6 @@ use std::io;
 use std::path::Path;
 
 use failure::Fail;
-pub use toml::to_string;
 
 use crate::config::PartialConfig;
 
