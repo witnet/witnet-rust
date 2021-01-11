@@ -68,16 +68,6 @@ where
     }
 }
 
-impl<K, V> Default for Key<K, V>
-where
-    K: AsRef<[u8]> + Default,
-    V: ?Sized,
-{
-    fn default() -> Self {
-        Self::new(K::default())
-    }
-}
-
 impl<K, V> PartialEq<Key<K, V>> for Key<K, V>
 where
     K: AsRef<[u8]> + PartialEq<K>,

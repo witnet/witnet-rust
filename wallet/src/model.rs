@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     account,
-    repository::keys::Key,
     types::{number_from_string, u32_to_string, u64_to_string},
 };
 use witnet_data_structures::{
@@ -50,9 +49,6 @@ pub struct Addresses {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct AddressInfo {
-    /// Database key for storing `AddressInfo` objects
-    #[serde(skip)]
-    pub db_key: Key<String, AddressInfo>,
     pub label: Option<String>,
     pub received_payments: Vec<String>,
     #[serde(

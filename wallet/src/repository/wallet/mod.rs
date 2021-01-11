@@ -376,7 +376,6 @@ where
         }
         .to_string();
         let info = model::AddressInfo {
-            db_key: keys::address_info(account, keychain, index),
             label,
             received_payments: vec![],
             received_amount: 0,
@@ -392,7 +391,7 @@ where
             batch.put(&keys::address(account, keychain, index), &address)?;
             batch.put(&keys::address_path(account, keychain, index), &path)?;
             batch.put(&keys::address_pkh(account, keychain, index), &pkh)?;
-            batch.put(&info.db_key, &info)?;
+            batch.put(&keys::address_info(account, keychain, index), &info)?;
             batch.put(
                 &keys::pkh(&pkh),
                 &model::Path {
@@ -964,7 +963,10 @@ where
 
         // Persist addresses
         for address in addresses {
-            batch.put(&address.info.db_key, &address.info)?;
+            batch.put(
+                &keys::address_info(account, address.keychain, address.index),
+                &address.info,
+            )?;
             batch.put(
                 &keys::address(account, address.keychain, address.index),
                 &address.address,
@@ -1270,11 +1272,10 @@ where
             Transaction::ValueTransfer(_) | Transaction::Mint(_) => {
                 for (output_pointer, key_balance) in account_mutation.utxo_inserts {
                     // Retrieve previous address information
-                    let path = self.db.get(&keys::pkh(&key_balance.pkh))?;
-
                     let old_address = match addresses.entry(key_balance.pkh) {
                         Entry::Occupied(e) => e.into_mut(),
                         Entry::Vacant(e) => {
+                            let path = self.db.get(&keys::pkh(&key_balance.pkh))?;
                             // Get address from memory or DB
                             let old_address =
                                 self._get_address(state, path.account, path.keychain, path.index)?;
@@ -1292,7 +1293,6 @@ where
                         Some(info.first_payment_date.unwrap_or(current_timestamp));
                     let updated_address = model::Address {
                         info: model::AddressInfo {
-                            db_key: keys::address_info(path.account, path.keychain, path.index),
                             label: info.label.clone(),
                             received_payments,
                             received_amount: info.received_amount + key_balance.amount,

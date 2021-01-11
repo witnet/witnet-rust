@@ -130,12 +130,9 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
 fn test_list_internal_addresses() {
     let (wallet, _db) = factories::wallet(None);
 
-    let mut address1 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address1.info.db_key = Default::default();
-    let mut address2 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address2.info.db_key = Default::default();
-    let mut address3 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address3.info.db_key = Default::default();
+    let address1 = (*wallet.gen_internal_address(None).unwrap()).clone();
+    let address2 = (*wallet.gen_internal_address(None).unwrap()).clone();
+    let address3 = (*wallet.gen_internal_address(None).unwrap()).clone();
 
     let offset = 0;
     let limit = 10;
@@ -152,8 +149,7 @@ fn test_list_internal_addresses_paginated() {
     let (wallet, _db) = factories::wallet(None);
 
     let _ = wallet.gen_internal_address(None).unwrap();
-    let mut address = (*wallet.gen_internal_address(None).unwrap()).clone();
-    address.info.db_key = Default::default();
+    let address = (*wallet.gen_internal_address(None).unwrap()).clone();
     let _ = wallet.gen_internal_address(None).unwrap();
 
     let offset = 1;
