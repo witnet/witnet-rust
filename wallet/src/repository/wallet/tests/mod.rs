@@ -786,6 +786,149 @@ fn test_index_transaction_does_not_duplicate_transactions() {
 }
 
 #[test]
+fn test_index_transaction_updates_address_info() {
+    let (wallet, db) = factories::wallet(None);
+
+    assert_eq!(
+        model::BalanceInfo {
+            available: 0,
+            locked: 0,
+        },
+        db.get_or_default(&keys::account_balance(0)).unwrap()
+    );
+
+    let value = 1u64;
+    let address = wallet.gen_external_address(None).unwrap();
+    let block = factories::BlockInfo::default().create();
+    let inputs = vec![Input::default()];
+    let outputs = vec![ValueTransferOutput {
+        pkh: address.pkh,
+        value,
+        time_lock: 0,
+    }];
+    let body = VTTransactionBody::new(inputs, outputs);
+    let vtt0 = vtt_from_body(body);
+    let vtt0_hash = vtt0.transaction.hash();
+
+    wallet
+        .index_block_transactions(&block, &[vtt0], true, false)
+        .unwrap();
+
+    let address_updated = wallet
+        .get_address(address.account, address.keychain, address.index)
+        .unwrap();
+    let expected_received_payments = vec![format!("{}:0", vtt0_hash)];
+    assert_eq!(
+        address_updated.info.received_payments,
+        expected_received_payments,
+    );
+    assert_eq!(address_updated.info.received_amount, value,)
+}
+
+#[test]
+fn test_index_transaction_updates_address_info_two_outputs_same_address() {
+    // The total amount received in an address should be correctly updated when there is more than 1
+    // output per transaction
+    let (wallet, db) = factories::wallet(None);
+
+    assert_eq!(
+        model::BalanceInfo {
+            available: 0,
+            locked: 0,
+        },
+        db.get_or_default(&keys::account_balance(0)).unwrap()
+    );
+
+    let value = 1u64;
+    let address = wallet.gen_external_address(None).unwrap();
+    let block = factories::BlockInfo::default().create();
+    let inputs = vec![Input::default()];
+    let outputs = vec![
+        ValueTransferOutput {
+            pkh: address.pkh,
+            value,
+            time_lock: 0,
+        };
+        2
+    ];
+    let body = VTTransactionBody::new(inputs, outputs);
+    let vtt0 = vtt_from_body(body);
+    let vtt0_hash = vtt0.transaction.hash();
+
+    wallet
+        .index_block_transactions(&block, &[vtt0], true, false)
+        .unwrap();
+
+    let address_updated = wallet
+        .get_address(address.account, address.keychain, address.index)
+        .unwrap();
+    let expected_received_payments = vec![format!("{}:0", vtt0_hash), format!("{}:1", vtt0_hash)];
+    assert_eq!(
+        address_updated.info.received_payments,
+        expected_received_payments,
+    );
+    assert_eq!(address_updated.info.received_amount, value * 2,);
+}
+
+#[test]
+fn test_index_transaction_updates_address_info_two_transactions_same_address() {
+    // The total amount received in an address should be correctly updated when there is more than 1
+    // transaction per block
+    let (wallet, db) = factories::wallet(None);
+
+    assert_eq!(
+        model::BalanceInfo {
+            available: 0,
+            locked: 0,
+        },
+        db.get_or_default(&keys::account_balance(0)).unwrap()
+    );
+    let address = wallet.gen_external_address(None).unwrap();
+    let block = factories::BlockInfo::default().create();
+    let value = 1u64;
+
+    let vtt0 = {
+        let inputs = vec![Input::default()];
+        let outputs = vec![ValueTransferOutput {
+            pkh: address.pkh,
+            value,
+            time_lock: 0,
+        }];
+        let body = VTTransactionBody::new(inputs, outputs);
+        vtt_from_body(body)
+    };
+    let vtt1 = {
+        let inputs = vec![Input::default()];
+        let outputs = vec![ValueTransferOutput {
+            pkh: address.pkh,
+            value,
+            // Use different timelock to ensure different transaction hash
+            time_lock: 1,
+        }];
+        let body = VTTransactionBody::new(inputs, outputs);
+        vtt_from_body(body)
+    };
+
+    let vtt0_hash = vtt0.transaction.hash();
+    let vtt1_hash = vtt1.transaction.hash();
+    assert_ne!(vtt0_hash, vtt1_hash);
+
+    wallet
+        .index_block_transactions(&block, &[vtt0, vtt1], true, false)
+        .unwrap();
+
+    let address_updated = wallet
+        .get_address(address.account, address.keychain, address.index)
+        .unwrap();
+    let expected_received_payments = vec![format!("{}:0", vtt0_hash), format!("{}:0", vtt1_hash)];
+    assert_eq!(
+        address_updated.info.received_payments,
+        expected_received_payments,
+    );
+    assert_eq!(address_updated.info.received_amount, value * 2,);
+}
+
+#[test]
 fn test_index_transaction_errors_if_balance_overflow() {
     let (wallet, _db) = factories::wallet(None);
 

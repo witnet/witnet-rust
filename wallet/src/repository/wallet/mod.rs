@@ -41,6 +41,7 @@ use crate::{
 };
 
 use super::*;
+use std::collections::hash_map::Entry;
 
 mod state;
 #[cfg(test)]
@@ -745,7 +746,7 @@ where
         resynchronizing: bool,
     ) -> Result<Vec<model::BalanceMovement>> {
         let mut state = self.state.write()?;
-        let mut addresses = Vec::new();
+        let mut addresses = HashMap::new();
         let mut block_balance_movements = Vec::new();
         let mut dr_balance_movements = HashMap::new();
         let mut db_movements_to_update = Vec::new();
@@ -759,8 +760,14 @@ where
             match (tx_in_db, resynchronizing) {
                 // Transactions are only indexed if they do not exist in database, or if resynchronizing.
                 (None, _) | (_, true) => {
-                    match self._index_transaction(&mut state, txn, block_info, confirmed) {
-                        Ok(Some((balance_movement, mut new_addresses))) => {
+                    match self._index_transaction(
+                        &mut state,
+                        &mut addresses,
+                        txn,
+                        block_info,
+                        confirmed,
+                    ) {
+                        Ok(Some(balance_movement)) => {
                             if let Transaction::DataRequest(dr_tx) = &txn.transaction {
                                 dr_balance_movements.insert(
                                     dr_tx.hash().to_string(),
@@ -768,7 +775,6 @@ where
                                 );
                             }
                             block_balance_movements.push(balance_movement);
-                            addresses.append(&mut new_addresses);
                         }
                         Ok(None) => {}
                         e @ Err(_) => {
@@ -856,6 +862,8 @@ where
                     acc
                 },
             );
+
+        let addresses = addresses.into_iter().map(|(_k, v)| v).collect();
 
         // Persist into database
         if confirmed {
@@ -1210,10 +1218,11 @@ where
     fn _index_transaction(
         &self,
         state: &mut State,
+        addresses: &mut HashMap<PublicKeyHash, Arc<model::Address>>,
         txn: &model::ExtendedTransaction,
         block_info: &model::Beacon,
         confirmed: bool,
-    ) -> Result<Option<(model::BalanceMovement, Vec<Arc<model::Address>>)>> {
+    ) -> Result<Option<model::BalanceMovement>> {
         // Wallet's account mutation (utxo set changes + balance movement)
         let account_mutation =
             match self._get_account_mutation(state, &txn, &block_info, confirmed)? {
@@ -1257,16 +1266,21 @@ where
         // - Data Request and Tally transactions are ignored as they only contain refunds to data request
         // creators. By protocol the tally output can only be set to the first used input of the DR.
         // - Commit and Reveal transactions are ignored as they only contain miners addresses.
-        let addresses = match txn.transaction {
+        match txn.transaction {
             Transaction::ValueTransfer(_) | Transaction::Mint(_) => {
-                let mut addresses = vec![];
                 for (output_pointer, key_balance) in account_mutation.utxo_inserts {
                     // Retrieve previous address information
                     let path = self.db.get(&keys::pkh(&key_balance.pkh))?;
 
-                    // Get address from memory or DB
-                    let old_address =
-                        self._get_address(state, path.account, path.keychain, path.index)?;
+                    let old_address = match addresses.entry(key_balance.pkh) {
+                        Entry::Occupied(e) => e.into_mut(),
+                        Entry::Vacant(e) => {
+                            // Get address from memory or DB
+                            let old_address =
+                                self._get_address(state, path.account, path.keychain, path.index)?;
+                            e.insert(old_address)
+                        }
+                    };
 
                     // Build the new address information
                     let info = &old_address.info;
@@ -1285,7 +1299,7 @@ where
                             first_payment_date,
                             last_payment_date: Some(current_timestamp),
                         },
-                        ..(*old_address).clone()
+                        ..(**old_address).clone()
                     };
 
                     log::trace!(
@@ -1294,15 +1308,13 @@ where
                         updated_address
                     );
 
-                    addresses.push(Arc::new(updated_address));
+                    *old_address = Arc::new(updated_address);
                 }
-
-                addresses
             }
-            _ => vec![],
-        };
+            _ => {}
+        }
 
-        Ok(Some((account_mutation.balance_movement, addresses)))
+        Ok(Some(account_mutation.balance_movement))
     }
 
     // TODO: notify client of new local pending transaction
