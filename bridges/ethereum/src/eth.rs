@@ -3,10 +3,7 @@ use ethabi::Bytes;
 use futures::Future;
 use futures_locks::RwLock;
 use std::collections::{HashMap, HashSet};
-use web3::{
-    contract::Contract,
-    types::{H160, H256, U256},
-};
+use web3::{contract::Contract, types::{H160, H256, U256}, contract};
 use witnet_data_structures::chain::Hash;
 
 /// State of a data request in the WRB contract, including local intermediate states
@@ -424,6 +421,36 @@ impl EthState {
             wrb_requests,
         })
     }
+}
+
+/// Assume the first return value of an event log is a U256 and return it
+pub fn read_u256_from_event_log(value: &web3::types::Log) -> Result<U256, ()> {
+    let event_types = vec![ethabi::ParamType::Uint(0)];
+    let event_data = ethabi::decode(&event_types, &value.data.0);
+    log::debug!("Event data: {:?}", event_data);
+
+    // Errors are handled by the caller, if this fails there is nothing we can do
+    match event_data.map_err(|_| ())?.get(0).ok_or(())? {
+        Token::Uint(x) => Ok(*x),
+        _ => Err(()),
+    }
+}
+
+/// Function to get the gas price for a given dr id
+pub fn get_gas_price(
+    dr_id: U256,
+    config: &Config,
+    eth_state: &EthState,
+) -> impl Future<Item = U256, Error = web3::contract::Error> {
+    let wrb_contract = eth_state.wrb_contract.clone();
+    let eth_account = config.eth_account;
+    wrb_contract.query(
+        "readGasPrice",
+        dr_id,
+        eth_account,
+        contract::Options::default(),
+        None,
+    )
 }
 
 /// Possible ethereum events emited by the WRB ethereum contract

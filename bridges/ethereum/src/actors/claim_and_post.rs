@@ -314,7 +314,32 @@ fn try_to_claim_local_query(
                 )
             }
         })
-        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
+        .and_then({
+            let eth_state = Arc::clone(&eth_state);
+
+            move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
+                Box::new(
+                    eth_state.wrb_contract
+                        .query(
+                            "readGasPrice",
+                            dr_id,
+                            eth_account,
+                            contract::Options::default(),
+                            None,
+                        )
+                        .map_err(move |e| {
+                            log::warn!(
+                                "[{}] Error in params reception:  {}",
+                                dr_id, e);
+                        })
+                        .map(move |gas_price:U256 | {
+
+                            (poe, sign_addr, witnet_pk, dr_output, u_point , v_point, gas_price)
+                        }),
+                )
+            }
+        })
+        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point, gas_price)| {
             let mut sign_addr2 = sign_addr.clone();
             // Append v value to the signature, as it is needed by Ethereum but
             // it is not provided by OpenSSL. Fortunately, it is only 1 bit so
@@ -326,7 +351,10 @@ fn try_to_claim_local_query(
                     "claimDataRequests",
                     (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr.clone()),
                     eth_account,
-                    contract::Options::default(),
+                    contract::Options {
+                        gas_price: Some(gas_price),
+                        ..contract::Options::default()
+                    },
                     None,
                 )
                 .map(|_: Token| sign_addr);
@@ -337,7 +365,10 @@ fn try_to_claim_local_query(
                     "claimDataRequests",
                     (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr2.clone()),
                     eth_account,
-                    contract::Options::default(),
+                    contract::Options {
+                        gas_price: Some(gas_price),
+                        ..contract::Options::default()
+                    },
                     None,
                 )
                 .map(|_: Token| sign_addr2);

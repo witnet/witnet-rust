@@ -18,6 +18,7 @@ use witnet_data_structures::{
     chain::{Block, Hash, Hashable},
     transaction::{DRTransaction, TallyTransaction},
 };
+use crate::eth::get_gas_price;
 
 /// Function to get blocks from the witnet client provided an array of block hashes
 pub fn get_blocks(
@@ -67,7 +68,6 @@ pub fn block_relay_and_poi(
             let wait_for_witnet_block_tx2 = wait_for_witnet_block_tx.clone();
             let enable_claim_and_inclusion = config.enable_claim_and_inclusion;
             let enable_result_reporting = config.enable_result_reporting;
-            let wrb_contract = eth_state.wrb_contract.clone();
             let block_relay_contract = eth_state.block_relay_contract.clone();
 
             let witnet_client = Arc::clone(&witnet_client);
@@ -147,7 +147,6 @@ pub fn block_relay_and_poi(
                                                 );
                                                 log::info!("[{}] Claimed dr got included in witnet block!", dr_id);
                                                 log::info!("[{}] Sending proof of inclusion to WRB wrb_contract", dr_id);
-
                                                 including.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch));
                                             }
                                         }
@@ -183,6 +182,7 @@ pub fn block_relay_and_poi(
                                                     .collect();
                                                 let poi_index = U256::from(tally_inclusion_proof.index);
                                                 let result: Bytes = tally.tally.clone();
+
                                                 resolving.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone()));
                                             }
                                         }
@@ -291,29 +291,43 @@ pub fn block_relay_and_poi(
                                                     let wrb_requests = eth_state.wrb_requests.clone();
                                                     let params_str = format!("{:?}", (dr_id, poi.clone(), poi_index, block_hash, block_epoch));
                                                     tokio::spawn(
-                                                        wrb_contract
-                                                            .call_with_confirmations(
-                                                                "reportDataRequestInclusion",
-                                                                (dr_id, poi, poi_index, block_hash, block_epoch),
-                                                                eth_account,
-                                                                contract::Options::with(|opt| {
-                                                                    opt.gas = config.gas_limits.report_data_request_inclusion.map(Into::into);
-                                                                }),
-                                                                1,
-                                                            )
-
-                                                            .then(move |tx| {
-                                                                match tx {
-                                                                    Ok(tx) => {
-                                                                        log::debug!("reportDataRequestInclusion: {:?}", tx);
-                                                                        Either::A(handle_receipt(tx).map_err(|()| log::error!("handle_receipt: transaction failed")))
-                                                                    }
-                                                                    Err(e) => {
-                                                                        log::error!("reportDataRequestInclusion{}: {:?}", params_str, e);
-                                                                        Either::B(wrb_requests.write().map(move |mut wrb_requests| wrb_requests.undo_including(dr_id)))
-                                                                    }
-                                                                }
-                                                            }),
+                                                        get_gas_price(dr_id, &config, &eth_state)
+                                                            .map_err(move |e| {
+                                                                log::warn!(
+                                                                    "[{}] Error in params reception:  {}",
+                                                                    dr_id, e);
+                                                            })
+                                                            .map(move |gas_price: U256| {
+                                                                gas_price
+                                                            }).and_then({
+                                                            let config = Arc::clone(&config);
+                                                            let wrb_contract = eth_state.wrb_contract.clone();
+                                                            move |gas_price| {
+                                                                wrb_contract
+                                                                    .call_with_confirmations(
+                                                                        "reportDataRequestInclusion",
+                                                                        (dr_id, poi, poi_index, block_hash, block_epoch),
+                                                                        eth_account,
+                                                                        contract::Options::with(|opt| {
+                                                                            opt.gas = config.gas_limits.report_data_request_inclusion.map(Into::into);
+                                                                            opt.gas_price = Some(gas_price)
+                                                                        }),
+                                                                        1,
+                                                                    )
+                                                                    .then(move |tx| {
+                                                                        match tx {
+                                                                            Ok(tx) => {
+                                                                                log::debug!("reportDataRequestInclusion: {:?}", tx);
+                                                                                Either::A(handle_receipt(tx).map_err(|()| log::error!("handle_receipt: transaction failed")))
+                                                                            }
+                                                                            Err(e) => {
+                                                                                log::error!("reportDataRequestInclusion{}: {:?}", params_str, e);
+                                                                                Either::B(wrb_requests.write().map(move |mut wrb_requests| wrb_requests.undo_including(dr_id)))
+                                                                            }
+                                                                        }
+                                                                    })
+                                                            }
+                                                        })
                                                     );
                                                 }
                                             }
@@ -323,28 +337,44 @@ pub fn block_relay_and_poi(
                                                     let wrb_requests = eth_state.wrb_requests.clone();
                                                     let params_str = format!("{:?}", &(dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone()));
                                                     tokio::spawn(
-                                                        wrb_contract
-                                                            .call_with_confirmations(
-                                                                "reportResult",
-                                                                (dr_id, poi, poi_index, block_hash, block_epoch, result),
-                                                                eth_account,
-                                                                contract::Options::with(|opt| {
-                                                                    opt.gas = config.gas_limits.report_result.map(Into::into);
-                                                                }),
-                                                                1,
-                                                            )
-                                                            .then(move |tx| {
-                                                                match tx {
-                                                                    Ok(tx) => {
-                                                                        log::debug!("reportResult: {:?}", tx);
-                                                                        Either::A(handle_receipt(tx).map_err(|()| log::error!("handle_receipt: transaction failed")))
-                                                                    }
-                                                                    Err(e) => {
-                                                                        log::error!("reportResult{}: {:?}", params_str, e);
-                                                                        Either::B(wrb_requests.write().map(move |mut wrb_requests| wrb_requests.undo_resolving(dr_id)))
-                                                                    }
-                                                                }
-                                                            }),
+                                                        get_gas_price(dr_id, &config, &eth_state)
+                                                            .map_err(move |e| {
+                                                                log::warn!(
+                                                                    "[{}] Error in params reception:  {}",
+                                                                    dr_id, e);
+                                                            })
+                                                            .map(move |gas_price: U256| {
+                                                                gas_price
+                                                            }).and_then({
+                                                            let config = Arc::clone(&config);
+                                                            let eth_state = Arc::clone(&eth_state);
+                                                            let wrb_contract = eth_state.wrb_contract.clone();
+                                                            move |gas_price| {
+                                                                wrb_contract
+                                                                    .call_with_confirmations(
+                                                                        "reportResult",
+                                                                        (dr_id, poi, poi_index, block_hash, block_epoch, result),
+                                                                        eth_account,
+                                                                        contract::Options::with(|opt| {
+                                                                            opt.gas = config.gas_limits.report_result.map(Into::into);
+                                                                            opt.gas_price = Some(gas_price);
+                                                                        }),
+                                                                        1,
+                                                                    )
+                                                                    .then(move |tx| {
+                                                                        match tx {
+                                                                            Ok(tx) => {
+                                                                                log::debug!("reportResult: {:?}", tx);
+                                                                                Either::A(handle_receipt(tx).map_err(|()| log::error!("handle_receipt: transaction failed")))
+                                                                            }
+                                                                            Err(e) => {
+                                                                                log::error!("reportResult{}: {:?}", params_str, e);
+                                                                                Either::B(wrb_requests.write().map(move |mut wrb_requests| wrb_requests.undo_resolving(dr_id)))
+                                                                            }
+                                                                        }
+                                                                    })
+                                                            }
+                                                        })
                                                     );
                                                 }
                                             }
