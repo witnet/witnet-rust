@@ -21,6 +21,15 @@ pub struct TransactionInfo {
     pub fee: u64,
 }
 
+// Structure that the includes the confirmed and pending balance of a node
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeBalance {
+    /// Total amount of a node's funds after last confirmed superblock
+    pub confirmed: u64,
+    /// Total amount of node's funds after last block
+    pub total: u64,
+}
+
 /// Fee type distinguished between absolute or Weighted (fee/weight unit)
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum FeeType {
@@ -236,9 +245,14 @@ pub fn calculate_weight(
 }
 
 /// Get total balance
-pub fn get_total_balance(all_utxos: &UnspentOutputsPool, pkh: PublicKeyHash) -> u64 {
+pub fn get_total_balance(
+    all_utxos: &UnspentOutputsPool,
+    old_all_utxos: Option<&UnspentOutputsPool>,
+    pkh: PublicKeyHash,
+) -> NodeBalance {
     // FIXME: this does not scale, we need to be able to get UTXOs by PKH
-    all_utxos
+    // Get the balance of the current utxo set
+    let new_balance = all_utxos
         .iter()
         .filter_map(|(_output_pointer, (vto, _))| {
             if vto.pkh == pkh {
@@ -247,7 +261,27 @@ pub fn get_total_balance(all_utxos: &UnspentOutputsPool, pkh: PublicKeyHash) -> 
                 None
             }
         })
-        .sum()
+        .sum();
+
+    // Get the balance of the confirmed utxo set from storage
+    let old_balance = match old_all_utxos {
+        Some(old_all_utxos) => old_all_utxos
+            .iter()
+            .filter_map(|(_output_pointer, (vto, _))| {
+                if vto.pkh == pkh {
+                    Some(vto.value)
+                } else {
+                    None
+                }
+            })
+            .sum(),
+        None => 0,
+    };
+
+    NodeBalance {
+        confirmed: old_balance,
+        total: new_balance,
+    }
 }
 
 /// If the change_amount is greater than 0, insert a change output using the supplied `pkh`.
@@ -485,6 +519,13 @@ mod tests {
         PublicKeyHash::from_public_key(&PublicKey {
             compressed: 2,
             bytes: [0x01; 32],
+        })
+    }
+
+    fn bob_pkh() -> PublicKeyHash {
+        PublicKeyHash::from_public_key(&PublicKey {
+            compressed: 2,
+            bytes: [0x04; 32],
         })
     }
 
@@ -1134,6 +1175,87 @@ mod tests {
         // Execute transaction t6
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t6]);
         assert!(own_utxos.is_empty(), "{:?}", own_utxos);
+    }
+
+    #[test]
+    fn test_get_total_balance() {
+        let own_pkh = my_pkh();
+        let bob_pkh = bob_pkh();
+        // Different outputs with total value: 1000
+        let outputs = vec![
+            pay_me(1),
+            pay_me(5),
+            pay_me(10),
+            pay_me(50),
+            pay_me(100),
+            pay_me(500),
+            pay_me(334),
+        ];
+        let (_own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        // If the utxo set from the storage is None it should set the confirmed bbalance to 0
+        assert_eq!(
+            get_total_balance(&all_utxos, None, own_pkh),
+            NodeBalance {
+                confirmed: 0,
+                total: 1000,
+            }
+        );
+        // Assert the balance is 1000 when the superblock is confirmed
+        assert_eq!(
+            get_total_balance(&all_utxos, Some(&all_utxos), own_pkh),
+            NodeBalance {
+                confirmed: 1000,
+                total: 1000,
+            }
+        );
+
+        let outputs2 = vec![
+            pay_me(5),
+            pay_me(10),
+            pay_me(50),
+            pay_me(1),
+            pay_me(500),
+            pay_me(334),
+            pay_bob(100),
+        ];
+        let (mut _own_utxos, all_utxos_2) = build_utxo_set(outputs2, None, vec![]);
+        // Assert the balance is 900 after paying 100 to Bob
+        assert_eq!(
+            get_total_balance(&all_utxos_2, Some(&all_utxos), own_pkh),
+            NodeBalance {
+                confirmed: 1000,
+                total: 900,
+            }
+        );
+        // Asster Bob's balance is 100
+        assert_eq!(
+            get_total_balance(&all_utxos_2, Some(&all_utxos), bob_pkh),
+            NodeBalance {
+                confirmed: 0,
+                total: 100,
+            }
+        );
+
+        let outputs3 = vec![
+            pay_me(5),
+            pay_me(10),
+            pay_me(50),
+            pay_me(1),
+            pay_me(500),
+            pay_me(334),
+            pay_bob(100),
+            pay_me(600),
+        ];
+
+        let (mut _own_utxos, all_utxos_3) = build_utxo_set(outputs3, None, vec![]);
+        // Assert the balance is 1500 after receiving 600
+        assert_eq!(
+            get_total_balance(&all_utxos_3, Some(&all_utxos_2), own_pkh),
+            NodeBalance {
+                confirmed: 900,
+                total: 1500,
+            }
+        );
     }
 
     #[test]

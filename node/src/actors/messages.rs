@@ -23,6 +23,7 @@ use witnet_data_structures::{
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
+    transaction_factory::NodeBalance,
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
@@ -245,7 +246,7 @@ pub struct GetBalance {
 }
 
 impl Message for GetBalance {
-    type Result = Result<u64, failure::Error>;
+    type Result = Result<NodeBalance, failure::Error>;
 }
 
 /// Get Balance

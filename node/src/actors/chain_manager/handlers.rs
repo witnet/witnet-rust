@@ -11,7 +11,7 @@ use witnet_data_structures::{
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
-    transaction_factory,
+    transaction_factory::{self, NodeBalance},
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
@@ -33,6 +33,7 @@ use crate::{
             TryMineBlock,
         },
         sessions_manager::SessionsManager,
+        storage_keys,
     },
     signature_mngr, storage_mngr,
     utils::mode_consensus,
@@ -1292,20 +1293,34 @@ impl Handler<GetDataRequestInfo> for ChainManager {
 }
 
 impl Handler<GetBalance> for ChainManager {
-    type Result = Result<u64, failure::Error>;
+    type Result = ResponseActFuture<Self, Result<NodeBalance, failure::Error>>;
 
     fn handle(&mut self, GetBalance { pkh }: GetBalance, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced {
-                current_state: self.sm_state,
-            }
-            .into());
+            return Box::pin(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
         }
 
-        Ok(transaction_factory::get_total_balance(
-            &self.chain_state.unspent_outputs_pool,
-            pkh,
-        ))
+        let magic = self.get_magic();
+
+        let res = storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
+            .into_actor(self)
+            .map(move |chain_state_from_storage, act, _| {
+                chain_state_from_storage.map(|x| {
+                    transaction_factory::get_total_balance(
+                        &act.chain_state.unspent_outputs_pool,
+                        // If there is no chain state in storage, send None and set the balance to 0
+                        x.as_ref().map(|x| &x.unspent_outputs_pool),
+                        pkh,
+                    )
+                })
+            });
+
+        Box::pin(res)
     }
 }
 

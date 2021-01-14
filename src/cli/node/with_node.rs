@@ -345,7 +345,12 @@ pub enum Command {
     #[structopt(
         name = "balance",
         alias = "getBalance",
-        about = "Get total balance of the given account"
+        about = "Get the balance of the given account",
+        long_about = "Get the confirmed and pending balance of the given account:\n\n\
+                      
+                      Confirmed balance: balance that has been confirmed in a superblock by a majority of the network.\n\n\
+                      
+                      Pending balance: balance that is waiting to be confirmed. Negative amount corresponds to transactions sent by the given account."
     )]
     GetBalance {
         /// Socket address of the Witnet node to query

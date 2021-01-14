@@ -27,6 +27,7 @@ use witnet_data_structures::{
     },
     proto::ProtobufConvert,
     transaction::Transaction,
+    transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
 use witnet_node::actors::{
@@ -99,11 +100,25 @@ pub fn get_balance(addr: SocketAddr, pkh: Option<PublicKeyHash>) -> Result<(), f
     );
     let response = send_request(&mut stream, &request)?;
     log::info!("{}", response);
-    let amount = parse_response::<u64>(&response)?;
-
-    println!("{} wits", Wit::from_nanowits(amount));
-
+    let amount = parse_response::<NodeBalance>(&response)?;
+    println!(
+        "Confirmed balance:   {} wits\n\
+        Pending balance:     {} wits",
+        Wit::from_nanowits(amount.confirmed),
+        wit_difference_to_string(amount.confirmed, amount.total)
+    );
     Ok(())
+}
+
+// Check if the pending balance is positive or negative
+fn wit_difference_to_string(confirmed: u64, total: u64) -> String {
+    if total >= confirmed {
+        Wit::from_nanowits(total - confirmed).to_string()
+    } else {
+        let mut neg = String::from("-");
+        neg.push_str(&Wit::from_nanowits(confirmed - total).to_string());
+        neg
+    }
 }
 
 pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
