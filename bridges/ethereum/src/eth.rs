@@ -453,6 +453,23 @@ pub fn get_gas_price(
     )
 }
 
+/// Function to get the gas price for a given dr id
+pub fn get_dr_result(
+    dr_id: U256,
+    config: &Config,
+    eth_state: &EthState,
+) -> impl Future<Item = Bytes, Error = web3::contract::Error> {
+    let wrb_contract = eth_state.wrb_contract.clone();
+    let eth_account = config.eth_account;
+    wrb_contract.query(
+        "readResult",
+        dr_id,
+        eth_account,
+        contract::Options::default(),
+        None,
+    )
+}   
+
 /// Possible ethereum events emited by the WRB ethereum contract
 pub enum WrbEvent {
     /// A new data request has been posted to ethereum
