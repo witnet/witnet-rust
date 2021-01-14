@@ -80,11 +80,9 @@ pub fn modulo(input: &RadonInteger, args: &[Value]) -> Result<RadonInteger, RadE
     let arg = args.first().ok_or_else(wrong_args)?.to_owned();
     let modulo = from_value::<i128>(arg).map_err(|_| wrong_args())?;
 
-    // TODO: Modify by checked_rem_euclid in rust 1.38
-    if modulo != 0 {
-        Ok(RadonInteger::from(input.value() % modulo))
-    } else {
-        Err(RadError::Overflow)
+    match input.value().checked_rem(modulo) {
+        Some(x) => Ok(RadonInteger::from(x)),
+        None => Err(RadError::Overflow),
     }
 }
 
@@ -226,7 +224,6 @@ fn test_integer_negate() {
 
 #[test]
 fn test_integer_modulo() {
-    // TODO: Modify test results after use checked_rem_euclid in rust 1.38
     assert_eq!(
         modulo(&RadonInteger::from(5), &[Value::Integer(3)]).unwrap(),
         RadonInteger::from(2)
@@ -242,6 +239,16 @@ fn test_integer_modulo() {
     assert_eq!(
         modulo(&RadonInteger::from(-5), &[Value::Integer(-3)]).unwrap(),
         RadonInteger::from(-2)
+    );
+
+    assert_eq!(
+        modulo(&RadonInteger::from(5), &[Value::Integer(0)]).unwrap_err(),
+        RadError::Overflow,
+    );
+
+    assert_eq!(
+        modulo(&RadonInteger::from(i128::MIN), &[Value::Integer(-1)]).unwrap_err(),
+        RadError::Overflow,
     );
 }
 
