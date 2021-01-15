@@ -212,7 +212,13 @@ impl PartialEq for RadonTypes {
 impl std::hash::Hash for RadonTypes {
     // FIXME(953): Unify all CBOR libraries
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.encode().map(|vec| vec.hash(state)).unwrap();
+        match self.encode() {
+            Ok(vec) => vec.hash(state),
+            Err(e) => {
+                let error_vec = e.to_string();
+                error_vec.hash(state)
+            }
+        }
     }
 }
 
@@ -462,6 +468,7 @@ pub fn serial_iter_decode<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn serial_iter_decode_invalid_reveals() {
@@ -551,5 +558,15 @@ mod tests {
         assert_eq!(radon_types_short_array, expected_short_array);
         assert_eq!(rad_error_bad_error_code, expected_bad_error_code);
         assert_eq!(rad_error_unknown_error_code, expected_unknown_error_code);
+    }
+
+    #[test]
+    fn test_radon_types_big_number_hash() {
+        let big_number = RadonTypes::from(RadonInteger::from(18446744073709551616));
+
+        let mut hs: HashSet<RadonTypes> = HashSet::default();
+        hs.insert(big_number.clone());
+
+        assert!(hs.contains(&big_number));
     }
 }

@@ -45,6 +45,7 @@ fn run_dr_locally_with_data(
     data: &[&str],
 ) -> Result<RadonTypes, failure::Error> {
     let mut retrieval_results = vec![];
+    assert_eq!(dr.data_request.retrieve.len(), data.len());
     for (r, d) in dr.data_request.retrieve.iter().zip(data.iter()) {
         log::info!("Running retrieval for {}", r.url);
         retrieval_results.push(witnet_rad::run_retrieval_with_data(

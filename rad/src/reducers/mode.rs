@@ -164,4 +164,17 @@ mod tests {
         let output = mode(&input).unwrap();
         assert_eq!(output, expected);
     }
+
+    #[test]
+    fn test_mode_big_number() {
+        let input = RadonArray::from(vec![
+            RadonInteger::from(18446744073709551616).into(),
+            RadonInteger::from(18446744073709551616).into(),
+            RadonInteger::from(2).into(),
+        ]);
+
+        let expected = RadonTypes::from(RadonInteger::from(18446744073709551616));
+        let output = mode(&input).unwrap();
+        assert_eq!(output, expected);
+    }
 }
