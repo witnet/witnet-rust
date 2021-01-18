@@ -1,6 +1,11 @@
 //! Actor which tries to claim data requests from WRB and posts them to Witnet
 
-use crate::{actors::handle_receipt, actors::ClaimMsg, config::Config, eth::EthState};
+use crate::{
+    actors::handle_receipt,
+    actors::ClaimMsg,
+    config::Config,
+    eth::{get_gas_price, EthState},
+};
 use async_jsonrpc_client::{futures::Stream, transports::tcp::TcpSocket, Transport};
 use ethabi::{Bytes, Token};
 use futures::{future::Either, sink::Sink};
@@ -43,7 +48,7 @@ fn try_to_claim_local_query(
     eth_state.wrb_contract
         .query(
             "checkDataRequestsClaimability",
-            (vec![dr_id],),
+            (vec![dr_id], ),
             eth_account,
             contract::Options::default(),
             None,
@@ -58,7 +63,7 @@ fn try_to_claim_local_query(
                         Either::A(eth_state.wrb_contract
                             .query(
                                 "readDataRequest",
-                                (dr_id,),
+                                (dr_id, ),
                                 eth_account,
                                 contract::Options::default(),
                                 None,
@@ -70,8 +75,6 @@ fn try_to_claim_local_query(
                         Either::B(futures::failed(()))
                     }
                 }
-
-
             }
         })
         .and_then({
@@ -111,9 +114,9 @@ fn try_to_claim_local_query(
                                     x
                                 } else {
                                     log::warn!(
-                                    "[{}] uses an invalid serialization, will be ignored.\nETH DR BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
-                                    dr_id, dr_bytes, witnet_dr_bytes
-                                );
+                                        "[{}] uses an invalid serialization, will be ignored.\nETH DR BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
+                                        dr_id, dr_bytes, witnet_dr_bytes
+                                    );
                                     log::warn!("This usually happens when some fields are set to 0. \
                                        The Rust implementation of ProtocolBuffer skips those fields, \
                                        as missing fields are deserialized with the default value.");
@@ -121,18 +124,18 @@ fn try_to_claim_local_query(
                                 },
                                 Err(e) => {
                                     log::warn!(
-                                    "[{}] uses an invalid serialization, will be ignored: {:?}",
-                                    dr_id, e
-                                );
+                                        "[{}] uses an invalid serialization, will be ignored: {:?}",
+                                        dr_id, e
+                                    );
                                     return Either::B(ignore_dr(dr_id));
                                 }
                             }
-                        },
+                        }
                         Err(e) => {
                             log::warn!(
-                            "[{}] uses an invalid serialization, will be ignored: {:?}",
-                            dr_id, e
-                        );
+                                "[{}] uses an invalid serialization, will be ignored: {:?}",
+                                dr_id, e
+                            );
                             return Either::B(ignore_dr(dr_id));
                         }
                     };
@@ -223,20 +226,20 @@ fn try_to_claim_local_query(
                     }
                     e => {
                         log::error!(
-                        "Error deserializing value from witnet JSONRPC: {:?}",
-                        e
-                    );
+                            "Error deserializing value from witnet JSONRPC: {:?}",
+                            e
+                        );
                         let fut: Box<
-                            dyn Future<Item = (_, _, _, _, _), Error = ()> + Send,
+                            dyn Future<Item=(_, _, _, _, _), Error=()> + Send,
                         > = Box::new(futures::failed(()));
                         return fut;
                     }
                 };
 
                 log::debug!(
-                "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
-                poe, witnet_pk, sign_addr
-            );
+                    "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
+                    poe, witnet_pk, sign_addr
+                );
                 log::info!("[{}] Checking eligibility for claiming dr", dr_id);
 
                 Box::new(
@@ -250,8 +253,8 @@ fn try_to_claim_local_query(
                         )
                         .map_err(move |e| {
                             log::warn!(
-                            "[{}] Error decoding public Key:  {}",
-                            dr_id, e);
+                                "[{}] Error decoding public Key:  {}",
+                                dr_id, e);
                         })
                         .map(move |pk: [U256; 2]| {
                             log::debug!("Received public key decode Point: {:?}", pk);
@@ -265,7 +268,6 @@ fn try_to_claim_local_query(
             let eth_state = Arc::clone(&eth_state);
 
             move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
-
                 Box::new(
                     eth_state.wrb_contract
                         .query(
@@ -277,8 +279,8 @@ fn try_to_claim_local_query(
                         )
                         .map_err(move |e| {
                             log::warn!(
-                            "[{}] Error decoding proof:  {}",
-                            dr_id, e);
+                                "[{}] Error decoding proof:  {}",
+                                dr_id, e);
                         })
                         .map(move |proof: [U256; 4]| {
                             log::debug!("Received proof decode Point: {:?}", proof);
@@ -303,13 +305,13 @@ fn try_to_claim_local_query(
                         )
                         .map_err(move |e| {
                             log::warn!(
-                            "[{}] Error in params reception:  {}",
-                            dr_id, e);
+                                "[{}] Error in params reception:  {}",
+                                dr_id, e);
                         })
                         .map(move |(u_point, v_point): ([U256; 2], [U256; 4])| {
                             log::debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
 
-                            (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
+                            (poe, sign_addr, witnet_pk, dr_output, u_point, v_point)
                         }),
                 )
             }
@@ -317,29 +319,21 @@ fn try_to_claim_local_query(
         .and_then({
             let eth_state = Arc::clone(&eth_state);
 
-            move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
+            move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
                 Box::new(
-                    eth_state.wrb_contract
-                        .query(
-                            "readGasPrice",
-                            dr_id,
-                            eth_account,
-                            contract::Options::default(),
-                            None,
-                        )
+                    get_gas_price(dr_id, &config, &eth_state)
                         .map_err(move |e| {
                             log::warn!(
                                 "[{}] Error in params reception:  {}",
                                 dr_id, e);
                         })
-                        .map(move |gas_price:U256 | {
-
-                            (poe, sign_addr, witnet_pk, dr_output, u_point , v_point, gas_price)
+                        .map(move |gas_price: U256| {
+                            (poe, sign_addr, witnet_pk, dr_output, u_point, v_point, gas_price)
                         }),
                 )
             }
         })
-        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point, gas_price)| {
+        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point, gas_price)| {
             let mut sign_addr2 = sign_addr.clone();
             // Append v value to the signature, as it is needed by Ethereum but
             // it is not provided by OpenSSL. Fortunately, it is only 1 bit so
@@ -388,7 +382,6 @@ fn try_to_claim_local_query(
                         (poe, sign_addr, witnet_pk, dr_output, u_point, v_point)
                     }),
             )
-
         })
         .map(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
             (dr_output, (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr))

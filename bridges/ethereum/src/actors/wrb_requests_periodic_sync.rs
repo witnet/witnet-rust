@@ -1,7 +1,7 @@
 //! Periodically check the state of the requests in the WRB
 
 use crate::actors::ClaimMsg;
-use crate::eth::DrState;
+use crate::eth::{get_dr_hash, get_dr_result, DrState};
 use crate::{config::Config, eth::EthState};
 use async_jsonrpc_client::futures::Stream;
 use ethabi::Bytes;
@@ -136,17 +136,9 @@ fn check_wrb_new_dr_state(
     tx: mpsc::Sender<ClaimMsg>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
-    log::info!("[{}] Getting new request", dr_id);
     let eth_account = config.eth_account;
-    eth_state
-        .wrb_contract
-        .query(
-            "readResult",
-            (dr_id,),
-            eth_account,
-            contract::Options::default(),
-            None,
-        )
+    log::info!("[{}] Getting new request", dr_id);
+    get_dr_result(dr_id, &config, &eth_state)
         .map_err(|e| log::error!("readResult: {:?}", e))
         .map(move |x: Bytes| (x, dr_id))
         .and_then(move |(result, dr_id)| {
@@ -159,15 +151,7 @@ fn check_wrb_new_dr_state(
             } else {
                 // Not in Resolved state
                 Either::B(
-                    eth_state
-                        .wrb_contract
-                        .query(
-                            "readDrHash",
-                            (dr_id,),
-                            eth_account,
-                            contract::Options::default(),
-                            None,
-                        )
+                    get_dr_hash(dr_id, &config, &eth_state)
                         .map_err(|e| log::error!("readDrHash: {:?}", e))
                         .map(move |x: U256| (x, dr_id))
                         .and_then(move |(dr_tx_hash, dr_id)| {
@@ -242,17 +226,9 @@ fn check_wrb_existing_dr_state(
     eth_state: Arc<EthState>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
-    log::debug!("[{}] Getting existing request", dr_id);
     let eth_account = config.eth_account;
-    eth_state
-        .wrb_contract
-        .query(
-            "readResult",
-            (dr_id,),
-            eth_account,
-            contract::Options::default(),
-            None,
-        )
+    log::debug!("[{}] Getting existing request", dr_id);
+    get_dr_result(dr_id, &config, &eth_state)
         .map_err(|e| log::error!("readResult: {:?}", e))
         .map(move |x: Bytes| (x, dr_id))
         .and_then(move |(result, dr_id)| {
@@ -265,16 +241,8 @@ fn check_wrb_existing_dr_state(
             } else {
                 // Not in Resolved state
                 Either::B(
-                    eth_state
-                        .wrb_contract
-                        .query(
-                            "readDrHash",
-                            (dr_id,),
-                            eth_account,
-                            contract::Options::default(),
-                            None,
-                        )
-                        .map_err(|e| log::error!("readResult: {:?}", e))
+                    get_dr_hash(dr_id, &config, &eth_state)
+                        .map_err(|e| log::error!("readDrHash: {:?}", e))
                         .map(move |x: U256| (x, dr_id))
                         .and_then(move |(dr_tx_hash, dr_id)| {
                             if dr_tx_hash != U256::from(0) {

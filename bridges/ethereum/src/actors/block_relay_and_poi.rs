@@ -1,7 +1,12 @@
 //! Actor which receives Witnet superblocks, posts them to the block relay,
 //! and sends proofs of inclusion to Ethereum
 
-use crate::{actors::handle_receipt, actors::WitnetSuperBlock, config::Config, eth::EthState};
+use crate::{
+    actors::handle_receipt,
+    actors::WitnetSuperBlock,
+    config::Config,
+    eth::{get_gas_price, EthState},
+};
 
 use async_jsonrpc_client::{transports::tcp::TcpSocket, Transport};
 use ethabi::Bytes;
@@ -18,7 +23,6 @@ use witnet_data_structures::{
     chain::{Block, Hash, Hashable},
     transaction::{DRTransaction, TallyTransaction},
 };
-use crate::eth::get_gas_price;
 
 /// Function to get blocks from the witnet client provided an array of block hashes
 pub fn get_blocks(
@@ -93,11 +97,10 @@ pub fn block_relay_and_poi(
                 };
             get_blocks(confirmed_block_hashes, witnet_client)
                 .and_then({
-
                     let config = Arc::clone(&config);
                     let eth_state = Arc::clone(&eth_state);
                     move |confirmed_blocks| {
-                            eth_state.wrb_requests.read()
+                        eth_state.wrb_requests.read()
                             .and_then({
                                 move |wrb_requests| {
                                     let block_hash: U256 = match superblock.hash() {
@@ -190,7 +193,7 @@ pub fn block_relay_and_poi(
                                     // If including or resolving is non empty, needs_relaying should be set to true
                                     let needs_relaying = if config.relay_all_superblocks_even_the_empty_ones || !including.is_empty() || !resolving.is_empty() {
                                         true
-                                        } else{
+                                    } else {
                                         dr_txs.iter().any(|dr_tx| {
                                             wrb_requests.posted().values().any(|(address, dr_hash)| {
                                                 if *address == H160::default() {
@@ -212,13 +215,22 @@ pub fn block_relay_and_poi(
                     let config = Arc::clone(&config);
                     let eth_state = Arc::clone(&eth_state);
                     move |(including, resolving, needs_relaying)| {
-
                         if (is_new_block && config.enable_block_relay_new_blocks) || (!is_new_block && config.enable_block_relay_old_blocks) {
                             // Optimization: do not process blocks that do not contain requests coming from ethereum
                             if including.is_empty() && resolving.is_empty() && !needs_relaying {
                                 log::debug!("Skipping empty superblock");
                                 return futures::finished(());
                             }
+                            let last_id =  if let Some(&(id, _, _, _, _)) = including.last() {
+                                Some(id)
+                            }
+                            else if let Some(&(id, _, _, _, _, _)) = resolving.last() {
+                                    Some(id)
+                            }
+                            else {
+                                // At this point we know including and resolving are empty, but we need to relay the superblock
+                                None
+                            };
 
                             let block_relay_contract2 = block_relay_contract.clone();
                             // Post witnet superblock to BlockRelay wrb_contract
@@ -236,29 +248,49 @@ pub fn block_relay_and_poi(
                                     })
                                     .or_else({
                                         let config = Arc::clone(&config);
-
+                                        let eth_state = Arc::clone(&eth_state);
                                         move |_| {
                                             log::debug!("Trying to relay superblock {:x}", superblock_hash);
-                                            block_relay_contract2
-                                                .call_with_confirmations(
-                                                    "postNewBlock",
-                                                    (superblock_hash, superblock_epoch, dr_merkle_root, tally_merkle_root),
-                                                    eth_account,
-                                                    contract::Options::with(|opt| {
-                                                        opt.gas = config.gas_limits.post_new_block.map(Into::into);
-                                                    }),
-                                                    1,
-                                                )
-                                                .map_err(|e| log::error!("postNewBlock: {:?}", e))
-                                                .and_then(move |tx| {
-                                                    log::debug!("postNewBlock: {:?}", tx);
-
-                                                    handle_receipt(tx).map_err(move |()| {
-                                                        log::warn!("Failed to post superblock {:x} to block relay, maybe it was already posted?", superblock_hash)
+                                            if let Some(last_id) = last_id {
+                                                Either::A(get_gas_price(last_id, &config, &eth_state)
+                                                    .map_err(move |e| {
+                                                        log::warn!(
+                                                            "[{}] Error in params reception while retrieving gas price:  {}",
+                                                            last_id, e);
                                                     })
-                                                })
-                                                    .map(move |()| {
-                                                    log::info!("Posted superblock {:x} to block relay", superblock_hash);
+                                                    .map(move |gas_price: U256| {
+                                                        Some(gas_price)
+                                                    })
+                                                )
+                                            }
+                                            else {
+                                                Either::B(futures::future::finished(None))
+                                            }.and_then({
+                                                    let config = Arc::clone(&config);
+                                                    move |gas_price| {
+                                                        block_relay_contract2
+                                                            .call_with_confirmations(
+                                                                "postNewBlock",
+                                                                (superblock_hash, superblock_epoch, dr_merkle_root, tally_merkle_root),
+                                                                eth_account,
+                                                                contract::Options::with(|opt| {
+                                                                    opt.gas = config.gas_limits.post_new_block.map(Into::into);
+                                                                    opt.gas_price = gas_price
+                                                                }),
+                                                                1,
+                                                            )
+                                                            .map_err(|e| log::error!("postNewBlock: {:?}", e))
+                                                            .and_then(move |tx| {
+                                                                log::debug!("postNewBlock: {:?}", tx);
+
+                                                                handle_receipt(tx).map_err(move |()| {
+                                                                    log::warn!("Failed to post superblock {:x} to block relay, maybe it was already posted?", superblock_hash)
+                                                                })
+                                                            })
+                                                            .map(move |()| {
+                                                                log::info!("Posted superblock {:x} to block relay", superblock_hash);
+                                                            })
+                                                    }
                                                 })
                                         }
                                     })
@@ -268,23 +300,22 @@ pub fn block_relay_and_poi(
                         // Wait for someone else to publish the witnet block to ethereum
                         let (wbtx, wbrx) = oneshot::channel();
                         let fut = if !including.is_empty() || !resolving.is_empty() {
-
                             Either::A(wait_for_witnet_block_tx2.send((superblock_hash, wbtx))
-                            .map_err(|e| log::error!("Failed to send message to block_ticker channel: {}", e))
-                            .and_then(move |_| {
-                                // Receiving the new block notification can fail if the block_ticker got
-                                // a different subscription to the same block hash.
-                                // In that case, since there already is another future waiting for the
-                                // same block, we can exit this one
-                                wbrx.map_err(move |e| {
-                                    log::debug!("Failed to receive message through oneshot channel while waiting for superblock {}: {:x}", e, superblock_hash)
+                                .map_err(|e| log::error!("Failed to send message to block_ticker channel: {}", e))
+                                .and_then(move |_| {
+                                    // Receiving the new block notification can fail if the block_ticker got
+                                    // a different subscription to the same block hash.
+                                    // In that case, since there already is another future waiting for the
+                                    // same block, we can exit this one
+                                    wbrx.map_err(move |e| {
+                                        log::debug!("Failed to receive message through oneshot channel while waiting for superblock {}: {:x}", e, superblock_hash)
+                                    })
                                 })
-                            })
-                            .and_then({
-                                let config = Arc::clone(&config);
-                                let eth_state = Arc::clone(&eth_state);
-                                move |()| {
-                                    eth_state.wrb_requests.write().map(move |mut wrb_requests| {
+                                .and_then({
+                                    let config = Arc::clone(&config);
+                                    let eth_state = Arc::clone(&eth_state);
+                                    move |()| {
+                                        eth_state.wrb_requests.write().map(move |mut wrb_requests| {
                                             for (dr_id, poi, poi_index, block_hash, block_epoch) in including {
                                                 if wrb_requests.claimed().contains_left(&dr_id) {
                                                     wrb_requests.set_including(dr_id, poi.clone(), poi_index, block_hash, block_epoch);
@@ -294,7 +325,7 @@ pub fn block_relay_and_poi(
                                                         get_gas_price(dr_id, &config, &eth_state)
                                                             .map_err(move |e| {
                                                                 log::warn!(
-                                                                    "[{}] Error in params reception:  {}",
+                                                                    "[{}] Error in params reception while retrieving gas price: {}",
                                                                     dr_id, e);
                                                             })
                                                             .map(move |gas_price: U256| {
@@ -340,7 +371,7 @@ pub fn block_relay_and_poi(
                                                         get_gas_price(dr_id, &config, &eth_state)
                                                             .map_err(move |e| {
                                                                 log::warn!(
-                                                                    "[{}] Error in params reception:  {}",
+                                                                    "[{}] Error in params reception while retrieving gas price: {}",
                                                                     dr_id, e);
                                                             })
                                                             .map(move |gas_price: U256| {
@@ -382,8 +413,7 @@ pub fn block_relay_and_poi(
                                     }
                                 })
                             )
-                        }
-                        else {
+                        } else {
                             Either::B(futures::finished(()))
                         }
                             // Without this line the actor will panic on the first failure
