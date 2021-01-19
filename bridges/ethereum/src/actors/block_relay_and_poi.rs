@@ -221,11 +221,11 @@ pub fn block_relay_and_poi(
                                 log::debug!("Skipping empty superblock");
                                 return futures::finished(());
                             }
-                            let last_id =  if let Some(&(id, _, _, _, _)) = including.last() {
+                            let last_id =  if let Some(&(id, ..)) = including.last() {
                                 Some(id)
                             }
-                            else if let Some(&(id, _, _, _, _, _)) = resolving.last() {
-                                    Some(id)
+                            else if let Some(&(id, ..)) = resolving.last() {
+                                Some(id)
                             }
                             else {
                                 // At this point we know including and resolving are empty, but we need to relay the superblock
@@ -251,6 +251,8 @@ pub fn block_relay_and_poi(
                                         let eth_state = Arc::clone(&eth_state);
                                         move |_| {
                                             log::debug!("Trying to relay superblock {:x}", superblock_hash);
+                                            // Use the same gas price as the last request from this block.
+                                            // If this block does not contain any requests coming from ethereum, default to "None" which will estimate the gas price using the ethereum client.
                                             if let Some(last_id) = last_id {
                                                 Either::A(get_gas_price(last_id, &config, &eth_state)
                                                     .map_err(move |e| {

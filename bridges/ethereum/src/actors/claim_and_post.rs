@@ -324,7 +324,7 @@ fn try_to_claim_local_query(
                     get_gas_price(dr_id, &config, &eth_state)
                         .map_err(move |e| {
                             log::warn!(
-                                "[{}] Error in params reception:  {}",
+                                "[{}] Error in params reception while retrieving gas price: {}",
                                 dr_id, e);
                         })
                         .map(move |gas_price: U256| {
