@@ -2,8 +2,7 @@
 //! and sends proofs of inclusion to Ethereum
 
 use crate::{
-    actors::handle_receipt,
-    actors::WitnetSuperBlock,
+    actors::{handle_receipt, WitnetSuperBlock},
     config::Config,
     eth::{get_gas_price, EthState},
 };
