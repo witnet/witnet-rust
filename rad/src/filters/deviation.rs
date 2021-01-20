@@ -40,6 +40,14 @@ pub fn standard_filter(
     match value.first() {
         None => Ok(RadonTypes::from(input.clone())),
         Some(RadonTypes::Array(arr2)) => {
+            // Empty array
+            if arr2.value().is_empty() {
+                return Err(RadError::UnsupportedFilter {
+                    array: input.clone(),
+                    filter: RadonFilters::DeviationStandard.to_string(),
+                });
+            }
+
             // 2D array
             if let Some(RadonTypes::Array(_arr3)) = arr2.value().first() {
                 // 3D array
@@ -618,5 +626,41 @@ mod tests {
             .collect();
 
         assert_eq!(output_i128, expected);
+    }
+
+    #[test]
+    fn test_filter_deviation_standard_array_of_empty_arrays() {
+        let num_witnesses = 1;
+        // Reveal value:
+        // 1D array: []
+        let input = vec![];
+        // Tally input:
+        // 2D array: [[]; num_witnesses]
+        let input_vec = vec![RadonTypes::Array(RadonArray::from(input)); num_witnesses];
+        let input = RadonArray::from(input_vec);
+        let extra_args = vec![Value::Integer(0)];
+
+        // RadonContext as created in run_tally_report
+        let liars = None;
+        let errors = None;
+        let mut metadata: TallyMetaData<RadonTypes> = TallyMetaData::default();
+        if let Some(liars) = liars {
+            metadata.liars = liars;
+        } else {
+            metadata.liars = vec![false; num_witnesses];
+        }
+        if let Some(errors) = errors {
+            metadata.errors = errors;
+        } else {
+            metadata.errors = vec![false; num_witnesses];
+        }
+        let mut context = ReportContext {
+            stage: Stage::Tally(metadata),
+            ..Default::default()
+        };
+
+        let output = standard_filter(&input, &extra_args, &mut context);
+        // What should be the result of applying a DeviationStandard filter on an array of empty arrays?
+        assert!(output.is_err());
     }
 }
