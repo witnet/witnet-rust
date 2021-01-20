@@ -291,7 +291,7 @@ where
     pub fn update_liars(&mut self, new_liars: Vec<bool>) {
         if self.liars.is_empty() {
             self.liars = new_liars;
-        } else {
+        } else if !new_liars.is_empty() {
             let mut new_iter = new_liars.iter();
 
             for liar in &mut self.liars {
@@ -406,6 +406,10 @@ mod tests {
             true, true, false, true, true, true, false, true, false, true,
         ];
 
+        assert_eq!(metadata.liars, expected);
+
+        // An empty vector of new liars should cause no changes to the existing list of of liars
+        metadata.update_liars(vec![]);
         assert_eq!(metadata.liars, expected);
     }
 }
