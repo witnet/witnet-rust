@@ -803,7 +803,8 @@ pub fn build_block(
     let (commit_txns, commits_fees, solved_dr_pointers) = transactions_pool.remove_commits(dr_pool);
     transaction_fees += commits_fees;
 
-    let (reveal_txns, reveals_fees) = transactions_pool.remove_reveals(dr_pool);
+    let (reveal_txns, reveals_fees) = transactions_pool.get_reveals(dr_pool);
+    let reveal_txns: Vec<RevealTransaction> = reveal_txns.into_iter().cloned().collect();
     transaction_fees += reveals_fees;
 
     // Calculate data request not solved weight

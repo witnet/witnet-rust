@@ -2263,23 +2263,20 @@ impl TransactionsPool {
 
     /// Returns a tuple with a vector of reveal transactions and the value
     /// of all the fees obtained with those reveals
-    pub fn remove_reveals(&mut self, dr_pool: &DataRequestPool) -> (Vec<RevealTransaction>, u64) {
+    pub fn get_reveals(&self, dr_pool: &DataRequestPool) -> (Vec<&RevealTransaction>, u64) {
         let mut total_fee = 0;
-        let re_hash_index = &mut self.re_hash_index;
+        let re_hash_index = &self.re_hash_index;
         let reveals_vector = self
             .re_transactions
-            .iter_mut()
+            .iter()
             // TODO: Decide with optimal capacity
             .fold(
                 Vec::with_capacity(20),
                 |mut reveals_vec, (dr_pointer, reveals)| {
                     if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
                         let n_reveals = reveals.len();
-                        reveals_vec.extend(
-                            reveals
-                                .drain()
-                                .map(|(_h, r)| re_hash_index.remove(&r).unwrap()),
-                        );
+                        reveals_vec
+                            .extend(reveals.iter().map(|(_h, r)| re_hash_index.get(&r).unwrap()));
 
                         total_fee += dr_output.commit_and_reveal_fee * n_reveals as u64;
                     }
@@ -2287,11 +2284,43 @@ impl TransactionsPool {
                     reveals_vec
                 },
             );
-        // Clear reveal hash index: reveals can still be added to later blocks, but a miner will
-        // always use as many reveals as possible, and this method is used by the mining code
-        self.clear_reveals();
 
         (reveals_vector, total_fee)
+    }
+
+    /// Remove one reveal that was included in a consolidated block. This is used to avoid inserting
+    /// duplicate reveals when mining blocks.
+    // The removed reveals cannot be inserted to the transactions pool again because they are invalid:
+    // validate_reveal_transaction returns DuplicatedReveal
+    pub fn remove_one_reveal(
+        &mut self,
+        data_request_hash: &Hash,
+        reveal_pkh: &PublicKeyHash,
+        re_tx_hash: &Hash,
+    ) -> Option<RevealTransaction> {
+        if let Some(re_tx) = self.re_hash_index.remove(re_tx_hash) {
+            let reveals = self.re_transactions.get_mut(data_request_hash).unwrap();
+            reveals.remove(reveal_pkh);
+            if reveals.is_empty() {
+                self.re_transactions.remove(data_request_hash);
+            }
+
+            Some(re_tx)
+        } else {
+            None
+        }
+    }
+
+    /// Remove all the remaining reveals for this data request, because it is already in tally stage
+    /// and does not accept any more reveals. Ideally all the reveals have been included in a
+    /// previous block and this method does nothing, but if the data request finished with some
+    /// missing reveals then they need to be cleared.
+    pub fn clear_reveals_from_finished_dr(&mut self, data_request_hash: &Hash) {
+        if let Some(reveals) = self.re_transactions.remove(data_request_hash) {
+            for re_tx_hash in reveals.values() {
+                self.re_hash_index.remove(re_tx_hash);
+            }
+        }
     }
 
     /// Remove transactions until the size limit is satisfied.
@@ -5064,7 +5093,7 @@ mod tests {
     }
 
     #[test]
-    fn transactions_pool_reveals_are_cleared_on_remove() {
+    fn transactions_pool_reveals_are_not_cleared_on_remove() {
         let public_key = PublicKey::default();
 
         let dro = DataRequestOutput {
@@ -5094,14 +5123,54 @@ mod tests {
         transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.re_transactions.len(), 1);
         assert_eq!(transactions_pool.re_hash_index.len(), 1);
-        let (reveals_vec, _reveal_fees) = transactions_pool.remove_reveals(&dr_pool);
+
+        // get_reveals returns all the reveals, and they are not removed from the transactions pool
+        let (reveals_vec, _reveal_fees) = transactions_pool.get_reveals(&dr_pool);
         assert_eq!(reveals_vec.len(), 1);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+    }
+
+    #[test]
+    fn transactions_pool_reveals_are_cleared_when_dr_finishes() {
+        let public_key = PublicKey::default();
+
+        let dro = DataRequestOutput {
+            witnesses: 1,
+            ..Default::default()
+        };
+        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drt = DRTransaction::new(
+            drb,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key,
+            }],
+        );
+        let dr_pointer = drt.hash();
+        let mut dr_pool = DataRequestPool::default();
+        dr_pool
+            .add_data_request(0, drt, &Default::default())
+            .unwrap();
+
+        let r1 = vec![1];
+        let t1 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(dr_pointer, r1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1, 0);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+
+        // After the data request finishes, the reveals will be removed from the transactions pool
+        transactions_pool.clear_reveals_from_finished_dr(&dr_pointer);
         assert_eq!(transactions_pool.re_transactions, HashMap::new());
         assert_eq!(transactions_pool.re_hash_index, HashMap::new());
     }
 
     #[test]
-    fn transactions_pool_reveals_are_cleared_on_remove_and_always_returned() {
+    fn transactions_pool_reveals_are_always_returned() {
         let public_key = PublicKey::default();
 
         let dro = DataRequestOutput {
@@ -5131,9 +5200,112 @@ mod tests {
         transactions_pool.insert(t1, 0);
         assert_eq!(transactions_pool.re_transactions.len(), 1);
         assert_eq!(transactions_pool.re_hash_index.len(), 1);
-        let (reveals_vec, _reveal_fees) = transactions_pool.remove_reveals(&dr_pool);
+        let (reveals_vec, _reveal_fees) = transactions_pool.get_reveals(&dr_pool);
         // Even though the data request asks for 2 witnesses, it returns the 1 reveal that we have
         assert_eq!(reveals_vec.len(), 1);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+    }
+
+    #[test]
+    fn transactions_pool_reveals_can_be_removed_one_by_one() {
+        let public_key = PublicKey::default();
+
+        let dro = DataRequestOutput {
+            witnesses: 2,
+            ..Default::default()
+        };
+        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drt = DRTransaction::new(
+            drb,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key,
+            }],
+        );
+        let dr_pointer = drt.hash();
+        let mut dr_pool = DataRequestPool::default();
+        dr_pool
+            .add_data_request(0, drt, &Default::default())
+            .unwrap();
+
+        let r1 = vec![1];
+        let re_tx = RevealTransaction {
+            body: RevealTransactionBody::new(dr_pointer, r1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        };
+        let t1 = Transaction::Reveal(re_tx.clone());
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1, 0);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+        let (reveals_vec, _reveal_fees) = transactions_pool.get_reveals(&dr_pool);
+        // Even though the data request asks for 2 witnesses, it returns the 1 reveal that we have
+        assert_eq!(reveals_vec.len(), 1);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(
+            transactions_pool
+                .re_transactions
+                .values()
+                .next()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+
+        // Now, a different reveal is inserted
+        let r2 = vec![1];
+        let re_pkh2 = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
+        let re_tx2 = RevealTransaction {
+            body: RevealTransactionBody::new(dr_pointer, r2, re_pkh2),
+            signatures: vec![KeyedSignature::default()],
+        };
+        let t2 = Transaction::Reveal(re_tx2.clone());
+        transactions_pool.insert(t2, 0);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(
+            transactions_pool
+                .re_transactions
+                .values()
+                .next()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(transactions_pool.re_hash_index.len(), 2);
+
+        // After this reveal is consolidated in a block, it will be removed:
+        let same_as_re_tx = transactions_pool.remove_one_reveal(
+            &re_tx.body.dr_pointer,
+            &re_tx.body.pkh,
+            &re_tx.hash(),
+        );
+        assert_eq!(same_as_re_tx, Some(re_tx));
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(
+            transactions_pool
+                .re_transactions
+                .values()
+                .next()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+
+        // And the second reveal will also be removed:
+        let same_as_re_tx2 = transactions_pool.remove_one_reveal(
+            &re_tx2.body.dr_pointer,
+            &re_tx2.body.pkh,
+            &re_tx2.hash(),
+        );
+        assert_eq!(same_as_re_tx2, Some(re_tx2));
+        assert_eq!(transactions_pool.re_transactions, HashMap::new());
+        assert_eq!(transactions_pool.re_hash_index, HashMap::new());
+
+        // After the data request finishes, the reveals will be removed from the transactions pool
+        transactions_pool.clear_reveals_from_finished_dr(&dr_pointer);
         assert_eq!(transactions_pool.re_transactions, HashMap::new());
         assert_eq!(transactions_pool.re_hash_index, HashMap::new());
     }

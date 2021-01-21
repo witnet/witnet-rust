@@ -2122,6 +2122,8 @@ fn update_pools(
         if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash()) {
             log::error!("Error processing tally transaction:\n{}", e);
         }
+
+        transactions_pool.clear_reveals_from_finished_dr(&ta_tx.dr_pointer);
     }
 
     for vt_tx in &block.txns.value_transfer_txns {
@@ -2162,10 +2164,8 @@ fn update_pools(
         if let Err(e) = data_request_pool.process_reveal(&re_tx, &block.hash()) {
             log::error!("Error processing reveal transaction:\n{}", e);
         }
+        transactions_pool.remove_one_reveal(&re_tx.body.dr_pointer, &re_tx.body.pkh, &re_tx.hash());
     }
-
-    // Remove reveals because they expire every consolidated block
-    transactions_pool.clear_reveals();
 
     // Update own_utxos
     utxo_diff.visit(
