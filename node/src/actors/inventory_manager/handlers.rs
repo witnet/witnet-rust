@@ -7,10 +7,10 @@ use crate::actors::messages::{
     StoreInventoryItem, SuperBlockNotify,
 };
 use crate::storage_mngr;
-use witnet_data_structures::chain::{
-    Block, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock,
+use witnet_data_structures::{
+    chain::{Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock},
+    transaction::Transaction,
 };
-use witnet_data_structures::transaction::Transaction;
 use witnet_futures_utils::ActorFutureExt;
 
 fn key_superblock(superblock_index: u32) -> Vec<u8> {
@@ -140,7 +140,8 @@ impl InventoryManager {
     fn handle_get_item_transaction(
         &mut self,
         msg: GetItemTransaction,
-    ) -> ResponseActFuture<Self, Result<(Transaction, PointerToBlock), InventoryManagerError>> {
+    ) -> ResponseActFuture<Self, Result<(Transaction, PointerToBlock, Epoch), InventoryManagerError>>
+    {
         let key = match msg.hash {
             Hash::SHA256(x) => x.to_vec(),
         };
@@ -161,7 +162,8 @@ impl InventoryManager {
                                     let tx = block.txns.get(pointer_to_block.transaction_index);
                                     match tx {
                                         Some(tx) if tx.hash() == msg.hash => {
-                                            fut::ok((tx, pointer_to_block))
+                                            let block_epoch = block.block_header.beacon.checkpoint;
+                                            fut::ok((tx, pointer_to_block, block_epoch))
                                         }
                                         Some(_tx) => {
                                             // The transaction hash does not match
@@ -193,7 +195,7 @@ impl InventoryManager {
                 Ok(None) => {
                     let fut: ResponseActFuture<
                         Self,
-                        Result<(Transaction, PointerToBlock), InventoryManagerError>,
+                        Result<(Transaction, PointerToBlock, Epoch), InventoryManagerError>,
                     > = Box::pin(fut::err(InventoryManagerError::ItemNotFound));
                     fut
                 }
@@ -201,7 +203,7 @@ impl InventoryManager {
                     log::error!("Couldn't get item from storage: {}", e);
                     let fut: ResponseActFuture<
                         Self,
-                        Result<(Transaction, PointerToBlock), InventoryManagerError>,
+                        Result<(Transaction, PointerToBlock, Epoch), InventoryManagerError>,
                     > = Box::pin(fut::err(InventoryManagerError::MailBoxError(e)));
                     fut
                 }
@@ -267,7 +269,7 @@ impl Handler<GetItem> for InventoryManager {
         let fut: Self::Result = match msg.item {
             InventoryEntry::Tx(hash) => Box::pin(
                 self.handle_get_item_transaction(GetItemTransaction { hash })
-                    .map_ok(|(tx, _pointer_to_block), _, _| InventoryItem::Transaction(tx)),
+                    .map_ok(|(tx, _pointer_to_block, _epoch), _, _| InventoryItem::Transaction(tx)),
             ),
             InventoryEntry::Block(hash) => Box::pin(
                 self.handle_get_item_block(GetItemBlock { hash })
@@ -296,8 +298,10 @@ impl Handler<GetItemBlock> for InventoryManager {
 
 /// Handler for GetItem message
 impl Handler<GetItemTransaction> for InventoryManager {
-    type Result =
-        ResponseActFuture<Self, Result<(Transaction, PointerToBlock), InventoryManagerError>>;
+    type Result = ResponseActFuture<
+        Self,
+        Result<(Transaction, PointerToBlock, Epoch), InventoryManagerError>,
+    >;
 
     fn handle(&mut self, msg: GetItemTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         self.handle_get_item_transaction(msg)
@@ -458,7 +462,7 @@ mod tests {
                 .unwrap();
 
             // The transaction pointer should point to that block
-            let (_tx, tx_pointer1) = res.unwrap();
+            let (_tx, tx_pointer1, _tx_epoch1) = res.unwrap();
             assert_eq!(tx_pointer1.block_hash, block_hash1);
 
             // Create a different block with the same transactions
@@ -480,7 +484,7 @@ mod tests {
                 .unwrap();
 
             // Now, the transaction pointer should point to the second block
-            let (_tx, tx_pointer2) = res.unwrap();
+            let (_tx, tx_pointer2, _tx_epoch2) = res.unwrap();
             assert_eq!(tx_pointer2.block_hash, block_hash2);
         });
     }

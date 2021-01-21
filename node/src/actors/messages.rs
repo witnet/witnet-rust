@@ -566,7 +566,7 @@ pub struct GetItemTransaction {
 }
 
 impl Message for GetItemTransaction {
-    type Result = Result<(Transaction, PointerToBlock), InventoryManagerError>;
+    type Result = Result<(Transaction, PointerToBlock, Epoch), InventoryManagerError>;
 }
 
 /// Ask for a superblock identified by its index

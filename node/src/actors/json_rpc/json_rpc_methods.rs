@@ -743,6 +743,8 @@ pub struct GetTransactionOutput {
     /// Hash of the block that contains this transaction in hex format,
     /// or "pending" if the transaction has not been included in any block yet
     pub block_hash: String,
+    /// True if the block that includes this transaction has been confirmed by a superblock
+    pub confirmed: bool,
 }
 
 /// Get transaction by hash
@@ -757,12 +759,31 @@ pub async fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> Json
     let res = inventory_manager.send(GetItemTransaction { hash }).await;
 
     match res {
-        Ok(Ok((transaction, pointer_to_block))) => {
+        Ok(Ok((transaction, pointer_to_block, block_epoch))) => {
             let weight = transaction.weight();
+            let block_hash = pointer_to_block.block_hash;
+            // Check if this block is confirmed by a majority of superblock votes
+            let chain_manager = ChainManager::from_registry();
+            let confirmed = match chain_manager
+                .send(IsConfirmedBlock {
+                    block_hash,
+                    block_epoch,
+                })
+                .await
+            {
+                Ok(Ok(x)) => x,
+                Ok(Err(e)) => {
+                    return Err(internal_error(e));
+                }
+                Err(e) => {
+                    return Err(internal_error(e));
+                }
+            };
             let output = GetTransactionOutput {
                 transaction,
                 weight,
-                block_hash: pointer_to_block.block_hash.to_string(),
+                block_hash: block_hash.to_string(),
+                confirmed,
             };
             let value = match serde_json::to_value(output) {
                 Ok(x) => x,
@@ -786,6 +807,7 @@ pub async fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> Json
                         transaction,
                         weight,
                         block_hash: "pending".to_string(),
+                        confirmed: false,
                     };
                     let value = match serde_json::to_value(output) {
                         Ok(x) => x,
