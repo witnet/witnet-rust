@@ -54,7 +54,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment,
-    mainnet_validations::in_emergency_period,
+    mainnet_validations::{after_second_hard_fork, in_emergency_period},
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
@@ -528,6 +528,7 @@ impl ChainManager {
 
                 let mut vrf_input = chain_info.highest_vrf_output;
                 vrf_input.checkpoint = current_epoch;
+
                 let target_vrf_slots = VrfSlots::from_rf(
                     u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
                     chain_info.consensus_constants.mining_replication_factor,
@@ -540,6 +541,7 @@ impl ChainManager {
                 );
                 let block_pkh = &block.block_sig.public_key.pkh();
                 let reputation = rep_engine.trs().get(block_pkh);
+                let is_active = rep_engine.ars().contains(&block_pkh);
                 let vrf_proof = match block.block_header.proof.proof.proof_to_hash(vrf_ctx) {
                     Ok(vrf) => vrf,
                     Err(e) => {
@@ -553,13 +555,25 @@ impl ChainManager {
 
                 if let Some(best_candidate) = &self.best_candidate {
                     let best_hash = best_candidate.block.hash();
+                    let best_pkh = best_candidate.block.block_sig.public_key.pkh();
+                    let best_candidate_is_active =
+                        if after_second_hard_fork(current_epoch, get_environment()) {
+                            rep_engine.ars().contains(&best_pkh)
+                        } else {
+                            // In case of being before to second hard fork we would use the same bool
+                            // than the other to avoid the "activeness" comparison
+                            is_active
+                        };
+
                     if compare_block_candidates(
                         hash_block,
                         reputation,
                         vrf_proof,
+                        is_active,
                         best_hash,
                         best_candidate.reputation,
                         best_candidate.vrf_proof,
+                        best_candidate_is_active,
                         &target_vrf_slots,
                     ) != Ordering::Greater
                     {

@@ -2112,13 +2112,16 @@ pub fn total_block_reward(initial_block_reward: u64, halving_period: u32) -> u64
 ///
 /// Note that this only compares the block candidates, it does not validate them. A block must be
 /// the best candidate and additionally it must be valid in order to be the consolidated block.
+#[allow(clippy::too_many_arguments)]
 pub fn compare_block_candidates(
     b1_hash: Hash,
     b1_rep: Reputation,
     b1_vrf_hash: Hash,
+    b1_is_active: bool,
     b2_hash: Hash,
     b2_rep: Reputation,
     b2_vrf_hash: Hash,
+    b2_is_active: bool,
     s: &VrfSlots,
 ) -> Ordering {
     let section1 = s.slot(&b1_vrf_hash);
@@ -2130,6 +2133,14 @@ pub fn compare_block_candidates(
         // Blocks created with nodes with reputation are better candidates than the others
         .then({
             match (b1_rep.0 > 0, b2_rep.0 > 0) {
+                (true, false) => Ordering::Greater,
+                (false, true) => Ordering::Less,
+                _ => Ordering::Equal,
+            }
+        })
+        // Blocks created with active nodes are better candidates than the others
+        .then({
+            match (b1_is_active, b2_is_active) {
                 (true, false) => Ordering::Greater,
                 (false, true) => Ordering::Less,
                 _ => Ordering::Equal,
@@ -2263,62 +2274,158 @@ mod tests {
             for &bh_j in &[bh_1, bh_2] {
                 for &vrf_i in &[vrf_1, vrf_2] {
                     for &vrf_j in &[vrf_1, vrf_2] {
+                        for &act_i in &[true, false] {
+                            for &act_j in &[true, false] {
+                                assert_eq!(
+                                    compare_block_candidates(
+                                        bh_i,
+                                        rep_1,
+                                        vrf_i,
+                                        act_i,
+                                        bh_j,
+                                        rep_2,
+                                        vrf_j,
+                                        act_j,
+                                        &vrf_sections
+                                    ),
+                                    Ordering::Less
+                                );
+                                assert_eq!(
+                                    compare_block_candidates(
+                                        bh_i,
+                                        rep_2,
+                                        vrf_i,
+                                        act_i,
+                                        bh_j,
+                                        rep_1,
+                                        vrf_j,
+                                        act_j,
+                                        &vrf_sections
+                                    ),
+                                    Ordering::Greater
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Equal reputation: the candidate that is active wins
+        for &bh_i in &[bh_1, bh_2] {
+            for &bh_j in &[bh_1, bh_2] {
+                for &vrf_i in &[vrf_1, vrf_2] {
+                    for &vrf_j in &[vrf_1, vrf_2] {
                         assert_eq!(
                             compare_block_candidates(
                                 bh_i,
                                 rep_1,
                                 vrf_i,
+                                true,
                                 bh_j,
-                                rep_2,
+                                rep_1,
                                 vrf_j,
+                                false,
                                 &vrf_sections
                             ),
-                            Ordering::Less
+                            Ordering::Greater
                         );
                         assert_eq!(
                             compare_block_candidates(
                                 bh_i,
                                 rep_2,
                                 vrf_i,
+                                false,
                                 bh_j,
-                                rep_1,
+                                rep_2,
                                 vrf_j,
+                                true,
                                 &vrf_sections
                             ),
-                            Ordering::Greater
+                            Ordering::Less
                         );
                     }
                 }
             }
         }
 
-        // Equal reputation: the candidate with lower VRF hash wins
+        // Equal reputation and activity: the candidate with lower VRF hash wins
         for &bh_i in &[bh_1, bh_2] {
             for &bh_j in &[bh_1, bh_2] {
                 assert_eq!(
-                    compare_block_candidates(bh_i, rep_1, vrf_1, bh_j, rep_1, vrf_2, &vrf_sections),
+                    compare_block_candidates(
+                        bh_i,
+                        rep_1,
+                        vrf_1,
+                        true,
+                        bh_j,
+                        rep_1,
+                        vrf_2,
+                        true,
+                        &vrf_sections
+                    ),
                     Ordering::Greater
                 );
                 assert_eq!(
-                    compare_block_candidates(bh_i, rep_1, vrf_2, bh_j, rep_1, vrf_1, &vrf_sections),
+                    compare_block_candidates(
+                        bh_i,
+                        rep_1,
+                        vrf_2,
+                        true,
+                        bh_j,
+                        rep_1,
+                        vrf_1,
+                        true,
+                        &vrf_sections
+                    ),
                     Ordering::Less
                 );
             }
         }
 
-        // Equal reputation and equal VRF hash: the candidate with lower block hash wins
+        // Equal reputation, equal activity and equal VRF hash: the candidate with lower block hash wins
         assert_eq!(
-            compare_block_candidates(bh_1, rep_1, vrf_1, bh_2, rep_1, vrf_1, &vrf_sections),
+            compare_block_candidates(
+                bh_1,
+                rep_1,
+                vrf_1,
+                true,
+                bh_2,
+                rep_1,
+                vrf_1,
+                true,
+                &vrf_sections
+            ),
             Ordering::Greater
         );
         assert_eq!(
-            compare_block_candidates(bh_2, rep_1, vrf_1, bh_1, rep_1, vrf_1, &vrf_sections),
+            compare_block_candidates(
+                bh_2,
+                rep_1,
+                vrf_1,
+                true,
+                bh_1,
+                rep_1,
+                vrf_1,
+                true,
+                &vrf_sections
+            ),
             Ordering::Less
         );
 
         // Everything equal: it is the same block
         assert_eq!(
-            compare_block_candidates(bh_1, rep_1, vrf_1, bh_1, rep_1, vrf_1, &vrf_sections),
+            compare_block_candidates(
+                bh_1,
+                rep_1,
+                vrf_1,
+                true,
+                bh_1,
+                rep_1,
+                vrf_1,
+                true,
+                &vrf_sections
+            ),
             Ordering::Equal
         );
     }
@@ -2341,30 +2448,38 @@ mod tests {
             for &bh_j in &[bh_1, bh_2] {
                 for &rep_i in &[rep_1, rep_2] {
                     for &rep_j in &[rep_1, rep_2] {
-                        assert_eq!(
-                            compare_block_candidates(
-                                bh_i,
-                                rep_i,
-                                vrf_1,
-                                bh_j,
-                                rep_j,
-                                vrf_2,
-                                &vrf_sections
-                            ),
-                            Ordering::Greater
-                        );
-                        assert_eq!(
-                            compare_block_candidates(
-                                bh_i,
-                                rep_i,
-                                vrf_2,
-                                bh_j,
-                                rep_j,
-                                vrf_1,
-                                &vrf_sections
-                            ),
-                            Ordering::Less
-                        );
+                        for &act_i in &[true, false] {
+                            for &act_j in &[true, false] {
+                                assert_eq!(
+                                    compare_block_candidates(
+                                        bh_i,
+                                        rep_i,
+                                        vrf_1,
+                                        act_i,
+                                        bh_j,
+                                        rep_j,
+                                        vrf_2,
+                                        act_j,
+                                        &vrf_sections
+                                    ),
+                                    Ordering::Greater
+                                );
+                                assert_eq!(
+                                    compare_block_candidates(
+                                        bh_i,
+                                        rep_i,
+                                        vrf_2,
+                                        act_i,
+                                        bh_j,
+                                        rep_j,
+                                        vrf_1,
+                                        act_j,
+                                        &vrf_sections
+                                    ),
+                                    Ordering::Less
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -2382,14 +2497,34 @@ mod tests {
         // Only one section and all VRFs are valid
         let vrf_sections = VrfSlots::default();
 
-        // In case of nodes with reputation, the difference will be the vrf not the reputation
+        // In case of active nodes with reputation, the difference will be the vrf not the reputation
         assert_eq!(
-            compare_block_candidates(bh_1, rep_1, vrf_1, bh_2, rep_2, vrf_2, &vrf_sections),
+            compare_block_candidates(
+                bh_1,
+                rep_1,
+                vrf_1,
+                true,
+                bh_2,
+                rep_2,
+                vrf_2,
+                true,
+                &vrf_sections
+            ),
             Ordering::Greater
         );
 
         assert_eq!(
-            compare_block_candidates(bh_1, rep_1, vrf_2, bh_2, rep_2, vrf_1, &vrf_sections),
+            compare_block_candidates(
+                bh_1,
+                rep_1,
+                vrf_2,
+                true,
+                bh_2,
+                rep_2,
+                vrf_1,
+                true,
+                &vrf_sections
+            ),
             Ordering::Less
         );
     }
