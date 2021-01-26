@@ -38,7 +38,7 @@ jobs:
       - name: Install compilation system dependencies
         run: |
           sudo apt-get update -y -qq
-          sudo apt-get install -y g++-5 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
+          sudo apt-get install -y g++-9 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
 
       - name: Clippy
         uses: actions-rs/clippy-check@v1

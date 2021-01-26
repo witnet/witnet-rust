@@ -17,7 +17,7 @@ before_cache:
 addons:
   apt:
     packages:
-      - g++-5
+      - g++-9
       - cmake
       - libcurl4-openssl-dev
       - libelf-dev

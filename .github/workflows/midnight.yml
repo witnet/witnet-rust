@@ -27,7 +27,7 @@ jobs:
       - name: Install environment dependencies
         run: |
           sudo apt-get update -y -qq
-          sudo apt-get install -y g++-5 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
+          sudo apt-get install -y g++-9 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
           just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
 
       - name: Load persistent storage
