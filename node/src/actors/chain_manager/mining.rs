@@ -28,11 +28,10 @@ use crate::{
     },
     signature_mngr,
 };
-use witnet_data_structures::chain::Hash;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, DataRequestOutput, EpochConstants, Hashable, Input, PublicKeyHash,
+        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
         ReputationEngine, TransactionsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
