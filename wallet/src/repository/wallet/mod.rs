@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::{
     cmp::min,
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap, HashSet},
     convert::TryFrom,
     ops::Range,
     str::FromStr,
@@ -41,7 +41,6 @@ use crate::{
 };
 
 use super::*;
-use std::collections::hash_map::Entry;
 
 mod state;
 #[cfg(test)]
@@ -59,30 +58,48 @@ struct AccountMutation {
 pub struct WalletUtxos<'a> {
     pub utxo_set: &'a model::UtxoSet,
     pub used_outputs: &'a mut model::UsedOutputs,
+    pub unconfirmed_transactions: &'a HashSet<Hash>,
 }
 
 impl<'a> OutputsCollection for WalletUtxos<'a> {
     fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
+        let filter_unconfirmed = |out_ptr: &model::OutPtr| {
+            let pointer: OutputPointer = out_ptr.into();
+            if self
+                .unconfirmed_transactions
+                .contains(&pointer.transaction_id)
+            {
+                None
+            } else {
+                Some(pointer)
+            }
+        };
+
         match strategy {
             UtxoSelectionStrategy::BigFirst { from } => {
                 sort_utxo_set(&self.utxo_set, true, from.as_ref())
+                    .filter_map(filter_unconfirmed)
+                    .collect()
             }
             UtxoSelectionStrategy::SmallFirst { from } => {
                 sort_utxo_set(&self.utxo_set, false, from.as_ref())
+                    .filter_map(filter_unconfirmed)
+                    .collect()
             }
             UtxoSelectionStrategy::Random { from } => self
                 .utxo_set
                 .iter()
                 .filter_map(|(o, info)| match from {
-                    None => Some(OutputPointer::from(o)),
+                    None => Some(o),
                     Some(from) => {
                         if from == &info.pkh {
-                            Some(OutputPointer::from(o))
+                            Some(o)
                         } else {
                             None
                         }
                     }
                 })
+                .filter_map(filter_unconfirmed)
                 .collect(),
         }
     }
@@ -116,11 +133,11 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
 }
 
 /// Method to sort own_utxos by value
-pub fn sort_utxo_set(
-    utxo_set: &model::UtxoSet,
+pub fn sort_utxo_set<'a>(
+    utxo_set: &'a model::UtxoSet,
     bigger_first: bool,
     from: Option<&PublicKeyHash>,
-) -> Vec<OutputPointer> {
+) -> impl Iterator<Item = &'a model::OutPtr> + 'a {
     utxo_set
         .iter()
         .filter_map(|(o, info)| match from {
@@ -142,8 +159,7 @@ pub fn sort_utxo_set(
                 value
             }
         })
-        .map(|(o, _info)| o.into())
-        .collect()
+        .map(|(o, _info)| o)
 }
 
 pub struct Wallet<T> {
@@ -241,6 +257,7 @@ where
         state.last_sync = state.last_confirmed;
         state.pending_blocks.clear();
         state.pending_movements.clear();
+        state.pending_transactions.clear();
         state.pending_addresses_by_path.clear();
         state.pending_addresses_by_block.clear();
         state.local_movements.clear();
@@ -350,6 +367,7 @@ where
             last_confirmed,
             local_movements: Default::default(),
             pending_movements: Default::default(),
+            pending_transactions: Default::default(),
             pending_addresses_by_block: Default::default(),
             pending_addresses_by_path: Default::default(),
             pending_blocks: Default::default(),
@@ -897,6 +915,9 @@ where
                 &state.balance.unconfirmed,
                 block_info,
             )?;
+            // At this point state.utxo_set will only have confirmed utxos, so we can clear the
+            // pending transactions
+            state.pending_transactions.clear();
 
             // Update pending DR movements if they were persisted
             // balance_movements_to_persist.
@@ -941,6 +962,12 @@ where
             state
                 .pending_addresses_by_block
                 .insert(block_info.block_hash.to_string(), addresses);
+
+            for balance_movement in &block_balance_movements {
+                state
+                    .pending_transactions
+                    .insert(balance_movement.transaction.hash.parse().unwrap());
+            }
         }
 
         Ok(block_balance_movements)
@@ -1206,6 +1233,7 @@ where
         let mut wallet_utxos = WalletUtxos {
             utxo_set: &state.utxo_set,
             used_outputs: &mut state.used_outputs,
+            unconfirmed_transactions: &state.pending_transactions,
         };
 
         let tx_info = wallet_utxos.build_inputs_outputs(
@@ -1378,6 +1406,7 @@ where
         let mut wallet_utxos = WalletUtxos {
             utxo_set: &state.utxo_set,
             used_outputs: &mut state.used_outputs,
+            unconfirmed_transactions: &state.pending_transactions,
         };
         if let Some(inputs) = inputs {
             wallet_utxos.set_used_output_pointer(inputs, timestamp + tx_pending_timeout);
@@ -1772,6 +1801,9 @@ where
         // balance_movements_to_persist.
         movements.iter().for_each(|x| {
             state.pending_dr_movements.remove(&x.transaction.hash);
+            state
+                .pending_transactions
+                .remove(&x.transaction.hash.parse().unwrap());
         });
 
         // If everything was OK, update `last_confirmed` beacon

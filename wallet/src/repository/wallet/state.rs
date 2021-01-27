@@ -67,6 +67,8 @@ pub struct State {
     /// List of pending balance movements, waiting to be confirmed with a superblock
     ///  This is a hashmap from pending_block_hash to (Vec<BalanceMovement).
     pub pending_movements: HashMap<String, Vec<model::BalanceMovement>>,
+    /// Transactions that affect the utxo_set but have not been confirmed with a superblock yet.
+    pub pending_transactions: HashSet<Hash>,
     /// Next transaction identifier of the wallet
     pub transaction_next_id: u32,
     /// Current UTXO set (including pending movements)
@@ -105,6 +107,7 @@ impl State {
         self.pending_blocks.clear();
         self.pending_dr_movements.clear();
         self.pending_movements.clear();
+        self.pending_transactions.clear();
         self.transaction_next_id = Default::default();
         self.utxo_set.clear();
         self.used_outputs.clear();
