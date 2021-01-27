@@ -33,8 +33,7 @@ macro_rules! routes {
                             let f = addr.send(msg)
                                 .flatten_err()
                                 .map(|res: Result<_>| {
-                                    res.map_err(internal_error)
-                                        .and_then(|x| serde_json::to_value(x).map_err(internal_error))
+                                    res.and_then(|x| serde_json::to_value(x).map_err(internal_error))
                                         .map_err(|e| e.into())
                                 });
 
@@ -64,8 +63,7 @@ macro_rules! forwarded_routes {
                 let fut03 = api_addr.send(msg)
                     .flatten_err()
                     .map(|res: Result<_>| {
-                        res.map_err(internal_error)
-                            .and_then(|x| serde_json::to_value(x).map_err(internal_error))
+                        res.and_then(|x| serde_json::to_value(x).map_err(internal_error))
                             .map_err(|e| e.into())
                     });
                 Compat::new(Box::pin(fut03))
