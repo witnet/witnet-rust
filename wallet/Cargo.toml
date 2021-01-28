@@ -22,6 +22,7 @@ num_cpus = "1.12.0"
 jsonrpc-pubsub = "15.1.0"
 actix = { version = "0.11.0-beta.1", default-features = false }
 tokio-signal = "0.2.9"
+tokio = { version = "1.0", features = ["signal"] }
 failure = "0.1.8"
 hex = "0.4.1"
 rand = "0.7.3"
