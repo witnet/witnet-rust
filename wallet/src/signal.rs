@@ -13,7 +13,7 @@ pub fn ctrl_c<T: Fn() + 'static>(cb: T) {
 
     // There is no equivalent to SIGTERM on Windows, so use empty stream
     #[cfg(windows)]
-    let sigterm = futures::stream::empty();
+    let sigterm = futures01::stream::empty();
 
     // This is received when pressing CTRL-C, and it works on both Unix and Windows
     let ctrl_c = tokio_signal::ctrl_c()
