@@ -3850,23 +3850,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-signal"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0c34c6e548f101053321cba3da7cbb87a610b85555884c41b07da2eb91aff12"
-dependencies = [
- "futures 0.1.30",
- "libc",
- "mio 0.6.22",
- "mio-uds",
- "signal-hook-registry",
- "tokio-executor",
- "tokio-io",
- "tokio-reactor",
- "winapi 0.3.9",
-]
-
-[[package]]
 name = "tokio-stream"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4919,7 +4902,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio 1.0.1",
- "tokio-signal",
  "witnet_config",
  "witnet_crypto",
  "witnet_data_structures",
