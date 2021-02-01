@@ -1757,16 +1757,40 @@ where
         Ok(())
     }
 
-    /// Clear all chain data for a wallet.
+    /// Clear all chain data for a wallet in memory and resets synchronization status in database.
     ///
-    /// Proceed with caution, as this wipes the following data entirely:
+    /// Proceed with caution, as this wipes the following data entirely on memory:
     /// - Synchronization status
     /// - Balances
     /// - Movements
     /// - Addresses and their metadata
+    ///
+    /// Resets synchronization status in database:
+    /// - Last synchronization status set to the genesis block
+    /// - Transaction index set to zero
+    /// - External and internal address indices set to zero
     pub fn clear_chain_data(&self) -> Result<()> {
         let mut state = self.state.write()?;
         state.clear_chain_data(&self.params.genesis_prev_hash);
+
+        let mut batch = self.db.batch();
+        batch.put(
+            &keys::wallet_last_sync(),
+            CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: self.params.genesis_prev_hash,
+            },
+        )?;
+        batch.put(&keys::transaction_next_id(0), 0)?;
+        batch.put(
+            &keys::account_next_index(0, constants::EXTERNAL_KEYCHAIN),
+            0,
+        )?;
+        batch.put(
+            &keys::account_next_index(0, constants::INTERNAL_KEYCHAIN),
+            0,
+        )?;
+        self.db.write(batch)?;
 
         Ok(())
     }
