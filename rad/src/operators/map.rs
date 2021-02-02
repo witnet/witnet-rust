@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use serde_cbor::value::{from_value, Value};
 use std::convert::TryInto;
 
@@ -65,7 +66,12 @@ pub fn keys(input: &RadonMap) -> RadonArray {
 }
 
 pub fn values(input: &RadonMap) -> RadonArray {
-    let v: Vec<RadonTypes> = input.value().values().cloned().collect();
+    let v: Vec<RadonTypes> = input
+        .value()
+        .into_iter()
+        .sorted_by_key(|(key, _value)| key.clone())
+        .map(|(_key, value)| value)
+        .collect();
     RadonArray::from(v)
 }
 
@@ -73,10 +79,7 @@ pub fn values(input: &RadonMap) -> RadonArray {
 mod tests {
     use super::*;
     use crate::types::integer::RadonInteger;
-    use std::{
-        collections::{HashMap, HashSet},
-        convert::TryFrom,
-    };
+    use std::{collections::HashMap, convert::TryFrom};
 
     #[test]
     fn test_map_get() {
@@ -154,15 +157,8 @@ mod tests {
         let input = RadonMap::from(map);
         let values = values(&input);
 
-        let hs = [value0, value1, value2]
-            .iter()
-            .cloned()
-            .collect::<HashSet<RadonTypes>>();
-
-        for value in values.value() {
-            assert!(hs.contains(&value));
-        }
-        assert_eq!(hs.len(), values.value().len());
+        // Radon values are sorted by key alphabetically
+        assert_eq!(values, RadonArray::from(vec![value1, value2, value0]));
     }
 
     // Auxiliar functions

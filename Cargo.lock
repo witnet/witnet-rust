@@ -4835,6 +4835,7 @@ dependencies = [
  "failure",
  "futures 0.3.8",
  "hex 0.4.2",
+ "itertools",
  "json",
  "log 0.4.11",
  "num_enum",
