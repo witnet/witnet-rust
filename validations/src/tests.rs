@@ -7733,3 +7733,82 @@ fn validate_dr_weight_valid() {
     let x = test_blocks_with_limits(vec![t0], 0, 2 * 1605, GENESIS_BLOCK_HASH.parse().unwrap());
     x.unwrap();
 }
+
+mod fuzz {
+    use super::*;
+
+    #[test]
+    fn malformed_reveal_1() {
+        // EncodeError::InvalidValue(CborValue::Break)
+        test_create_expected_report(vec![vec![216, 39, 255, 36]], vec![], 2, 0, 51)
+    }
+    #[test]
+    fn malformed_reveal_2() {
+        // unassigned type
+        test_create_expected_report(vec![vec![216, 39, 226]], vec![], 2, 0, 51)
+    }
+    #[test]
+    fn malformed_reveal_3() {
+        // attempt to negate with overflow
+        // This panics in the external crate cbor_codec:
+        // Int::from_i64(-9223372036854775808)
+        // But only in debug mode... In release mode it returns 9223372036854775807
+        // TODO: maybe that's intended? Then we should just replace the operation with a wrapping version
+        test_create_expected_report(
+            vec![vec![165, 59, 127, 255, 255, 255, 255, 255, 255, 255]],
+            vec![],
+            2,
+            0,
+            51,
+        )
+    }
+    #[test]
+    fn malformed_reveal_4() {
+        // Should never try to build a `serde_cbor::Value` from `RadonTypes::RadonError`. Error was: RadonError { inner: Unknown }
+        test_create_expected_report(vec![vec![129, 216, 39, 129, 0]], vec![], 2, 0, 0)
+    }
+    #[test]
+    fn malformed_reveal_5() {
+        // Should never try to build a `serde_cbor::Value` from `RadonTypes::RadonError`. Error was: RadonError { inner: UnhandledIntercept { inner: None, message: Some("A") } }
+        test_create_expected_report(
+            vec![vec![
+                191, 99, 99, 99, 99, 161, 99, 99, 7, 7, 216, 39, 159, 215, 24, 255, 65, 65, 255,
+                255, 129, 67, 67,
+            ]],
+            vec![],
+            2,
+            0,
+            0,
+        )
+    }
+
+    fn test_create_expected_report(
+        reveals: Vec<Vec<u8>>,
+        filters: Vec<RADFilter>,
+        reducer: u8,
+        extra_witnesses: u8,
+        min_consensus_percentage: u8,
+    ) {
+        let reveal_txns: Vec<_> = reveals
+            .into_iter()
+            .map(|reveal| {
+                RevealTransaction::new(
+                    RevealTransactionBody::new(Default::default(), reveal, Default::default()),
+                    vec![],
+                )
+            })
+            .collect();
+        let reveal_txns: Vec<_> = reveal_txns.iter().collect();
+
+        let tally_script = RADTally {
+            reducer: u32::from(reducer),
+            filters,
+        };
+
+        let non_error_min = f64::from(min_consensus_percentage) / 100.0;
+        let commit_length = reveal_txns.len() + usize::from(extra_witnesses);
+
+        let _report =
+            create_expected_report(&reveal_txns, &tally_script, non_error_min, commit_length);
+    }
+}

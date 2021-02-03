@@ -906,7 +906,8 @@ pub fn validate_reveal_transaction(
     Ok(dr_state.data_request.commit_and_reveal_fee)
 }
 
-fn create_expected_report(
+/// Function to create a expected report
+pub fn create_expected_report(
     reveals: &[&RevealTransaction],
     tally: &RADTally,
     non_error_min: f64,
