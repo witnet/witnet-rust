@@ -12,7 +12,10 @@ use std::{
     },
 };
 
-use witnet_rad::{error::RadError, types::serial_iter_decode};
+use witnet_rad::{
+    error::RadError,
+    types::{serial_iter_decode, RadonTypes},
+};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
@@ -31,11 +34,14 @@ use crate::{
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
-        ReputationEngine, TransactionsPool, ValueTransferOutput,
+        CheckpointVRF, DataRequestOutput, Epoch, EpochConstants, Hash, Hashable, Input,
+        PublicKeyHash, ReputationEngine, TransactionsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
+    get_environment,
+    mainnet_validations::after_second_hard_fork,
+    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
@@ -178,8 +184,8 @@ impl ChainManager {
             })
             .flatten_err()
             .into_actor(self)
-            .and_then(|vrf_proof, act, _ctx| {
-                act.create_tally_transactions()
+            .and_then(move |vrf_proof, act, _ctx| {
+                act.create_tally_transactions(current_epoch)
                     .map(|res| res.map(|tally_transactions| (vrf_proof, tally_transactions)))
                     .into_actor(act)
             })
@@ -496,7 +502,16 @@ impl ChainManager {
                         })
                         .map(move |res|
                             res.map(move |result| match result {
-                                    Ok(value) => Ok((vrf_proof, collateral, value)),
+                                    Ok(value) => {
+                                        // RadError::Unknown should not be committed until second hard fork
+                                        let unknown_rad_error = RadonTypes::RadonError(RadonError::try_from(RadError::Unknown).unwrap());
+                                        if !after_second_hard_fork(current_epoch, get_environment()) && value.result == unknown_rad_error {
+                                            log::error!("Couldn't resolve rad request {}: Unknown Error", dr_pointer);
+                                            Err(())
+                                        } else {
+                                            Ok((vrf_proof, collateral, value))
+                                        }
+                                    },
                                     Err(e) => {
                                         log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
                                         Err(())
@@ -581,6 +596,7 @@ impl ChainManager {
     #[allow(clippy::needless_collect)]
     fn create_tally_transactions(
         &mut self,
+        current_epoch: Epoch,
     ) -> impl Future<Output = Result<Vec<TallyTransaction>, ()>> {
         let data_request_pool = &self.chain_state.data_request_pool;
         let collateral_minimum = self
@@ -654,6 +670,13 @@ impl ChainManager {
                             .await
                             // Mailbox error
                             .map_err(|e| log::error!("Couldn't run tally: {}", e))?;
+
+                        // RadError::Unknown should not be included in a Tally until second hard fork
+                        let unknown_rad_error = RadonTypes::RadonError(RadonError::try_from(RadError::Unknown).unwrap());
+                        if !after_second_hard_fork(current_epoch, get_environment()) && tally_result.result == unknown_rad_error {
+                            log::error!("Couldn't resolve tally script {}: Unknown Error", dr_pointer);
+                            return Err(())
+                        }
 
                         let tally = create_tally(
                             dr_pointer,

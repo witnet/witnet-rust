@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, panic};
 
 use num_enum::TryFromPrimitive;
 use serde::Serialize;
@@ -137,7 +137,24 @@ pub fn operate_in_context(
     call: &RadonCall,
     context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
-    input.as_operable().operate_in_context(call, context)
+    let mut auxiliary_context = context.clone();
+    match panic::catch_unwind(move || {
+        (
+            input
+                .as_operable()
+                .operate_in_context(call, &mut auxiliary_context),
+            auxiliary_context,
+        )
+    }) {
+        Ok((result, auxiliary_context)) => {
+            *context = auxiliary_context;
+            result
+        }
+        Err(_) => {
+            log::error!("Panic found during a script execution");
+            Err(RadError::Unknown)
+        }
+    }
 }
 
 pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
