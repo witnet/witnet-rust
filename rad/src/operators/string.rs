@@ -146,7 +146,9 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
             let floating = f64::from(*value);
             // Cast the float into an integer if it has no fractional part and its value will fit
             // into the range of `i128` (38 is the biggest power of 10 that `i128` can safely hold)
-            if floating.fract() == 0.0 && exponent.abs() < 38 {
+            // TODO: after Rust 1.51, use unsigned_abs instead of wrapping_abs and remove this allow
+            #[allow(clippy::cast_sign_loss)]
+            if floating.fract() == 0.0 && (exponent.wrapping_abs() as u16) < 38 {
                 // This cast is assumed to be safe as per the previous guard
                 Value::Integer(floating as i128)
             } else {
@@ -643,6 +645,32 @@ mod tests {
         let json = JsonValue::Number(Number::from(4.1));
         let resulting_cbor = json_to_cbor(&json);
         let expected_cbor = serde_cbor::Value::Float(4.1);
+        assert_eq!(resulting_cbor, expected_cbor);
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_json_numbers_to_cbor_numbers_exponent_abs_overflow() {
+        // Ensure that converting JSON numbers with a large negative exponent into CBOR numbers
+        // does not cause any overflows
+
+        // Parse the number using json::parse because otherwise it is just converted to 0.0
+        let json = json::parse("0.1E-99999").unwrap();
+        // The exponent is too small to fit in a i16, so the json library saturates the value to
+        // i16::MIN:
+        let (sign, mantissa, exponent) = json.as_number().unwrap().as_parts();
+        assert_eq!((sign, mantissa, exponent), (true, 1, i16::MIN));
+        // This number is rounded to exactly 0.0 when converted to f64
+        assert_eq!(json.as_f64().unwrap(), 0.0);
+
+        // Convert to CBOR
+        let resulting_cbor = json_to_cbor(&json);
+
+        // This exponent is too small to fit in a f64, so expected_f64 is equal to 0.0
+        let expected_f64 = 0.1E-99999;
+        assert_eq!(expected_f64, 0.0);
+        // And the expected CBOR value is a float, not an integer
+        let expected_cbor = serde_cbor::Value::Float(expected_f64);
         assert_eq!(resulting_cbor, expected_cbor);
     }
 }
