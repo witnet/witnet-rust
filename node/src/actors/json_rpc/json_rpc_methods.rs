@@ -511,7 +511,9 @@ pub async fn get_block_chain(
     }
 
     fn convert_negative_to_positive_with_negative_flag(x: i64) -> Result<(u32, bool), String> {
-        let positive_x = u32::try_from(x.abs()).map_err(|_e| {
+        // TODO: after Rust 1.51, use unsigned_abs instead of wrapping_abs and remove this allow
+        #[allow(clippy::cast_sign_loss)]
+        let positive_x = u32::try_from(x.wrapping_abs() as u64).map_err(|_e| {
             format!(
                 "out of bounds: {} must be between -{} and {} inclusive",
                 x,
@@ -1615,6 +1617,38 @@ mod tests {
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions, true);
+        let response = io.handle_request_sync(&msg, meta);
+        assert_eq!(response, Some(expected));
+    }
+
+    #[test]
+    fn get_block_chain_abs_overflow() {
+        // Ensure that the get_block_chain method does not panic when passed i64::MIN as argument
+        let params = GetBlockChainParams {
+            epoch: i64::MIN,
+            limit: 1,
+        };
+        let msg = format!(
+            r#"{{"jsonrpc":"2.0","method":"getBlockChain","params":{},"id":1}}"#,
+            serde_json::to_string(&params).unwrap()
+        );
+        let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"Epoch out of bounds: -9223372036854775808 must be between -4294967295 and 4294967295 inclusive"},"id":1}"#.to_string();
+        let subscriptions = Subscriptions::default();
+        let (transport_sender, _transport_receiver) = mpsc::channel(0);
+        let meta = Arc::new(Session::new(transport_sender));
+        let io = jsonrpc_io_handler(subscriptions, true);
+        let response = io.handle_request_sync(&msg, meta.clone());
+        assert_eq!(response, Some(expected));
+
+        let params = GetBlockChainParams {
+            epoch: 1,
+            limit: i64::MIN,
+        };
+        let msg = format!(
+            r#"{{"jsonrpc":"2.0","method":"getBlockChain","params":{},"id":1}}"#,
+            serde_json::to_string(&params).unwrap()
+        );
+        let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"Limit out of bounds: -9223372036854775808 must be between -4294967295 and 4294967295 inclusive"},"id":1}"#.to_string();
         let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
