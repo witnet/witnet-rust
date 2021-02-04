@@ -156,7 +156,8 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
             }
         }
         json::JsonValue::String(value) => Value::Text(String::from(value.as_str())),
-        _ => Value::Null,
+        json::JsonValue::Boolean(b) => Value::Bool(*b),
+        json::JsonValue::Null => Value::Null,
     }
 }
 
@@ -671,6 +672,21 @@ mod tests {
         assert_eq!(expected_f64, 0.0);
         // And the expected CBOR value is a float, not an integer
         let expected_cbor = serde_cbor::Value::Float(expected_f64);
+        assert_eq!(resulting_cbor, expected_cbor);
+    }
+
+    #[test]
+    fn test_json_numbers_to_cbor_booleans() {
+        use json::JsonValue;
+
+        let json = JsonValue::Boolean(false);
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Bool(false);
+        assert_eq!(resulting_cbor, expected_cbor);
+
+        let json = JsonValue::Boolean(true);
+        let resulting_cbor = json_to_cbor(&json);
+        let expected_cbor = serde_cbor::Value::Bool(true);
         assert_eq!(resulting_cbor, expected_cbor);
     }
 }
