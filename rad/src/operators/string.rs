@@ -182,6 +182,21 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_json_map_with_null_entries() {
+        // When parsing a JSON map, any keys with value `null` are ignored
+        let json_map = RadonString::from(r#"{ "Hello": "world", "Bye": null }"#);
+        let output = parse_json_map(&json_map).unwrap();
+
+        let key = "Hello";
+        let value = RadonTypes::String(RadonString::from("world"));
+        let mut map = HashMap::new();
+        map.insert(key.to_string(), value);
+        let expected_output = RadonMap::from(map);
+
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
     fn test_parse_json_map_fail() {
         let invalid_json = RadonString::from(r#"{ "Hello":  }"#);
         let output = parse_json_map(&invalid_json).unwrap_err();
@@ -203,6 +218,21 @@ mod tests {
     #[test]
     fn test_parse_json_array() {
         let json_array = RadonString::from(r#"[1,2,3]"#);
+        let output = parse_json_array(&json_array).unwrap();
+
+        let expected_output = RadonArray::from(vec![
+            RadonTypes::Integer(RadonInteger::from(1)),
+            RadonTypes::Integer(RadonInteger::from(2)),
+            RadonTypes::Integer(RadonInteger::from(3)),
+        ]);
+
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
+    fn test_parse_json_array_with_null_entries() {
+        // When parsing a JSON array, any elements with value `null` are ignored
+        let json_array = RadonString::from(r#"[null, 1, null, null, 2, 3, null]"#);
         let output = parse_json_array(&json_array).unwrap();
 
         let expected_output = RadonArray::from(vec![
