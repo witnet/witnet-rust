@@ -822,6 +822,28 @@ fn check_beacon_compatibility(
     }
 }
 
+/// Check that the received timestamp is close enough to the current timestamp
+fn check_timestamp_drift(
+    current_ts: i64,
+    received_ts: i64,
+    max_ts_diff: i64,
+) -> Result<(), HandshakeError> {
+    if max_ts_diff == 0 {
+        return Ok(());
+    }
+
+    let valid_ts_range =
+        current_ts.saturating_sub(max_ts_diff)..=current_ts.saturating_add(max_ts_diff);
+    if !valid_ts_range.contains(&received_ts) {
+        return Err(HandshakeError::DifferentTimestamp {
+            current_ts,
+            timestamp_diff: received_ts.saturating_sub(current_ts),
+        });
+    }
+
+    Ok(())
+}
+
 /// Function called when Version message is received
 fn handshake_version(
     session: &mut Session,
@@ -829,15 +851,10 @@ fn handshake_version(
     current_ts: i64,
     current_epoch: Epoch,
 ) -> Result<Vec<WitnetMessage>, HandshakeError> {
-    // Check timestamp drift
+    // Check that the received timestamp is close enough to the current timestamp
     let received_ts = command_version.timestamp;
     let max_ts_diff = session.config.connections.handshake_max_ts_diff;
-    if max_ts_diff != 0 && (current_ts - received_ts).abs() > max_ts_diff {
-        return Err(HandshakeError::DifferentTimestamp {
-            current_ts,
-            timestamp_diff: received_ts - current_ts,
-        });
-    }
+    check_timestamp_drift(current_ts, received_ts, max_ts_diff)?;
 
     // Check beacon compatibility
     let current_beacon = &session.last_beacon;
@@ -1180,6 +1197,115 @@ mod tests {
                 current_beacon: received_beacon,
                 received_beacon: current_beacon,
             })
+        );
+    }
+
+    #[test]
+    fn timestamp_drift_max_one_second() {
+        // When max_ts_diff = 1, the valid timestamps are the ones in [1000 - 1, 1000 + 1] inclusive
+        let max_ts_diff = 1;
+        let current_ts = 1000;
+        let valid_ts = [999, 1000, 1001];
+        for received_ts in &valid_ts {
+            assert_eq!(
+                check_timestamp_drift(current_ts, *received_ts, max_ts_diff),
+                Ok(()),
+                "{}",
+                received_ts
+            );
+        }
+        let invalid_ts = [
+            997,
+            998,
+            1002,
+            1003,
+            0,
+            -1,
+            i64::MIN,
+            i64::MIN + 1,
+            i64::MAX,
+            i64::MAX - 1,
+        ];
+        for received_ts in &invalid_ts {
+            assert!(
+                check_timestamp_drift(current_ts, *received_ts, max_ts_diff).is_err(),
+                "{}",
+                received_ts
+            );
+        }
+    }
+
+    #[test]
+    fn timestamp_drift_max_zero_seconds() {
+        // When max_ts_diff = 0, all received_ts are valid
+        let max_ts_diff = 0;
+        let current_ts = 1000;
+        let valid_ts = [
+            997,
+            998,
+            999,
+            1000,
+            1001,
+            1002,
+            1003,
+            0,
+            -1,
+            i64::MIN,
+            i64::MIN + 1,
+            i64::MAX,
+            i64::MAX - 1,
+        ];
+        for received_ts in &valid_ts {
+            assert_eq!(
+                check_timestamp_drift(current_ts, *received_ts, max_ts_diff),
+                Ok(()),
+                "{}",
+                received_ts
+            );
+        }
+    }
+
+    #[test]
+    fn timestamp_drift_error_overflow() {
+        // When max_ts_diff = 1000, the valid timestamps are the ones in [0, 2000] inclusive
+        let max_ts_diff = 1000;
+        let current_ts = 1000;
+
+        // Timestamps from the past have negative diff
+        let received_ts = -1;
+        assert_eq!(
+            check_timestamp_drift(current_ts, received_ts, max_ts_diff),
+            Err(HandshakeError::DifferentTimestamp {
+                current_ts,
+                timestamp_diff: -1001,
+            }),
+            "{}",
+            received_ts
+        );
+
+        // Timestamps from the future have positive diff
+        let received_ts = 2001;
+        assert_eq!(
+            check_timestamp_drift(current_ts, received_ts, max_ts_diff),
+            Err(HandshakeError::DifferentTimestamp {
+                current_ts,
+                timestamp_diff: 1001,
+            }),
+            "{}",
+            received_ts
+        );
+
+        // If the difference in timestamps is greater in magnitude than i64::MIN,
+        // it is saturated to i64::MIN
+        let received_ts = i64::MIN;
+        assert_eq!(
+            check_timestamp_drift(current_ts, received_ts, max_ts_diff),
+            Err(HandshakeError::DifferentTimestamp {
+                current_ts,
+                timestamp_diff: i64::MIN,
+            }),
+            "{}",
+            received_ts
         );
     }
 }
