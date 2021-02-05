@@ -60,6 +60,7 @@ pub fn keys(input: &RadonMap) -> RadonArray {
     let v: Vec<RadonTypes> = input
         .value()
         .keys()
+        .sorted_by_key(|&key| key.clone())
         .map(|key| RadonTypes::from(RadonString::from(key.to_string())))
         .collect();
     RadonArray::from(v)
