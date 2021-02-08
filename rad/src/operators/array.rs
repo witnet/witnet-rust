@@ -357,7 +357,7 @@ pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     use witnet_data_structures::radon_report::RetrievalMetadata;
 
@@ -836,7 +836,7 @@ mod tests {
 
     #[test]
     fn test_sort_map_string_values() {
-        let mut map1 = HashMap::new();
+        let mut map1 = BTreeMap::new();
         map1.insert(
             "key1".to_string(),
             RadonTypes::String(RadonString::from("value1")),
@@ -846,7 +846,7 @@ mod tests {
             RadonTypes::String(RadonString::from("B")),
         );
 
-        let mut map2 = HashMap::new();
+        let mut map2 = BTreeMap::new();
 
         map2.insert(
             "key1".to_string(),
@@ -857,7 +857,7 @@ mod tests {
             RadonTypes::String(RadonString::from("A")),
         );
 
-        let mut map3 = HashMap::new();
+        let mut map3 = BTreeMap::new();
 
         map3.insert(
             "key1".to_string(),
@@ -890,7 +890,7 @@ mod tests {
 
     #[test]
     fn test_sort_map_integer_values() {
-        let mut map1 = HashMap::new();
+        let mut map1 = BTreeMap::new();
         map1.insert(
             "key1".to_string(),
             RadonTypes::Integer(RadonInteger::from(0)),
@@ -900,7 +900,7 @@ mod tests {
             RadonTypes::Integer(RadonInteger::from(1)),
         );
 
-        let mut map2 = HashMap::new();
+        let mut map2 = BTreeMap::new();
 
         map2.insert(
             "key1".to_string(),
@@ -911,7 +911,7 @@ mod tests {
             RadonTypes::Integer(RadonInteger::from(2)),
         );
 
-        let mut map3 = HashMap::new();
+        let mut map3 = BTreeMap::new();
 
         map3.insert(
             "key1".to_string(),
@@ -944,7 +944,7 @@ mod tests {
 
     #[test]
     fn test_sort_identical_maps_integer_values() {
-        let mut map1 = HashMap::new();
+        let mut map1 = BTreeMap::new();
         map1.insert(
             "key1".to_string(),
             RadonTypes::Integer(RadonInteger::from(1)),
@@ -954,7 +954,7 @@ mod tests {
             RadonTypes::Integer(RadonInteger::from(1)),
         );
 
-        let mut map2 = HashMap::new();
+        let mut map2 = BTreeMap::new();
 
         map2.insert(
             "key1".to_string(),
@@ -965,7 +965,7 @@ mod tests {
             RadonTypes::Integer(RadonInteger::from(1)),
         );
 
-        let mut map3 = HashMap::new();
+        let mut map3 = BTreeMap::new();
 
         map3.insert(
             "key1".to_string(),
@@ -998,9 +998,9 @@ mod tests {
 
     #[test]
     fn test_sort_empty_map() {
-        let map1 = HashMap::new();
-        let map2 = HashMap::new();
-        let map3 = HashMap::new();
+        let map1 = BTreeMap::new();
+        let map2 = BTreeMap::new();
+        let map3 = BTreeMap::new();
 
         let input = RadonArray::from(vec![
             RadonMap::from(map1).into(),
@@ -1020,7 +1020,7 @@ mod tests {
     fn test_sort_map_wrong_decode() {
         let item0 = RadonTypes::Integer(RadonInteger::from(0));
         let item1 = RadonTypes::Integer(RadonInteger::from(1));
-        let mut map1 = HashMap::new();
+        let mut map1 = BTreeMap::new();
         map1.insert("key1".to_string(), item0);
         map1.insert("key2".to_string(), item1);
 
@@ -1043,7 +1043,7 @@ mod tests {
 
     #[test]
     fn test_sort_map_floats_value() {
-        let mut map1 = HashMap::new();
+        let mut map1 = BTreeMap::new();
         map1.insert(
             "key1".to_string(),
             RadonTypes::Float(RadonFloat::from(std::f64::consts::PI)),
@@ -1249,7 +1249,7 @@ mod tests {
     }
 
     fn radon_array_of_maps() -> (RadonArray, i128, RadonMap) {
-        let mut map0 = HashMap::new();
+        let mut map0 = BTreeMap::new();
         map0.insert(
             "key01".to_string(),
             RadonTypes::Integer(RadonInteger::from(1)),
@@ -1260,7 +1260,7 @@ mod tests {
         );
         let item0 = RadonMap::from(map0);
 
-        let mut map1 = HashMap::new();
+        let mut map1 = BTreeMap::new();
         map1.insert(
             "key11".to_string(),
             RadonTypes::Integer(RadonInteger::from(11)),
@@ -1271,7 +1271,7 @@ mod tests {
         );
         let item1 = RadonMap::from(map1);
 
-        let mut map2 = HashMap::new();
+        let mut map2 = BTreeMap::new();
         map2.insert(
             "key21".to_string(),
             RadonTypes::Integer(RadonInteger::from(21)),

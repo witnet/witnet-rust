@@ -165,7 +165,7 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 mod tests {
     use super::*;
     use crate::types::{array::RadonArray, bytes::RadonBytes};
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_parse_json_map() {
@@ -174,7 +174,7 @@ mod tests {
 
         let key = "Hello";
         let value = RadonTypes::String(RadonString::from("world"));
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key.to_string(), value);
         let expected_output = RadonMap::from(map);
 
@@ -189,7 +189,7 @@ mod tests {
 
         let key = "Hello";
         let value = RadonTypes::String(RadonString::from("world"));
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key.to_string(), value);
         let expected_output = RadonMap::from(map);
 

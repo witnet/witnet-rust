@@ -1,5 +1,5 @@
 use std::{
-    collections::{btree_map::BTreeMap, HashMap},
+    collections::BTreeMap,
     convert::{TryFrom, TryInto},
     fmt,
 };
@@ -19,11 +19,11 @@ const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RadonMap {
-    value: HashMap<String, RadonTypes>,
+    value: BTreeMap<String, RadonTypes>,
 }
 
-impl RadonType<HashMap<String, RadonTypes>> for RadonMap {
-    fn value(&self) -> HashMap<String, RadonTypes> {
+impl RadonType<BTreeMap<String, RadonTypes>> for RadonMap {
+    fn value(&self) -> BTreeMap<String, RadonTypes> {
         self.value.clone()
     }
 
@@ -33,17 +33,9 @@ impl RadonType<HashMap<String, RadonTypes>> for RadonMap {
     }
 }
 
-impl From<HashMap<String, RadonTypes>> for RadonMap {
-    fn from(value: HashMap<String, RadonTypes>) -> Self {
-        RadonMap { value }
-    }
-}
-
 impl From<BTreeMap<String, RadonTypes>> for RadonMap {
     fn from(value: BTreeMap<String, RadonTypes>) -> Self {
-        RadonMap {
-            value: value.into_iter().collect(),
-        }
+        RadonMap { value }
     }
 }
 
@@ -56,14 +48,14 @@ impl TryFrom<Value> for RadonMap {
             to: RadonMap::radon_type_name(),
         };
 
-        let hm = from_value::<HashMap<String, Value>>(value)
+        let hm = from_value::<BTreeMap<String, Value>>(value)
             .map_err(error)?
             .iter()
             .filter_map(|(key, value)| match RadonTypes::try_from(value.clone()) {
                 Ok(x) => Some((key.clone(), x)),
                 Err(_) => None,
             })
-            .collect::<HashMap<String, RadonTypes>>();
+            .collect::<BTreeMap<String, RadonTypes>>();
 
         Ok(RadonMap::from(hm))
     }
@@ -174,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_operate_identity() {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         let value = RadonTypes::Integer(RadonInteger::from(0));
         map.insert("Zero".to_string(), value);
 
@@ -189,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_operate_unimplemented() {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         let value = RadonTypes::Integer(RadonInteger::from(0));
         map.insert("Zero".to_string(), value);
 
@@ -203,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_try_into() {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         let value = RadonTypes::Integer(RadonInteger::from(0));
         map.insert("Zero".to_string(), value);
         let input = RadonMap::from(map);
@@ -221,7 +213,7 @@ mod tests {
 
         let result = RadonTypes::try_from(slice).unwrap();
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         let value = RadonTypes::Integer(RadonInteger::from(0));
         map.insert("Zero".to_string(), value);
         let expected_input = RadonTypes::from(RadonMap::from(map));
@@ -231,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_operate_map_get() {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         let value = RadonTypes::Integer(RadonInteger::from(0));
         map.insert("Zero".to_string(), value);
         let input = RadonMap::from(map);
@@ -249,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_operate_map_get_error() {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         let value = RadonTypes::Integer(RadonInteger::from(0));
         map.insert("Zero".to_string(), value);
         let input = RadonMap::from(map);

@@ -193,7 +193,7 @@ mod tests {
             map::RadonMap, string::RadonString,
         },
     };
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use witnet_data_structures::radon_report::TypeLike;
 
     #[test]
@@ -320,8 +320,8 @@ mod tests {
         let array = RadonArray::from(vec![bool0, bool1]);
         assert!(array.is_homogeneous());
 
-        let map0 = RadonTypes::Map(RadonMap::from(HashMap::default()));
-        let map1 = RadonTypes::Map(RadonMap::from(HashMap::default()));
+        let map0 = RadonTypes::Map(RadonMap::from(BTreeMap::default()));
+        let map1 = RadonTypes::Map(RadonMap::from(BTreeMap::default()));
 
         let array = RadonArray::from(vec![map0, map1]);
         assert!(array.is_homogeneous());

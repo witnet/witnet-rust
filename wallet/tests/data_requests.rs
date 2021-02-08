@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use witnet_data_structures::radon_error::RadonError;
 use witnet_rad::{
@@ -42,7 +42,7 @@ fn test_radon_types_json_serialization() {
         )]
         .iter()
         .cloned()
-        .collect::<HashMap<String, RadonTypes>>(),
+        .collect::<BTreeMap<String, RadonTypes>>(),
     ));
     let expected_json = r#"{"RadonMap":{"foo":{"RadonString":"bar"}}}"#;
     assert_eq!(serde_json::to_string(&radon_type).unwrap(), expected_json);

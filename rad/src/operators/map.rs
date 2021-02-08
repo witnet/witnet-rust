@@ -74,7 +74,7 @@ mod tests {
     use super::*;
     use crate::types::integer::RadonInteger;
     use std::{
-        collections::{HashMap, HashSet},
+        collections::{BTreeMap, HashSet},
         convert::TryFrom,
     };
 
@@ -84,7 +84,7 @@ mod tests {
         let value = RadonTypes::Integer(RadonInteger::from(0));
         let args = vec![Value::try_from(String::from(key)).unwrap()];
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key.to_string(), value.clone());
 
         let input = RadonMap::from(map);
@@ -102,7 +102,7 @@ mod tests {
         let value = RadonTypes::Integer(RadonInteger::from(0));
         let args = vec![Value::Text(String::from("NotFound"))];
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key.to_string(), value);
 
         let input = RadonMap::from(map);
@@ -120,7 +120,7 @@ mod tests {
         let key2 = "Two";
         let value2 = RadonTypes::Integer(RadonInteger::from(2));
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0.to_string(), value0);
         map.insert(key1.to_string(), value1);
         map.insert(key2.to_string(), value2);
@@ -146,7 +146,7 @@ mod tests {
         let key2 = "Two";
         let value2 = RadonTypes::Integer(RadonInteger::from(2));
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0.to_string(), value0.clone());
         map.insert(key1.to_string(), value1.clone());
         map.insert(key2.to_string(), value2.clone());
@@ -192,7 +192,7 @@ mod tests {
         let value1 = RadonTypes::Array(item1.clone());
         let value2 = RadonTypes::Array(item2);
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0, value0);
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
@@ -215,7 +215,7 @@ mod tests {
         let value1 = RadonTypes::Boolean(item1.clone());
         let value2 = RadonTypes::Boolean(item2);
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0, value0);
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
@@ -238,7 +238,7 @@ mod tests {
         let value1 = RadonTypes::Bytes(item1.clone());
         let value2 = RadonTypes::Bytes(item2);
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0, value0);
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
@@ -261,7 +261,7 @@ mod tests {
         let value1 = RadonTypes::Integer(item1.clone());
         let value2 = RadonTypes::Integer(item2);
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0, value0);
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
@@ -284,7 +284,7 @@ mod tests {
         let value1 = RadonTypes::Float(item1.clone());
         let value2 = RadonTypes::Float(item2);
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0, value0);
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
@@ -307,7 +307,7 @@ mod tests {
         let value1 = RadonTypes::Map(item1.clone());
         let value2 = RadonTypes::Map(item2);
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0, value0);
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
@@ -330,7 +330,7 @@ mod tests {
         let value1 = RadonTypes::String(item1.clone());
         let value2 = RadonTypes::String(item2);
 
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(key0, value0);
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
