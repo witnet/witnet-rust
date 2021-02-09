@@ -73,10 +73,7 @@ pub fn values(input: &RadonMap) -> RadonArray {
 mod tests {
     use super::*;
     use crate::types::integer::RadonInteger;
-    use std::{
-        collections::{BTreeMap, HashSet},
-        convert::TryFrom,
-    };
+    use std::{collections::BTreeMap, convert::TryFrom};
 
     #[test]
     fn test_map_get() {
@@ -125,16 +122,18 @@ mod tests {
         map.insert(key1.to_string(), value1);
         map.insert(key2.to_string(), value2);
 
-        let input = RadonMap::from(map.clone());
+        let input = RadonMap::from(map);
         let keys = keys(&input);
 
-        for key in keys.value() {
-            match key {
-                RadonTypes::String(rad_string) => assert!(map.contains_key(&rad_string.value())),
-
-                _ => panic!("No RadonString as a key"),
-            }
-        }
+        // RadonMap::Keys are sorted by key alphabetically
+        assert_eq!(
+            keys,
+            RadonArray::from(vec![
+                RadonTypes::String(RadonString::from(key1.to_string())),
+                RadonTypes::String(RadonString::from(key2.to_string())),
+                RadonTypes::String(RadonString::from(key0.to_string()))
+            ])
+        );
     }
 
     #[test]
@@ -154,15 +153,8 @@ mod tests {
         let input = RadonMap::from(map);
         let values = values(&input);
 
-        let hs = [value0, value1, value2]
-            .iter()
-            .cloned()
-            .collect::<HashSet<RadonTypes>>();
-
-        for value in values.value() {
-            assert!(hs.contains(&value));
-        }
-        assert_eq!(hs.len(), values.value().len());
+        // RadonMap::Values are sorted by key alphabetically
+        assert_eq!(values, RadonArray::from(vec![value1, value2, value0]));
     }
 
     // Auxiliar functions
