@@ -864,6 +864,13 @@ where
             balance_movements_to_persist.iter().for_each(|x| {
                 state.pending_dr_movements.remove(&x.transaction.hash);
             });
+
+            // If everything was OK, update `last_confirmed` beacon
+            state.last_confirmed = CheckpointBeacon {
+                checkpoint: block_info.epoch,
+                hash_prev_block: block_info.block_hash,
+            };
+            state.balance.confirmed = state.balance.unconfirmed;
         } else {
             for address in &addresses {
                 let path = address.path.clone();
