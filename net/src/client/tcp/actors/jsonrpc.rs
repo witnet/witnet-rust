@@ -377,7 +377,10 @@ impl StreamHandler<Result<NotifySubscriptionId, Error>> for JsonRpcClient {
 fn is_connection_error(err: &Error) -> bool {
     match err {
         Error::RequestFailed { error_kind, .. } => {
-            matches!(error_kind, TransportErrorKind::Transport(_) | TransportErrorKind::Unreachable)
+            matches!(
+                error_kind,
+                TransportErrorKind::Transport(_) | TransportErrorKind::Unreachable
+            )
         }
         Error::RequestTimedOut(_) => true,
         Error::Mailbox(_) => true,

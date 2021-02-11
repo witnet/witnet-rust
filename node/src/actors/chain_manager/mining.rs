@@ -410,19 +410,28 @@ impl ChainManager {
                         // to guarantee addition and prevent potential race conditions in a concurrent
                         // scenario.
                         loop {
-                            let internal_retrieval_count = cloned_retrieval_count.compare_and_swap(start_retrieval_count, final_retrieval_count, atomic::Ordering::Relaxed);
-                            if internal_retrieval_count == start_retrieval_count {
-                                // The counter update was updated successfully, we can move on.
-                                break actix::fut::ok(vrf_proof);
-                            } else {
-                                // The counter was updated somewhere else, addition must be retried
-                                // after verifying that the limit has not been exceeded since last
-                                // it was checked.
-                                start_retrieval_count = internal_retrieval_count;
-                                final_retrieval_count = start_retrieval_count.saturating_add(added_retrieval_count);
+                            let internal_retrieval_count_result = cloned_retrieval_count.compare_exchange_weak(
+                                start_retrieval_count,
+                                final_retrieval_count,
+                                atomic::Ordering::Relaxed,
+                                atomic::Ordering::Relaxed,
+                            );
 
-                                if final_retrieval_count > maximum_retrieval_count {
-                                    break actix::fut::err(());
+                            match internal_retrieval_count_result {
+                                Ok(_) => {
+                                    // The counter update was updated successfully, we can move on.
+                                    break actix::fut::ok(vrf_proof);
+                                }
+                                Err(internal_retrieval_count) => {
+                                    // The counter was updated somewhere else, addition must be retried
+                                    // after verifying that the limit has not been exceeded since last
+                                    // it was checked.
+                                    start_retrieval_count = internal_retrieval_count;
+                                    final_retrieval_count = start_retrieval_count.saturating_add(added_retrieval_count);
+
+                                    if final_retrieval_count > maximum_retrieval_count {
+                                        break actix::fut::err(());
+                                    }
                                 }
                             }
                         }

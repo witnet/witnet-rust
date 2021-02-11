@@ -476,7 +476,7 @@ mod tests {
         fn ignore_invalid_fn(_: RadError, _: &[u8], _: &()) -> Option<RadonReport<RadonTypes>> {
             None
         }
-        #[allow(clippy::trivially_copy_pass_by_ref)]
+        #[allow(clippy::trivially_copy_pass_by_ref, clippy::unnecessary_wraps)]
         fn malformed_reveal_fn(_: RadError, _: &[u8], _: &()) -> Option<RadonReport<RadonTypes>> {
             Some(RadonReport::from_result(
                 Err(RadError::MalformedReveal),

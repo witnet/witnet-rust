@@ -1067,6 +1067,7 @@ where
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn from_millis<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
@@ -1087,6 +1088,7 @@ where
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,

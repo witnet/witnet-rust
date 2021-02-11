@@ -2872,10 +2872,7 @@ fn commitment_collateral_zero_value_output() {
 
     let err = x.unwrap_err().downcast::<TransactionError>().unwrap();
     assert!(
-        matches!(
-            err,
-            TransactionError::ZeroValueOutput { output_id: 0, .. }
-        ),
+        matches!(err, TransactionError::ZeroValueOutput { output_id: 0, .. }),
         "assertion failed: `(left == right)`\n  left: `{:?}`,\n right: `ZeroValueOutput`",
         err
     );
