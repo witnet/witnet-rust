@@ -433,6 +433,15 @@ fn calculate_errors_and_liars_count(errors: &[bool], liars: &[bool]) -> (usize, 
         })
 }
 
+/// Create tally transaction to reward honest witnesses and penalize liars.
+///
+/// # Panics
+///
+/// This function panics if the `RadonReport` is not in tally stage.
+///
+/// And also if `tally_metadata.liars` and `tally_metadata.errors` do not have the same length as
+/// `revealers`
+#[allow(clippy::too_many_arguments)]
 pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
@@ -441,7 +450,8 @@ pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     revealers: Vec<PublicKeyHash>,
     committers: HashSet<PublicKeyHash, S>,
     collateral_minimum: u64,
-) -> Result<TallyTransaction, failure::Error>
+    tally_bytes_on_encode_error: Vec<u8>,
+) -> TallyTransaction
 where
     RT: TypeLike,
 {
@@ -541,18 +551,22 @@ where
             outputs.push(vt_output_change);
         }
 
-        let tally_bytes = Vec::try_from(report)?;
+        let tally_bytes = Vec::try_from(report).unwrap_or_else(|e| {
+            log::warn!("Failed to serialize tally result. Error was: {:?}", e);
+
+            tally_bytes_on_encode_error
+        });
         let out_of_consensus = out_of_consensus.into_iter().collect();
 
-        Ok(TallyTransaction::new(
+        TallyTransaction::new(
             dr_pointer,
             tally_bytes,
             outputs,
             out_of_consensus,
             error_committers,
-        ))
+        )
     } else {
-        Err(TransactionError::NoTallyStage.into())
+        panic!("{}", TransactionError::NoTallyStage)
     }
 }
 

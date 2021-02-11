@@ -1691,6 +1691,25 @@ fn example_data_request() -> RADRequest {
     }
 }
 
+fn example_data_request_average_mean_reducer() -> RADRequest {
+    RADRequest {
+        time_lock: 0,
+        retrieve: vec![RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://blockchain.info/q/latesthash".to_string(),
+            script: vec![128],
+        }],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: RadonReducers::AverageMean as u32,
+        },
+        tally: RADTally {
+            filters: vec![],
+            reducer: RadonReducers::AverageMean as u32,
+        },
+    }
+}
+
 fn example_data_request_with_mode_filter() -> RADRequest {
     RADRequest {
         time_lock: 0,
@@ -1720,6 +1739,21 @@ fn example_data_request_output(witnesses: u16, witness_reward: u64, fee: u64) ->
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
+    }
+}
+
+fn example_data_request_output_average_mean_reducer(
+    witnesses: u16,
+    witness_reward: u64,
+    fee: u64,
+) -> DataRequestOutput {
+    DataRequestOutput {
+        witnesses,
+        commit_and_reveal_fee: fee,
+        witness_reward,
+        min_consensus_percentage: 51,
+        data_request: example_data_request_average_mean_reducer(),
         collateral: ONE_WIT,
     }
 }
@@ -4879,8 +4913,8 @@ fn create_tally_validation_dr_liar() {
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
-    )
-    .unwrap();
+        tally_bytes_on_encode_error(),
+    );
 
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
@@ -4962,8 +4996,8 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
         .cloned()
         .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
-    )
-    .unwrap();
+        tally_bytes_on_encode_error(),
+    );
 
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
@@ -5013,8 +5047,8 @@ fn create_tally_validation_4_commits_2_reveals() {
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
-    )
-    .unwrap();
+        tally_bytes_on_encode_error(),
+    );
 
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
@@ -5062,8 +5096,8 @@ fn create_tally_validation_zero_commits() {
         vec![],
         HashSet::<PublicKeyHash>::default(),
         ONE_WIT,
-    )
-    .unwrap();
+        tally_bytes_on_encode_error(),
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
@@ -5188,8 +5222,8 @@ fn create_tally_validation_zero_reveals() {
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
-    )
-    .unwrap();
+        tally_bytes_on_encode_error(),
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
@@ -5221,8 +5255,8 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
-    )
-    .unwrap();
+        tally_bytes_on_encode_error(),
+    );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
@@ -5328,6 +5362,50 @@ fn validate_calculate_witness_reward() {
         (expected_reward, rest),
         calculate_witness_reward(5, 5, 1, 1, dr_output.witness_reward, dr_output.collateral)
     );
+}
+
+#[test]
+fn tally_bytes_on_encode_error_does_not_change() {
+    let bytes = tally_bytes_on_encode_error();
+    let expected = vec![216, 39, 129, 0];
+
+    assert_eq!(bytes, expected);
+}
+
+#[test]
+fn tally_unserializable_value() {
+    // When the result of the tally cannot be serialized, the result is a RadError::Unknown, as
+    // returned by `tally_bytes_on_encode_error`
+
+    // Reveal value: negative(18446744073709551361)
+    let reveal_value = vec![59, 255, 255, 255, 255, 255, 255, 255, 0];
+    let dr_output = example_data_request_output_average_mean_reducer(2, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT);
+
+    // Tally value: RadError::Unknown
+    let tally_value = tally_bytes_on_encode_error();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    assert_eq!(change, 0);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    x.unwrap();
 }
 
 static LAST_VRF_INPUT: &str = "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
