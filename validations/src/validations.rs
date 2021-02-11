@@ -969,7 +969,6 @@ fn create_expected_tally_transaction(
         non_error_min,
         commit_length,
     );
-
     let ta_tx = create_tally(
         dr_pointer,
         &dr_output,
@@ -978,9 +977,17 @@ fn create_expected_tally_transaction(
         reveal_txns.into_iter().map(|tx| tx.body.pkh).collect(),
         committers,
         collateral_minimum,
-    )?;
+        tally_bytes_on_encode_error(),
+    );
 
     Ok((ta_tx, dr_state.clone()))
+}
+
+/// This will be the returned error if the tally serialization fails
+pub fn tally_bytes_on_encode_error() -> Vec<u8> {
+    let radon_report_unknown_error: RadonReport<RadonTypes> =
+        RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default());
+    Vec::try_from(&radon_report_unknown_error).unwrap()
 }
 
 /// Return (number_of_lies, number_of_errors) in `TallyTransaction`

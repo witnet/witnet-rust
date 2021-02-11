@@ -16,8 +16,8 @@ use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
-    calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, update_utxo_diff,
-    vt_transaction_fee,
+    calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, tally_bytes_on_encode_error,
+    update_utxo_diff, vt_transaction_fee,
 };
 
 use crate::{
@@ -663,34 +663,27 @@ impl ChainManager {
                             reveals.iter().map(|r| r.body.pkh).collect(),
                             committers,
                             collateral_minimum,
+                            tally_bytes_on_encode_error(),
                         );
 
-                        match tally {
-                            Ok(t) => {
-                                log::info!(
-                                    "{} Created Tally for Data Request {} with result: {}\n{}",
-                                    Yellow.bold().paint("[Data Request]"),
-                                    Yellow.bold().paint(&dr_pointer.to_string()),
-                                    Yellow
-                                        .bold()
-                                        .paint(format!("{}", &tally_result.into_inner())),
-                                    White.bold().paint(reports.into_iter().fold(
-                                        String::from("Reveals:"),
-                                        |acc, item| format!(
-                                            "{}\n\t* {}",
-                                            acc,
-                                            item.into_inner()
-                                        )
-                                    )),
-                                );
+                        log::info!(
+                            "{} Created Tally for Data Request {} with result: {}\n{}",
+                            Yellow.bold().paint("[Data Request]"),
+                            Yellow.bold().paint(&dr_pointer.to_string()),
+                            Yellow
+                                .bold()
+                                .paint(format!("{}", &tally_result.into_inner())),
+                            White.bold().paint(reports.into_iter().fold(
+                                String::from("Reveals:"),
+                                |acc, item| format!(
+                                    "{}\n\t* {}",
+                                    acc,
+                                    item.into_inner()
+                                )
+                            )),
+                        );
 
-                                Ok(t)
-                            }
-                            Err(e) => {
-                                log::error!("Couldn't create tally: {}", e);
-                                Err(())
-                            }
-                        }
+                        Result::<_, ()>::Ok(tally)
                     }
                     // This future should always return Ok because join_all short-circuits on the
                     // first Err, and we want to keep creating tallies after the first error
