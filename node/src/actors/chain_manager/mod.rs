@@ -314,6 +314,7 @@ impl ChainManager {
         .into_actor(self)
         .and_then(|(), act, ctx| {
             log::info!("Successfully persisted empty chain state into storage");
+            act.update_state_machine(StateMachine::WaitingConsensus);
             act.initialize_from_storage(ctx);
             fut::ok(())
         })

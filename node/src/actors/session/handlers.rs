@@ -664,6 +664,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
     }
 }
 
+// TODO: rename this function
 fn check_if_all_requested_blocks_are_ready_and_send_add_blocks_to_chain_manager(
     session: &mut Session,
 ) {
@@ -768,48 +769,43 @@ fn inventory_process_inv(
     session.requested_blocks.clear();
     session.blocks_timestamp = get_timestamp();
 
+    // Check if the inventory manager already has some of the blocks, to save some bandwidth by not
+    // requesting the same blocks again.
     let requested_block_hashes = session.requested_block_hashes.clone();
     let aux = requested_block_hashes
         .into_iter()
         .map(move |hash| async move {
             let inventory_manager = InventoryManager::from_registry();
             let res = inventory_manager.send(GetItemBlock { hash }).await;
-            let res = match res {
-                Ok(Ok(block)) => Ok(block),
+
+            match res {
+                Ok(Ok(block)) => Some(block),
                 Ok(Err(InventoryManagerError::ItemNotFound)) => {
-                    // This error is excepted, so don't log it
-                    Err(())
+                    // This error is expected, so don't log it
+                    None
                 }
                 Ok(Err(e)) => {
                     log::error!("Error in GetItemBlock {}: {}", hash, e);
-                    Err(())
+                    None
                 }
                 Err(e) => {
                     log::error!("Error in GetItemBlock {}: {}", hash, e);
-                    Err(())
-                }
-            };
-
-            Ok(res.ok())
-        });
-
-    future::try_join_all(aux).into_actor(session).then(|res, session, _ctx| {
-        match res {
-            Ok(blocks) => {
-                for block in blocks {
-                    if let Some(block) = block {
-                        let block_hash = block.hash();
-                        // We need to check if this block hash was requested because the list of
-                        // requested_block_hashes may have changed
-                        if session.requested_block_hashes.contains(&block_hash) {
-                            // Add block to requested_blocks
-                            session.requested_blocks.insert(block_hash, block);
-                        }
-                    }
+                    None
                 }
             }
-            Err(()) => {
-                // This should be impossible because we explicitly ignore errors
+        });
+
+    // TODO: this could use FuturesUnordered
+    future::join_all(aux).into_actor(session).then(|blocks, session, _ctx| {
+        for maybe_block in blocks {
+            if let Some(block) = maybe_block {
+                let block_hash = block.hash();
+                // We need to check if this block hash was requested because the list of
+                // requested_block_hashes may have changed
+                if session.requested_block_hashes.contains(&block_hash) {
+                    // Add block to requested_blocks
+                    session.requested_blocks.insert(block_hash, block);
+                }
             }
         }
 
