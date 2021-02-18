@@ -17,8 +17,8 @@ use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
         DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
-        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
-        Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
+        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADAggregate, RADRequest,
+        RADTally, Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
@@ -536,6 +536,56 @@ pub fn construct_report_from_clause_result(
             RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))
         }
     }
+}
+
+/// Run aggregation
+pub fn run_aggregation_with_precondition(
+    aggregator: &RADAggregate,
+    retrieve_responses: Vec<RadonReport<RadonTypes>>,
+) -> Result<RadonReport<RadonTypes>, RadError> {
+    // TODO: what are these magic numbers? num_commits should be retrieve_responses.len()?
+    let minimum_consensus = 0.2;
+    let num_commits = 1;
+    let clause_result =
+        evaluate_tally_precondition_clause(retrieve_responses, minimum_consensus, num_commits);
+
+    match clause_result {
+        Ok(TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars: _liars,
+            errors: _errors,
+        }) => {
+            // Perform aggregation on the values that made it to the output vector after applying the
+            // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
+            // failures.
+            witnet_rad::run_aggregation_report(
+                values,
+                &aggregator,
+                RadonScriptExecutionSettings::all_but_partial_results(),
+            )
+        }
+        Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
+            Ok(RadonReport::from_result(
+                Ok(RadonTypes::RadonError(errors_mode)),
+                &ReportContext::default(),
+            ))
+        }
+        Err(e) => Ok(RadonReport::from_result(Err(e), &ReportContext::default())),
+    }
+}
+
+/// Run tally
+pub fn run_tally_with_precondition(
+    tally_script: &RADTally,
+    reports: Vec<RadonReport<RadonTypes>>,
+    min_consensus_ratio: f64,
+    commits_count: usize,
+) -> RadonReport<RadonTypes> {
+    let reports_len = reports.len();
+    let clause_result =
+        evaluate_tally_precondition_clause(reports, min_consensus_ratio, commits_count);
+
+    construct_report_from_clause_result(clause_result, &tally_script, reports_len)
 }
 
 /// Function to validate a value transfer transaction

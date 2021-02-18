@@ -1,16 +1,16 @@
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    fs,
-};
+use std::{collections::HashMap, convert::TryInto, fs};
 
 use serde::{Deserialize, Serialize};
 
 use witnet_data_structures::chain::DataRequestOutput;
+use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
     script::RadonScriptExecutionSettings,
     types::{float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes},
+};
+use witnet_validations::validations::{
+    run_aggregation_with_precondition, run_tally_with_precondition,
 };
 
 /// Id. Can be null, a number, or a string
@@ -40,37 +40,42 @@ fn generate_example_json(build_drt: BuildDrt) -> String {
     .unwrap()
 }
 
-fn run_dr_locally_with_data(
-    dr: &DataRequestOutput,
-    data: &[&str],
-) -> Result<RadonTypes, failure::Error> {
+fn run_dr_locally_with_data(dr: &DataRequestOutput, data: &[&str]) -> RadonReport<RadonTypes> {
     let mut retrieval_results = vec![];
     assert_eq!(dr.data_request.retrieve.len(), data.len());
     for (r, d) in dr.data_request.retrieve.iter().zip(data.iter()) {
         log::info!("Running retrieval for {}", r.url);
-        retrieval_results.push(witnet_rad::run_retrieval_with_data(
-            r,
-            *d,
-            RadonScriptExecutionSettings::disable_all(),
-        )?);
+        let retrieve =
+            witnet_rad::run_retrieval_with_data(r, *d, RadonScriptExecutionSettings::disable_all());
+        retrieval_results.push(RadonReport::from_result(
+            retrieve,
+            &ReportContext::default(),
+        ));
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);
     let aggregation_result =
-        witnet_rad::run_aggregation(retrieval_results, &dr.data_request.aggregate)?;
+        run_aggregation_with_precondition(&dr.data_request.aggregate, retrieval_results)
+            .expect("Error during aggregation stage");
     log::info!("Aggregation result: {:?}", aggregation_result);
 
     // Assume that all the required witnesses will report the same value
-    let reported_values: Result<Vec<RadonTypes>, _> =
+    let reported_values: Vec<RadonReport<RadonTypes>> =
         vec![aggregation_result; dr.witnesses.try_into().unwrap()]
             .into_iter()
-            .map(RadonTypes::try_from)
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_tally(reported_values?, &dr.data_request.tally)?;
+    let min_consensus_ratio = f64::from(dr.min_consensus_percentage) / 100.0;
+    let num_commits = dr.witnesses.into();
+    let tally_result = run_tally_with_precondition(
+        &dr.data_request.tally,
+        reported_values,
+        min_consensus_ratio,
+        num_commits,
+    );
     log::info!("Tally result: {:?}", tally_result);
 
-    Ok(tally_result)
+    tally_result
 }
 
 #[test]
@@ -107,7 +112,7 @@ fn parse_examples() {
                 // Run data request locally
                 let local_result = run_dr_locally_with_data(&file_value.params.dro, example_data);
                 assert_eq!(
-                    local_result.unwrap(),
+                    local_result.into_inner(),
                     expected_result,
                     "Error when running data request example {}",
                     path.display()

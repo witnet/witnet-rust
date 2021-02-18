@@ -2,10 +2,9 @@
 
 use actix::{Handler, Message, ResponseFuture};
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
-use witnet_rad::{error::RadError, script::RadonScriptExecutionSettings, types::RadonTypes};
+use witnet_rad::{error::RadError, types::RadonTypes};
 use witnet_validations::validations::{
-    construct_report_from_clause_result, evaluate_tally_precondition_clause,
-    TallyPreconditionClauseResult,
+    run_aggregation_with_precondition, run_tally_with_precondition,
 };
 
 use crate::actors::messages::{ResolveRA, RunTally};
@@ -38,31 +37,7 @@ impl Handler<ResolveRA> for RadManager {
                     .map(|retrieve| RadonReport::from_result(retrieve, &ReportContext::default()))
                     .collect();
 
-            let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2, 1);
-
-            match clause_result {
-                Ok(TallyPreconditionClauseResult::MajorityOfValues {
-                    values,
-                    liars: _liars,
-                    errors: _errors,
-                }) => {
-                    // Perform aggregation on the values that made it to the output vector after applying the
-                    // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
-                    // failures.
-                    witnet_rad::run_aggregation_report(
-                        values,
-                        &aggregator,
-                        RadonScriptExecutionSettings::all_but_partial_results(),
-                    )
-                }
-                Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
-                    Ok(RadonReport::from_result(
-                        Ok(RadonTypes::RadonError(errors_mode)),
-                        &ReportContext::default(),
-                    ))
-                }
-                Err(e) => Ok(RadonReport::from_result(Err(e), &ReportContext::default())),
-            }
+            run_aggregation_with_precondition(&aggregator, retrieve_responses)
         };
 
         if let Some(timeout) = timeout {
@@ -92,13 +67,11 @@ impl Handler<RunTally> for RadManager {
     type Result = <RunTally as Message>::Result;
 
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
-        let packed_script = msg.script;
-        let reports = msg.reports;
-
-        let reports_len = reports.len();
-        let clause_result =
-            evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio, msg.commits_count);
-
-        construct_report_from_clause_result(clause_result, &packed_script, reports_len)
+        run_tally_with_precondition(
+            &msg.script,
+            msg.reports,
+            msg.min_consensus_ratio,
+            msg.commits_count,
+        )
     }
 }
