@@ -118,11 +118,11 @@ where
     /// The arguments of the last call that has been processed.
     pub call_arguments: Option<Vec<serde_cbor::Value>>,
     /// The index of the last argument in a call that has been processed.
-    pub call_argument_index: Option<u8>,
+    pub call_argument_index: Option<usize>,
     /// The index of the last call that has been processed.
-    pub call_index: Option<u8>,
+    pub call_index: Option<usize>,
     /// The operator in the last call that has been processed.
-    pub call_operator: Option<u8>,
+    pub call_operator: Option<usize>,
     /// The timestamp when the execution of the script finished.
     pub completion_time: Option<SystemTime>,
     /// Metadata that is specific to the stage of the script.
@@ -130,7 +130,7 @@ where
     /// The timestamp when the execution of the script began.
     pub start_time: Option<SystemTime>,
     /// The index of the last script or subscript in a stage that has been processed.
-    pub script_index: Option<u8>,
+    pub script_index: Option<usize>,
 }
 
 impl<RT> Default for ReportContext<RT>

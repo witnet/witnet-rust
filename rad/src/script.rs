@@ -107,7 +107,7 @@ pub fn execute_radon_script(
         .try_fold(input, |input, (i, call)| {
             // Update the index of the last executed call, if enabled in settings
             if settings.breakpoints {
-                context.call_index = Some(u8::try_from(i).unwrap());
+                context.call_index = Some(i);
             }
 
             // Apply the call
