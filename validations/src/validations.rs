@@ -2,7 +2,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
-    fmt,
+    fmt, panic,
 };
 
 use itertools::Itertools;
@@ -912,27 +912,36 @@ fn create_expected_report(
     non_error_min: f64,
     commits_count: usize,
 ) -> RadonReport<RadonTypes> {
-    let results = serial_iter_decode(
-        &mut reveals
-            .iter()
-            .map(|&reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
-        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
-            log::warn!(
-                "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
-                reveal_tx,
-                &slice,
-                e
-            );
-            Some(RadonReport::from_result(
-                Err(RadError::MalformedReveal),
-                &ReportContext::default(),
-            ))
-        },
-    );
+    match panic::catch_unwind(|| {
+        let results = serial_iter_decode(
+            &mut reveals
+                .iter()
+                .map(|&reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
+            |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
+                log::warn!(
+                    "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
+                    reveal_tx,
+                    &slice,
+                    e
+                );
+                Some(RadonReport::from_result(
+                    Err(RadError::MalformedReveal),
+                    &ReportContext::default(),
+                ))
+            },
+        );
 
-    let results_len = results.len();
-    let clause_result = evaluate_tally_precondition_clause(results, non_error_min, commits_count);
-    construct_report_from_clause_result(clause_result, &tally, results_len)
+        let results_len = results.len();
+        let clause_result =
+            evaluate_tally_precondition_clause(results, non_error_min, commits_count);
+        construct_report_from_clause_result(clause_result, &tally, results_len)
+    }) {
+        Ok(x) => x,
+        Err(_e) => {
+            // Panic during tally creation: set tally result to RadError::Unknown
+            RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
+        }
+    }
 }
 
 fn create_expected_tally_transaction(

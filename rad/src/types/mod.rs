@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
-    fmt,
+    fmt, panic,
 };
 
 use cbor::value::Value as CborValue;
@@ -455,13 +455,19 @@ pub fn serial_iter_decode<T>(
     iter: &mut dyn Iterator<Item = (&[u8], &T)>,
     err_action: fn(RadError, &[u8], &T) -> Option<RadonReport<RadonTypes>>,
 ) -> Vec<RadonReport<RadonTypes>> {
-    iter.filter_map(|(slice, inner)| match RadonTypes::try_from(slice) {
-        Ok(radon_types) => Some(RadonReport::from_result(
-            Ok(radon_types),
-            &ReportContext::default(),
-        )),
-        Err(e) => err_action(e, slice, inner),
-    })
+    iter.filter_map(
+        |(slice, inner)| match panic::catch_unwind(|| RadonTypes::try_from(slice)) {
+            Ok(Ok(radon_types)) => Some(RadonReport::from_result(
+                Ok(radon_types),
+                &ReportContext::default(),
+            )),
+            Ok(Err(e)) => err_action(e, slice, inner),
+            Err(_e) => {
+                log::error!("Panic found during CBOR conversion");
+                err_action(RadError::Unknown, slice, inner)
+            }
+        },
+    )
     .collect()
 }
 
