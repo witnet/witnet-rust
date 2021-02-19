@@ -938,7 +938,7 @@ fn create_expected_report(
     }) {
         Ok(x) => x,
         Err(_e) => {
-            // Panic during tally creation: set tally result to RadError::Unknown
+            // If there is a panic during tally creation: set tally result to RadError::Unknown
             RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
         }
     }
