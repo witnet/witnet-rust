@@ -503,6 +503,8 @@ impl ChainManager {
                                     }
                                 })
                                 .map_err(move |e| {
+                                    // If resolving a data request results in a panic in the
+                                    // message handler, ignore this data request
                                     log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e)
                                 })
                         )
@@ -652,8 +654,14 @@ impl ChainManager {
                                 commits_count,
                             })
                             .await
-                            // Mailbox error
-                            .map_err(|e| log::error!("Couldn't run tally: {}", e))?;
+                            .unwrap_or_else(|e| {
+                                // If RunTally results in a panic, the result of the tally should be
+                                // RadError::Unknown
+                                // This is because this block must have a tally transaction to be
+                                // considered valid
+                                log::warn!("Couldn't run tally: {}", e);
+                                RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
+                            });
 
                         let tally = create_tally(
                             dr_pointer,
