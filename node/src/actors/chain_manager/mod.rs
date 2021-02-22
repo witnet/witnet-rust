@@ -305,6 +305,62 @@ impl ChainManager {
             .wait(ctx);
     }
 
+    fn delete_chain_state_and_reinitialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+        let empty_state = ChainState::default();
+        let fut = storage_mngr::put(
+            &storage_keys::chain_state_key(self.get_magic()),
+            &empty_state,
+        )
+        .into_actor(self)
+        .map_err(|err, _, _| {
+            log::error!("Failed to persist empty chain state into storage: {}", err);
+        })
+        .and_then(|(), act, _ctx| {
+            log::info!("Successfully persisted empty chain state into storage");
+            act.update_state_machine(StateMachine::WaitingConsensus);
+            act.initialize_from_storage_fut()
+        });
+
+        Box::pin(fut)
+    }
+
+    fn sync_from_storage(&mut self, mut block_list: Vec<(Epoch, Hash)>, ctx: &mut Context<Self>) {
+        if block_list.is_empty() {
+            return;
+        }
+        let last_epoch = block_list.last().unwrap().0;
+        let (epoch, hash) = block_list.remove(0);
+        let inventory_manager_addr = InventoryManager::from_registry();
+        inventory_manager_addr
+            .send(GetItemBlock { hash })
+            .into_actor(self)
+            .then(move |res, act, ctx| {
+                match res {
+                    Ok(Ok(block)) => {
+                        log::info!(
+                            "ROLLBACK [{}/{}] Got block {} from storage",
+                            epoch,
+                            last_epoch,
+                            hash
+                        );
+                        act.process_requested_block(ctx, block, true)
+                            .expect("sync from storage fail");
+                        // Recursion
+                        act.sync_from_storage(block_list, ctx);
+                    }
+                    Ok(Err(e)) => {
+                        panic!("{:?}", e);
+                    }
+                    Err(e) => {
+                        panic!("{:?}", e);
+                    }
+                }
+
+                actix::fut::ready(())
+            })
+            .spawn(ctx);
+    }
+
     /// Replace `previous_chain_state` with current `chain_state`
     fn move_chain_state_forward(&mut self, superblock_index: u32) {
         self.chain_state_snapshot
@@ -375,6 +431,7 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<Self>,
         block: Block,
+        resynchronizing: bool,
     ) -> Result<(), failure::Error> {
         if let (
             Some(epoch_constants),
@@ -409,10 +466,11 @@ impl ChainManager {
                 secp_ctx,
                 block_number,
                 &chain_info.consensus_constants,
+                resynchronizing,
             )?;
 
             // Persist block and update ChainState
-            self.consolidate_block(ctx, block, utxo_diff);
+            self.consolidate_block(ctx, block, utxo_diff, resynchronizing);
 
             Ok(())
         } else {
@@ -512,6 +570,7 @@ impl ChainManager {
                         .expect("No initialized SECP256K1 context"),
                     self.chain_state.block_number(),
                     &chain_info.consensus_constants,
+                    false,
                 ) {
                     Ok(utxo_diff) => {
                         self.best_candidate = Some(BlockCandidate {
@@ -546,7 +605,13 @@ impl ChainManager {
         self.persist_items(ctx, to_persist);
     }
 
-    fn consolidate_block(&mut self, ctx: &mut Context<Self>, block: Block, utxo_diff: Diff) {
+    fn consolidate_block(
+        &mut self,
+        ctx: &mut Context<Self>,
+        block: Block,
+        utxo_diff: Diff,
+        resynchronizing: bool,
+    ) {
         // Update chain_info and reputation_engine
         let epoch_constants = match self.epoch_constants {
             Some(x) => x,
@@ -657,14 +722,22 @@ impl ChainManager {
                         // Persist finished data requests into storage
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
-                        self.persist_data_requests(ctx, to_be_stored);
+
+                        if !resynchronizing {
+                            self.persist_data_requests(ctx, to_be_stored);
+                        }
 
                         let _reveals = self
                             .chain_state
                             .data_request_pool
                             .update_data_request_stages();
 
-                        self.persist_items(ctx, vec![StoreInventoryItem::Block(Box::new(block))]);
+                        if !resynchronizing {
+                            self.persist_items(
+                                ctx,
+                                vec![StoreInventoryItem::Block(Box::new(block))],
+                            );
+                        }
                     }
                     StateMachine::Synchronizing => {
                         // In Synchronizing stage, blocks and data requests are persisted
@@ -681,7 +754,10 @@ impl ChainManager {
                         for dr_info in &to_be_stored {
                             show_tally_info(&dr_info.tally.as_ref().unwrap(), block_epoch);
                         }
-                        self.persist_data_requests(ctx, to_be_stored);
+
+                        if !resynchronizing {
+                            self.persist_data_requests(ctx, to_be_stored);
+                        }
 
                         let reveals = self
                             .chain_state
@@ -705,10 +781,12 @@ impl ChainManager {
                         // getTransaction will show the content without any warning that the block
                         // is not on the main chain. To fix this we could remove forked blocks when
                         // a reorganization is detected.
-                        self.persist_items(
-                            ctx,
-                            vec![StoreInventoryItem::Block(Box::new(block.clone()))],
-                        );
+                        if !resynchronizing {
+                            self.persist_items(
+                                ctx,
+                                vec![StoreInventoryItem::Block(Box::new(block.clone()))],
+                            );
+                        }
 
                         // Send notification to JsonRpcServer
                         JsonRpcServer::from_registry().do_send(BlockNotify { block })
@@ -1599,7 +1677,7 @@ impl ChainManager {
         let mut num_processed_blocks = 0;
 
         for block in blocks.iter() {
-            if let Err(e) = self.process_requested_block(ctx, block.clone()) {
+            if let Err(e) = self.process_requested_block(ctx, block.clone(), false) {
                 log::error!("Error processing block: {}", e);
                 if num_processed_blocks > 0 {
                     // Restore only in case there were several blocks consolidated before
@@ -2009,18 +2087,21 @@ pub fn process_validations(
     secp_ctx: &CryptoEngine,
     block_number: u32,
     consensus_constants: &ConsensusConstants,
+    resynchronizing: bool,
 ) -> Result<Diff, failure::Error> {
-    let mut signatures_to_verify = vec![];
-    validate_block(
-        block,
-        current_epoch,
-        vrf_input,
-        chain_beacon,
-        &mut signatures_to_verify,
-        rep_eng,
-        &consensus_constants,
-    )?;
-    verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+    if !resynchronizing {
+        let mut signatures_to_verify = vec![];
+        validate_block(
+            block,
+            current_epoch,
+            vrf_input,
+            chain_beacon,
+            &mut signatures_to_verify,
+            rep_eng,
+            &consensus_constants,
+        )?;
+        verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+    }
 
     let mut signatures_to_verify = vec![];
     let utxo_dif = validate_block_transactions(
@@ -2034,7 +2115,10 @@ pub fn process_validations(
         block_number,
         consensus_constants,
     )?;
-    verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+
+    if !resynchronizing {
+        verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+    }
 
     Ok(utxo_dif)
 }

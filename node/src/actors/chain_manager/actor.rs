@@ -59,7 +59,16 @@ impl ChainManager {
     /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
     /// (initialize to Default values if empty)
     pub fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
-        config_mngr::get()
+        let fut = self
+            .initialize_from_storage_fut()
+            .map(|_res, _act, _ctx| ());
+        ctx.wait(fut);
+    }
+
+    /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
+    /// (initialize to Default values if empty)
+    pub fn initialize_from_storage_fut(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+        let fut = config_mngr::get()
             .into_actor(self)
             .map_err(|err, _act, _ctx| {
                 log::error!("Couldn't get config: {}", err);
@@ -222,6 +231,8 @@ impl ChainManager {
                 // If hash_prev_block is the bootstrap hash, create and consolidate genesis block
                 if chain_info.highest_block_checkpoint.hash_prev_block == consensus_constants.bootstrap_hash {
                     // Create genesis block
+                    // TODO: consolidating the genesis block is not needed if the chain state has
+                    // been reset because of a rollback
                     let info_genesis =
                         GenesisBlockInfo::from_path(&config.mining.genesis_path, consensus_constants.bootstrap_hash, consensus_constants.genesis_hash)
                             .map_err(|e| {
@@ -273,9 +284,9 @@ impl ChainManager {
                     },
                 });
 
-            })
-            .map(|_res: Result<(), ()>, _act, _ctx| ())
-            .wait(ctx);
+            });
+
+        Box::pin(fut)
     }
 
     /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs

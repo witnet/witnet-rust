@@ -29,8 +29,8 @@ use crate::{
             GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
-            PeersBeacons, ReputationStats, SendLastBeacon, SessionUnitResult, SetLastBeacon,
-            TryMineBlock,
+            PeersBeacons, ReputationStats, Rollback, SendLastBeacon, SessionUnitResult,
+            SetLastBeacon, TryMineBlock,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -162,7 +162,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         }) = best_candidate
                         {
                             // Persist block and update ChainState
-                            self.consolidate_block(ctx, block, utxo_diff);
+                            self.consolidate_block(ctx, block, utxo_diff, false);
                         } else if msg.checkpoint > 0 {
                             let previous_epoch = msg.checkpoint - 1;
                             log::warn!(
@@ -305,7 +305,7 @@ impl Handler<AddBlocks> for ChainManager {
                 if msg.blocks.len() == 1 && msg.blocks[0].hash() == consensus_constants.genesis_hash
                 {
                     let block = msg.blocks.into_iter().next().unwrap();
-                    match self.process_requested_block(ctx, block) {
+                    match self.process_requested_block(ctx, block, false) {
                         Ok(()) => {
                             log::debug!("Successfully consolidated genesis block");
 
@@ -956,7 +956,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             self.seen_candidates.clear();
                             // TODO: Be functional my friend
                             if let Some(consensus_block) = candidate {
-                                match self.process_requested_block(ctx, consensus_block) {
+                                match self.process_requested_block(ctx, consensus_block, false) {
                                     Ok(()) => {
                                         log::info!(
                                             "Consolidate consensus candidate. AlmostSynced state"
@@ -1540,6 +1540,28 @@ impl Handler<IsConfirmedBlock> for ChainManager {
             // block_epoch > last_confirmed_block, this block is not confirmed yet
             Ok(false)
         }
+    }
+}
+
+impl Handler<Rollback> for ChainManager {
+    type Result = Result<bool, failure::Error>;
+
+    fn handle(&mut self, msg: Rollback, ctx: &mut Self::Context) -> Self::Result {
+        let old_block_chain: Vec<(Epoch, Hash)> = self
+            .chain_state
+            .block_chain
+            .range(0..=msg.epoch)
+            .map(|(k, v)| (*k, *v))
+            .collect();
+        self.delete_chain_state_and_reinitialize()
+            .then(|_res, act, ctx| {
+                act.sync_from_storage(old_block_chain, ctx);
+
+                actix::fut::ready(())
+            })
+            .wait(ctx);
+
+        Ok(true)
     }
 }
 
