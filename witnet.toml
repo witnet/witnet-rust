@@ -47,7 +47,7 @@ known_peers = [
 ]
 # How many peer connections to stablish before considering that is safe to decide what the best chain tip is, based on
 # the beacons that those peers are announcing.
-outbound_limit = 12
+outbound_limit = 8
 # Period for opening new peer connections while the current number of peers is lower than `outbound_limit`.
 bootstrap_peers_period_seconds = 1
 # Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as to prevent sybil peers from
