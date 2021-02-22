@@ -21,9 +21,9 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, KeyedSignature,
-        NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine, SyncStatus,
-        ValueTransferOutput,
+        Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
+        KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
+        SyncStatus, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -1132,6 +1132,27 @@ pub fn initialize_peers(addr: SocketAddr) -> Result<(), failure::Error> {
         println!("Successfully cleared peers from buckets and initialized to config");
     } else {
         bail!("Failed to clear and initializepeers");
+    }
+
+    Ok(())
+}
+
+pub fn rollback(addr: SocketAddr, epoch: Epoch) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let params = (epoch,);
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "rollback", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params)?
+    );
+
+    let response = send_request(&mut stream, &request)?;
+    let response: bool = parse_response(&response)?;
+    if response {
+        println!("Started rollback process up to epoch {}.", params.0);
+        println!("Use the nodeStats command to check the progress.");
+    } else {
+        bail!("Failed to rollback chain");
     }
 
     Ok(())

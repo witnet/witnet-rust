@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
-    chain::{Block, Hash, Hashable, PublicKeyHash, StateMachine, SyncStatus},
+    chain::{Block, Epoch, Hash, Hashable, PublicKeyHash, StateMachine, SyncStatus},
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -31,7 +31,7 @@ use crate::{
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo, InitializePeers, IsConfirmedBlock,
+            GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rollback,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -212,6 +212,14 @@ pub fn jsonrpc_io_handler(
             "initializePeers",
             params,
             |_params| initialize_peers(),
+        )))
+    });
+    io.add_method("rollback", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "rollback",
+            params,
+            |params| rollback(params.parse()),
         )))
     });
 
@@ -1443,6 +1451,32 @@ pub async fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) ->
         .await
 }
 
+/// Initialize peers
+pub async fn rollback(params: Result<(Epoch,), jsonrpc_core::Error>) -> JsonRpcResult {
+    let epoch = match params {
+        Ok((epoch,)) => epoch,
+        Err(e) => return Err(e),
+    };
+
+    let chain_manager_addr = ChainManager::from_registry();
+    chain_manager_addr
+        .send(Rollback { epoch })
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|success| match success {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
+}
+
 /// Parameter of getSuperblock: can be either block epoch or superblock index
 #[derive(Deserialize)]
 pub enum GetSuperblockBlocksParams {
@@ -1839,6 +1873,7 @@ mod tests {
                 "masterKeyExport",
                 "nodeStats",
                 "peers",
+                "rollback",
                 "sendRequest",
                 "sendValue",
                 "sign",
@@ -1870,6 +1905,7 @@ mod tests {
             "getUtxoInfo",
             "initializePeers",
             "masterKeyExport",
+            "rollback",
             "sendRequest",
             "sendValue",
             "sign",

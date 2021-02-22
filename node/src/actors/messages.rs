@@ -366,6 +366,16 @@ impl Message for IsConfirmedBlock {
     type Result = Result<bool, failure::Error>;
 }
 
+/// Rollback
+pub struct Rollback {
+    /// Epoch
+    pub epoch: u32,
+}
+
+impl Message for Rollback {
+    type Result = Result<bool, failure::Error>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

@@ -8,6 +8,7 @@ use std::{
 use structopt::StructOpt;
 
 use witnet_config::config::Config;
+use witnet_data_structures::chain::Epoch;
 use witnet_node as node;
 
 use super::json_rpc_client as rpc;
@@ -231,6 +232,9 @@ pub fn exec_cmd(
         }
         Command::InitializePeers { node } => {
             rpc::initialize_peers(node.unwrap_or(config.jsonrpc.server_address))
+        }
+        Command::Rollback { node, epoch } => {
+            rpc::rollback(node.unwrap_or(config.jsonrpc.server_address), epoch)
         }
     }
 }
@@ -605,6 +609,15 @@ pub enum Command {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
+    },
+    #[structopt(name = "rollback", about = "Rollback blockchain to this epoch")]
+    Rollback {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Epoch
+        #[structopt(short = "e", long = "epoch")]
+        epoch: Epoch,
     },
 }
 
