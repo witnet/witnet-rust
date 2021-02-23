@@ -78,13 +78,13 @@ use crate::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
             GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
             SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-            SetPeersLimits, StoreInventoryItem, SuperBlockNotify,
+            StoreInventoryItem, SuperBlockNotify,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
         storage_keys,
     },
-    config_mngr, signature_mngr, storage_mngr,
+    signature_mngr, storage_mngr,
 };
 use witnet_futures_utils::ActorFutureExt;
 
@@ -330,27 +330,17 @@ impl ChainManager {
     ///
     /// The blocks are assumed to be valid, so validations are skipped, and block metadata is not
     /// persisted to the storage because it is assumed to already be there.
-    fn resync_from_storage(
+    fn resync_from_storage<F>(
         &mut self,
         mut block_list: VecDeque<(Epoch, Hash)>,
         ctx: &mut Context<Self>,
-    ) {
+        done: F,
+    ) where
+        F: FnOnce(&mut Self, &mut Context<Self>) + 'static,
+    {
         if block_list.is_empty() {
-            // Done
-            // Set outbound limit back to the old value
-            async {
-                let config = config_mngr::get().await.expect("failed to read config");
-                let sessions_manager = SessionsManager::from_registry();
-                sessions_manager
-                    .send(SetPeersLimits {
-                        inbound: config.connections.inbound_limit,
-                        outbound: config.connections.outbound_limit,
-                    })
-                    .await
-                    .expect("failed to set peers limits");
-            }
-            .into_actor(self)
-            .spawn(ctx);
+            // Done, all the blocks have been processed
+            done(self, ctx);
             // Early return
             return;
         }
@@ -373,7 +363,7 @@ impl ChainManager {
                         act.process_requested_block(ctx, block, true)
                             .expect("sync from storage fail");
                         // Recursion
-                        act.resync_from_storage(block_list, ctx);
+                        act.resync_from_storage(block_list, ctx, done);
                     }
                     Ok(Err(e)) => {
                         panic!("{:?}", e);

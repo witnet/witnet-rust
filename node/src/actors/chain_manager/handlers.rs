@@ -38,7 +38,7 @@ use crate::{
         sessions_manager::SessionsManager,
         storage_keys,
     },
-    signature_mngr, storage_mngr,
+    config_mngr, signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
 
@@ -1561,6 +1561,8 @@ impl Handler<Rollback> for ChainManager {
         self.delete_chain_state_and_reinitialize()
             .map(|_res, act, ctx| {
                 // Set outbound limit to 0
+                // This will avoid receiving any messages that could interfere with the
+                // resynchronization.
                 let sessions_manager = SessionsManager::from_registry();
                 sessions_manager
                     .send(SetPeersLimits {
@@ -1570,7 +1572,25 @@ impl Handler<Rollback> for ChainManager {
                     .into_actor(act)
                     .map(|_res, _act, _ctx| ())
                     .spawn(ctx);
-                act.resync_from_storage(old_block_chain, ctx);
+                act.resync_from_storage(old_block_chain, ctx, |act, ctx| {
+                    // After the resync is done:
+                    // Persist chain state to storage
+                    act.persist_chain_state(None, ctx);
+                    // Set outbound limit back to the old value
+                    async {
+                        let config = config_mngr::get().await.expect("failed to read config");
+                        let sessions_manager = SessionsManager::from_registry();
+                        sessions_manager
+                            .send(SetPeersLimits {
+                                inbound: config.connections.inbound_limit,
+                                outbound: config.connections.outbound_limit,
+                            })
+                            .await
+                            .expect("failed to set peers limits");
+                    }
+                    .into_actor(act)
+                    .spawn(ctx);
+                });
             })
             .wait(ctx);
 
