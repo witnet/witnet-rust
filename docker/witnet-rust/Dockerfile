@@ -3,7 +3,8 @@ FROM --platform=$TARGETPLATFORM ubuntu:focal
 # Install basic environment dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    curl
+    curl \
+    netcat
 
 # Clean up apt packages so the docker image is as compact as possible
 RUN apt-get clean && apt-get autoremove

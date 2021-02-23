@@ -14,6 +14,11 @@ function migrate_storage {
   find "$OLD_FOLDER" -maxdepth 1 -type f -exec mv -n {} "$WITNET_STORAGE_FOLDER" \;
 }
 
+function run_wip0010_recovery {
+  DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+  sh -c "$DIR/wip0010-recovery.sh witnet $WITNET_CONFIG_FOLDER/witnet.toml" &
+}
+
 function migrate {
   log "Ensuring that configuration folder '$WITNET_CONFIG_FOLDER' does exist" &&
   mkdir -p "$WITNET_CONFIG_FOLDER" &&
@@ -26,6 +31,7 @@ function migrate {
   chmod -R 777 "$WITNET_FOLDER/config" &&
   log "Copying old storage (if any) into new storage path" &&
   migrate_storage
+  run_wip0010_recovery
 }
 
 log "Using configuration from '$CONFIG_FILE'"
