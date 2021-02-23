@@ -1002,13 +1002,21 @@ impl Message for LogMessage {
     type Result = SessionsUnitResult;
 }
 
-/// Drop all outbound peers
+/// Drop outbound peers
 #[derive(Clone, Debug)]
 pub struct DropOutboundPeers {
     /// peers to be dropped
     pub peers_to_drop: Vec<SocketAddr>,
 }
 impl Message for DropOutboundPeers {
+    type Result = ();
+}
+
+/// Drop all peers
+#[derive(Clone, Debug)]
+pub struct DropAllPeers;
+
+impl Message for DropAllPeers {
     type Result = ();
 }
 
