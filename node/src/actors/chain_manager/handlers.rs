@@ -32,7 +32,7 @@ use crate::{
             GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
-            PeersBeacons, ReputationStats, Rollback, SendLastBeacon, SessionUnitResult,
+            PeersBeacons, ReputationStats, Rewind, SendLastBeacon, SessionUnitResult,
             SetLastBeacon, SetPeersLimits, TryMineBlock,
         },
         sessions_manager::SessionsManager,
@@ -230,7 +230,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             });
         }
 
-        // Include value transfers and data requests that were recovered from a rollback
+        // Include value transfers and data requests that were recovered from a rewind
         if !self.temp_vts_and_drs.is_empty() && self.sm_state == StateMachine::Synced {
             let max_txs = std::cmp::min(
                 self.max_reinserted_transactions,
@@ -1546,10 +1546,10 @@ impl Handler<IsConfirmedBlock> for ChainManager {
     }
 }
 
-impl Handler<Rollback> for ChainManager {
+impl Handler<Rewind> for ChainManager {
     type Result = Result<bool, failure::Error>;
 
-    fn handle(&mut self, msg: Rollback, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Rewind, ctx: &mut Self::Context) -> Self::Result {
         // Save list of blocks that are known to be valid
         let old_block_chain: VecDeque<(Epoch, Hash)> = self
             .chain_state

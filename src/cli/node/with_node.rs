@@ -233,8 +233,8 @@ pub fn exec_cmd(
         Command::InitializePeers { node } => {
             rpc::initialize_peers(node.unwrap_or(config.jsonrpc.server_address))
         }
-        Command::Rollback { node, epoch } => {
-            rpc::rollback(node.unwrap_or(config.jsonrpc.server_address), epoch)
+        Command::Rewind { node, epoch } => {
+            rpc::rewind(node.unwrap_or(config.jsonrpc.server_address), epoch)
         }
     }
 }
@@ -610,12 +610,12 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
-    #[structopt(name = "rollback", about = "Rollback blockchain to this epoch")]
-    Rollback {
+    #[structopt(name = "rewind", about = "Rewind blockchain to this epoch")]
+    Rewind {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Epoch
+        /// The epoch of the top block of the chain after the rewind has completed.
         #[structopt(short = "e", long = "epoch")]
         epoch: Epoch,
     },

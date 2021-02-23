@@ -232,7 +232,7 @@ impl ChainManager {
                 if chain_info.highest_block_checkpoint.hash_prev_block == consensus_constants.bootstrap_hash {
                     // Create genesis block
                     // TODO: consolidating the genesis block is not needed if the chain state has
-                    // been reset because of a rollback
+                    // been reset because of a rewind
                     let info_genesis =
                         GenesisBlockInfo::from_path(&config.mining.genesis_path, consensus_constants.bootstrap_hash, consensus_constants.genesis_hash)
                             .map_err(|e| {
