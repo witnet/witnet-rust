@@ -27,8 +27,8 @@ use crate::{
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
-            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, GetBalance,
-            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
+            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, DropAllPeers,
+            GetBalance, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
             GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
@@ -1407,6 +1407,7 @@ pub async fn initialize_peers() -> JsonRpcResult {
         .then(|res| async {
             match res {
                 Ok(config) => {
+                    // Clear all peers
                     let known_peers: Vec<_> =
                         config.connections.known_peers.iter().cloned().collect();
                     let peers_manager_addr = PeersManager::from_registry();
@@ -1415,6 +1416,10 @@ pub async fn initialize_peers() -> JsonRpcResult {
                         .map(|res| {
                             res.map_err(internal_error).and_then(|res| match res {
                                 Ok(_overwritten_peers) => {
+                                    // Drop all peers from session manager
+                                    let sessions_manager_addr = SessionsManager::from_registry();
+                                    sessions_manager_addr.do_send(DropAllPeers);
+
                                     // Ignore overwritten peers, just return true on success
                                     Ok(Value::Bool(true))
                                 }
@@ -1545,6 +1550,11 @@ mod mock_actix {
         pub async fn send<T: Message>(&self, _msg: T) -> Result<T::Result, MailboxError> {
             // We cannot test methods which use `send`, so return an error
             Err(MailboxError::Closed)
+        }
+
+        pub fn do_send<T: Message>(&self, _msg: T) {
+            // We cannot test methods which use `do_send`, so return an error
+            panic!("We cannot test actix `do_send` methods")
         }
     }
 
