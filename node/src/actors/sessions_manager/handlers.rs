@@ -16,10 +16,10 @@ use crate::actors::{
     chain_manager::ChainManager,
     codec::P2PCodec,
     messages::{
-        AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropOutboundPeers,
-        EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult,
-        PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult, SetLastBeacon,
-        SetPeersLimits, TryMineBlock, Unregister,
+        AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropAllPeers,
+        DropOutboundPeers, EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions,
+        NumSessionsResult, PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult,
+        SetLastBeacon, SetPeersLimits, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -480,12 +480,20 @@ impl Handler<DropOutboundPeers> for SessionsManager {
         self.drop_outbound_peers(msg.peers_to_drop.as_ref());
     }
 }
+
 impl Handler<SetPeersLimits> for SessionsManager {
     type Result = <DropOutboundPeers as Message>::Result;
 
     fn handle(&mut self, msg: SetPeersLimits, _ctx: &mut Context<Self>) -> Self::Result {
         self.sessions.set_limits(msg.inbound, msg.outbound);
         // Drop all inbound and outbound peers to avoid being above the new limit
+    }
+}
+
+impl Handler<DropAllPeers> for SessionsManager {
+    type Result = <DropAllPeers as Message>::Result;
+
+    fn handle(&mut self, _msg: DropAllPeers, _ctx: &mut Context<Self>) -> Self::Result {
         self.drop_all_peers();
     }
 }
