@@ -1023,6 +1023,19 @@ impl Message for SetLastBeacon {
     type Result = ();
 }
 
+/// Set the outbound limit
+#[derive(Clone, Debug)]
+pub struct SetPeersLimits {
+    /// Inbound peers limit
+    pub inbound: u16,
+    /// Outbound peers limit
+    pub outbound: u16,
+}
+
+impl Message for SetPeersLimits {
+    type Result = ();
+}
+
 // JsonRpcServer messages (notifications)
 
 /// New block notification

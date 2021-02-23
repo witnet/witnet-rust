@@ -1,6 +1,9 @@
 use actix::{fut::WrapFuture, prelude::*};
 use std::{
-    collections::BTreeMap, collections::HashSet, convert::TryFrom, future, net::SocketAddr,
+    collections::{BTreeMap, HashSet, VecDeque},
+    convert::TryFrom,
+    future,
+    net::SocketAddr,
     time::Duration,
 };
 
@@ -30,7 +33,7 @@ use crate::{
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
             PeersBeacons, ReputationStats, Rollback, SendLastBeacon, SessionUnitResult,
-            SetLastBeacon, TryMineBlock,
+            SetLastBeacon, SetPeersLimits, TryMineBlock,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -1547,17 +1550,27 @@ impl Handler<Rollback> for ChainManager {
     type Result = Result<bool, failure::Error>;
 
     fn handle(&mut self, msg: Rollback, ctx: &mut Self::Context) -> Self::Result {
-        let old_block_chain: Vec<(Epoch, Hash)> = self
+        // Save list of blocks that are known to be valid
+        let old_block_chain: VecDeque<(Epoch, Hash)> = self
             .chain_state
             .block_chain
             .range(0..=msg.epoch)
             .map(|(k, v)| (*k, *v))
             .collect();
-        self.delete_chain_state_and_reinitialize()
-            .then(|_res, act, ctx| {
-                act.sync_from_storage(old_block_chain, ctx);
 
-                actix::fut::ready(())
+        self.delete_chain_state_and_reinitialize()
+            .map(|_res, act, ctx| {
+                // Set outbound limit to 0
+                let sessions_manager = SessionsManager::from_registry();
+                sessions_manager
+                    .send(SetPeersLimits {
+                        inbound: 0,
+                        outbound: 0,
+                    })
+                    .into_actor(act)
+                    .map(|_res, _act, _ctx| ())
+                    .spawn(ctx);
+                act.resync_from_storage(old_block_chain, ctx);
             })
             .wait(ctx);
 
