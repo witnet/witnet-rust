@@ -355,13 +355,13 @@ impl ChainManager {
                 match res {
                     Ok(Ok(block)) => {
                         log::info!(
-                            "ROLLBACK [{}/{}] Got block {} from storage",
+                            "REWIND [{}/{}] Got block {} from storage",
                             epoch,
                             last_epoch,
                             hash
                         );
                         act.process_requested_block(ctx, block, true)
-                            .expect("sync from storage fail");
+                            .expect("resync from storage fail");
                         // Recursion
                         act.resync_from_storage(block_list, ctx, done);
                     }

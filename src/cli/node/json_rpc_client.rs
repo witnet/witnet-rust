@@ -1137,22 +1137,22 @@ pub fn initialize_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn rollback(addr: SocketAddr, epoch: Epoch) -> Result<(), failure::Error> {
+pub fn rewind(addr: SocketAddr, epoch: Epoch) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
     let params = (epoch,);
     let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "rollback", "params": {}, "id": "1"}}"#,
+        r#"{{"jsonrpc": "2.0","method": "rewind", "params": {}, "id": "1"}}"#,
         serde_json::to_string(&params)?
     );
 
     let response = send_request(&mut stream, &request)?;
     let response: bool = parse_response(&response)?;
     if response {
-        println!("Started rollback process up to epoch {}.", params.0);
+        println!("Started rewind process up to epoch {}.", params.0);
         println!("Use the nodeStats command to check the progress.");
     } else {
-        bail!("Failed to rollback chain");
+        bail!("Failed to rewind chain");
     }
 
     Ok(())

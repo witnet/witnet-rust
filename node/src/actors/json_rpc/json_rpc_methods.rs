@@ -31,7 +31,7 @@ use crate::{
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rollback,
+            GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -214,12 +214,12 @@ pub fn jsonrpc_io_handler(
             |_params| initialize_peers(),
         )))
     });
-    io.add_method("rollback", move |params| {
+    io.add_method("rewind", move |params| {
         Compat::new(Box::pin(call_if_authorized(
             enable_sensitive_methods,
-            "rollback",
+            "rewind",
             params,
-            |params| rollback(params.parse()),
+            |params| rewind(params.parse()),
         )))
     });
 
@@ -1451,8 +1451,8 @@ pub async fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) ->
         .await
 }
 
-/// Initialize peers
-pub async fn rollback(params: Result<(Epoch,), jsonrpc_core::Error>) -> JsonRpcResult {
+/// Rewind
+pub async fn rewind(params: Result<(Epoch,), jsonrpc_core::Error>) -> JsonRpcResult {
     let epoch = match params {
         Ok((epoch,)) => epoch,
         Err(e) => return Err(e),
@@ -1460,7 +1460,7 @@ pub async fn rollback(params: Result<(Epoch,), jsonrpc_core::Error>) -> JsonRpcR
 
     let chain_manager_addr = ChainManager::from_registry();
     chain_manager_addr
-        .send(Rollback { epoch })
+        .send(Rewind { epoch })
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|success| match success {
@@ -1873,7 +1873,7 @@ mod tests {
                 "masterKeyExport",
                 "nodeStats",
                 "peers",
-                "rollback",
+                "rewind",
                 "sendRequest",
                 "sendValue",
                 "sign",
@@ -1905,7 +1905,7 @@ mod tests {
             "getUtxoInfo",
             "initializePeers",
             "masterKeyExport",
-            "rollback",
+            "rewind",
             "sendRequest",
             "sendValue",
             "sign",

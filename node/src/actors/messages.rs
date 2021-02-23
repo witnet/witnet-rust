@@ -366,13 +366,13 @@ impl Message for IsConfirmedBlock {
     type Result = Result<bool, failure::Error>;
 }
 
-/// Rollback
-pub struct Rollback {
+/// Rewind
+pub struct Rewind {
     /// Epoch
     pub epoch: u32,
 }
 
-impl Message for Rollback {
+impl Message for Rewind {
     type Result = Result<bool, failure::Error>;
 }
 
