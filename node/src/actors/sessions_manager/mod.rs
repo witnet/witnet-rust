@@ -289,6 +289,16 @@ impl SessionsManager {
             }
         }
     }
+
+    /// Drop all peers
+    fn drop_all_peers(&mut self) {
+        for (_peer, a) in self.sessions.inbound_consolidated.collection.iter() {
+            a.reference.do_send(CloseSession);
+        }
+        for (_peer, a) in self.sessions.outbound_consolidated.collection.iter() {
+            a.reference.do_send(CloseSession);
+        }
+    }
 }
 
 /// Required traits for being able to retrieve SessionsManager address from registry

@@ -19,7 +19,7 @@ use crate::actors::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropOutboundPeers,
         EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult,
         PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult, SetLastBeacon,
-        TryMineBlock, Unregister,
+        SetPeersLimits, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -478,5 +478,14 @@ impl Handler<DropOutboundPeers> for SessionsManager {
 
     fn handle(&mut self, msg: DropOutboundPeers, _ctx: &mut Context<Self>) -> Self::Result {
         self.drop_outbound_peers(msg.peers_to_drop.as_ref());
+    }
+}
+impl Handler<SetPeersLimits> for SessionsManager {
+    type Result = <DropOutboundPeers as Message>::Result;
+
+    fn handle(&mut self, msg: SetPeersLimits, _ctx: &mut Context<Self>) -> Self::Result {
+        self.sessions.set_limits(msg.inbound, msg.outbound);
+        // Drop all inbound and outbound peers to avoid being above the new limit
+        self.drop_all_peers();
     }
 }

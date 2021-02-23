@@ -78,13 +78,13 @@ use crate::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
             GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
             SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-            StoreInventoryItem, SuperBlockNotify,
+            SetPeersLimits, StoreInventoryItem, SuperBlockNotify,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
         storage_keys,
     },
-    signature_mngr, storage_mngr,
+    config_mngr, signature_mngr, storage_mngr,
 };
 use witnet_futures_utils::ActorFutureExt;
 
@@ -305,6 +305,8 @@ impl ChainManager {
             .wait(ctx);
     }
 
+    /// Persist an empty `ChainState` to the storage and set the node to `WaitingConsensus`.
+    /// This can be used to recover from a forked chain without manually deleting the storage.
     fn delete_chain_state_and_reinitialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         let empty_state = ChainState::default();
         let fut = storage_mngr::put(
@@ -324,17 +326,42 @@ impl ChainManager {
         Box::pin(fut)
     }
 
-    fn sync_from_storage(&mut self, mut block_list: Vec<(Epoch, Hash)>, ctx: &mut Context<Self>) {
+    /// Resynchronize block chain using a list of blocks that are already in the storage.
+    ///
+    /// The blocks are assumed to be valid, so validations are skipped, and block metadata is not
+    /// persisted to the storage because it is assumed to already be there.
+    fn resync_from_storage(
+        &mut self,
+        mut block_list: VecDeque<(Epoch, Hash)>,
+        ctx: &mut Context<Self>,
+    ) {
         if block_list.is_empty() {
+            // Done
+            // Set outbound limit back to the old value
+            async {
+                let config = config_mngr::get().await.expect("failed to read config");
+                let sessions_manager = SessionsManager::from_registry();
+                sessions_manager
+                    .send(SetPeersLimits {
+                        inbound: config.connections.inbound_limit,
+                        outbound: config.connections.outbound_limit,
+                    })
+                    .await
+                    .expect("failed to set peers limits");
+            }
+            .into_actor(self)
+            .spawn(ctx);
+            // Early return
             return;
         }
-        let last_epoch = block_list.last().unwrap().0;
-        let (epoch, hash) = block_list.remove(0);
+
+        let last_epoch = block_list.back().unwrap().0;
+        let (epoch, hash) = block_list.pop_front().unwrap();
         let inventory_manager_addr = InventoryManager::from_registry();
         inventory_manager_addr
             .send(GetItemBlock { hash })
             .into_actor(self)
-            .then(move |res, act, ctx| {
+            .map(move |res, act, ctx| {
                 match res {
                     Ok(Ok(block)) => {
                         log::info!(
@@ -346,7 +373,7 @@ impl ChainManager {
                         act.process_requested_block(ctx, block, true)
                             .expect("sync from storage fail");
                         // Recursion
-                        act.sync_from_storage(block_list, ctx);
+                        act.resync_from_storage(block_list, ctx);
                     }
                     Ok(Err(e)) => {
                         panic!("{:?}", e);
@@ -355,8 +382,6 @@ impl ChainManager {
                         panic!("{:?}", e);
                     }
                 }
-
-                actix::fut::ready(())
             })
             .spawn(ctx);
     }
