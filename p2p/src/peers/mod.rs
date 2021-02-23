@@ -490,6 +490,22 @@ pub fn split_socket_addresses(socket_addr: &SocketAddr) -> (Vec<u8>, Vec<u8>, Ve
     }
 }
 
+/// Returns the /8 IP range
+pub fn get_range_address(socket_addr: &SocketAddr) -> Vec<u8> {
+    match socket_addr {
+        SocketAddr::V4(addr) => {
+            let ip = addr.ip().octets();
+            let (left, _) = ip.split_at(ip.len() - 1);
+            left.to_vec()
+        }
+        SocketAddr::V6(addr) => {
+            let ip = addr.ip().octets();
+            let (left, _) = ip.split_at(ip.len() - 1);
+            left.to_vec()
+        }
+    }
+}
+
 /// Algorithm to calculate index for the tried addresses buckets
 /// SK = random value chosen when node is born.
 /// IP = the peer’s IP address and port number.

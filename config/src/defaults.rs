@@ -92,7 +92,7 @@ pub trait Defaults {
         300
     }
 
-    /// Reject (tarpit) inbound connections coming from addresses in the same /16 IP range, so as
+    /// Reject (tarpit) inbound connections coming from addresses in the same /8 IP range, so as
     /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
     fn connections_reject_sybil_inbounds(&self) -> bool {
         true

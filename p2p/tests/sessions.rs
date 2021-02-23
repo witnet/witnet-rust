@@ -554,7 +554,7 @@ fn p2p_sessions_register_more_than_limit() {
 }
 
 #[test]
-/// Check that peer addresses are considered "similar" if the first two octets of the IP are
+/// Check that peer addresses are considered "similar" if the first three octets of the IP are
 /// matching.
 fn p2p_peer_address_is_similar_to_inbound_session() {
     // Create sessions struct
@@ -579,22 +579,22 @@ fn p2p_peer_address_is_similar_to_inbound_session() {
     // Same IP and port should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_1),
-        Some(&[127, 0])
+        Some(&[127, 0, 0])
     );
     // Same IP, different port should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_2),
-        Some(&[127, 0])
+        Some(&[127, 0, 0])
     );
     // Same first 3 octets in IP should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_3),
-        Some(&[127, 0])
+        Some(&[127, 0, 0])
     );
-    // Same first 2 octets in IP should collide
+    // Same first 2 octets in IP should not collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_4),
-        Some(&[127, 0])
+        None
     );
     // Same first octet in IP should not collide
     assert_eq!(
