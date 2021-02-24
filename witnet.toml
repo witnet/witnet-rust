@@ -114,7 +114,7 @@ known_peers = [
 outbound_limit = 8
 # Period for opening new peer connections while the current number of peers is lower than `outbound_limit`.
 bootstrap_peers_period_seconds = 1
-# Reject (tarpit) inbound connections coming from addresses in the same /8 IP range, so as to prevent sybil peers from
+# Reject (tarpit) inbound connections coming from addresses in the same /14 IP range, so as to prevent sybil peers from
 # monopolizing our inbound capacity (128 by default).
 reject_sybil_inbounds = true
 
