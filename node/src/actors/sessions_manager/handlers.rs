@@ -482,11 +482,12 @@ impl Handler<DropOutboundPeers> for SessionsManager {
 }
 
 impl Handler<SetPeersLimits> for SessionsManager {
-    type Result = <DropOutboundPeers as Message>::Result;
+    type Result = <SetPeersLimits as Message>::Result;
 
     fn handle(&mut self, msg: SetPeersLimits, _ctx: &mut Context<Self>) -> Self::Result {
         self.sessions.set_limits(msg.inbound, msg.outbound);
         // Drop all inbound and outbound peers to avoid being above the new limit
+        self.drop_all_peers();
     }
 }
 
