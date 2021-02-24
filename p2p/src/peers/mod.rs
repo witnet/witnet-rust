@@ -490,18 +490,25 @@ pub fn split_socket_addresses(socket_addr: &SocketAddr) -> (Vec<u8>, Vec<u8>, Ve
     }
 }
 
-/// Returns the /8 IP range
-pub fn get_range_address(socket_addr: &SocketAddr) -> Vec<u8> {
+/// Returns the /x IP range
+pub fn get_range_address(socket_addr: &SocketAddr, range: u8) -> [u8; 4] {
     match socket_addr {
         SocketAddr::V4(addr) => {
             let ip = addr.ip().octets();
-            let (left, _) = ip.split_at(ip.len() - 1);
-            left.to_vec()
+
+            let ip_bytes = u32::from(ip[0]) << 24
+                | (u32::from(ip[1])) << 16
+                | (u32::from(ip[2])) << 8
+                | (u32::from(ip[3]));
+
+            let ip_bytes = ip_bytes >> range;
+            let ip_bytes = ip_bytes << range;
+
+            ip_bytes.to_be_bytes()
         }
-        SocketAddr::V6(addr) => {
-            let ip = addr.ip().octets();
-            let (left, _) = ip.split_at(ip.len() - 1);
-            left.to_vec()
+        SocketAddr::V6(_addr) => {
+            // TODO: This address type is not currently in use
+            [0, 0, 0, 0]
         }
     }
 }

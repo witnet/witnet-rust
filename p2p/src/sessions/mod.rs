@@ -222,7 +222,7 @@ where
     }
 
     /// Check whether a socket address is similar to that of any of the existing inbound sessions.
-    pub fn is_similar_to_inbound_session(&self, addr: &SocketAddr) -> Option<&[u8; 3]> {
+    pub fn is_similar_to_inbound_session(&self, addr: &SocketAddr) -> Option<&[u8; 4]> {
         self.inbound_network_ranges.contains_address(addr)
     }
 
@@ -396,49 +396,49 @@ pub struct GetConsolidatedPeersResult {
 /// machines from monopolizing our inbound peers table.
 #[derive(Default)]
 pub struct NetworkRangesCollection {
-    inner: HashSet<[u8; 3]>,
+    inner: HashSet<[u8; 4]>,
 }
 
 impl NetworkRangesCollection {
     /// Checks whether a range is present in the collection as derived from a socket address.
-    pub fn contains_address(&self, address: &SocketAddr) -> Option<&[u8; 3]> {
-        let range_vec = get_range_address(address);
-        let mut range = [0, 0, 0];
-        range[..3].copy_from_slice(&range_vec);
+    pub fn contains_address(&self, address: &SocketAddr) -> Option<&[u8; 4]> {
+        let range_vec = get_range_address(address, 14);
+        let mut range = [0, 0, 0, 0];
+        range[..4].copy_from_slice(&range_vec);
 
         self.contains_range(range)
     }
 
     /// Checks whether a explicit range is present in the collection.
-    pub fn contains_range(&self, range: [u8; 3]) -> Option<&[u8; 3]> {
+    pub fn contains_range(&self, range: [u8; 4]) -> Option<&[u8; 4]> {
         self.inner.get(&range)
     }
 
     /// Insert a range into the collection as derived from a socket address.
     pub fn insert_address(&mut self, address: &SocketAddr) -> bool {
-        let range_vec = get_range_address(address);
-        let mut range = [0, 0, 0];
-        range[..3].copy_from_slice(&range_vec);
+        let range_vec = get_range_address(address, 14);
+        let mut range = [0, 0, 0, 0];
+        range[..4].copy_from_slice(&range_vec);
 
         self.insert_range(range)
     }
 
     /// Insert a explicit range into the collection.
-    pub fn insert_range(&mut self, range: [u8; 3]) -> bool {
+    pub fn insert_range(&mut self, range: [u8; 4]) -> bool {
         self.inner.insert(range)
     }
 
     /// Remove a range from the collection as derived from a socket address.
     pub fn remove_address(&mut self, address: &SocketAddr) -> bool {
-        let range_vec = get_range_address(address);
-        let mut range = [0, 0, 0];
-        range[..3].copy_from_slice(&range_vec);
+        let range_vec = get_range_address(address, 14);
+        let mut range = [0, 0, 0, 0];
+        range[..4].copy_from_slice(&range_vec);
 
         self.remove_range(range)
     }
 
     /// Remove a explicit range from the collection.
-    pub fn remove_range(&mut self, range: [u8; 3]) -> bool {
+    pub fn remove_range(&mut self, range: [u8; 4]) -> bool {
         self.inner.remove(&range)
     }
 }

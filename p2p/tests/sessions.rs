@@ -564,8 +564,10 @@ fn p2p_peer_address_is_similar_to_inbound_session() {
     let inbound_address_2 = "127.0.0.1:8003".parse().unwrap();
     let inbound_address_3 = "127.0.0.2:8002".parse().unwrap();
     let inbound_address_4 = "127.0.1.1:8002".parse().unwrap();
-    let inbound_address_5 = "127.1.0.1:8002".parse().unwrap();
-    let inbound_address_6 = "128.0.0.1:8002".parse().unwrap();
+    let inbound_address_5 = "127.0.32.1:8002".parse().unwrap();
+    let inbound_address_6 = "127.0.64.1:8002".parse().unwrap();
+    let inbound_address_7 = "127.1.0.1:8002".parse().unwrap();
+    let inbound_address_8 = "128.0.0.1:8002".parse().unwrap();
 
     // Register the session
     assert!(sessions
@@ -579,31 +581,41 @@ fn p2p_peer_address_is_similar_to_inbound_session() {
     // Same IP and port should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_1),
-        Some(&[127, 0, 0])
+        Some(&[127, 0, 0, 0])
     );
     // Same IP, different port should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_2),
-        Some(&[127, 0, 0])
+        Some(&[127, 0, 0, 0])
     );
-    // Same first 3 octets in IP should collide
+    // Same first 24 bits in IP should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_3),
-        Some(&[127, 0, 0])
+        Some(&[127, 0, 0, 0])
     );
-    // Same first 2 octets in IP should not collide
+    // Same first 16 bits in IP should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_4),
-        None
+        Some(&[127, 0, 0, 0])
     );
-    // Same first octet in IP should not collide
+    // Same first 15 bits in IP should collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_5),
+        Some(&[127, 0, 0, 0])
+    );
+    // Same first 14 bits in IP should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_6),
+        None
+    );
+    // Same first 8 bits in IP should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_7),
         None
     );
     // Totally different IP should not collide
     assert_eq!(
-        sessions.is_similar_to_inbound_session(&inbound_address_6),
+        sessions.is_similar_to_inbound_session(&inbound_address_8),
         None
     );
 
@@ -626,14 +638,19 @@ fn p2p_peer_address_is_similar_to_inbound_session() {
         sessions.is_similar_to_inbound_session(&inbound_address_2),
         None
     );
-    // Now same first 3 octets in IP should not collide
+    // Now same first 24 bits in IP should not collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_3),
         None
     );
-    // Now same first 2 octets in IP should not collide
+    // Now same first 16 bits octets in IP should not collide
     assert_eq!(
         sessions.is_similar_to_inbound_session(&inbound_address_4),
+        None
+    );
+    // Now same first 15 bits octets in IP should not collide
+    assert_eq!(
+        sessions.is_similar_to_inbound_session(&inbound_address_5),
         None
     );
 }
