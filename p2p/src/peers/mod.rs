@@ -495,19 +495,20 @@ pub fn get_range_address(socket_addr: &SocketAddr, range: u8) -> [u8; 4] {
     match socket_addr {
         SocketAddr::V4(addr) => {
             let ip = addr.ip().octets();
+            if range == 0 {
+                [0, 0, 0, 0]
+            } else {
+                let range = 32u8.saturating_sub(range);
 
-            let ip_bytes = u32::from(ip[0]) << 24
-                | (u32::from(ip[1])) << 16
-                | (u32::from(ip[2])) << 8
-                | (u32::from(ip[3]));
+                let ip_bytes = u32::from_be_bytes(ip);
+                let ip_bytes = ip_bytes >> range;
+                let ip_bytes = ip_bytes << range;
 
-            let ip_bytes = ip_bytes >> range;
-            let ip_bytes = ip_bytes << range;
-
-            ip_bytes.to_be_bytes()
+                ip_bytes.to_be_bytes()
+            }
         }
         SocketAddr::V6(_addr) => {
-            // TODO: This address type is not currently in use
+            // FIXME(#740)
             [0, 0, 0, 0]
         }
     }
@@ -569,4 +570,19 @@ pub fn calculate_index_for_new(sk: u64, src_group: &[u8], group: &[u8], host_id:
     let slot = u16::from(data_hash.0[31]) % 64;
 
     (bucket * 64) + slot
+}
+
+#[test]
+fn test_get_range_address() {
+    let address = "255.255.255.255:8002".parse().unwrap();
+
+    assert_eq!(get_range_address(&address, 32), [255, 255, 255, 255]);
+    assert_eq!(get_range_address(&address, 28), [255, 255, 255, 240]);
+    assert_eq!(get_range_address(&address, 24), [255, 255, 255, 0]);
+    assert_eq!(get_range_address(&address, 20), [255, 255, 240, 0]);
+    assert_eq!(get_range_address(&address, 16), [255, 255, 0, 0]);
+    assert_eq!(get_range_address(&address, 12), [255, 240, 0, 0]);
+    assert_eq!(get_range_address(&address, 8), [255, 0, 0, 0]);
+    assert_eq!(get_range_address(&address, 4), [240, 0, 0, 0]);
+    assert_eq!(get_range_address(&address, 0), [0, 0, 0, 0]);
 }

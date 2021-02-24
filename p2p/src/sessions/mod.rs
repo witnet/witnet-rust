@@ -397,12 +397,13 @@ pub struct GetConsolidatedPeersResult {
 #[derive(Default)]
 pub struct NetworkRangesCollection {
     inner: HashSet<[u8; 4]>,
+    range_limit: u8,
 }
 
 impl NetworkRangesCollection {
     /// Checks whether a range is present in the collection as derived from a socket address.
     pub fn contains_address(&self, address: &SocketAddr) -> Option<&[u8; 4]> {
-        let range_vec = get_range_address(address, 14);
+        let range_vec = get_range_address(address, self.range_limit);
         let mut range = [0, 0, 0, 0];
         range[..4].copy_from_slice(&range_vec);
 
@@ -416,7 +417,7 @@ impl NetworkRangesCollection {
 
     /// Insert a range into the collection as derived from a socket address.
     pub fn insert_address(&mut self, address: &SocketAddr) -> bool {
-        let range_vec = get_range_address(address, 14);
+        let range_vec = get_range_address(address, self.range_limit);
         let mut range = [0, 0, 0, 0];
         range[..4].copy_from_slice(&range_vec);
 
@@ -430,7 +431,7 @@ impl NetworkRangesCollection {
 
     /// Remove a range from the collection as derived from a socket address.
     pub fn remove_address(&mut self, address: &SocketAddr) -> bool {
-        let range_vec = get_range_address(address, 14);
+        let range_vec = get_range_address(address, self.range_limit);
         let mut range = [0, 0, 0, 0];
         range[..4].copy_from_slice(&range_vec);
 
@@ -441,14 +442,20 @@ impl NetworkRangesCollection {
     pub fn remove_range(&mut self, range: [u8; 4]) -> bool {
         self.inner.remove(&range)
     }
+
+    /// Set range limit
+    pub fn set_range_limit(&mut self, range_limit: u8) {
+        self.range_limit = range_limit;
+    }
 }
 
 /// Compose a string for representing an IPV4 range
-pub fn ip_range_string(range: &[u8]) -> String {
+pub fn ip_range_string(range: &[u8], range_limit: u8) -> String {
     format!(
-        "{}0.0/16",
+        "{}/{}",
         range.iter().fold(String::new(), |acc, &octet| acc
             + octet.to_string().as_str()
-            + ".")
+            + "."),
+        range_limit,
     )
 }

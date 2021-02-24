@@ -33,6 +33,11 @@ impl Actor for SessionsManager {
                     config.connections.outbound_limit,
                 );
 
+                // Set reject_sybil_outbounds range limit
+                act.sessions
+                    .inbound_network_ranges
+                    .set_range_limit(config.connections.reject_sybil_inbounds_range_limit);
+
                 // Initialized epoch from config
                 let mut checkpoints_period = config.consensus_constants.checkpoints_period;
                 let checkpoint_zero_timestamp =

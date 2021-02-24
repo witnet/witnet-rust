@@ -92,10 +92,16 @@ pub trait Defaults {
         300
     }
 
-    /// Reject (tarpit) inbound connections coming from addresses in the same /14 IP range, so as
-    /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
+    /// Reject (tarpit) inbound connections coming from addresses that are alike, so as
+    /// to prevent sybil peers from monopolizing our inbound capacity.
     fn connections_reject_sybil_inbounds(&self) -> bool {
         true
+    }
+
+    /// Limit to reject (tarpit) inbound connections. If the limit is set to 18, the addresses having
+    /// the same first 18 bits in the IP will collide, so as to prevent sybil peers from monopolizing our inbound capacity.
+    fn connections_reject_sybil_inbounds_range_limit(&self) -> u8 {
+        18
     }
 
     /// Limit the number of requested blocks that will be processed as one batch
@@ -442,6 +448,10 @@ impl Defaults for Development {
 
     fn connections_reject_sybil_inbounds(&self) -> bool {
         false
+    }
+
+    fn connections_reject_sybil_inbounds_range_limit(&self) -> u8 {
+        0
     }
 }
 

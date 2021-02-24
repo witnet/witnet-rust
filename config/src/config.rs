@@ -236,9 +236,13 @@ pub struct Connections {
     ))]
     pub bucketing_ice_period: Duration,
 
-    /// Reject (tarpit) inbound connections coming from addresses in the same /14 IP range, so as
-    /// to prevent sybil peers from monopolizing our inbound capacity (128 by default).
+    /// Reject (tarpit) inbound connections coming from addresses that are alike, so as
+    /// to prevent sybil peers from monopolizing our inbound capacity.
     pub reject_sybil_inbounds: bool,
+
+    /// Limit to reject (tarpit) inbound connections. If the limit is set to 18, the addresses having
+    /// the same first 18 bits in the IP will collide, so as to prevent sybil peers from monopolizing our inbound capacity.
+    pub reject_sybil_inbounds_range_limit: u8,
 
     /// Limit the number of requested blocks that will be processed as one batch
     pub requested_blocks_batch_limit: u32,
@@ -643,6 +647,10 @@ impl Connections {
                 .reject_sybil_inbounds
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_reject_sybil_inbounds()),
+            reject_sybil_inbounds_range_limit: config
+                .reject_sybil_inbounds_range_limit
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_reject_sybil_inbounds_range_limit()),
             requested_blocks_batch_limit: config
                 .requested_blocks_batch_limit
                 .to_owned()
@@ -669,6 +677,7 @@ impl Connections {
             bucketing_ice_period: Some(self.bucketing_ice_period),
             bucketing_update_period: Some(self.bucketing_update_period),
             reject_sybil_inbounds: Some(self.reject_sybil_inbounds),
+            reject_sybil_inbounds_range_limit: Some(self.reject_sybil_inbounds_range_limit),
             requested_blocks_batch_limit: Some(self.requested_blocks_batch_limit),
         }
     }
@@ -1223,7 +1232,8 @@ mod tests {
             consensus_c: Some(51),
             bucketing_ice_period: Some(Duration::from_secs(13200)),
             bucketing_update_period: Some(200),
-            reject_sybil_inbounds: Some(false),
+            reject_sybil_inbounds: Some(true),
+            reject_sybil_inbounds_range_limit: Some(14),
             requested_blocks_batch_limit: Some(99),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
@@ -1244,7 +1254,8 @@ mod tests {
         assert_eq!(config.consensus_c, 51);
         assert_eq!(config.bucketing_ice_period, Duration::from_secs(13200));
         assert_eq!(config.bucketing_update_period, 200);
-        assert_eq!(config.reject_sybil_inbounds, false);
+        assert_eq!(config.reject_sybil_inbounds, true);
+        assert_eq!(config.reject_sybil_inbounds_range_limit, 14);
         assert_eq!(config.requested_blocks_batch_limit, 99);
     }
 
