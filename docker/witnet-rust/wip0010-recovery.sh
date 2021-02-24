@@ -60,8 +60,11 @@ function eta {
   else
     ELAPSED=$(( NOW - START ))
     SPEED=$((PROGRESS * 1000 / ELAPSED))
+    if [ "$SPEED" == "0" ]; then
+        SPEED=1
+    fi
     REMAINING_PROGRESS=$(( 10000 - PROGRESS ))
-    REMAINING_TIME=$((REMAINING_PROGRESS / (SPEED / 1000) ))
+    REMAINING_TIME=$((REMAINING_PROGRESS * 1000 / SPEED ))
     echo $(( REMAINING_TIME / 60 )) minutes $((REMAINING_TIME % 60)) seconds
   fi
 }
@@ -84,7 +87,7 @@ fi
 
 # Read configuration (e.g. node server address) from config file
 log "Using configuration file at $WITNET_CONFIG_FILE"
-HOST=$(grep "server_addr" "$WITNET_CONFIG_FILE" | sed -En "s/server_addr = \"(.*)\"/\1/p" | sed -En "s/0.0.0.0/127.0.0.1/p" )
+HOST=$(grep "server_addr" "$WITNET_CONFIG_FILE" | sed -En "s/server_addr = \"(.*)\"/\1/p" | sed -E "s/0\.0\.0.\0/127.0.0.1/g" )
 ADDRESS=$(echo "$HOST" | cut -d':' -f1)
 PORT=$(echo "$HOST" | cut -d':' -f2)
 
@@ -104,7 +107,7 @@ while true
 do true; done
 
 # Check whether the local witnet node is below WIP-0010 "common checkpoint" (#248839)
-if [[ "$($WITNET_BINARY node blockchain --epoch 248839 --limit 1 2>&1 | wc -l)" == "5" ]]; then
+if ! $WITNET_BINARY node blockchain --epoch 248839 --limit 1 2>&1 | grep -q "block for epoch"; then
   log "The local witnet node at $HOST seems to be syncing blocks prior to the WIP-0010 fork. No recovery action is needed"
   exit 0
 fi
@@ -133,7 +136,7 @@ REWIND_START=$(date +%s)
 $WITNET_BINARY node clearPeers 2>&1 | grep -q "Successful" &&
 log "Successfully cleared existing peers from buckets" ||
 log "ERROR: Failed to clear existing peers from buckets"
-printf "%b" "$KNOWN_PEERS" | sed -En "s/\s*\"(.*)\"\,/\1/p" | "$WITNET_BINARY" node addPeers 2>&1 | grep -q "Successful" &&
+echo "$KNOWN_PEERS" | sed -r "s/\\\n\s*\"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\:[0-9]+)\"\,/\1, /g" | "$WITNET_BINARY" node addPeers 2>&1 | grep -q "Successful" &&
 log "Successfully added healthy peers" ||
 log "ERROR: Failed to add new list of helthy peers"
 
