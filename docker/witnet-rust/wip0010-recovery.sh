@@ -50,6 +50,22 @@ function log {
   echo "[WIP0010_RECOVERY] $1"
 }
 
+# A helper for calculating ETAs
+function eta {
+  START=$1
+  NOW=$2
+  PROGRESS=$3
+  if [ "$PROGRESS" == "00" ]; then
+    echo "will be shown as synchronization moves forward..."
+  else
+    ELAPSED=$(( NOW - START ))
+    SPEED=$((PROGRESS * 1000 / ELAPSED))
+    REMAINING_PROGRESS=$(( 10000 - PROGRESS ))
+    REMAINING_TIME=$((REMAINING_PROGRESS / (SPEED / 1000) ))
+    echo $(( REMAINING_TIME / 60 )) minutes $((REMAINING_TIME % 60)) seconds
+  fi
+}
+
 # This script can be skipped by setting environment variable SKIP_WIP0010_RECOVERY to "true"
 if [[ "$SKIP_WIP0010_RECOVERY" == "true" ]]; then
   log "Skipping WIP-0010 recovery"
@@ -89,14 +105,14 @@ do true; done
 
 # Check whether the local witnet node is below WIP-0010 "common checkpoint" (#248839)
 if [[ "$($WITNET_BINARY node blockchain --epoch 248839 --limit 1 2>&1 | wc -l)" == "5" ]]; then
-  log "The local witnet node at $HOST seems to be syncing blocks prior to the WIP-0010 fork. No recovery action is needed."
-  #exit 0
+  log "The local witnet node at $HOST seems to be syncing blocks prior to the WIP-0010 fork. No recovery action is needed"
+  exit 0
 fi
 
 # Check whether the local witnet node is on the `A` chain, and if so, skip recovery
 if $WITNET_BINARY node blockchain --epoch 248839 --limit 2 2>&1 | grep -q '#248921 had digest 7556670d'; then
   log "The local witnet node at $HOST seems to be on the leading chain. No recovery action is needed"
-  #exit 0
+  exit 0
 fi
 
 # There is no way back, recovery is needed
@@ -105,9 +121,33 @@ echo "$RECOVERY_BANNER"
 # Update known peers in configuration file
 log "Updating known_peers in configuration file at $WITNET_CONFIG_FILE"
 sed -ziE "s/known_peers\s*=\s*\[\n.*\\,\n\]/known_peers = [$KNOWN_PEERS]/g"  "$WITNET_CONFIG_FILE" &&
-log "Successfuly updated known_peers in configuration file" ||
+log "Successfully updated known_peers in configuration file" ||
 log "ERROR: Failed to update known_peers in configuration file at $WITNET_CONFIG_FILE"
 
-# TODO: restart the node?
-# TODO: rewind
-# TODO: issue initializePeers command
+# Rewind local chain back to the WIP-0010 "common checkpoint" (#248839)
+log "Triggering rewind of local block chain back to epoch #248839"
+$WITNET_BINARY node rewind --epoch 248839 &>/dev/null
+REWIND_START=$(date +%s)
+
+# Flush existing peers and inject new peers in runtime
+$WITNET_BINARY node clearPeers 2>&1 | grep -q "Successful" &&
+log "Successfully cleared existing peers from buckets" ||
+log "ERROR: Failed to clear existing peers from buckets"
+printf "%b" "$KNOWN_PEERS" | sed -En "s/\s*\"(.*)\"\,/\1/p" | "$WITNET_BINARY" node addPeers 2>&1 | grep -q "Successful" &&
+log "Successfully added healthy peers" ||
+log "ERROR: Failed to add new list of helthy peers"
+
+# Wait for the rewind to complete, showing progress and ETA
+while true
+  STATS=$($WITNET_BINARY node nodeStats 2>&1)
+  if echo "$STATS" | grep -q "synchronized"; then
+    log "Successfully finished rewinding and synchronizing!"
+    break
+  else
+    NOW=$(date +%s)
+    PERCENTAGE=$(echo "$STATS" | sed -En "s/.*\:\s*(.*)\.(.*)\%.*/\1.\2%/p")
+    PERCENTAGE_RAW=$(echo "$PERCENTAGE" | sed -En "s/0*(.*)\.(.*)\%/\1\2/p")
+    log "Still rewinding and synchronizing. Progress: $PERCENTAGE. ETA: $(eta "$REWIND_START" "$NOW" "$PERCENTAGE_RAW")"
+    sleep 30
+  fi
+do true; done
