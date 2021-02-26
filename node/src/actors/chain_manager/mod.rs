@@ -1458,6 +1458,14 @@ impl ChainManager {
                     // the list itself is ordered by decreasing reputation
                     let ars_identities = ARSIdentities::new(ars_members);
 
+                    // After the second hard fork, the superblock committee size must be at least 50
+                    let min_committee_size = if after_second_hard_fork(block_epoch, get_environment()) {
+                        50
+                    } else {
+                        // Before that hard fork, the minimum was 1 identity
+                        1
+                    };
+
                     // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
                     let committee_size = current_committee_size_requirement(
                         consensus_constants.superblock_signing_committee_size,
@@ -1466,7 +1474,8 @@ impl ChainManager {
                         consensus_constants.superblock_committee_decreasing_step,
                         chain_info.highest_superblock_checkpoint.checkpoint,
                         superblock_index,
-                        last_superblock_signed_by_bootstrap
+                        last_superblock_signed_by_bootstrap,
+                        min_committee_size,
                     );
 
                     let superblock = act.chain_state.superblock_state.build_superblock(
@@ -2628,6 +2637,7 @@ fn last_superblock_signed_by_bootstrap(consensus_constants: &ConsensusConstants)
 }
 // Returns the committee size to be applied given the default committee size, decreasing period
 // and  step, last consolidated epoch and the current checkpoint
+#[allow(clippy::too_many_arguments)]
 fn current_committee_size_requirement(
     default_committee_size: u32,
     last_committee_size: u32,
@@ -2636,22 +2646,24 @@ fn current_committee_size_requirement(
     last_consolidated_checkpoint: u32,
     current_checkpoint: u32,
     last_checkpoint_signed_by_bootstrap: u32,
+    min_committee_size: u32,
 ) -> u32 {
     assert!(last_consolidated_checkpoint <= current_checkpoint, "Something went wrong as the last consolidated checkpoint is bigger than our current checkpoint {} > {}", last_consolidated_checkpoint, current_checkpoint);
     // If the last consolidated superblock or the current checkpoint is below last_checkpoint_signed_by_bootstrap, return the default committee size
     if last_consolidated_checkpoint <= last_checkpoint_signed_by_bootstrap {
         default_committee_size
     } else if current_checkpoint - last_consolidated_checkpoint >= decreasing_period {
+        // Decrease committee size. The minimum committee size must be at least 1.
+        let min_committee_size = max(min_committee_size, 1);
         // Calculate the difference between the last consolidated superblock checkpoint and the current one
         // If this difference exceeds the decreasing_period, reduce the committee size by decreasing_step * difference
-        // The minimum committee size is 1
         max(
             last_committee_size.saturating_sub(
                 (current_checkpoint.saturating_sub(last_consolidated_checkpoint)
                     / decreasing_period)
                     * decreasing_step,
             ),
-            1,
+            min_committee_size,
         )
     } else {
         // In this case, if the last_committee_size was equal to default, return default
@@ -2847,51 +2859,51 @@ mod tests {
 
     #[test]
     fn test_current_committee_size_requirement() {
-        let mut size = current_committee_size_requirement(5, 5, 4, 1, 1, 2, 0);
+        let mut size = current_committee_size_requirement(5, 5, 4, 1, 1, 2, 0, 1);
 
         assert_eq!(size, 5);
 
-        size = current_committee_size_requirement(5, 5, 4, 1, 0, 301, 1);
+        size = current_committee_size_requirement(5, 5, 4, 1, 0, 301, 1, 1);
 
         assert_eq!(size, 5);
 
-        size = current_committee_size_requirement(5, 5, 4, 1, 3, 4, 0);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 4, 0, 1);
 
         assert_eq!(size, 5);
 
-        size = current_committee_size_requirement(5, 5, 4, 1, 3, 7, 0);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 7, 0, 1);
 
         assert_eq!(size, 4);
 
-        size = current_committee_size_requirement(5, 5, 4, 1, 3, 12, 0);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 12, 0, 1);
 
         assert_eq!(size, 3);
 
-        size = current_committee_size_requirement(5, 5, 4, 1, 3, 200, 0);
+        size = current_committee_size_requirement(5, 5, 4, 1, 3, 200, 0, 1);
 
         assert_eq!(size, 1);
 
-        size = current_committee_size_requirement(100, 100, 5, 5, 5, 50, 0);
+        size = current_committee_size_requirement(100, 100, 5, 5, 5, 50, 0, 1);
 
         assert_eq!(size, 55);
 
-        size = current_committee_size_requirement(100, 55, 5, 5, 5, 6, 0);
+        size = current_committee_size_requirement(100, 55, 5, 5, 5, 6, 0, 1);
 
         assert_eq!(size, 60);
 
-        size = current_committee_size_requirement(100, 98, 5, 5, 5, 6, 0);
+        size = current_committee_size_requirement(100, 98, 5, 5, 5, 6, 0, 1);
 
         assert_eq!(size, 100);
 
-        size = current_committee_size_requirement(100, 100, 5, 5, 5, 6, 0);
+        size = current_committee_size_requirement(100, 100, 5, 5, 5, 6, 0, 1);
 
         assert_eq!(size, 100);
 
-        size = current_committee_size_requirement(100, 3, 5, 5, 8, 10, 9);
+        size = current_committee_size_requirement(100, 3, 5, 5, 8, 10, 9, 1);
 
         assert_eq!(size, 100);
 
-        size = current_committee_size_requirement(100, 3, 5, 5, 9, 10, 9);
+        size = current_committee_size_requirement(100, 3, 5, 5, 9, 10, 9, 1);
 
         assert_eq!(size, 100);
     }
@@ -2901,7 +2913,7 @@ mod tests {
         expected = "Something went wrong as the last consolidated checkpoint is bigger than our current checkpoint 2 > 1"
     )]
     fn test_wrong_checkpoints() {
-        current_committee_size_requirement(5, 5, 4, 1, 2, 1, 0);
+        current_committee_size_requirement(5, 5, 4, 1, 2, 1, 0, 1);
     }
 
     #[test]
@@ -2923,6 +2935,7 @@ mod tests {
                 last_consolidated_checkpoint,
                 current_checkpoint,
                 last_checkpoint_signed_by_bootstrap,
+                1,
             );
             if has_superblock {
                 last_consolidated_checkpoint = current_checkpoint;
@@ -3080,6 +3093,7 @@ mod tests {
                 last_consolidated_checkpoint,
                 current_checkpoint,
                 last_checkpoint_signed_by_bootstrap,
+                1,
             );
             if has_superblock {
                 last_consolidated_checkpoint = current_checkpoint;
