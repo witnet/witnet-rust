@@ -1,4 +1,13 @@
-use std::{collections::HashMap, hash::Hash};
+use actix::System;
+use std::{
+    collections::HashMap,
+    future::Future,
+    hash::Hash,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 /// Given a list of elements, return the most common one. In case of tie, return `None`.
 pub fn mode_consensus<I, V>(pb: I, threshold: usize) -> Option<V>
@@ -26,15 +35,32 @@ where
     }
 }
 
-/// Helper function used to test actors
-pub fn test_actix_system<F: 'static + FnOnce() -> Fut, Fut: futures::Future>(f: F) {
-    actix::System::run(|| {
-        let fut = async move {
-            f().await;
+/// Helper function used to test actors.
+/// This should use the same code that the node uses to start the actor system.
+pub fn test_actix_system<F: FnOnce() -> Fut, Fut: Future>(test_function: F) {
+    // Use this flag to ensure that the test has been run, because you can never trust
+    // asynchronous code
+    let done = Arc::new(AtomicBool::new(false));
 
-            actix::System::current().stop();
-        };
-        actix::Arbiter::spawn(fut);
-    })
-    .unwrap();
+    // Init system
+    let system = System::new("test_node");
+
+    // Init actors
+    system.block_on(async {
+        test_function().await;
+        done.store(true, Ordering::Relaxed);
+        System::current().stop_with_code(0);
+    });
+
+    // Run system
+    let res = system.run();
+    res.expect("test system stop with error code");
+
+    // Calling stop_with_code somewhere else will stop the test system, potentially skipping some
+    // asserts in the test function.
+    // This check ensures that the system has been stopped after running the test function.
+    assert!(
+        done.load(Ordering::Relaxed),
+        "test system has stopped for an unknown reason"
+    );
 }
