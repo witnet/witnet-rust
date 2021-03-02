@@ -1359,7 +1359,10 @@ impl ChainManager {
                 let consensus = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
 
                     if voted_superblock_beacon.checkpoint == last_consolidated_beacon.checkpoint {
-                        log::debug!("Counting votes for a already consolidated superblock index {}", superblock_index);
+                        log::debug!("Counting votes for an already consolidated superblock index {} when the current superblock index is {}",
+                                    voted_superblock_beacon.checkpoint,
+                                    superblock_index
+                        );
                         SuperBlockConsensus::SameAsLocal
                     } else {
                         if voted_superblock_beacon.checkpoint + 1 != superblock_index {
@@ -1394,11 +1397,17 @@ impl ChainManager {
                         }
 
                         if let Some(consolidated_superblock) = act.chain_state.superblock_state.get_current_superblock() {
+                            let sb_hash = consolidated_superblock.hash();
                             // Let JSON-RPC clients know that the blocks in the previous superblock can now
                             // be considered consolidated
                             act.notify_superblock_consolidation(consolidated_superblock);
 
-                            log::info!("Consensus reached for Superblock #{}", voted_superblock_beacon.checkpoint);
+                            log::info!("Consensus reached for Superblock #{} with {} out of {} votes. Committee size: {}",
+                                       voted_superblock_beacon.checkpoint,
+                                       act.chain_state.superblock_state.votes_counter_from_superblock(&sb_hash),
+                                       act.chain_state.superblock_state.valid_votes_counter(),
+                                       act.chain_state.superblock_state.get_committee_length(),
+                            );
                             log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
                             log::debug!(
                                 "The last block of the consolidated superblock is {}",
@@ -1445,7 +1454,6 @@ impl ChainManager {
                         superblock_index,
                         last_superblock_signed_by_bootstrap
                     );
-                    log::debug!("The current signing committee size is {}", committee_size);
 
                     let superblock = act.chain_state.superblock_state.build_superblock(
                         &block_headers,
@@ -1456,8 +1464,6 @@ impl ChainManager {
                         &act.chain_state.alt_keys,
                         sync_superblock,
                     );
-
-                    log::debug!("CREATED SUPERBLOCK #{}: {} -> size: {}", superblock.index, superblock.hash(), superblock.signing_committee_length);
 
                     // Put the local superblock into chain state
                     act.chain_state
@@ -1470,8 +1476,12 @@ impl ChainManager {
                     // No consensus: move to waiting consensus and restore chain_state from storage
                     // TODO: it could be possible to synchronize with a target superblock hash
                     log::warn!(
-                        "Superblock consensus {} different from current superblock",
-                        target_superblock_hash
+                        "Superblock consensus #{}: {} different from current superblock with {} out of {} votes. Committee size: {}",
+                        voted_superblock_beacon.checkpoint,
+                        target_superblock_hash,
+                        act.chain_state.superblock_state.votes_counter_from_superblock(&target_superblock_hash),
+                        act.chain_state.superblock_state.valid_votes_counter(),
+                        act.chain_state.superblock_state.get_committee_length()
                     );
 
                     // We are on a different chain than the one dictated by the network. Thus we need
@@ -1495,7 +1505,21 @@ impl ChainManager {
                 }
                 SuperBlockConsensus::NoConsensus => {
                     // No consensus: move to AlmostSynced and restore chain_state from storage
-                    log::warn!("No superblock consensus");
+                    if let Some((sb_hash, votes_counter)) = act.chain_state.superblock_state.most_voted_superblock() {
+                        log::warn!("No superblock consensus for #{}. Most voted superblock: {} with {} out of {} votes. Committee size: {}",
+                                   voted_superblock_beacon.checkpoint,
+                                   sb_hash,
+                                   votes_counter,
+                                   act.chain_state.superblock_state.valid_votes_counter(),
+                                   act.chain_state.superblock_state.get_committee_length()
+                        );
+                    } else {
+                        log::warn!("No superblock consensus for #{}. Total votes: {}. Committee size: {}",
+                                   voted_superblock_beacon.checkpoint,
+                                   act.chain_state.superblock_state.valid_votes_counter(),
+                                   act.chain_state.superblock_state.get_committee_length()
+                        );
+                    }
 
                     act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 
@@ -1506,7 +1530,21 @@ impl ChainManager {
                 }
                 SuperBlockConsensus::Unknown => {
                     // Consensus unknown: move to waiting consensus and restore chain_state from storage
-                    log::warn!("Superblock consensus unknown");
+                    if let Some((sb_hash, votes_counter)) = act.chain_state.superblock_state.most_voted_superblock() {
+                        log::warn!("Superblock consensus unknown for #{}. Most voted superblock: {} with {} out of {} votes. Committee size: {}",
+                                   voted_superblock_beacon.checkpoint,
+                                   sb_hash,
+                                   votes_counter,
+                                   act.chain_state.superblock_state.valid_votes_counter(),
+                                   act.chain_state.superblock_state.get_committee_length()
+                        );
+                    } else {
+                        log::warn!("Superblock consensus unknown for #{}. Total votes: {}. Committee size: {}",
+                                   voted_superblock_beacon.checkpoint,
+                                   act.chain_state.superblock_state.valid_votes_counter(),
+                                   act.chain_state.superblock_state.get_committee_length()
+                        );
+                    }
 
                     act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 

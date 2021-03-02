@@ -188,12 +188,21 @@ impl SuperBlockVotesMempool {
             .max_by_key(|&(_, num_votes)| num_votes)
     }
 
-    fn valid_votes_counter(&self) -> usize {
+    /// Count all valid votes
+    pub fn valid_votes_counter(&self) -> usize {
         self.votes_of_each_identity.len()
     }
 
     fn invalid_votes_counter(&self) -> usize {
         self.penalized_identities.len()
+    }
+
+    /// Count all valid votes from a specific superblock
+    pub fn votes_counter_from_superblock(&self, superblock_hash: &Hash) -> usize {
+        self.votes_on_each_superblock
+            .get(superblock_hash)
+            .unwrap_or(&vec![])
+            .len()
     }
 }
 
@@ -463,6 +472,11 @@ impl SuperBlockState {
             .collect()
     }
 
+    /// Count all valid votes
+    pub fn valid_votes_counter(&self) -> usize {
+        self.votes_mempool.valid_votes_counter()
+    }
+
     #[allow(clippy::cast_possible_truncation)]
     /// Returns the length of the current committee
     pub fn get_committee_length(&self) -> u32 {
@@ -489,6 +503,20 @@ impl SuperBlockState {
     /// Get superblock from `current_superblock` field, if any.
     pub fn get_current_superblock(&self) -> Option<SuperBlock> {
         self.current_superblock.clone()
+    }
+
+    /// Get votes count for the most voted superblock
+    pub fn votes_counter_from_superblock(&self, superblock_hash: &Hash) -> usize {
+        self.votes_mempool
+            .votes_counter_from_superblock(superblock_hash)
+    }
+
+    /// Returns the superblock hash and the number of votes for the most voted superblock.
+    /// If the most voted superblock does not have a majority of votes, returns None.
+    /// In case of tie, returns one of the superblocks with the most votes.
+    /// If there are zero votes, returns None.
+    pub fn most_voted_superblock(&self) -> Option<(Hash, usize)> {
+        self.votes_mempool.most_voted_superblock()
     }
 }
 
@@ -567,7 +595,7 @@ pub fn mining_build_superblock(
         // Build "empty" Superblock (there were no blocks during super-epoch)
         {
             let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
-            log::debug!(
+            log::trace!(
                 "Created superblock #{} with hash_prev_block {}, ARS {}, blocks []",
                 index,
                 last_block_in_previous_superblock,
@@ -600,7 +628,7 @@ pub fn mining_build_superblock(
                 .iter()
                 .map(|b| format!("#{}: {}", b.beacon.checkpoint, b.hash()))
                 .collect();
-            log::debug!(
+            log::trace!(
                 "Created superblock #{} with hash_prev_block {}, ARS {}, signing_committee_length: {}, blocks {:?}",
                 index,
                 last_block_in_previous_superblock,
