@@ -1,7 +1,18 @@
 use crate::chain::{Environment, Epoch, PublicKeyHash};
+use std::collections::HashSet;
 
 /// Committee for superblock indices 750-1344
 const FIRST_EMERGENCY_COMMITTEE: [&str; 7] = [
+    "wit1asdpcspwysf0hg5kgwvgsp2h6g65y5kg9gj5dz",
+    "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty",
+    "wit17nnjuxmfuu92l6rxhque2qc3u2kvmx2fske4l9",
+    "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq",
+    "wit1cyrlc64hyu0rux7hclmg9rxwxpa0v9pevyaj2c",
+    "wit1g0rkajsgwqux9rnmkfca5tz6djg0f87x7ms5qx",
+    "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z",
+];
+
+const RESCUE_COMMITTEE: [&str; 7] = [
     "wit1asdpcspwysf0hg5kgwvgsp2h6g65y5kg9gj5dz",
     "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty",
     "wit17nnjuxmfuu92l6rxhque2qc3u2kvmx2fske4l9",
@@ -35,6 +46,17 @@ pub fn in_emergency_period(
 /// Returns a boolean indicating whether the epoch provided is after the first hard fork date
 pub fn after_first_hard_fork(epoch: Epoch, environment: Environment) -> bool {
     epoch >= FIRST_HARD_FORK && Environment::Mainnet == environment
+}
+
+pub fn get_rescue_committee(environment: Environment) -> HashSet<PublicKeyHash> {
+    if environment == Environment::Mainnet {
+        RESCUE_COMMITTEE
+            .iter()
+            .map(|address| address.parse().expect("Malformed signing committee"))
+            .collect()
+    } else {
+        HashSet::default()
+    }
 }
 
 #[cfg(test)]

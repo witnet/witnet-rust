@@ -179,13 +179,13 @@ impl SuperBlockVotesMempool {
 
     /// Returns the superblock hash and the number of votes of the most voted superblock.
     /// If the most voted superblock does not have a majority of votes, returns None.
-    /// In case of tie, returns one of the superblocks with the most votes.
+    /// In case of tie, returns the one with the highest superblock hash.
     /// If there are zero votes, returns None.
     pub fn most_voted_superblock(&self) -> Option<(Hash, usize)> {
         self.votes_on_each_superblock
             .iter()
             .map(|(superblock_hash, votes)| (*superblock_hash, votes.len()))
-            .max_by_key(|&(_, num_votes)| num_votes)
+            .max_by_key(|&(hash, num_votes)| (num_votes, hash))
     }
 
     /// Counter of all valid votes
@@ -222,6 +222,13 @@ pub struct SuperBlockState {
     signing_committee: HashSet<PublicKeyHash>,
     // SuperBlockMempool
     votes_mempool: SuperBlockVotesMempool,
+    ///TODO: Handle hard fork situation
+    // Rescue Committee
+    #[serde(skip)]
+    rescue_committee: HashSet<PublicKeyHash>,
+    // Rescue SuperBlockMempool
+    #[serde(skip)]
+    rescue_votes_mempool: SuperBlockVotesMempool,
 }
 
 impl SuperBlockState {
@@ -237,6 +244,10 @@ impl SuperBlockState {
             },
             ..SuperBlockState::default()
         }
+    }
+
+    pub fn set_rescue_committe(&mut self, rescue_committee: HashSet<PublicKeyHash>) {
+        self.rescue_committee = rescue_committee;
     }
 
     fn insert_vote(&mut self, sbv: SuperBlockVote) -> AddSuperBlockVote {
@@ -265,6 +276,32 @@ impl SuperBlockState {
         }
     }
 
+    fn insert_rescue_vote(&mut self, sbv: SuperBlockVote) -> AddSuperBlockVote {
+        log::trace!("Superblock insert vote {:?}", sbv);
+        // If the superblock vote is valid, store it
+        let pkh = sbv.secp256k1_signature.public_key.pkh();
+
+        if self
+            .rescue_votes_mempool
+            .check_double_vote(&pkh, &sbv.superblock_hash)
+        {
+            // This identity has already voted for a different superblock
+            self.rescue_votes_mempool.override_vote(pkh);
+
+            AddSuperBlockVote::DoubleVote
+        } else {
+            let is_same_hash =
+                sbv.superblock_hash == self.current_superblock_beacon.hash_prev_block;
+            self.rescue_votes_mempool.insert_vote(sbv);
+
+            if is_same_hash {
+                AddSuperBlockVote::ValidWithSameHash
+            } else {
+                AddSuperBlockVote::ValidButDifferentHash
+            }
+        }
+    }
+
     /// Add a vote sent by another peer.
     /// This method assumes that the signatures are valid, they must be checked by the caller.
     pub fn add_vote(
@@ -279,20 +316,33 @@ impl SuperBlockState {
             // Insert to avoid validating again
             self.votes_mempool.insert(sbv);
 
-            let valid = self.is_valid(sbv, current_superblock_index);
+            if self
+                .rescue_committee
+                .contains(&sbv.secp256k1_signature.public_key.pkh())
+            {
+                let valid = self.is_rescue_valid(sbv, current_superblock_index);
 
-            match valid {
-                Some(true) => self.insert_vote(sbv.clone()),
-                Some(false) => {
-                    if sbv.superblock_index == current_superblock_index
-                        || self.ars_previous_identities.is_empty()
-                    {
-                        AddSuperBlockVote::NotInSigningCommittee
-                    } else {
-                        AddSuperBlockVote::InvalidIndex
-                    }
+                match valid {
+                    Some(true) => self.insert_rescue_vote(sbv.clone()),
+                    Some(false) => AddSuperBlockVote::InvalidIndex,
+                    None => AddSuperBlockVote::MaybeValid,
                 }
-                None => AddSuperBlockVote::MaybeValid,
+            } else {
+                let valid = self.is_valid(sbv, current_superblock_index);
+
+                match valid {
+                    Some(true) => self.insert_vote(sbv.clone()),
+                    Some(false) => {
+                        if sbv.superblock_index == current_superblock_index
+                            || self.ars_previous_identities.is_empty()
+                        {
+                            AddSuperBlockVote::NotInSigningCommittee
+                        } else {
+                            AddSuperBlockVote::InvalidIndex
+                        }
+                    }
+                    None => AddSuperBlockVote::MaybeValid,
+                }
             }
         };
         // TODO: delete this log after testing
@@ -316,6 +366,24 @@ impl SuperBlockState {
                 self.signing_committee
                     .contains(&sbv.secp256k1_signature.public_key.pkh()),
             )
+        } else if sbv.superblock_index == current_superblock_index.saturating_add(1) {
+            // If the index is not the same as the current one, but it is a checkpoint later, x+1,
+            // broadcast the vote without checking if it is a member of the ARS, as the ARS
+            // may have changed
+            None
+        } else {
+            // If the index is different from x or x+1, it is considered not valid
+            Some(false)
+        }
+    }
+
+    /// Since we do not check signatures here, a superblock vote is valid if the index is valid
+    /// Returns true, false, or unknown
+    fn is_rescue_valid(&self, sbv: &SuperBlockVote, current_superblock_index: u32) -> Option<bool> {
+        if current_superblock_index == sbv.superblock_index {
+            // If the index is the same as the current one, the vote is valid if it is signed by a
+            // member of the current signing committee
+            Some(true)
         } else if sbv.superblock_index == current_superblock_index.saturating_add(1) {
             // If the index is not the same as the current one, but it is a checkpoint later, x+1,
             // broadcast the vote without checking if it is a member of the ARS, as the ARS
@@ -353,32 +421,125 @@ impl SuperBlockState {
                 Some(x) => x,
                 None => {
                     // 0 votes, no consensus
-                    return SuperBlockConsensus::Unknown;
+                    (Hash::default(), 0)
                 }
             };
 
+        let rescue_consensus = self.get_rescue_consensus();
+
         if two_thirds_consensus(most_voted_num_votes, signing_committee_length) {
+            // N1
             if most_voted_superblock == self.current_superblock_beacon.hash_prev_block {
                 SuperBlockConsensus::SameAsLocal
             } else {
                 SuperBlockConsensus::Different(most_voted_superblock)
             }
-        } else {
-            let num_total_votes = self.votes_mempool.valid_votes_counter();
-            let invalid_votes = self.votes_mempool.invalid_votes_counter();
-            let num_missing_votes = signing_committee_length - num_total_votes - invalid_votes;
-            if two_thirds_consensus(
-                most_voted_num_votes + num_missing_votes,
-                signing_committee_length,
-            ) {
-                // There is no consensus, but if the missing votes vote the same as the
-                // majority, there can be consensus
-                SuperBlockConsensus::Unknown
+        } else if one_third_consensus(most_voted_num_votes, signing_committee_length) {
+            // N2
+            if rescue_consensus == Some(most_voted_superblock) {
+                // N = R
+                if most_voted_superblock == self.current_superblock_beacon.hash_prev_block {
+                    SuperBlockConsensus::SameAsLocal
+                } else {
+                    SuperBlockConsensus::Different(most_voted_superblock)
+                }
             } else {
-                // There is no consensus, regardless of the missing votes
-                SuperBlockConsensus::NoConsensus
+                // Rollback
+                let num_total_votes = self.votes_mempool.valid_votes_counter();
+                let invalid_votes = self.votes_mempool.invalid_votes_counter();
+                let num_missing_votes = signing_committee_length - num_total_votes - invalid_votes;
+                if two_thirds_consensus(
+                    most_voted_num_votes + num_missing_votes,
+                    signing_committee_length,
+                ) || self.missing_rescue_votes(Some(most_voted_superblock))
+                {
+                    // There is no consensus, but if the missing votes vote the same as the
+                    // majority, there can be consensus
+                    SuperBlockConsensus::Unknown
+                } else {
+                    // There is no consensus, regardless of the missing votes
+                    SuperBlockConsensus::NoConsensus
+                }
+            }
+        } else {
+            // N3
+            if let Some(rescue_superblock) = rescue_consensus {
+                // R1
+                if most_voted_superblock == self.current_superblock_beacon.hash_prev_block {
+                    SuperBlockConsensus::SameAsLocal
+                } else {
+                    SuperBlockConsensus::Different(rescue_superblock)
+                }
+            } else {
+                // Rollback
+                let num_total_votes = self.votes_mempool.valid_votes_counter();
+                let invalid_votes = self.votes_mempool.invalid_votes_counter();
+                let num_missing_votes = signing_committee_length - num_total_votes - invalid_votes;
+                if two_thirds_consensus(
+                    most_voted_num_votes + num_missing_votes,
+                    signing_committee_length,
+                ) || self.missing_rescue_votes(None)
+                {
+                    // There is no consensus, but if the missing votes vote the same as the
+                    // majority, there can be consensus
+                    SuperBlockConsensus::Unknown
+                } else {
+                    // There is no consensus, regardless of the missing votes
+                    SuperBlockConsensus::NoConsensus
+                }
             }
         }
+    }
+
+    fn get_rescue_consensus(&self) -> Option<Hash> {
+        match self.rescue_votes_mempool.most_voted_superblock() {
+            Some((rescue_hash, counter)) => {
+                if two_thirds_consensus(counter, self.rescue_committee.len()) {
+                    // R1
+                    Some(rescue_hash)
+                } else {
+                    // R2
+                    None
+                }
+            }
+            None => {
+                // R2
+                None
+            }
+        }
+    }
+
+    fn missing_rescue_votes(&self, normal_consensus: Option<Hash>) -> bool {
+        let rescue_committee_length = self.rescue_committee.len();
+        let (_, most_voted_num_votes) = self
+            .rescue_votes_mempool
+            .most_voted_superblock()
+            .unwrap_or_default();
+        let num_total_votes = self.rescue_votes_mempool.valid_votes_counter();
+        let invalid_votes = self.rescue_votes_mempool.invalid_votes_counter();
+        let num_missing_votes = rescue_committee_length - num_total_votes - invalid_votes;
+
+        let two_thirds_consensus_normal =
+            two_thirds_consensus(most_voted_num_votes, rescue_committee_length);
+
+        let two_thirds_consensus_with_missing_votes =
+            if let Some(normal_consensus) = normal_consensus {
+                let votes_in_consensus_with_normal = self
+                    .rescue_votes_mempool
+                    .votes_counter_from_superblock(&normal_consensus);
+                two_thirds_consensus(
+                    votes_in_consensus_with_normal + num_missing_votes,
+                    rescue_committee_length,
+                )
+            } else {
+                two_thirds_consensus(
+                    most_voted_num_votes + num_missing_votes,
+                    rescue_committee_length,
+                )
+            };
+
+        // The rescue has not a consensus and it will achieve it with the missing votes
+        !two_thirds_consensus_normal && two_thirds_consensus_with_missing_votes
     }
 
     fn update_ars_identities(&mut self, new_identities: ARSIdentities) {
@@ -450,6 +611,16 @@ impl SuperBlockState {
             // If the superblock vote is valid, store it
             if valid == Some(true) {
                 self.insert_vote(sbv);
+            }
+        }
+
+        let rescue_old_votes = self.rescue_votes_mempool.clear_and_remove_votes();
+        for sbv in rescue_old_votes {
+            let valid = self.is_rescue_valid(&sbv, superblock_index);
+
+            // If the superblock vote is valid, store it
+            if valid == Some(true) {
+                self.insert_rescue_vote(sbv);
             }
         }
 
@@ -576,6 +747,15 @@ fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
 /// The number of votes needed must be strictly greater than 2/3 of the number of identities.
 pub fn two_thirds_consensus(votes: usize, identities: usize) -> bool {
     let required_votes = identities * 2 / 3;
+
+    votes > required_votes
+}
+
+/// Returns true if the number of votes is enough to achieve 1/3 consensus.
+///
+/// The number of votes needed must be strictly greater than 1/3 of the number of identities.
+pub fn one_third_consensus(votes: usize, identities: usize) -> bool {
+    let required_votes = identities / 3;
 
     votes > required_votes
 }
