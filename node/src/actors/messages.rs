@@ -530,6 +530,7 @@ pub enum StoreInventoryItem {
 }
 
 /// Add a new item
+#[derive(Debug)]
 pub struct AddItem {
     /// Item
     pub item: StoreInventoryItem,

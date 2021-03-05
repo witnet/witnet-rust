@@ -218,6 +218,8 @@ pub struct ChainManager {
     max_reinserted_transactions: usize,
     /// Last received Beacons
     last_received_beacons: Vec<(SocketAddr, Option<LastBeacon>)>,
+    /// Pending Superblock notifications
+    pending_superblock_notifications: Vec<(AddItem, SuperBlockNotify)>,
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding
@@ -1363,7 +1365,7 @@ impl ChainManager {
                                     voted_superblock_beacon.checkpoint,
                                     superblock_index
                         );
-                        SuperBlockConsensus::SameAsLocal
+                        SuperBlockConsensus::SameAsLocal(true)
                     } else {
                         if voted_superblock_beacon.checkpoint + 1 != superblock_index {
                             // Warn when there is are missing superblocks between the one that will be
@@ -1380,11 +1382,11 @@ impl ChainManager {
                     // If the node is not synced yet, assume that the superblock is valid.
                     // This is because the node is consolidating blocks received during the synchronization
                     // process, which are assumed to be valid.
-                    SuperBlockConsensus::SameAsLocal
+                    SuperBlockConsensus::SameAsLocal(true)
                 };
 
                 match consensus {
-                    SuperBlockConsensus::SameAsLocal => {
+                    SuperBlockConsensus::SameAsLocal(must_consolidate) => {
                         // At this point we need to persist previous_chain_state,
                         // Take last beacon from superblock state and use it in current chain_info
                         act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
@@ -1392,7 +1394,9 @@ impl ChainManager {
 
                         if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                             // Persist previous_chain_state with current superblock_state
-                            act.persist_chain_state(Some(voted_superblock_beacon.checkpoint), ctx);
+                            if must_consolidate{
+                                act.persist_chain_state(Some(voted_superblock_beacon.checkpoint), ctx);
+                            }
                             act.move_chain_state_forward(superblock_index);
                         }
 
@@ -1400,7 +1404,17 @@ impl ChainManager {
                             let sb_hash = consolidated_superblock.hash();
                             // Let JSON-RPC clients know that the blocks in the previous superblock can now
                             // be considered consolidated
-                            act.notify_superblock_consolidation(consolidated_superblock);
+
+                            let sb_notifications = act.notify_superblock_consolidation(consolidated_superblock);
+                            act.pending_superblock_notifications.push(sb_notifications);
+                            if must_consolidate {
+                                for (item, sb_notify) in act.pending_superblock_notifications.drain(..){
+                                    // Store the list of block hashes that pertain to this superblock
+                                    InventoryManager::from_registry().do_send(item);
+
+                                    JsonRpcServer::from_registry().do_send(sb_notify);
+                                }
+                            }
 
                             log::info!("Consensus reached for Superblock #{} with {} out of {} votes. Committee size: {}",
                                        voted_superblock_beacon.checkpoint,
@@ -1473,6 +1487,9 @@ impl ChainManager {
                     actix::fut::ok(superblock)
                 }
                 SuperBlockConsensus::Different(target_superblock_hash) => {
+                    // Clear pending superblock notifications
+                    act.pending_superblock_notifications.clear();
+
                     // No consensus: move to waiting consensus and restore chain_state from storage
                     // TODO: it could be possible to synchronize with a target superblock hash
                     log::warn!(
@@ -1504,6 +1521,9 @@ impl ChainManager {
                     actix::fut::err(())
                 }
                 SuperBlockConsensus::NoConsensus => {
+                    // Clear pending superblock notifications
+                    act.pending_superblock_notifications.clear();
+
                     // No consensus: move to AlmostSynced and restore chain_state from storage
                     if let Some((sb_hash, votes_counter)) = act.chain_state.superblock_state.most_voted_superblock() {
                         log::warn!("No superblock consensus for #{}. Most voted superblock: {} with {} out of {} votes. Committee size: {}",
@@ -1529,6 +1549,9 @@ impl ChainManager {
                     actix::fut::err(())
                 }
                 SuperBlockConsensus::Unknown => {
+                    // Clear pending superblock notifications
+                    act.pending_superblock_notifications.clear();
+
                     // Consensus unknown: move to waiting consensus and restore chain_state from storage
                     if let Some((sb_hash, votes_counter)) = act.chain_state.superblock_state.most_voted_superblock() {
                         log::warn!("Superblock consensus unknown for #{}. Most voted superblock: {} with {} out of {} votes. Committee size: {}",
@@ -1803,7 +1826,10 @@ impl ChainManager {
 
     /// Let JSON-RPC clients know that the blocks in the previous superblock can now
     /// be considered consolidated
-    fn notify_superblock_consolidation(&mut self, superblock: SuperBlock) {
+    fn notify_superblock_consolidation(
+        &mut self,
+        superblock: SuperBlock,
+    ) -> (AddItem, SuperBlockNotify) {
         let superblock_period = u32::from(self.consensus_constants().superblock_period);
         let final_epoch = superblock
             .index
@@ -1824,12 +1850,11 @@ impl ChainManager {
             consolidated_block_hashes,
         };
 
-        // Store the list of block hashes that pertain to this superblock
-        InventoryManager::from_registry().do_send(AddItem {
+        let inventory_msg = AddItem {
             item: StoreInventoryItem::Superblock(superblock_notify.clone()),
-        });
+        };
 
-        JsonRpcServer::from_registry().do_send(superblock_notify);
+        (inventory_msg, superblock_notify)
     }
 
     /// Let JSON-RPC clients know when the node changes its status

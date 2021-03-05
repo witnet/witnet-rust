@@ -37,12 +37,14 @@ pub enum AddSuperBlockVote {
 #[derive(Debug)]
 pub enum SuperBlockConsensus {
     /// The local superblock has the majority of votes, everything ok
-    SameAsLocal,
+    /// true: consensus achieved by Normal Committee
+    /// false: consensus achieved by Rescue Committee
+    SameAsLocal(bool),
     /// A different superblock has the majority of votes, go to waiting consensus
     Different(Hash),
     /// No superblock candidate can achieve majority of votes
     NoConsensus,
-    /// There are some missing votes that are needed to determine the consenus
+    /// There are some missing votes that are needed to determine the consensus
     Unknown,
 }
 
@@ -402,7 +404,7 @@ impl SuperBlockState {
         // need any votes to determine that that is the most voted superblock.
         if self.signing_committee.is_empty() {
             log::debug!("Superblock {:?} is assumed to be in consensus because the signing committee is empty", self.current_superblock_beacon);
-            return SuperBlockConsensus::SameAsLocal;
+            return SuperBlockConsensus::SameAsLocal(true);
         }
 
         log::debug!(
@@ -430,7 +432,7 @@ impl SuperBlockState {
         if two_thirds_consensus(most_voted_num_votes, signing_committee_length) {
             // N1
             if most_voted_superblock == self.current_superblock_beacon.hash_prev_block {
-                SuperBlockConsensus::SameAsLocal
+                SuperBlockConsensus::SameAsLocal(true)
             } else {
                 SuperBlockConsensus::Different(most_voted_superblock)
             }
@@ -439,7 +441,7 @@ impl SuperBlockState {
             if rescue_consensus == Some(most_voted_superblock) {
                 // N = R
                 if most_voted_superblock == self.current_superblock_beacon.hash_prev_block {
-                    SuperBlockConsensus::SameAsLocal
+                    SuperBlockConsensus::SameAsLocal(true)
                 } else {
                     SuperBlockConsensus::Different(most_voted_superblock)
                 }
@@ -465,8 +467,12 @@ impl SuperBlockState {
             // N3
             if let Some(rescue_superblock) = rescue_consensus {
                 // R1
-                if most_voted_superblock == self.current_superblock_beacon.hash_prev_block {
-                    SuperBlockConsensus::SameAsLocal
+                if rescue_superblock == self.current_superblock_beacon.hash_prev_block {
+                    // In this case, we use the consensus provided by the Rescue Committee ignoring
+                    // the votes obtained from the Normal Committee, so this consensus has a "false"
+                    // flag to indicate that could be reverted if finally the chain does not follow
+                    // the Rescue Committee suggestions
+                    SuperBlockConsensus::SameAsLocal(false)
                 } else {
                     SuperBlockConsensus::Different(rescue_superblock)
                 }
