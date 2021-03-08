@@ -13,6 +13,7 @@ use witnet_data_structures::{
         SuperBlockVote,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
+    get_environment,
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
@@ -41,6 +42,7 @@ use crate::{
     config_mngr, signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
+use witnet_data_structures::mainnet_validations::get_rescue_committee;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -88,6 +90,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         let last_checked_epoch = self.current_epoch;
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
+
+        // Set the right Rescue Committee according to the Epoch
+        self.chain_state
+            .superblock_state
+            .set_rescue_committe(get_rescue_committee(current_epoch, get_environment()));
 
         log::debug!(
             "EpochNotification received while StateMachine is in state {:?}",

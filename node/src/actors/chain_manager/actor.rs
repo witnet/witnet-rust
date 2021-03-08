@@ -18,8 +18,6 @@ use witnet_data_structures::{
         ReputationEngine,
     },
     data_request::DataRequestPool,
-    get_environment,
-    mainnet_validations::get_rescue_committee,
     superblock::SuperBlockState,
     types::LastBeacon,
     utxo_pool::OwnUnspentOutputsPool,
@@ -134,7 +132,7 @@ impl ChainManager {
                 let consensus_constants = &config.consensus_constants;
                 // chain_info_from_storage can be None if the storage does not contain that key
 
-                let mut chain_state = match chain_state_from_storage {
+                let chain_state = match chain_state_from_storage {
                     Some(
                         chain_state_from_storage @ ChainState {
                             chain_info: Some(..),
@@ -254,9 +252,6 @@ impl ChainManager {
                     }
                 }
 
-                // TODO: use conditional hard fork
-                let rescue_committee = get_rescue_committee(get_environment());
-                chain_state.superblock_state.set_rescue_committe(rescue_committee);
                 act.chain_state = chain_state;
 
                 // initialize_from_storage is also used to implement reorganizations

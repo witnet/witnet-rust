@@ -48,7 +48,8 @@ pub fn after_first_hard_fork(epoch: Epoch, environment: Environment) -> bool {
     epoch >= FIRST_HARD_FORK && Environment::Mainnet == environment
 }
 
-pub fn get_rescue_committee(environment: Environment) -> HashSet<PublicKeyHash> {
+pub fn get_rescue_committee(_epoch: Epoch, environment: Environment) -> HashSet<PublicKeyHash> {
+    //TODO: Use epoch parameter to apply the specific Rescue Committee
     if environment == Environment::Mainnet {
         RESCUE_COMMITTEE
             .iter()
