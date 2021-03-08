@@ -25,7 +25,7 @@ use witnet_data_structures::{
     },
     error::{BlockError, DataRequestError, TransactionError},
     get_environment,
-    mainnet_validations::after_first_hard_fork,
+    mainnet_validations::{after_first_hard_fork, after_second_hard_fork},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
@@ -1611,6 +1611,17 @@ pub fn validate_block_transactions(
             dr_pool,
             consensus_constants.collateral_minimum,
         )?;
+
+        if !after_second_hard_fork(block_number, get_environment())
+            && transaction.tally == tally_bytes_on_encode_error()
+        {
+            // Before the second hard fork, do not allow RadError::Unknown as tally result
+            return Err(TransactionError::MismatchedConsensus {
+                expected_tally: tally_bytes_on_encode_error(),
+                miner_tally: tally_bytes_on_encode_error(),
+            }
+            .into());
+        }
 
         // Remove tally created from expected
         expected_tally_ready_drs.remove(&transaction.dr_pointer);
