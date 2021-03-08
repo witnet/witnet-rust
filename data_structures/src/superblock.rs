@@ -318,21 +318,9 @@ impl SuperBlockState {
             // Insert to avoid validating again
             self.votes_mempool.insert(sbv);
 
-            if self
-                .rescue_committee
-                .contains(&sbv.secp256k1_signature.public_key.pkh())
-            {
-                let valid = self.is_rescue_valid(sbv, current_superblock_index);
-
-                match valid {
-                    Some(true) => self.insert_rescue_vote(sbv.clone()),
-                    Some(false) => AddSuperBlockVote::InvalidIndex,
-                    None => AddSuperBlockVote::MaybeValid,
-                }
-            } else {
-                let valid = self.is_valid(sbv, current_superblock_index);
-
-                match valid {
+            match self.is_rescue_valid(sbv, current_superblock_index) {
+                Some(true) => self.insert_rescue_vote(sbv.clone()),
+                Some(false) => match self.is_valid(sbv, current_superblock_index) {
                     Some(true) => self.insert_vote(sbv.clone()),
                     Some(false) => {
                         if sbv.superblock_index == current_superblock_index
@@ -344,7 +332,8 @@ impl SuperBlockState {
                         }
                     }
                     None => AddSuperBlockVote::MaybeValid,
-                }
+                },
+                None => AddSuperBlockVote::MaybeValid,
             }
         };
         // TODO: delete this log after testing
@@ -384,8 +373,11 @@ impl SuperBlockState {
     fn is_rescue_valid(&self, sbv: &SuperBlockVote, current_superblock_index: u32) -> Option<bool> {
         if current_superblock_index == sbv.superblock_index {
             // If the index is the same as the current one, the vote is valid if it is signed by a
-            // member of the current signing committee
-            Some(true)
+            // member of the current rescue committee
+            Some(
+                self.rescue_committee
+                    .contains(&sbv.secp256k1_signature.public_key.pkh()),
+            )
         } else if sbv.superblock_index == current_superblock_index.saturating_add(1) {
             // If the index is not the same as the current one, but it is a checkpoint later, x+1,
             // broadcast the vote without checking if it is a member of the ARS, as the ARS
@@ -610,23 +602,14 @@ impl SuperBlockState {
             hash_prev_block: superblock.hash(),
         };
 
+        self.rescue_votes_mempool.clear_and_remove_votes();
         let old_votes = self.votes_mempool.clear_and_remove_votes();
         for sbv in old_votes {
-            let valid = self.is_valid(&sbv, superblock_index);
-
             // If the superblock vote is valid, store it
-            if valid == Some(true) {
-                self.insert_vote(sbv);
-            }
-        }
-
-        let rescue_old_votes = self.rescue_votes_mempool.clear_and_remove_votes();
-        for sbv in rescue_old_votes {
-            let valid = self.is_rescue_valid(&sbv, superblock_index);
-
-            // If the superblock vote is valid, store it
-            if valid == Some(true) {
+            if self.is_rescue_valid(&sbv, superblock_index) == Some(true) {
                 self.insert_rescue_vote(sbv);
+            } else if self.is_valid(&sbv, superblock_index) == Some(true) {
+                self.insert_vote(sbv);
             }
         }
 
