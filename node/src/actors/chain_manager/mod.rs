@@ -1486,6 +1486,7 @@ impl ChainManager {
                         last_hash,
                         &act.chain_state.alt_keys,
                         sync_superblock,
+                        block_epoch,
                     );
 
                     // Put the local superblock into chain state
