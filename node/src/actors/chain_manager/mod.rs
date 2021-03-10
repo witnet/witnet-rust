@@ -1385,6 +1385,7 @@ impl ChainManager {
                         last_hash,
                         &act.chain_state.alt_keys,
                         sync_superblock,
+                        block_epoch,
                     );
 
                     log::debug!("CREATED SUPERBLOCK #{}: {} -> size: {}", superblock.index, superblock.hash(), superblock.signing_committee_length);
