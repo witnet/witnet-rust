@@ -17,7 +17,7 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
     calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, radon_report_from_error,
-    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
+    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee, MINIMUM_DIFFICULTY,
 };
 
 use crate::{
@@ -147,6 +147,7 @@ impl ChainManager {
                             current_epoch,
                             initial_difficulty,
                             epochs_with_initial_difficulty,
+                            MINIMUM_DIFFICULTY,
                         );
                         let proof_invalid = vrf_proof_hash > target_hash;
 
