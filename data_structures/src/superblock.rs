@@ -549,16 +549,17 @@ pub fn calculate_superblock_signing_committee(
         if after_second_hard_fork(block_epoch, get_environment()) {
             // Start counting the members of the subset from:
             // 'first_byte_sb_hash'x263 + 'first_byte_index_hash'x257 + 'second_byte_index_hash'
-            let mut first = u64::from(first_byte_sb_hash) * 263u64
-                + u64::from(first_byte_index_hash) * 257u64
-                + u64::from(second_byte_index_hash);
-            // We need to choose a first member from all the potential ARS members
-            first %= ars_identities.len() as u64;
+            let first = calculate_first_in_committee(
+                first_byte_sb_hash,
+                first_byte_index_hash,
+                second_byte_index_hash,
+                ars_identities.len(),
+            );
 
             // Get the subset
             magic_partition_2(
                 &ars_identities.ordered_identities,
-                first.try_into().unwrap(),
+                first,
                 signing_committee_size.try_into().unwrap(),
                 index_hash.as_ref(),
             )
@@ -636,6 +637,14 @@ where
     }
 
     hs_subset
+}
+
+fn calculate_first_in_committee(a: u8, b: u8, c: u8, size: usize) -> usize {
+    // 263a + 257b + c
+    let first = u64::from(a) * 263u64 + u64::from(b) * 257u64 + u64::from(c);
+    let first: usize = first.try_into().unwrap();
+    // We need to choose a first member from all the potential ARS members
+    first % size
 }
 
 /// Returns true if the number of votes is enough to achieve 2/3 consensus.
