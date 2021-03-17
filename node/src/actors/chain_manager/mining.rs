@@ -16,8 +16,8 @@ use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
-    calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, tally_bytes_on_encode_error,
-    update_utxo_diff, vt_transaction_fee,
+    calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, radon_report_from_error,
+    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
 };
 
 use crate::{
@@ -34,8 +34,13 @@ use witnet_data_structures::{
         CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
         ReputationEngine, TransactionsPool, ValueTransferOutput,
     },
-    data_request::{calculate_witness_reward, create_tally, DataRequestPool},
+    data_request::{
+        calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
+        DataRequestPool,
+    },
     error::TransactionError,
+    get_environment,
+    mainnet_validations::after_second_hard_fork,
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
@@ -493,6 +498,7 @@ impl ChainManager {
                         .send(ResolveRA {
                             rad_request,
                             timeout: data_request_timeout,
+                            current_epoch,
                         })
                         .map(move |res|
                             res.map(move |result| match result {
@@ -584,6 +590,7 @@ impl ChainManager {
     fn create_tally_transactions(
         &mut self,
     ) -> impl Future<Output = Result<Vec<TallyTransaction>, ()>> {
+        let block_epoch = self.current_epoch.unwrap();
         let data_request_pool = &self.chain_state.data_request_pool;
         let collateral_minimum = self
             .chain_state
@@ -652,6 +659,7 @@ impl ChainManager {
                                 reports: reports.clone(),
                                 script: dr_state.data_request.data_request.tally.clone(),
                                 commits_count,
+                                block_epoch,
                             })
                             .await
                             .unwrap_or_else(|e| {
@@ -660,7 +668,11 @@ impl ChainManager {
                                 // This is because this block must have a tally transaction to be
                                 // considered valid
                                 log::warn!("Couldn't run tally: {}", e);
-                                RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
+                                if after_second_hard_fork(block_epoch, get_environment()) {
+                                    radon_report_from_error(RadError::Unknown, reveals.len())
+                                } else {
+                                    RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
+                                }
                             });
 
                         let tally = create_tally(
@@ -672,6 +684,7 @@ impl ChainManager {
                             committers,
                             collateral_minimum,
                             tally_bytes_on_encode_error(),
+                            block_epoch,
                         );
 
                         log::info!(
@@ -793,14 +806,24 @@ pub fn build_block(
             };
 
             // Remainder collateral goes to the miner
-            let (_, extra_tally_fee) = calculate_witness_reward(
-                commits_count,
-                reveals_count,
-                liars_count,
-                errors_count,
-                dr_state.data_request.witness_reward,
-                collateral,
-            );
+            let (_, extra_tally_fee) = if after_second_hard_fork(epoch, get_environment()) {
+                calculate_witness_reward(
+                    commits_count,
+                    liars_count,
+                    errors_count,
+                    dr_state.data_request.witness_reward,
+                    collateral,
+                )
+            } else {
+                calculate_witness_reward_before_second_hard_fork(
+                    commits_count,
+                    reveals_count,
+                    liars_count,
+                    errors_count,
+                    dr_state.data_request.witness_reward,
+                    collateral,
+                )
+            };
             transaction_fees += extra_tally_fee;
         } else {
             log::warn!(

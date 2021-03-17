@@ -272,7 +272,8 @@ where
 {
     fn default() -> Self {
         Self {
-            consensus: 0.0,
+            // Consensus is initialized to 100% because it is only updated when there are some lies
+            consensus: 1.0,
             errors: vec![],
             liars: vec![],
             subscript_partial_results: vec![],
@@ -301,12 +302,13 @@ where
             }
 
             assert!(new_iter.next().is_none());
-
-            self.consensus = self.liars.iter().fold(0., |count, liar| match liar {
-                true => count,
-                false => count + 1.,
-            }) / self.liars.len() as f32;
         }
+
+        // TODO: consensus will be NaN when self.liars.len() == 0
+        self.consensus = self.liars.iter().fold(0., |count, liar| match liar {
+            true => count,
+            false => count + 1.,
+        }) / self.liars.len() as f32;
     }
 }
 

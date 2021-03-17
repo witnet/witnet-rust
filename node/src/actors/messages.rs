@@ -692,6 +692,8 @@ pub struct ResolveRA {
     pub rad_request: RADRequest,
     /// Timeout: if the execution does not finish before the timeout, it is cancelled.
     pub timeout: Option<Duration>,
+    /// Current epoch, used to select the correct version of the validation logic
+    pub current_epoch: Epoch,
 }
 
 /// Message for running the tally step of a data request.
@@ -705,6 +707,8 @@ pub struct RunTally {
     pub min_consensus_ratio: f64,
     /// Number of commits
     pub commits_count: usize,
+    /// Epoch of the block that will include this tally, used to select the correct version of the validation logic
+    pub block_epoch: Epoch,
 }
 
 impl Message for ResolveRA {

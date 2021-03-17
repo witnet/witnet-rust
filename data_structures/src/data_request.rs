@@ -10,7 +10,7 @@ use crate::{
     },
     error::{DataRequestError, TransactionError},
     get_environment,
-    mainnet_validations::after_first_hard_fork,
+    mainnet_validations::{after_first_hard_fork, after_second_hard_fork},
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
@@ -389,7 +389,7 @@ pub fn calculate_tally_change(
         + dr_output.commit_and_reveal_fee * (witnesses - commits_count)
 }
 
-pub fn calculate_witness_reward(
+pub fn calculate_witness_reward_before_second_hard_fork(
     commits_count: usize,
     reveals_count: usize,
     // Number of values that are out of consensus plus non-revealers
@@ -406,6 +406,34 @@ pub fn calculate_witness_reward(
         (collateral, 0)
     } else {
         let honests_count = (commits_count - liars_count - errors_count) as u64;
+        let liars_count = liars_count as u64;
+        let slashed_collateral_reward = collateral * liars_count / honests_count;
+        let slashed_collateral_remainder = (collateral * liars_count) % honests_count;
+
+        (
+            reward + collateral + slashed_collateral_reward,
+            slashed_collateral_remainder,
+        )
+    }
+}
+
+pub fn calculate_witness_reward(
+    commits_count: usize,
+    // Number of values that are out of consensus plus non-revealers
+    liars_count: usize,
+    // To calculate the reward, we consider errors_count as the number of errors that are
+    // out of consensus, it means, that they do not deserve any reward
+    errors_count: usize,
+    reward: u64,
+    collateral: u64,
+) -> (u64, u64) {
+    let honests_count = (commits_count - liars_count - errors_count) as u64;
+
+    if commits_count == 0 {
+        (0, 0)
+    } else if honests_count == 0 {
+        (collateral, 0)
+    } else {
         let liars_count = liars_count as u64;
         let slashed_collateral_reward = collateral * liars_count / honests_count;
         let slashed_collateral_remainder = (collateral * liars_count) % honests_count;
@@ -451,6 +479,7 @@ pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     committers: HashSet<PublicKeyHash, S>,
     collateral_minimum: u64,
     tally_bytes_on_encode_error: Vec<u8>,
+    block_epoch: Epoch,
 ) -> TallyTransaction
 where
     RT: TypeLike,
@@ -477,16 +506,34 @@ where
 
         // Collateral division rest goes for the miner
         let non_reveals_count = commits_count - reveals_count;
-        let (reward, _rest) = calculate_witness_reward(
-            commits_count,
-            reveals_count,
-            liars_count + non_reveals_count,
-            errors_count,
-            dr_output.witness_reward,
-            collateral,
-        );
+        let is_after_second_hard_fork = after_second_hard_fork(block_epoch, get_environment());
+        let (reward, _rest) = if is_after_second_hard_fork {
+            calculate_witness_reward(
+                commits_count,
+                liars_count + non_reveals_count,
+                errors_count,
+                dr_output.witness_reward,
+                collateral,
+            )
+        } else {
+            calculate_witness_reward_before_second_hard_fork(
+                commits_count,
+                reveals_count,
+                liars_count + non_reveals_count,
+                errors_count,
+                dr_output.witness_reward,
+                collateral,
+            )
+        };
+        // Check if we need to reward revealers
+        let any_honest_revealers = if is_after_second_hard_fork {
+            let honests_count = commits_count - liars_count - errors_count - non_reveals_count;
 
-        let mut outputs: Vec<ValueTransferOutput> = if reveals_count > 0 {
+            honests_count > 0
+        } else {
+            reveals_count > 0
+        };
+        let mut outputs: Vec<ValueTransferOutput> = if any_honest_revealers {
             revealers
                 .iter()
                 .zip(liars.iter().zip(errors.iter()))
@@ -528,7 +575,16 @@ where
                 })
                 .collect()
         } else {
-            // In case of no revealers, collateral returns to their owners
+            // In case of no honests, collateral returns to their owners
+
+            if is_after_second_hard_fork {
+                // After second hard fork, mark all the revealers as errors to avoid penalizing them:
+                // If honests_count == 0, all revealers are out of consensus errors
+                for revealer in revealers {
+                    error_committers.push(revealer);
+                }
+            }
+
             out_of_consensus
                 .iter()
                 .map(|&committer| ValueTransferOutput {
