@@ -17,7 +17,7 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
-    mainnet_validations::FIRST_HARD_FORK,
+    mainnet_validations::{FIRST_HARD_FORK, SECOND_HARD_FORK},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
@@ -38,6 +38,8 @@ const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
 const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
 const HALVING_PERIOD: u32 = 3_500_000;
+// Block epoch used in tally tests
+const E: Epoch = SECOND_HARD_FORK + 1;
 
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
@@ -3982,6 +3984,8 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     let (rewarded, slashed, error_witnesses) =
         get_rewarded_and_slashed(reveals_count, liars, errors, commits);
 
+    // TODO: here liars_count must be equal to reveals_count if the result of the data request is
+    // "InsufficientConsensus"
     // Calculate tally change
     let change = calculate_tally_change(
         commits_count,
@@ -3995,7 +3999,6 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     // Calculate witness reward
     let (reward, _) = calculate_witness_reward(
         commits_count,
-        reveals_count,
         liars_count,
         errors_count,
         dr_output.witness_reward,
@@ -4172,7 +4175,7 @@ fn tally_dr_not_tally_stage() {
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![], vec![]);
 
     let mut dr_pool = DataRequestPool::default();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestNotFound { hash: dr_pointer },
@@ -4186,7 +4189,7 @@ fn tally_dr_not_tally_stage() {
         )
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotTallyStage
@@ -4196,7 +4199,7 @@ fn tally_dr_not_tally_stage() {
         .process_commit(&commit_transaction, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotTallyStage
@@ -4206,7 +4209,7 @@ fn tally_dr_not_tally_stage() {
         .process_reveal(&reveal_transaction, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -4258,7 +4261,7 @@ fn tally_invalid_consensus() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedConsensus {
@@ -4269,14 +4272,10 @@ fn tally_invalid_consensus() {
 }
 
 #[test]
-fn tally_valid_insufficient_consensus() {
-    // Reveal value: integer(0)
-    let reveal_value = vec![0x00];
-
-    let dr_output = example_data_request_output(5, 200, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 1, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + 4 * ONE_WIT);
+fn tally_valid_1_reveal_5_commits() {
+    let collateral = ONE_WIT;
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
+    let change = 5 * 200 + 4 * 20;
 
     let tally_value = RadonReport::from_result(
         Ok(RadonTypes::from(
@@ -4292,8 +4291,28 @@ fn tally_valid_insufficient_consensus() {
 
     let vt0 = ValueTransferOutput {
         time_lock: 0,
-        pkh: rewarded[0],
-        value: reward,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[4],
+        value: collateral,
     };
     let vt_change = ValueTransferOutput {
         time_lock: 0,
@@ -4304,13 +4323,258 @@ fn tally_valid_insufficient_consensus() {
     let tally_transaction = TallyTransaction::new(
         dr_pointer,
         tally_bytes,
-        vec![vt0, vt_change],
-        slashed,
-        vec![rewarded[0]],
+        vec![vt0, vt1, vt2, vt3, vt4, vt_change],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+        vec![pkhs[0]],
     );
-
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
+}
+
+fn generic_tally_test_stddev_dr(
+    num_commits: usize,
+    reveals: Vec<Vec<u8>>,
+    stddev_cbor: Vec<u8>,
+) -> (Vec<PublicKeyHash>, PublicKeyHash, Hash, DataRequestPool) {
+    let data_request = RADRequest {
+        time_lock: 0,
+        retrieve: vec![RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "".to_string(),
+            script: vec![0x80],
+        }],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: RadonReducers::AverageMean as u32,
+        },
+        tally: RADTally {
+            filters: vec![RADFilter {
+                op: RadonFilters::DeviationStandard as u32,
+                args: stddev_cbor,
+            }],
+            reducer: RadonReducers::AverageMean as u32,
+        },
+    };
+
+    let collateral = ONE_WIT;
+    let dr_output = DataRequestOutput {
+        witnesses: 4,
+        commit_and_reveal_fee: 10,
+        witness_reward: 1000,
+        min_consensus_percentage: 51,
+        data_request,
+        collateral,
+    };
+
+    generic_tally_test_inner(num_commits, reveals, dr_output)
+}
+
+fn generic_tally_test(
+    num_commits: usize,
+    reveals: Vec<Vec<u8>>,
+) -> (Vec<PublicKeyHash>, PublicKeyHash, Hash, DataRequestPool) {
+    let dr_output = example_data_request_output(u16::try_from(num_commits).unwrap(), 200, 20);
+
+    generic_tally_test_inner(num_commits, reveals, dr_output)
+}
+
+fn generic_tally_test_inner(
+    num_commits: usize,
+    reveals: Vec<Vec<u8>>,
+    dr_output: DataRequestOutput,
+) -> (Vec<PublicKeyHash>, PublicKeyHash, Hash, DataRequestPool) {
+    assert!(num_commits >= reveals.len());
+
+    // Create DataRequestPool
+    let mut dr_pool = DataRequestPool::default();
+
+    // Create Data Requester public key
+    let dr_mk = [0xBB; 32];
+    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default()).public_key;
+
+    // Create DRTransaction
+    let epoch = 0;
+    let dr_transaction = DRTransaction {
+        body: DRTransactionBody::new(vec![], vec![], dr_output),
+        signatures: vec![KeyedSignature {
+            signature: Default::default(),
+            public_key: dr_public_key.clone(),
+        }],
+    };
+    let dr_pointer = dr_transaction.hash();
+
+    // Create requested commits and reveals
+    let commits_count = num_commits;
+    let reveals_count = reveals.len();
+    let reveal_value = reveals;
+    let mut commits = vec![];
+    let mut reveals = vec![];
+    let mut pkhs = vec![];
+
+    for index in 0..commits_count {
+        let (public_key, commit, reveal) = create_commit_reveal(
+            [u8::try_from(index + 1).unwrap(); 32],
+            dr_pointer,
+            reveal_value.get(index).cloned().unwrap_or_default(),
+        );
+        commits.push(commit);
+        reveals.push(reveal);
+        pkhs.push(public_key.pkh());
+    }
+
+    // Include DRTransaction in DataRequestPool
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+    dr_pool.update_data_request_stages();
+
+    // Include commits and reveals in DataRequestPool
+    include_commits(&mut dr_pool, commits_count, commits);
+    include_reveals(&mut dr_pool, reveals_count, reveals);
+
+    let dr_pkh = dr_public_key.pkh();
+
+    (pkhs, dr_pkh, dr_pointer, dr_pool)
+}
+
+#[test]
+fn tally_valid_1_reveal_5_commits_invalid_value() {
+    let collateral = ONE_WIT;
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
+    let change = 5 * 200 + 4 * 20;
+
+    let tally_value = RadonReport::from_result(
+        Ok(RadonTypes::from(
+            RadonError::try_from(RadError::InsufficientConsensus {
+                achieved: 0.2,
+                required: 0.51,
+            })
+            .unwrap(),
+        )),
+        &ReportContext::default(),
+    );
+    let tally_bytes = tally_value.into_inner().encode().unwrap();
+
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral * 4 - 3,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: 1,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: 1,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[4],
+        value: 1,
+    };
+    let vt_change = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_bytes,
+        vec![vt0, vt1, vt2, vt3, vt4, vt_change],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+        vec![pkhs[0]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::InvalidReward {
+            value: collateral * 4 - 3,
+            expected_value: collateral
+        }
+    );
+}
+
+#[test]
+// FIXME(#1886): use this test
+#[ignore]
+fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
+    let collateral = ONE_WIT;
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
+    let change = 5 * 200 + 4 * 20;
+
+    let tally_value = RadonReport::from_result(
+        Ok(RadonTypes::from(
+            RadonError::try_from(RadError::InsufficientConsensus {
+                achieved: 0.2,
+                required: 0.51,
+            })
+            .unwrap(),
+        )),
+        &ReportContext::default(),
+    );
+    let tally_bytes = tally_value.into_inner().encode().unwrap();
+
+    let vt0 = ValueTransferOutput {
+        time_lock: u64::MAX,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: u64::MAX,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: u64::MAX,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: u64::MAX,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: u64::MAX,
+        pkh: pkhs[4],
+        value: collateral,
+    };
+    let vt_change = ValueTransferOutput {
+        time_lock: u64::MAX,
+        pkh: dr_pkh,
+        value: change,
+    };
+
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_bytes,
+        vec![vt0, vt1, vt2, vt3, vt4, vt_change],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+        vec![pkhs[0]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        //TransactionError::InvalidTimeLock {
+        TransactionError::TimeLock {
+            expected: 0,
+            current: 1,
+        }
+    );
 }
 
 #[test]
@@ -4357,7 +4621,7 @@ fn tally_valid() {
         error_witnesses,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -4394,7 +4658,7 @@ fn tally_too_many_outputs() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -4423,7 +4687,7 @@ fn tally_too_less_outputs() {
 
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -4477,7 +4741,7 @@ fn tally_invalid_change() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidTallyChange {
@@ -4515,7 +4779,7 @@ fn tally_double_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MultipleRewards { pkh: rewarded[0] },
@@ -4550,7 +4814,7 @@ fn tally_reveal_not_found() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::RevealNotFound,
@@ -4586,7 +4850,7 @@ fn tally_invalid_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidReward {
@@ -4625,7 +4889,7 @@ fn tally_valid_2_reveals() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -4666,7 +4930,7 @@ fn tally_valid_3_reveals_dr_liar() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -4707,7 +4971,7 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         slashed_witnesses.clone(),
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4769,7 +5033,7 @@ fn tally_valid_5_reveals_1_liar_1_error() {
         out_of_consensus,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -4814,8 +5078,110 @@ fn tally_valid_3_reveals_1_error() {
         error_witnesses.clone(),
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
+}
+
+#[test]
+fn tally_valid_3_reveals_1_error_invalid_reward() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+
+    // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
+    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 1, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT);
+
+    // Tally value: integer(0)
+    let tally_value = vec![0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: error_witnesses[0],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    assert_eq!(slashed, vec![]);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        error_witnesses.clone(),
+        error_witnesses,
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::InvalidReward {
+            value: reward,
+            expected_value: ONE_WIT,
+        }
+    )
+}
+
+#[test]
+fn tally_valid_3_reveals_mark_all_as_error() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+
+    // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
+    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 0, reveal_value, vec![]);
+    assert_eq!(reward, 200 + ONE_WIT);
+
+    // Tally value: integer(0)
+    let tally_value = vec![0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    assert_eq!(slashed, vec![]);
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        error_witnesses,
+        vec![rewarded[0], rewarded[1], rewarded[2]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::MismatchingErrorCount {
+            expected: vec![],
+            found: vec![rewarded[2], rewarded[1], rewarded[0]],
+        }
+    )
 }
 
 #[test]
@@ -4854,7 +5220,7 @@ fn tally_dishonest_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4887,10 +5253,12 @@ fn create_tally_validation_dr_liar() {
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
 
     // Create the RadonReport using the reveals and the RADTally script
+    let min_consensus = 0.51;
     let clause_result = evaluate_tally_precondition_clause(
         vec![reveal_value.clone(), reveal_value, liar_value],
-        0.51,
+        min_consensus,
         3,
+        E,
     );
     let script = RADTally {
         filters: vec![RADFilter {
@@ -4899,7 +5267,8 @@ fn create_tally_validation_dr_liar() {
         }],
         reducer: RadonReducers::Mode as u32,
     };
-    let report = construct_report_from_clause_result(clause_result, &script, 3);
+    let report = construct_report_from_clause_result(clause_result, &script, 3, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 3);
 
     // Create a TallyTransaction using the create_tally function
     let tally_transaction = create_tally(
@@ -4914,9 +5283,10 @@ fn create_tally_validation_dr_liar() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
+        E,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -4952,6 +5322,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
     assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 3);
 
     // Create the RadonReport using the reveals and the RADTally script
+    let min_consensus = 0.51;
     let clause_result = evaluate_tally_precondition_clause(
         vec![
             reveal_value.clone(),
@@ -4960,8 +5331,9 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
             liar_value,
             error_value,
         ],
-        0.51,
+        min_consensus,
         5,
+        E,
     );
     let script = RADTally {
         filters: vec![RADFilter {
@@ -4970,7 +5342,8 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
         }],
         reducer: RadonReducers::Mode as u32,
     };
-    let report = construct_report_from_clause_result(clause_result, &script, 5);
+    let report = construct_report_from_clause_result(clause_result, &script, 5, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     // Create a TallyTransaction using the create_tally function
     let tally_transaction = create_tally(
@@ -4997,9 +5370,10 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
         .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
+        E,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5024,8 +5398,13 @@ fn create_tally_validation_4_commits_2_reveals() {
     assert_eq!(reward, 200 + 2 * ONE_WIT);
 
     // Create the RadonReport using the reveals and the RADTally script
-    let clause_result =
-        evaluate_tally_precondition_clause(vec![reveal_value.clone(), reveal_value], 0.51, 4);
+    let min_consensus = 0.51;
+    let clause_result = evaluate_tally_precondition_clause(
+        vec![reveal_value.clone(), reveal_value],
+        min_consensus,
+        4,
+        E,
+    );
     let script = RADTally {
         filters: vec![RADFilter {
             op: RadonFilters::Mode as u32,
@@ -5033,7 +5412,8 @@ fn create_tally_validation_4_commits_2_reveals() {
         }],
         reducer: RadonReducers::Mode as u32,
     };
-    let report = construct_report_from_clause_result(clause_result, &script, 2);
+    let report = construct_report_from_clause_result(clause_result, &script, 2, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 4);
 
     // Create a TallyTransaction using the create_tally function
     let tally_transaction = create_tally(
@@ -5048,9 +5428,10 @@ fn create_tally_validation_4_commits_2_reveals() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
+        E,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5062,9 +5443,11 @@ fn tally_valid_zero_commits() {
     assert_eq!(reward, 0);
 
     // Tally value: Insufficient commits Error
-    let clause_result = evaluate_tally_precondition_clause(vec![], 0.0, 0);
+    let min_consensus = 0.0;
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, E);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
     let tally_value = report.result.encode().unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -5073,7 +5456,7 @@ fn tally_valid_zero_commits() {
     };
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5085,9 +5468,11 @@ fn create_tally_validation_zero_commits() {
     assert_eq!(reward, 0);
 
     // Tally value: Insufficient commits Error
-    let clause_result = evaluate_tally_precondition_clause(vec![], 0.51, 0);
+    let min_consensus = 0.51;
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, E);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
     let tally_transaction = create_tally(
         dr_pointer,
         &dr_output,
@@ -5097,8 +5482,9 @@ fn create_tally_validation_zero_commits() {
         HashSet::<PublicKeyHash>::default(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
+        E,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5110,9 +5496,11 @@ fn tally_invalid_zero_commits() {
     assert_eq!(reward, 0);
 
     // Tally value: Insufficient commits Error
-    let clause_result = evaluate_tally_precondition_clause(vec![], 0.0, 0);
+    let min_consensus = 0.0;
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, E);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
     let tally_value = report.result.encode().unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -5131,7 +5519,7 @@ fn tally_invalid_zero_commits() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -5149,9 +5537,11 @@ fn tally_valid_zero_reveals() {
     assert_eq!(reward, ONE_WIT);
 
     // Tally value: NoReveals commits Error
-    let clause_result = evaluate_tally_precondition_clause(vec![], 0.51, 5);
+    let min_consensus = 0.51;
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, E);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
     let tally_value = report.result.encode().unwrap();
 
     assert_eq!(reward, dr_output.collateral);
@@ -5192,7 +5582,7 @@ fn tally_valid_zero_reveals() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5204,9 +5594,11 @@ fn create_tally_validation_zero_reveals() {
     assert_eq!(reward, ONE_WIT);
 
     // Tally value: NoReveals commits Error
-    let clause_result = evaluate_tally_precondition_clause(vec![], 0.51, 5);
+    let min_consensus = 0.51;
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, E);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     let mut committers = rewarded;
     committers.extend(slashed);
@@ -5223,8 +5615,9 @@ fn create_tally_validation_zero_reveals() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
+        E,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5237,9 +5630,11 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
     assert_eq!(reward, ONE_WIT);
 
     // Tally value: NoReveals commits Error
-    let clause_result = evaluate_tally_precondition_clause(vec![], 0.51, 5);
+    let min_consensus = 0.51;
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, E);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     let mut committers = rewarded;
     committers.extend(slashed);
@@ -5256,8 +5651,9 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
+        E,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5312,7 +5708,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(0, 0, 0, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(0, 0, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 0 reveals
@@ -5320,7 +5716,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 0, 0, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(5, 5, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case all honests
@@ -5328,7 +5724,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 0, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(5, 0, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 2 liars
@@ -5336,7 +5732,7 @@ fn validate_calculate_witness_reward() {
     let rest = 5000 * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 2, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(5, 2, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 1 liar and 1 non-revealer
@@ -5344,7 +5740,7 @@ fn validate_calculate_witness_reward() {
     let rest = 5000 * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 4, 2, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(5, 2, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 1 error
@@ -5352,7 +5748,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 0, 1, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(5, 0, 1, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 1 liar and 1 error
@@ -5360,8 +5756,629 @@ fn validate_calculate_witness_reward() {
     let rest = 5000 % 3;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 1, 1, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(5, 1, 1, dr_output.witness_reward, dr_output.collateral)
     );
+}
+
+#[test]
+fn tally_valid_4_reveals_all_liars() {
+    let collateral = ONE_WIT;
+    let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]];
+    let stddev_cbor = vec![249, 0, 0];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let change = 1000 * 4;
+
+    // Tally value: insufficient consensus
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 0, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_4_reveals_all_liars_attacker_pkh() {
+    let collateral = ONE_WIT;
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
+        4,
+        vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]],
+        vec![249, 0, 0],
+    );
+    let change = 1000 * 4;
+    let attacker_pkh = PublicKeyHash::from_bytes(&[0xAA; 20]).unwrap();
+
+    // Tally value: insufficient consensus
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 0, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: attacker_pkh,
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    // The attacker_pkh has not participated in the commit/reveal process, so the error is "CommitNotFound"
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::CommitNotFound
+    );
+}
+
+#[test]
+fn tally_valid_4_reveals_2_liars_2_true() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0x39, 0]; // 0.625
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
+        4,
+        vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]],
+        stddev_cbor,
+    );
+    let change = 1000 * 4;
+
+    // Tally value: insufficient consensus
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 63, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_4_reveals_2_errors_2_true() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0, 0]; // 0.0
+    let reveals = vec![
+        vec![24, 60],
+        vec![24, 60],
+        vec![216, 39, 129, 0],
+        vec![216, 39, 129, 0],
+    ];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let change = 1000 * 4;
+
+    // Tally value: insufficient consensus
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 63, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_4_reveals_1_liar_2_true() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0x39, 0]; // 0.625
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
+        4,
+        vec![vec![24, 60], vec![24, 60], vec![24, 61]],
+        stddev_cbor,
+    );
+    let change = 1000 * 4;
+
+    // Tally value: insufficient consensus
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 0, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change + 10,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_4_reveals_invalid_script_arg() {
+    let collateral = ONE_WIT;
+    // Note: this data request should be impossible to include in a block because it does not pass
+    // the data request validation.
+    // But it's a useful test for the branch that results in "RadError::TallyExecution".
+    // Invalid argument for DeviationStandard filter (invalid CBOR):
+    let stddev_cbor = vec![0x3F];
+    let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let change = 1000 * 4;
+
+    // TODO: serialize tally value from RadError to make this test more clear
+    let tally_value = vec![
+        216, 39, 130, 24, 83, 120, 70, 105, 110, 110, 101, 114, 58, 32, 66, 117, 102, 102, 101,
+        114, 73, 115, 78, 111, 116, 86, 97, 108, 117, 101, 32, 123, 32, 100, 101, 115, 99, 114,
+        105, 112, 116, 105, 111, 110, 58, 32, 34, 117, 110, 97, 115, 115, 105, 103, 110, 101, 100,
+        32, 116, 121, 112, 101, 32, 97, 116, 32, 111, 102, 102, 115, 101, 116, 32, 49, 34, 32, 125,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
+    let collateral = ONE_WIT;
+    // Note: this data request should be impossible to include in a block because it does not pass
+    // the data request validation.
+    // But it's a useful test for the branch that results in "RadError::TallyExecution".
+    // Invalid argument for DeviationStandard filter (invalid CBOR):
+    let stddev_cbor = vec![0x3F];
+    let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61]];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let change = 1000 * 4 + 10;
+
+    // TODO: serialize tally value from RadError to make this test more clear
+    let tally_value = vec![
+        216, 39, 130, 24, 83, 120, 70, 105, 110, 110, 101, 114, 58, 32, 66, 117, 102, 102, 101,
+        114, 73, 115, 78, 111, 116, 86, 97, 108, 117, 101, 32, 123, 32, 100, 101, 115, 99, 114,
+        105, 112, 116, 105, 111, 110, 58, 32, 34, 117, 110, 97, 115, 115, 105, 103, 110, 101, 100,
+        32, 116, 121, 112, 101, 32, 97, 116, 32, 111, 102, 102, 115, 101, 116, 32, 49, 34, 32, 125,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_4_reveals_majority_of_errors() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0, 0]; // 0.0
+                                       // RetrieveTimeout
+    let reveals = vec![
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 49],
+    ];
+    let (pkhs, _dr_pkh, dr_pointer, dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let reward = collateral + 1000;
+
+    // TODO: serialize tally value from RadError to make this test more clear
+    let tally_value = vec![216, 39, 129, 24, 49];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: reward,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        vec![],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0, 0]; // 0.0
+                                       // RetrieveTimeout
+    let reveals = vec![
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 49],
+    ];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let reward = collateral + 1000 + collateral / 3;
+    let change = 1000 + 10;
+
+    // TODO: serialize tally value from RadError to make this test more clear
+    let tally_value = vec![216, 39, 129, 24, 49];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        vec![pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0, 0]; // 0.0
+                                       // RetrieveTimeout
+    let reveals = vec![vec![216, 39, 129, 24, 49], vec![216, 39, 129, 24, 49]];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let change = 1000 * 4 + 10 * 2;
+
+    // TODO: serialize tally value from RadError to make this test more clear
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 63, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0, 0]; // 0.0
+
+    // There is only 50% consensus for error RetrieveTimeout
+    let reveals = vec![
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 64], // Overflow
+        vec![216, 39, 129, 24, 65], // Underflow
+    ];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let change = 1000 * 4;
+
+    // TODO: serialize tally value from RadError to make this test more clear
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 63, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus() {
+    let collateral = ONE_WIT;
+    let stddev_cbor = vec![249, 0, 0]; // 0.0
+
+    // There is only 50% consensus for error RetrieveTimeout
+    let reveals = vec![
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 49],
+        vec![216, 39, 129, 24, 64], // Overflow
+    ];
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let change = 1000 * 4 + 10;
+
+    // TODO: serialize tally value from RadError to make this test more clear
+    let tally_value = vec![
+        216, 39, 131, 24, 81, 250, 63, 0, 0, 0, 251, 63, 224, 81, 235, 133, 30, 184, 82,
+    ];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: collateral,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: collateral,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: collateral,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+        vec![pkhs[0], pkhs[1], pkhs[2]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    x.unwrap();
 }
 
 #[test]
@@ -5404,7 +6421,7 @@ fn tally_unserializable_value() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     x.unwrap();
 }
 
@@ -5531,12 +6548,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     mut_block: F,
     dr_pool: DataRequestPool,
 ) -> Result<(), failure::Error> {
-    test_block_with_drpool_and_utxo_set(
-        mut_block,
-        dr_pool,
-        UnspentOutputsPool::default(),
-        FIRST_HARD_FORK,
-    )
+    test_block_with_drpool_and_utxo_set(mut_block, dr_pool, UnspentOutputsPool::default(), E)
 }
 
 fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
@@ -6122,7 +7134,7 @@ fn block_duplicated_commits() {
         },
         dr_pool,
         utxo_set,
-        FIRST_HARD_FORK,
+        E,
     );
 
     assert_eq!(
@@ -6387,7 +7399,7 @@ fn block_before_and_after_hard_fork() {
         },
         dr_pool,
         utxo_set,
-        FIRST_HARD_FORK,
+        E,
     );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),

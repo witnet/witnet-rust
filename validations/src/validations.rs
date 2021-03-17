@@ -21,7 +21,8 @@ use witnet_data_structures::{
         Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
     },
     data_request::{
-        calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
+        calculate_tally_change, calculate_witness_reward,
+        calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
     get_environment,
@@ -350,6 +351,7 @@ pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
     minimum_consensus: f64,
     num_commits: usize,
+    block_epoch: Epoch,
 ) -> Result<TallyPreconditionClauseResult, RadError> {
     // Short-circuit if there were no commits
     if num_commits == 0 {
@@ -377,10 +379,16 @@ pub fn evaluate_tally_precondition_clause(
         }
     }
 
+    let mut num_commits_f = f64::from(u32::try_from(num_commits).unwrap());
     // Compute ratio of type consensus amongst reveals (percentage of reveals that have same type
     // as the frequent type).
-    let achieved_consensus =
-        f64::from(counter.max_val) / f64::from(u32::try_from(num_commits).unwrap());
+    let achieved_consensus = f64::from(counter.max_val) / num_commits_f;
+
+    if !after_second_hard_fork(block_epoch, get_environment()) {
+        // Before the second hard fork, the achieved_consensus below was incorrectly calculated as
+        // max_count / num_reveals
+        num_commits_f = f64::from(reveals_len);
+    }
 
     // If the achieved consensus is over the user-defined threshold, continue.
     // Otherwise, return `RadError::InsufficientConsensus`.
@@ -419,7 +427,7 @@ pub fn evaluate_tally_precondition_clause(
                 match most_common_error_array {
                     Ok(RadonTypes::Array(x)) => {
                         let x_value = x.value();
-                        let achieved_consensus = x_value.len() as f64 / f64::from(reveals_len);
+                        let achieved_consensus = x_value.len() as f64 / num_commits_f;
                         if achieved_consensus >= minimum_consensus {
                             match mode(&errors_array)? {
                                 RadonTypes::RadonError(errors_mode) => {
@@ -438,7 +446,7 @@ pub fn evaluate_tally_precondition_clause(
                         unreachable!("Mode filter should always return a `RadonArray`");
                     }
                     Err(RadError::ModeTie { values, max_count }) => {
-                        let achieved_consensus = f64::from(max_count) / f64::from(reveals_len);
+                        let achieved_consensus = f64::from(max_count) / num_commits_f;
                         if achieved_consensus < minimum_consensus {
                             Err(RadError::InsufficientConsensus {
                                 achieved: achieved_consensus,
@@ -482,11 +490,58 @@ pub fn evaluate_tally_precondition_clause(
     }
 }
 
+/// Check that after applying the tally filter the consensus percentage is still good enough.
+// FIXME: Allow for now, since there is no safe cast function from a usize to float yet
+#[allow(clippy::cast_precision_loss)]
+pub fn evaluate_tally_postcondition_clause(
+    report: RadonReport<RadonTypes>,
+    minimum_consensus: f64,
+    commits_count: usize,
+) -> RadonReport<RadonTypes> {
+    if let Stage::Tally(metadata) = report.context.stage.clone() {
+        let error_type_discriminant =
+            RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap())
+                .discriminant();
+        // If the result is already a RadonError, return that error.
+        // The result can be a RadonError in these scenarios:
+        // * There is insufficient consensus before running the tally script
+        // * There is consensus on an error value before running the tally script
+        // * There is consensus on a non-error value but the tally script results in an error
+        // In all of this cases we want to keep the old error.
+        if report.result.discriminant() == error_type_discriminant {
+            return report;
+        }
+
+        let achieved_consensus = metadata.liars.iter().fold(0., |count, liar| match liar {
+            true => count,
+            false => count + 1.,
+        }) / commits_count as f64;
+        if achieved_consensus > minimum_consensus {
+            report
+        } else {
+            // If there is insufficient consensus, all revealers are set to error and liar.
+            // This is the case of error out of consensus, which is an error that is not penalized
+            // and not rewarded.
+            let num_reveals = metadata.liars.len();
+            radon_report_from_error(
+                RadError::InsufficientConsensus {
+                    achieved: achieved_consensus,
+                    required: minimum_consensus,
+                },
+                num_reveals,
+            )
+        }
+    } else {
+        panic!("Report context must be in tally stage");
+    }
+}
+
 /// Construct a `RadonReport` from a `TallyPreconditionClauseResult`
 pub fn construct_report_from_clause_result(
     clause_result: Result<TallyPreconditionClauseResult, RadError>,
     script: &RADTally,
     reports_len: usize,
+    block_epoch: Epoch,
 ) -> RadonReport<RadonTypes> {
     // This TallyMetadata would be included in case of Error Result, in that case,
     // no one has to be classified as a lier, but everyone as an error
@@ -512,13 +567,25 @@ pub fn construct_report_from_clause_result(
                 RadonScriptExecutionSettings::all_but_partial_results(),
             ) {
                 Ok(x) => x,
-                Err(e) => RadonReport::from_result(
-                    Err(RadError::TallyExecution {
-                        inner: Some(Box::new(e)),
-                        message: None,
-                    }),
-                    &ReportContext::from_stage(Stage::Tally(metadata)),
-                ),
+                Err(e) => {
+                    if after_second_hard_fork(block_epoch, get_environment()) {
+                        radon_report_from_error(
+                            RadError::TallyExecution {
+                                inner: Some(Box::new(e)),
+                                message: None,
+                            },
+                            reports_len,
+                        )
+                    } else {
+                        RadonReport::from_result(
+                            Err(RadError::TallyExecution {
+                                inner: Some(Box::new(e)),
+                                message: None,
+                            }),
+                            &ReportContext::from_stage(Stage::Tally(metadata)),
+                        )
+                    }
+                }
             }
         }
         // The reveals did not pass the precondition clause (a parametric majority of them were
@@ -533,7 +600,13 @@ pub fn construct_report_from_clause_result(
         // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
         // chance for errors to be intercepted and used for consensus.
         Err(e) => {
-            RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))
+            if after_second_hard_fork(block_epoch, get_environment()) {
+                // If there is an error during the precondition, all revealers are set to error and liar.
+                // This is an error that is not penalized and not rewarded.
+                radon_report_from_error(e, reports_len)
+            } else {
+                RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))
+            }
         }
     }
 }
@@ -911,6 +984,7 @@ fn create_expected_report(
     tally: &RADTally,
     non_error_min: f64,
     commits_count: usize,
+    block_epoch: Epoch,
 ) -> RadonReport<RadonTypes> {
     match panic::catch_unwind(|| {
         let results = serial_iter_decode(
@@ -933,21 +1007,44 @@ fn create_expected_report(
 
         let results_len = results.len();
         let clause_result =
-            evaluate_tally_precondition_clause(results, non_error_min, commits_count);
-        construct_report_from_clause_result(clause_result, &tally, results_len)
+            evaluate_tally_precondition_clause(results, non_error_min, commits_count, block_epoch);
+        let report =
+            construct_report_from_clause_result(clause_result, &tally, results_len, block_epoch);
+        if after_second_hard_fork(block_epoch, get_environment()) {
+            evaluate_tally_postcondition_clause(report, non_error_min, commits_count)
+        } else {
+            report
+        }
     }) {
         Ok(x) => x,
         Err(_e) => {
             // If there is a panic during tally creation: set tally result to RadError::Unknown
-            RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
+            if after_second_hard_fork(block_epoch, get_environment()) {
+                radon_report_from_error(RadError::Unknown, reveals.len())
+            } else {
+                RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
+            }
         }
     }
+}
+
+/// Create report with error result and mark all revealers as errors and liars
+pub fn radon_report_from_error(rad_error: RadError, num_reveals: usize) -> RadonReport<RadonTypes> {
+    let mut metadata = TallyMetaData::default();
+    metadata.liars = vec![true; num_reveals];
+    metadata.errors = vec![true; num_reveals];
+
+    RadonReport::from_result(
+        Err(rad_error),
+        &ReportContext::from_stage(Stage::Tally(metadata)),
+    )
 }
 
 fn create_expected_tally_transaction(
     ta_tx: &TallyTransaction,
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
+    block_epoch: Epoch,
 ) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
@@ -977,6 +1074,7 @@ fn create_expected_tally_transaction(
         &dr_output.data_request.tally,
         non_error_min,
         commit_length,
+        block_epoch,
     );
     let ta_tx = create_tally(
         dr_pointer,
@@ -987,6 +1085,7 @@ fn create_expected_tally_transaction(
         committers,
         collateral_minimum,
         tally_bytes_on_encode_error(),
+        block_epoch,
     );
 
     Ok((ta_tx, dr_state.clone()))
@@ -1018,9 +1117,10 @@ pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
+    block_epoch: Epoch,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     let (expected_ta_tx, dr_state) =
-        create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum)?;
+        create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum, block_epoch)?;
 
     let sorted_out_of_consensus = ta_tx.out_of_consensus.iter().cloned().sorted().collect();
     let sorted_expected_out_of_consensus = expected_ta_tx
@@ -1093,14 +1193,25 @@ pub fn validate_tally_transaction<'a>(
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
     let mut total_tally_value = 0;
-    let (reward, tally_extra_fee) = calculate_witness_reward(
-        commits_count,
-        reveals_count,
-        liars_count,
-        errors_count,
-        dr_state.data_request.witness_reward,
-        collateral,
-    );
+    let is_after_second_hard_fork = after_second_hard_fork(block_epoch, get_environment());
+    let (reward, tally_extra_fee) = if is_after_second_hard_fork {
+        calculate_witness_reward(
+            commits_count,
+            liars_count,
+            errors_count,
+            dr_state.data_request.witness_reward,
+            collateral,
+        )
+    } else {
+        calculate_witness_reward_before_second_hard_fork(
+            commits_count,
+            reveals_count,
+            liars_count,
+            errors_count,
+            dr_state.data_request.witness_reward,
+            collateral,
+        )
+    };
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         // Validation of tally change value
         if expected_tally_change > 0 && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
@@ -1112,37 +1223,85 @@ pub fn validate_tally_transaction<'a>(
                 .into());
             }
         } else {
-            if reveals_count > 0 {
-                // Make sure every rewarded address is a revealer
-                if dr_state.info.reveals.get(&output.pkh).is_none() {
-                    return Err(TransactionError::RevealNotFound.into());
+            if is_after_second_hard_fork {
+                if honests_count > 0 {
+                    // Make sure every rewarded address is a revealer
+                    if dr_state.info.reveals.get(&output.pkh).is_none() {
+                        return Err(TransactionError::RevealNotFound.into());
+                    }
+                    // Make sure every rewarded address passed the tally function, a.k.a. "is honest" / "is not a liar"
+                    if sorted_out_of_consensus.contains(&output.pkh)
+                        && !sorted_error.contains(&output.pkh)
+                    {
+                        return Err(TransactionError::DishonestReward.into());
+                    }
+                    // Validation out of consensus error
+                    if sorted_out_of_consensus.contains(&output.pkh)
+                        && sorted_error.contains(&output.pkh)
+                        && output.value != collateral
+                    {
+                        return Err(TransactionError::InvalidReward {
+                            value: output.value,
+                            expected_value: collateral,
+                        }
+                        .into());
+                    }
+                    // Validation of the reward is according to the DataRequestOutput
+                    if !sorted_out_of_consensus.contains(&output.pkh) && output.value != reward {
+                        return Err(TransactionError::InvalidReward {
+                            value: output.value,
+                            expected_value: reward,
+                        }
+                        .into());
+                    }
+                } else {
+                    // Make sure every rewarded address is a committer
+                    if dr_state.info.commits.get(&output.pkh).is_none() {
+                        return Err(TransactionError::CommitNotFound.into());
+                    }
+                    // Validation of the reward, must be equal to the collateral
+                    if output.value != collateral {
+                        return Err(TransactionError::InvalidReward {
+                            value: output.value,
+                            expected_value: collateral,
+                        }
+                        .into());
+                    }
                 }
-                // Make sure every rewarded address passed the tally function, a.k.a. "is honest" / "is not a liar"
-                if sorted_out_of_consensus.contains(&output.pkh)
-                    && !sorted_error.contains(&output.pkh)
-                {
-                    return Err(TransactionError::DishonestReward.into());
+            } else {
+                // Old logic used before second hard fork
+                if reveals_count > 0 {
+                    // Make sure every rewarded address is a revealer
+                    if dr_state.info.reveals.get(&output.pkh).is_none() {
+                        return Err(TransactionError::RevealNotFound.into());
+                    }
+                    // Make sure every rewarded address passed the tally function, a.k.a. "is honest" / "is not a liar"
+                    if sorted_out_of_consensus.contains(&output.pkh)
+                        && !sorted_error.contains(&output.pkh)
+                    {
+                        return Err(TransactionError::DishonestReward.into());
+                    }
                 }
-            }
 
-            // Validation out of consensus error
-            if sorted_out_of_consensus.contains(&output.pkh)
-                && sorted_error.contains(&output.pkh)
-                && output.value != collateral
-            {
-                return Err(TransactionError::InvalidReward {
-                    value: output.value,
-                    expected_value: collateral,
+                // Validation out of consensus error
+                if sorted_out_of_consensus.contains(&output.pkh)
+                    && sorted_error.contains(&output.pkh)
+                    && output.value != collateral
+                {
+                    return Err(TransactionError::InvalidReward {
+                        value: output.value,
+                        expected_value: collateral,
+                    }
+                    .into());
                 }
-                .into());
-            }
-            // Validation of the reward is according to the DataRequestOutput
-            if !sorted_out_of_consensus.contains(&output.pkh) && output.value != reward {
-                return Err(TransactionError::InvalidReward {
-                    value: output.value,
-                    expected_value: reward,
+                // Validation of the reward is according to the DataRequestOutput
+                if !sorted_out_of_consensus.contains(&output.pkh) && output.value != reward {
+                    return Err(TransactionError::InvalidReward {
+                        value: output.value,
+                        expected_value: reward,
+                    }
+                    .into());
                 }
-                .into());
             }
 
             // Validation of a honest witness would not be rewarded more than once
@@ -1155,11 +1314,7 @@ pub fn validate_tally_transaction<'a>(
     }
 
     let expected_collateral_value = if commits_count > 0 {
-        (if dr_state.data_request.collateral == 0 {
-            collateral_minimum
-        } else {
-            dr_state.data_request.collateral
-        }) * u64::from(dr_state.data_request.witnesses)
+        collateral * u64::from(dr_state.data_request.witnesses)
     } else {
         // In case of no commits, collateral does not affect
         0
@@ -1610,6 +1765,7 @@ pub fn validate_block_transactions(
             transaction,
             dr_pool,
             consensus_constants.collateral_minimum,
+            epoch,
         )?;
 
         if !after_second_hard_fork(block_number, get_environment())
@@ -2277,13 +2433,16 @@ pub fn verify_signatures(
 
 #[cfg(test)]
 mod tests {
-    use witnet_data_structures::{chain::Alpha, radon_error::RadonError};
+    use witnet_data_structures::{
+        chain::Alpha, mainnet_validations::SECOND_HARD_FORK, radon_error::RadonError,
+    };
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
     use super::*;
 
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;
+    const E: Epoch = SECOND_HARD_FORK + 1;
 
     #[test]
     fn test_compare_candidate_same_section() {
@@ -2884,7 +3043,7 @@ mod tests {
             rad_rep_float,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
+            evaluate_tally_precondition_clause(v, 0.70, 4, E).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -2908,7 +3067,7 @@ mod tests {
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.99, 2).unwrap();
+            evaluate_tally_precondition_clause(v, 0.99, 2, E).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -2932,7 +3091,7 @@ mod tests {
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 1., 2).unwrap();
+            evaluate_tally_precondition_clause(v, 1., 2, E).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -2963,7 +3122,7 @@ mod tests {
             rad_rep_int,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
+            evaluate_tally_precondition_clause(v, 0.70, 4, E).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -2997,7 +3156,7 @@ mod tests {
             rad_rep_int,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
+            evaluate_tally_precondition_clause(v, 0.70, 4, E).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -3022,7 +3181,7 @@ mod tests {
             rad_rep_float,
             rad_rep_int,
         ];
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 4).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 4, E).unwrap_err();
 
         assert_eq!(
             out,
@@ -3060,7 +3219,7 @@ mod tests {
             rad_rep_int,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.40, 7).unwrap();
+            evaluate_tally_precondition_clause(v, 0.40, 7, E).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -3074,7 +3233,7 @@ mod tests {
     #[test]
     fn test_tally_precondition_clause_no_commits() {
         let v = vec![];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 0).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 0, E).unwrap_err();
 
         assert_eq!(out, RadError::InsufficientCommits);
     }
@@ -3082,7 +3241,7 @@ mod tests {
     #[test]
     fn test_tally_precondition_clause_no_reveals() {
         let v = vec![];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 1).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 1, E).unwrap_err();
 
         assert_eq!(out, RadError::NoReveals);
     }
@@ -3102,7 +3261,7 @@ mod tests {
             rad_rep_err,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.51, 4).unwrap();
+            evaluate_tally_precondition_clause(v, 0.51, 4, E).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -3127,7 +3286,7 @@ mod tests {
             rad_rep_float,
             rad_rep_int,
         ];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 4).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 4, E).unwrap_err();
 
         assert_eq!(
             out,
@@ -3154,7 +3313,7 @@ mod tests {
         );
 
         let v = vec![rad_rep_err1, rad_rep_err2];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 2).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 2, E).unwrap_err();
 
         assert_eq!(
             out,
@@ -3181,7 +3340,7 @@ mod tests {
         );
 
         let v = vec![rad_rep_err1, rad_rep_err2];
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 2).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 2, E).unwrap_err();
 
         assert_eq!(
             out,

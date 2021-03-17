@@ -1,11 +1,15 @@
 //! Message handlers for `RadManager`
 
 use actix::{Handler, ResponseFuture};
-use witnet_data_structures::radon_report::{RadonReport, ReportContext};
+use witnet_data_structures::{
+    get_environment,
+    mainnet_validations::after_second_hard_fork,
+    radon_report::{RadonReport, ReportContext},
+};
 use witnet_rad::{error::RadError, script::RadonScriptExecutionSettings, types::RadonTypes};
 use witnet_validations::validations::{
-    construct_report_from_clause_result, evaluate_tally_precondition_clause,
-    TallyPreconditionClauseResult,
+    construct_report_from_clause_result, evaluate_tally_postcondition_clause,
+    evaluate_tally_precondition_clause, TallyPreconditionClauseResult,
 };
 
 use crate::actors::messages::{ResolveRA, RunTally};
@@ -39,8 +43,10 @@ impl Handler<ResolveRA> for RadManager {
                     .map(|retrieve| RadonReport::from_result(retrieve, &ReportContext::default()))
                     .collect();
 
-            let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2, 1);
-
+            // Evaluate tally precondition to ensure that at least 20% of the data sources are not errors.
+            // This stage does not need to evaluate the postcondition.
+            let clause_result =
+                evaluate_tally_precondition_clause(retrieve_responses, 0.2, 1, msg.current_epoch);
             match clause_result {
                 Ok(TallyPreconditionClauseResult::MajorityOfValues {
                     values,
@@ -103,9 +109,23 @@ impl Handler<RunTally> for RadManager {
                 reports,
                 msg.min_consensus_ratio,
                 msg.commits_count,
+                msg.block_epoch,
             );
-
-            construct_report_from_clause_result(clause_result, &packed_script, reports_len)
+            let report = construct_report_from_clause_result(
+                clause_result,
+                &packed_script,
+                reports_len,
+                msg.block_epoch,
+            );
+            if after_second_hard_fork(msg.block_epoch, get_environment()) {
+                evaluate_tally_postcondition_clause(
+                    report,
+                    msg.min_consensus_ratio,
+                    msg.commits_count,
+                )
+            } else {
+                report
+            }
         };
 
         Box::pin(fut)
