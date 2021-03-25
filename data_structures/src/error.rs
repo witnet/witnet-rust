@@ -148,6 +148,12 @@ pub enum TransactionError {
         expected, current
     )]
     TimeLock { current: i64, expected: i64 },
+    /// Value Transfer Output has an invalid time lock
+    #[fail(
+        display = "Value Transfer Output time_lock should be {}, but it is {}",
+        expected, current
+    )]
+    InvalidTimeLock { current: u64, expected: u64 },
     /// This commit was already included
     #[fail(
         display = "Commit with pkh {} was already included for the data request {}",

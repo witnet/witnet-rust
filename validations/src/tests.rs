@@ -4509,8 +4509,6 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
 }
 
 #[test]
-// FIXME(#1886): use this test
-#[ignore]
 fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
     let collateral = ONE_WIT;
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
@@ -4569,10 +4567,9 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        //TransactionError::InvalidTimeLock {
-        TransactionError::TimeLock {
+        TransactionError::InvalidTimeLock {
             expected: 0,
-            current: 1,
+            current: u64::MAX,
         }
     );
 }
