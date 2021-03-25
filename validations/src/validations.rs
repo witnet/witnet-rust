@@ -1314,6 +1314,14 @@ pub fn validate_tally_transaction<'a>(
             }
             pkh_rewarded.insert(output.pkh);
         }
+
+        if is_after_second_hard_fork && output.time_lock != 0 {
+            return Err(TransactionError::InvalidTimeLock {
+                current: output.time_lock,
+                expected: 0,
+            }
+            .into());
+        }
         total_tally_value += output.value;
     }
 
