@@ -34,6 +34,12 @@ export CLIPPY_LINTS := '-D warnings
     -D clippy::cast-sign-loss
     -D clippy::checked-conversions
     -A clippy::field-reassign-with-default
+    -A clippy::upper-case-acronyms
+    -A clippy::from-over-into
+    -A clippy::vec-init-then-push
+    -A clippy::needless-question-mark
+    -A clippy::ptr-arg
+    -A redundant-semicolons
 '
 
 # run clippy
