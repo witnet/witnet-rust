@@ -343,9 +343,10 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
         )
         .unwrap_err();
 
-    assert_eq!(
-        mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err)
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
+        "{:?}",
+        err
     );
 }
 
@@ -1244,11 +1245,10 @@ fn test_create_vtt_with_locked_balance() {
         })
         .unwrap_err();
 
-    assert_eq!(
-        mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err),
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
         "{:?}",
-        err,
+        err
     );
 }
 
@@ -1529,11 +1529,10 @@ fn test_create_vt_components_weighted_fee_3() {
         )
         .unwrap_err();
 
-    assert_eq!(
-        mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err),
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
         "{:?}",
-        err,
+        err
     );
 }
 
@@ -1841,11 +1840,10 @@ fn test_create_vt_components_weighted_fee_without_outputs() {
         )
         .unwrap_err();
 
-    assert_eq!(
-        mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err),
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
         "{:?}",
-        err,
+        err
     );
 }
 
@@ -2058,11 +2056,10 @@ fn test_create_dr_components_weighted_fee_2_not_enough_funds() {
         .create_dr_transaction_components(&mut state, request, fee, FeeType::Weighted)
         .unwrap_err();
 
-    assert_eq!(
-        mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err),
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
         "{:?}",
-        err,
+        err
     );
 }
 
@@ -2201,11 +2198,10 @@ fn test_create_dr_components_weighted_fee_without_outputs() {
         .create_dr_transaction_components(&mut state, request, fee, FeeType::Weighted)
         .unwrap_err();
 
-    assert_eq!(
-        mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err),
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
         "{:?}",
-        err,
+        err
     );
 }
 
@@ -2523,10 +2519,9 @@ fn test_create_transaction_components_filter_from_address_3() {
         )
         .unwrap_err();
 
-    assert_eq!(
-        mem::discriminant(&repository::Error::InsufficientBalance),
-        mem::discriminant(&err),
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
         "{:?}",
-        err,
+        err
     );
 }

@@ -115,12 +115,18 @@ impl From<actors::worker::Error> for Error {
             actors::worker::Error::KeyGen(e @ crypto::Error::InvalidKeyPath(_)) => {
                 validation_error(field_error("seedData", e.to_string()))
             }
-            actors::worker::Error::Repository(_e @ repository::Error::InsufficientBalance) => {
-                validation_error(field_error(
-                    "balance",
-                    "Wallet account has not enough balance",
-                ))
-            }
+            actors::worker::Error::Repository(repository::Error::InsufficientBalance {
+                total_balance,
+                available_balance,
+                transaction_value,
+            }) => validation_error(field_error(
+                json! {{
+                    "total_balance": total_balance,
+                    "available_balance": available_balance,
+                    "transaction_value": transaction_value,
+                }},
+                "Wallet account has not enough balance",
+            )),
             actors::worker::Error::JsonRpcTimeoutError => Error::JsonRpcTimeoutError,
             _ => internal_error(err),
         }
