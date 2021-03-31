@@ -554,12 +554,14 @@ pub fn calculate_superblock_signing_committee(
             .1 as usize;
 
         // Get the subset
-        magic_partition_2(
+        let subset = magic_partition_2(
             &ars_identities.ordered_identities,
             first,
             signing_committee_size.try_into().unwrap(),
             superblock_hash_and_index_bytes_hashed.as_ref(),
-        )
+        );
+        let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
+        hs
     } else {
         // Hash of the current_index, to avoid potential committee collisions
         let index_hash = Hash::from(calculate_sha256(&current_superblock_index.to_be_bytes()));
@@ -606,13 +608,12 @@ fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
 // Take size element out of v.len() starting with element at index first plus an offset:
 // magic_partition(v, 3, 3, r), v=[0, 1, 2, 3, 4, 5], r=[1].
 // Will return elements at index 4, 0, 2.
-fn magic_partition_2<T>(v: &[T], first: usize, size: usize, rand_distribution: &[u8]) -> HashSet<T>
+fn magic_partition_2<T>(v: &[T], first: usize, size: usize, rand_distribution: &[u8]) -> Vec<T>
 where
-    T: Clone + Eq + std::hash::Hash,
+    T: Clone,
 {
-    let mut hs_subset = HashSet::default();
     if first >= v.len() {
-        return hs_subset;
+        return vec![];
     }
 
     // Check that the required size is bigger than v
@@ -621,23 +622,20 @@ where
     let each = v.len() / size;
 
     let mut step_index = 0_usize;
-    let mut step = rand_distribution[step_index] as usize;
+    let mut step = rand_distribution[step_index] as usize % each;
     let mut a = first;
     let mut b = (a + step) % v.len();
-    while hs_subset.len() < size {
-        if !hs_subset.contains(&v[b]) {
-            hs_subset.insert(v[b].clone());
+    let mut v_subset = vec![];
+    for _ in 0..size {
+        v_subset.push(v[b].clone());
 
-            step_index = (step_index + 1) % rand_distribution.len();
-            step = rand_distribution[step_index] as usize;
-            a = (a + each) % v.len();
-            b = (a + step) % v.len();
-        } else {
-            b = (b + 1) % v.len();
-        }
+        step_index = (step_index + 1) % rand_distribution.len();
+        step = rand_distribution[step_index] as usize % each;
+        a = (a + each) % v.len();
+        b = (a + step) % v.len();
     }
 
-    hs_subset
+    v_subset
 }
 
 /// Returns true if the number of votes is enough to achieve 2/3 consensus.
@@ -2412,13 +2410,13 @@ mod tests {
             .collect();
         assert_eq!(res, vec![1, 6, 7]);
 
-        // In case of collisions, we would take the next value
-        // It would be [0,4,4,8,8] but it will be [0,4,5,8,9]
+        // There cannot be any collisions:
+        // It would be [0,4,4,8,8] but it will be [0,2,4,6,8]
         let res: Vec<i32> = magic_partition_2(&v, 0, 5, &[0, 2])
             .into_iter()
             .sorted()
             .collect();
-        assert_eq!(res, vec![0, 4, 5, 8, 9]);
+        assert_eq!(res, vec![0, 2, 4, 6, 8]);
     }
 
     #[test]
