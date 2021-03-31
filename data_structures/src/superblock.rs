@@ -539,45 +539,46 @@ pub fn calculate_superblock_signing_committee(
     // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
     if ars_identities.len() < usize::try_from(signing_committee_size).unwrap() {
         ars_identities.identities
+    } else if after_second_hard_fork(block_epoch, get_environment()) {
+        // Start counting the members of the subset from:
+        // sha256(superblock_hash || superblock_index) % ars_identities.len()
+        let superblock_hash_and_index_bytes = [
+            superblock_hash.as_ref(),
+            current_superblock_index.to_be_bytes().as_ref(),
+        ]
+        .concat();
+        let superblock_hash_and_index_bytes_hashed =
+            Hash::from(calculate_sha256(&superblock_hash_and_index_bytes));
+        let first = superblock_hash_and_index_bytes_hashed
+            .div_mod(ars_identities.len() as u64)
+            .1 as usize;
+
+        // Get the subset
+        magic_partition_2(
+            &ars_identities.ordered_identities,
+            first,
+            signing_committee_size.try_into().unwrap(),
+            superblock_hash_and_index_bytes_hashed.as_ref(),
+        )
     } else {
         // Hash of the current_index, to avoid potential committee collisions
         let index_hash = Hash::from(calculate_sha256(&current_superblock_index.to_be_bytes()));
         let first_byte_sb_hash = *superblock_hash.as_ref().get(0).unwrap();
         let first_byte_index_hash = *index_hash.as_ref().get(0).unwrap();
-        let second_byte_index_hash = *index_hash.as_ref().get(1).unwrap();
 
-        if after_second_hard_fork(block_epoch, get_environment()) {
-            // Start counting the members of the subset from:
-            // 'first_byte_sb_hash'x263 + 'first_byte_index_hash'x257 + 'second_byte_index_hash'
-            let first = calculate_first_in_committee(
-                first_byte_sb_hash,
-                first_byte_index_hash,
-                second_byte_index_hash,
-                ars_identities.len(),
-            );
+        // Start counting the members of the subset from the superblock_hash plus superblock index hash
+        let mut first = u32::from(first_byte_sb_hash) + u32::from(first_byte_index_hash);
+        // We need to choose a first member from all the potential ARS members
+        first %= ars_identities.len() as u32;
 
-            // Get the subset
-            magic_partition_2(
-                &ars_identities.ordered_identities,
-                first,
-                signing_committee_size.try_into().unwrap(),
-                index_hash.as_ref(),
-            )
-        } else {
-            // Start counting the members of the subset from the superblock_hash plus superblock index hash
-            let mut first = u32::from(first_byte_sb_hash) + u32::from(first_byte_index_hash);
-            // We need to choose a first member from all the potential ARS members
-            first %= ars_identities.len() as u32;
-
-            // Get the subset
-            let subset = magic_partition(
-                &ars_identities.ordered_identities.to_vec(),
-                first.try_into().unwrap(),
-                signing_committee_size.try_into().unwrap(),
-            );
-            let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
-            hs
-        }
+        // Get the subset
+        let subset = magic_partition(
+            &ars_identities.ordered_identities.to_vec(),
+            first.try_into().unwrap(),
+            signing_committee_size.try_into().unwrap(),
+        );
+        let hs: HashSet<PublicKeyHash> = subset.iter().cloned().collect();
+        hs
     }
 }
 
@@ -637,14 +638,6 @@ where
     }
 
     hs_subset
-}
-
-fn calculate_first_in_committee(a: u8, b: u8, c: u8, size: usize) -> usize {
-    // 263a + 257b + c
-    let first = u64::from(a) * 263u64 + u64::from(b) * 257u64 + u64::from(c);
-    let first: usize = first.try_into().unwrap();
-    // We need to choose a first member from all the potential ARS members
-    first % size
 }
 
 /// Returns true if the number of votes is enough to achieve 2/3 consensus.
