@@ -1061,6 +1061,25 @@ impl Hash {
 
         Hash::SHA256(h)
     }
+
+    /// Return `(self / n, self % n)` using the same semantics as the EVM: interpret the hash as a
+    /// 256-bit big endian unsigned integer.
+    ///
+    /// # Panics
+    ///
+    /// If n is 0 because of a division by zero.
+    pub fn div_mod(&self, n: u64) -> (Hash, u64) {
+        use ethereum_types::U256;
+
+        let hash_u256 = U256::from_big_endian(self.as_ref());
+        let n_u256 = U256::from(n);
+        let (d, m) = hash_u256.div_mod(n_u256);
+        let d_hash = Hash::SHA256(SHA256::from(d));
+        // m will always be smaller than n, so it must fit into a u64
+        let m_u64 = m.low_u64();
+
+        (d_hash, m_u64)
+    }
 }
 
 /// Error when parsing hash from string
@@ -6299,5 +6318,94 @@ mod tests {
                 .parse()
                 .unwrap();
         assert_eq!(pkh_alpha_hash(&pkh, alpha), expected_hash);
+    }
+
+    #[test]
+    fn hash_div_mod_same_as_solidity() {
+        // Check that the implementation of Hash::div_mod is compatible with Solidity.
+        // Test solidity code:
+        /*
+               uint256 number = 0x0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20;
+               bytes numberBytes = abi.encode(num);
+               uint256 numberHash = uint256(sha256(numberBytes));
+               uint256 numberHashDiv256 = numberHash / 256;
+               uint256 numberHashMod256 = numberHash % 256;
+        */
+        // Test input in hex: 0x0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20
+        // Test input in decimal: 455867356320691211509944977504407603390036387149619137164185182714736811808
+        // Hash of test input in decimal: 78761488261205555724353619469726687646898473258189912794368218767476071469769
+        // Hash of test input divided by 256 in decimal: 307662063520334202048256326053619873620697161164804346853000854560453404178
+        // Remainder: 201
+        let num_bytes: Hash = "0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20"
+            .parse()
+            .unwrap();
+        let number_hash = Hash::from(calculate_sha256(num_bytes.as_ref()));
+        let expected_number_hash =
+            "ae216c2ef5247a3782c135efa279a3e4cdc61094270f5d2be58c6204b7a612c9"
+                .parse()
+                .unwrap();
+        assert_eq!(number_hash, expected_number_hash);
+
+        let expected_div = "00ae216c2ef5247a3782c135efa279a3e4cdc61094270f5d2be58c6204b7a612"
+            .parse()
+            .unwrap();
+        let expected_mod = 201;
+
+        assert_eq!(number_hash.div_mod(256), (expected_div, expected_mod));
+    }
+
+    #[test]
+    fn hash_div_mod_256() {
+        // Dividing the hash by 256 is the same as shifting the bytes 1 position to the right
+        let h = Hash::SHA256([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32,
+        ]);
+        let expected = (
+            Hash::SHA256([
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24, 25, 26, 27, 28, 29, 30, 31,
+            ]),
+            32,
+        );
+        assert_eq!(h.div_mod(256), expected);
+    }
+
+    #[test]
+    fn hash_div_mod_65536() {
+        // Dividing the hash by 65536 is the same as shifting the bytes 2 position to the right
+        let h = Hash::SHA256([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32,
+        ]);
+        let expected = (
+            Hash::SHA256([
+                0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                22, 23, 24, 25, 26, 27, 28, 29, 30,
+            ]),
+            31 * 256 + 32,
+        );
+        assert_eq!(h.div_mod(65536), expected);
+    }
+
+    #[test]
+    fn hash_div_mod_3() {
+        // 0xFF == 0x55 * 3
+        let h = Hash::SHA256([0xFF; 32]);
+        let expected = (Hash::SHA256([0x55; 32]), 0);
+        assert_eq!(h.div_mod(3), expected);
+    }
+
+    #[test]
+    #[should_panic = "division by zero"]
+    fn hash_div_mod_0() {
+        // The EVM defines division by 0 to return 0, but Solidity checks for division by 0 and
+        // reverts the transaction.
+        let h = Hash::SHA256([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32,
+        ]);
+        let expected = (Hash::SHA256([0; 32]), 0);
+        assert_eq!(h.div_mod(0), expected);
     }
 }
