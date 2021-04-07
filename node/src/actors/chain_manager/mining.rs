@@ -17,7 +17,7 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
     calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, radon_report_from_error,
-    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee, MINIMUM_DIFFICULTY,
+    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
 };
 
 use crate::{
@@ -105,12 +105,12 @@ impl ChainManager {
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
         let mining_rf = chain_info.consensus_constants.mining_replication_factor;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
-        let initial_difficulty = chain_info.consensus_constants.initial_difficulty;
+        let minimum_difficulty = chain_info.consensus_constants.minimum_difficulty;
         let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
         let halving_period = chain_info.consensus_constants.halving_period;
-        let epochs_with_initial_difficulty = chain_info
+        let epochs_with_minimum_difficulty = chain_info
             .consensus_constants
-            .epochs_with_initial_difficulty;
+            .epochs_with_minimum_difficulty;
 
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
@@ -145,9 +145,8 @@ impl ChainManager {
                             total_identities,
                             mining_bf,
                             current_epoch,
-                            initial_difficulty,
-                            epochs_with_initial_difficulty,
-                            MINIMUM_DIFFICULTY,
+                            minimum_difficulty,
+                            epochs_with_minimum_difficulty,
                         );
                         let proof_invalid = vrf_proof_hash > target_hash;
 

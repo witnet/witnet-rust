@@ -48,10 +48,6 @@ use witnet_rad::{
     types::{array::RadonArray, serial_iter_decode, RadonType, RadonTypes},
 };
 
-// TODO: Include minimum_difficulty as a Consensus Constant
-/// Minimum difficulty for mining
-pub const MINIMUM_DIFFICULTY: u32 = 2000;
-
 /// Returns the fee of a value transfer transaction.
 ///
 /// The fee is the difference between the outputs and the inputs
@@ -1953,9 +1949,8 @@ pub fn validate_block(
             total_identities,
             consensus_constants.mining_backup_factor,
             block_epoch,
-            consensus_constants.initial_difficulty,
-            consensus_constants.epochs_with_initial_difficulty,
-            MINIMUM_DIFFICULTY,
+            consensus_constants.minimum_difficulty,
+            consensus_constants.epochs_with_minimum_difficulty,
         );
 
         add_block_vrf_signature_to_verify(
@@ -2070,23 +2065,19 @@ pub fn calculate_randpoe_threshold(
     total_identities: u32,
     replication_factor: u32,
     block_epoch: u32,
-    initial_difficulty: u32,
-    epochs_with_initial_difficulty: u32,
     minimum_difficulty: u32,
+    epochs_with_minimum_difficulty: u32,
 ) -> (Hash, f64) {
     let max = u64::max_value();
-    let initial_difficulty = std::cmp::max(1, initial_difficulty);
-    let target = if block_epoch <= epochs_with_initial_difficulty {
-        max / u64::from(initial_difficulty)
-    } else if after_second_hard_fork(block_epoch, get_environment())
-        && total_identities < minimum_difficulty
-        && minimum_difficulty > replication_factor
-    {
-        (max / u64::from(minimum_difficulty)) * u64::from(replication_factor)
-    } else if total_identities == 0 || replication_factor >= total_identities {
-        max
+    let minimum_difficulty = std::cmp::max(1, minimum_difficulty);
+    let target = if block_epoch <= epochs_with_minimum_difficulty {
+        max / u64::from(minimum_difficulty)
+    } else if after_second_hard_fork(block_epoch, get_environment()) {
+        let difficulty = std::cmp::max(total_identities, minimum_difficulty);
+        (max / u64::from(difficulty)).saturating_mul(u64::from(replication_factor))
     } else {
-        (max / u64::from(total_identities)) * u64::from(replication_factor)
+        let difficulty = std::cmp::max(1, total_identities);
+        (max / u64::from(difficulty)).saturating_mul(u64::from(replication_factor))
     };
     let target = u32::try_from(target >> 32).unwrap();
 
@@ -2151,8 +2142,8 @@ impl VrfSlots {
         replication_factor: u32,
         backup_factor: u32,
         block_epoch: u32,
-        initial_difficulty: u32,
-        epochs_with_initial_difficulty: u32,
+        minimum_difficulty: u32,
+        epochs_with_minimum_difficulty: u32,
     ) -> Self {
         Self::new(
             (replication_factor..=backup_factor)
@@ -2161,9 +2152,8 @@ impl VrfSlots {
                         total_identities,
                         rf,
                         block_epoch,
-                        initial_difficulty,
-                        epochs_with_initial_difficulty,
-                        MINIMUM_DIFFICULTY,
+                        minimum_difficulty,
+                        epochs_with_minimum_difficulty,
                     )
                     .0
                 })
@@ -2793,9 +2783,10 @@ mod tests {
     #[test]
     fn target_randpoe() {
         let rf = 1;
+        let minimum_difficulty = 2000;
         let max_hash = Hash::with_first_u32(0xFFFF_FFFF);
-        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
-        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, minimum_difficulty, 0);
+        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t00, max_hash);
         assert_eq!(t00, t01);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
@@ -2803,20 +2794,19 @@ mod tests {
             (p00 * 100_f64).round() as i128,
             (p01 * 100_f64).round() as i128
         );
-        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t02, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!((p02 * 100_f64).round() as i128, 50);
-        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t03, Hash::with_first_u32(0x5555_5555));
         assert_eq!((p03 * 100_f64).round() as i128, 33);
-        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t04, Hash::with_first_u32(0x3FFF_FFFF));
         assert_eq!((p04 * 100_f64).round() as i128, 25);
-        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t05, Hash::with_first_u32(0x003F_FFFF));
         assert_eq!((p05 * 100_f64).round() as i128, 0);
-        let (t06, p06) =
-            calculate_randpoe_threshold(1024 * 1024, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t06, Hash::with_first_u32(0x0000_0FFF));
         assert_eq!((p06 * 100_f64).round() as i128, 0);
     }
@@ -2824,11 +2814,11 @@ mod tests {
     #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_randpoe_initial_difficulty() {
-        let (t, p) = calculate_randpoe_threshold(2, 1, 1, 4, 10, MINIMUM_DIFFICULTY);
+        let (t, p) = calculate_randpoe_threshold(2, 1, 1, 4, 10);
         assert_eq!(t, Hash::with_first_u32(0x3FFF_FFFF));
         assert_eq!((p * 100_f64).round() as i128, 25);
 
-        let (t, p) = calculate_randpoe_threshold(2, 1, 11, 4, 10, MINIMUM_DIFFICULTY);
+        let (t, p) = calculate_randpoe_threshold(2, 1, 11, 4, 10);
         assert_eq!(t, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!((p * 100_f64).round() as i128, 50);
     }
@@ -2837,6 +2827,7 @@ mod tests {
     #[test]
     fn target_randpoe_minimum_difficulty() {
         let replication_factor = 2;
+        let minimum_difficulty = 2000;
 
         let total_identities = 1000;
         let expected_prob = (1_f64 / f64::from(total_identities)) * f64::from(replication_factor);
@@ -2845,24 +2836,22 @@ mod tests {
             total_identities,
             replication_factor,
             1,
+            minimum_difficulty,
             0,
-            0,
-            MINIMUM_DIFFICULTY,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, expected_prob);
 
         // After second hard fork, minimum probability is used
         let block_epoch = SECOND_HARD_FORK + 1;
         let minimum_expected_prob =
-            (1_f64 / f64::from(MINIMUM_DIFFICULTY)) * f64::from(replication_factor);
+            (1_f64 / f64::from(minimum_difficulty)) * f64::from(replication_factor);
         assert_eq!(minimum_expected_prob, 0.001_f64);
         let (_, p) = calculate_randpoe_threshold(
             total_identities,
             replication_factor,
             block_epoch,
+            minimum_difficulty,
             0,
-            0,
-            MINIMUM_DIFFICULTY,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, minimum_expected_prob);
 
@@ -2871,40 +2860,37 @@ mod tests {
             total_identities,
             replication_factor,
             block_epoch,
+            minimum_difficulty,
             0,
-            0,
-            MINIMUM_DIFFICULTY,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, minimum_expected_prob);
 
-        let total_identities = MINIMUM_DIFFICULTY - 1;
+        let total_identities = minimum_difficulty - 1;
         let (_, p) = calculate_randpoe_threshold(
             total_identities,
             replication_factor,
             block_epoch,
+            minimum_difficulty,
             0,
-            0,
-            MINIMUM_DIFFICULTY,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, minimum_expected_prob);
 
         // When achieves a number of identities equals to minimum difficulty,
         // the calculated probability is equals to the minimum
-        let total_identities = MINIMUM_DIFFICULTY;
+        let total_identities = minimum_difficulty;
         let expected_prob = (1_f64 / f64::from(total_identities)) * f64::from(replication_factor);
         assert_eq!(expected_prob, minimum_expected_prob);
         let (_, p) = calculate_randpoe_threshold(
             total_identities,
             replication_factor,
             block_epoch,
+            minimum_difficulty,
             0,
-            0,
-            MINIMUM_DIFFICULTY,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, expected_prob);
 
         // After that, the probability starts to decrease
-        let total_identities = MINIMUM_DIFFICULTY + 1;
+        let total_identities = minimum_difficulty + 1;
         let expected_prob = (1_f64 / f64::from(total_identities)) * f64::from(replication_factor);
         let expected_prob = (expected_prob * 1_000_000_000_f64).round() / 1_000_000_000_f64;
         assert_eq!(expected_prob, 0.0009995_f64);
@@ -2912,9 +2898,8 @@ mod tests {
             total_identities,
             replication_factor,
             block_epoch,
+            minimum_difficulty,
             0,
-            0,
-            MINIMUM_DIFFICULTY,
         );
         assert_eq!(
             (p * 1_000_000_000_f64).round() / 1_000_000_000_f64,
@@ -2927,27 +2912,27 @@ mod tests {
     #[test]
     fn target_randpoe_rf_4() {
         let rf = 4;
+        let minimum_difficulty = 2000;
         let max_hash = Hash::with_first_u32(0xFFFF_FFFF);
-        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
-        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, minimum_difficulty, 0);
+        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t00, max_hash);
         assert_eq!(t01, max_hash);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
         assert_eq!((p01 * 100_f64).round() as i128, 100);
-        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t02, max_hash);
         assert_eq!((p02 * 100_f64).round() as i128, 100);
-        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t03, max_hash);
         assert_eq!((p03 * 100_f64).round() as i128, 100);
-        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t04, max_hash);
         assert_eq!((p04 * 100_f64).round() as i128, 100);
-        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t05, Hash::with_first_u32(0x00FF_FFFF));
         assert_eq!((p05 * 100_f64).round() as i128, 0);
-        let (t06, p06) =
-            calculate_randpoe_threshold(1024 * 1024, rf, 1001, 0, 0, MINIMUM_DIFFICULTY);
+        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024, rf, 1001, minimum_difficulty, 0);
         assert_eq!(t06, Hash::with_first_u32(0x0000_3FFF));
         assert_eq!((p06 * 100_f64).round() as i128, 0);
     }

@@ -311,8 +311,8 @@ message ConsensusConstants {
     uint32 collateral_age = 15;
     uint32 superblock_period = 16;
     uint32 extra_rounds = 17;
-    uint32 initial_difficulty = 18;
-    uint32 epochs_with_initial_difficulty = 19;
+    uint32 minimum_difficulty = 18;
+    uint32 epochs_with_minimum_difficulty = 19;
     repeated string bootstrapping_committee = 20;
     uint32 superblock_signing_committee_size = 21;
     uint32 superblock_committee_decreasing_period = 22;

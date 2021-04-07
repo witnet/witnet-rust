@@ -387,8 +387,8 @@ fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusCon
         collateral_age: Some(c.collateral_age),
         superblock_period: Some(c.superblock_period),
         extra_rounds: Some(c.extra_rounds),
-        initial_difficulty: Some(c.initial_difficulty),
-        epochs_with_initial_difficulty: Some(c.epochs_with_initial_difficulty),
+        minimum_difficulty: Some(c.minimum_difficulty),
+        epochs_with_minimum_difficulty: Some(c.epochs_with_minimum_difficulty),
         bootstrapping_committee: Some(c.bootstrapping_committee.clone()),
         superblock_signing_committee_size: Some(c.superblock_signing_committee_size),
         superblock_committee_decreasing_period: Some(c.superblock_committee_decreasing_period),
@@ -489,14 +489,14 @@ pub fn consensus_constants_from_partial(
             .reputation_issuance
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_reputation_issuance()),
-        initial_difficulty: config
-            .initial_difficulty
+        minimum_difficulty: config
+            .minimum_difficulty
             .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_initial_difficulty()),
-        epochs_with_initial_difficulty: config
-            .epochs_with_initial_difficulty
+            .unwrap_or_else(|| defaults.consensus_constants_minimum_difficulty()),
+        epochs_with_minimum_difficulty: config
+            .epochs_with_minimum_difficulty
             .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_epochs_with_initial_difficulty()),
+            .unwrap_or_else(|| defaults.consensus_constants_epochs_with_minimum_difficulty()),
         reputation_issuance_stop: config
             .reputation_issuance_stop
             .to_owned()

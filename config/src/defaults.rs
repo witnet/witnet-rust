@@ -265,13 +265,13 @@ pub trait Defaults {
         1
     }
 
-    /// Reputation issuance
-    fn consensus_constants_initial_difficulty(&self) -> u32 {
+    /// Minimum difficulty
+    fn consensus_constants_minimum_difficulty(&self) -> u32 {
         2000
     }
 
-    /// Reputation issuance
-    fn consensus_constants_epochs_with_initial_difficulty(&self) -> u32 {
+    /// Epochs with minimum difficulty
+    fn consensus_constants_epochs_with_minimum_difficulty(&self) -> u32 {
         2000
     }
 

@@ -534,10 +534,10 @@ impl ChainManager {
                     chain_info.consensus_constants.mining_replication_factor,
                     chain_info.consensus_constants.mining_backup_factor,
                     block.block_header.beacon.checkpoint,
-                    chain_info.consensus_constants.initial_difficulty,
+                    chain_info.consensus_constants.minimum_difficulty,
                     chain_info
                         .consensus_constants
-                        .epochs_with_initial_difficulty,
+                        .epochs_with_minimum_difficulty,
                 );
                 let block_pkh = &block.block_sig.public_key.pkh();
                 let reputation = rep_engine.trs().get(block_pkh);
