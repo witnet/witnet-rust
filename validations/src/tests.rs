@@ -6577,8 +6577,8 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         reputation_penalization_factor: 0.0,
         mining_replication_factor: 0,
         extra_rounds: 0,
-        initial_difficulty: 0,
-        epochs_with_initial_difficulty: 0,
+        minimum_difficulty: 2,
+        epochs_with_minimum_difficulty: 0,
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
@@ -6644,7 +6644,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header);
     }
     let mut signatures_to_verify = vec![];
-    validate_block_with_minimum_difficulty(
+    validate_block(
         &b,
         current_epoch,
         vrf_input,
@@ -6652,7 +6652,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &mut signatures_to_verify,
         &rep_eng,
         &consensus_constants,
-        2,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -6671,65 +6670,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     verify_signatures_test(signatures_to_verify)?;
 
     Ok(())
-}
-
-// TODO: Remove minimum_difficulty argument when it would be a Consensus Constant
-#[allow(clippy::too_many_arguments)]
-fn validate_block_with_minimum_difficulty(
-    block: &Block,
-    current_epoch: Epoch,
-    vrf_input: CheckpointVRF,
-    chain_beacon: CheckpointBeacon,
-    signatures_to_verify: &mut Vec<SignaturesToVerify>,
-    rep_eng: &ReputationEngine,
-    consensus_constants: &ConsensusConstants,
-    minimum_difficulty: u32,
-) -> Result<(), failure::Error> {
-    let block_epoch = block.block_header.beacon.checkpoint;
-    let hash_prev_block = block.block_header.beacon.hash_prev_block;
-
-    if block_epoch > current_epoch {
-        Err(BlockError::BlockFromFuture {
-            block_epoch,
-            current_epoch,
-        }
-        .into())
-    } else if chain_beacon.checkpoint > block_epoch {
-        Err(BlockError::BlockOlderThanTip {
-            chain_epoch: chain_beacon.checkpoint,
-            block_epoch,
-        }
-        .into())
-    } else if chain_beacon.hash_prev_block != hash_prev_block {
-        Err(BlockError::PreviousHashMismatch {
-            block_hash: hash_prev_block,
-            our_hash: chain_beacon.hash_prev_block,
-        }
-        .into())
-    } else if chain_beacon.hash_prev_block == consensus_constants.bootstrap_hash {
-        // If the chain_beacon hash_prev_block is the bootstrap hash, only accept blocks
-        // with the genesis_block_hash
-        validate_genesis_block(block, consensus_constants.genesis_hash).map_err(Into::into)
-    } else {
-        let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
-        let (target_hash, _) = calculate_randpoe_threshold(
-            total_identities,
-            consensus_constants.mining_backup_factor,
-            block_epoch,
-            consensus_constants.initial_difficulty,
-            consensus_constants.epochs_with_initial_difficulty,
-            minimum_difficulty,
-        );
-
-        add_block_vrf_signature_to_verify(
-            signatures_to_verify,
-            &block.block_header.proof,
-            vrf_input,
-            target_hash,
-        );
-
-        validate_block_signature(&block, signatures_to_verify)
-    }
 }
 
 fn build_merkle_tree(block_header: &mut BlockHeader, txns: &BlockTransactions) {
@@ -6905,8 +6845,8 @@ fn block_difficult_proof() {
         reputation_penalization_factor: 0.0,
         mining_replication_factor: 0,
         extra_rounds: 0,
-        initial_difficulty: 0,
-        epochs_with_initial_difficulty: 0,
+        minimum_difficulty: 0,
+        epochs_with_minimum_difficulty: 0,
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
@@ -7589,8 +7529,8 @@ fn test_blocks_with_limits(
         reputation_penalization_factor: 0.0,
         mining_replication_factor: 0,
         extra_rounds: 0,
-        initial_difficulty: 0,
-        epochs_with_initial_difficulty: 0,
+        minimum_difficulty: 0,
+        epochs_with_minimum_difficulty: 0,
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
@@ -8152,8 +8092,8 @@ fn genesis_block_after_not_bootstrap_hash() {
         reputation_penalization_factor: 0.0,
         mining_replication_factor: 0,
         extra_rounds: 0,
-        initial_difficulty: 0,
-        epochs_with_initial_difficulty: 0,
+        minimum_difficulty: 0,
+        epochs_with_minimum_difficulty: 0,
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
@@ -8230,8 +8170,8 @@ fn genesis_block_value_overflow() {
         reputation_penalization_factor: 0.0,
         mining_replication_factor: 0,
         extra_rounds: 0,
-        initial_difficulty: 0,
-        epochs_with_initial_difficulty: 0,
+        minimum_difficulty: 0,
+        epochs_with_minimum_difficulty: 0,
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
@@ -8314,8 +8254,8 @@ fn genesis_block_full_validate() {
         reputation_penalization_factor: 0.0,
         mining_replication_factor: 0,
         extra_rounds: 0,
-        initial_difficulty: 0,
-        epochs_with_initial_difficulty: 0,
+        minimum_difficulty: 0,
+        epochs_with_minimum_difficulty: 0,
         superblock_signing_committee_size: 100,
         superblock_committee_decreasing_period: 100,
         superblock_committee_decreasing_step: 5,
@@ -8378,8 +8318,8 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             bootstrap_hash: Default::default(),
             mining_replication_factor: 0,
             extra_rounds: 0,
-            initial_difficulty: 0,
-            epochs_with_initial_difficulty: 0,
+            minimum_difficulty: 0,
+            epochs_with_minimum_difficulty: 0,
             superblock_signing_committee_size: 100,
             superblock_committee_decreasing_period: 100,
             superblock_committee_decreasing_step: 5,
@@ -8562,8 +8502,8 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             bootstrap_hash: Default::default(),
             mining_replication_factor: 0,
             extra_rounds: 0,
-            initial_difficulty: 0,
-            epochs_with_initial_difficulty: 0,
+            minimum_difficulty: 0,
+            epochs_with_minimum_difficulty: 0,
             superblock_signing_committee_size: 100,
             superblock_committee_decreasing_period: 100,
             superblock_committee_decreasing_step: 5,

@@ -215,13 +215,12 @@ pub struct ConsensusConstants {
     /// Extra rounds for commitments and reveals
     pub extra_rounds: u16,
 
-    /// Initial difficulty
-    /// (That difficulty is enforced by code so it means that it also ignore the backup factor)
-    pub initial_difficulty: u32,
+    /// Minimum difficulty
+    pub minimum_difficulty: u32,
 
-    /// Number of epochs with the initial difficulty active
-    /// (This number represent the last epoch where the initial difficulty is active)
-    pub epochs_with_initial_difficulty: u32,
+    /// Number of epochs with the minimum difficulty active
+    /// (This number represent the last epoch where the minimum difficulty is active)
+    pub epochs_with_minimum_difficulty: u32,
 
     /// Superblock signing committee for the first superblocks
     pub bootstrapping_committee: Vec<String>,
