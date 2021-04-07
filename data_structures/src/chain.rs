@@ -2646,6 +2646,10 @@ impl TransactionsPool {
             }
         }
 
+        // Clear commits and reveals
+        self.clear_commits();
+        self.clear_reveals();
+
         v
     }
 }
@@ -3842,7 +3846,13 @@ mod tests {
         superblock::{mining_build_superblock, ARSIdentities},
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
-    use witnet_crypto::merkle::{merkle_tree_root, InclusionProof};
+    use witnet_crypto::{
+        merkle::{merkle_tree_root, InclusionProof},
+        secp256k1::{
+            PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
+        },
+        signature::sign,
+    };
 
     fn dr_root_superblock_loop_test(
         sb: SuperBlock,
@@ -6407,5 +6417,63 @@ mod tests {
         ]);
         let expected = (Hash::SHA256([0; 32]), 0);
         assert_eq!(h.div_mod(0), expected);
+    }
+
+    fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
+        let Hash::SHA256(data) = tx.hash();
+
+        let secp = &Secp256k1::new();
+        let secret_key =
+            Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
+        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+        let public_key = PublicKey::from(public_key);
+
+        let signature = sign(secp, secret_key, &data).unwrap();
+
+        KeyedSignature {
+            signature: Signature::from(signature),
+            public_key,
+        }
+    }
+
+    #[test]
+    fn remove_unconfirmed_transactions_clear_commits_and_reveals() {
+        let mut tx_pool = TransactionsPool::default();
+        let dr_pointer = Hash::with_first_u32(0x03ff_ffff);
+        let sk: [u8; 32] = [0xcd; 32];
+
+        // Create commit
+        let mut c = CommitTransaction::default();
+        c.body.dr_pointer = dr_pointer;
+        let ks = sign_tx(sk, &c.body);
+        let pkh = ks.public_key.pkh();
+        c.signatures = vec![ks];
+
+        // Insert commit
+        tx_pool.insert(Transaction::Commit(c.clone()), 1);
+        assert!(tx_pool
+            .commit_contains(&dr_pointer, &pkh, &c.hash())
+            .unwrap());
+
+        // Create reveal
+        let mut r = RevealTransaction::default();
+        r.body.dr_pointer = dr_pointer;
+        r.body.pkh = pkh;
+
+        // Insert reveal
+        tx_pool.insert(Transaction::Reveal(r.clone()), 1);
+        assert!(tx_pool
+            .reveal_contains(&dr_pointer, &pkh, &r.hash())
+            .unwrap());
+
+        let _x = tx_pool.remove_unconfirmed_transactions();
+
+        // Ensure there are no commits and reveals after 'remove_unconfirmed_transactions' call
+        assert!(!tx_pool
+            .commit_contains(&dr_pointer, &pkh, &c.hash())
+            .unwrap());
+        assert!(!tx_pool
+            .reveal_contains(&dr_pointer, &pkh, &r.hash())
+            .unwrap());
     }
 }
