@@ -612,27 +612,21 @@ fn magic_partition_2<T>(v: &[T], first: usize, size: usize, rand_distribution: &
 where
     T: Clone,
 {
-    if first >= v.len() {
+    let v_len = v.len();
+    if first >= v_len {
         return vec![];
     }
 
     // Check that the required size is bigger than v
-    assert!(size <= v.len());
+    assert!(size <= v_len);
 
-    let each = v.len() / size;
-
-    let mut step_index = 0_usize;
-    let mut step = rand_distribution[step_index] as usize % each;
-    let mut a = first;
-    let mut b = (a + step) % v.len();
+    let each = v_len / size;
     let mut v_subset = vec![];
-    for _ in 0..size {
-        v_subset.push(v[b].clone());
-
-        step_index = (step_index + 1) % rand_distribution.len();
-        step = rand_distribution[step_index] as usize % each;
-        a = (a + each) % v.len();
-        b = (a + step) % v.len();
+    let rand_len = rand_distribution.len();
+    for i in 0..size {
+        let rand_offset = usize::from(rand_distribution[i % rand_len]) % each;
+        let position = (first + i * each + rand_offset) % v_len;
+        v_subset.push(v[position].clone());
     }
 
     v_subset
