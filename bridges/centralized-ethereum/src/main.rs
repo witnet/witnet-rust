@@ -21,8 +21,8 @@ struct App {
 }
 
 fn init_logger() {
-    // Info log level by default
-    let mut log_level = log::LevelFilter::Info;
+    // Debug log level by default
+    let mut log_level = log::LevelFilter::Debug;
     if let Ok(rust_log) = std::env::var("RUST_LOG") {
         if rust_log.contains("witnet") {
             log_level = env_logger::Logger::from_default_env().filter();
@@ -30,7 +30,7 @@ fn init_logger() {
     }
 
     env_logger::Builder::from_env(env_logger::Env::default())
-        .filter_module("witnet_centralized-ethereum_bridge", log_level)
+        .filter_module("witnet_centralized_ethereum_bridge", log_level)
         .init();
 }
 
