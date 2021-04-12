@@ -8,3 +8,5 @@
 
 /// Actors
 pub mod actors;
+/// Configuration
+pub mod config;
