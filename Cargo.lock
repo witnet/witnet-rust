@@ -4778,6 +4778,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "witnet-centralized-ethereum-bridge"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "async-jsonrpc-client",
+ "async-stream",
+ "ctrlc",
+ "env_logger",
+ "ethabi",
+ "futures 0.1.30",
+ "futures-locks",
+ "log 0.4.11",
+ "rand 0.7.3",
+ "serde",
+ "serde_json",
+ "structopt",
+ "tokio 0.1.22",
+ "tokio-core",
+ "toml",
+ "web3",
+ "witnet_crypto",
+ "witnet_data_structures",
+ "witnet_util",
+ "witnet_validations",
+]
+
+[[package]]
 name = "witnet-ethereum-bridge"
 version = "0.1.0"
 dependencies = [
