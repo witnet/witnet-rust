@@ -11,7 +11,7 @@ description = "An in-progress open source implementation of the Witnet protocol 
 edition = "2018"
 
 [workspace]
-members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "bridges/ethereum", "futures_utils"]
+members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "bridges/ethereum", "bridges/centralized-ethereum", "futures_utils"]
 
 [features]
 default = ["wallet", "node", "telemetry"]
