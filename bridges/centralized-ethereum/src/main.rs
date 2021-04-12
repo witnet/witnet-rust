@@ -1,12 +1,24 @@
 //! Witnet <> Ethereum bridge
 
 use actix::{Actor, System, SystemRegistry};
-use std::process::exit;
+use std::{path::PathBuf, process::exit, sync::Arc};
+use structopt::StructOpt;
 
-use witnet_centralized_ethereum_bridge::actors::{
-    dr_database::DrDatabase, dr_reporter::DrReporter, dr_sender::DrSender, eth_poller::EthPoller,
-    wit_poller::WitPoller,
+use witnet_centralized_ethereum_bridge::{
+    actors::{
+        dr_database::DrDatabase, dr_reporter::DrReporter, dr_sender::DrSender,
+        eth_poller::EthPoller, wit_poller::WitPoller,
+    },
+    config,
 };
+
+/// Command line usage and flags
+#[derive(Debug, StructOpt)]
+struct App {
+    /// Path of the config file
+    #[structopt(short = "c", long)]
+    config: Option<PathBuf>,
+}
 
 fn init_logger() {
     // Info log level by default
@@ -39,6 +51,14 @@ fn main() {
 
 /// Function to run the main system
 fn run(callback: fn()) -> Result<(), String> {
+    let app = App::from_args();
+    let config = config::from_file(
+        app.config
+            .unwrap_or_else(|| "witnet_centralized_ethereum_bridge.toml".into()),
+    )
+    .map(Arc::new)
+    .map_err(|e| format!("Error reading configuration file: {}", e))?;
+
     // Init system
     let system = System::new("node");
 
@@ -48,7 +68,8 @@ fn run(callback: fn()) -> Result<(), String> {
         callback();
 
         // Start EthPoller actor
-        let eth_poller_addr = EthPoller::default().start();
+        // TODO: Remove unwrap
+        let eth_poller_addr = EthPoller::from_config(&config).unwrap().start();
         SystemRegistry::set(eth_poller_addr);
 
         // Start WitPoller actor
