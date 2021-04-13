@@ -8,7 +8,7 @@ use actix::prelude::*;
 use bincode::{deserialize, serialize};
 
 use crate::config_mngr;
-use witnet_config::config;
+use witnet_config::{config, config::Config};
 use witnet_futures_utils::{ActorFutureExt, TryFutureExt2};
 use witnet_storage::{backends, storage};
 
@@ -18,9 +18,15 @@ macro_rules! as_failure {
     };
 }
 
-/// Start the signature manager
+/// Start the storage manager
 pub fn start() {
     let addr = StorageManagerAdapter::start_default();
+    actix::SystemRegistry::set(addr);
+}
+
+/// Start the storage manager from config
+pub fn start_from_config(config: Config) {
+    let addr = StorageManagerAdapter::from_config(config).start();
     actix::SystemRegistry::set(addr);
 }
 
@@ -255,12 +261,26 @@ fn create_appropriate_backend(
 
 struct StorageManagerAdapter {
     storage: Addr<StorageManager>,
+    config: Option<Config>,
 }
 
 impl Default for StorageManagerAdapter {
     fn default() -> Self {
         let storage = SyncArbiter::start(1, StorageManager::default);
-        Self { storage }
+        Self {
+            storage,
+            config: None,
+        }
+    }
+}
+
+impl StorageManagerAdapter {
+    pub fn from_config(config: Config) -> Self {
+        let storage = SyncArbiter::start(1, StorageManager::default);
+        Self {
+            storage,
+            config: Some(config),
+        }
     }
 }
 
@@ -270,10 +290,15 @@ impl Actor for StorageManagerAdapter {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("Storage Manager actor has been started!");
         let storage = self.storage.clone();
+        let config = self.config.clone();
 
         async move {
-            let conf = config_mngr::get().await?;
-            storage.send(Configure(conf)).await?
+            if let Some(config) = config {
+                storage.send(Configure(Arc::new(config))).await?
+            } else {
+                let conf = config_mngr::get().await?;
+                storage.send(Configure(conf)).await?
+            }
         }
         .into_actor(self)
         .map_err(|err, _act, _ctx| {

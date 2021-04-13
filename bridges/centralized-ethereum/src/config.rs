@@ -1,6 +1,7 @@
 //! Configuration
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::{net::SocketAddr, path::Path};
 use web3::types::H160;
 use witnet_data_structures::chain::Environment;
@@ -29,6 +30,8 @@ pub struct Config {
     pub witnet_testnet: bool,
     /// Gas limits for some methods. If missing, let the client estimate
     pub gas_limits: Gas,
+    /// Storage
+    pub storage: Storage,
 }
 
 /// Gas limits for some methods. If missing, let the client estimate
@@ -39,6 +42,15 @@ pub struct Gas {
     pub post_data_request: Option<u64>,
     /// reportResult gas limit
     pub report_result: Option<u64>,
+}
+
+/// Storage
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Storage {
+    /// Path to the directory that will contain the database. Used
+    /// only if backend is RocksDB.
+    pub db_path: PathBuf,
 }
 
 /// Load configuration from a file written in Toml format.

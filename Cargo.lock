@@ -5126,7 +5126,9 @@ dependencies = [
  "tokio 1.5.0",
  "toml",
  "web3 0.15.0",
+ "witnet_config",
  "witnet_data_structures",
+ "witnet_node",
  "witnet_validations",
 ]
 

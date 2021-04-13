@@ -55,7 +55,7 @@ impl Actor for DrDatabase {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("DRDataBase actor has been started!");
+        log::debug!("DrDatabase actor has been started!");
     }
 }
 

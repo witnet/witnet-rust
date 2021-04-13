@@ -12,6 +12,8 @@ use witnet_centralized_ethereum_bridge::{
     },
     check_ethereum_node_running, check_witnet_node_running, config, create_wrb_contract,
 };
+use witnet_config::config::Config as NodeConfig;
+use witnet_node::storage_mngr;
 
 /// Command line usage and flags
 #[derive(Debug, StructOpt)]
@@ -123,6 +125,11 @@ fn run(callback: fn()) -> Result<(), String> {
             // Start DrReporter actor
             let dr_reporter_addr = DrReporter::from_config(&config).unwrap().start();
             SystemRegistry::set(dr_reporter_addr);
+
+            // Initialize Storage Manager
+            let mut node_config = NodeConfig::default();
+            node_config.storage.db_path = config.storage.db_path.clone();
+            storage_mngr::start_from_config(node_config);
 
             // Start DrDatabase actor
             let dr_database_addr = DrDatabase::default().start();
