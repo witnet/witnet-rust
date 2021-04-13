@@ -23,6 +23,8 @@ pub struct Config {
     pub eth_new_dr_polling_rate_ms: u64,
     /// Period to check for completed requests in Witnet
     pub wit_tally_polling_rate_ms: u64,
+    /// Period to post new requests to Witnet
+    pub wit_dr_sender_polling_rate_ms: u64,
     /// Running in the witnet testnet?
     pub witnet_testnet: bool,
     /// Gas limits for some methods. If missing, let the client estimate
