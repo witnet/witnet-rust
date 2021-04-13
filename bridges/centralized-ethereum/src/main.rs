@@ -4,6 +4,9 @@ use actix::{Actor, System, SystemRegistry};
 use std::{path::PathBuf, process::exit, sync::Arc};
 use structopt::StructOpt;
 
+use web3::contract::Contract;
+use web3::{contract, types::U256};
+use witnet_centralized_ethereum_bridge::config::Config;
 use witnet_centralized_ethereum_bridge::{
     actors::{
         dr_database::DrDatabase, dr_reporter::DrReporter, dr_sender::DrSender,
@@ -18,6 +21,9 @@ struct App {
     /// Path of the config file
     #[structopt(short = "c", long)]
     config: Option<PathBuf>,
+    /// Post data request and exit
+    #[structopt(long = "post-dr")]
+    post_dr: bool,
 }
 
 fn init_logger() {
@@ -32,6 +38,36 @@ fn init_logger() {
     env_logger::Builder::from_env(env_logger::Env::default())
         .filter_module("witnet_centralized_ethereum_bridge", log_level)
         .init();
+}
+
+async fn post_example_dr(config: Arc<Config>) {
+    let web3_http = web3::transports::Http::new(&config.eth_client_url)
+        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
+        .unwrap();
+    let web3 = web3::Web3::new(web3_http);
+    // Why read files at runtime when you can read files at compile time
+    let wrb_contract_abi_json: &[u8] = include_bytes!("../wrb_abi.json");
+    let wrb_contract_abi = ethabi::Contract::load(wrb_contract_abi_json)
+        .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
+        .unwrap();
+    let wrb_contract_address = config.wrb_contract_addr;
+    let wrb_contract = Contract::new(web3.eth(), wrb_contract_address, wrb_contract_abi);
+
+    let tally_value = U256::from_dec_str("500000000000000").unwrap();
+
+    let _res = wrb_contract
+        .call(
+            "postDataRequest",
+            (config.block_relay_contract_addr, 0, tally_value),
+            config.eth_account,
+            contract::Options::with(|opt| {
+                opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
+                // The cost of posting a data request is mainly the storage, so
+                // big data requests may need bigger amounts of gas
+                opt.gas = config.gas_limits.post_data_request.map(Into::into);
+            }),
+        )
+        .await;
 }
 
 fn main() {
@@ -60,33 +96,38 @@ fn run(callback: fn()) -> Result<(), String> {
     .map_err(|e| format!("Error reading configuration file: {}", e))?;
 
     // Init system
-    let system = System::new("node");
+    let system = System::new("bridge");
+    let condition = app.post_dr;
 
     // Init actors
     system.block_on(async {
         // Call cb function (register interrupt handlers)
         callback();
 
-        // Start EthPoller actor
-        // TODO: Remove unwrap
-        let eth_poller_addr = EthPoller::from_config(&config).unwrap().start();
-        SystemRegistry::set(eth_poller_addr);
+        if condition {
+            post_example_dr(config).await;
+        } else {
+            // Start EthPoller actor
+            // TODO: Remove unwrap
+            let eth_poller_addr = EthPoller::from_config(&config).unwrap().start();
+            SystemRegistry::set(eth_poller_addr);
 
-        // Start WitPoller actor
-        let wit_poller_addr = WitPoller::from_config(&config).unwrap().start();
-        SystemRegistry::set(wit_poller_addr);
+            // Start WitPoller actor
+            let wit_poller_addr = WitPoller::from_config(&config).unwrap().start();
+            SystemRegistry::set(wit_poller_addr);
 
-        // Start DrSender actor
-        let dr_sender_addr = DrSender::default().start();
-        SystemRegistry::set(dr_sender_addr);
+            // Start DrSender actor
+            let dr_sender_addr = DrSender::default().start();
+            SystemRegistry::set(dr_sender_addr);
 
-        // Start DrReporter actor
-        let dr_reporter_addr = DrReporter::default().start();
-        SystemRegistry::set(dr_reporter_addr);
+            // Start DrReporter actor
+            let dr_reporter_addr = DrReporter::default().start();
+            SystemRegistry::set(dr_reporter_addr);
 
-        // Start DrDatabase actor
-        let dr_database_addr = DrDatabase::default().start();
-        SystemRegistry::set(dr_database_addr);
+            // Start DrDatabase actor
+            let dr_database_addr = DrDatabase::default().start();
+            SystemRegistry::set(dr_database_addr);
+        }
     });
 
     // Run system
