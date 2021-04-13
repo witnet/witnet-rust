@@ -70,7 +70,7 @@ impl WitPoller {
                 .unwrap()
                 .unwrap();
 
-            for (dr_id, dr_tx_hash) in pending_drs {
+            for (dr_id, dr_bytes, dr_tx_hash) in pending_drs {
                 let report = witnet_client.execute("dataRequestReport", json!([dr_tx_hash]));
                 let report = Compat01As03::new(report).await.unwrap();
 
@@ -86,7 +86,12 @@ impl WitPoller {
 
                         let result = tally.tally;
                         dr_reporter_addr
-                            .send(DrReporterMsg { dr_id, result })
+                            .send(DrReporterMsg {
+                                dr_id,
+                                dr_bytes,
+                                dr_tx_hash,
+                                result,
+                            })
                             .await
                             .unwrap();
                     }

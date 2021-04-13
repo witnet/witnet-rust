@@ -64,7 +64,7 @@ impl Message for GetAllNewDrs {
 pub struct GetAllPendingDrs;
 
 impl Message for GetAllPendingDrs {
-    type Result = Result<Vec<(DrId, Hash)>, ()>;
+    type Result = Result<Vec<(DrId, Bytes, Hash)>, ()>;
 }
 
 /// Get the highest data request id from the database
@@ -104,7 +104,7 @@ impl Handler<GetAllNewDrs> for DrDatabase {
 }
 
 impl Handler<GetAllPendingDrs> for DrDatabase {
-    type Result = Result<Vec<(DrId, Hash)>, ()>;
+    type Result = Result<Vec<(DrId, Bytes, Hash)>, ()>;
 
     fn handle(&mut self, _msg: GetAllPendingDrs, _ctx: &mut Self::Context) -> Self::Result {
         Ok(self
@@ -112,7 +112,11 @@ impl Handler<GetAllPendingDrs> for DrDatabase {
             .iter()
             .filter_map(|(dr_id, dr_info)| {
                 if let DrState::Pending = dr_info.dr_state {
-                    Some((*dr_id, dr_info.dr_tx_hash.unwrap()))
+                    Some((
+                        *dr_id,
+                        dr_info.dr_bytes.clone(),
+                        dr_info.dr_tx_hash.unwrap(),
+                    ))
                 } else {
                     None
                 }
