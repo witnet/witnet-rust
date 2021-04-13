@@ -1,5 +1,5 @@
 use crate::{
-    actors::dr_database::{DrDatabase, DrState, GetLastDrId, SetDrState},
+    actors::dr_database::{DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge},
     config::Config,
 };
 use actix::prelude::*;
@@ -32,7 +32,7 @@ impl Actor for EthPoller {
 
         self.check_new_requests_from_ethereum(
             ctx,
-            Duration::from_secs(self.eth_new_dr_polling_rate_ms),
+            Duration::from_millis(self.eth_new_dr_polling_rate_ms),
         );
     }
 }
@@ -100,8 +100,14 @@ impl EthPoller {
                             .await;
 
                         if let Ok(dr_bytes) = dr_bytes {
-                            dr_database_addr
-                                .do_send(SetDrState(U256::from(i), DrState::New { dr_bytes }));
+                            dr_database_addr.do_send(SetDrInfoBridge(
+                                U256::from(i),
+                                DrInfoBridge {
+                                    dr_bytes,
+                                    dr_state: DrState::New,
+                                    dr_tx_hash: None,
+                                },
+                            ));
                         } else {
                             break;
                         }
