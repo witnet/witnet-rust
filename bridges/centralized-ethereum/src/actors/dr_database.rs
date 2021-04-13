@@ -53,6 +53,13 @@ impl Message for SetDrInfoBridge {
     type Result = ();
 }
 
+/// Get a list of all the data requests in "new" state
+pub struct GetAllNewDrs;
+
+impl Message for GetAllNewDrs {
+    type Result = Result<Vec<(DrId, Bytes)>, ()>;
+}
+
 /// Get a list of all the data requests in "pending" state
 pub struct GetAllPendingDrs;
 
@@ -75,6 +82,24 @@ impl Handler<SetDrInfoBridge> for DrDatabase {
         self.dr.insert(dr_id, dr_info);
 
         self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
+    }
+}
+
+impl Handler<GetAllNewDrs> for DrDatabase {
+    type Result = Result<Vec<(DrId, Bytes)>, ()>;
+
+    fn handle(&mut self, _msg: GetAllNewDrs, _ctx: &mut Self::Context) -> Self::Result {
+        Ok(self
+            .dr
+            .iter()
+            .filter_map(|(dr_id, dr_info)| {
+                if let DrState::New = dr_info.dr_state {
+                    Some((*dr_id, dr_info.dr_bytes.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect())
     }
 }
 
