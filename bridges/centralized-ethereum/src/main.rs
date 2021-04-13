@@ -73,7 +73,7 @@ fn run(callback: fn()) -> Result<(), String> {
         SystemRegistry::set(eth_poller_addr);
 
         // Start WitPoller actor
-        let wit_poller_addr = WitPoller::default().start();
+        let wit_poller_addr = WitPoller::from_config(&config).unwrap().start();
         SystemRegistry::set(wit_poller_addr);
 
         // Start DrSender actor

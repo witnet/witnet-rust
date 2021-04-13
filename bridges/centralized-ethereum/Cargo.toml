@@ -13,6 +13,7 @@ env_logger = "0.7.1"
 ethabi = "13.0.0"
 futures = "0.1.28"
 futures-locks = "0.5.0"
+futures-util = { version = "0.3.8", features = ["compat"] }
 log = "0.4.8"
 rand = "0.7.3"
 serde = { version = "1.0.104", features = ["derive"] }
