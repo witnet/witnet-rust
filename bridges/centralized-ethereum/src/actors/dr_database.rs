@@ -6,26 +6,30 @@ use witnet_data_structures::chain::Hash;
 /// EthPoller (TODO: Explanation)
 #[derive(Default)]
 pub struct DrDatabase {
-    dr: HashMap<DrId, DrState>,
+    dr: HashMap<DrId, DrInfoBridge>,
     max_dr_id: DrId,
 }
 
 /// Data request ID, as set in the ethereum contract
 pub type DrId = U256;
 
+/// Data Request Information for the Bridge
+pub struct DrInfoBridge {
+    /// Data Request Bytes
+    pub dr_bytes: Bytes,
+    /// Data Request State
+    pub dr_state: DrState,
+    /// Data Request Transaction Hash
+    pub dr_tx_hash: Option<Hash>,
+}
+
 /// Data request state
 pub enum DrState {
     /// New: the data request has just been posted to the ethereum contract.
-    New {
-        /// Data Request bytes
-        dr_bytes: Bytes,
-    },
+    New,
     /// Pending: the data request has been created and broadcasted to witnet, but it has not been
     /// included in a witnet block yet.
-    Pending {
-        /// Data request transaction hash
-        dr_tx_hash: Hash,
-    },
+    Pending,
     /// Finished: data request has been resolved in witnet and the result is in the ethreum
     /// contract.
     Finished,
@@ -43,9 +47,9 @@ impl Actor for DrDatabase {
 }
 
 /// Set data request state
-pub struct SetDrState(pub DrId, pub DrState);
+pub struct SetDrInfoBridge(pub DrId, pub DrInfoBridge);
 
-impl Message for SetDrState {
+impl Message for SetDrInfoBridge {
     type Result = ();
 }
 
@@ -63,12 +67,12 @@ impl Message for GetLastDrId {
     type Result = Result<DrId, ()>;
 }
 
-impl Handler<SetDrState> for DrDatabase {
+impl Handler<SetDrInfoBridge> for DrDatabase {
     type Result = ();
 
-    fn handle(&mut self, msg: SetDrState, _ctx: &mut Self::Context) -> Self::Result {
-        let SetDrState(dr_id, dr_state) = msg;
-        self.dr.insert(dr_id, dr_state);
+    fn handle(&mut self, msg: SetDrInfoBridge, _ctx: &mut Self::Context) -> Self::Result {
+        let SetDrInfoBridge(dr_id, dr_info) = msg;
+        self.dr.insert(dr_id, dr_info);
 
         self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
     }
@@ -81,9 +85,9 @@ impl Handler<GetAllPendingDrs> for DrDatabase {
         Ok(self
             .dr
             .iter()
-            .filter_map(|(dr_id, dr_state)| {
-                if let DrState::Pending { dr_tx_hash } = dr_state {
-                    Some((*dr_id, *dr_tx_hash))
+            .filter_map(|(dr_id, dr_info)| {
+                if let DrState::Pending = dr_info.dr_state {
+                    Some((*dr_id, dr_info.dr_tx_hash.unwrap()))
                 } else {
                     None
                 }
