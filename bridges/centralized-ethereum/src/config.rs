@@ -1,8 +1,10 @@
 //! Configuration
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::{net::SocketAddr, path::Path};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 use web3::types::H160;
 use witnet_data_structures::chain::Environment;
 

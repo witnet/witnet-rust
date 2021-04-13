@@ -1,10 +1,15 @@
 use actix::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::{cmp, collections::HashMap, fmt};
 use web3::{ethabi::Bytes, types::U256};
 use witnet_data_structures::chain::Hash;
+use witnet_node::storage_mngr;
+
+/// Database key that stores the Data Request information
+const BRIDGE_DB_KEY: &[u8] = b"bridge_db_key";
 
 /// Dr Database actor handles the states of the different requests read from Ethereum
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct DrDatabase {
     dr: HashMap<DrId, DrInfoBridge>,
     max_dr_id: DrId,
@@ -14,6 +19,7 @@ pub struct DrDatabase {
 pub type DrId = U256;
 
 /// Data Request Information for the Bridge
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct DrInfoBridge {
     /// Data Request Bytes
     pub dr_bytes: Bytes,
@@ -24,7 +30,7 @@ pub struct DrInfoBridge {
 }
 
 /// Data request state
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum DrState {
     /// New: the data request has just been posted to the ethereum contract.
     New,
@@ -48,14 +54,41 @@ impl fmt::Display for DrState {
     }
 }
 
+impl Default for DrState {
+    fn default() -> Self {
+        Self::New
+    }
+}
+
 /// Make actor from DrDatabase
 impl Actor for DrDatabase {
     /// Every actor has to provide execution Context in which it can run.
     type Context = Context<Self>;
 
     /// Method to be executed when the actor is started
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("DrDatabase actor has been started!");
+
+        let fut = storage_mngr::get::<_, DrDatabase>(&BRIDGE_DB_KEY)
+            .into_actor(self)
+            .map(
+                |dr_database_from_storage, act, _| match dr_database_from_storage {
+                    Ok(dr_database_from_storage) => {
+                        if let Some(dr_database_from_storage) = dr_database_from_storage {
+                            log::info!("Load database from storage");
+                            act.dr = dr_database_from_storage.dr;
+                            act.max_dr_id = dr_database_from_storage.max_dr_id;
+                        } else {
+                            log::info!("No database in storage");
+                        }
+                    }
+                    Err(e) => {
+                        panic!("Error while getting bridge database from storage: {}", e);
+                    }
+                },
+            );
+
+        ctx.wait(fut);
     }
 }
 
@@ -90,13 +123,24 @@ impl Message for GetLastDrId {
 impl Handler<SetDrInfoBridge> for DrDatabase {
     type Result = ();
 
-    fn handle(&mut self, msg: SetDrInfoBridge, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: SetDrInfoBridge, ctx: &mut Self::Context) -> Self::Result {
         let SetDrInfoBridge(dr_id, dr_info) = msg;
         let dr_state = dr_info.dr_state.clone();
         self.dr.insert(dr_id, dr_info);
 
         self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
         log::debug!("Data request #{} inserted with state {}", dr_id, dr_state);
+
+        // Persist Data Request Database
+        let f = storage_mngr::put(&BRIDGE_DB_KEY, self);
+        let fut = async move {
+            let res = f.await;
+            match res {
+                Ok(_) => log::debug!("Bridge database successfully persisted"),
+                Err(e) => log::error!("Bridge database error during persistence: {}", e),
+            }
+        };
+        ctx.spawn(fut.into_actor(self));
     }
 }
 

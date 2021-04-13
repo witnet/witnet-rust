@@ -1,9 +1,9 @@
 # Address of the witnet node JSON-RPC server
 witnet_jsonrpc_addr = "127.0.0.1:21336"
 # Url of the ethereum client
-eth_client_url = "http://127.0.0.1:8545"
+eth_client_url = "http://127.0.0.1:8544"
 # Address of the WitnetRequestsBoard deployed contract
-wrb_contract_addr = "0xCF8B9f0Edc298Da2CD5832Dc9D85D805E33dB5Af"
+wrb_contract_addr = "0x90d08bF4e89C9D1fFb69cb4F783c38F6493ae74a"
 # Address of a Request Example deployed contract
 request_example_contract_addr = "0xEaA9e7Ea612b169f5b41cfF86dA6322f57264a19"
 # Ethereum account used to create the transactions
@@ -23,3 +23,7 @@ witnet_testnet = true
 [gas_limits]
 post_data_request = 10000000
 report_result = 2000000
+
+[storage]
+# Path of the folder where RocksDB storage files will be written to.
+db_path = ".witnet_bridge/storage"
