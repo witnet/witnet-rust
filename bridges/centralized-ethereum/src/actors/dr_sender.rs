@@ -124,8 +124,14 @@ impl DrSender {
                         // TODO: decide on error result, currently using empty vec
                         let result = vec![];
 
+                        // TODO: review if dr_tx_hash = [0;32] makes sense
                         dr_reporter_addr
-                            .send(DrReporterMsg { dr_id, result })
+                            .send(DrReporterMsg {
+                                dr_id,
+                                dr_bytes,
+                                dr_tx_hash: Default::default(),
+                                result,
+                            })
                             .await
                             .unwrap();
                     }
