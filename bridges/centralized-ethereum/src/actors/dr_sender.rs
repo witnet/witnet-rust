@@ -121,8 +121,10 @@ impl DrSender {
                         // Error deserializing or validating data request: mark data request as
                         // error and report error as result to ethereum.
                         log::error!("[{}] error deserializing data request: {}", dr_id, e);
-                        // TODO: decide on error result, currently using empty vec
-                        let result = vec![];
+                        // TODO: decide on error result, currently using vec with one element [0]
+                        // This cannot be an empty vector because an empty vector means that the
+                        // request has not finished yet.
+                        let result = vec![0];
 
                         // TODO: review if dr_tx_hash = [0;32] makes sense
                         dr_reporter_addr

@@ -9,6 +9,7 @@ use web3::{
     ethabi::Bytes,
     types::{H160, U256},
 };
+use witnet_data_structures::chain::Hash;
 
 /// EthPoller (TODO: Explanation)
 #[derive(Default)]
@@ -89,6 +90,7 @@ impl EthPoller {
                     let last_index = usize::try_from(total_requests_count).unwrap();
 
                     for i in init_index..last_index {
+                        log::debug!("[{}] checking dr in wrb", i);
                         let dr_bytes: Result<Bytes, web3::contract::Error> = wrb_contract
                             .query(
                                 "readDataRequest",
@@ -100,14 +102,57 @@ impl EthPoller {
                             .await;
 
                         if let Ok(dr_bytes) = dr_bytes {
-                            dr_database_addr.do_send(SetDrInfoBridge(
-                                U256::from(i),
-                                DrInfoBridge {
-                                    dr_bytes,
-                                    dr_state: DrState::New,
-                                    dr_tx_hash: None,
-                                },
-                            ));
+                            let dr_result: Result<Bytes, web3::contract::Error> = wrb_contract
+                                .query(
+                                    "readResult",
+                                    (U256::from(i),),
+                                    eth_account,
+                                    contract::Options::default(),
+                                    None,
+                                )
+                                .await;
+
+                            if let Ok(dr_result) = dr_result {
+                                // Non-empty result: this data request is already "Finished"
+                                if !dr_result.is_empty() {
+                                    let dr_tx_hash: Result<U256, web3::contract::Error> =
+                                        wrb_contract
+                                            .query(
+                                                "readDrHash",
+                                                (U256::from(i),),
+                                                eth_account,
+                                                contract::Options::default(),
+                                                None,
+                                            )
+                                            .await;
+
+                                    if let Ok(dr_tx_hash) = dr_tx_hash {
+                                        log::debug!("[{}] already finished", i);
+                                        dr_database_addr.do_send(SetDrInfoBridge(
+                                            U256::from(i),
+                                            DrInfoBridge {
+                                                dr_bytes,
+                                                dr_state: DrState::Finished,
+                                                dr_tx_hash: Some(Hash::SHA256(dr_tx_hash.into())),
+                                            },
+                                        ));
+                                    } else {
+                                        break;
+                                    }
+                                } else {
+                                    log::info!("[{}] new dr in wrb", i);
+                                    dr_database_addr.do_send(SetDrInfoBridge(
+                                        U256::from(i),
+                                        DrInfoBridge {
+                                            dr_bytes,
+                                            dr_state: DrState::New,
+                                            dr_tx_hash: None,
+                                        },
+                                    ));
+                                }
+                            } else {
+                                break;
+                            }
                         } else {
                             break;
                         }
