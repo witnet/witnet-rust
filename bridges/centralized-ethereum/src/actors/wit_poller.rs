@@ -72,7 +72,20 @@ impl WitPoller {
 
             for (dr_id, dr_bytes, dr_tx_hash) in pending_drs {
                 let report = witnet_client.execute("dataRequestReport", json!([dr_tx_hash]));
-                let report = Compat01As03::new(report).await.unwrap();
+
+                let report = Compat01As03::new(report).await;
+                let report = match report {
+                    Ok(report) => report,
+
+                    Err(e) => {
+                        log::debug!(
+                            "[{}] dataRequestReport call error: {}",
+                            dr_id,
+                            e.to_string()
+                        );
+                        continue;
+                    }
+                };
 
                 match serde_json::from_value::<Option<DataRequestInfo>>(report) {
                     Ok(Some(DataRequestInfo {

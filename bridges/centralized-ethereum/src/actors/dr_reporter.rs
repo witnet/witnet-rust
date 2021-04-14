@@ -7,7 +7,7 @@ use actix::prelude::*;
 use web3::{
     contract::{self, Contract},
     ethabi::Bytes,
-    types::H160,
+    types::{H160, U256},
 };
 use witnet_data_structures::chain::Hash;
 
@@ -81,12 +81,15 @@ impl Handler<DrReporterMsg> for DrReporter {
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
         let params_str = format!("{:?}", &(msg.dr_id, msg.dr_tx_hash, msg.result.clone()));
+        let dr_hash: U256 = match msg.dr_tx_hash {
+            Hash::SHA256(x) => x.into(),
+        };
 
         let fut = async move {
             let receipt = wrb_contract
                 .call_with_confirmations(
                     "reportResult",
-                    (msg.dr_id, msg.dr_tx_hash.as_ref().to_vec(), msg.result),
+                    (msg.dr_id, dr_hash, msg.result),
                     eth_account,
                     // contract::Options::with(|opt| {
                     //     opt.gas = config.gas_limits.report_result.map(Into::into);

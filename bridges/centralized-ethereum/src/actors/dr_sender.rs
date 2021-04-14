@@ -35,7 +35,7 @@ impl Actor for DrSender {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
-        log::debug!("EthPoller actor has been started!");
+        log::debug!("DrSender actor has been started!");
 
         self.check_new_drs(
             ctx,
