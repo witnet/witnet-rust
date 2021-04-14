@@ -48,7 +48,7 @@ async fn post_example_dr(config: Arc<Config>) {
     let web3 = web3::Web3::new(web3_http);
     // Why read files at runtime when you can read files at compile time
     let wrb_contract_abi_json: &[u8] = include_bytes!("../wrb_abi.json");
-    let wrb_contract_abi = ethabi::Contract::load(wrb_contract_abi_json)
+    let wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
         .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
         .unwrap();
     let wrb_contract_address = config.wrb_contract_addr;
