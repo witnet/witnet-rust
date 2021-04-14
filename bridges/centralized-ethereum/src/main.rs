@@ -41,6 +41,7 @@ fn init_logger() {
 }
 
 async fn post_example_dr(config: Arc<Config>) {
+    log::info!("Posting example DR");
     let web3_http = web3::transports::Http::new(&config.eth_client_url)
         .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
         .unwrap();
@@ -55,10 +56,12 @@ async fn post_example_dr(config: Arc<Config>) {
 
     let tally_value = U256::from_dec_str("500000000000000").unwrap();
 
-    let _res = wrb_contract
-        .call(
+    log::info!("calling postDataRequest");
+
+    let res = wrb_contract
+        .call_with_confirmations(
             "postDataRequest",
-            (config.block_relay_contract_addr, 0, tally_value),
+            (config.block_relay_contract_addr, U256::from(0), tally_value),
             config.eth_account,
             contract::Options::with(|opt| {
                 opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
@@ -66,8 +69,10 @@ async fn post_example_dr(config: Arc<Config>) {
                 // big data requests may need bigger amounts of gas
                 opt.gas = config.gas_limits.post_data_request.map(Into::into);
             }),
+            1,
         )
         .await;
+    log::info!("The receipt is {:?}", res);
 }
 
 fn main() {
@@ -106,6 +111,7 @@ fn run(callback: fn()) -> Result<(), String> {
 
         if condition {
             post_example_dr(config).await;
+            log::info!("post post_example DR");
         } else {
             // Start EthPoller actor
             // TODO: Remove unwrap
@@ -117,11 +123,11 @@ fn run(callback: fn()) -> Result<(), String> {
             SystemRegistry::set(wit_poller_addr);
 
             // Start DrSender actor
-            let dr_sender_addr = DrSender::default().start();
+            let dr_sender_addr = DrSender::from_config(&config).unwrap().start();
             SystemRegistry::set(dr_sender_addr);
 
             // Start DrReporter actor
-            let dr_reporter_addr = DrReporter::default().start();
+            let dr_reporter_addr = DrReporter::from_config(&config).unwrap().start();
             SystemRegistry::set(dr_reporter_addr);
 
             // Start DrDatabase actor

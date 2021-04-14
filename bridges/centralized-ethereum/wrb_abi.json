@@ -2,37 +2,13 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_blockRelayAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "_repFactor",
-        "type": "uint8"
+        "internalType": "address[]",
+        "name": "_committee",
+        "type": "address[]"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "_from",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "_id",
-        "type": "uint256"
-      }
-    ],
-    "name": "IncludedRequest",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -74,58 +50,6 @@
   },
   {
     "inputs": [],
-    "name": "CLAIM_EXPIRATION",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_CLAIM_DR_GAS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_DR_INCLUSION_GAS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_REPORT_BLOCK_GAS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "MAX_REPORT_RESULT_GAS",
     "outputs": [
       {
@@ -135,56 +59,28 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
-    "inputs": [],
-    "name": "abs",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "activeIdentities",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "nextActiveIdentities",
-        "type": "uint32"
-      },
+    "inputs": [
       {
         "internalType": "uint256",
-        "name": "lastBlockNumber",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "blockRelay",
+    "name": "committee",
     "outputs": [
       {
-        "internalType": "contract BlockRelayProxy",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "repFactor",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [
@@ -202,23 +98,18 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "requestor",
+        "type": "address"
+      },
+      {
         "internalType": "uint256",
         "name": "drOutputHash",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "inclusionReward",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
         "name": "tallyReward",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "blockReward",
         "type": "uint256"
       },
       {
@@ -233,27 +124,13 @@
       },
       {
         "internalType": "uint256",
-        "name": "blockNumber",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "epoch",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
         "name": "drHash",
         "type": "uint256"
-      },
-      {
-        "internalType": "address payable",
-        "name": "pkhClaim",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [],
@@ -266,7 +143,8 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [
@@ -277,7 +155,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_inclusionReward",
+        "name": "",
         "type": "uint256"
       },
       {
@@ -295,7 +173,8 @@
       }
     ],
     "stateMutability": "payable",
-    "type": "function"
+    "type": "function",
+    "payable": true
   },
   {
     "inputs": [
@@ -306,7 +185,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_inclusionReward",
+        "name": "",
         "type": "uint256"
       },
       {
@@ -318,45 +197,8 @@
     "name": "upgradeDataRequest",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256[]",
-        "name": "_ids",
-        "type": "uint256[]"
-      }
-    ],
-    "name": "checkDataRequestsClaimability",
-    "outputs": [
-      {
-        "internalType": "bool[]",
-        "name": "",
-        "type": "bool[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_id",
-        "type": "uint256"
-      }
-    ],
-    "name": "getDataRequestPkhClaim",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "payable": true
   },
   {
     "inputs": [
@@ -366,56 +208,8 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256[]",
-        "name": "_poi",
-        "type": "uint256[]"
-      },
-      {
         "internalType": "uint256",
-        "name": "_index",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_blockHash",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_epoch",
-        "type": "uint256"
-      }
-    ],
-    "name": "reportDataRequestInclusion",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_id",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "_poi",
-        "type": "uint256[]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_index",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_blockHash",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_epoch",
+        "name": "_drHash",
         "type": "uint256"
       },
       {
@@ -446,7 +240,8 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [
@@ -465,7 +260,8 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [
@@ -484,7 +280,8 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [
@@ -503,7 +300,8 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [],
@@ -516,92 +314,8 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "_proof",
-        "type": "bytes"
-      }
-    ],
-    "name": "decodeProof",
-    "outputs": [
-      {
-        "internalType": "uint256[4]",
-        "name": "",
-        "type": "uint256[4]"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "_point",
-        "type": "bytes"
-      }
-    ],
-    "name": "decodePoint",
-    "outputs": [
-      {
-        "internalType": "uint256[2]",
-        "name": "",
-        "type": "uint256[2]"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256[2]",
-        "name": "_publicKey",
-        "type": "uint256[2]"
-      },
-      {
-        "internalType": "uint256[4]",
-        "name": "_proof",
-        "type": "uint256[4]"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_message",
-        "type": "bytes"
-      }
-    ],
-    "name": "computeFastVerifyParams",
-    "outputs": [
-      {
-        "internalType": "uint256[2]",
-        "name": "",
-        "type": "uint256[2]"
-      },
-      {
-        "internalType": "uint256[4]",
-        "name": "",
-        "type": "uint256[4]"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_blockNumber",
-        "type": "uint256"
-      }
-    ],
-    "name": "updateAbsActivity",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [
@@ -620,63 +334,37 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   },
   {
     "inputs": [
       {
-        "internalType": "uint256[]",
-        "name": "_ids",
-        "type": "uint256[]"
-      },
-      {
-        "internalType": "uint256[4]",
-        "name": "_poe",
-        "type": "uint256[4]"
-      },
-      {
-        "internalType": "uint256[2]",
-        "name": "_publicKey",
-        "type": "uint256[2]"
-      },
-      {
-        "internalType": "uint256[2]",
-        "name": "_uPoint",
-        "type": "uint256[2]"
-      },
-      {
-        "internalType": "uint256[4]",
-        "name": "_vPointHelpers",
-        "type": "uint256[4]"
-      },
-      {
-        "internalType": "bytes",
-        "name": "addrSignature",
-        "type": "bytes"
+        "internalType": "uint256",
+        "name": "_gasPrice",
+        "type": "uint256"
       }
     ],
-    "name": "claimDataRequests",
+    "name": "estimateGasCost",
     "outputs": [
       {
-        "internalType": "bool",
+        "internalType": "uint256",
         "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getLastBeacon",
-    "outputs": [
+        "type": "uint256"
+      },
       {
-        "internalType": "bytes",
+        "internalType": "uint256",
         "name": "",
-        "type": "bytes"
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "constant": true
   }
 ]

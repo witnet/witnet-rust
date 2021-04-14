@@ -1,15 +1,17 @@
 # Address of the witnet node JSON-RPC server
-witnet_jsonrpc_addr = "127.0.0.1:21338"
+witnet_jsonrpc_addr = "127.0.0.1:21336"
 # Url of the ethereum client
-eth_client_url = "http://127.0.0.1:8888"
+eth_client_url = "http://127.0.0.1:8544"
 # Address of the WitnetRequestsBoard deployed contract
-wrb_contract_addr = "0x354B08f9fD4b171e774898261908DfeA113b0e14"
+wrb_contract_addr = "0xc755937f2257365aE969d3A8D575d1e4E4437e3C"
 # Address of the BlockRelay deployed contract
 block_relay_contract_addr = "0xEaA9e7Ea612b169f5b41cfF86dA6322f57264a19"
 # Ethereum account used to create the transactions
-eth_account = "0x333b18f64949C59Cd0b84b51C7580f260c563c31"
+eth_account = "0xa550Cf4F03Bd2417Cf83c8a652703cdC33c016ee"
 # Period to check for new requests in the WRB
 eth_new_dr_polling_rate_ms = 1_000
+wit_tally_polling_rate_ms = 500
+wit_dr_sender_polling_rate_ms = 500
 
 # Running in the witnet testnet?
 witnet_testnet = false
@@ -19,6 +21,3 @@ witnet_testnet = false
 [gas_limits]
 post_data_request = 10000000
 report_result = 2000000
-
-[storage]
-db_path = ".witnet_bridge/storage"

@@ -1,5 +1,5 @@
 # Address of the witnet node JSON-RPC server
-witnet_jsonrpc_addr = "127.0.0.1:21338"
+witnet_jsonrpc_addr = "127.0.0.1:21336"
 # Url of the ethereum client
 eth_client_url = "http://127.0.0.1:8888"
 # Address of the WitnetRequestsBoard deployed contract
