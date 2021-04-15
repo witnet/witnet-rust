@@ -15,8 +15,8 @@ pub struct Config {
     pub eth_client_url: String,
     /// Address of the WitnetRequestsBoard deployed contract
     pub wrb_contract_addr: H160,
-    /// Address of the BlockRelay deployed contract
-    pub block_relay_contract_addr: H160,
+    /// Address of a Request example deployed contract
+    pub request_example_contract_addr: H160,
     /// Ethereum account used to create the transactions
     pub eth_account: H160,
     /// Period to check for new requests in the WRB

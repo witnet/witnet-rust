@@ -4,15 +4,13 @@ use actix::{Actor, System, SystemRegistry};
 use std::{path::PathBuf, process::exit, sync::Arc};
 use structopt::StructOpt;
 
-use web3::contract::Contract;
 use web3::{contract, types::U256};
-use witnet_centralized_ethereum_bridge::config::Config;
 use witnet_centralized_ethereum_bridge::{
     actors::{
         dr_database::DrDatabase, dr_reporter::DrReporter, dr_sender::DrSender,
         eth_poller::EthPoller, wit_poller::WitPoller,
     },
-    config,
+    config, create_wrb_contract,
 };
 
 /// Command line usage and flags
@@ -40,20 +38,9 @@ fn init_logger() {
         .init();
 }
 
-async fn post_example_dr(config: Arc<Config>) {
-    log::info!("Posting example DR");
-    let web3_http = web3::transports::Http::new(&config.eth_client_url)
-        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
-        .unwrap();
-    let web3 = web3::Web3::new(web3_http);
-    // Why read files at runtime when you can read files at compile time
-    let wrb_contract_abi_json: &[u8] = include_bytes!("../wrb_abi.json");
-    let wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
-        .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
-        .unwrap();
-    let wrb_contract_address = config.wrb_contract_addr;
-    let wrb_contract = Contract::new(web3.eth(), wrb_contract_address, wrb_contract_abi);
-
+async fn post_example_dr(config: Arc<config::Config>) {
+    log::info!("Posting an example of Data Request");
+    let wrb_contract = create_wrb_contract(&config);
     let tally_value = U256::from_dec_str("500000000000000").unwrap();
 
     log::info!("calling postDataRequest");
@@ -61,7 +48,11 @@ async fn post_example_dr(config: Arc<Config>) {
     let res = wrb_contract
         .call_with_confirmations(
             "postDataRequest",
-            (config.block_relay_contract_addr, U256::from(0), tally_value),
+            (
+                config.request_example_contract_addr,
+                U256::from(0),
+                tally_value,
+            ),
             config.eth_account,
             contract::Options::with(|opt| {
                 opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());

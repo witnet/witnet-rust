@@ -1,6 +1,7 @@
 use crate::{
     actors::dr_database::{DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge},
     config::Config,
+    create_wrb_contract,
 };
 use actix::prelude::*;
 use std::{convert::TryFrom, time::Duration};
@@ -11,7 +12,8 @@ use web3::{
 };
 use witnet_data_structures::chain::Hash;
 
-/// EthPoller (TODO: Explanation)
+/// EthPoller actor reads periodically new requests from the WRB Contract and includes them
+/// in the DrDatabase
 #[derive(Default)]
 pub struct EthPoller {
     /// WRB contract
@@ -47,15 +49,7 @@ impl SystemService for EthPoller {}
 impl EthPoller {
     /// Initialize `PeersManager` taking the configuration from a `Config` structure
     pub fn from_config(config: &Config) -> Result<Self, String> {
-        let web3_http = web3::transports::Http::new(&config.eth_client_url)
-            .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))?;
-        let web3 = web3::Web3::new(web3_http);
-        // Why read files at runtime when you can read files at compile time
-        let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
-        let wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
-            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))?;
-        let wrb_contract_address = config.wrb_contract_addr;
-        let wrb_contract = Contract::new(web3.eth(), wrb_contract_address, wrb_contract_abi);
+        let wrb_contract = create_wrb_contract(config);
 
         Ok(Self {
             wrb_contract: Some(wrb_contract),

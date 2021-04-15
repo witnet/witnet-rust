@@ -15,7 +15,8 @@ use serde_json::json;
 use std::{sync::Arc, time::Duration};
 use witnet_data_structures::chain::DataRequestInfo;
 
-/// EthPoller (TODO: Explanation)
+/// WitPoller actor checks periodically the state of the requests in Witnet to call DrReporter
+/// in case of found a tally
 #[derive(Default)]
 pub struct WitPoller {
     witnet_client: Option<Arc<TcpSocket>>,

@@ -20,7 +20,7 @@ use witnet_data_structures::{
 };
 use witnet_validations::validations::validate_rad_request;
 
-/// EthPoller (TODO: Explanation)
+/// DrSender actor reads the new requests from DrDatabase and includes them in Witnet
 #[derive(Default)]
 pub struct DrSender {
     witnet_client: Option<Arc<TcpSocket>>,

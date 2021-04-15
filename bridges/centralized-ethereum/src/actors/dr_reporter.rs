@@ -1,7 +1,7 @@
-use crate::actors::dr_database::{DrInfoBridge, SetDrInfoBridge};
 use crate::{
-    actors::dr_database::{DrDatabase, DrId, DrState},
+    actors::dr_database::{DrDatabase, DrId, DrInfoBridge, DrState, SetDrInfoBridge},
     config::Config,
+    create_wrb_contract,
 };
 use actix::prelude::*;
 use web3::{
@@ -11,7 +11,7 @@ use web3::{
 };
 use witnet_data_structures::chain::Hash;
 
-/// EthPoller (TODO: Explanation)
+/// DrReporter actor sends the the Witnet Request tally results to Ethereum
 #[derive(Default)]
 pub struct DrReporter {
     /// WRB contract
@@ -40,15 +40,7 @@ impl SystemService for DrReporter {}
 impl DrReporter {
     /// Initialize `DrReporter` taking the configuration from a `Config` structure
     pub fn from_config(config: &Config) -> Result<Self, String> {
-        let web3_http = web3::transports::Http::new(&config.eth_client_url)
-            .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))?;
-        let web3 = web3::Web3::new(web3_http);
-        // Why read files at runtime when you can read files at compile time
-        let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
-        let wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
-            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))?;
-        let wrb_contract_address = config.wrb_contract_addr;
-        let wrb_contract = Contract::new(web3.eth(), wrb_contract_address, wrb_contract_abi);
+        let wrb_contract = create_wrb_contract(config);
 
         Ok(Self {
             wrb_contract: Some(wrb_contract),
@@ -77,7 +69,6 @@ impl Handler<DrReporterMsg> for DrReporter {
     type Result = ();
 
     fn handle(&mut self, msg: DrReporterMsg, ctx: &mut Self::Context) -> Self::Result {
-        // TODO: create ethereum transaction and set database state to finished
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
         let params_str = format!("{:?}", &(msg.dr_id, msg.dr_tx_hash, msg.result.clone()));
@@ -101,7 +92,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                 .await;
             match receipt {
                 Ok(tx) => {
-                    log::debug!("reportResult: {:?}", tx);
+                    log::debug!("Request [{}], reportResult: {:?}", msg.dr_id, tx);
                     let dr_database_addr = DrDatabase::from_registry();
 
                     dr_database_addr
