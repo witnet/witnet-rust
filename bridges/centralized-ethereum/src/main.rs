@@ -41,18 +41,13 @@ fn init_logger() {
 async fn post_example_dr(config: Arc<config::Config>) {
     log::info!("Posting an example of Data Request");
     let wrb_contract = create_wrb_contract(&config);
-    let tally_value = U256::from_dec_str("500000000000000").unwrap();
 
     log::info!("calling postDataRequest");
 
     let res = wrb_contract
         .call_with_confirmations(
             "postDataRequest",
-            (
-                config.request_example_contract_addr,
-                U256::from(0),
-                tally_value,
-            ),
+            (config.request_example_contract_addr,),
             config.eth_account,
             contract::Options::with(|opt| {
                 opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
