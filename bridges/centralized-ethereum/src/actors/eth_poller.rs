@@ -161,12 +161,15 @@ impl EthPoller {
             }
         };
 
-        ctx.spawn(fut.into_actor(self));
+        ctx.spawn(fut.into_actor(self).then(move |(), _act, ctx| {
+            // Wait until the function finished to schedule next call.
+            // This avoids tasks running in parallel.
+            ctx.run_later(period, move |act, ctx| {
+                // Reschedule check_new_requests_from_ethereum
+                act.check_new_requests_from_ethereum(ctx, period);
+            });
 
-        // Wait until next checkpoint to execute the periodic function
-        ctx.run_later(period, move |act, ctx| {
-            // Reschedule check_new_requests_from_ethereum
-            act.check_new_requests_from_ethereum(ctx, period);
-        });
+            actix::fut::ready(())
+        }));
     }
 }

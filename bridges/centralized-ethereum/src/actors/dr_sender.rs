@@ -141,11 +141,16 @@ impl DrSender {
             }
         };
 
-        ctx.spawn(fut.into_actor(self));
+        ctx.spawn(fut.into_actor(self).then(move |(), _act, ctx| {
+            // Wait until the function finished to schedule next call.
+            // This avoids tasks running in parallel.
+            ctx.run_later(period, move |act, ctx| {
+                // Reschedule check_new_drs
+                act.check_new_drs(ctx, period);
+            });
 
-        ctx.run_later(period, move |act, ctx| {
-            act.check_new_drs(ctx, period);
-        });
+            actix::fut::ready(())
+        }));
     }
 }
 
