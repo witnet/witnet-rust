@@ -10,7 +10,7 @@ use witnet_centralized_ethereum_bridge::{
         dr_database::DrDatabase, dr_reporter::DrReporter, dr_sender::DrSender,
         eth_poller::EthPoller, wit_poller::WitPoller,
     },
-    config, create_wrb_contract,
+    check_ethereum_node_running, check_witnet_node_running, config, create_wrb_contract,
 };
 
 /// Command line usage and flags
@@ -104,6 +104,14 @@ fn run(callback: fn()) -> Result<(), String> {
             post_example_dr(config).await;
             log::info!("post post_example DR");
         } else {
+            // Check if ethereum and witnet nodes are running
+            check_ethereum_node_running(&config)
+                .await
+                .expect("ethereum node not running");
+            check_witnet_node_running(&config)
+                .await
+                .expect("witnet node not running");
+
             // Start EthPoller actor
             // TODO: Remove unwrap
             let eth_poller_addr = EthPoller::from_config(&config).unwrap().start();
