@@ -121,6 +121,9 @@ impl Handler<DrReporterMsg> for DrReporter {
                 }
             }
         };
-        ctx.spawn(fut.into_actor(self));
+
+        // Wait here to only allow to report one data request at a time to prevent reporting the
+        // same data request more than once.
+        ctx.wait(fut.into_actor(self));
     }
 }
