@@ -347,6 +347,9 @@ impl Handler<AddBlocks> for ChainManager {
                         // from storage
                         log::warn!("Your chain is probably forked");
 
+                        // Clean all outbounds to avoid possible forked outbounds
+                        self.drop_all_outbounds();
+
                         self.update_state_machine(StateMachine::WaitingConsensus);
                         self.initialize_from_storage(ctx);
                         log::info!("Restored chain state from storage");
