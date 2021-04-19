@@ -6,10 +6,10 @@
 
 // Ideally all this code would be generated with a `#[serde(human_readable_string)]` macro.
 
-use crate::chain::{
-    GenesisBlockInfo, Hash, OutputPointer, PublicKeyHash, ValueTransferOutput, SHA256,
+use crate::{
+    chain::{GenesisBlockInfo, Hash, OutputPointer, PublicKeyHash, ValueTransferOutput, SHA256},
+    get_environment,
 };
-use crate::get_environment;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Display, str::FromStr};
 
@@ -27,9 +27,9 @@ impl From<Hash> for HashSerializationHelper {
     }
 }
 
-impl Into<Hash> for HashSerializationHelper {
-    fn into(self) -> Hash {
-        match self {
+impl From<HashSerializationHelper> for Hash {
+    fn from(x: HashSerializationHelper) -> Self {
+        match x {
             HashSerializationHelper::SHA256(a) => Hash::SHA256(a),
         }
     }
@@ -71,9 +71,9 @@ impl From<PublicKeyHash> for PublicKeyHashSerializationHelper {
     }
 }
 
-impl Into<PublicKeyHash> for PublicKeyHashSerializationHelper {
-    fn into(self) -> PublicKeyHash {
-        PublicKeyHash { hash: self.hash }
+impl From<PublicKeyHashSerializationHelper> for PublicKeyHash {
+    fn from(x: PublicKeyHashSerializationHelper) -> Self {
+        PublicKeyHash { hash: x.hash }
     }
 }
 
@@ -116,11 +116,11 @@ impl From<OutputPointer> for OutputPointerSerializationHelper {
     }
 }
 
-impl Into<OutputPointer> for OutputPointerSerializationHelper {
-    fn into(self) -> OutputPointer {
+impl From<OutputPointerSerializationHelper> for OutputPointer {
+    fn from(x: OutputPointerSerializationHelper) -> Self {
         OutputPointer {
-            transaction_id: self.transaction_id,
-            output_index: self.output_index,
+            transaction_id: x.transaction_id,
+            output_index: x.output_index,
         }
     }
 }

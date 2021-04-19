@@ -962,9 +962,9 @@ impl From<Secp256k1_SecretKey> for SecretKey {
     }
 }
 
-impl Into<Secp256k1_SecretKey> for SecretKey {
-    fn into(self) -> Secp256k1_SecretKey {
-        Secp256k1_SecretKey::from_slice(&self.bytes).unwrap()
+impl From<SecretKey> for Secp256k1_SecretKey {
+    fn from(sk: SecretKey) -> Self {
+        Secp256k1_SecretKey::from_slice(&sk.bytes).unwrap()
     }
 }
 
@@ -979,11 +979,11 @@ impl From<ExtendedSK> for ExtendedSecretKey {
     }
 }
 
-impl Into<ExtendedSK> for ExtendedSecretKey {
-    fn into(self) -> ExtendedSK {
-        let secret_key = self.secret_key.into();
+impl From<ExtendedSecretKey> for ExtendedSK {
+    fn from(ext_sk: ExtendedSecretKey) -> Self {
+        let secret_key = ext_sk.secret_key.into();
 
-        ExtendedSK::new(secret_key, self.chain_code)
+        ExtendedSK::new(secret_key, ext_sk.chain_code)
     }
 }
 
@@ -1025,9 +1025,9 @@ impl AsRef<[u8]> for Hash {
     }
 }
 
-impl Into<Sha256> for Hash {
-    fn into(self) -> Sha256 {
-        match self {
+impl From<Hash> for Sha256 {
+    fn from(h: Hash) -> Self {
+        match h {
             Hash::SHA256(x) => Sha256(x),
         }
     }

@@ -3120,8 +3120,7 @@ mod tests {
 
         // Check that, as long as there is one consolidated_superblock after last_checkpoint_signed_by_bootstrap, the comittee decreases
 
-        let mut decreasing = vec![];
-        decreasing.push(next_size(true));
+        let mut decreasing = vec![next_size(true)];
         for _ in 0..30 {
             decreasing.push(next_size(false));
         }

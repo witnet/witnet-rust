@@ -67,6 +67,12 @@ impl std::fmt::Debug for Protected {
     }
 }
 
+impl From<ProtectedString> for Protected {
+    fn from(protected_string: ProtectedString) -> Self {
+        protected_string.0
+    }
+}
+
 /// Protected string
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProtectedString(Protected);
@@ -102,11 +108,5 @@ impl AsRef<[u8]> for ProtectedString {
 impl std::fmt::Debug for ProtectedString {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(fmt, "ProtectedString(***)")
-    }
-}
-
-impl Into<Protected> for ProtectedString {
-    fn into(self) -> Protected {
-        self.0
     }
 }

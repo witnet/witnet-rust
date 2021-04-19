@@ -593,8 +593,7 @@ fn magic_partition<T: Clone>(v: &[T], first: usize, size: usize) -> Vec<T> {
     }
     let each = v.len() / size;
 
-    let mut v_subset = Vec::new();
-    v_subset.push(v[first].clone());
+    let mut v_subset = vec![v[first].clone()];
 
     let mut a = (first + each) % v.len();
     while v_subset.len() < size {

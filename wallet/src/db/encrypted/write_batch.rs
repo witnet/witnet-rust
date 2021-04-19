@@ -33,8 +33,8 @@ impl WriteBatch for EncryptedWriteBatch {
     }
 }
 
-impl Into<rocksdb::WriteBatch> for EncryptedWriteBatch {
-    fn into(self) -> rocksdb::WriteBatch {
-        self.batch
+impl From<EncryptedWriteBatch> for rocksdb::WriteBatch {
+    fn from(x: EncryptedWriteBatch) -> Self {
+        x.batch
     }
 }

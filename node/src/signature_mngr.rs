@@ -13,7 +13,7 @@ use crate::{
 };
 
 use rand::{thread_rng, Rng};
-use std::path::PathBuf;
+use std::path::Path;
 use witnet_crypto::{
     key::{CryptoEngine, ExtendedPK, ExtendedSK, MasterKeyGen, SignEngine},
     mnemonic::MnemonicGen,
@@ -651,7 +651,7 @@ impl Handler<VerifySignatures> for SignatureManagerAdapter {
     }
 }
 
-fn master_key_import_from_file(master_key_path: &PathBuf) -> Result<ExtendedSK, failure::Error> {
+fn master_key_import_from_file(master_key_path: &Path) -> Result<ExtendedSK, failure::Error> {
     let master_key_path_str = master_key_path.display();
     let ser = match std::fs::read_to_string(master_key_path) {
         Ok(x) => x,
