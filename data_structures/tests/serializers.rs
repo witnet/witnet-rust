@@ -141,9 +141,7 @@ fn message_peer_from_bytes() {
         ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
     };
-    let mut addresses = Vec::new();
-
-    addresses.push(address);
+    let addresses = vec![address];
 
     let expected_msg = Message {
         kind: Command::Peers(Peers { peers: addresses }),

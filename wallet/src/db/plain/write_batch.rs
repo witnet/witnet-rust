@@ -20,8 +20,8 @@ impl WriteBatch for PlainWriteBatch {
     }
 }
 
-impl Into<rocksdb::WriteBatch> for PlainWriteBatch {
-    fn into(self) -> rocksdb::WriteBatch {
-        self.batch
+impl From<PlainWriteBatch> for rocksdb::WriteBatch {
+    fn from(x: PlainWriteBatch) -> Self {
+        x.batch
     }
 }

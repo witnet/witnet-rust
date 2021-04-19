@@ -518,7 +518,7 @@ impl Worker {
             })
             .collect();
 
-        Ok(query_results?)
+        query_results
     }
 
     /// Retrieve Value Transfer Outputs of a list of Output Pointers (aka input fields in transactions).
@@ -584,7 +584,7 @@ impl Worker {
             })
             .collect();
 
-        Ok(result?)
+        result
     }
 
     /// Ask a Witnet node for the contents of a transaction

@@ -335,9 +335,9 @@ impl ExtendedSK {
     }
 }
 
-impl Into<SK> for ExtendedSK {
-    fn into(self) -> SK {
-        self.secret_key
+impl From<ExtendedSK> for SK {
+    fn from(ext_sk: ExtendedSK) -> Self {
+        ext_sk.secret_key
     }
 }
 
@@ -368,9 +368,9 @@ impl ExtendedPK {
     }
 }
 
-impl Into<PK> for ExtendedPK {
-    fn into(self) -> PK {
-        self.key
+impl From<ExtendedPK> for PK {
+    fn from(ext_pk: ExtendedPK) -> Self {
+        ext_pk.key
     }
 }
 

@@ -31,7 +31,7 @@ fn test_partial_derive_named() {
     #[allow(dead_code)]
     struct Obj {
         attr: u32,
-    };
+    }
 
     let p = PartialObj::default();
 
@@ -56,7 +56,7 @@ fn test_partial_attr_skip() {
         a: u32,
         #[partial_struct(skip)]
         b: bool,
-    };
+    }
 
     let p = PartialObj::default();
 

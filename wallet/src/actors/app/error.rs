@@ -84,9 +84,9 @@ pub fn node_error<T: Fail>(err: T) -> Error {
     Error::Node(failure::Error::from(err))
 }
 
-impl Into<rpc::Error> for Error {
-    fn into(self) -> rpc::Error {
-        let (code, message, data) = self.into_parts();
+impl From<Error> for rpc::Error {
+    fn from(x: Error) -> Self {
+        let (code, message, data) = x.into_parts();
         rpc::Error {
             code: rpc::ErrorCode::ServerError(code),
             message: message.into(),

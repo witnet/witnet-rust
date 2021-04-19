@@ -114,9 +114,9 @@ pub enum Lang {
     English,
 }
 
-impl Into<bip39::Language> for Lang {
-    fn into(self) -> bip39::Language {
-        match self {
+impl From<Lang> for bip39::Language {
+    fn from(lang: Lang) -> Self {
+        match lang {
             Lang::English => bip39::Language::English,
         }
     }
