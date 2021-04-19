@@ -1,8 +1,10 @@
 # How to run a Witnet-Ethereum bridge node
 
-The goal of the bridge nodes is to monitor the WitnetRequestBoard contract looking for data request candidates to be introduced in Witnet and to deliver the result derived by the witnesses. Additionally, they are in charge of inserting Witnet Block headers into the BlockRelay contract in order to process data request and result validations.
+This tutorial explains how to run a brige node in the **centralized Witnet-Ethereum bridge**.
 
-Before running the bridge node you will need to have the BlockRelay and the WintetRequestsBoard contracts deployed in an Ethereum enviroment. If you already have those contracts deployed, skip the *contract deployment* steps.
+The goal of the bridge nodes is to monitor the WitnetRequestBoard contract looking for data request candidates to be introduced in Witnet and to deliver the result derived by the witnesses.
+
+Before running the bridge node you will need to have the WintetRequestsBoard contract deployed in an Ethereum enviroment. If you already have those contracts deployed, skip the *contract deployment* steps.
 
 Both the WitnetRequestBoard and the BlockRelay contracts have been deployed in Rinkeby and Goerli testnets. The addresses can be found [here](https://github.com/witnet/witnet-requests-js/blob/master/src/ethereum/addresses.js).
 
@@ -157,10 +159,3 @@ all the new Witnet blocks for a tally which resolves that data request.
 * Once a tally has been included in a block, any bridge node can sent the proof
 of inclusion. If that proof is valid, the WRB contract will emit a `PostResult`
 event indicating that the data request has been resolved.
-
-## Block Relay
-
-A crucial component needed for the correct functionality of the bridge is the
-block relay: an Ethereum contract that stores the headers of Witnet blocks.
-The current version of the bridge also acts as a block relay, but that can be
-disabled in the configuration file.
