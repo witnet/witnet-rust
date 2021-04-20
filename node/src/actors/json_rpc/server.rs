@@ -13,9 +13,11 @@ use crate::{
     actors::messages::{BlockNotify, InboundTcpConnect, NodeStatusNotify, SuperBlockNotify},
     config_mngr,
 };
+use bytes::BytesMut;
+use futures::future::Either;
 use futures_util::compat::Compat01As03;
 use jsonrpc_pubsub::{PubSubHandler, Session};
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 
 /// JSON RPC server
 #[derive(Default)]
@@ -47,7 +49,7 @@ impl JsonRpcServer {
                 if !enabled {
                     log::debug!("JSON-RPC interface explicitly disabled by configuration.");
                     ctx.stop();
-                    return fut::Either::left(fut::result(Ok(None)));
+                    return Either::Left(fut::result(Ok(None)));
                 }
 
                 log::debug!("Starting JSON-RPC interface.");
@@ -78,7 +80,7 @@ impl JsonRpcServer {
                 }
                 .into_actor(act);
 
-                fut::Either::right(fut)
+                Either::Right(fut)
             })
             .and_then(|opt, _act, ctx| {
                 if opt.is_none() {
@@ -125,8 +127,11 @@ impl JsonRpcServer {
         // Create a new `JsonRpc` actor which will listen to this stream
         let addr = JsonRpc::create(|ctx| {
             let (r, w) = stream.into_split();
-            JsonRpc::add_stream(FramedRead::new(r, NewLineCodec), ctx);
-            JsonRpc::add_stream(transport_receiver, ctx);
+            <JsonRpc as StreamHandler<Result<BytesMut, std::io::Error>>>::add_stream(
+                FramedRead::new(r, NewLineCodec),
+                ctx,
+            );
+            <JsonRpc as StreamHandler<Result<String, ()>>>::add_stream(transport_receiver, ctx);
             JsonRpc {
                 framed: io::FramedWrite::new(w, NewLineCodec, ctx),
                 parent,

@@ -1,4 +1,6 @@
-use actix::{ActorFuture, AsyncContext, Context, ContextFutureSpawner, SystemService, WrapFuture};
+use actix::{
+    ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, SystemService, WrapFuture,
+};
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
 use std::{
@@ -50,7 +52,7 @@ use witnet_data_structures::{
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
-use witnet_futures_utils::{ActorFutureExt, TryFutureExt2};
+use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
 
 impl ChainManager {
     /// Try to mine a block

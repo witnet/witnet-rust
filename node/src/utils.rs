@@ -43,7 +43,7 @@ pub fn test_actix_system<F: FnOnce() -> Fut, Fut: Future>(test_function: F) {
     let done = Arc::new(AtomicBool::new(false));
 
     // Init system
-    let system = System::new("test_node");
+    let system = System::new();
 
     // Init actors
     system.block_on(async {

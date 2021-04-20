@@ -82,7 +82,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     // Size of the address synchronization batch
     let sync_address_batch_length = conf.wallet.sync_address_batch_length;
 
-    let system = System::new("witnet-wallet");
+    let system = System::new();
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
 

@@ -9,7 +9,7 @@ use crate::{
     },
     config_mngr, storage_mngr,
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 use witnet_p2p::peers::Peers;
 
 /// Make actor from PeersManager

@@ -9,7 +9,7 @@ use std::{
 };
 
 use actix::{
-    dev::{MessageResponse, ResponseChannel, ToEnvelope},
+    dev::{MessageResponse, OneshotSender, ToEnvelope},
     Actor, Addr, Handler, Message,
 };
 use serde::{Deserialize, Serialize};
@@ -733,9 +733,12 @@ impl<M> MessageResponse<RadManager, M> for RadonReport<RadonTypes>
 where
     M: Message<Result = Self>,
 {
-    fn handle<R: ResponseChannel<M>>(self, _: &mut <RadManager as Actor>::Context, tx: Option<R>) {
+    fn handle(self, _: &mut <RadManager as Actor>::Context, tx: Option<OneshotSender<M::Result>>) {
         if let Some(tx) = tx {
-            tx.send(self);
+            if let Err(_self) = tx.send(self) {
+                // TODO: can this ever happen?
+                log::error!("Failed to send RadonReport through OneshotSender channel");
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
 use actix::{
-    Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running,
+    Actor, ActorContext, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Running,
     SystemService, WrapFuture,
 };
 
@@ -13,7 +13,7 @@ use crate::actors::{
     messages::{AddBlocks, GetEpoch, Register, Subscribe, Unregister},
     sessions_manager::SessionsManager,
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 use witnet_util::timestamp::pretty_print;
 
 /// Implement actor trait for Session

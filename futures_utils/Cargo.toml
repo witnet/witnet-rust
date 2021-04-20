@@ -6,6 +6,6 @@ version = "0.1.0"
 workspace = ".."
 
 [dependencies]
-actix = { version = "0.11.0-beta.1", default-features = false }
+actix = { version = "0.11.1", default-features = false }
 futures = "0.3.8"
 pin-project-lite = "0.2"

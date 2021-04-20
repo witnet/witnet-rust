@@ -6,10 +6,11 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use bincode::{deserialize, serialize};
+use futures::Future;
 
 use crate::config_mngr;
 use witnet_config::{config, config::Config};
-use witnet_futures_utils::{ActorFutureExt, TryFutureExt2};
+use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
 use witnet_storage::{backends, storage};
 
 macro_rules! as_failure {

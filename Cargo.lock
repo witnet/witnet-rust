@@ -2,19 +2,18 @@
 # It is not intended for manual editing.
 [[package]]
 name = "actix"
-version = "0.11.0-beta.1"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37700c469661b14d50ad53dfd6fff215fe7496e8cf87484b9c8a809d5e922543"
+checksum = "543c47e7827f8fcc9d1445bd98ba402137bfce80ee2187429de49c52b5131bd3"
 dependencies = [
- "actix-macros",
  "actix-rt",
  "bitflags 1.2.1",
  "bytes 1.0.0",
  "crossbeam-channel 0.5.0",
- "derive_more",
  "futures-core",
  "futures-sink",
  "futures-task",
+ "futures-util",
  "log 0.4.11",
  "once_cell",
  "parking_lot 0.11.0",
@@ -25,22 +24,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-macros"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ca8ce00b267af8ccebbd647de0d61e0674b6e61185cc7a592ff88772bed655"
-dependencies = [
- "quote 1.0.7",
- "syn 1.0.48",
-]
-
-[[package]]
 name = "actix-rt"
-version = "2.0.0-beta.1"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dfadca59a1d7755a3828708977a2de80b51af0381bd0002ce8f0df3f6091928"
+checksum = "bc7d7cd957c9ed92288a7c3c96af81fa5291f65247a76a34dac7b6af74e52ba0"
 dependencies = [
- "actix-macros",
+ "futures-core",
  "tokio 1.5.0",
 ]
 
@@ -4457,7 +4446,6 @@ dependencies = [
  "futures-sink",
  "log 0.4.11",
  "pin-project-lite 0.2.6",
- "slab 0.4.2",
  "tokio 1.5.0",
  "tokio-stream",
 ]

@@ -15,7 +15,7 @@ use witnet_config::config::Config;
 /// Function to run the main system
 pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
     // Init system
-    let system = System::new("node");
+    let system = System::new();
 
     // Init actors
     system.block_on(async {

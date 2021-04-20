@@ -1,7 +1,7 @@
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
 use actix::{
-    ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, MailboxError, SystemService,
+    ActorFutureExt, Addr, AsyncContext, Context, ContextFutureSpawner, MailboxError, SystemService,
     WrapFuture,
 };
 

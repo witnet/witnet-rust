@@ -5,6 +5,7 @@
 //! that key.
 use actix::prelude::*;
 use failure::{bail, format_err};
+use futures::Future;
 use futures_util::FutureExt;
 
 use crate::{
@@ -27,7 +28,7 @@ use witnet_data_structures::{
     transaction::MemoizedHashable,
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
-use witnet_futures_utils::{ActorFutureExt, TryFutureExt2};
+use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
 use witnet_protected::ProtectedString;
 use witnet_validations::validations;
 

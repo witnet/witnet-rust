@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::actors::app;
 use futures_util::FutureExt;
 use witnet_crypto::mnemonic;
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateMnemonicsRequest {

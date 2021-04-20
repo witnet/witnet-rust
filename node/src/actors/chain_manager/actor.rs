@@ -23,7 +23,7 @@ use witnet_data_structures::{
     utxo_pool::OwnUnspentOutputsPool,
     vrf::VrfCtx,
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 use witnet_util::timestamp::pretty_print;
 
 /// Implement Actor trait for `ChainManager`

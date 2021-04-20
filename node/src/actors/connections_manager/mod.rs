@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use actix::prelude::*;
+use futures::future::Ready;
 use tokio::net::{TcpListener, TcpStream};
 
 use witnet_p2p::sessions::SessionType;
@@ -13,7 +14,7 @@ use crate::{
     },
     config_mngr,
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 
 mod actor;
 mod handlers;
@@ -86,7 +87,7 @@ impl ConnectionsManager {
         response: Result<ResolverResult, MailboxError>,
         session_type: SessionType,
         address: &SocketAddr,
-    ) -> actix::fut::FutureResult<(), (), Self> {
+    ) -> Ready<Result<(), ()>> {
         // Process the Result<ResolverResult, MailboxError>
         match response {
             Err(error) => {

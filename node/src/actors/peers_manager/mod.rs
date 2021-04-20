@@ -1,7 +1,8 @@
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, SystemService, WrapFuture,
+    ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Supervised, SystemService,
+    WrapFuture,
 };
 
 use witnet_p2p::{peers::Peers, sessions::SessionType};

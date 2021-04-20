@@ -14,6 +14,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::Duration;
 
+use futures::future::Either;
 use pin_project_lite::pin_project;
 use tokio::net::TcpStream;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
@@ -22,7 +23,6 @@ use trust_dns_resolver::{error::ResolveError, lookup_ip::LookupIp};
 
 use actix::clock::Sleep;
 use actix::fut::ActorFuture;
-use actix::fut::Either;
 use actix::prelude::*;
 
 #[deprecated(since = "0.7.0", note = "please use `Resolver` instead")]
@@ -209,8 +209,8 @@ impl Handler<Connect> for Resolver {
                 self.resolver.as_ref().unwrap(),
             )
             .then(move |addrs, act, _| match addrs {
-                Ok(a) => Either::left(TcpConnector::with_timeout(a, timeout)),
-                Err(e) => Either::right(async move { Err(e) }.into_actor(act)),
+                Ok(a) => Either::Left(TcpConnector::with_timeout(a, timeout)),
+                Err(e) => Either::Right(async move { Err(e) }.into_actor(act)),
             }),
         )
     }
@@ -310,9 +310,9 @@ impl ResolveFut {
     }
 }
 
-impl ActorFuture for ResolveFut {
+impl ActorFuture<Resolver> for ResolveFut {
     type Output = Result<VecDeque<SocketAddr>, ResolverError>;
-    type Actor = Resolver;
+
     fn poll(
         mut self: Pin<&mut Self>,
         _: &mut Resolver,
@@ -374,9 +374,8 @@ impl TcpConnector {
     }
 }
 
-impl ActorFuture for TcpConnector {
+impl ActorFuture<Resolver> for TcpConnector {
     type Output = Result<TcpStream, ResolverError>;
-    type Actor = Resolver;
 
     fn poll(
         self: Pin<&mut Self>,

@@ -35,7 +35,7 @@ use std::{
 };
 
 use actix::{
-    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised,
+    prelude::*, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Supervised,
     SystemService, WrapFuture,
 };
 use ansi_term::Color::{Purple, White, Yellow};
@@ -86,7 +86,7 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 
 mod actor;
 mod handlers;

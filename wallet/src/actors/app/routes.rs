@@ -76,7 +76,7 @@ macro_rules! forwarded_routes {
 pub fn connect_routes<T, S>(
     handler: &mut PubSubHandler<T, S>,
     api: Addr<App>,
-    system_arbiter: Arbiter,
+    system_arbiter: ArbiterHandle,
 ) where
     T: PubSubMetadata,
     S: Middleware<T>,
@@ -135,7 +135,7 @@ pub fn connect_routes<T, S>(
                             })
                     }).map(|_: std::result::Result<(), ()>| ());
 
-                system_arbiter.send(Box::pin(f));
+                system_arbiter.spawn(Box::pin(f));
             }
         }),
         ("rpc.off", {

@@ -1,4 +1,4 @@
-use actix::{ActorFuture, ContextFutureSpawner, Handler, SystemService, WrapFuture};
+use actix::{ActorFutureExt, ContextFutureSpawner, Handler, SystemService, WrapFuture};
 
 use witnet_p2p::sessions::SessionType;
 

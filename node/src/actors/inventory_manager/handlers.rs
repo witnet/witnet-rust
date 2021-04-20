@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use actix::{ActorFuture, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture};
 
 use super::{InventoryManager, InventoryManagerError};
 use crate::actors::messages::{
@@ -11,7 +11,7 @@ use witnet_data_structures::{
     chain::{Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock},
     transaction::Transaction,
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 
 fn key_superblock(superblock_index: u32) -> Vec<u8> {
     // Add 0 padding to the left of the superblock index to make sorted keys represent consecutive

@@ -1,5 +1,5 @@
 use actix::{
-    io::FramedWrite, io::WriteHandler, Actor, ActorFuture, Addr, AsyncContext, Context,
+    io::FramedWrite, io::WriteHandler, Actor, ActorFutureExt, Addr, AsyncContext, Context,
     ContextFutureSpawner, Running, StreamHandler, WrapFuture,
 };
 

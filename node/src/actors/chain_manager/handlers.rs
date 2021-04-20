@@ -1,4 +1,5 @@
 use actix::{fut::WrapFuture, prelude::*};
+use futures::future::Either;
 use std::{
     collections::{BTreeMap, HashSet, VecDeque},
     convert::TryFrom,
@@ -18,7 +19,7 @@ use witnet_data_structures::{
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
@@ -459,12 +460,12 @@ impl Handler<AddBlocks> for ChainManager {
                             // Create superblocks while synchronizing but do not broadcast them
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
-                            actix::fut::Either::left(
+                            Either::Left(
                                 self.try_consolidate_superblock(consolidate_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,
-                            actix::fut::Either::right(actix::fut::ok(()))
+                            Either::Right(actix::fut::ok(()))
                         }
                             .and_then(move |(), act, ctx| {
                                 act.update_state_machine(StateMachine::WaitingConsensus);
@@ -516,12 +517,12 @@ impl Handler<AddBlocks> for ChainManager {
                             // Create superblocks while synchronizing but do not broadcast them
                             // This is needed to ensure that we can validate the received superblocks later on
                             log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
-                            actix::fut::Either::left(
+                            Either::Left(
                                 self.try_consolidate_superblock(consolidate_superblock_epoch, sync_target, sync_superblock)
                             )
                         } else {
                             // No need to construct a superblock again,
-                            actix::fut::Either::right(actix::fut::ok(()))
+                            Either::Right(actix::fut::ok(()))
                         }
                             .and_then({
                                 move |(), act, ctx| {
@@ -560,14 +561,14 @@ impl Handler<AddBlocks> for ChainManager {
                             })
                             .and_then(move |candidate_superblock_checkpoint, act, _ctx| {
                                 if let Some(candidate_superblock_epoch) = act.superblock_candidate_is_needed(candidate_superblock_checkpoint, superblock_period) {
-                                    actix::fut::Either::left(act.build_and_vote_candidate_superblock(candidate_superblock_epoch).map_ok(move |_, act, _| {
+                                    Either::Left(act.build_and_vote_candidate_superblock(candidate_superblock_epoch).map_ok(move |_, act, _| {
                                         let superblock_index = candidate_superblock_epoch / superblock_period;
                                         // Copy current chain state into previous chain state, but do not persist it yet
                                         act.move_chain_state_forward(superblock_index);
                                     }))
                                 }
                                 else{
-                                    actix::fut::Either::right(actix::fut::ok(()))
+                                    Either::Right(actix::fut::ok(()))
                                 }
                             })
                             .and_then(move |_, act, ctx| {
@@ -1172,7 +1173,7 @@ impl Handler<BuildVtt> for ChainManager {
                             let transaction =
                                 Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
                             let tx_hash = transaction.hash();
-                            actix::fut::Either::left(
+                            Either::Left(
                                 act.add_transaction(
                                     AddTransaction {
                                         transaction,
@@ -1185,7 +1186,7 @@ impl Handler<BuildVtt> for ChainManager {
                         }
                         Err(e) => {
                             log::error!("Failed to sign value transfer transaction: {}", e);
-                            actix::fut::Either::right(actix::fut::result(Err(e)))
+                            Either::Right(actix::fut::result(Err(e)))
                         }
                     });
 
@@ -1235,7 +1236,7 @@ impl Handler<BuildDrt> for ChainManager {
                             let transaction =
                                 Transaction::DataRequest(DRTransaction::new(drt, signatures));
                             let tx_hash = transaction.hash();
-                            actix::fut::Either::left(
+                            Either::Left(
                                 act.add_transaction(
                                     AddTransaction {
                                         transaction,
@@ -1248,7 +1249,7 @@ impl Handler<BuildDrt> for ChainManager {
                         }
                         Err(e) => {
                             log::error!("Failed to sign data request transaction: {}", e);
-                            actix::fut::Either::right(actix::fut::result(Err(e)))
+                            Either::Right(actix::fut::result(Err(e)))
                         }
                     });
 

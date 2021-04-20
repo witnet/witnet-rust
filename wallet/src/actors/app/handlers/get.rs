@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 use crate::types;
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetRequest {

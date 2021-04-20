@@ -1,11 +1,12 @@
 use std::{cmp::Ordering, convert::TryFrom, io::Error, net::SocketAddr};
 
 use actix::{
-    io::WriteHandler, ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler,
+    io::WriteHandler, ActorContext, ActorFutureExt, Context, ContextFutureSpawner, Handler,
     StreamHandler, SystemService, WrapFuture,
 };
 use bytes::BytesMut;
 use failure::Fail;
+use futures::future::Either;
 
 use witnet_data_structures::{
     builders::from_address,
@@ -37,7 +38,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
-use witnet_futures_utils::ActorFutureExt;
+use witnet_futures_utils::ActorFutureExt2;
 use witnet_util::timestamp::get_timestamp;
 
 #[derive(Debug, Eq, Fail, PartialEq)]
@@ -313,9 +314,9 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                     });
 
                                 if send_superblock_votes {
-                                    actix::fut::Either::left(fut)
+                                    Either::Left(fut)
                                 } else {
-                                    actix::fut::Either::right(actix::fut::ok(()))
+                                    Either::Right(actix::fut::ok(()))
                                 }
                             })
                             .map(|_res: Result<(), ()>, _act, _ctx| ())
