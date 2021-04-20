@@ -642,14 +642,6 @@ impl ChainManager {
         resynchronizing: bool,
     ) {
         // Update chain_info and reputation_engine
-        let epoch_constants = match self.epoch_constants {
-            Some(x) => x,
-            None => {
-                log::error!("No EpochConstants loaded in ChainManager");
-                return;
-            }
-        };
-
         let own_pkh = match self.own_pkh {
             Some(x) => x,
             None => {
@@ -719,7 +711,6 @@ impl ChainManager {
                     utxo_diff,
                     own_pkh,
                     &mut self.chain_state.own_utxos,
-                    epoch_constants,
                     &mut self.chain_state.node_stats,
                     self.sm_state,
                 );
@@ -2269,7 +2260,6 @@ fn update_pools(
     utxo_diff: Diff,
     own_pkh: PublicKeyHash,
     own_utxos: &mut OwnUnspentOutputsPool,
-    epoch_constants: EpochConstants,
     node_stats: &mut NodeStats,
     state_machine: StateMachine,
 ) -> ReputationInfo {
@@ -2295,7 +2285,6 @@ fn update_pools(
         if let Err(e) = data_request_pool.process_data_request(
             &dr_tx,
             block.block_header.beacon.checkpoint,
-            epoch_constants,
             &block.hash(),
         ) {
             log::error!("Error processing data request transaction:\n{}", e);

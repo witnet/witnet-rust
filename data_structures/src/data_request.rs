@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{
-        DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
-        EpochConstants, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
+        DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState, Epoch, Hash,
+        Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
     get_environment,
-    mainnet_validations::{after_first_hard_fork, after_second_hard_fork},
+    mainnet_validations::after_second_hard_fork,
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
@@ -323,31 +323,12 @@ impl DataRequestPool {
         &mut self,
         dr_transaction: &DRTransaction,
         epoch: Epoch,
-        epoch_constants: EpochConstants,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
         // A data request output should have a valid value transfer input
         // Which we assume valid as it should have been already verified
 
-        // FIXME(#1796): remove this check after the first hard fork occurs
-        let time_lock_epoch = if after_first_hard_fork(epoch, get_environment()) {
-            // commit time_lock was disabled in the first hard fork
-            0
-        } else {
-            // time_lock_epoch: The epoch during which we will start accepting
-            // commitments for this data request
-            // This is not the epoch which contains the timestamp, but the next one
-            epoch_constants
-                .epoch_at(
-                    i64::try_from(dr_transaction.body.dr_output.data_request.time_lock)?
-                        .saturating_add(i64::from(epoch_constants.checkpoints_period - 1)),
-                )
-                // Any data request with time lock set to before checkpoint zero
-                // will be executed as soon as possible.
-                .unwrap_or(0)
-        };
-        let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
-        self.add_data_request(dr_epoch, dr_transaction.clone(), block_hash)
+        self.add_data_request(epoch, dr_transaction.clone(), block_hash)
     }
 
     /// New tallies are added to their respective data requests and finish them
@@ -646,13 +627,8 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::default();
-        p.process_data_request(
-            &dr_transaction,
-            epoch,
-            EpochConstants::default(),
-            &fake_block_hash,
-        )
-        .unwrap();
+        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
+            .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
@@ -686,13 +662,8 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::new(2);
-        p.process_data_request(
-            &dr_transaction,
-            epoch,
-            EpochConstants::default(),
-            &fake_block_hash,
-        )
-        .unwrap();
+        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
+            .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
@@ -726,13 +697,8 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::new(2);
-        p.process_data_request(
-            &dr_transaction,
-            epoch,
-            EpochConstants::default(),
-            &fake_block_hash,
-        )
-        .unwrap();
+        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
+            .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
