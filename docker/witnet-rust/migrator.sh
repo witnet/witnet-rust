@@ -31,7 +31,7 @@ function migrate {
   chmod -R 777 "$WITNET_FOLDER/config" &&
   log "Copying old storage (if any) into new storage path" &&
   migrate_storage
-  run_wip0010_recovery
+  run_wip0013_recovery
 }
 
 log "Using configuration from '$CONFIG_FILE'"
