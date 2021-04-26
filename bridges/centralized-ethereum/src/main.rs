@@ -89,7 +89,7 @@ fn run(callback: fn()) -> Result<(), String> {
     .map_err(|e| format!("Error reading configuration file: {}", e))?;
 
     // Init system
-    let system = System::new("bridge");
+    let system = System::new();
     let condition = app.post_dr;
 
     // Init actors
