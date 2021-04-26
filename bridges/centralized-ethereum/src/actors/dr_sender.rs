@@ -13,7 +13,6 @@ use async_jsonrpc_client::{
 use futures_util::compat::Compat01As03;
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
-use web3::ethabi::Bytes;
 use witnet_data_structures::{
     chain::{DataRequestOutput, Hash},
     proto::ProtobufConvert,
@@ -154,8 +153,8 @@ impl DrSender {
     }
 }
 
-fn deserialize_and_validate_dr_bytes(dr_bytes: &Bytes) -> Result<DataRequestOutput, String> {
-    match DataRequestOutput::from_pb_bytes(&dr_bytes) {
+fn deserialize_and_validate_dr_bytes(dr_bytes: &[u8]) -> Result<DataRequestOutput, String> {
+    match DataRequestOutput::from_pb_bytes(dr_bytes) {
         Ok(dr) => {
             validate_rad_request(&dr.data_request)
                 .map_err(|e| format!("Error validating data request: {}", e))?;
