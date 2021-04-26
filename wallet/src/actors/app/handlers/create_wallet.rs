@@ -2,8 +2,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::str;
 
-use crate::actors::app;
-use crate::types;
+use crate::{actors::app, types};
 use futures_util::FutureExt;
 use witnet_futures_utils::ActorFutureExt2;
 

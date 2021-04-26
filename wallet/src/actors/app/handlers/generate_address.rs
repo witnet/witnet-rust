@@ -2,8 +2,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use witnet_futures_utils::ActorFutureExt2;
 
-use crate::actors::app;
-use crate::{model, types};
+use crate::{actors::app, model, types};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GenerateAddressRequest {

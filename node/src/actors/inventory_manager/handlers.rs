@@ -1,12 +1,13 @@
-use actix::prelude::*;
-use actix::{ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{prelude::*, ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture};
 
 use super::{InventoryManager, InventoryManagerError};
-use crate::actors::messages::{
-    AddItem, AddItems, GetItem, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-    StoreInventoryItem, SuperBlockNotify,
+use crate::{
+    actors::messages::{
+        AddItem, AddItems, GetItem, GetItemBlock, GetItemSuperblock, GetItemTransaction,
+        StoreInventoryItem, SuperBlockNotify,
+    },
+    storage_mngr,
 };
-use crate::storage_mngr;
 use witnet_data_structures::{
     chain::{Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock},
     transaction::Transaction,

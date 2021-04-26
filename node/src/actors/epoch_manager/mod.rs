@@ -12,8 +12,10 @@ use witnet_util::timestamp::{
     duration_between_timestamps, get_timestamp, get_timestamp_nanos, update_global_timestamp,
 };
 
-use crate::actors::messages::{EpochNotification, EpochResult};
-use crate::config_mngr;
+use crate::{
+    actors::messages::{EpochNotification, EpochResult},
+    config_mngr,
+};
 use witnet_futures_utils::ActorFutureExt2;
 
 mod actor;
