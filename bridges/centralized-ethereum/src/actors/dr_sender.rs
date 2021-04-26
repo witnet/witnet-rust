@@ -25,6 +25,7 @@ pub struct DrSender {
     witnet_client: Option<Arc<TcpSocket>>,
     _handle: Option<EventLoopHandle>,
     wit_dr_sender_polling_rate_ms: u64,
+    max_dr_value_nanowits: u64,
 }
 
 /// Make actor from DrSender
@@ -52,6 +53,7 @@ impl SystemService for DrSender {}
 impl DrSender {
     /// Initialize `PeersManager` taking the configuration from a `Config` structure
     pub fn from_config(config: &Config) -> Result<Self, String> {
+        let max_dr_value_nanowits = config.max_dr_value_nanowits;
         let wit_dr_sender_polling_rate_ms = config.wit_dr_sender_polling_rate_ms;
         let witnet_addr = config.witnet_jsonrpc_addr.to_string();
 
@@ -62,11 +64,13 @@ impl DrSender {
             witnet_client: Some(witnet_client),
             _handle: Some(_handle),
             wit_dr_sender_polling_rate_ms,
+            max_dr_value_nanowits,
         })
     }
 
     fn check_new_drs(&self, ctx: &mut Context<Self>, period: Duration) {
         let witnet_client = self.witnet_client.clone().unwrap();
+        let max_dr_value_nanowits = self.max_dr_value_nanowits;
 
         let fut = async move {
             let dr_database_addr = DrDatabase::from_registry();
@@ -75,7 +79,7 @@ impl DrSender {
             let new_drs = dr_database_addr.send(GetAllNewDrs).await.unwrap().unwrap();
 
             for (dr_id, dr_bytes) in new_drs {
-                match deserialize_and_validate_dr_bytes(&dr_bytes) {
+                match deserialize_and_validate_dr_bytes(&dr_bytes, max_dr_value_nanowits) {
                     Ok(dr_output) => {
                         let bdr_params = json!({"dro": dr_output, "fee": 0});
                         let res = witnet_client.execute("sendRequest", bdr_params);
@@ -153,13 +157,26 @@ impl DrSender {
     }
 }
 
-fn deserialize_and_validate_dr_bytes(dr_bytes: &[u8]) -> Result<DataRequestOutput, String> {
+fn deserialize_and_validate_dr_bytes(
+    dr_bytes: &[u8],
+    max_dr_value_nanowits: u64,
+) -> Result<DataRequestOutput, String> {
     match DataRequestOutput::from_pb_bytes(dr_bytes) {
         Ok(dr) => {
             validate_rad_request(&dr.data_request)
                 .map_err(|e| format!("Error validating data request: {}", e))?;
             // TODO: check if we want to claim this data request:
             // Is the price ok?
+            let dr_value = dr
+                .checked_total_value()
+                .map_err(|e| format!("Error calculating data request value: {}", e))?;
+
+            if dr_value > max_dr_value_nanowits {
+                return Err(format!(
+                    "Error: data request value ({}) higher than maximum allowed ({})",
+                    dr_value, max_dr_value_nanowits
+                ));
+            }
 
             Ok(dr)
         }
