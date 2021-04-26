@@ -18,6 +18,8 @@ pub struct DrReporter {
     pub wrb_contract: Option<Contract<web3::transports::Http>>,
     /// eth_account
     pub eth_account: H160,
+    /// report_result_limit
+    pub report_result_limit: Option<u64>,
 }
 
 /// Make actor from EthPoller
@@ -45,6 +47,7 @@ impl DrReporter {
         Ok(Self {
             wrb_contract: Some(wrb_contract),
             eth_account: config.eth_account,
+            report_result_limit: config.gas_limits.report_result,
         })
     }
 }
@@ -71,44 +74,61 @@ impl Handler<DrReporterMsg> for DrReporter {
     fn handle(&mut self, msg: DrReporterMsg, ctx: &mut Self::Context) -> Self::Result {
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
+        let report_result_limit = self.report_result_limit;
         let params_str = format!("{:?}", &(msg.dr_id, msg.dr_tx_hash, msg.result.clone()));
         let dr_hash: U256 = match msg.dr_tx_hash {
             Hash::SHA256(x) => x.into(),
         };
 
         let fut = async move {
-            let receipt = wrb_contract
-                .call_with_confirmations(
-                    "reportResult",
-                    (msg.dr_id, dr_hash, msg.result),
+            let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract
+                .query(
+                    "readGasPrice",
+                    msg.dr_id,
                     eth_account,
-                    // contract::Options::with(|opt| {
-                    //     opt.gas = config.gas_limits.report_result.map(Into::into);
-                    //     opt.gas_price = Some(gas_price);
-                    // }
                     contract::Options::default(),
-                    1,
+                    None,
                 )
                 .await;
-            match receipt {
-                Ok(tx) => {
-                    log::debug!("Request [{}], reportResult: {:?}", msg.dr_id, tx);
-                    let dr_database_addr = DrDatabase::from_registry();
 
-                    dr_database_addr
-                        .send(SetDrInfoBridge(
-                            msg.dr_id,
-                            DrInfoBridge {
-                                dr_bytes: msg.dr_bytes,
-                                dr_state: DrState::Finished,
-                                dr_tx_hash: Some(msg.dr_tx_hash),
-                            },
-                        ))
-                        .await
-                        .ok();
+            match dr_gas_price {
+                Ok(dr_gas_price) => {
+                    let receipt = wrb_contract
+                        .call_with_confirmations(
+                            "reportResult",
+                            (msg.dr_id, dr_hash, msg.result),
+                            eth_account,
+                            contract::Options::with(|opt| {
+                                opt.gas = report_result_limit.map(Into::into);
+                                opt.gas_price = Some(dr_gas_price);
+                            }),
+                            1,
+                        )
+                        .await;
+                    match receipt {
+                        Ok(tx) => {
+                            log::debug!("Request [{}], reportResult: {:?}", msg.dr_id, tx);
+                            let dr_database_addr = DrDatabase::from_registry();
+
+                            dr_database_addr
+                                .send(SetDrInfoBridge(
+                                    msg.dr_id,
+                                    DrInfoBridge {
+                                        dr_bytes: msg.dr_bytes,
+                                        dr_state: DrState::Finished,
+                                        dr_tx_hash: Some(msg.dr_tx_hash),
+                                    },
+                                ))
+                                .await
+                                .ok();
+                        }
+                        Err(e) => {
+                            log::error!("reportResult{:?}: {:?}", params_str, e);
+                        }
+                    }
                 }
                 Err(e) => {
-                    log::error!("reportResult{:?}: {:?}", params_str, e);
+                    log::error!("ReadGasPrice {:?}", e);
                 }
             }
         };
