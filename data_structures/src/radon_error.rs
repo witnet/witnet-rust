@@ -57,6 +57,16 @@ pub enum RadonErrors {
     ArrayIndexOutOfBounds = 0x70,
     /// Tried to access a value from a map using a key that does not exist
     MapKeyNotFound = 0x71,
+    // Bridge errors: errors that only belong in inter-client communication
+    /// Requests that cannot be parsed must always get this error as their result.
+    /// However, this is not a valid result in a Tally transaction, because invalid requests
+    /// are never included into blocks and therefore never get a Tally in response.
+    BridgeMalformedRequest = 0xE0,
+    /// The request is rejected on the grounds that it may cause the submitter to spend or stake an
+    /// amount of value that is unjustifiably high when compared with the reward they will be getting
+    BridgePoorIncentives = 0xE1,
+    /// The request result length exceeds a bridge contract defined limit
+    BridgeOversizedResult = 0xE2,
     // This should not exist:
     /// Some tally error is not intercepted but should
     UnhandledIntercept = 0xFF,

@@ -397,7 +397,6 @@ impl RadError {
         }
 
         Ok(RadonError::new(match kind {
-            RadonErrors::Unknown => RadError::Unknown,
             RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
             RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
             RadonErrors::Overflow => RadError::Overflow,
@@ -448,6 +447,13 @@ impl RadError {
                     message: Some(message),
                 }
             }
+            RadonErrors::Unknown => RadError::Unknown,
+            // The only case where a Bridge RadonError could be included in the protocol is that
+            // if a witness node report as a reveal, and in that case it would be considered
+            // as a MalformedReveal
+            RadonErrors::BridgeMalformedRequest
+            | RadonErrors::BridgePoorIncentives
+            | RadonErrors::BridgeOversizedResult => RadError::MalformedReveal,
         }))
     }
 
@@ -707,6 +713,14 @@ mod tests {
         // So just try all the possible `u8` values and return the successful ones
         (0u8..=255).filter_map(|error_code| {
             match RadonErrors::try_from_primitive(error_code) {
+                Ok(x)
+                    if x == RadonErrors::BridgeMalformedRequest
+                        || x == RadonErrors::BridgePoorIncentives
+                        || x == RadonErrors::BridgeOversizedResult =>
+                {
+                    // We skip these RadonErrors because they don't belong to the core witnessing protocol
+                    None
+                }
                 Ok(x) => Some(x),
                 // If this error code is not a RadonErrors, try the next one
                 Err(_) => None,

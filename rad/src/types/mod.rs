@@ -575,4 +575,27 @@ mod tests {
 
         assert!(hs.contains(&big_number));
     }
+
+    #[test]
+    fn serial_iter_decode_bridge_radon_errors() {
+        #[allow(clippy::trivially_copy_pass_by_ref, clippy::unnecessary_wraps)]
+        fn malformed_reveal_fn(_: RadError, _: &[u8], _: &()) -> Option<RadonReport<RadonTypes>> {
+            Some(RadonReport::from_result(
+                Err(RadError::MalformedReveal),
+                &ReportContext::default(),
+            ))
+        }
+
+        let malformed_reveal =
+            RadonTypes::RadonError(RadonError::try_from(RadError::MalformedReveal).unwrap());
+
+        // One reveal with value RadonErrors(0xE0)
+        let cbor_bytes: Vec<(&[u8], &())> = vec![(&[0xD8, 0x27, 0x81, 0x18, 0xE0], &())];
+        let rad_decode_error_as_result: Vec<_> =
+            serial_iter_decode(&mut cbor_bytes.into_iter(), malformed_reveal_fn)
+                .into_iter()
+                .map(|report| report.into_inner())
+                .collect();
+        assert_eq!(rad_decode_error_as_result, vec![malformed_reveal]);
+    }
 }
