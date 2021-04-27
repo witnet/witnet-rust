@@ -12,12 +12,12 @@ use async_jsonrpc_client::{
 };
 use futures_util::compat::Compat01As03;
 use serde_json::json;
-use std::{sync::Arc, time::Duration};
+use std::{fmt, sync::Arc, time::Duration};
 use witnet_data_structures::{
     chain::{DataRequestOutput, Hash},
     proto::ProtobufConvert,
 };
-use witnet_validations::validations::validate_rad_request;
+use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
 /// DrSender actor reads the new requests from DrDatabase and includes them in Witnet
 #[derive(Default)]
@@ -120,14 +120,11 @@ impl DrSender {
                             }
                         }
                     }
-                    Err(e) => {
+                    Err(err) => {
                         // Error deserializing or validating data request: mark data request as
                         // error and report error as result to ethereum.
-                        log::error!("[{}] error deserializing data request: {}", dr_id, e);
-                        // TODO: decide on error result, currently using vec with one element [0]
-                        // This cannot be an empty vector because an empty vector means that the
-                        // request has not finished yet.
-                        let result = vec![0];
+                        log::error!("[{}] error: {}", dr_id, err);
+                        let result = err.encode_cbor();
 
                         // TODO: review if dr_tx_hash = [0;32] makes sense
                         dr_reporter_addr
@@ -157,29 +154,109 @@ impl DrSender {
     }
 }
 
+/// Possible reasons for why the data request has not been relayed to witnet and is resolved with
+/// an error
+enum DrSenderError {
+    /// The data request bytes are not a valid DataRequestOutput
+    Deserialization { msg: String },
+    /// The DataRequestOutput is invalid (wrong number of witnesses, wrong min_consensus_percentage)
+    Validation { msg: String },
+    /// The RADRequest is invalid (malformed radon script)
+    RadonValidation { msg: String },
+    /// The specified collateral amount is invalid
+    InvalidCollateral { msg: String },
+    /// Overflow when calculating the data request value
+    InvalidValue { msg: String },
+    /// The cost of the data request is greater than the maximum allowed by the configuration of
+    /// this bridge node
+    ValueGreaterThanAllowed {
+        dr_value_nanowits: u64,
+        max_dr_value_nanowits: u64,
+    },
+}
+
+impl fmt::Display for DrSenderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DrSenderError::Deserialization { msg } => {
+                write!(f, "Deserialization: {}", msg)
+            }
+            DrSenderError::Validation { msg } => {
+                write!(f, "Validation: {}", msg)
+            }
+            DrSenderError::RadonValidation { msg } => {
+                write!(f, "Radon validation: {}", msg)
+            }
+            DrSenderError::InvalidCollateral { msg } => {
+                write!(f, "Invalid collateral: {}", msg)
+            }
+            DrSenderError::InvalidValue { msg } => {
+                write!(f, "Invalid value: {}", msg)
+            }
+            DrSenderError::ValueGreaterThanAllowed {
+                dr_value_nanowits,
+                max_dr_value_nanowits,
+            } => {
+                write!(
+                    f,
+                    "data request value ({}) higher than maximum allowed ({})",
+                    dr_value_nanowits, max_dr_value_nanowits
+                )
+            }
+        }
+    }
+}
+
+impl DrSenderError {
+    pub fn encode_cbor(&self) -> Vec<u8> {
+        // TODO: decide on error result, currently using vec with one element [0]
+        // This cannot be an empty vector because an empty vector means that the
+        // request has not finished yet.
+        // TODO: return serialized radon error, vec![0] is wrong because it is a valid value:
+        // integer(0)
+        vec![0]
+    }
+}
+
 fn deserialize_and_validate_dr_bytes(
     dr_bytes: &[u8],
     max_dr_value_nanowits: u64,
-) -> Result<DataRequestOutput, String> {
+) -> Result<DataRequestOutput, DrSenderError> {
     match DataRequestOutput::from_pb_bytes(dr_bytes) {
-        Ok(dr) => {
-            validate_rad_request(&dr.data_request)
-                .map_err(|e| format!("Error validating data request: {}", e))?;
-            // TODO: check if we want to claim this data request:
-            // Is the price ok?
-            let dr_value = dr
-                .checked_total_value()
-                .map_err(|e| format!("Error calculating data request value: {}", e))?;
+        Err(e) => Err(DrSenderError::Deserialization { msg: e.to_string() }),
+        Ok(dr_output) => {
+            validate_data_request_output(&dr_output)
+                .map_err(|e| DrSenderError::Validation { msg: e.to_string() })?;
 
-            if dr_value > max_dr_value_nanowits {
-                return Err(format!(
-                    "Error: data request value ({}) higher than maximum allowed ({})",
-                    dr_value, max_dr_value_nanowits
-                ));
+            // TODO: read collateral minimum from consensus constants
+            let collateral_minimum = 1;
+            // Collateral value validation
+            // If collateral is equal to 0 means that is equal to collateral_minimum value
+            if (dr_output.collateral != 0) && (dr_output.collateral < collateral_minimum) {
+                return Err(DrSenderError::InvalidCollateral {
+                    msg: format!(
+                        "Collateral ({}) must be greater than the minimum ({})",
+                        dr_output.collateral, collateral_minimum
+                    ),
+                });
             }
 
-            Ok(dr)
+            validate_rad_request(&dr_output.data_request)
+                .map_err(|e| DrSenderError::RadonValidation { msg: e.to_string() })?;
+
+            // Check if we want to claim this data request:
+            // Is the price ok?
+            let dr_value_nanowits = dr_output
+                .checked_total_value()
+                .map_err(|e| DrSenderError::InvalidValue { msg: e.to_string() })?;
+            if dr_value_nanowits > max_dr_value_nanowits {
+                return Err(DrSenderError::ValueGreaterThanAllowed {
+                    dr_value_nanowits,
+                    max_dr_value_nanowits,
+                });
+            }
+
+            Ok(dr_output)
         }
-        Err(e) => Err(format!("Error deserializing data request: {}", e)),
     }
 }

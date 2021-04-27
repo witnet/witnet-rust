@@ -15,7 +15,7 @@ wit_tally_polling_rate_ms = 45_000
 # Period to post new requests to Witnet
 wit_dr_sender_polling_rate_ms = 45_000
 
-# Max value that will be accepted in a data request
+# Max value that will be accepted by the bridge node in a data request
 # This is the maximum amount that the relayer is willing to lose per one data request
 max_dr_value_nanowits = 100_000_000_000
 

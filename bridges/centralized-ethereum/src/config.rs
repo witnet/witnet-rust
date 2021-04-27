@@ -28,7 +28,7 @@ pub struct Config {
     pub wit_tally_polling_rate_ms: u64,
     /// Period to post new requests to Witnet
     pub wit_dr_sender_polling_rate_ms: u64,
-    /// Max value that will be accepted in a data request
+    /// Max value that will be accepted by the bridge node in a data request
     pub max_dr_value_nanowits: u64,
     /// Running in the witnet testnet?
     pub witnet_testnet: bool,
