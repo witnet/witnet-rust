@@ -3267,6 +3267,8 @@ fn commitment_collateral_zero_is_minimum() {
 }
 
 #[test]
+// FIXME(#1911): remove ignore
+#[ignore]
 fn commitment_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
     let epoch_constants = EpochConstants {
