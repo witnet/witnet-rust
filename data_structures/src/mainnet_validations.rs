@@ -11,6 +11,17 @@ const FIRST_EMERGENCY_COMMITTEE: [&str; 7] = [
     "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z",
 ];
 
+/// Committee for superblock indices X-Y
+const SECOND_EMERGENCY_COMMITTEE: [&str; 7] = [
+    "wit1asdpcspwysf0hg5kgwvgsp2h6g65y5kg9gj5dz",
+    "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty",
+    "wit17nnjuxmfuu92l6rxhque2qc3u2kvmx2fske4l9",
+    "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq",
+    "wit1cyrlc64hyu0rux7hclmg9rxwxpa0v9pevyaj2c",
+    "wit1g0rkajsgwqux9rnmkfca5tz6djg0f87x7ms5qx",
+    "wit1etherz02v4fvqty6jhdawefd0pl33qtevy7s4z",
+];
+
 /// 22 January 2021 @ 09:00:00 UTC
 pub const FIRST_HARD_FORK: Epoch = 192000;
 /// 28 April 2021 @ 9:00:00 UTC
@@ -25,6 +36,13 @@ pub fn in_emergency_period(
     if Environment::Mainnet == environment && superblock_index > 750 && superblock_index < 1344 {
         Some(
             FIRST_EMERGENCY_COMMITTEE
+                .iter()
+                .map(|address| address.parse().expect("Malformed signing committee"))
+                .collect(),
+        )
+    } else if Environment::Mainnet == environment && superblock_index > 2 && superblock_index < 3 {
+        Some(
+            SECOND_EMERGENCY_COMMITTEE
                 .iter()
                 .map(|address| address.parse().expect("Malformed signing committee"))
                 .collect(),
