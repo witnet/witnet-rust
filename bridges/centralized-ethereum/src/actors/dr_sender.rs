@@ -20,6 +20,9 @@ use witnet_data_structures::{
 };
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
+#[cfg(test)]
+mod tests;
+
 /// DrSender actor reads the new requests from DrDatabase and includes them in Witnet
 #[derive(Default)]
 pub struct DrSender {
