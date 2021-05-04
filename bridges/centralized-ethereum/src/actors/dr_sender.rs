@@ -16,6 +16,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use witnet_data_structures::{
     chain::{DataRequestOutput, Hash},
     proto::ProtobufConvert,
+    radon_error::RadonErrors,
 };
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
@@ -209,12 +210,22 @@ impl fmt::Display for DrSenderError {
 
 impl DrSenderError {
     pub fn encode_cbor(&self) -> Vec<u8> {
-        // TODO: decide on error result, currently using vec with one element [0]
-        // This cannot be an empty vector because an empty vector means that the
-        // request has not finished yet.
-        // TODO: return serialized radon error, vec![0] is wrong because it is a valid value:
-        // integer(0)
-        vec![0]
+        let radon_error = match self {
+            // Errors for data requests that are objectively wrong
+            DrSenderError::Deserialization { .. }
+            | DrSenderError::Validation { .. }
+            | DrSenderError::RadonValidation { .. }
+            | DrSenderError::InvalidValue { .. } => RadonErrors::BridgeMalformedRequest,
+            // Errors for data requests that the bridge node chooses not to relay, but other bridge
+            // nodes may relay
+            DrSenderError::InvalidCollateral { .. }
+            | DrSenderError::ValueGreaterThanAllowed { .. } => RadonErrors::BridgePoorIncentives,
+        };
+
+        let error_code = radon_error as u8;
+
+        // CBOR: 39([error_code])
+        vec![0xD8, 0x27, 0x81, 0x18, error_code]
     }
 }
 
