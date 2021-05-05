@@ -9,7 +9,7 @@ use web3::{
     ethabi::Bytes,
     types::{H160, U256},
 };
-use witnet_data_structures::chain::Hash;
+use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};
 
 /// DrReporter actor sends the the Witnet Request tally results to Ethereum
 #[derive(Default)]
@@ -20,6 +20,8 @@ pub struct DrReporter {
     pub eth_account: H160,
     /// report_result_limit
     pub report_result_limit: Option<u64>,
+    /// maximum result size (in bytes)
+    pub max_result_size: usize,
 }
 
 /// Make actor from EthPoller
@@ -48,6 +50,7 @@ impl DrReporter {
             wrb_contract: Some(wrb_contract),
             eth_account: config.eth_account,
             report_result_limit: config.gas_limits.report_result,
+            max_result_size: config.max_result_size,
         })
     }
 }
@@ -71,7 +74,7 @@ impl Message for DrReporterMsg {
 impl Handler<DrReporterMsg> for DrReporter {
     type Result = ();
 
-    fn handle(&mut self, msg: DrReporterMsg, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, mut msg: DrReporterMsg, ctx: &mut Self::Context) -> Self::Result {
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
         let report_result_limit = self.report_result_limit;
@@ -79,6 +82,11 @@ impl Handler<DrReporterMsg> for DrReporter {
         let dr_hash: U256 = match msg.dr_tx_hash {
             Hash::SHA256(x) => x.into(),
         };
+
+        if msg.result.len() > self.max_result_size {
+            let radon_error = RadonErrors::BridgeOversizedResult as u8;
+            msg.result = vec![0xD8, 0x27, 0x81, 0x18, radon_error]
+        }
 
         let fut = async move {
             let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract

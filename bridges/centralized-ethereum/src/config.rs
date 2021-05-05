@@ -36,6 +36,8 @@ pub struct Config {
     pub gas_limits: Gas,
     /// Storage
     pub storage: Storage,
+    /// Maximum data request result size (in bytes)
+    pub max_result_size: usize,
 }
 
 /// Gas limits for some methods. If missing, let the client estimate

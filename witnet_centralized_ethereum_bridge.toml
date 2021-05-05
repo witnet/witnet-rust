@@ -14,6 +14,9 @@ eth_new_dr_polling_rate_ms = 1_000
 wit_tally_polling_rate_ms = 45_000
 # Period to post new requests to Witnet
 wit_dr_sender_polling_rate_ms = 45_000
+# Maximum data request result size (in bytes)
+# TODO: Choose a proper value
+max_result_size = 100
 
 # Max value that will be accepted by the bridge node in a data request
 # This is the maximum amount that the relayer is willing to lose per one data request
