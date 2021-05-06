@@ -2699,8 +2699,8 @@ impl FromStr for OutputPointer {
             .map_err(OutputPointerParseError::ParseIntError)?;
 
         Ok(OutputPointer {
-            output_index,
             transaction_id,
+            output_index,
         })
     }
 }
@@ -2838,10 +2838,10 @@ impl DataRequestState {
 
         Self {
             data_request,
+            pkh,
             info,
             stage,
             epoch,
-            pkh,
         }
     }
 

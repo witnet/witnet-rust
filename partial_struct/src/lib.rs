@@ -109,9 +109,9 @@ fn get_partial(input: &syn::DeriveInput) -> syn::DeriveInput {
     let generics = input.generics.clone();
 
     syn::DeriveInput {
-        ident,
         attrs,
         vis,
+        ident,
         generics,
         data,
     }

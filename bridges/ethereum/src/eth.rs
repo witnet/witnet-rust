@@ -418,10 +418,10 @@ impl EthState {
             web3,
             accounts,
             wrb_contract,
-            block_relay_contract,
             post_dr_event_sig,
             inclusion_dr_event_sig,
             post_tally_event_sig,
+            block_relay_contract,
             wrb_requests,
         })
     }

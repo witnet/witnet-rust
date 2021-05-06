@@ -21,7 +21,7 @@ impl<T: Storage> Backend<T> {
     /// actual storage backend but will encrypt the data with
     /// `password`
     pub fn new(password: Protected, backend: T) -> Self {
-        Backend { password, backend }
+        Backend { backend, password }
     }
 
     /// Get a reference to the inner storage backend

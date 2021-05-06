@@ -408,11 +408,11 @@ where
 
         let address = model::Address {
             address,
+            index,
+            keychain,
+            account,
             path,
             info,
-            index,
-            account,
-            keychain,
             pkh,
         };
 
@@ -629,12 +629,12 @@ where
 
             Ok(Arc::new(model::Address {
                 address,
-                path,
-                pkh,
                 index,
-                account,
                 keychain,
+                account,
+                path,
                 info,
+                pkh,
             }))
         }
     }
@@ -1627,9 +1627,9 @@ where
             signature::sign(&self.engine, parent_key.secret_key, hashed_data.as_ref())?.to_string();
 
         Ok(model::ExtendedKeyedSignature {
-            chaincode,
-            public_key,
             signature,
+            public_key,
+            chaincode,
         })
     }
 

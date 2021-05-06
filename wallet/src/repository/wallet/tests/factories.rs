@@ -121,6 +121,6 @@ impl BlockInfo {
         );
         let epoch = self.epoch.unwrap_or_else(rand::random);
 
-        model::Beacon { block_hash, epoch }
+        model::Beacon { epoch, block_hash }
     }
 }

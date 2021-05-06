@@ -21,7 +21,7 @@ log = "0.4.8"
 num_enum = "0.4.2"
 ordered-float = "1.0"
 partial_struct = { path = "../partial_struct" }
-protobuf = { version = "2.10.1", features = ["with-serde"] }
+protobuf = { version = "2.23.0", features = ["with-serde"] }
 protobuf-convert = "0.1.1"
 rand = "0.7.3"
 serde = { version = "1.0.104", features = ["derive"] }
