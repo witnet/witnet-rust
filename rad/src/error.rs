@@ -337,6 +337,19 @@ pub enum RadError {
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     #[fail(display = "The reveal was not serialized correctly")]
     MalformedReveal,
+    // These errors would never appear in the witnet protocol
+    /// Requests that cannot be parsed must always get this error as their result.
+    /// However, this is not a valid result in a Tally transaction, because invalid requests
+    /// are never included into blocks and therefore never get a Tally in response.
+    #[fail(display = "BridgeMalformedRequest")]
+    BridgeMalformedRequest,
+    /// The request is rejected on the grounds that it may cause the submitter to spend or stake an
+    /// amount of value that is unjustifiably high when compared with the reward they will be getting
+    #[fail(display = "BridgePoorIncentives")]
+    BridgePoorIncentives,
+    /// The request result length exceeds a bridge contract defined limit
+    #[fail(display = "BridgeOversizedResult")]
+    BridgeOversizedResult,
 }
 
 impl RadError {
@@ -448,12 +461,9 @@ impl RadError {
                 }
             }
             RadonErrors::Unknown => RadError::Unknown,
-            // The only case where a Bridge RadonError could be included in the protocol is that
-            // if a witness node report as a reveal, and in that case it would be considered
-            // as a MalformedReveal
-            RadonErrors::BridgeMalformedRequest
-            | RadonErrors::BridgePoorIncentives
-            | RadonErrors::BridgeOversizedResult => RadError::MalformedReveal,
+            RadonErrors::BridgeMalformedRequest => RadError::BridgeMalformedRequest,
+            RadonErrors::BridgePoorIncentives => RadError::BridgePoorIncentives,
+            RadonErrors::BridgeOversizedResult => RadError::BridgeOversizedResult,
         }))
     }
 
@@ -547,6 +557,9 @@ impl RadError {
             RadError::MalformedReveal => RadonErrors::MalformedReveal,
             RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
             RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
+            RadError::BridgeMalformedRequest => RadonErrors::BridgeMalformedRequest,
+            RadError::BridgePoorIncentives => RadonErrors::BridgePoorIncentives,
+            RadError::BridgeOversizedResult => RadonErrors::BridgeOversizedResult,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }
@@ -713,14 +726,6 @@ mod tests {
         // So just try all the possible `u8` values and return the successful ones
         (0u8..=255).filter_map(|error_code| {
             match RadonErrors::try_from_primitive(error_code) {
-                Ok(x)
-                    if x == RadonErrors::BridgeMalformedRequest
-                        || x == RadonErrors::BridgePoorIncentives
-                        || x == RadonErrors::BridgeOversizedResult =>
-                {
-                    // We skip these RadonErrors because they don't belong to the core witnessing protocol
-                    None
-                }
                 Ok(x) => Some(x),
                 // If this error code is not a RadonErrors, try the next one
                 Err(_) => None,
