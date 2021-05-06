@@ -129,13 +129,19 @@ impl DrSender {
                         // error and report error as result to ethereum.
                         log::error!("[{}] error: {}", dr_id, err);
                         let result = err.encode_cbor();
+                        // In this case there is no data request transaction, so the dr_tx_hash
+                        // field can be set to anything.
+                        // Except all zeros, because that hash is invalid.
+                        let dr_tx_hash =
+                            "0000000000000000000000000000000000000000000000000000000000000001"
+                                .parse()
+                                .unwrap();
 
-                        // TODO: review if dr_tx_hash = [0;32] makes sense
                         dr_reporter_addr
                             .send(DrReporterMsg {
                                 dr_id,
                                 dr_bytes,
-                                dr_tx_hash: Default::default(),
+                                dr_tx_hash,
                                 result,
                             })
                             .await
