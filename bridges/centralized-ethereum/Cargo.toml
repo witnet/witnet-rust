@@ -20,4 +20,5 @@ web3 = { git = "https://github.com/tomusdrw/rust-web3", rev = "47b4f04bd0f3e879d
 witnet_data_structures = { path = "../../data_structures" }
 witnet_config = { path = "../../config" }
 witnet_node = { path = "../../node" }
+witnet_rad = { path = "../../rad" }
 witnet_validations = { path = "../../validations" }

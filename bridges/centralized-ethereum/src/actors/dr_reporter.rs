@@ -10,6 +10,7 @@ use web3::{
     types::{H160, U256},
 };
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};
+use witnet_rad::error::RadError;
 
 /// DrReporter actor sends the the Witnet Request tally results to Ethereum
 #[derive(Default)]
@@ -84,8 +85,10 @@ impl Handler<DrReporterMsg> for DrReporter {
         };
 
         if msg.result.len() > self.max_result_size {
-            let radon_error = RadonErrors::BridgeOversizedResult as u8;
-            msg.result = vec![0xD8, 0x27, 0x81, 0x18, radon_error]
+            let radon_error =
+                RadError::try_from_kind_and_cbor_args(RadonErrors::BridgeOversizedResult, None)
+                    .unwrap();
+            msg.result = radon_error.encode_tagged_bytes().unwrap();
         }
 
         let fut = async move {

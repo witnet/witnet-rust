@@ -5129,6 +5129,7 @@ dependencies = [
  "witnet_config",
  "witnet_data_structures",
  "witnet_node",
+ "witnet_rad",
  "witnet_validations",
 ]
 

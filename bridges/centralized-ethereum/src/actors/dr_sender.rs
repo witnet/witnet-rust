@@ -18,6 +18,7 @@ use witnet_data_structures::{
     proto::ProtobufConvert,
     radon_error::RadonErrors,
 };
+use witnet_rad::error::RadError;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
 #[cfg(test)]
@@ -219,7 +220,7 @@ impl fmt::Display for DrSenderError {
 
 impl DrSenderError {
     pub fn encode_cbor(&self) -> Vec<u8> {
-        let radon_error = match self {
+        let radon_errors = match self {
             // Errors for data requests that are objectively wrong
             DrSenderError::Deserialization { .. }
             | DrSenderError::Validation { .. }
@@ -231,10 +232,8 @@ impl DrSenderError {
             | DrSenderError::ValueGreaterThanAllowed { .. } => RadonErrors::BridgePoorIncentives,
         };
 
-        let error_code = radon_error as u8;
-
-        // CBOR: 39([error_code])
-        vec![0xD8, 0x27, 0x81, 0x18, error_code]
+        let radon_error = RadError::try_from_kind_and_cbor_args(radon_errors, None).unwrap();
+        radon_error.encode_tagged_bytes().unwrap()
     }
 }
 
