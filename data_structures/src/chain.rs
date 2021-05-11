@@ -25,9 +25,6 @@ use witnet_crypto::{
 use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
-use crate::transaction::{
-    MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
-};
 use crate::{
     chain::Signature::Secp256k1,
     data_request::DataRequestPool,
@@ -36,11 +33,15 @@ use crate::{
         TransactionError,
     },
     get_environment,
+    mainnet_validations::TapiEngine,
     proto::{schema::witnet, ProtobufConvert},
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
         RevealTransaction, TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
+    },
+    transaction::{
+        MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
     },
     utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
@@ -3004,6 +3005,8 @@ pub struct ChainState {
     pub alt_keys: AltKeys,
     /// Current superblock state
     pub superblock_state: SuperBlockState,
+    /// TAPI Engine
+    pub tapi_engine: TapiEngine,
 }
 
 impl ChainState {

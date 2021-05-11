@@ -254,6 +254,9 @@ impl ChainManager {
 
                 act.chain_state = chain_state;
 
+                // Update possible new WIP information
+                act.chain_state.tapi_engine.initialize_wip_information();
+
                 // initialize_from_storage is also used to implement reorganizations
                 // In that case, we must clear some fields to avoid forks
                 act.best_candidate = None;
