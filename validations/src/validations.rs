@@ -25,8 +25,7 @@ use witnet_data_structures::{
         calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
-    get_environment,
-    mainnet_validations::{after_first_hard_fork, after_second_hard_fork, after_third_hard_fork},
+    mainnet_validations::ActiveWips,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
@@ -351,7 +350,7 @@ pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
     minimum_consensus: f64,
     num_commits: usize,
-    block_epoch: Epoch,
+    active_wips: &ActiveWips,
 ) -> Result<TallyPreconditionClauseResult, RadError> {
     // Short-circuit if there were no commits
     if num_commits == 0 {
@@ -384,7 +383,7 @@ pub fn evaluate_tally_precondition_clause(
     // as the frequent type).
     let achieved_consensus = f64::from(counter.max_val) / num_commits_f;
 
-    if !after_second_hard_fork(block_epoch, get_environment()) {
+    if !active_wips.second_hard_fork() {
         // Before the second hard fork, the achieved_consensus below was incorrectly calculated as
         // max_count / num_reveals
         num_commits_f = f64::from(reveals_len);
@@ -541,7 +540,7 @@ pub fn construct_report_from_clause_result(
     clause_result: Result<TallyPreconditionClauseResult, RadError>,
     script: &RADTally,
     reports_len: usize,
-    block_epoch: Epoch,
+    active_wips: &ActiveWips,
 ) -> RadonReport<RadonTypes> {
     // This TallyMetadata would be included in case of Error Result, in that case,
     // no one has to be classified as a lier, but everyone as an error
@@ -568,7 +567,7 @@ pub fn construct_report_from_clause_result(
             ) {
                 Ok(x) => x,
                 Err(e) => {
-                    if after_second_hard_fork(block_epoch, get_environment()) {
+                    if active_wips.second_hard_fork() {
                         radon_report_from_error(
                             RadError::TallyExecution {
                                 inner: Some(Box::new(e)),
@@ -600,7 +599,7 @@ pub fn construct_report_from_clause_result(
         // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
         // chance for errors to be intercepted and used for consensus.
         Err(e) => {
-            if after_second_hard_fork(block_epoch, get_environment()) {
+            if active_wips.second_hard_fork() {
                 // If there is an error during the precondition, all revealers are set to error and liar.
                 // This is an error that is not penalized and not rewarded.
                 radon_report_from_error(e, reports_len)
@@ -837,6 +836,7 @@ pub fn validate_commit_transaction(
     collateral_minimum: u64,
     collateral_age: u32,
     block_number: u32,
+    active_wips: &ActiveWips,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -888,7 +888,7 @@ pub fn validate_commit_transaction(
     )?;
 
     // commit time_lock was disabled in the first hard fork
-    if !after_first_hard_fork(epoch, get_environment()) {
+    if !active_wips.first_hard_fork() {
         // Verify that commits are only accepted after the time lock expired
         let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
         let dr_time_lock = i64::try_from(dr_output.data_request.time_lock)?;
@@ -922,8 +922,8 @@ pub fn validate_commit_transaction(
         rep_eng,
         &pkh,
         num_witnesses,
-        epoch,
         minimum_reppoe_difficulty,
+        active_wips,
     );
     add_dr_vrf_signature_to_verify(
         signatures_to_verify,
@@ -992,7 +992,7 @@ fn create_expected_report(
     tally: &RADTally,
     non_error_min: f64,
     commits_count: usize,
-    block_epoch: Epoch,
+    active_wips: &ActiveWips,
 ) -> RadonReport<RadonTypes> {
     match panic::catch_unwind(|| {
         let results = serial_iter_decode(
@@ -1015,10 +1015,10 @@ fn create_expected_report(
 
         let results_len = results.len();
         let clause_result =
-            evaluate_tally_precondition_clause(results, non_error_min, commits_count, block_epoch);
+            evaluate_tally_precondition_clause(results, non_error_min, commits_count, active_wips);
         let report =
-            construct_report_from_clause_result(clause_result, &tally, results_len, block_epoch);
-        if after_second_hard_fork(block_epoch, get_environment()) {
+            construct_report_from_clause_result(clause_result, &tally, results_len, active_wips);
+        if active_wips.second_hard_fork() {
             evaluate_tally_postcondition_clause(report, non_error_min, commits_count)
         } else {
             report
@@ -1027,7 +1027,7 @@ fn create_expected_report(
         Ok(x) => x,
         Err(_e) => {
             // If there is a panic during tally creation: set tally result to RadError::Unknown
-            if after_second_hard_fork(block_epoch, get_environment()) {
+            if active_wips.second_hard_fork() {
                 radon_report_from_error(RadError::Unknown, reveals.len())
             } else {
                 RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
@@ -1052,7 +1052,7 @@ fn create_expected_tally_transaction(
     ta_tx: &TallyTransaction,
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
-    block_epoch: Epoch,
+    active_wips: &ActiveWips,
 ) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
@@ -1082,7 +1082,7 @@ fn create_expected_tally_transaction(
         &dr_output.data_request.tally,
         non_error_min,
         commit_length,
-        block_epoch,
+        active_wips,
     );
     let ta_tx = create_tally(
         dr_pointer,
@@ -1093,7 +1093,7 @@ fn create_expected_tally_transaction(
         committers,
         collateral_minimum,
         tally_bytes_on_encode_error(),
-        block_epoch,
+        active_wips,
     );
 
     Ok((ta_tx, dr_state.clone()))
@@ -1125,10 +1125,10 @@ pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
-    block_epoch: Epoch,
+    active_wips: &ActiveWips,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     let (expected_ta_tx, dr_state) =
-        create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum, block_epoch)?;
+        create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum, active_wips)?;
 
     let sorted_out_of_consensus = ta_tx.out_of_consensus.iter().cloned().sorted().collect();
     let sorted_expected_out_of_consensus = expected_ta_tx
@@ -1201,7 +1201,7 @@ pub fn validate_tally_transaction<'a>(
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
     let mut total_tally_value = 0;
-    let is_after_second_hard_fork = after_second_hard_fork(block_epoch, get_environment());
+    let is_after_second_hard_fork = active_wips.second_hard_fork();
     let (reward, tally_extra_fee) = if is_after_second_hard_fork {
         calculate_witness_reward(
             commits_count,
@@ -1631,6 +1631,7 @@ pub fn validate_block_transactions(
     epoch_constants: EpochConstants,
     block_number: u32,
     consensus_constants: &ConsensusConstants,
+    active_wips: &ActiveWips,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == consensus_constants.genesis_hash;
@@ -1715,6 +1716,7 @@ pub fn validate_block_transactions(
             consensus_constants.collateral_minimum,
             consensus_constants.collateral_age,
             block_number,
+            active_wips,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -1782,12 +1784,10 @@ pub fn validate_block_transactions(
             transaction,
             dr_pool,
             consensus_constants.collateral_minimum,
-            epoch,
+            active_wips,
         )?;
 
-        if !after_second_hard_fork(block_number, get_environment())
-            && transaction.tally == tally_bytes_on_encode_error()
-        {
+        if !active_wips.second_hard_fork() && transaction.tally == tally_bytes_on_encode_error() {
             // Before the second hard fork, do not allow RadError::Unknown as tally result
             return Err(TransactionError::MismatchedConsensus {
                 expected_tally: tally_bytes_on_encode_error(),
@@ -1827,7 +1827,7 @@ pub fn validate_block_transactions(
     }
 
     let mut dr_weight: u32 = 0;
-    if after_first_hard_fork(epoch, get_environment()) {
+    if active_wips.first_hard_fork() {
         // Calculate data request not solved weight
         let mut dr_pointers: HashSet<Hash> = dr_pool
             .get_dr_output_pointers_by_epoch(epoch)
@@ -1926,6 +1926,7 @@ pub fn validate_block(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
     consensus_constants: &ConsensusConstants,
+    active_wips: &ActiveWips,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -1960,6 +1961,7 @@ pub fn validate_block(
             block_epoch,
             consensus_constants.minimum_difficulty,
             consensus_constants.epochs_with_minimum_difficulty,
+            active_wips,
         );
 
         add_block_vrf_signature_to_verify(
@@ -2023,6 +2025,7 @@ pub fn validate_new_transaction(
     collateral_age: u32,
     max_vt_weight: u32,
     max_dr_weight: u32,
+    active_wips: &ActiveWips,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
 
@@ -2059,6 +2062,7 @@ pub fn validate_new_transaction(
             collateral_minimum,
             collateral_age,
             block_number,
+            active_wips,
         )
         .map(|(_, _, fee)| fee),
         Transaction::Reveal(tx) => {
@@ -2076,12 +2080,13 @@ pub fn calculate_randpoe_threshold(
     block_epoch: u32,
     minimum_difficulty: u32,
     epochs_with_minimum_difficulty: u32,
+    active_wips: &ActiveWips,
 ) -> (Hash, f64) {
     let max = u64::max_value();
     let minimum_difficulty = std::cmp::max(1, minimum_difficulty);
     let target = if block_epoch <= epochs_with_minimum_difficulty {
         max / u64::from(minimum_difficulty)
-    } else if after_second_hard_fork(block_epoch, get_environment()) {
+    } else if active_wips.second_hard_fork() {
         let difficulty = std::cmp::max(total_identities, minimum_difficulty);
         (max / u64::from(difficulty)).saturating_mul(u64::from(replication_factor))
     } else {
@@ -2100,8 +2105,8 @@ pub fn calculate_reppoe_threshold(
     rep_eng: &ReputationEngine,
     pkh: &PublicKeyHash,
     num_witnesses: u16,
-    block_epoch: u32,
     minimum_difficulty: u32,
+    active_wips: &ActiveWips,
 ) -> (Hash, f64) {
     // Set minimum total_active_reputation to 1 to avoid division by zero
     let total_active_rep = std::cmp::max(rep_eng.total_active_reputation(), 1);
@@ -2112,7 +2117,7 @@ pub fn calculate_reppoe_threshold(
 
     let max = u64::max_value();
     // Compute target eligibility and hard-cap it if required
-    let target = if after_third_hard_fork(block_epoch, get_environment()) {
+    let target = if active_wips.third_hard_fork() {
         // Eligibility must never be greater than (max/minimum_difficulty)
         std::cmp::min(
             max / u64::from(minimum_difficulty),
@@ -2163,6 +2168,7 @@ impl VrfSlots {
         block_epoch: u32,
         minimum_difficulty: u32,
         epochs_with_minimum_difficulty: u32,
+        active_wips: &ActiveWips,
     ) -> Self {
         Self::new(
             (replication_factor..=backup_factor)
@@ -2173,6 +2179,7 @@ impl VrfSlots {
                         block_epoch,
                         minimum_difficulty,
                         epochs_with_minimum_difficulty,
+                        active_wips,
                     )
                     .0
                 })
@@ -2463,6 +2470,7 @@ pub fn verify_signatures(
 
 #[cfg(test)]
 mod tests {
+    use witnet_data_structures::chain::Environment;
     use witnet_data_structures::{
         chain::Alpha, mainnet_validations::SECOND_HARD_FORK, radon_error::RadonError,
     };
@@ -2472,7 +2480,18 @@ mod tests {
 
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;
-    const E: Epoch = SECOND_HARD_FORK + 1;
+
+    // This should only be used in tests
+    fn all_wips_active() -> ActiveWips {
+        let mut active_wips = HashMap::new();
+        active_wips.insert("WIP0014", 500_000);
+
+        ActiveWips {
+            active_wips,
+            block_epoch: u32::MAX,
+            environment: Environment::Mainnet,
+        }
+    }
 
     #[test]
     fn test_compare_candidate_same_section() {
@@ -2653,7 +2672,7 @@ mod tests {
         let rep_1 = Reputation(0);
         let rep_2 = Reputation(2);
         // Candidate 1 should always be better than candidate 2
-        let vrf_sections = VrfSlots::from_rf(16, 1, 2, 1001, 0, 0);
+        let vrf_sections = VrfSlots::from_rf(16, 1, 2, 1001, 0, 0, &all_wips_active());
         // Candidate 1 is in section 0
         let vrf_1 = vrf_sections.target_hashes[0];
         // Candidate 2 is in section 1
@@ -2802,11 +2821,17 @@ mod tests {
     #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_randpoe() {
+        // This test is only valid before the first hard fork
+        let a = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 1001,
+            environment: Environment::Mainnet,
+        };
         let rf = 1;
         let minimum_difficulty = 2000;
         let max_hash = Hash::with_first_u32(0xFFFF_FFFF);
-        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, minimum_difficulty, 0);
-        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, minimum_difficulty, 0);
+        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, minimum_difficulty, 0, &a);
+        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t00, max_hash);
         assert_eq!(t00, t01);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
@@ -2814,19 +2839,20 @@ mod tests {
             (p00 * 100_f64).round() as i128,
             (p01 * 100_f64).round() as i128
         );
-        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, minimum_difficulty, 0);
+        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t02, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!((p02 * 100_f64).round() as i128, 50);
-        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, minimum_difficulty, 0);
+        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t03, Hash::with_first_u32(0x5555_5555));
         assert_eq!((p03 * 100_f64).round() as i128, 33);
-        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, minimum_difficulty, 0);
+        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t04, Hash::with_first_u32(0x3FFF_FFFF));
         assert_eq!((p04 * 100_f64).round() as i128, 25);
-        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, minimum_difficulty, 0);
+        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t05, Hash::with_first_u32(0x003F_FFFF));
         assert_eq!((p05 * 100_f64).round() as i128, 0);
-        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024, rf, 1001, minimum_difficulty, 0);
+        let (t06, p06) =
+            calculate_randpoe_threshold(1024 * 1024, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t06, Hash::with_first_u32(0x0000_0FFF));
         assert_eq!((p06 * 100_f64).round() as i128, 0);
     }
@@ -2834,11 +2860,17 @@ mod tests {
     #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_randpoe_initial_difficulty() {
-        let (t, p) = calculate_randpoe_threshold(2, 1, 1, 4, 10);
+        // This test is only valid before the first hard fork
+        let a = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 1,
+            environment: Environment::Mainnet,
+        };
+        let (t, p) = calculate_randpoe_threshold(2, 1, 1, 4, 10, &a);
         assert_eq!(t, Hash::with_first_u32(0x3FFF_FFFF));
         assert_eq!((p * 100_f64).round() as i128, 25);
 
-        let (t, p) = calculate_randpoe_threshold(2, 1, 11, 4, 10);
+        let (t, p) = calculate_randpoe_threshold(2, 1, 11, 4, 10, &a);
         assert_eq!(t, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!((p * 100_f64).round() as i128, 50);
     }
@@ -2848,6 +2880,12 @@ mod tests {
     fn target_randpoe_minimum_difficulty() {
         let replication_factor = 2;
         let minimum_difficulty = 2000;
+        // Before first hard fork
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 1,
+            environment: Environment::Mainnet,
+        };
 
         let total_identities = 1000;
         let expected_prob = (1_f64 / f64::from(total_identities)) * f64::from(replication_factor);
@@ -2858,10 +2896,12 @@ mod tests {
             1,
             minimum_difficulty,
             0,
+            &active_wips,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, expected_prob);
 
         // After second hard fork, minimum probability is used
+        let active_wips = all_wips_active();
         let block_epoch = SECOND_HARD_FORK + 1;
         let minimum_expected_prob =
             (1_f64 / f64::from(minimum_difficulty)) * f64::from(replication_factor);
@@ -2872,6 +2912,7 @@ mod tests {
             block_epoch,
             minimum_difficulty,
             0,
+            &active_wips,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, minimum_expected_prob);
 
@@ -2882,6 +2923,7 @@ mod tests {
             block_epoch,
             minimum_difficulty,
             0,
+            &active_wips,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, minimum_expected_prob);
 
@@ -2892,6 +2934,7 @@ mod tests {
             block_epoch,
             minimum_difficulty,
             0,
+            &active_wips,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, minimum_expected_prob);
 
@@ -2906,6 +2949,7 @@ mod tests {
             block_epoch,
             minimum_difficulty,
             0,
+            &active_wips,
         );
         assert_eq!((p * 10000_f64).round() / 10000_f64, expected_prob);
 
@@ -2920,6 +2964,7 @@ mod tests {
             block_epoch,
             minimum_difficulty,
             0,
+            &active_wips,
         );
         assert_eq!(
             (p * 1_000_000_000_f64).round() / 1_000_000_000_f64,
@@ -2934,25 +2979,32 @@ mod tests {
         let rf = 4;
         let minimum_difficulty = 2000;
         let max_hash = Hash::with_first_u32(0xFFFF_FFFF);
-        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, minimum_difficulty, 0);
-        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, minimum_difficulty, 0);
+        // This test is only valid before the first hard fork
+        let a = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 1001,
+            environment: Environment::Mainnet,
+        };
+        let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, minimum_difficulty, 0, &a);
+        let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t00, max_hash);
         assert_eq!(t01, max_hash);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
         assert_eq!((p01 * 100_f64).round() as i128, 100);
-        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, minimum_difficulty, 0);
+        let (t02, p02) = calculate_randpoe_threshold(2, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t02, max_hash);
         assert_eq!((p02 * 100_f64).round() as i128, 100);
-        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, minimum_difficulty, 0);
+        let (t03, p03) = calculate_randpoe_threshold(3, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t03, max_hash);
         assert_eq!((p03 * 100_f64).round() as i128, 100);
-        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, minimum_difficulty, 0);
+        let (t04, p04) = calculate_randpoe_threshold(4, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t04, max_hash);
         assert_eq!((p04 * 100_f64).round() as i128, 100);
-        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, minimum_difficulty, 0);
+        let (t05, p05) = calculate_randpoe_threshold(1024, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t05, Hash::with_first_u32(0x00FF_FFFF));
         assert_eq!((p05 * 100_f64).round() as i128, 0);
-        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024, rf, 1001, minimum_difficulty, 0);
+        let (t06, p06) =
+            calculate_randpoe_threshold(1024 * 1024, rf, 1001, minimum_difficulty, 0, &a);
         assert_eq!(t06, Hash::with_first_u32(0x0000_3FFF));
         assert_eq!((p06 * 100_f64).round() as i128, 0);
     }
@@ -2961,6 +3013,13 @@ mod tests {
     #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_reppoe() {
+        // This test is only valid before the third hard fork
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 0,
+            environment: Environment::Mainnet,
+        };
+
         let mut rep_engine = ReputationEngine::new(1000);
         let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
         rep_engine
@@ -2970,7 +3029,7 @@ mod tests {
         rep_engine.ars_mut().push_activity(vec![id1]);
 
         // 100% when we have all the reputation
-        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id1, 1, 0, 2000);
+        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id1, 1, 2000, &active_wips);
         assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!((p00 * 100_f64).round() as i128, 100);
 
@@ -2982,7 +3041,7 @@ mod tests {
         rep_engine.ars_mut().push_activity(vec![id2]);
 
         // 50% when there are 2 nodes with 50% of the reputation each
-        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id1, 1, 0, 2000);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id1, 1, 2000, &active_wips);
         // Since the calculate_reppoe function first divides and later
         // multiplies, we get a rounding error here
         assert_eq!(t01, Hash::with_first_u32(0x7FFF_FFFF));
@@ -3005,6 +3064,13 @@ mod tests {
         clippy::cast_sign_loss
     )]
     fn target_reppoe_specific_example() {
+        // This test is only valid before the third hard fork
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 0,
+            environment: Environment::Mainnet,
+        };
+
         let mut rep_engine = ReputationEngine::new(1000);
         let mut ids = vec![];
         for i in 0..8 {
@@ -3023,7 +3089,8 @@ mod tests {
             let mut v = vec![];
             for id in ids.iter() {
                 v.push(
-                    (calculate_reppoe_threshold(&rep_engine, id, thres, 0, 2000).1 * 100_f64)
+                    (calculate_reppoe_threshold(&rep_engine, id, thres, 2000, &active_wips).1
+                        * 100_f64)
                         .round() as u32,
                 );
             }
@@ -3050,21 +3117,28 @@ mod tests {
     #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_reppoe_zero_reputation() {
+        // This test is only valid before the third hard fork
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 0,
+            environment: Environment::Mainnet,
+        };
+
         // Test the behavior of the algorithm when our node has 0 reputation
         let mut rep_engine = ReputationEngine::new(1000);
         let id0 = PublicKeyHash::from_bytes(&[0; 20]).unwrap();
 
         // 100% when the total reputation is 0
-        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
+        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 2000, &active_wips);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
         assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
-        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 100, 0, 2000);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 100, 2000, &active_wips);
         assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!((p01 * 100_f64).round() as i128, 100);
 
         let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
         rep_engine.ars_mut().push_activity(vec![id1]);
-        let (t02, p02) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
+        let (t02, p02) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 2000, &active_wips);
         assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!((p02 * 100_f64).round() as i128, 100);
 
@@ -3073,14 +3147,14 @@ mod tests {
             .trs_mut()
             .gain(Alpha(10), vec![(id1, Reputation(1))])
             .unwrap();
-        let (t03, p03) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
+        let (t03, p03) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 2000, &active_wips);
         assert_eq!(t03, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!((p03 * 100_f64).round() as i128, 50);
 
         // 33% when the total reputation is 1 but there are 2 active identities
         let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
         rep_engine.ars_mut().push_activity(vec![id2]);
-        let (t04, p04) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
+        let (t04, p04) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 2000, &active_wips);
         assert_eq!(t04, Hash::with_first_u32(0x5555_5555));
         assert_eq!((p04 * 100_f64).round() as i128, 33);
 
@@ -3094,7 +3168,7 @@ mod tests {
             .trs_mut()
             .gain(Alpha(10), vec![(id1, Reputation(99))])
             .unwrap();
-        let (t05, p05) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
+        let (t05, p05) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 2000, &active_wips);
         assert_eq!(t05, Hash::with_first_u32(0x0253_C825));
         assert_eq!((p05 * 100_f64).round() as i128, 1);
     }
@@ -3114,8 +3188,15 @@ mod tests {
             .gain(Alpha(10), vec![(id0, Reputation(u32::max_value() - 2))])
             .unwrap();
 
+        // This test is only valid before the third hard fork
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: 0,
+            environment: Environment::Mainnet,
+        };
+
         // Test big values that result in < 100%
-        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 2000, &active_wips);
         assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFE));
         assert_eq!((p01 * 100_f64).round() as i128, 100);
     }
@@ -3160,7 +3241,7 @@ mod tests {
             rad_rep_float,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.70, 4, E).unwrap();
+            evaluate_tally_precondition_clause(v, 0.70, 4, &all_wips_active()).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -3184,7 +3265,7 @@ mod tests {
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.99, 2, E).unwrap();
+            evaluate_tally_precondition_clause(v, 0.99, 2, &all_wips_active()).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -3208,7 +3289,7 @@ mod tests {
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 1., 2, E).unwrap();
+            evaluate_tally_precondition_clause(v, 1., 2, &all_wips_active()).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -3239,7 +3320,7 @@ mod tests {
             rad_rep_int,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.70, 4, E).unwrap();
+            evaluate_tally_precondition_clause(v, 0.70, 4, &all_wips_active()).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues {
             values,
@@ -3273,7 +3354,7 @@ mod tests {
             rad_rep_int,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.70, 4, E).unwrap();
+            evaluate_tally_precondition_clause(v, 0.70, 4, &all_wips_active()).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -3298,7 +3379,8 @@ mod tests {
             rad_rep_float,
             rad_rep_int,
         ];
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 4, E).unwrap_err();
+        let out =
+            evaluate_tally_precondition_clause(v.clone(), 0.49, 4, &all_wips_active()).unwrap_err();
 
         assert_eq!(
             out,
@@ -3336,7 +3418,7 @@ mod tests {
             rad_rep_int,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.40, 7, E).unwrap();
+            evaluate_tally_precondition_clause(v, 0.40, 7, &all_wips_active()).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -3350,7 +3432,7 @@ mod tests {
     #[test]
     fn test_tally_precondition_clause_no_commits() {
         let v = vec![];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 0, E).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 0, &all_wips_active()).unwrap_err();
 
         assert_eq!(out, RadError::InsufficientCommits);
     }
@@ -3358,7 +3440,7 @@ mod tests {
     #[test]
     fn test_tally_precondition_clause_no_reveals() {
         let v = vec![];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 1, E).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 1, &all_wips_active()).unwrap_err();
 
         assert_eq!(out, RadError::NoReveals);
     }
@@ -3378,7 +3460,7 @@ mod tests {
             rad_rep_err,
         ];
         let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v, 0.51, 4, E).unwrap();
+            evaluate_tally_precondition_clause(v, 0.51, 4, &all_wips_active()).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -3403,7 +3485,7 @@ mod tests {
             rad_rep_float,
             rad_rep_int,
         ];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 4, E).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 4, &all_wips_active()).unwrap_err();
 
         assert_eq!(
             out,
@@ -3430,7 +3512,7 @@ mod tests {
         );
 
         let v = vec![rad_rep_err1, rad_rep_err2];
-        let out = evaluate_tally_precondition_clause(v, 0.51, 2, E).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 2, &all_wips_active()).unwrap_err();
 
         assert_eq!(
             out,
@@ -3457,7 +3539,8 @@ mod tests {
         );
 
         let v = vec![rad_rep_err1, rad_rep_err2];
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 2, E).unwrap_err();
+        let out =
+            evaluate_tally_precondition_clause(v.clone(), 0.49, 2, &all_wips_active()).unwrap_err();
 
         assert_eq!(
             out,

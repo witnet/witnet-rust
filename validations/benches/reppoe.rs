@@ -1,8 +1,11 @@
 #[macro_use]
 extern crate bencher;
 use bencher::Bencher;
-use std::{convert::TryFrom, iter};
-use witnet_data_structures::chain::{Alpha, PublicKeyHash, Reputation, ReputationEngine};
+use std::{collections::HashMap, convert::TryFrom, iter};
+use witnet_data_structures::chain::{
+    Alpha, Environment, PublicKeyHash, Reputation, ReputationEngine,
+};
+use witnet_data_structures::mainnet_validations::ActiveWips;
 
 // To benchmark the old algorithm, comment out this import:
 use witnet_validations::validations;
@@ -42,6 +45,18 @@ mod validations {
     }
 }
 
+// This should only be used in tests
+fn all_wips_active() -> ActiveWips {
+    let mut active_wips = HashMap::new();
+    active_wips.insert("WIP0014", 500_000);
+
+    ActiveWips {
+        active_wips,
+        block_epoch: u32::MAX,
+        environment: Environment::Mainnet,
+    }
+}
+
 fn pkh_i(id: u32) -> PublicKeyHash {
     let mut bytes = [0xFF; 20];
     let [b0, b1, b2, b3] = id.to_le_bytes();
@@ -73,7 +88,13 @@ fn be<I>(
     }
     // Initialize cache
     rep_eng.total_active_reputation();
-    validations::calculate_reppoe_threshold(&rep_eng, &my_pkh, num_witnesses, 0, 2000);
+    validations::calculate_reppoe_threshold(
+        &rep_eng,
+        &my_pkh,
+        num_witnesses,
+        2000,
+        &all_wips_active(),
+    );
     b.iter(|| {
         if invalidate_sorted_cache {
             rep_eng.invalidate_reputation_threshold_cache()
@@ -81,7 +102,13 @@ fn be<I>(
         if invalidate_threshold_cache {
             rep_eng.clear_threshold_cache();
         }
-        validations::calculate_reppoe_threshold(&rep_eng, &my_pkh, num_witnesses, 0, 2000)
+        validations::calculate_reppoe_threshold(
+            &rep_eng,
+            &my_pkh,
+            num_witnesses,
+            2000,
+            &all_wips_active(),
+        )
     })
 }
 

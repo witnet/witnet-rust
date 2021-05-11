@@ -21,6 +21,7 @@ use witnet_data_structures::{
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
         RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, ValueTransferOutput,
     },
+    mainnet_validations::ActiveWips,
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
     transaction_factory::NodeBalance,
@@ -704,8 +705,9 @@ pub struct ResolveRA {
     pub rad_request: RADRequest,
     /// Timeout: if the execution does not finish before the timeout, it is cancelled.
     pub timeout: Option<Duration>,
-    /// Current epoch, used to select the correct version of the validation logic
-    pub current_epoch: Epoch,
+    /// Active Witnet protocol improvements as of the current epoch.
+    /// Used to select the correct version of the validation logic.
+    pub active_wips: ActiveWips,
 }
 
 /// Message for running the tally step of a data request.
@@ -719,8 +721,9 @@ pub struct RunTally {
     pub min_consensus_ratio: f64,
     /// Number of commits
     pub commits_count: usize,
-    /// Epoch of the block that will include this tally, used to select the correct version of the validation logic
-    pub block_epoch: Epoch,
+    /// Active Witnet protocol improvements as of the block that will include this tally.
+    /// Used to select the correct version of the validation logic.
+    pub active_wips: ActiveWips,
 }
 
 impl Message for ResolveRA {

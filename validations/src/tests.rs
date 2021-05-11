@@ -1,11 +1,11 @@
-use itertools::Itertools;
 use std::{
     collections::HashSet,
     convert::TryFrom,
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use crate::validations::*;
+use itertools::Itertools;
+
 use witnet_crypto::{
     key::CryptoEngine,
     secp256k1::{PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey},
@@ -17,7 +17,7 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
-    mainnet_validations::{FIRST_HARD_FORK, SECOND_HARD_FORK},
+    mainnet_validations::{ActiveWips, FIRST_HARD_FORK, SECOND_HARD_FORK},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
@@ -33,6 +33,9 @@ use witnet_rad::{
     types::{integer::RadonInteger, RadonTypes},
 };
 
+use crate::validations::*;
+use std::collections::HashMap;
+
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
@@ -40,6 +43,18 @@ const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
 const HALVING_PERIOD: u32 = 3_500_000;
 // Block epoch used in tally tests
 const E: Epoch = SECOND_HARD_FORK + 1;
+
+// This should only be used in tests
+fn all_wips_active() -> ActiveWips {
+    let mut active_wips = HashMap::new();
+    active_wips.insert("WIP0014", 500_000);
+
+    ActiveWips {
+        active_wips,
+        block_epoch: u32::MAX,
+        environment: Environment::Mainnet,
+    }
+}
 
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
@@ -2316,6 +2331,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         collateral_minimum,
         collateral_age,
         block_number,
+        &all_wips_active(),
     )
     .map(|_| ())
 }
@@ -2367,6 +2383,7 @@ fn test_commit_with_dr_and_utxo_set(
         collateral_minimum,
         collateral_age,
         block_number,
+        &all_wips_active(),
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -2436,6 +2453,13 @@ fn test_commit_difficult_proof() {
     let cs = sign_tx(PRIV_KEY_1, &cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
+    // This test is only valid before the third hard fork
+    let active_wips = ActiveWips {
+        active_wips: Default::default(),
+        block_epoch: 0,
+        environment: Environment::Mainnet,
+    };
+
     let mut signatures_to_verify = vec![];
     let x = validate_commit_transaction(
         &c_tx,
@@ -2449,6 +2473,7 @@ fn test_commit_difficult_proof() {
         collateral_minimum,
         collateral_age,
         block_number,
+        &active_wips,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -2522,6 +2547,7 @@ fn test_commit_with_collateral(
         collateral_minimum,
         collateral_age,
         block_number,
+        &all_wips_active(),
     )
     .map(|_| ())
 }
@@ -2764,6 +2790,7 @@ fn commitment_invalid_proof() {
         collateral_minimum,
         collateral_age,
         block_number,
+        &all_wips_active(),
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -2837,6 +2864,7 @@ fn commitment_dr_in_reveal_stage() {
         collateral_minimum,
         collateral_age,
         block_number,
+        &all_wips_active(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -3219,6 +3247,7 @@ fn commitment_collateral_zero_is_minimum() {
             collateral_minimum,
             collateral_age,
             block_number,
+            &all_wips_active(),
         )
         .map(|_| ())
     };
@@ -3291,6 +3320,12 @@ fn commitment_timelock() {
         // Sign commitment
         let cs = sign_tx(PRIV_KEY_1, &cb);
         let c_tx = CommitTransaction::new(cb, vec![cs]);
+        // This test checks that the first hard fork is handled correctly
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: epoch,
+            environment: Environment::Mainnet,
+        };
 
         let mut signatures_to_verify = vec![];
         validate_commit_transaction(
@@ -3305,6 +3340,7 @@ fn commitment_timelock() {
             collateral_minimum,
             collateral_age,
             block_number,
+            &active_wips,
         )
         .map(|_| ())?;
 
@@ -4073,6 +4109,7 @@ fn tally_dr_not_tally_stage() {
     // Create DRTransaction
     let fake_block_hash = Hash::SHA256([1; 32]);
     let epoch = 0;
+    let active_wips = all_wips_active();
     let dr_output = DataRequestOutput {
         witnesses: 1,
         commit_and_reveal_fee: 20,
@@ -4120,7 +4157,7 @@ fn tally_dr_not_tally_stage() {
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![], vec![]);
 
     let mut dr_pool = DataRequestPool::default();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestNotFound { hash: dr_pointer },
@@ -4129,7 +4166,7 @@ fn tally_dr_not_tally_stage() {
         .process_data_request(&dr_transaction, epoch, &Hash::default())
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips);
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotTallyStage
@@ -4139,7 +4176,7 @@ fn tally_dr_not_tally_stage() {
         .process_commit(&commit_transaction, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips);
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotTallyStage
@@ -4149,7 +4186,8 @@ fn tally_dr_not_tally_stage() {
         .process_reveal(&reveal_transaction, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -4201,7 +4239,7 @@ fn tally_invalid_consensus() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedConsensus {
@@ -4267,7 +4305,8 @@ fn tally_valid_1_reveal_5_commits() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
         vec![pkhs[0]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -4433,7 +4472,8 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
         vec![pkhs[0]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidReward {
@@ -4499,7 +4539,8 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
         vec![pkhs[0]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidTimeLock {
@@ -4553,7 +4594,8 @@ fn tally_valid() {
         error_witnesses,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -4590,7 +4632,8 @@ fn tally_too_many_outputs() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -4619,7 +4662,8 @@ fn tally_too_less_outputs() {
 
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -4673,7 +4717,8 @@ fn tally_invalid_change() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidTallyChange {
@@ -4711,7 +4756,8 @@ fn tally_double_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MultipleRewards { pkh: rewarded[0] },
@@ -4746,7 +4792,8 @@ fn tally_reveal_not_found() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::RevealNotFound,
@@ -4782,7 +4829,8 @@ fn tally_invalid_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidReward {
@@ -4821,7 +4869,8 @@ fn tally_valid_2_reveals() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -4862,7 +4911,8 @@ fn tally_valid_3_reveals_dr_liar() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -4903,7 +4953,8 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         slashed_witnesses.clone(),
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4965,7 +5016,8 @@ fn tally_valid_5_reveals_1_liar_1_error() {
         out_of_consensus,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -5010,7 +5062,8 @@ fn tally_valid_3_reveals_1_error() {
         error_witnesses.clone(),
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -5055,7 +5108,8 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
         error_witnesses.clone(),
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidReward {
@@ -5106,7 +5160,8 @@ fn tally_valid_3_reveals_mark_all_as_error() {
         error_witnesses,
         vec![rewarded[0], rewarded[1], rewarded[2]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingErrorCount {
@@ -5152,7 +5207,8 @@ fn tally_dishonest_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -5186,11 +5242,12 @@ fn create_tally_validation_dr_liar() {
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
+    let active_wips = all_wips_active();
     let clause_result = evaluate_tally_precondition_clause(
         vec![reveal_value.clone(), reveal_value, liar_value],
         min_consensus,
         3,
-        E,
+        &active_wips,
     );
     let script = RADTally {
         filters: vec![RADFilter {
@@ -5199,7 +5256,7 @@ fn create_tally_validation_dr_liar() {
         }],
         reducer: RadonReducers::Mode as u32,
     };
-    let report = construct_report_from_clause_result(clause_result, &script, 3, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 3, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 3);
 
     // Create a TallyTransaction using the create_tally function
@@ -5215,10 +5272,11 @@ fn create_tally_validation_dr_liar() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
-        E,
+        &active_wips,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5255,6 +5313,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
+    let active_wips = all_wips_active();
     let clause_result = evaluate_tally_precondition_clause(
         vec![
             reveal_value.clone(),
@@ -5265,7 +5324,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
         ],
         min_consensus,
         5,
-        E,
+        &active_wips,
     );
     let script = RADTally {
         filters: vec![RADFilter {
@@ -5274,7 +5333,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
         }],
         reducer: RadonReducers::Mode as u32,
     };
-    let report = construct_report_from_clause_result(clause_result, &script, 5, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 5, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     // Create a TallyTransaction using the create_tally function
@@ -5302,10 +5361,11 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
         .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
-        E,
+        &active_wips,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5331,11 +5391,12 @@ fn create_tally_validation_4_commits_2_reveals() {
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
+    let active_wips = all_wips_active();
     let clause_result = evaluate_tally_precondition_clause(
         vec![reveal_value.clone(), reveal_value],
         min_consensus,
         4,
-        E,
+        &active_wips,
     );
     let script = RADTally {
         filters: vec![RADFilter {
@@ -5344,7 +5405,7 @@ fn create_tally_validation_4_commits_2_reveals() {
         }],
         reducer: RadonReducers::Mode as u32,
     };
-    let report = construct_report_from_clause_result(clause_result, &script, 2, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 2, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 4);
 
     // Create a TallyTransaction using the create_tally function
@@ -5360,10 +5421,11 @@ fn create_tally_validation_4_commits_2_reveals() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
-        E,
+        &active_wips,
     );
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5376,9 +5438,10 @@ fn tally_valid_zero_commits() {
 
     // Tally value: Insufficient commits Error
     let min_consensus = 0.0;
-    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, E);
+    let active_wips = all_wips_active();
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, &active_wips);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
     let tally_value = report.result.encode().unwrap();
     let vt0 = ValueTransferOutput {
@@ -5388,7 +5451,8 @@ fn tally_valid_zero_commits() {
     };
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5401,9 +5465,10 @@ fn create_tally_validation_zero_commits() {
 
     // Tally value: Insufficient commits Error
     let min_consensus = 0.51;
-    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, E);
+    let active_wips = all_wips_active();
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, &active_wips);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
     let tally_transaction = create_tally(
         dr_pointer,
@@ -5414,9 +5479,10 @@ fn create_tally_validation_zero_commits() {
         HashSet::<PublicKeyHash>::default(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
-        E,
+        &active_wips,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5429,9 +5495,10 @@ fn tally_invalid_zero_commits() {
 
     // Tally value: Insufficient commits Error
     let min_consensus = 0.0;
-    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, E);
+    let active_wips = all_wips_active();
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, &active_wips);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
     let tally_value = report.result.encode().unwrap();
     let vt0 = ValueTransferOutput {
@@ -5451,7 +5518,8 @@ fn tally_invalid_zero_commits() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -5470,9 +5538,10 @@ fn tally_valid_zero_reveals() {
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
-    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, E);
+    let active_wips = all_wips_active();
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
     let tally_value = report.result.encode().unwrap();
 
@@ -5514,7 +5583,8 @@ fn tally_valid_zero_reveals() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5527,9 +5597,10 @@ fn create_tally_validation_zero_reveals() {
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
-    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, E);
+    let active_wips = all_wips_active();
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     let mut committers = rewarded;
@@ -5547,9 +5618,10 @@ fn create_tally_validation_zero_reveals() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
-        E,
+        &active_wips,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5563,9 +5635,10 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
-    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, E);
+    let active_wips = all_wips_active();
+    let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
-    let report = construct_report_from_clause_result(clause_result, &script, 0, E);
+    let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     let mut committers = rewarded;
@@ -5583,9 +5656,10 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
             .collect::<HashSet<PublicKeyHash>>(),
         ONE_WIT,
         tally_bytes_on_encode_error(),
-        E,
+        &active_wips,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5736,7 +5810,8 @@ fn tally_valid_4_reveals_all_liars() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -5787,7 +5862,8 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     // The attacker_pkh has not participated in the commit/reveal process, so the error is "CommitNotFound"
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -5842,7 +5918,8 @@ fn tally_valid_4_reveals_2_liars_2_true() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -5895,7 +5972,8 @@ fn tally_valid_4_reveals_2_errors_2_true() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -5946,7 +6024,8 @@ fn tally_valid_4_reveals_1_liar_2_true() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6001,7 +6080,8 @@ fn tally_valid_4_reveals_invalid_script_arg() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6056,7 +6136,8 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6104,7 +6185,8 @@ fn tally_valid_4_reveals_majority_of_errors() {
         vec![],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6151,7 +6233,8 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
         vec![pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6200,7 +6283,8 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6255,7 +6339,8 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6309,7 +6394,8 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2]],
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6353,7 +6439,8 @@ fn tally_unserializable_value() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, E).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
     x.unwrap();
 }
 
@@ -6520,6 +6607,14 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
     };
+    // TODO: In this test the active wips depend on the current epoch
+    // Ideally this should use all_wips_active() so that when adding new WIPs the existing tests
+    // will fail if the logic is accidentally changed.
+    let active_wips = ActiveWips {
+        active_wips: Default::default(),
+        block_epoch: current_epoch,
+        environment: Environment::Mainnet,
+    };
 
     // Insert output to utxo
     let output1 = ValueTransferOutput {
@@ -6587,6 +6682,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &mut signatures_to_verify,
         &rep_eng,
         &consensus_constants,
+        &active_wips,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -6601,6 +6697,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         EpochConstants::default(),
         block_number,
         &consensus_constants,
+        &active_wips,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -6870,6 +6967,7 @@ fn block_difficult_proof() {
                 &mut signatures_to_verify,
                 &rep_eng,
                 &consensus_constants,
+                &all_wips_active(),
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -6884,6 +6982,7 @@ fn block_difficult_proof() {
                 EpochConstants::default(),
                 block_number,
                 &consensus_constants,
+                &all_wips_active(),
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -7570,6 +7669,7 @@ fn test_blocks_with_limits(
             &mut signatures_to_verify,
             &rep_eng,
             &consensus_constants,
+            &all_wips_active(),
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -7585,6 +7685,7 @@ fn test_blocks_with_limits(
             EpochConstants::default(),
             block_number,
             &consensus_constants,
+            &all_wips_active(),
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -8077,6 +8178,7 @@ fn genesis_block_after_not_bootstrap_hash() {
         &mut signatures_to_verify,
         &rep_eng,
         &consensus_constants,
+        &all_wips_active(),
     );
     assert_eq!(signatures_to_verify, vec![]);
 
@@ -8156,6 +8258,7 @@ fn genesis_block_value_overflow() {
         &mut signatures_to_verify,
         &rep_eng,
         &consensus_constants,
+        &all_wips_active(),
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -8172,6 +8275,7 @@ fn genesis_block_value_overflow() {
         EpochConstants::default(),
         block_number,
         &consensus_constants,
+        &all_wips_active(),
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -8238,6 +8342,7 @@ fn genesis_block_full_validate() {
         &mut signatures_to_verify,
         &rep_eng,
         &consensus_constants,
+        &all_wips_active(),
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -8254,6 +8359,7 @@ fn genesis_block_full_validate() {
         EpochConstants::default(),
         block_number,
         &consensus_constants,
+        &all_wips_active(),
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -8340,6 +8446,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             EpochConstants::default(),
             block_number,
             &consensus_constants,
+            &all_wips_active(),
         )
         .unwrap()
     };
@@ -8502,6 +8609,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             EpochConstants::default(),
             block_number,
             &consensus_constants,
+            &all_wips_active(),
         )
         .unwrap()
     };
@@ -8556,6 +8664,7 @@ fn validate_required_tally_not_found() {
         EpochConstants::default(),
         100,
         &ConsensusConstants::default(),
+        &all_wips_active(),
     )
     .unwrap_err();
 

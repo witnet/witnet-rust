@@ -9,8 +9,7 @@ use crate::{
         Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
-    get_environment,
-    mainnet_validations::after_second_hard_fork,
+    mainnet_validations::ActiveWips,
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
@@ -460,7 +459,7 @@ pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     committers: HashSet<PublicKeyHash, S>,
     collateral_minimum: u64,
     tally_bytes_on_encode_error: Vec<u8>,
-    block_epoch: Epoch,
+    active_wips: &ActiveWips,
 ) -> TallyTransaction
 where
     RT: TypeLike,
@@ -487,7 +486,7 @@ where
 
         // Collateral division rest goes for the miner
         let non_reveals_count = commits_count - reveals_count;
-        let is_after_second_hard_fork = after_second_hard_fork(block_epoch, get_environment());
+        let is_after_second_hard_fork = active_wips.second_hard_fork();
         let (reward, _rest) = if is_after_second_hard_fork {
             calculate_witness_reward(
                 commits_count,

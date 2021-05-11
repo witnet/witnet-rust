@@ -274,6 +274,36 @@ pub fn after_third_hard_fork(epoch: Epoch, environment: Environment) -> bool {
     epoch >= THIRD_HARD_FORK && Environment::Mainnet == environment
 }
 
+/// Allows to check the active Witnet Improvement Proposals
+#[derive(Clone, Debug)]
+pub struct ActiveWips {
+    pub active_wips: HashMap<&'static str, Epoch>,
+    pub block_epoch: Epoch,
+    pub environment: Environment,
+}
+
+impl ActiveWips {
+    pub fn first_hard_fork(&self) -> bool {
+        after_first_hard_fork(self.block_epoch, self.environment)
+    }
+
+    pub fn second_hard_fork(&self) -> bool {
+        after_second_hard_fork(self.block_epoch, self.environment)
+    }
+
+    pub fn third_hard_fork(&self) -> bool {
+        after_third_hard_fork(self.block_epoch, self.environment)
+    }
+
+    pub fn wip0014(&self) -> bool {
+        // TODO: ignore environment?
+        self.active_wips
+            .get("WIP0014")
+            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
+            .unwrap_or(false)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

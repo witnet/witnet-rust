@@ -1,8 +1,3 @@
-use actix::{
-    ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, SystemService, WrapFuture,
-};
-use ansi_term::Color::{White, Yellow};
-use futures::future::{try_join_all, FutureExt};
 use std::{
     collections::HashSet,
     convert::TryFrom,
@@ -14,6 +9,35 @@ use std::{
     },
 };
 
+use actix::{
+    ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, SystemService, WrapFuture,
+};
+use ansi_term::Color::{White, Yellow};
+use futures::future::{try_join_all, FutureExt};
+
+use witnet_data_structures::{
+    chain::{
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
+        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
+        ReputationEngine, TransactionsPool, ValueTransferOutput,
+    },
+    data_request::{
+        calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
+        DataRequestPool,
+    },
+    error::TransactionError,
+    get_environment,
+    mainnet_validations::{after_second_hard_fork, ActiveWips},
+    radon_report::{RadonReport, ReportContext},
+    transaction::{
+        CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
+        RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
+    },
+    transaction_factory::build_commit_collateral,
+    utxo_pool::{UnspentOutputsPool, UtxoDiff},
+    vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
+};
+use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
@@ -30,29 +54,6 @@ use crate::{
     },
     signature_mngr,
 };
-use witnet_data_structures::{
-    chain::{
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
-        ReputationEngine, TransactionsPool, ValueTransferOutput,
-    },
-    data_request::{
-        calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
-        DataRequestPool,
-    },
-    error::TransactionError,
-    get_environment,
-    mainnet_validations::after_second_hard_fork,
-    radon_report::{RadonReport, ReportContext},
-    transaction::{
-        CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
-        RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
-    },
-    transaction_factory::build_commit_collateral,
-    utxo_pool::{UnspentOutputsPool, UtxoDiff},
-    vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
-};
-use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
 
 impl ChainManager {
     /// Try to mine a block
@@ -136,6 +137,11 @@ impl ChainManager {
 
         let own_pkh = self.own_pkh.unwrap_or_default();
         let is_ars_member = rep_engine.is_ars_member(&own_pkh);
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: current_epoch,
+            environment: get_environment(),
+        };
 
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
@@ -149,6 +155,7 @@ impl ChainManager {
                             current_epoch,
                             minimum_difficulty,
                             epochs_with_minimum_difficulty,
+                            &active_wips,
                         );
                         let proof_invalid = vrf_proof_hash > target_hash;
 
@@ -326,12 +333,17 @@ impl ChainManager {
 
             // TODO: pass difficulty as an argument to this function (from consensus constants)
             let minimum_reppoe_difficulty = 2000;
+            let active_wips = ActiveWips {
+                active_wips: Default::default(),
+                block_epoch: current_epoch,
+                environment: get_environment(),
+            };
             let (target_hash, probability) = calculate_reppoe_threshold(
                 rep_eng,
                 &own_pkh,
                 num_witnesses + num_backup_witnesses,
-                current_epoch,
                 minimum_reppoe_difficulty,
+                &active_wips,
             );
 
             // Grab a reference to `current_retrieval_count`
@@ -502,12 +514,17 @@ impl ChainManager {
                     let rad_request = dr_state.data_request.data_request.clone();
 
                     // Send ResolveRA message to RADManager
+                    let active_wips = ActiveWips {
+                        active_wips: Default::default(),
+                        block_epoch: current_epoch,
+                        environment: get_environment(),
+                    };
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
                         .send(ResolveRA {
                             rad_request,
                             timeout: data_request_timeout,
-                            current_epoch,
+                            active_wips,
                         })
                         .map(move |res|
                             res.map(move |result| match result {
@@ -662,13 +679,18 @@ impl ChainManager {
                         let rad_manager_addr = RadManager::from_registry();
 
                         // The result of `RunTally` will be published as tally
+                        let active_wips = ActiveWips {
+                            active_wips: Default::default(),
+                            block_epoch,
+                            environment: get_environment(),
+                        };
                         let tally_result = rad_manager_addr
                             .send(RunTally {
                                 min_consensus_ratio,
                                 reports: reports.clone(),
                                 script: dr_state.data_request.data_request.tally.clone(),
                                 commits_count,
-                                block_epoch,
+                                active_wips: active_wips.clone(),
                             })
                             .await
                             .unwrap_or_else(|e| {
@@ -693,7 +715,7 @@ impl ChainManager {
                             committers,
                             collateral_minimum,
                             tally_bytes_on_encode_error(),
-                            block_epoch,
+                            &active_wips,
                         );
 
                         log::info!(
@@ -1044,16 +1066,17 @@ mod tests {
         PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
     };
 
-    const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
-    const HALVING_PERIOD: u32 = 3_500_000;
-
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
     use witnet_protected::Protected;
     use witnet_validations::validations::validate_block_signature;
 
-    use super::*;
     use crate::actors::chain_manager::verify_signatures;
+
+    use super::*;
+
+    const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
+    const HALVING_PERIOD: u32 = 3_500_000;
 
     #[test]
     fn build_empty_block() {

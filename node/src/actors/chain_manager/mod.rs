@@ -54,7 +54,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment,
-    mainnet_validations::{after_second_hard_fork, in_emergency_period},
+    mainnet_validations::{after_second_hard_fork, in_emergency_period, ActiveWips},
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
@@ -469,6 +469,11 @@ impl ChainManager {
             let block_number = self.chain_state.block_number();
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = block.block_header.beacon.checkpoint;
+            let active_wips = ActiveWips {
+                active_wips: Default::default(),
+                block_epoch: block.block_header.beacon.checkpoint,
+                environment: get_environment(),
+            };
 
             let utxo_diff = process_validations(
                 &block,
@@ -484,6 +489,7 @@ impl ChainManager {
                 block_number,
                 &chain_info.consensus_constants,
                 resynchronizing,
+                &active_wips,
             )?;
 
             // Persist block and update ChainState
@@ -530,7 +536,11 @@ impl ChainManager {
 
                 let mut vrf_input = chain_info.highest_vrf_output;
                 vrf_input.checkpoint = current_epoch;
-
+                let active_wips = ActiveWips {
+                    active_wips: Default::default(),
+                    block_epoch: block.block_header.beacon.checkpoint,
+                    environment: get_environment(),
+                };
                 let target_vrf_slots = VrfSlots::from_rf(
                     u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
                     chain_info.consensus_constants.mining_replication_factor,
@@ -540,6 +550,7 @@ impl ChainManager {
                     chain_info
                         .consensus_constants
                         .epochs_with_minimum_difficulty,
+                    &active_wips,
                 );
                 let block_pkh = &block.block_sig.public_key.pkh();
                 let reputation = rep_engine.trs().get(block_pkh);
@@ -602,6 +613,7 @@ impl ChainManager {
                     self.chain_state.block_number(),
                     &chain_info.consensus_constants,
                     false,
+                    &active_wips,
                 ) {
                     Ok(utxo_diff) => {
                         self.best_candidate = Some(BlockCandidate {
@@ -1128,6 +1140,13 @@ impl ChainManager {
             let mut signatures_to_verify = vec![];
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = current_epoch;
+            let active_wips = ActiveWips {
+                active_wips: Default::default(),
+                // If this transaction will be included in a block, the block epoch must be greater
+                // than or equal to the current epoch
+                block_epoch: current_epoch,
+                environment: get_environment(),
+            };
             let fut = future::ready(validate_new_transaction(
                 &msg.transaction,
                 (
@@ -1144,6 +1163,7 @@ impl ChainManager {
                 chain_info.consensus_constants.collateral_age,
                 chain_info.consensus_constants.max_vt_weight,
                 chain_info.consensus_constants.max_dr_weight,
+                &active_wips,
             ))
             .into_actor(self)
             .and_then(|fee, act, _ctx| {
@@ -1622,6 +1642,11 @@ impl ChainManager {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
         let consensus_constants = self.consensus_constants();
+        let active_wips = ActiveWips {
+            active_wips: Default::default(),
+            block_epoch: block.block_header.beacon.checkpoint,
+            environment: get_environment(),
+        };
         let res = validate_block(
             &block,
             current_epoch,
@@ -1630,6 +1655,7 @@ impl ChainManager {
             &mut signatures_to_verify,
             self.chain_state.reputation_engine.as_ref().unwrap(),
             &consensus_constants,
+            &active_wips,
         );
 
         let fut = async {
@@ -1651,6 +1677,7 @@ impl ChainManager {
                 epoch_constants,
                 block_number,
                 &consensus_constants,
+                &active_wips,
             );
             async {
                 // Short-circuit if validation failed
@@ -2243,6 +2270,7 @@ pub fn process_validations(
     block_number: u32,
     consensus_constants: &ConsensusConstants,
     resynchronizing: bool,
+    active_wips: &ActiveWips,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2254,6 +2282,7 @@ pub fn process_validations(
             &mut signatures_to_verify,
             rep_eng,
             &consensus_constants,
+            active_wips,
         )?;
         verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
     }
@@ -2269,6 +2298,7 @@ pub fn process_validations(
         epoch_constants,
         block_number,
         consensus_constants,
+        active_wips,
     )?;
 
     if !resynchronizing {
@@ -2789,6 +2819,7 @@ pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_t
 
 #[cfg(test)]
 mod tests {
+    use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
     use witnet_data_structures::{
         chain::{
             ChainInfo, Environment, KeyedSignature, PartialConsensusConstants, PublicKey,
@@ -2798,7 +2829,6 @@ mod tests {
     };
 
     use super::*;
-    use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
 
     #[test]
     fn test_rep_info_update() {
