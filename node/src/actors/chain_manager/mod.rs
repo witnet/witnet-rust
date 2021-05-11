@@ -62,6 +62,7 @@ use witnet_data_structures::{
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::VrfCtx,
 };
+use witnet_futures_utils::ActorFutureExt2;
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
@@ -86,7 +87,6 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
-use witnet_futures_utils::ActorFutureExt2;
 
 mod actor;
 mod handlers;
@@ -660,6 +660,7 @@ impl ChainManager {
             } => {
                 let block_hash = block.hash();
                 let block_epoch = block.block_header.beacon.checkpoint;
+                let block_version = block.block_header.version;
 
                 // Update `highest_block_checkpoint`
                 let beacon = CheckpointBeacon {
@@ -814,6 +815,11 @@ impl ChainManager {
                         JsonRpcServer::from_registry().do_send(BlockNotify { block })
                     }
                 }
+
+                // Update votes counter for WIPs
+                self.chain_state
+                    .tapi_engine
+                    .update_bit_counter(block_version, block_epoch);
 
                 if miner_pkh == own_pkh {
                     self.chain_state.node_stats.block_mined_count += 1;
