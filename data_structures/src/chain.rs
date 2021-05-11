@@ -1,13 +1,3 @@
-use bech32::{FromBase32, ToBase32};
-use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
-use failure::Fail;
-use ordered_float::OrderedFloat;
-use partial_struct::PartialStruct;
-use secp256k1::{
-    PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
-    Signature as Secp256k1_Signature,
-};
-use serde::{Deserialize, Serialize};
 use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
@@ -17,6 +7,18 @@ use std::{
     ops::{AddAssign, SubAssign},
     str::FromStr,
 };
+
+use bech32::{FromBase32, ToBase32};
+use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
+use failure::Fail;
+use ordered_float::OrderedFloat;
+use secp256k1::{
+    PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
+    Signature as Secp256k1_Signature,
+};
+use serde::{Deserialize, Serialize};
+
+use partial_struct::PartialStruct;
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::ExtendedSK,
@@ -3843,11 +3845,6 @@ pub fn block_example() -> Block {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        superblock::{mining_build_superblock, ARSIdentities},
-        transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
-    };
     use witnet_crypto::{
         merkle::{merkle_tree_root, InclusionProof},
         secp256k1::{
@@ -3855,6 +3852,13 @@ mod tests {
         },
         signature::sign,
     };
+
+    use crate::{
+        superblock::{mining_build_superblock, ARSIdentities},
+        transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
+    };
+
+    use super::*;
 
     fn dr_root_superblock_loop_test(
         sb: SuperBlock,
