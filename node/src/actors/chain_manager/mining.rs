@@ -138,7 +138,7 @@ impl ChainManager {
         let own_pkh = self.own_pkh.unwrap_or_default();
         let is_ars_member = rep_engine.is_ars_member(&own_pkh);
         let active_wips = ActiveWips {
-            active_wips: Default::default(),
+            active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: current_epoch,
             environment: get_environment(),
         };
@@ -207,6 +207,8 @@ impl ChainManager {
                     act.bn256_public_key.clone()
                 };
 
+                let tapi_version = act.tapi_signals_mask();
+
                 // Build the block using the supplied beacon and eligibility proof
                 let (block_header, txns) = build_block(
                     (
@@ -228,6 +230,7 @@ impl ChainManager {
                     act.external_percentage,
                     initial_block_reward,
                     halving_period,
+                    tapi_version,
                 );
 
                 // Sign the block hash
@@ -503,7 +506,7 @@ impl ChainManager {
 
                     // Send ResolveRA message to RADManager
                     let active_wips = ActiveWips {
-                        active_wips: Default::default(),
+                        active_wips: act.chain_state.tapi_engine.wip_activation.clone(),
                         block_epoch: current_epoch,
                         environment: get_environment(),
                     };
@@ -626,11 +629,14 @@ impl ChainManager {
                 )
             })
             .collect::<Vec<_>>();
+        let active_wips = self.chain_state.tapi_engine.wip_activation.clone();
 
         let future_tally_transactions =
             dr_reveals
                 .into_iter()
                 .map(move |(dr_pointer, reveals, dr_state)| {
+                    let active_wips = active_wips.clone();
+
                     async move {
                         log::debug!("Building tally for data request {}", dr_pointer);
 
@@ -668,7 +674,7 @@ impl ChainManager {
 
                         // The result of `RunTally` will be published as tally
                         let active_wips = ActiveWips {
-                            active_wips: Default::default(),
+                            active_wips,
                             block_epoch,
                             environment: get_environment(),
                         };
@@ -759,6 +765,7 @@ pub fn build_block(
     external_percentage: u8,
     initial_block_reward: u64,
     halving_period: u32,
+    tapi_version: u32,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -941,7 +948,7 @@ pub fn build_block(
     };
 
     let block_header = BlockHeader {
-        version: 0,
+        version: tapi_version,
         beacon,
         merkle_roots,
         proof,
@@ -1106,6 +1113,7 @@ mod tests {
             0,
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
+            0,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1175,6 +1183,7 @@ mod tests {
             0,
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
+            0,
         );
 
         // Create a KeyedSignature
@@ -1297,6 +1306,7 @@ mod tests {
             0,
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
+            0,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1391,6 +1401,7 @@ mod tests {
             0,
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
+            0,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1480,6 +1491,7 @@ mod tests {
             0,
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
+            0,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1571,6 +1583,7 @@ mod tests {
             0,
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
+            0,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 

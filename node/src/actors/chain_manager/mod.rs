@@ -468,7 +468,7 @@ impl ChainManager {
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = block.block_header.beacon.checkpoint;
             let active_wips = ActiveWips {
-                active_wips: Default::default(),
+                active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: block.block_header.beacon.checkpoint,
                 environment: get_environment(),
             };
@@ -535,7 +535,7 @@ impl ChainManager {
                 let mut vrf_input = chain_info.highest_vrf_output;
                 vrf_input.checkpoint = current_epoch;
                 let active_wips = ActiveWips {
-                    active_wips: Default::default(),
+                    active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                     block_epoch: block.block_header.beacon.checkpoint,
                     environment: get_environment(),
                 };
@@ -1139,7 +1139,7 @@ impl ChainManager {
             let mut vrf_input = chain_info.highest_vrf_output;
             vrf_input.checkpoint = current_epoch;
             let active_wips = ActiveWips {
-                active_wips: Default::default(),
+                active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 // If this transaction will be included in a block, the block epoch must be greater
                 // than or equal to the current epoch
                 block_epoch: current_epoch,
@@ -1617,7 +1617,7 @@ impl ChainManager {
         let mut signatures_to_verify = vec![];
         let consensus_constants = self.consensus_constants();
         let active_wips = ActiveWips {
-            active_wips: Default::default(),
+            active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: block.block_header.beacon.checkpoint,
             environment: get_environment(),
         };
@@ -2095,6 +2095,12 @@ impl ChainManager {
         });
 
         Box::pin(fut)
+    }
+
+    /// Return the value of the version field
+    fn tapi_signals_mask(&self) -> u32 {
+        // TODO: change this to 1 to signal support for WIP0014
+        0
     }
 }
 
