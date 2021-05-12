@@ -18,6 +18,7 @@ pub struct CreateWalletRequest {
     overwrite: Option<bool>,
     /// only needed if seed_source is xprv
     backup_password: Option<types::Password>,
+    birth_date: Option<types::BirthDate>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -41,6 +42,7 @@ impl Handler<CreateWalletRequest> for app::App {
             req.description,
             req.overwrite,
             req.backup_password,
+            req.birth_date,
         );
 
         let f = fut::result(validated_params).and_then(|params, slf: &mut Self, _ctx| {
@@ -50,6 +52,7 @@ impl Handler<CreateWalletRequest> for app::App {
                 params.name,
                 params.description,
                 params.overwrite,
+                params.birth_date,
             )
             .map(|res| res.map(|wallet_id| CreateWalletResponse { wallet_id }))
             .into_actor(slf)

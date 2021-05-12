@@ -256,3 +256,9 @@ pub fn transaction_movement(
         account_index, transaction_id
     ))
 }
+
+/// Protocol epoch in which a wallet was created (won't synchronize blocks prior to this epoch)
+#[inline]
+pub fn birth_date() -> Key<&'static str, CheckpointBeacon> {
+    Key::new("birth-date")
+}

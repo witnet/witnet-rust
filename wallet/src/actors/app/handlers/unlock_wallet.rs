@@ -19,6 +19,7 @@ pub struct UnlockWalletResponse {
     current_account: u32,
     account_balance: model::WalletBalance,
     session_expiration_secs: u64,
+    birth_date: types::Epoch,
 }
 
 impl Message for UnlockWalletRequest {
@@ -43,6 +44,7 @@ impl Handler<UnlockWalletRequest> for app::App {
                     available_accounts: data.available_accounts,
                     account_balance: data.balance,
                     session_expiration_secs: slf.params.session_expires_in.as_secs(),
+                    birth_date: data.birth_date.checkpoint,
                 }
             },
         );

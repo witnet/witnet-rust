@@ -32,6 +32,8 @@ use witnet_protected::{Protected, ProtectedString};
 
 use super::{db, repository};
 
+pub use witnet_data_structures::chain::Epoch;
+
 pub type Password = ProtectedString;
 
 pub type Secret = Protected;
@@ -130,6 +132,7 @@ pub struct WalletData {
     pub available_accounts: Vec<u32>,
     pub last_sync: CheckpointBeacon,
     pub last_confirmed: CheckpointBeacon,
+    pub birth_date: CheckpointBeacon,
 }
 
 pub struct CreateWalletData<'a> {
@@ -140,6 +143,7 @@ pub struct CreateWalletData<'a> {
     pub salt: Vec<u8>,
     pub account: &'a Account,
     pub master_key: Option<ExtendedSK>,
+    pub birth_date: CheckpointBeacon,
 }
 
 pub struct VttParams {
@@ -197,6 +201,14 @@ pub struct ExtendedKeyedSignature {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ChainEntry(pub u32, pub String);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum BirthDate {
+    #[serde(rename = "current")]
+    Current,
+    #[serde(rename = "imported")]
+    Imported(Epoch),
+}
 
 impl TryFrom<&ChainEntry> for CheckpointBeacon {
     type Error = hex::FromHexError;

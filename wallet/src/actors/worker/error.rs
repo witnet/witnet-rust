@@ -44,6 +44,11 @@ pub enum Error {
         _0, _1
     )]
     NodeBehindLocalTip(u32, u32),
+    #[fail(
+        display = "the provided `birth_date` epoch is greater than the current epoch({} > {})",
+        _0, _1
+    )]
+    InvalidBirthDate(u32, u32),
 }
 
 #[derive(Debug, Fail)]

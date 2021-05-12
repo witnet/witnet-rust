@@ -71,6 +71,7 @@ impl<T: Database> Wallets<T> {
             salt,
             account,
             master_key,
+            birth_date,
         } = wallet_data;
         let mut batch = self.db.batch();
         let mut wbatch = wallet_db.batch();
@@ -98,6 +99,9 @@ impl<T: Database> Wallets<T> {
             &keys::account_key(account.index, constants::INTERNAL_KEYCHAIN),
             &account.internal,
         )?;
+
+        wbatch.put(&keys::birth_date(), birth_date)?;
+        wbatch.put(&keys::wallet_last_sync(), birth_date)?;
 
         wallet_db.write(wbatch)?;
 

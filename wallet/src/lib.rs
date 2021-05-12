@@ -86,6 +86,8 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
 
+    let consensus_constants = conf.consensus_constants;
+
     // Select random node from list
     let node_client_url = node_url.choose(&mut rand::thread_rng()).ok_or_else(|| {
         log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
@@ -135,6 +137,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             sync_address_batch_length,
             max_vt_weight,
             max_dr_weight,
+            consensus_constants,
         };
 
         let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {

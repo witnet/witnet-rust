@@ -5,7 +5,7 @@ use std::{
 };
 
 use witnet_crypto::hash::HashFunction;
-use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants, Hash};
+use witnet_data_structures::chain::{CheckpointBeacon, ConsensusConstants, EpochConstants, Hash};
 use witnet_net::client::tcp::jsonrpc::Subscribe;
 
 use crate::{actors::app::NodeClient, types};
@@ -28,6 +28,7 @@ pub struct Params {
     pub sync_address_batch_length: u16,
     pub max_vt_weight: u32,
     pub max_dr_weight: u32,
+    pub consensus_constants: ConsensusConstants,
 }
 
 #[derive(Clone)]

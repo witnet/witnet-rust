@@ -11,7 +11,16 @@ fn test_validate_mnemonics() {
             .into();
     let seed_source = "mnemonics".to_string();
     let password: types::Password = "12345678".to_string().into();
-    let result = app::methods::validate(password, seed_data, seed_source, None, None, None, None);
+    let result = app::methods::validate(
+        password,
+        seed_data,
+        seed_source,
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
     assert!(result.is_ok());
 }
 
@@ -23,11 +32,19 @@ fn test_validate_mnemonics_err() {
             .into();
     let seed_source = "mnemonics".to_string();
     let password: types::Password = "12345678".to_string().into();
-    let result =
-        match app::methods::validate(password, seed_data, seed_source, None, None, None, None) {
-            Ok(_) => panic!("called `Result::unwrap_err()` on an `Ok` value"),
-            Err(e) => e.into_parts(),
-        };
+    let result = match app::methods::validate(
+        password,
+        seed_data,
+        seed_source,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ) {
+        Ok(_) => panic!("called `Result::unwrap_err()` on an `Ok` value"),
+        Err(e) => e.into_parts(),
+    };
     let expected =
         app::validation_error(app::field_error("seed_data", "invalid checksum")).into_parts();
     assert_eq!(expected, result);
@@ -38,11 +55,19 @@ fn test_validate_not_valid_format() {
     let seed_data: types::Password = "xprvblablabla".to_string().into();
     let seed_source = "invalid".to_string();
     let password: types::Password = "12345678".to_string().into();
-    let result =
-        match app::methods::validate(password, seed_data, seed_source, None, None, None, None) {
-            Ok(_) => panic!("called `Result::unwrap_err()` on an `Ok` value"),
-            Err(e) => e.into_parts(),
-        };
+    let result = match app::methods::validate(
+        password,
+        seed_data,
+        seed_source,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ) {
+        Ok(_) => panic!("called `Result::unwrap_err()` on an `Ok` value"),
+        Err(e) => e.into_parts(),
+    };
     let expected = app::validation_error(app::field_error(
         "seed_source",
         "Seed source has to be mnemonics|xprv",
@@ -68,6 +93,7 @@ fn test_not_valid_password_length() {
         description,
         overwrite,
         backup_password,
+        None,
     ) {
         Ok(_) => panic!("called `Result::unwrap_err()` on an `Ok` value"),
         Err(e) => e.into_parts(),

@@ -282,6 +282,7 @@ where
                 checkpoint: 0,
                 hash_prev_block: params.genesis_prev_hash,
             });
+
         let last_confirmed = last_sync;
 
         let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
@@ -296,6 +297,10 @@ where
         ))?;
         let keychains = [external_key, internal_key];
         let epoch_constants = params.epoch_constants;
+        let birth_date = db.get(&keys::birth_date()).unwrap_or(CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: params.genesis_prev_hash,
+        });
 
         let state = RwLock::new(State {
             name,
@@ -322,6 +327,7 @@ where
             transient_external_addresses: Default::default(),
             transient_internal_addresses: Default::default(),
             stop_syncing: false,
+            birth_date,
         });
 
         Ok(Self {
@@ -341,6 +347,7 @@ where
         let balance = state.balance;
         let last_sync = state.last_sync;
         let last_confirmed = state.last_confirmed;
+        let birth_date = state.birth_date;
 
         Ok(types::WalletData {
             id: self.id.clone(),
@@ -351,6 +358,7 @@ where
             available_accounts: state.available_accounts.clone(),
             last_sync,
             last_confirmed,
+            birth_date,
         })
     }
 
@@ -1759,16 +1767,10 @@ where
     /// - External and internal address indices set to zero
     pub fn clear_chain_data(&self) -> Result<()> {
         let mut state = self.state.write()?;
-        state.clear_chain_data(&self.params.genesis_prev_hash);
+        state.clear_chain_data();
 
         let mut batch = self.db.batch();
-        batch.put(
-            &keys::wallet_last_sync(),
-            CheckpointBeacon {
-                checkpoint: 0,
-                hash_prev_block: self.params.genesis_prev_hash,
-            },
-        )?;
+        batch.put(&keys::wallet_last_sync(), state.birth_date)?;
         batch.put(&keys::transaction_next_id(0), 0)?;
         batch.put(
             &keys::account_next_index(0, constants::EXTERNAL_KEYCHAIN),

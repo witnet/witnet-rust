@@ -27,6 +27,7 @@ pub struct Validated {
     pub overwrite: bool,
     pub password: types::Password,
     pub seed_source: types::SeedSource,
+    pub birth_date: Option<types::BirthDate>,
 }
 
 impl App {
@@ -271,6 +272,7 @@ impl App {
         name: Option<String>,
         description: Option<String>,
         overwrite: bool,
+        birth_date: Option<types::BirthDate>,
     ) -> ResponseFuture<String> {
         let f = self
             .params
@@ -281,6 +283,7 @@ impl App {
                 password,
                 seed_source,
                 overwrite,
+                birth_date,
             })
             .flatten_err();
 
@@ -989,6 +992,7 @@ pub fn validate(
     description: Option<String>,
     overwrite: Option<bool>,
     backup_password: Option<types::Password>,
+    birth_date: Option<types::BirthDate>,
 ) -> Result<Validated> {
     let source = match seed_source.as_ref() {
         "xprv" => validate_xprv(seed_data, backup_password)
@@ -1016,6 +1020,7 @@ pub fn validate(
         overwrite,
         password,
         seed_source,
+        birth_date,
     })
     .map_err(validation_error)
 }

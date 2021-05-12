@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 use jsonrpc_core as rpc;
 use serde_json::{json, Value};
@@ -23,6 +23,7 @@ use witnet_data_structures::{
 use witnet_futures_utils::TryFutureExt2;
 use witnet_net::client::tcp::jsonrpc;
 use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport};
+use witnet_util::timestamp::get_timestamp;
 
 use super::*;
 use futures_util::compat::Compat01As03;
@@ -82,6 +83,7 @@ impl Worker {
         password: &[u8],
         source: &types::SeedSource,
         overwrite: bool,
+        birth_date: Option<types::BirthDate>,
     ) -> Result<String> {
         let (id, default_account, master_key) = match source {
             types::SeedSource::XprvDouble((internal, external)) => {
@@ -135,6 +137,62 @@ impl Worker {
                 (id, default_account, Some(master_key))
             }
         };
+        // To know if the chain is valid, we have to wait for 10 blocks to build the chain and 10
+        // more blocks for its voting period. We could need fewer blocks if the current block is
+        // not the first of a superblock, so 20 is the safest value
+        let confirm_superblock_period: i64 =
+            (2 * self.params.consensus_constants.superblock_period + 1).into();
+
+        let birth_date = match birth_date {
+            Some(types::BirthDate::Current) => {
+                // Use the current epoch as birth date
+                let gen_fut = self.get_block_chain(0, -confirm_superblock_period);
+                let gen_res: Vec<ChainEntry> = futures::executor::block_on(gen_fut)?;
+                let gen_entry = gen_res
+                    .get(0)
+                    .expect("It should always found a superconsolidated block");
+                let get_gen_future = self.get_block(gen_entry.1.clone());
+                let (block, _confirmed) = futures::executor::block_on(get_gen_future)?;
+
+                CheckpointBeacon {
+                    checkpoint: block.block_header.beacon.checkpoint,
+                    hash_prev_block: block.hash(),
+                }
+            }
+            // Use provided epoch as birth date
+            Some(types::BirthDate::Imported(epoch)) => {
+                validate_birth_date(
+                    epoch,
+                    self.params.epoch_constants.checkpoint_zero_timestamp,
+                    self.params.epoch_constants.checkpoints_period,
+                )?;
+
+                let gen_fut = self.get_block_chain(
+                    // this unwrap will never be called due to confirm_superblock_period is a consensus constant value
+                    i64::from(epoch.saturating_sub(confirm_superblock_period.try_into().unwrap())),
+                    2,
+                );
+                let gen_res: Vec<ChainEntry> = futures::executor::block_on(gen_fut)?;
+                let gen_entry = gen_res.get(0).expect(
+                    "It should always find a last consolidated block for a any epoch number",
+                );
+                let get_gen_future = self.get_block(gen_entry.1.clone());
+                let (block, _confirmed_1) = futures::executor::block_on(get_gen_future)?;
+
+                CheckpointBeacon {
+                    checkpoint: block.block_header.beacon.checkpoint,
+                    hash_prev_block: block.hash(),
+                }
+            }
+            None => {
+                // Assume birth date is genesis if no birth_date is provided
+                CheckpointBeacon {
+                    checkpoint: 0,
+                    hash_prev_block: self.params.genesis_prev_hash,
+                }
+            }
+        };
+
         // Return error if `overwrite=false` and wallet already exists
         if !overwrite
             && self
@@ -167,6 +225,7 @@ impl Worker {
                 id: &id,
                 account: &default_account,
                 master_key,
+                birth_date,
             },
         )?;
 
@@ -691,7 +750,6 @@ impl Worker {
         let first_beacon = wallet_data.last_confirmed;
         let mut since_beacon = first_beacon;
         let mut latest_beacon = first_beacon;
-
         // Synchronization bootstrap process to query the last received `last_block`
         // Note: if first sync, the queried block will be the genesis (epoch #0)
         if wallet_data.last_confirmed.checkpoint == 0
@@ -905,7 +963,6 @@ impl Worker {
         let wallet_data = wallet.public_data()?;
         let last_sync = wallet_data.last_sync;
         let last_confirmed = wallet_data.last_confirmed;
-
         let (needs_clear_pending, needs_indexing) = if block_beacon.hash_prev_block
             == last_sync.hash_prev_block
             && (block_beacon.checkpoint == 0 || block_beacon.checkpoint > last_sync.checkpoint)
@@ -1151,5 +1208,23 @@ impl Worker {
         password: types::Password,
     ) -> Result<String> {
         wallet.export_master_key(password).map_err(Error::from)
+    }
+}
+
+fn validate_birth_date(
+    birth_date: u32,
+    checkpoint_zero_timestamp: i64,
+    checkpoints_period: u16,
+) -> Result<()> {
+    let seconds_from_genesis = get_timestamp() - checkpoint_zero_timestamp;
+    let current_epoch = seconds_from_genesis / i64::from(checkpoints_period);
+
+    if current_epoch < i64::from(birth_date) {
+        Err(Error::InvalidBirthDate(
+            birth_date,
+            u32::try_from(current_epoch).unwrap_or(0),
+        ))
+    } else {
+        Ok(())
     }
 }

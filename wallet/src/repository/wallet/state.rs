@@ -80,6 +80,8 @@ pub struct State {
     pub transient_external_addresses: HashMap<PublicKeyHash, model::Address>,
     /// Flag that determines whether to stop syncing an ongoing synchronization for a wallet session
     pub stop_syncing: bool,
+    /// Protocol epoch in which a wallet was created (won't synchronize blocks prior to this epoch)
+    pub birth_date: CheckpointBeacon,
 }
 
 impl State {
@@ -91,16 +93,10 @@ impl State {
     /// - Movements
     /// - Addresses and their metadata
     ///
-    pub fn clear_chain_data(&mut self, genesis_prev_hash: &Hash) {
+    pub fn clear_chain_data(&mut self) {
         self.balance = Default::default();
-        self.last_confirmed = CheckpointBeacon {
-            checkpoint: 0,
-            hash_prev_block: *genesis_prev_hash,
-        };
-        self.last_sync = CheckpointBeacon {
-            checkpoint: 0,
-            hash_prev_block: *genesis_prev_hash,
-        };
+        self.last_confirmed = self.birth_date;
+        self.last_sync = self.birth_date;
         self.local_movements.clear();
         self.next_internal_index = Default::default();
         self.next_external_index = Default::default();

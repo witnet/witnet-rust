@@ -14,6 +14,8 @@ pub struct CreateWallet {
     pub seed_source: types::SeedSource,
     /// Overwrite flag
     pub overwrite: bool,
+    /// Protocol epoch in which a wallet was created (won't synchronize blocks prior to this epoch)
+    pub birth_date: Option<types::BirthDate>,
 }
 
 impl Message for CreateWallet {
@@ -31,6 +33,7 @@ impl Handler<CreateWallet> for worker::Worker {
             password,
             seed_source,
             overwrite,
+            birth_date,
         }: CreateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
@@ -40,6 +43,7 @@ impl Handler<CreateWallet> for worker::Worker {
             password.as_ref(),
             &seed_source,
             overwrite,
+            birth_date,
         )
     }
 }
