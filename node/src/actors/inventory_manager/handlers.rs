@@ -426,6 +426,7 @@ mod tests {
             0,
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
+            0,
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)

@@ -47,7 +47,7 @@ const E: Epoch = SECOND_HARD_FORK + 1;
 // This should only be used in tests
 fn all_wips_active() -> ActiveWips {
     let mut active_wips = HashMap::new();
-    active_wips.insert("WIP0014", 500_000);
+    active_wips.insert("WIP0014".to_string(), 500_000);
 
     ActiveWips {
         active_wips,

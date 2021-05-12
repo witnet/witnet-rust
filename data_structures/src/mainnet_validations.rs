@@ -277,7 +277,7 @@ pub fn after_third_hard_fork(epoch: Epoch, environment: Environment) -> bool {
 /// Allows to check the active Witnet Improvement Proposals
 #[derive(Clone, Debug)]
 pub struct ActiveWips {
-    pub active_wips: HashMap<&'static str, Epoch>,
+    pub active_wips: HashMap<String, Epoch>,
     pub block_epoch: Epoch,
     pub environment: Environment,
 }
