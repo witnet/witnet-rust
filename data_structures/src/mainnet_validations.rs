@@ -142,6 +142,18 @@ impl TapiEngine {
 
         (min_epoch, old_wips)
     }
+
+    pub fn in_voting_range(&self, epoch: Epoch, wip: &str) -> bool {
+        for i in 0..self.bit_tapi_counter.len() {
+            if let Some(bit_info) = self.bit_tapi_counter.get(i, &epoch) {
+                if bit_info.wip == wip {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
 }
 
 /// Struct that count the positives votes of a WIP
@@ -163,7 +175,7 @@ pub struct BitTapiCounter {
 }
 
 impl BitTapiCounter {
-    pub fn get(&mut self, bit: usize, epoch: &u32) -> Option<&BitVotesCounter> {
+    pub fn get(&self, bit: usize, epoch: &u32) -> Option<&BitVotesCounter> {
         match self.info.get(bit) {
             Some(Some(bit_info)) => {
                 if *epoch >= bit_info.init && *epoch < bit_info.end {
