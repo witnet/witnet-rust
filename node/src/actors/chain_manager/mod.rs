@@ -43,6 +43,7 @@ use failure::Fail;
 use futures::future::{try_join_all, FutureExt};
 use itertools::Itertools;
 use rand::Rng;
+use witnet_config::config::Tapi;
 use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
@@ -218,6 +219,8 @@ pub struct ChainManager {
     max_reinserted_transactions: usize,
     /// Last received Beacons
     last_received_beacons: Vec<(SocketAddr, Option<LastBeacon>)>,
+    /// Settings for Threshold Activation of Protocol Improvements
+    tapi: Tapi,
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding
@@ -2093,10 +2096,21 @@ impl ChainManager {
         Box::pin(fut)
     }
 
-    /// Return the value of the version field
-    fn tapi_signals_mask(&self) -> u32 {
-        // TODO: change this to 1 to signal support for WIP0014
-        0
+    /// Return the value of the version field for a block in this epoch
+    fn tapi_signals_mask(&self, epoch: Epoch) -> u32 {
+        let Tapi { oppose_wip0014 } = &self.tapi;
+
+        let mut v = 0;
+        if !oppose_wip0014
+            && self
+                .chain_state
+                .tapi_engine
+                .in_voting_range(epoch, "WIP0014")
+        {
+            v |= 1 << 0;
+        }
+
+        v
     }
 }
 

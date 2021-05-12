@@ -114,6 +114,9 @@ impl ChainManager {
                 // Minimum fee required to include a VTT into a block
                 act.transactions_pool.set_minimum_vtt_fee(config.mining.minimum_vtt_fee);
 
+                // Store settings for Threshold Activation of Protocol Improvements
+                act.tapi = config.tapi.clone();
+
                 storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
                     .into_actor(act)
                     .then(|chain_state_from_storage, _, _| {

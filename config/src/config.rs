@@ -114,6 +114,11 @@ pub struct Config {
     #[partial_struct(ty = "PartialMempool")]
     #[partial_struct(serde(default))]
     pub mempool: Mempool,
+
+    /// Threshold Activation of Protocol Improvements
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub tapi: Tapi,
 }
 
 /// Log-specific configuration.
@@ -368,6 +373,16 @@ pub struct Mempool {
     pub max_reinserted_transactions: u32,
 }
 
+/// Threshold Activation of Protocol Improvements
+///
+/// Allow miners to oppose activation of future protocol improvements even if their nodes
+/// do implement the required logic.
+#[derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq)]
+pub struct Tapi {
+    /// Oppose WIP0014
+    pub oppose_wip0014: bool,
+}
+
 fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusConstants {
     PartialConsensusConstants {
         checkpoint_zero_timestamp: Some(c.checkpoint_zero_timestamp),
@@ -424,6 +439,7 @@ impl Config {
             rocksdb: Rocksdb::from_partial(&config.rocksdb, defaults),
             ntp: Ntp::from_partial(&config.ntp, defaults),
             mempool: Mempool::from_partial(&config.mempool, defaults),
+            tapi: config.tapi.clone(),
         }
     }
 
@@ -440,6 +456,7 @@ impl Config {
             rocksdb: self.rocksdb.to_partial(),
             ntp: self.ntp.to_partial(),
             mempool: self.mempool.to_partial(),
+            tapi: self.tapi.clone(),
         }
     }
 }

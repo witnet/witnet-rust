@@ -206,7 +206,7 @@ impl ChainManager {
                     act.bn256_public_key.clone()
                 };
 
-                let tapi_version = act.tapi_signals_mask();
+                let tapi_version = act.tapi_signals_mask(current_epoch);
 
                 // Build the block using the supplied beacon and eligibility proof
                 let (block_header, txns) = build_block(
