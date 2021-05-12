@@ -447,20 +447,42 @@ impl App {
     }
 
     /// Return a timer function that can be scheduled to expire the session after the configured time.
-    pub fn set_session_to_expire(&self, session_id: types::SessionId) -> TimerFunc<Self> {
+    pub fn set_session_to_expire(&self, session_id: types::SessionId) -> Result<TimerFunc<Self>> {
+        if !self.state.sessions.contains_key(&session_id) {
+            log::error!("Session {} does not exist.", &session_id,);
+
+            return Err(app::Error::SessionNotFound);
+        }
+
         log::debug!(
             "Session {} will expire in {} seconds.",
             &session_id,
             self.params.session_expires_in.as_secs()
         );
 
-        TimerFunc::new(
+        Ok(TimerFunc::new(
             self.params.session_expires_in,
-            move |slf: &mut Self, _ctx| match slf.close_session(session_id.clone()) {
-                Ok(_) => log::info!("Session {} closed", session_id),
-                Err(err) => log::error!("Session {} couldn't be closed: {}", session_id, err),
+            move |slf: &mut Self, _ctx| {
+                if let Some(session) = slf.state.sessions.get_mut(&session_id) {
+                    if !session.session_extended {
+                        match slf.close_session(session_id.clone()) {
+                            Ok(_) => log::info!("Session {} expired", session_id),
+                            Err(err) => {
+                                log::error!("Session {} couldn't be closed: {}", session_id, err)
+                            }
+                        }
+                    } else {
+                        session.session_extended = false;
+                        log::debug!("Session {} expiration time has been extended", session_id)
+                    }
+                } else {
+                    log::debug!(
+                        "Session {} cannot be closed because it already expired",
+                        session_id
+                    )
+                }
             },
-        )
+        ))
     }
 
     /// Remove a session from the list of active sessions.

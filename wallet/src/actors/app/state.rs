@@ -22,6 +22,7 @@ pub struct State {
 #[derive(Default)]
 pub struct Session {
     wallets: HashMap<String, types::SessionWallet>,
+    pub session_extended: bool,
 }
 
 impl State {
