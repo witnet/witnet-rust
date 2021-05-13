@@ -294,7 +294,7 @@ impl ChainManager {
             );
         }
 
-        storage_mngr::put(&storage_keys::chain_state_key(self.get_magic()), &state)
+        storage_mngr::put_chain_state(&storage_keys::chain_state_key(self.get_magic()), &state)
             .into_actor(self)
             .and_then(|_, _, _| {
                 log::debug!("Successfully persisted previous_chain_info into storage");
@@ -314,7 +314,7 @@ impl ChainManager {
     /// This can be used to recover from a forked chain without manually deleting the storage.
     fn delete_chain_state_and_reinitialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         let empty_state = ChainState::default();
-        let fut = storage_mngr::put(
+        let fut = storage_mngr::put_chain_state(
             &storage_keys::chain_state_key(self.get_magic()),
             &empty_state,
         )

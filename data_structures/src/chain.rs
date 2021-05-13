@@ -56,7 +56,7 @@ pub trait Hashable {
 }
 
 /// Data structure holding critical information about the chain state and protocol constants
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct ChainInfo {
     /// Blockchain valid environment
     pub environment: Environment,

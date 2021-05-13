@@ -13,6 +13,10 @@ use witnet_config::{config, config::Config};
 use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
 use witnet_storage::{backends, storage};
 
+pub use node_migrations::*;
+
+mod node_migrations;
+
 macro_rules! as_failure {
     ($e:expr) => {
         failure::Error::from_boxed_compat(Box::new($e))

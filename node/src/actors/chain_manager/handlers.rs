@@ -1358,7 +1358,7 @@ impl Handler<GetBalance> for ChainManager {
         } else {
             let magic = self.get_magic();
 
-            let res = storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
+            let res = storage_mngr::get_chain_state(&storage_keys::chain_state_key(magic))
                 .into_actor(self)
                 .map(move |chain_state_from_storage, act, _| {
                     chain_state_from_storage.map(|x| {
