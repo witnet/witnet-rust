@@ -117,7 +117,7 @@ impl ChainManager {
                 // Store settings for Threshold Activation of Protocol Improvements
                 act.tapi = config.tapi.clone();
 
-                storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
+                storage_mngr::get_chain_state(&storage_keys::chain_state_key(magic))
                     .into_actor(act)
                     .then(|chain_state_from_storage, _, _| {
                         let result = match chain_state_from_storage {
