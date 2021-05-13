@@ -1,6 +1,6 @@
 use crate::chain::{Environment, Epoch, PublicKeyHash};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Committee for superblock indices 750-1344
 const FIRST_EMERGENCY_COMMITTEE: [&str; 7] = [
@@ -40,14 +40,22 @@ pub struct TapiEngine {
 }
 
 impl TapiEngine {
-    pub fn update_bit_counter(&mut self, v: u32, epoch: u32) {
+    pub fn update_bit_counter(&mut self, v: u32, epoch: Epoch, avoid_wip_list: &HashSet<String>) {
         // In case of empty epochs, they would be considered as blocks with tapi version to 0
-        if epoch > self.bit_tapi_counter.last_epoch + 1 {
-            self.update_bit_counter(0, epoch - 1);
+        // In order to not update bit counter from old blocks where the block version was not used,
+        // the first time (bit_tapi_counter.last_epoch == 0) would be skipped in this conditional branch
+        if self.bit_tapi_counter.last_epoch != 0 && epoch > self.bit_tapi_counter.last_epoch + 1 {
+            let init = self.bit_tapi_counter.last_epoch + 1;
+            let end = epoch;
+            for i in init..end {
+                self.update_bit_counter(0, i, avoid_wip_list);
+            }
         }
         for n in 0..32 {
             if let Some(mut bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch) {
-                if !self.wip_activation.contains_key(&bit_counter.wip) {
+                if !self.wip_activation.contains_key(&bit_counter.wip)
+                    && !avoid_wip_list.contains(&bit_counter.wip)
+                {
                     if is_bit_n_activated(v, n) {
                         bit_counter.votes += 1;
                     }
@@ -66,10 +74,9 @@ impl TapiEngine {
         self.bit_tapi_counter.last_epoch = epoch;
     }
 
-    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-    pub fn initialize_wip_information(&mut self) {
+    pub fn initialize_wip_information(&mut self) -> (Epoch, HashSet<String>) {
         // Hardcoded information about WIPs
-        let mut bits = vec![vec![]];
+        let mut bits = vec![vec![]; 32];
         let wip_0014 = BitVotesCounter {
             votes: 0,
             period: 26880,
@@ -79,14 +86,23 @@ impl TapiEngine {
         };
         bits[0].push(wip_0014);
 
-        // Assesment of new WIPs
+        // Assessment of new WIPs
+        let mut min_epoch = u32::MAX;
+        let mut old_wips = HashSet::default();
         for (i, wips) in bits.into_iter().enumerate() {
             for wip in wips {
-                if !self.bit_tapi_counter.contains(i, &wip.wip) {
-                    self.bit_tapi_counter.insert(i, wip)
+                if self.bit_tapi_counter.contains(i, &wip.wip) {
+                    old_wips.insert(wip.wip);
+                } else {
+                    if wip.init < min_epoch {
+                        min_epoch = wip.init;
+                    }
+                    self.bit_tapi_counter.insert(i, wip);
                 }
             }
         }
+
+        (min_epoch, old_wips)
     }
 }
 

@@ -255,7 +255,16 @@ impl ChainManager {
                 act.chain_state = chain_state;
 
                 // Update possible new WIP information
-                act.chain_state.tapi_engine.initialize_wip_information();
+                let (new_wip_epoch, old_wips) = act.chain_state.tapi_engine.initialize_wip_information();
+                let last_consolidated_epoch = act.get_chain_beacon().checkpoint;
+                if new_wip_epoch < last_consolidated_epoch {
+                    // Some blocks have been consolidated before this node updated to the latest version,
+                    // so we need to count the missing wip_votes from that blocks
+                    ctx.wait(
+                        act.update_new_wip_votes(new_wip_epoch, last_consolidated_epoch, old_wips)
+                            .map(|_res, _act, _ctx| ())
+                    );
+                }
 
                 // initialize_from_storage is also used to implement reorganizations
                 // In that case, we must clear some fields to avoid forks

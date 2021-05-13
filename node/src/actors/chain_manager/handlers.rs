@@ -1,4 +1,4 @@
-use actix::{fut::WrapFuture, prelude::*};
+use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
 use futures::future::Either;
 use std::{
     collections::{BTreeMap, HashSet, VecDeque},

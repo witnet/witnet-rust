@@ -817,9 +817,11 @@ impl ChainManager {
                 }
 
                 // Update votes counter for WIPs
-                self.chain_state
-                    .tapi_engine
-                    .update_bit_counter(block_version, block_epoch);
+                self.chain_state.tapi_engine.update_bit_counter(
+                    block_version,
+                    block_epoch,
+                    &HashSet::default(),
+                );
 
                 if miner_pkh == own_pkh {
                     self.chain_state.node_stats.block_mined_count += 1;
@@ -2039,6 +2041,57 @@ impl ChainManager {
         self.drop_all_outbounds();
         // Ice the invalid blocks' batch sender
         self.ice_peer(sender);
+    }
+
+    /// Update new wip votes
+    fn update_new_wip_votes(
+        &mut self,
+        init: Epoch,
+        end: Epoch,
+        old_wips: HashSet<String>,
+    ) -> ResponseActFuture<Self, Result<(), ()>> {
+        let inventory_manager = InventoryManager::from_registry();
+
+        let res = self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(init..=end, 0));
+
+        let fut = async move {
+            let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
+            let aux = block_hashes.into_iter().map(move |hash| {
+                inventory_manager
+                    .send(GetItemBlock { hash })
+                    .then(move |res| match res {
+                        Ok(Ok(block)) => future::ready(Ok(block.block_header)),
+                        Ok(Err(e)) => {
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            future::ready(Err(()))
+                        }
+                        Err(e) => {
+                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            future::ready(Err(()))
+                        }
+                    })
+                    .then(|x| future::ready(Ok(x.ok())))
+            });
+
+            try_join_all(aux)
+                .await
+                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+        }
+        .into_actor(self)
+        .and_then(move |block_headers, act, _ctx| {
+            for block_header in block_headers {
+                act.chain_state.tapi_engine.update_bit_counter(
+                    block_header.version,
+                    block_header.beacon.checkpoint,
+                    &old_wips,
+                );
+            }
+
+            actix::fut::ok(())
+        });
+
+        Box::pin(fut)
     }
 }
 
