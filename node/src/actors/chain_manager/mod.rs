@@ -820,6 +820,7 @@ impl ChainManager {
                 self.chain_state.tapi_engine.update_bit_counter(
                     block_version,
                     block_epoch,
+                    block_epoch,
                     &HashSet::default(),
                 );
 
@@ -2083,6 +2084,7 @@ impl ChainManager {
             for block_header in block_headers {
                 act.chain_state.tapi_engine.update_bit_counter(
                     block_header.version,
+                    block_header.beacon.checkpoint,
                     block_header.beacon.checkpoint,
                     &old_wips,
                 );

@@ -40,38 +40,46 @@ pub struct TapiEngine {
 }
 
 impl TapiEngine {
-    pub fn update_bit_counter(&mut self, v: u32, epoch: Epoch, avoid_wip_list: &HashSet<String>) {
+    pub fn update_bit_counter(
+        &mut self,
+        v: u32,
+        epoch_to_update: Epoch,
+        block_epoch: Epoch,
+        avoid_wip_list: &HashSet<String>,
+    ) {
         // In case of empty epochs, they would be considered as blocks with tapi version to 0
         // In order to not update bit counter from old blocks where the block version was not used,
         // the first time (bit_tapi_counter.last_epoch == 0) would be skipped in this conditional branch
-        if self.bit_tapi_counter.last_epoch != 0 && epoch > self.bit_tapi_counter.last_epoch + 1 {
+        if self.bit_tapi_counter.last_epoch != 0
+            && epoch_to_update > self.bit_tapi_counter.last_epoch + 1
+        {
             let init = self.bit_tapi_counter.last_epoch + 1;
-            let end = epoch;
+            let end = epoch_to_update;
             for i in init..end {
-                self.update_bit_counter(0, i, avoid_wip_list);
+                self.update_bit_counter(0, i, block_epoch, avoid_wip_list);
             }
         }
         for n in 0..self.bit_tapi_counter.len() {
-            if let Some(mut bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch) {
+            if let Some(mut bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch_to_update) {
                 if !self.wip_activation.contains_key(&bit_counter.wip)
                     && !avoid_wip_list.contains(&bit_counter.wip)
                 {
                     if is_bit_n_activated(v, n) {
                         bit_counter.votes += 1;
                     }
-                    if (epoch - bit_counter.init) % bit_counter.period == 0 {
+                    if (epoch_to_update - bit_counter.init) % bit_counter.period == 0 {
                         if (bit_counter.votes * 100) / bit_counter.period >= 80 {
                             // An offset of 21 is added to ensure that the activation of the WIP is
                             // achieved with consolidated blocks
                             self.wip_activation
-                                .insert(bit_counter.wip.clone(), epoch + 21);
+                                .insert(bit_counter.wip.clone(), block_epoch + 21);
                         }
                         bit_counter.votes = 0;
                     }
                 }
             }
         }
-        self.bit_tapi_counter.last_epoch = epoch;
+        self.bit_tapi_counter.last_epoch = epoch_to_update;
     }
 
     pub fn initialize_wip_information(&mut self) -> (Epoch, HashSet<String>) {
