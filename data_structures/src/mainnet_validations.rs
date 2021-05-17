@@ -39,7 +39,7 @@ impl TapiEngine {
                 self.update_bit_counter(0, i, avoid_wip_list);
             }
         }
-        for n in 0..32 {
+        for n in 0..self.bit_tapi_counter.len() {
             if let Some(mut bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch) {
                 if !self.wip_activation.contains_key(&bit_counter.wip)
                     && !avoid_wip_list.contains(&bit_counter.wip)
@@ -106,8 +106,9 @@ pub struct BitVotesCounter {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BitTapiCounter {
-    pub info: [Vec<BitVotesCounter>; 32],
-    pub last_epoch: Epoch,
+    info: [Vec<BitVotesCounter>; 32],
+    last_epoch: Epoch,
+    current_length: usize,
 }
 
 impl BitTapiCounter {
@@ -135,6 +136,10 @@ impl BitTapiCounter {
                 self.info[k] = vec![v];
             }
         }
+
+        if k >= self.current_length {
+            self.current_length = k + 1;
+        }
     }
 
     pub fn contains(&self, bit: usize, wip: &str) -> bool {
@@ -150,6 +155,14 @@ impl BitTapiCounter {
             }
             None => false,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.current_length
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.current_length == 0
     }
 }
 
