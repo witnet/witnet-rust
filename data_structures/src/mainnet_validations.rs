@@ -140,17 +140,20 @@ impl BitTapiCounter {
     }
 
     pub fn insert(&mut self, k: usize, v: BitVotesCounter) {
-        match self.info.get_mut(k) {
-            Some(bit_info) => {
+        if k >= self.info.len() {
+            log::error!(
+                "Tapi Engine: This bit position ({}) is invalid. {} has not been included",
+                k,
+                v.wip
+            );
+        } else {
+            if let Some(bit_info) = self.info.get_mut(k) {
                 bit_info.push(v);
             }
-            None => {
-                self.info[k] = vec![v];
-            }
-        }
 
-        if k >= self.current_length {
-            self.current_length = k + 1;
+            if k >= self.current_length {
+                self.current_length = k + 1;
+            }
         }
     }
 
