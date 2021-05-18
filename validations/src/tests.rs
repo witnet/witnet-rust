@@ -6730,6 +6730,21 @@ fn block_hash_prev_block_genesis_hash() {
 }
 
 #[test]
+fn block_version_can_be_anything() {
+    // The version field in the block header can have any value, the block will always be valid
+    // Test some arbitrary values of "version"
+    for version in &[0, 1, 2, 3, 255, 256, u32::MAX - 1, u32::MAX] {
+        if let Err(e) = test_block(|b| {
+            b.block_header.version = *version;
+
+            true
+        }) {
+            panic!("Failed to validate block with version {}: {:?}", version, e);
+        }
+    }
+}
+
+#[test]
 fn block_invalid_poe() {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let secret_key = SecretKey {
@@ -7398,6 +7413,37 @@ fn block_change_merkle_tree() {
             })
             .unwrap(),
         BlockError::NotValidMerkleTree,
+    );
+}
+
+#[test]
+fn block_change_version() {
+    // Check that an attacker cannot change the version field of a signed block, because that will
+    // invalidate the signature
+    let x = test_block(|b| {
+        // Flip one bit of the version field
+        b.block_header.version ^= 1;
+
+        // Do not sign the block again
+        // If the miner changes the version field and then signs the block, the block will be valid
+        false
+    });
+
+    // The block should be invalid now because the block hash has changed
+    assert_eq!(
+        x.unwrap_err()
+            .downcast::<BlockError>()
+            .map(|mut x| {
+                // Erase block hash as it is not deterministic
+                if let BlockError::VerifySignatureFail { ref mut hash } = x {
+                    *hash = Default::default()
+                }
+                x
+            })
+            .unwrap(),
+        BlockError::VerifySignatureFail {
+            hash: Default::default()
+        },
     );
 }
 
