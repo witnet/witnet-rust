@@ -84,29 +84,43 @@ impl TapiEngine {
 
     pub fn initialize_wip_information(&mut self) -> (Epoch, HashSet<String>) {
         // Hardcoded information about WIPs
-        let mut bits = vec![vec![]; 32];
+        self.wip_activation
+            .insert("WIP0008".to_string(), FIRST_HARD_FORK);
+        self.wip_activation
+            .insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
+        self.wip_activation
+            .insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
+
+        // Hardcoded information about WIPs in vote processing
+        let mut voting_wips = vec![None; 32];
+        let bit = 0;
         let wip_0014 = BitVotesCounter {
             votes: 0,
             period: 26880,
             wip: "WIP0014".to_string(),
             init: 500000,
-            end: 850000,
+            end: u32::MAX,
+            bit,
         };
-        bits[0].push(wip_0014);
+        voting_wips[bit] = Some(wip_0014);
 
         // Assessment of new WIPs
         let mut min_epoch = u32::MAX;
         let mut old_wips = HashSet::default();
-        for (i, wips) in bits.into_iter().enumerate() {
-            for wip in wips {
-                if self.bit_tapi_counter.contains(i, &wip.wip) {
-                    old_wips.insert(wip.wip);
-                } else {
-                    if wip.init < min_epoch {
-                        min_epoch = wip.init;
+
+        for (i, wip) in voting_wips.into_iter().enumerate() {
+            match wip {
+                Some(wip) => {
+                    if self.bit_tapi_counter.contains(i, &wip.wip) {
+                        old_wips.insert(wip.wip.clone());
+                    } else {
+                        if wip.init < min_epoch {
+                            min_epoch = wip.init;
+                        }
+                        self.bit_tapi_counter.insert(wip.clone());
                     }
-                    self.bit_tapi_counter.insert(i, wip);
                 }
+                None => self.bit_tapi_counter.remove(i),
             }
         }
 
@@ -122,42 +136,53 @@ pub struct BitVotesCounter {
     pub wip: String,
     pub init: Epoch,
     pub end: Epoch,
+    pub bit: usize,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BitTapiCounter {
-    info: [Vec<BitVotesCounter>; 32],
+    info: [Option<BitVotesCounter>; 32],
     last_epoch: Epoch,
     current_length: usize,
 }
 
 impl BitTapiCounter {
-    pub fn get_mut(&mut self, bit: usize, epoch: &u32) -> Option<&mut BitVotesCounter> {
-        match self.info.get_mut(bit) {
-            Some(bit_info) => {
-                for i in bit_info {
-                    if *epoch >= i.init && *epoch < i.end {
-                        return Some(i);
-                    }
+    pub fn get(&mut self, bit: usize, epoch: &u32) -> Option<&BitVotesCounter> {
+        match self.info.get(bit) {
+            Some(Some(bit_info)) => {
+                if *epoch >= bit_info.init && *epoch < bit_info.end {
+                    Some(bit_info)
+                } else {
+                    None
                 }
-
-                None
             }
-            None => None,
+            _ => None,
         }
     }
 
-    pub fn insert(&mut self, k: usize, v: BitVotesCounter) {
+    pub fn get_mut(&mut self, bit: usize, epoch: &u32) -> Option<&mut BitVotesCounter> {
+        match self.info.get_mut(bit) {
+            Some(Some(bit_info)) => {
+                if *epoch >= bit_info.init && *epoch < bit_info.end {
+                    Some(bit_info)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn insert(&mut self, bit_info: BitVotesCounter) {
+        let k = bit_info.bit;
         if k >= self.info.len() {
             log::error!(
                 "Tapi Engine: This bit position ({}) is invalid. {} has not been included",
                 k,
-                v.wip
+                bit_info.wip
             );
         } else {
-            if let Some(bit_info) = self.info.get_mut(k) {
-                bit_info.push(v);
-            }
+            self.info[k] = Some(bit_info);
 
             if k >= self.current_length {
                 self.current_length = k + 1;
@@ -165,18 +190,31 @@ impl BitTapiCounter {
         }
     }
 
+    pub fn remove(&mut self, bit: usize) {
+        if bit >= self.info.len() {
+            log::error!("Tapi Engine: This bit position ({}) is invalid", bit,);
+        } else {
+            self.info[bit] = None;
+
+            if bit + 1 == self.current_length {
+                self.update_current_length();
+            }
+        }
+    }
+
+    pub fn update_current_length(&mut self) {
+        let mut length = 0;
+        for bit_info in self.info.iter().flatten() {
+            length = bit_info.bit + 1;
+        }
+
+        self.current_length = length;
+    }
+
     pub fn contains(&self, bit: usize, wip: &str) -> bool {
         match self.info.get(bit) {
-            Some(bit_info) => {
-                for i in bit_info {
-                    if i.wip.eq(wip) {
-                        return true;
-                    }
-                }
-
-                false
-            }
-            None => false,
+            Some(Some(bit_info)) => bit_info.wip == wip,
+            _ => false,
         }
     }
 
@@ -285,7 +323,8 @@ mod tests {
         aux.init = 0;
         aux.end = 50;
         aux.wip = "Wip1".to_string();
-        a.insert(0, aux);
+        aux.bit = 0;
+        a.insert(aux);
         assert!(a.get_mut(0, &100).is_none());
         assert!(a.contains(0, &"Wip1".to_string()));
         assert!(!a.contains(1, &"Wip1".to_string()));
@@ -294,7 +333,8 @@ mod tests {
         aux2.init = 75;
         aux2.end = 125;
         aux2.wip = "Wip2".to_string();
-        a.insert(0, aux2);
+        aux2.bit = 0;
+        a.insert(aux2);
         assert_eq!(a.get_mut(0, &100).unwrap().wip, "Wip2".to_string());
         assert!(a.get_mut(1, &100).is_none());
         assert!(a.contains(0, &"Wip2".to_string()));
@@ -316,27 +356,28 @@ mod tests {
             wip: "test0".to_string(),
             init: 10_000,
             end: 20_000,
+            bit,
         };
-        t.bit_tapi_counter.insert(bit, wip);
+        t.bit_tapi_counter.insert(wip);
         assert_eq!(t.bit_tapi_counter.last_epoch, 0);
 
         t.update_bit_counter(1, 9_999, 9_999, &empty_hs);
         // Updating with epoch < init does not increase the votes counter
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
         assert_eq!(t.bit_tapi_counter.last_epoch, 9_999);
 
         t.update_bit_counter(1, 10_000, 10_000, &empty_hs);
         // Updating with epoch >= init does increase the votes counter
         // But since this is the first epoch, the votes counter is reset to 0 again afterwards
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
 
         t.update_bit_counter(1, 10_001, 10_001, &empty_hs);
         // Updating with epoch >= init does increase the votes counter
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 1);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 1);
 
         t.update_bit_counter(1, 10_002, 10_002, &empty_hs);
         // Updating with epoch >= init does increase the votes counter
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 2);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 2);
 
         // Updating with an epoch that was already updated will count the votes twice, there is no
         // protection against this because the update_new_wip_votes function must be able to count
@@ -347,18 +388,18 @@ mod tests {
 
         t.update_bit_counter(0, 10_003, 10_003, &empty_hs);
         // Updating with epoch >= init but voting against does not increase the votes counter
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 2);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 2);
 
         t.update_bit_counter(0, 10_103, 10_103, &empty_hs);
         // The vote counting is at epoch 10_100, the votes should be reset to 0
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
 
         // Add 90 votes to test activation
         for epoch in 10_200..10_290 {
             t.update_bit_counter(1, epoch, epoch, &empty_hs);
         }
         // More than 80% of votes means that the WIP should activate at the next counting epoch
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 89);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 89);
 
         // Simulate large block gap, instead of updating at 10_300 update at 10_500
         // TODO: block 10_500 will be validated with the new WIP disabled, same as all superblocks
@@ -368,7 +409,7 @@ mod tests {
         // Decided to change the WIP activation date to 10_521
         t.update_bit_counter(0, 10_500, 10_500, &empty_hs);
         // The votes counter should reset
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
         // The activation date should be
         assert_eq!(*t.wip_activation.get("test0").unwrap(), 10_500 + 21);
     }
@@ -383,6 +424,7 @@ mod tests {
             wip: "test0".to_string(),
             init: 10_000,
             end: 20_000,
+            bit: 0,
         };
         let wip1 = BitVotesCounter {
             votes: 0,
@@ -390,44 +432,45 @@ mod tests {
             wip: "test1".to_string(),
             init: 10_000,
             end: 20_000,
+            bit: 1,
         };
-        t.bit_tapi_counter.insert(0, wip0);
-        t.bit_tapi_counter.insert(1, wip1);
+        t.bit_tapi_counter.insert(wip0);
+        t.bit_tapi_counter.insert(wip1);
         assert_eq!(t.bit_tapi_counter.last_epoch, 0);
 
         // Vote for none
         t.update_bit_counter(0, 10_001, 10_001, &empty_hs);
-        assert_eq!(t.bit_tapi_counter.info[0][0].votes, 0);
-        assert_eq!(t.bit_tapi_counter.info[1][0].votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 0);
         assert_eq!(t.bit_tapi_counter.last_epoch, 10_001);
 
         // Vote for both
         t.update_bit_counter(3, 10_002, 10_002, &empty_hs);
-        assert_eq!(t.bit_tapi_counter.info[0][0].votes, 1);
-        assert_eq!(t.bit_tapi_counter.info[1][0].votes, 1);
+        assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 1);
+        assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 1);
 
         // Vote only for wip0
         t.update_bit_counter(1, 10_002, 10_002, &empty_hs);
-        assert_eq!(t.bit_tapi_counter.info[0][0].votes, 2);
-        assert_eq!(t.bit_tapi_counter.info[1][0].votes, 1);
+        assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 2);
+        assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 1);
 
         // Vote only for wip1
         t.update_bit_counter(2, 10_002, 10_002, &empty_hs);
-        assert_eq!(t.bit_tapi_counter.info[0][0].votes, 2);
-        assert_eq!(t.bit_tapi_counter.info[1][0].votes, 2);
+        assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 2);
+        assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 2);
 
         // Add 90 votes to test activation of both wips in the same epoch
         for epoch in 10_003..10_093 {
             t.update_bit_counter(3, epoch, epoch, &empty_hs);
         }
 
-        assert_eq!(t.bit_tapi_counter.info[0][0].votes, 92);
-        assert_eq!(t.bit_tapi_counter.info[1][0].votes, 92);
+        assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 92);
+        assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 92);
 
         t.update_bit_counter(0, 10_100, 10_100, &empty_hs);
         // The votes counter should reset
-        assert_eq!(t.bit_tapi_counter.info[0][0].votes, 0);
-        assert_eq!(t.bit_tapi_counter.info[1][0].votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 0);
+        assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 0);
         // The activation date should be current + 21
         assert_eq!(*t.wip_activation.get("test0").unwrap(), 10_100 + 21);
         assert_eq!(*t.wip_activation.get("test1").unwrap(), 10_100 + 21);
@@ -446,14 +489,15 @@ mod tests {
             wip: "test0".to_string(),
             init: 10_000,
             end: 20_000,
+            bit,
         };
-        t.bit_tapi_counter.insert(bit, wip);
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 0);
+        t.bit_tapi_counter.insert(wip);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
 
         // Vote "yes" to all the 32 bits, even though there is only 1 active wip (bit 0)
         t.update_bit_counter(u32::MAX, 10_001, 10_001, &empty_hs);
         // This is a valid block and a valid vote
-        assert_eq!(t.bit_tapi_counter.info[bit][0].votes, 1);
+        assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 1);
     }
 
     #[test]
