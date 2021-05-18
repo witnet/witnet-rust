@@ -113,7 +113,7 @@ impl Handler<RunTally> for RadManager {
                 reports_len,
                 &msg.active_wips,
             );
-            if msg.active_wips.second_hard_fork() {
+            if msg.active_wips.wips_0009_0011_0012() {
                 evaluate_tally_postcondition_clause(
                     report,
                     msg.min_consensus_ratio,

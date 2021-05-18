@@ -486,7 +486,7 @@ where
 
         // Collateral division rest goes for the miner
         let non_reveals_count = commits_count - reveals_count;
-        let is_after_second_hard_fork = active_wips.second_hard_fork();
+        let is_after_second_hard_fork = active_wips.wips_0009_0011_0012();
         let (reward, _rest) = if is_after_second_hard_fork {
             calculate_witness_reward(
                 commits_count,
