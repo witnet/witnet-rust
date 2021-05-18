@@ -283,11 +283,13 @@ pub struct ActiveWips {
 }
 
 impl ActiveWips {
-    pub fn first_hard_fork(&self) -> bool {
+    // WIP 0008 was activated through community coordination on January 22, 2021
+    pub fn wip_0008(&self) -> bool {
         after_first_hard_fork(self.block_epoch, self.environment)
     }
 
-    pub fn second_hard_fork(&self) -> bool {
+    // WIPs 0009, 0011 and 0012 were activated through community coordination on April 28, 2021
+    pub fn wips_0009_0011_0012(&self) -> bool {
         after_second_hard_fork(self.block_epoch, self.environment)
     }
 

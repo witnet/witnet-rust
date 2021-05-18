@@ -383,7 +383,7 @@ pub fn evaluate_tally_precondition_clause(
     // as the frequent type).
     let achieved_consensus = f64::from(counter.max_val) / num_commits_f;
 
-    if !active_wips.second_hard_fork() {
+    if !active_wips.wips_0009_0011_0012() {
         // Before the second hard fork, the achieved_consensus below was incorrectly calculated as
         // max_count / num_reveals
         num_commits_f = f64::from(reveals_len);
@@ -567,7 +567,7 @@ pub fn construct_report_from_clause_result(
             ) {
                 Ok(x) => x,
                 Err(e) => {
-                    if active_wips.second_hard_fork() {
+                    if active_wips.wips_0009_0011_0012() {
                         radon_report_from_error(
                             RadError::TallyExecution {
                                 inner: Some(Box::new(e)),
@@ -599,7 +599,7 @@ pub fn construct_report_from_clause_result(
         // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
         // chance for errors to be intercepted and used for consensus.
         Err(e) => {
-            if active_wips.second_hard_fork() {
+            if active_wips.wips_0009_0011_0012() {
                 // If there is an error during the precondition, all revealers are set to error and liar.
                 // This is an error that is not penalized and not rewarded.
                 radon_report_from_error(e, reports_len)
@@ -888,7 +888,7 @@ pub fn validate_commit_transaction(
     )?;
 
     // commit time_lock was disabled in the first hard fork
-    if !active_wips.first_hard_fork() {
+    if !active_wips.wip_0008() {
         // Verify that commits are only accepted after the time lock expired
         let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
         let dr_time_lock = i64::try_from(dr_output.data_request.time_lock)?;
@@ -1018,7 +1018,7 @@ fn create_expected_report(
             evaluate_tally_precondition_clause(results, non_error_min, commits_count, active_wips);
         let report =
             construct_report_from_clause_result(clause_result, &tally, results_len, active_wips);
-        if active_wips.second_hard_fork() {
+        if active_wips.wips_0009_0011_0012() {
             evaluate_tally_postcondition_clause(report, non_error_min, commits_count)
         } else {
             report
@@ -1027,7 +1027,7 @@ fn create_expected_report(
         Ok(x) => x,
         Err(_e) => {
             // If there is a panic during tally creation: set tally result to RadError::Unknown
-            if active_wips.second_hard_fork() {
+            if active_wips.wips_0009_0011_0012() {
                 radon_report_from_error(RadError::Unknown, reveals.len())
             } else {
                 RadonReport::from_result(Err(RadError::Unknown), &ReportContext::default())
@@ -1201,7 +1201,7 @@ pub fn validate_tally_transaction<'a>(
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
     let mut total_tally_value = 0;
-    let is_after_second_hard_fork = active_wips.second_hard_fork();
+    let is_after_second_hard_fork = active_wips.wips_0009_0011_0012();
     let (reward, tally_extra_fee) = if is_after_second_hard_fork {
         calculate_witness_reward(
             commits_count,
@@ -1787,7 +1787,8 @@ pub fn validate_block_transactions(
             active_wips,
         )?;
 
-        if !active_wips.second_hard_fork() && transaction.tally == tally_bytes_on_encode_error() {
+        if !active_wips.wips_0009_0011_0012() && transaction.tally == tally_bytes_on_encode_error()
+        {
             // Before the second hard fork, do not allow RadError::Unknown as tally result
             return Err(TransactionError::MismatchedConsensus {
                 expected_tally: tally_bytes_on_encode_error(),
@@ -1827,7 +1828,7 @@ pub fn validate_block_transactions(
     }
 
     let mut dr_weight: u32 = 0;
-    if active_wips.first_hard_fork() {
+    if active_wips.wip_0008() {
         // Calculate data request not solved weight
         let mut dr_pointers: HashSet<Hash> = dr_pool
             .get_dr_output_pointers_by_epoch(epoch)
@@ -2086,7 +2087,7 @@ pub fn calculate_randpoe_threshold(
     let minimum_difficulty = std::cmp::max(1, minimum_difficulty);
     let target = if block_epoch <= epochs_with_minimum_difficulty {
         max / u64::from(minimum_difficulty)
-    } else if active_wips.second_hard_fork() {
+    } else if active_wips.wips_0009_0011_0012() {
         let difficulty = std::cmp::max(total_identities, minimum_difficulty);
         (max / u64::from(difficulty)).saturating_mul(u64::from(replication_factor))
     } else {
