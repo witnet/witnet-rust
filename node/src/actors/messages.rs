@@ -21,7 +21,7 @@ use witnet_data_structures::{
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
         RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, ValueTransferOutput,
     },
-    mainnet_validations::ActiveWips,
+    mainnet_validations::{ActiveWips, BitVotesCounter},
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
     transaction_factory::NodeBalance,
@@ -590,6 +590,24 @@ pub struct GetItemSuperblock {
 
 impl Message for GetItemSuperblock {
     type Result = Result<SuperBlockNotify, InventoryManagerError>;
+}
+
+/// Get TAPI Signaling Info
+pub struct GetSignalingInfo {}
+
+/// Result of GetSignalingInfo
+#[derive(Deserialize, Serialize)]
+pub struct SignalingInfo {
+    /// List of protocol upgrades that are already active, and their activation epoch
+    pub active_upgrades: HashMap<String, Epoch>,
+    /// List of protocol upgrades that are currently being polled for activation signaling
+    pub pending_upgrades: Vec<BitVotesCounter>,
+    /// Last epoch
+    pub epoch: Epoch,
+}
+
+impl Message for GetSignalingInfo {
+    type Result = Result<SignalingInfo, failure::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

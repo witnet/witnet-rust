@@ -30,8 +30,8 @@ use crate::{
             AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, DropAllPeers,
             GetBalance, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetState,
-            GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
+            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation,
+            GetSignalingInfo, GetState, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -103,6 +103,9 @@ pub fn jsonrpc_io_handler(
     });
     io.add_method("getSuperblock", |params: Params| {
         Compat::new(Box::pin(get_superblock(params.parse())))
+    });
+    io.add_method("signalingInfo", |params: Params| {
+        Compat::new(Box::pin(signaling_info(params.parse())))
     });
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
@@ -1569,6 +1572,32 @@ pub async fn get_superblock(
     }
 }
 
+/// Get the blocks that pertain to the superblock index
+pub async fn signaling_info(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResult {
+    let _params = match params {
+        Ok(x) => x,
+        Err(e) => return Err(e),
+    };
+
+    let chain_manager_addr = ChainManager::from_registry();
+
+    let info = chain_manager_addr
+        .send(GetSignalingInfo {})
+        .await
+        .map_err(internal_error)?;
+
+    match info {
+        Ok(x) => match serde_json::to_value(&x) {
+            Ok(x) => Ok(x),
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        },
+        Err(e) => Err(internal_error_s(e)),
+    }
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -1916,6 +1945,7 @@ mod tests {
                 "sendRequest",
                 "sendValue",
                 "sign",
+                "signalingInfo",
                 "syncStatus",
                 "witnet_subscribe",
                 "witnet_unsubscribe",

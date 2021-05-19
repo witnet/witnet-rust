@@ -32,9 +32,9 @@ use crate::{
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
             GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetState, GetSuperBlockVotes, GetUtxoInfo, IsConfirmedBlock,
-            PeersBeacons, ReputationStats, Rewind, SendLastBeacon, SessionUnitResult,
-            SetLastBeacon, SetPeersLimits, TryMineBlock,
+            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetUtxoInfo,
+            IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
+            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -1648,7 +1648,21 @@ impl Handler<Rewind> for ChainManager {
     }
 }
 
-#[allow(dead_code)]
+impl Handler<GetSignalingInfo> for ChainManager {
+    type Result = Result<SignalingInfo, failure::Error>;
+
+    fn handle(&mut self, _msg: GetSignalingInfo, _ctx: &mut Self::Context) -> Self::Result {
+        let active_upgrades = self.chain_state.tapi_engine.wip_activation.clone();
+        let pending_upgrades = self.chain_state.tapi_engine.bit_tapi_counter.info();
+        let epoch = self.chain_state.tapi_engine.bit_tapi_counter.last_epoch();
+        Ok(SignalingInfo {
+            active_upgrades,
+            pending_upgrades,
+            epoch,
+        })
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockBatches<T> {
     TargetNotReached(Vec<T>),

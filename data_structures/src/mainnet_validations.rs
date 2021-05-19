@@ -253,6 +253,18 @@ impl BitTapiCounter {
     pub fn is_empty(&self) -> bool {
         self.current_length == 0
     }
+
+    pub fn info(&self) -> Vec<BitVotesCounter> {
+        self.info[..self.current_length]
+            .iter()
+            .flatten()
+            .cloned()
+            .collect()
+    }
+
+    pub fn last_epoch(&self) -> Epoch {
+        self.last_epoch
+    }
 }
 
 fn is_bit_n_activated(v: u32, n: usize) -> bool {
