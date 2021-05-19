@@ -315,34 +315,65 @@ mod tests {
     }
 
     #[test]
-    fn test_bit_tapicounter() {
-        let mut a = BitTapiCounter::default();
-        assert!(a.get_mut(0, &100).is_none());
+    fn test_bit_tapi_counter() {
+        let mut tapi_counter = BitTapiCounter::default();
+        assert!(tapi_counter.is_empty());
 
         let mut aux = BitVotesCounter::default();
         aux.init = 0;
         aux.end = 50;
         aux.wip = "Wip1".to_string();
         aux.bit = 0;
-        a.insert(aux);
-        assert!(a.get_mut(0, &100).is_none());
-        assert!(a.contains(0, &"Wip1".to_string()));
-        assert!(!a.contains(1, &"Wip1".to_string()));
+        tapi_counter.insert(aux);
+        assert!(!tapi_counter.is_empty());
+        assert!(tapi_counter.get(0, &100).is_none());
+        assert!(tapi_counter.contains(0, &"Wip1".to_string()));
+        assert!(!tapi_counter.contains(1, &"Wip1".to_string()));
+        assert_eq!(tapi_counter.current_length, 1);
 
         let mut aux2 = BitVotesCounter::default();
         aux2.init = 75;
         aux2.end = 125;
         aux2.wip = "Wip2".to_string();
         aux2.bit = 0;
-        a.insert(aux2);
-        assert_eq!(a.get_mut(0, &100).unwrap().wip, "Wip2".to_string());
-        assert!(a.get_mut(1, &100).is_none());
-        assert!(a.contains(0, &"Wip2".to_string()));
+        tapi_counter.insert(aux2);
+        assert_eq!(tapi_counter.get(0, &100).unwrap().wip, "Wip2".to_string());
+        assert!(tapi_counter.get(1, &100).is_none());
+        assert!(tapi_counter.contains(0, &"Wip2".to_string()));
+        assert_eq!(tapi_counter.current_length, 1);
 
-        assert_eq!(a.get_mut(0, &100).unwrap().votes, 0);
-        let mut votes_counter = a.get_mut(0, &100).unwrap();
+        assert_eq!(tapi_counter.get(0, &100).unwrap().votes, 0);
+        let mut votes_counter = tapi_counter.get_mut(0, &100).unwrap();
         votes_counter.votes += 1;
-        assert_eq!(a.get_mut(0, &100).unwrap().votes, 1);
+        assert_eq!(tapi_counter.get(0, &100).unwrap().votes, 1);
+
+        tapi_counter.remove(0);
+        assert_eq!(tapi_counter.current_length, 0);
+    }
+
+    #[test]
+    fn test_bit_tapi_counter_invalid_bit() {
+        let mut tapi_counter = BitTapiCounter::default();
+        assert!(tapi_counter.is_empty());
+
+        let mut aux = BitVotesCounter::default();
+        aux.init = 0;
+        aux.end = 50;
+        aux.wip = "Wip1".to_string();
+        aux.bit = 32;
+        tapi_counter.insert(aux);
+        assert!(tapi_counter.is_empty());
+
+        let mut aux = BitVotesCounter::default();
+        aux.init = 0;
+        aux.end = 50;
+        aux.wip = "Wip1".to_string();
+        aux.bit = 0;
+        tapi_counter.insert(aux);
+        assert_eq!(tapi_counter.current_length, 1);
+
+        tapi_counter.remove(32);
+        assert_eq!(tapi_counter.current_length, 1);
     }
 
     #[test]
@@ -510,8 +541,22 @@ mod tests {
         assert_eq!(epoch, init_epoch_wip0014);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
-        // The list of active WIPs must also be empty, because it is updated when the blocks are
-        // counted using update_new_wip_vote
-        assert_eq!(t.wip_activation, HashMap::new());
+        // The list of active WIPs only contains the first and the second hard fork
+        let mut hm = HashMap::new();
+        hm.insert("WIP0008".to_string(), FIRST_HARD_FORK);
+        hm.insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
+        hm.insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
+        assert_eq!(t.wip_activation, hm);
+
+        // Test initialize_wip_information with a non-empty TapiEngine
+        let (epoch, old_wips) = t.initialize_wip_information();
+        // WIP0014 is already included and it won't be updated
+        let name_wip0014 = "WIP0014".to_string();
+        let mut hs = HashSet::new();
+        hs.insert(name_wip0014);
+        assert_eq!(old_wips, hs);
+
+        // There is no new WIPs to update so we obtain the max value
+        assert_eq!(epoch, u32::MAX);
     }
 }
