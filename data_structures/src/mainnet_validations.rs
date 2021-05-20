@@ -277,12 +277,18 @@ pub fn in_emergency_period(
 
 /// Returns a boolean indicating whether the epoch provided is after the first hard fork date
 pub fn after_first_hard_fork(epoch: Epoch, environment: Environment) -> bool {
-    epoch >= FIRST_HARD_FORK && Environment::Mainnet == environment
+    match environment {
+        Environment::Mainnet => epoch >= FIRST_HARD_FORK,
+        Environment::Testnet | Environment::Development => true,
+    }
 }
 
 /// Returns a boolean indicating whether the epoch provided is after the second hard fork date
 pub fn after_second_hard_fork(epoch: Epoch, environment: Environment) -> bool {
-    epoch >= SECOND_HARD_FORK && Environment::Mainnet == environment
+    match environment {
+        Environment::Mainnet => epoch >= SECOND_HARD_FORK,
+        Environment::Testnet | Environment::Development => true,
+    }
 }
 
 /// Returns a boolean indicating whether the epoch provided is after the third hard fork date
