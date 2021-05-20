@@ -140,7 +140,6 @@ impl ChainManager {
         let active_wips = ActiveWips {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: current_epoch,
-            environment: get_environment(),
         };
 
         // Create a VRF proof and if eligible build block
@@ -339,7 +338,6 @@ impl ChainManager {
             let active_wips = ActiveWips {
                 active_wips: Default::default(),
                 block_epoch: current_epoch,
-                environment: get_environment(),
             };
             let (target_hash, probability) = calculate_reppoe_threshold(
                 rep_eng,
@@ -520,7 +518,6 @@ impl ChainManager {
                     let active_wips = ActiveWips {
                         active_wips: act.chain_state.tapi_engine.wip_activation.clone(),
                         block_epoch: current_epoch,
-                        environment: get_environment(),
                     };
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
@@ -688,7 +685,6 @@ impl ChainManager {
                         let active_wips = ActiveWips {
                             active_wips,
                             block_epoch,
-                            environment: get_environment(),
                         };
                         let tally_result = rad_manager_addr
                             .send(RunTally {

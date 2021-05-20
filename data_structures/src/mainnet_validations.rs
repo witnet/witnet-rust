@@ -295,7 +295,6 @@ pub fn after_third_hard_fork(epoch: Epoch, environment: Environment) -> bool {
 pub struct ActiveWips {
     pub active_wips: HashMap<String, Epoch>,
     pub block_epoch: Epoch,
-    pub environment: Environment,
 }
 
 impl ActiveWips {
@@ -316,7 +315,10 @@ impl ActiveWips {
     }
 
     pub fn third_hard_fork(&self) -> bool {
-        after_third_hard_fork(self.block_epoch, self.environment)
+        self.active_wips
+            .get("THIRD_HARD_FORK")
+            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
+            .unwrap_or(false)
     }
 
     pub fn wip0014(&self) -> bool {
@@ -594,7 +596,7 @@ mod tests {
         assert_eq!(epoch, init_epoch_wip0014);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
-        // The list of active WIPs only contains the first and the second hard fork
+        // The list of active WIPs only contains the first, second, and third hard forks
         let mut hm = HashMap::new();
         hm.insert("WIP0008".to_string(), FIRST_HARD_FORK);
         hm.insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);

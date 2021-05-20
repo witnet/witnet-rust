@@ -2492,7 +2492,6 @@ mod tests {
         ActiveWips {
             active_wips: tapi_engine.wip_activation,
             block_epoch: u32::MAX,
-            environment: Environment::Testnet,
         }
     }
 
@@ -2828,7 +2827,6 @@ mod tests {
         let a = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 1001,
-            environment: Environment::Mainnet,
         };
         let rf = 1;
         let minimum_difficulty = 2000;
@@ -2867,7 +2865,6 @@ mod tests {
         let a = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 1,
-            environment: Environment::Mainnet,
         };
         let (t, p) = calculate_randpoe_threshold(2, 1, 1, 4, 10, &a);
         assert_eq!(t, Hash::with_first_u32(0x3FFF_FFFF));
@@ -2887,7 +2884,6 @@ mod tests {
         let active_wips = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 1,
-            environment: Environment::Mainnet,
         };
 
         let total_identities = 1000;
@@ -2986,7 +2982,6 @@ mod tests {
         let a = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 1001,
-            environment: Environment::Mainnet,
         };
         let (t00, p00) = calculate_randpoe_threshold(0, rf, 1001, minimum_difficulty, 0, &a);
         let (t01, p01) = calculate_randpoe_threshold(1, rf, 1001, minimum_difficulty, 0, &a);
@@ -3020,7 +3015,6 @@ mod tests {
         let active_wips = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 0,
-            environment: Environment::Mainnet,
         };
 
         let mut rep_engine = ReputationEngine::new(1000);
@@ -3071,7 +3065,6 @@ mod tests {
         let active_wips = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 0,
-            environment: Environment::Mainnet,
         };
 
         let mut rep_engine = ReputationEngine::new(1000);
@@ -3124,7 +3117,6 @@ mod tests {
         let active_wips = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 0,
-            environment: Environment::Mainnet,
         };
 
         // Test the behavior of the algorithm when our node has 0 reputation
@@ -3195,7 +3187,6 @@ mod tests {
         let active_wips = ActiveWips {
             active_wips: Default::default(),
             block_epoch: 0,
-            environment: Environment::Mainnet,
         };
 
         // Test big values that result in < 100%

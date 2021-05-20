@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate bencher;
 use bencher::Bencher;
-use std::{collections::HashMap, convert::TryFrom, iter};
+use std::{convert::TryFrom, iter};
 use witnet_data_structures::chain::{
     Alpha, Environment, PublicKeyHash, Reputation, ReputationEngine,
 };
-use witnet_data_structures::mainnet_validations::ActiveWips;
+use witnet_data_structures::mainnet_validations::{ActiveWips, TapiEngine};
 
 // To benchmark the old algorithm, comment out this import:
 use witnet_validations::validations;
@@ -47,13 +47,12 @@ mod validations {
 
 // This should only be used in tests
 fn all_wips_active() -> ActiveWips {
-    let mut active_wips = HashMap::new();
-    active_wips.insert("WIP0014".to_string(), 500_000);
+    let mut tapi_engine = TapiEngine::default();
+    tapi_engine.initialize_wip_information(Environment::Testnet);
 
     ActiveWips {
-        active_wips,
+        active_wips: tapi_engine.wip_activation,
         block_epoch: u32::MAX,
-        environment: Environment::Mainnet,
     }
 }
 
