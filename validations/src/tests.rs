@@ -17,7 +17,7 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
-    mainnet_validations::{ActiveWips, FIRST_HARD_FORK, SECOND_HARD_FORK},
+    mainnet_validations::{ActiveWips, TapiEngine, FIRST_HARD_FORK, SECOND_HARD_FORK},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
@@ -34,7 +34,6 @@ use witnet_rad::{
 };
 
 use crate::validations::*;
-use std::collections::HashMap;
 
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
@@ -46,12 +45,24 @@ const E: Epoch = SECOND_HARD_FORK + 1;
 
 // This should only be used in tests
 fn all_wips_active() -> ActiveWips {
-    let mut active_wips = HashMap::new();
-    active_wips.insert("WIP0014".to_string(), 500_000);
+    let mut tapi_engine = TapiEngine::default();
+    tapi_engine.initialize_wip_information(Environment::Testnet);
 
     ActiveWips {
-        active_wips,
+        active_wips: tapi_engine.wip_activation,
         block_epoch: u32::MAX,
+        environment: Environment::Testnet,
+    }
+}
+
+// This should only be used in tests
+fn active_wips_from_mainnet(block_epoch: Epoch) -> ActiveWips {
+    let mut tapi_engine = TapiEngine::default();
+    tapi_engine.initialize_wip_information(Environment::Mainnet);
+
+    ActiveWips {
+        active_wips: tapi_engine.wip_activation,
+        block_epoch,
         environment: Environment::Mainnet,
     }
 }
@@ -3321,11 +3332,7 @@ fn commitment_timelock() {
         let cs = sign_tx(PRIV_KEY_1, &cb);
         let c_tx = CommitTransaction::new(cb, vec![cs]);
         // This test checks that the first hard fork is handled correctly
-        let active_wips = ActiveWips {
-            active_wips: Default::default(),
-            block_epoch: epoch,
-            environment: Environment::Mainnet,
-        };
+        let active_wips = active_wips_from_mainnet(epoch);
 
         let mut signatures_to_verify = vec![];
         validate_commit_transaction(
@@ -6610,11 +6617,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     // TODO: In this test the active wips depend on the current epoch
     // Ideally this should use all_wips_active() so that when adding new WIPs the existing tests
     // will fail if the logic is accidentally changed.
-    let active_wips = ActiveWips {
-        active_wips: Default::default(),
-        block_epoch: current_epoch,
-        environment: Environment::Mainnet,
-    };
+    let active_wips = active_wips_from_mainnet(current_epoch);
 
     // Insert output to utxo
     let output1 = ValueTransferOutput {

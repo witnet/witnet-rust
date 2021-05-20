@@ -18,6 +18,7 @@ use witnet_data_structures::{
         ReputationEngine,
     },
     data_request::DataRequestPool,
+    get_environment,
     superblock::SuperBlockState,
     types::LastBeacon,
     utxo_pool::OwnUnspentOutputsPool,
@@ -255,7 +256,7 @@ impl ChainManager {
                 act.chain_state = chain_state;
 
                 // Update possible new WIP information
-                let (new_wip_epoch, old_wips) = act.chain_state.tapi_engine.initialize_wip_information();
+                let (new_wip_epoch, old_wips) = act.chain_state.tapi_engine.initialize_wip_information(get_environment());
                 let last_consolidated_epoch = act.get_chain_beacon().checkpoint;
                 if new_wip_epoch < last_consolidated_epoch {
                     // Some blocks have been consolidated before this node updated to the latest version,

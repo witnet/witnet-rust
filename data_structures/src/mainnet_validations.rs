@@ -82,27 +82,43 @@ impl TapiEngine {
         self.bit_tapi_counter.last_epoch = epoch_to_update;
     }
 
-    pub fn initialize_wip_information(&mut self) -> (Epoch, HashSet<String>) {
-        // Hardcoded information about WIPs
-        self.wip_activation
-            .insert("WIP0008".to_string(), FIRST_HARD_FORK);
-        self.wip_activation
-            .insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
-        self.wip_activation
-            .insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
-
-        // Hardcoded information about WIPs in vote processing
+    pub fn initialize_wip_information(
+        &mut self,
+        environment: Environment,
+    ) -> (Epoch, HashSet<String>) {
         let mut voting_wips = vec![None; 32];
-        let bit = 0;
-        let wip_0014 = BitVotesCounter {
-            votes: 0,
-            period: 26880,
-            wip: "WIP0014".to_string(),
-            init: 500000,
-            end: u32::MAX,
-            bit,
+
+        match environment {
+            Environment::Mainnet => {
+                // Hardcoded information about WIPs
+                self.wip_activation
+                    .insert("WIP0008".to_string(), FIRST_HARD_FORK);
+                self.wip_activation
+                    .insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
+                self.wip_activation
+                    .insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
+
+                // Hardcoded information about WIPs in vote processing
+                let bit = 0;
+                let wip_0014 = BitVotesCounter {
+                    votes: 0,
+                    period: 26880,
+                    wip: "WIP0014".to_string(),
+                    init: 500000,
+                    end: u32::MAX,
+                    bit,
+                };
+                voting_wips[bit] = Some(wip_0014);
+            }
+            Environment::Testnet | Environment::Development => {
+                // In non-mainnet chains, all the WIPs that are active in mainnet are considered
+                // active since epoch 0. And there is no voting.
+                self.wip_activation.insert("WIP0008".to_string(), 0);
+                self.wip_activation
+                    .insert("WIP0009-0011-0012".to_string(), 0);
+                self.wip_activation.insert("THIRD_HARD_FORK".to_string(), 0);
+            }
         };
-        voting_wips[bit] = Some(wip_0014);
 
         // Assessment of new WIPs
         let mut min_epoch = u32::MAX;
@@ -285,12 +301,18 @@ pub struct ActiveWips {
 impl ActiveWips {
     // WIP 0008 was activated through community coordination on January 22, 2021
     pub fn wip_0008(&self) -> bool {
-        after_first_hard_fork(self.block_epoch, self.environment)
+        self.active_wips
+            .get("WIP0008")
+            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
+            .unwrap_or(false)
     }
 
     // WIPs 0009, 0011 and 0012 were activated through community coordination on April 28, 2021
     pub fn wips_0009_0011_0012(&self) -> bool {
-        after_second_hard_fork(self.block_epoch, self.environment)
+        self.active_wips
+            .get("WIP0009-0011-0012")
+            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
+            .unwrap_or(false)
     }
 
     pub fn third_hard_fork(&self) -> bool {
@@ -298,7 +320,6 @@ impl ActiveWips {
     }
 
     pub fn wip0014(&self) -> bool {
-        // TODO: ignore environment?
         self.active_wips
             .get("WIP0014")
             .map(|activation_epoch| self.block_epoch >= *activation_epoch)
@@ -567,7 +588,7 @@ mod tests {
     fn test_initialize_wip_information() {
         let mut t = TapiEngine::default();
 
-        let (epoch, old_wips) = t.initialize_wip_information();
+        let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // The first block whose vote must be counted is the one from WIP0014
         let init_epoch_wip0014 = 500000;
         assert_eq!(epoch, init_epoch_wip0014);
@@ -581,7 +602,7 @@ mod tests {
         assert_eq!(t.wip_activation, hm);
 
         // Test initialize_wip_information with a non-empty TapiEngine
-        let (epoch, old_wips) = t.initialize_wip_information();
+        let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // WIP0014 is already included and it won't be updated
         let name_wip0014 = "WIP0014".to_string();
         let mut hs = HashSet::new();
@@ -590,5 +611,20 @@ mod tests {
 
         // There is no new WIPs to update so we obtain the max value
         assert_eq!(epoch, u32::MAX);
+    }
+
+    #[test]
+    fn test_initialize_mainnet_and_testnet() {
+        let mut t_mainnet = TapiEngine::default();
+        let (_epoch, _old_wips) = t_mainnet.initialize_wip_information(Environment::Mainnet);
+
+        let mut t_testnet = TapiEngine::default();
+        let (_epoch, _old_wips) = t_testnet.initialize_wip_information(Environment::Testnet);
+
+        // The keys of the wip_activation map should be the same
+        assert_eq!(
+            t_testnet.wip_activation.keys().collect::<HashSet<_>>(),
+            t_mainnet.wip_activation.keys().collect::<HashSet<_>>(),
+        )
     }
 }

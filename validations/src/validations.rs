@@ -2471,9 +2471,11 @@ pub fn verify_signatures(
 
 #[cfg(test)]
 mod tests {
-    use witnet_data_structures::chain::Environment;
     use witnet_data_structures::{
-        chain::Alpha, mainnet_validations::SECOND_HARD_FORK, radon_error::RadonError,
+        chain::Alpha,
+        chain::Environment,
+        mainnet_validations::{TapiEngine, SECOND_HARD_FORK},
+        radon_error::RadonError,
     };
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
@@ -2484,13 +2486,13 @@ mod tests {
 
     // This should only be used in tests
     fn all_wips_active() -> ActiveWips {
-        let mut active_wips = HashMap::new();
-        active_wips.insert("WIP0014".to_string(), 500_000);
+        let mut tapi_engine = TapiEngine::default();
+        tapi_engine.initialize_wip_information(Environment::Testnet);
 
         ActiveWips {
-            active_wips,
+            active_wips: tapi_engine.wip_activation,
             block_epoch: u32::MAX,
-            environment: Environment::Mainnet,
+            environment: Environment::Testnet,
         }
     }
 
