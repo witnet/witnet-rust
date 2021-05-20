@@ -265,7 +265,6 @@ pub fn after_second_hard_fork(epoch: Epoch, environment: Environment) -> bool {
 pub struct ActiveWips {
     pub active_wips: HashMap<String, Epoch>,
     pub block_epoch: Epoch,
-    pub environment: Environment,
 }
 
 impl ActiveWips {

@@ -470,7 +470,6 @@ impl ChainManager {
             let active_wips = ActiveWips {
                 active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: block.block_header.beacon.checkpoint,
-                environment: get_environment(),
             };
 
             let utxo_diff = process_validations(
@@ -537,7 +536,6 @@ impl ChainManager {
                 let active_wips = ActiveWips {
                     active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                     block_epoch: block.block_header.beacon.checkpoint,
-                    environment: get_environment(),
                 };
                 let target_vrf_slots = VrfSlots::from_rf(
                     u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
@@ -1143,7 +1141,6 @@ impl ChainManager {
                 // If this transaction will be included in a block, the block epoch must be greater
                 // than or equal to the current epoch
                 block_epoch: current_epoch,
-                environment: get_environment(),
             };
             let fut = future::ready(validate_new_transaction(
                 &msg.transaction,
@@ -1619,7 +1616,6 @@ impl ChainManager {
         let active_wips = ActiveWips {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: block.block_header.beacon.checkpoint,
-            environment: get_environment(),
         };
         let res = validate_block(
             &block,

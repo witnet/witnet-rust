@@ -51,7 +51,6 @@ fn all_wips_active() -> ActiveWips {
     ActiveWips {
         active_wips: tapi_engine.wip_activation,
         block_epoch: u32::MAX,
-        environment: Environment::Testnet,
     }
 }
 
@@ -63,7 +62,6 @@ fn active_wips_from_mainnet(block_epoch: Epoch) -> ActiveWips {
     ActiveWips {
         active_wips: tapi_engine.wip_activation,
         block_epoch,
-        environment: Environment::Mainnet,
     }
 }
 
