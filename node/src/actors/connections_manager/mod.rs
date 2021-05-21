@@ -13,6 +13,7 @@ use crate::{
         sessions_manager::SessionsManager,
     },
     config_mngr,
+    utils::stop_system_if_panicking,
 };
 
 mod actor;
@@ -22,6 +23,13 @@ pub mod resolver;
 /// Connections manager actor
 #[derive(Default)]
 pub struct ConnectionsManager;
+
+impl Drop for ConnectionsManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping ConnectionsManager");
+        stop_system_if_panicking("ConnectionsManager");
+    }
+}
 
 /// Required trait for being able to retrieve connections manager address from system registry
 impl actix::Supervised for ConnectionsManager {}

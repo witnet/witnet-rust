@@ -15,6 +15,7 @@ use witnet_util::timestamp::{
 use crate::{
     actors::messages::{EpochNotification, EpochResult},
     config_mngr,
+    utils::stop_system_if_panicking,
 };
 
 mod actor;
@@ -62,6 +63,13 @@ pub struct EpochManager {
 
     /// Last epoch that was checked by the epoch monitor process
     last_checked_epoch: Option<Epoch>,
+}
+
+impl Drop for EpochManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping EpochManager");
+        stop_system_if_panicking("EpochManager");
+    }
 }
 
 /// Required trait for being able to retrieve EpochManager address from system registry

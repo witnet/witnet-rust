@@ -87,6 +87,7 @@ use crate::{
         storage_keys,
     },
     signature_mngr, storage_mngr,
+    utils::stop_system_if_panicking,
 };
 
 mod actor;
@@ -223,6 +224,13 @@ pub struct ChainManager {
     last_superblock_consensus: Option<CheckpointBeacon>,
     /// Settings for Threshold Activation of Protocol Improvements
     tapi: Tapi,
+}
+
+impl Drop for ChainManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping ChainManager");
+        stop_system_if_panicking("ChainManager");
+    }
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding

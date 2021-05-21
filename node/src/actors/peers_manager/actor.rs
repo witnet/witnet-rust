@@ -23,7 +23,7 @@ impl Actor for PeersManager {
         // Send message to config manager and process response
         config_mngr::get()
             .into_actor(self)
-            .and_then(|config, mut act, ctx| {
+            .and_then(|config, act, ctx| {
                 // Get known peers
                 let known_peers: Vec<_> = config.connections.known_peers.iter().cloned().collect();
 

@@ -97,6 +97,15 @@ pub struct Session {
     superblock_beacon_target: Option<CheckpointBeacon>,
 }
 
+impl Drop for Session {
+    fn drop(&mut self) {
+        log::trace!("Dropping Session");
+        // Do not stop the system if one session panics, panics in session are handled in the same
+        // way as a session disconnect.
+        //stop_system_if_panicking("Session");
+    }
+}
+
 /// Session helper methods
 impl Session {
     /// Method to create a new session

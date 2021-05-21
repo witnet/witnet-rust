@@ -11,6 +11,7 @@ use futures_util::FutureExt;
 use crate::{
     actors::storage_keys::{BN256_SECRET_KEY, MASTER_KEY},
     config_mngr, storage_mngr,
+    utils::stop_system_if_panicking,
 };
 
 use rand::{thread_rng, Rng};
@@ -157,6 +158,13 @@ struct SignatureManager {
     vrf_ctx: Option<VrfCtx>,
     /// Secp256k1 context
     secp: Option<CryptoEngine>,
+}
+
+impl Drop for SignatureManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping SignatureManager");
+        stop_system_if_panicking("SignatureManager");
+    }
 }
 
 struct SetKey(ExtendedSK);
@@ -470,6 +478,13 @@ impl Handler<VerifySignatures> for SignatureManager {
 
 struct SignatureManagerAdapter {
     crypto: Addr<SignatureManager>,
+}
+
+impl Drop for SignatureManagerAdapter {
+    fn drop(&mut self) {
+        log::trace!("Dropping SignatureManagerAdapter");
+        stop_system_if_panicking("SignatureManagerAdapter");
+    }
 }
 
 impl Supervised for SignatureManagerAdapter {}

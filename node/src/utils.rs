@@ -35,6 +35,15 @@ where
     }
 }
 
+/// Helper function to stop the actor system if the current thread is panicking.
+/// This should be used in the `Drop` implementation of essential actors.
+pub fn stop_system_if_panicking(actor_name: &str) {
+    if std::thread::panicking() {
+        log::error!("Panic in {}, shutting down system", actor_name);
+        System::current().stop_with_code(1);
+    }
+}
+
 /// Helper function used to test actors.
 /// This should use the same code that the node uses to start the actor system.
 pub fn test_actix_system<F: FnOnce() -> Fut, Fut: Future>(test_function: F) {

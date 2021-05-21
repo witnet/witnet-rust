@@ -1,3 +1,4 @@
+use crate::utils::stop_system_if_panicking;
 use actix::{Actor, SystemService};
 use std::default::Default;
 use std::path::PathBuf;
@@ -42,6 +43,13 @@ pub async fn load_from_file(filename: PathBuf) -> Result<(), failure::Error> {
 struct ConfigManager {
     config: Arc<Config>,
     config_source: Source,
+}
+
+impl Drop for ConfigManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping ConfigManager");
+        stop_system_if_panicking("ConfigManager");
+    }
 }
 
 /// Message to obtain a reference to the configuration managed by the

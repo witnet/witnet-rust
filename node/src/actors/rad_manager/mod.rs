@@ -12,3 +12,11 @@ mod handlers;
 /// RadManager actor
 #[derive(Default)]
 pub struct RadManager;
+
+impl Drop for RadManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping RadManager");
+        // TODO: RadManager is expected to restart on panic, ensure
+        //stop_system_if_panicking("RadManager");
+    }
+}

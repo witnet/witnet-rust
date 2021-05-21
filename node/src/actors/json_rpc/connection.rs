@@ -27,6 +27,15 @@ pub struct JsonRpc {
     pub session: Arc<Session>,
 }
 
+impl Drop for JsonRpc {
+    fn drop(&mut self) {
+        log::trace!("Dropping JsonRpc");
+        // Do not stop the system if one JsonRpc client panics, panics here are handled in the same
+        // way as a session disconnect.
+        //stop_system_if_panicking("JsonRpc");
+    }
+}
+
 impl Actor for JsonRpc {
     type Context = Context<Self>;
 

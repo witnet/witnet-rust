@@ -17,6 +17,7 @@ use witnet_data_structures::chain::ChainState;
 use witnet_futures_utils::TryFutureExt2;
 use witnet_storage::{backends, storage};
 
+use crate::utils::stop_system_if_panicking;
 pub use node_migrations::*;
 
 mod node_migrations;
@@ -147,6 +148,13 @@ where
 
 struct StorageManager {
     backend: Box<dyn storage::Storage>,
+}
+
+impl Drop for StorageManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping StorageManager");
+        stop_system_if_panicking("StorageManager");
+    }
 }
 
 impl Default for StorageManager {

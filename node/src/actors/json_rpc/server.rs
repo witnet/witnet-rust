@@ -12,6 +12,7 @@ use super::{
 use crate::{
     actors::messages::{BlockNotify, InboundTcpConnect, NodeStatusNotify, SuperBlockNotify},
     config_mngr,
+    utils::stop_system_if_panicking,
 };
 use bytes::BytesMut;
 use futures::future::Either;
@@ -30,6 +31,13 @@ pub struct JsonRpcServer {
     jsonrpc_io: Option<Rc<PubSubHandler<Arc<Session>>>>,
     /// List of subscriptions
     subscriptions: Subscriptions,
+}
+
+impl Drop for JsonRpcServer {
+    fn drop(&mut self) {
+        log::trace!("Dropping JsonRpcServer");
+        stop_system_if_panicking("JsonRpcServer");
+    }
 }
 
 /// Required traits for beInboundTcpConnecting able to retrieve storage manager address from registry

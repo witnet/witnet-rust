@@ -10,16 +10,19 @@ use ansi_term::Color::Cyan;
 use witnet_p2p::sessions::{SessionType, Sessions};
 
 use self::beacons::Beacons;
-use crate::actors::{
-    chain_manager::ChainManager,
-    connections_manager::ConnectionsManager,
-    epoch_manager::EpochManager,
-    messages::{
-        Anycast, CloseSession, GetEpochConstants, GetRandomPeers, OutboundTcpConnect, PeersBeacons,
-        PeersSocketAddrsResult, SendGetPeers, Subscribe,
+use crate::{
+    actors::{
+        chain_manager::ChainManager,
+        connections_manager::ConnectionsManager,
+        epoch_manager::EpochManager,
+        messages::{
+            Anycast, CloseSession, GetEpochConstants, GetRandomPeers, OutboundTcpConnect,
+            PeersBeacons, PeersSocketAddrsResult, SendGetPeers, Subscribe,
+        },
+        peers_manager::PeersManager,
+        session::Session,
     },
-    peers_manager::PeersManager,
-    session::Session,
+    utils::stop_system_if_panicking,
 };
 use failure::Fail;
 use witnet_config::config::Config;
@@ -54,6 +57,13 @@ pub struct SessionsManager {
     /// Last SuperBlock consensus achieved in the previous SuperEpoch by more than 2/3 of the signing
     /// committee when our node reached another superblock
     superblock_beacon_target: Option<CheckpointBeacon>,
+}
+
+impl Drop for SessionsManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping SessionsManager");
+        stop_system_if_panicking("SessionsManager");
+    }
 }
 
 #[derive(Debug, Fail)]

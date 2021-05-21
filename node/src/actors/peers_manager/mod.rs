@@ -15,6 +15,7 @@ use crate::{
         storage_keys,
     },
     storage_mngr,
+    utils::stop_system_if_panicking,
 };
 use witnet_config::config::Config;
 
@@ -45,6 +46,13 @@ pub struct PeersManager {
     pub check_melted_peers_period: Duration,
     /// Magic number from ConsensusConstants
     magic: u16,
+}
+
+impl Drop for PeersManager {
+    fn drop(&mut self) {
+        log::trace!("Dropping PeersManager");
+        stop_system_if_panicking("PeersManager");
+    }
 }
 
 impl PeersManager {
