@@ -25,7 +25,7 @@ fn builders_build_last_beacon() {
 fn builders_build_block() {
     // Prepare block header
     let block_header = BlockHeader {
-        version: 0x0000_0001,
+        signals: 0x0000_0001,
         beacon: CheckpointBeacon::default(),
         merkle_roots: BlockMerkleRoots::default(),
         proof: BlockEligibilityClaim::default(),

@@ -792,7 +792,7 @@ mod tests {
         let tally_merkle_root_1 = TALLY_MERKLE_ROOT_1.parse().unwrap();
 
         let block = BlockHeader {
-            version: 1,
+            signals: 1,
             beacon: default_beacon,
             merkle_roots: BlockMerkleRoots {
                 mint_hash: default_hash,
@@ -841,7 +841,7 @@ mod tests {
                 .unwrap();
 
         let block_1 = BlockHeader {
-            version: 1,
+            signals: 1,
             beacon: default_beacon,
             merkle_roots: BlockMerkleRoots {
                 mint_hash: default_hash,
@@ -856,7 +856,7 @@ mod tests {
         };
 
         let block_2 = BlockHeader {
-            version: 1,
+            signals: 1,
             beacon: default_beacon,
             merkle_roots: BlockMerkleRoots {
                 mint_hash: default_hash,

@@ -6848,16 +6848,16 @@ fn block_hash_prev_block_genesis_hash() {
 }
 
 #[test]
-fn block_version_can_be_anything() {
-    // The version field in the block header can have any value, the block will always be valid
-    // Test some arbitrary values of "version"
-    for version in &[0, 1, 2, 3, 255, 256, u32::MAX - 1, u32::MAX] {
+fn block_signals_can_be_anything() {
+    // The signals field in the block header can have any value, the block will always be valid
+    // Test some arbitrary values of "signals"
+    for signals in &[0, 1, 2, 3, 255, 256, u32::MAX - 1, u32::MAX] {
         if let Err(e) = test_block(|b| {
-            b.block_header.version = *version;
+            b.block_header.signals = *signals;
 
             true
         }) {
-            panic!("Failed to validate block with version {}: {:?}", version, e);
+            panic!("Failed to validate block with signals {}: {:?}", signals, e);
         }
     }
 }
@@ -7537,15 +7537,15 @@ fn block_change_merkle_tree() {
 }
 
 #[test]
-fn block_change_version() {
+fn block_change_signals() {
     // Check that an attacker cannot change the version field of a signed block, because that will
     // invalidate the signature
     let x = test_block(|b| {
-        // Flip one bit of the version field
-        b.block_header.version ^= 1;
+        // Flip one bit of the signals field
+        b.block_header.signals ^= 1;
 
         // Do not sign the block again
-        // If the miner changes the version field and then signs the block, the block will be valid
+        // If the miner changes the signals field and then signs the block, the block will be valid
         false
     });
 

@@ -60,7 +60,7 @@ message Block {
             Hash reveal_hash_merkle_root = 5;
             Hash tally_hash_merkle_root = 6;
         }
-        uint32 version = 1;
+        uint32 signals = 1;
         CheckpointBeacon beacon = 2;
         BlockMerkleRoots merkle_roots = 3;
         BlockEligibilityClaim proof = 4;

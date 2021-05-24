@@ -476,7 +476,7 @@ impl Block {
 
         Block::new(
             BlockHeader {
-                version: 1,
+                signals: 1,
                 beacon: CheckpointBeacon {
                     checkpoint: 0,
                     hash_prev_block: bootstrap_hash,
@@ -638,8 +638,9 @@ impl Hashable for PublicKey {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::Block_BlockHeader")]
 pub struct BlockHeader {
-    /// The block version number indicating the block validation rules
-    pub version: u32,
+    /// 32 bits for binary signaling new witnet protocol improvements.
+    /// See [WIP-0014](https://github.com/witnet/WIPs/blob/master/wip-0014.md) for more info.
+    pub signals: u32,
     /// A checkpoint beacon for the epoch that this block is closing
     pub beacon: CheckpointBeacon,
     /// 256-bit hashes of all of the transactions committed to this block, so as to prove their belonging and integrity

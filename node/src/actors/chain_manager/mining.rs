@@ -794,7 +794,7 @@ pub fn build_block(
     external_percentage: u8,
     initial_block_reward: u64,
     halving_period: u32,
-    tapi_version: u32,
+    tapi_signals: u32,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -977,7 +977,7 @@ pub fn build_block(
     };
 
     let block_header = BlockHeader {
-        version: tapi_version,
+        signals: tapi_signals,
         beacon,
         merkle_roots,
         proof,

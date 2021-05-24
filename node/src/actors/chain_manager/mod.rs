@@ -673,7 +673,7 @@ impl ChainManager {
             } => {
                 let block_hash = block.hash();
                 let block_epoch = block.block_header.beacon.checkpoint;
-                let block_version = block.block_header.version;
+                let block_signals = block.block_header.signals;
 
                 // Update `highest_block_checkpoint`
                 let beacon = CheckpointBeacon {
@@ -849,7 +849,7 @@ impl ChainManager {
 
                 // Update votes counter for WIPs
                 self.chain_state.tapi_engine.update_bit_counter(
-                    block_version,
+                    block_signals,
                     block_epoch,
                     block_epoch,
                     &HashSet::default(),
@@ -2133,7 +2133,7 @@ impl ChainManager {
         .and_then(move |block_headers, act, _ctx| {
             for block_header in block_headers {
                 act.chain_state.tapi_engine.update_bit_counter(
-                    block_header.version,
+                    block_header.signals,
                     block_header.beacon.checkpoint,
                     block_header.beacon.checkpoint,
                     &old_wips,
