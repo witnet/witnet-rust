@@ -14,6 +14,7 @@ use witnet_data_structures::{
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,
+    utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_futures_utils::ActorFutureExt2;
 
@@ -40,6 +41,8 @@ pub struct CreateVttRequest {
     session_id: types::SessionId,
     wallet_id: String,
     fee_type: Option<FeeType>,
+    #[serde(default)]
+    utxo_strategy: UtxoSelectionStrategy,
 }
 
 /// Part of CreateVttResponse struct, containing additional data to be displayed in clients
@@ -89,6 +92,7 @@ impl Handler<CreateVttRequest> for app::App {
                 fee: msg.fee,
                 outputs,
                 fee_type,
+                utxo_strategy: msg.utxo_strategy.clone(),
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)

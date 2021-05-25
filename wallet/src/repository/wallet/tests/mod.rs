@@ -327,13 +327,20 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
     let fee = 0;
     let pkh = factories::pkh();
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -372,6 +379,7 @@ fn test_create_transaction_components_without_a_change_address() {
     let value = 1;
     let fee = 0;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
@@ -379,7 +387,13 @@ fn test_create_transaction_components_without_a_change_address() {
     };
 
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+        )
         .unwrap();
 
     assert_eq!(1, inputs.len());
@@ -417,6 +431,7 @@ fn test_create_transaction_components_with_a_change_address() {
     let value = 1;
     let fee = 0;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
 
     let vto = ValueTransferOutput {
         pkh,
@@ -425,7 +440,13 @@ fn test_create_transaction_components_with_a_change_address() {
     };
 
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+        )
         .unwrap();
 
     assert_eq!(1, inputs.len());
@@ -482,13 +503,20 @@ fn test_create_transaction_components_which_value_overflows() {
     let value = std::u64::MAX;
     let fee = 0;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Absolute)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -531,6 +559,7 @@ fn test_create_vtt_does_not_spend_utxos() {
     let value = 1;
     let fee = 0;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
 
     let state_utxo_set = wallet.utxo_set().unwrap();
     let utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
@@ -550,6 +579,7 @@ fn test_create_vtt_does_not_spend_utxos() {
                 time_lock,
             }],
             fee_type: FeeType::Absolute,
+            utxo_strategy,
         })
         .unwrap();
 
@@ -952,6 +982,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
                 time_lock: 0,
             }],
             fee_type: FeeType::Absolute,
+            utxo_strategy: UtxoSelectionStrategy::Random { from: None },
         })
         .unwrap();
 
@@ -1065,6 +1096,7 @@ fn test_get_transaction() {
                 time_lock: 0,
             }],
             fee_type: FeeType::Absolute,
+            utxo_strategy: UtxoSelectionStrategy::Random { from: None },
         })
         .unwrap();
 
@@ -1136,6 +1168,7 @@ fn test_get_transactions() {
                 time_lock: 0,
             }],
             fee_type: FeeType::Absolute,
+            utxo_strategy: UtxoSelectionStrategy::Random { from: None },
         })
         .unwrap();
 
@@ -1207,6 +1240,7 @@ fn test_create_vtt_with_locked_balance() {
                 time_lock: 0,
             }],
             fee_type: FeeType::Absolute,
+            utxo_strategy: UtxoSelectionStrategy::Random { from: None },
         })
         .unwrap_err();
 
@@ -1269,6 +1303,7 @@ fn test_create_vtt_with_multiple_outputs() {
                 },
             ],
             fee_type: FeeType::Absolute,
+            utxo_strategy: UtxoSelectionStrategy::Random { from: None },
         })
         .unwrap();
 
@@ -1346,13 +1381,20 @@ fn test_create_vt_components_weighted_fee() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap();
 
     assert_eq!(1, inputs.len());
@@ -1408,13 +1450,20 @@ fn test_create_vt_components_weighted_fee_2() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap();
 
     assert!(!inputs.is_empty());
@@ -1467,13 +1516,20 @@ fn test_create_vt_components_weighted_fee_3() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -1551,13 +1607,20 @@ fn test_create_vt_components_weighted_fee_4() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap();
 
     assert!(!inputs.is_empty());
@@ -1630,13 +1693,20 @@ fn test_create_vt_components_weighted_fee_5() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap();
 
     assert!(!inputs.is_empty());
@@ -1715,13 +1785,20 @@ fn test_create_vt_components_weighted_fee_6() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let (inputs, outputs) = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap();
 
     assert!(inputs.len() >= 2);
@@ -1751,13 +1828,20 @@ fn test_create_vt_components_weighted_fee_without_outputs() {
     let value = 1;
     let fee = 1;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -1802,13 +1886,20 @@ fn test_create_vt_components_weighted_fee_with_too_large_fee() {
     let value = 1;
     let fee = u64::MAX;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -1857,13 +1948,20 @@ fn test_create_vt_weight_too_large() {
     let value = 150;
     let fee = 0;
     let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
         pkh,
         value,
         time_lock,
     };
     let err = wallet
-        .create_vt_transaction_components(&mut state, vec![vto], fee, FeeType::Weighted)
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Weighted,
+            &utxo_strategy,
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -2214,6 +2312,222 @@ fn test_create_dr_components_weighted_fee_fee_too_large() {
 
     assert_eq!(
         mem::discriminant(&repository::Error::FeeTooLarge),
+        mem::discriminant(&err),
+        "{:?}",
+        err,
+    );
+}
+
+#[test]
+fn test_create_transaction_components_filter_from_address() {
+    // Create UTXO set with 2 UTXOs from different addresses
+    let pkh1 = factories::pkh();
+    let pkh2 = factories::pkh();
+    assert_ne!(pkh1, pkh2);
+    let mut utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::new();
+
+    for i in 0..100 {
+        // 50 UTXOs with pkh1 and 50 UTXOs with pkh2
+        let pkh = if i < 50 { pkh1 } else { pkh2 };
+        utxo_set.insert(
+            model::OutPtr {
+                txn_hash: vec![0; 32],
+                output_index: i,
+            },
+            model::OutputInfo {
+                pkh,
+                amount: 1,
+                time_lock: 0,
+            },
+        );
+    }
+
+    let path1 = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let path2 = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 1,
+    };
+    let new_balance = model::BalanceInfo {
+        available: 10_000 + 10_000,
+        locked: 0u64,
+    };
+
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh1), path1).unwrap();
+    db.put(&keys::pkh(&pkh2), path2).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let pkh3 = factories::pkh();
+    let value = 50;
+    let fee = 0;
+    let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: Some(pkh1) };
+    let vto = ValueTransferOutput {
+        pkh: pkh3,
+        value,
+        time_lock,
+    };
+    let (inputs, _outputs) = wallet
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+        )
+        .unwrap();
+
+    assert!(inputs
+        .iter()
+        .all(|input| { input.output_pointer().output_index < 50 }))
+}
+
+#[test]
+fn test_create_transaction_components_filter_from_address_2() {
+    // Create UTXO set with 2 UTXOs from different addresses
+    let pkh1 = factories::pkh();
+    let pkh2 = factories::pkh();
+    assert_ne!(pkh1, pkh2);
+    let mut utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::new();
+
+    for i in 0..100 {
+        // 50 UTXOs with pkh1 and 50 UTXOs with pkh2
+        let pkh = if i < 50 { pkh1 } else { pkh2 };
+        utxo_set.insert(
+            model::OutPtr {
+                txn_hash: vec![0; 32],
+                output_index: i,
+            },
+            model::OutputInfo {
+                pkh,
+                amount: 1,
+                time_lock: 0,
+            },
+        );
+    }
+
+    let path1 = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let path2 = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 1,
+    };
+    let new_balance = model::BalanceInfo {
+        available: 10_000 + 10_000,
+        locked: 0u64,
+    };
+
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh1), path1).unwrap();
+    db.put(&keys::pkh(&pkh2), path2).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let pkh3 = factories::pkh();
+    let value = 50;
+    let fee = 0;
+    let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: Some(pkh2) };
+    let vto = ValueTransferOutput {
+        pkh: pkh3,
+        value,
+        time_lock,
+    };
+    let (inputs, _outputs) = wallet
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+        )
+        .unwrap();
+
+    assert!(inputs
+        .iter()
+        .all(|input| { input.output_pointer().output_index >= 50 }))
+}
+
+#[test]
+fn test_create_transaction_components_filter_from_address_3() {
+    // Create UTXO set with 2 UTXOs from different addresses
+    let pkh1 = factories::pkh();
+    let pkh2 = factories::pkh();
+    assert_ne!(pkh1, pkh2);
+    let mut utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::new();
+
+    for i in 0..100 {
+        // 50 UTXOs with pkh1 and 50 UTXOs with pkh2
+        let pkh = if i < 50 { pkh1 } else { pkh2 };
+        utxo_set.insert(
+            model::OutPtr {
+                txn_hash: vec![0; 32],
+                output_index: i,
+            },
+            model::OutputInfo {
+                pkh,
+                amount: 1,
+                time_lock: 0,
+            },
+        );
+    }
+
+    let path1 = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let path2 = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 1,
+    };
+    let new_balance = model::BalanceInfo {
+        available: 10_000 + 10_000,
+        locked: 0u64,
+    };
+
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh1), path1).unwrap();
+    db.put(&keys::pkh(&pkh2), path2).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+    let pkh3 = factories::pkh();
+    let value = 50;
+    let fee = 0;
+    let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: Some(pkh3) };
+    let vto = ValueTransferOutput {
+        pkh: pkh3,
+        value,
+        time_lock,
+    };
+    let err = wallet
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::InsufficientBalance),
         mem::discriminant(&err),
         "{:?}",
         err,

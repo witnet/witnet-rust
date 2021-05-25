@@ -1158,7 +1158,7 @@ impl Handler<BuildVtt> for ChainManager {
             &self.chain_state.unspent_outputs_pool,
             timestamp,
             self.tx_pending_timeout,
-            msg.utxo_strategy,
+            &msg.utxo_strategy,
             max_vt_weight,
         ) {
             Err(e) => {

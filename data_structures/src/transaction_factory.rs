@@ -45,7 +45,7 @@ pub enum FeeType {
 /// Transaction factories are expected to operate on this trait so that their business logic
 /// can be applied on many heterogeneous data structures that may implement it.
 pub trait OutputsCollection {
-    fn sort_by(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer>;
+    fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer>;
     fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<Epoch>;
@@ -61,7 +61,7 @@ pub trait OutputsCollection {
         timestamp: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
-        utxo_strategy: UtxoSelectionStrategy,
+        utxo_strategy: &UtxoSelectionStrategy,
     ) -> Result<(Vec<OutputPointer>, u64), TransactionError> {
         // FIXME: this is a very naive utxo selection algorithm
         if amount == 0 {
@@ -131,7 +131,7 @@ pub trait OutputsCollection {
         timestamp: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
-        utxo_strategy: UtxoSelectionStrategy,
+        utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
     ) -> Result<TransactionInfo, TransactionError> {
         // On error just assume the value is u64::max_value(), hoping that it is
@@ -181,7 +181,7 @@ pub trait OutputsCollection {
                         amount,
                         timestamp,
                         block_number_limit,
-                        utxo_strategy,
+                        &utxo_strategy,
                     )?;
                     let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
 
@@ -310,12 +310,13 @@ pub fn build_vtt(
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
     tx_pending_timeout: u64,
-    utxo_strategy: UtxoSelectionStrategy,
+    utxo_strategy: &UtxoSelectionStrategy,
     max_weight: u32,
 ) -> Result<VTTransactionBody, TransactionError> {
     let mut utxos = NodeUtxos {
         all_utxos,
         own_utxos,
+        pkh: own_pkh,
     };
 
     // FIXME(#1722): Apply FeeTypes in the node methods
@@ -362,6 +363,7 @@ pub fn build_drt(
     let mut utxos = NodeUtxos {
         all_utxos,
         own_utxos,
+        pkh: own_pkh,
     };
 
     // FIXME(#1722): Apply FeeTypes in the node methods
@@ -374,7 +376,7 @@ pub fn build_drt(
         fee_type,
         timestamp,
         None,
-        UtxoSelectionStrategy::Random,
+        &UtxoSelectionStrategy::Random { from: None },
         max_weight,
     )?;
 
@@ -411,6 +413,7 @@ pub fn build_commit_collateral(
     let mut utxos = NodeUtxos {
         all_utxos,
         own_utxos,
+        pkh: own_pkh,
     };
     let tx_info = utxos.build_inputs_outputs(
         vec![],
@@ -419,7 +422,7 @@ pub fn build_commit_collateral(
         FeeType::Absolute,
         timestamp,
         Some(block_number_limit),
-        UtxoSelectionStrategy::SmallFirst,
+        &UtxoSelectionStrategy::SmallFirst { from: None },
         u32::MAX,
     )?;
 
@@ -546,7 +549,7 @@ mod tests {
             all_utxos,
             timestamp,
             tx_pending_timeout,
-            UtxoSelectionStrategy::Random,
+            &UtxoSelectionStrategy::Random { from: None },
             MAX_VT_WEIGHT,
         )?;
 
@@ -573,7 +576,7 @@ mod tests {
             all_utxos,
             timestamp,
             tx_pending_timeout,
-            UtxoSelectionStrategy::Random,
+            &UtxoSelectionStrategy::Random { from: None },
             MAX_VT_WEIGHT,
         )?;
 

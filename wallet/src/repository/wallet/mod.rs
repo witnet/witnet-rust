@@ -62,11 +62,28 @@ pub struct WalletUtxos<'a> {
 }
 
 impl<'a> OutputsCollection for WalletUtxos<'a> {
-    fn sort_by(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer> {
+    fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
         match strategy {
-            UtxoSelectionStrategy::BigFirst => sort_utxo_set(&self.utxo_set, true),
-            UtxoSelectionStrategy::SmallFirst => sort_utxo_set(&self.utxo_set, false),
-            UtxoSelectionStrategy::Random => self.utxo_set.iter().map(|(o, _)| o.into()).collect(),
+            UtxoSelectionStrategy::BigFirst { from } => {
+                sort_utxo_set(&self.utxo_set, true, from.as_ref())
+            }
+            UtxoSelectionStrategy::SmallFirst { from } => {
+                sort_utxo_set(&self.utxo_set, false, from.as_ref())
+            }
+            UtxoSelectionStrategy::Random { from } => self
+                .utxo_set
+                .iter()
+                .filter_map(|(o, info)| match from {
+                    None => Some(OutputPointer::from(o)),
+                    Some(from) => {
+                        if from == &info.pkh {
+                            Some(OutputPointer::from(o))
+                        } else {
+                            None
+                        }
+                    }
+                })
+                .collect(),
         }
     }
 
@@ -99,9 +116,23 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
 }
 
 /// Method to sort own_utxos by value
-pub fn sort_utxo_set(utxo_set: &model::UtxoSet, bigger_first: bool) -> Vec<OutputPointer> {
+pub fn sort_utxo_set(
+    utxo_set: &model::UtxoSet,
+    bigger_first: bool,
+    from: Option<&PublicKeyHash>,
+) -> Vec<OutputPointer> {
     utxo_set
         .iter()
+        .filter_map(|(o, info)| match from {
+            None => Some((o, info)),
+            Some(from) => {
+                if from == &info.pkh {
+                    Some((o, info))
+                } else {
+                    None
+                }
+            }
+        })
         .sorted_by_key(|(_o, info)| {
             let value = i128::from(info.amount);
 
@@ -1006,11 +1037,17 @@ where
             fee,
             outputs,
             fee_type,
+            utxo_strategy,
         }: types::VttParams,
     ) -> Result<VTTransaction> {
         let mut state = self.state.write()?;
-        let (inputs, outputs) =
-            self.create_vt_transaction_components(&mut state, outputs, fee, fee_type)?;
+        let (inputs, outputs) = self.create_vt_transaction_components(
+            &mut state,
+            outputs,
+            fee,
+            fee_type,
+            &utxo_strategy,
+        )?;
 
         let body = VTTransactionBody::new(inputs.clone(), outputs);
         let sign_data = body.hash();
@@ -1083,8 +1120,8 @@ where
         outputs: Vec<ValueTransferOutput>,
         fee: u64,
         fee_type: FeeType,
+        utxo_strategy: &UtxoSelectionStrategy,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
-        let utxo_strategy = UtxoSelectionStrategy::Random;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         let (inputs, outputs) = self.build_inputs_outputs_wallet(
@@ -1109,7 +1146,7 @@ where
         fee: u64,
         fee_type: FeeType,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
-        let utxo_strategy = UtxoSelectionStrategy::Random;
+        let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         let (inputs, outputs) = self.build_inputs_outputs_wallet(
@@ -1120,7 +1157,7 @@ where
             state,
             timestamp,
             None,
-            utxo_strategy,
+            &utxo_strategy,
             self.params.max_dr_weight,
         )?;
 
@@ -1163,7 +1200,7 @@ where
         timestamp: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
-        utxo_strategy: UtxoSelectionStrategy,
+        utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let mut wallet_utxos = WalletUtxos {

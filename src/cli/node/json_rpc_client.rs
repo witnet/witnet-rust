@@ -474,9 +474,9 @@ pub fn send_vtt(
     });
 
     let utxo_strategy = match sorted_bigger {
-        Some(true) => UtxoSelectionStrategy::BigFirst,
-        Some(false) => UtxoSelectionStrategy::SmallFirst,
-        None => UtxoSelectionStrategy::Random,
+        Some(true) => UtxoSelectionStrategy::BigFirst { from: None },
+        Some(false) => UtxoSelectionStrategy::SmallFirst { from: None },
+        None => UtxoSelectionStrategy::Random { from: None },
     };
 
     let params = BuildVtt {

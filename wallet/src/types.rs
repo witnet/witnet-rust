@@ -26,6 +26,7 @@ use witnet_data_structures::{
         TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
     },
     transaction_factory::FeeType,
+    utxo_pool::UtxoSelectionStrategy,
 };
 
 use witnet_protected::{Protected, ProtectedString};
@@ -150,6 +151,7 @@ pub struct VttParams {
     pub fee: u64,
     pub outputs: Vec<ValueTransferOutput>,
     pub fee_type: FeeType,
+    pub utxo_strategy: UtxoSelectionStrategy,
 }
 
 pub struct DataReqParams {

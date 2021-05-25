@@ -9,6 +9,7 @@
 use crate::{
     chain::{GenesisBlockInfo, Hash, OutputPointer, PublicKeyHash, ValueTransferOutput, SHA256},
     get_environment,
+    utxo_pool::UtxoSelectionStrategy,
 };
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Display, str::FromStr};
@@ -199,5 +200,152 @@ impl From<GenesisBlock> for GenesisBlockInfo {
                 .map(|alloc| alloc.into_iter().map(ValueTransferOutput::from).collect())
                 .collect(),
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+enum UtxoSelectionStrategyName {
+    Random,
+    BigFirst,
+    SmallFirst,
+}
+
+impl From<UtxoSelectionStrategyName> for UtxoSelectionStrategy {
+    fn from(x: UtxoSelectionStrategyName) -> UtxoSelectionStrategy {
+        match x {
+            UtxoSelectionStrategyName::Random => UtxoSelectionStrategy::Random { from: None },
+            UtxoSelectionStrategyName::BigFirst => UtxoSelectionStrategy::BigFirst { from: None },
+            UtxoSelectionStrategyName::SmallFirst => {
+                UtxoSelectionStrategy::SmallFirst { from: None }
+            }
+        }
+    }
+}
+
+impl<'a> From<&'a UtxoSelectionStrategy> for UtxoSelectionStrategyName {
+    fn from(x: &'a UtxoSelectionStrategy) -> UtxoSelectionStrategyName {
+        match x {
+            UtxoSelectionStrategy::Random { .. } => UtxoSelectionStrategyName::Random,
+            UtxoSelectionStrategy::BigFirst { .. } => UtxoSelectionStrategyName::BigFirst,
+            UtxoSelectionStrategy::SmallFirst { .. } => UtxoSelectionStrategyName::SmallFirst,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+enum UtxoSelectionStrategyHelper {
+    String(UtxoSelectionStrategyName),
+    Object {
+        strategy: UtxoSelectionStrategyName,
+        from: Option<PublicKeyHash>,
+    },
+}
+
+impl From<UtxoSelectionStrategyHelper> for UtxoSelectionStrategy {
+    fn from(x: UtxoSelectionStrategyHelper) -> UtxoSelectionStrategy {
+        match x {
+            UtxoSelectionStrategyHelper::String(name) => name.into(),
+            UtxoSelectionStrategyHelper::Object { strategy, from } => {
+                let mut strategy = UtxoSelectionStrategy::from(strategy);
+                *strategy.get_from_mut() = from;
+                strategy
+            }
+        }
+    }
+}
+
+impl<'a> From<&'a UtxoSelectionStrategy> for UtxoSelectionStrategyHelper {
+    fn from(x: &'a UtxoSelectionStrategy) -> UtxoSelectionStrategyHelper {
+        let name = UtxoSelectionStrategyName::from(x);
+        match x.get_from() {
+            None => {
+                // If from field is None, serialize self as string
+                UtxoSelectionStrategyHelper::String(name)
+            }
+            Some(from) => {
+                // If from field is Some, serialize as {"strategy": name, "from": from }
+                UtxoSelectionStrategyHelper::Object {
+                    strategy: name,
+                    from: Some(*from),
+                }
+            }
+        }
+    }
+}
+
+impl Serialize for UtxoSelectionStrategy {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        UtxoSelectionStrategyHelper::from(self).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for UtxoSelectionStrategy {
+    fn deserialize<D>(deserializer: D) -> Result<UtxoSelectionStrategy, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        UtxoSelectionStrategyHelper::deserialize(deserializer).map(|x| x.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_json_serialization<T>(value: T, json_str: &'static str)
+    where
+        T: Serialize,
+        T: serde::de::DeserializeOwned,
+        T: std::fmt::Debug,
+        T: PartialEq,
+    {
+        let x = value;
+        let res = serde_json::to_string(&x).unwrap();
+
+        assert_eq!(&res, json_str);
+
+        let d: T = serde_json::from_str(&res).unwrap();
+        assert_eq!(d, x);
+    }
+
+    #[test]
+    fn serialize_utxo_selection_strategy_no_from() {
+        test_json_serialization(UtxoSelectionStrategy::Random { from: None }, r#""Random""#);
+        test_json_serialization(
+            UtxoSelectionStrategy::BigFirst { from: None },
+            r#""BigFirst""#,
+        );
+        test_json_serialization(
+            UtxoSelectionStrategy::SmallFirst { from: None },
+            r#""SmallFirst""#,
+        );
+    }
+    #[test]
+    fn serialize_utxo_selection_strategy_with_from() {
+        // Address with all zeros for testing
+        let my_pkh = "wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"
+            .parse()
+            .unwrap();
+
+        test_json_serialization(
+            UtxoSelectionStrategy::Random { from: Some(my_pkh) },
+            r#"{"strategy":"Random","from":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"}"#,
+        );
+        test_json_serialization(
+            UtxoSelectionStrategy::BigFirst { from: Some(my_pkh) },
+            r#"{"strategy":"BigFirst","from":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"}"#,
+        );
+        test_json_serialization(
+            UtxoSelectionStrategy::SmallFirst { from: Some(my_pkh) },
+            r#"{"strategy":"SmallFirst","from":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"}"#,
+        );
+    }
+
+    #[test]
+    fn deserialize_utxo_selection_strategy_object_no_from() {
+        // Check that the "from" field is optional and defaults to None
+        let d: UtxoSelectionStrategy = serde_json::from_str(r#"{"strategy": "Random"}"#).unwrap();
+        assert_eq!(d, UtxoSelectionStrategy::Random { from: None });
     }
 }

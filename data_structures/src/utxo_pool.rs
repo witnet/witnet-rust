@@ -163,14 +163,24 @@ pub struct NodeUtxos<'a> {
     pub all_utxos: &'a UnspentOutputsPool,
     /// OutputPointers of our own UTXOs
     pub own_utxos: &'a mut OwnUnspentOutputsPool,
+    /// Node address
+    pub pkh: PublicKeyHash,
 }
 
 impl<'a> OutputsCollection for NodeUtxos<'a> {
-    fn sort_by(&self, strategy: UtxoSelectionStrategy) -> Vec<OutputPointer> {
+    fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
+        if !strategy.allows_from(&self.pkh) {
+            return vec![];
+        }
+
         match strategy {
-            UtxoSelectionStrategy::BigFirst => self.own_utxos.sort(&self.all_utxos, true),
-            UtxoSelectionStrategy::SmallFirst => self.own_utxos.sort(&self.all_utxos, false),
-            UtxoSelectionStrategy::Random => {
+            UtxoSelectionStrategy::BigFirst { from: _ } => {
+                self.own_utxos.sort(&self.all_utxos, true)
+            }
+            UtxoSelectionStrategy::SmallFirst { from: _ } => {
+                self.own_utxos.sort(&self.all_utxos, false)
+            }
+            UtxoSelectionStrategy::Random { from: _ } => {
                 self.own_utxos.iter().map(|(o, _ts)| o.clone()).collect()
             }
         }
@@ -206,16 +216,47 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
 }
 
 /// Strategy to sort our own unspent outputs pool
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum UtxoSelectionStrategy {
-    Random,
-    BigFirst,
-    SmallFirst,
+    Random { from: Option<PublicKeyHash> },
+    BigFirst { from: Option<PublicKeyHash> },
+    SmallFirst { from: Option<PublicKeyHash> },
 }
 
 impl Default for UtxoSelectionStrategy {
     fn default() -> Self {
-        UtxoSelectionStrategy::Random
+        UtxoSelectionStrategy::Random { from: None }
+    }
+}
+
+impl UtxoSelectionStrategy {
+    /// Returns the address that will be used for the inputs of the transaction,
+    /// or None if any address is allowed
+    // Named get_from instead of from to avoid confusion with From trait
+    pub fn get_from(&self) -> &Option<PublicKeyHash> {
+        match self {
+            UtxoSelectionStrategy::Random { from } => from,
+            UtxoSelectionStrategy::BigFirst { from } => from,
+            UtxoSelectionStrategy::SmallFirst { from } => from,
+        }
+    }
+
+    /// Returns the address that will be used for the inputs of the transaction,
+    /// or None if any address is allowed
+    pub fn get_from_mut(&mut self) -> &mut Option<PublicKeyHash> {
+        match self {
+            UtxoSelectionStrategy::Random { from } => from,
+            UtxoSelectionStrategy::BigFirst { from } => from,
+            UtxoSelectionStrategy::SmallFirst { from } => from,
+        }
+    }
+
+    /// Returns true if this strategy allows UTXOs from this address
+    pub fn allows_from(&self, address: &PublicKeyHash) -> bool {
+        match self.get_from() {
+            None => true,
+            Some(from) => from == address,
+        }
     }
 }
 
