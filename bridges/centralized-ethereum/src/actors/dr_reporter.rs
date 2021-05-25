@@ -4,9 +4,9 @@ use crate::{
     create_wrb_contract,
 };
 use actix::prelude::*;
+use ethabi::Bytes;
 use web3::{
     contract::{self, Contract},
-    ethabi::Bytes,
     types::{H160, U256},
 };
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};

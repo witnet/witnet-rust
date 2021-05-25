@@ -5,9 +5,9 @@ use crate::{
 };
 use actix::prelude::*;
 use std::{convert::TryFrom, time::Duration};
+use ethabi::Bytes;
 use web3::{
     contract::{self, Contract},
-    ethabi::Bytes,
     types::{H160, U256},
 };
 use witnet_data_structures::chain::Hash;
