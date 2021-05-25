@@ -4,8 +4,8 @@ use crate::{
     create_wrb_contract,
 };
 use actix::prelude::*;
-use std::{convert::TryFrom, time::Duration};
 use ethabi::Bytes;
+use std::{convert::TryFrom, time::Duration};
 use web3::{
     contract::{self, Contract},
     types::{H160, U256},
@@ -96,9 +96,9 @@ impl EthPoller {
                             .await;
 
                         if let Ok(dr_bytes) = dr_bytes {
-                            let dr_result: Result<Bytes, web3::contract::Error> = wrb_contract
+                            let dr_tx_hash: Result<U256, web3::contract::Error> = wrb_contract
                                 .query(
-                                    "readResult",
+                                    "readDrTxHash",
                                     (U256::from(i),),
                                     eth_account,
                                     contract::Options::default(),
@@ -106,33 +106,18 @@ impl EthPoller {
                                 )
                                 .await;
 
-                            if let Ok(dr_result) = dr_result {
+                            if let Ok(dr_tx_hash) = dr_tx_hash {
                                 // Non-empty result: this data request is already "Finished"
-                                if !dr_result.is_empty() {
-                                    let dr_tx_hash: Result<U256, web3::contract::Error> =
-                                        wrb_contract
-                                            .query(
-                                                "readDrHash",
-                                                (U256::from(i),),
-                                                eth_account,
-                                                contract::Options::default(),
-                                                None,
-                                            )
-                                            .await;
-
-                                    if let Ok(dr_tx_hash) = dr_tx_hash {
-                                        log::debug!("[{}] already finished", i);
-                                        dr_database_addr.do_send(SetDrInfoBridge(
-                                            U256::from(i),
-                                            DrInfoBridge {
-                                                dr_bytes,
-                                                dr_state: DrState::Finished,
-                                                dr_tx_hash: Some(Hash::SHA256(dr_tx_hash.into())),
-                                            },
-                                        ));
-                                    } else {
-                                        break;
-                                    }
+                                if dr_tx_hash != U256::from(0u8) {
+                                    log::debug!("[{}] already finished", i);
+                                    dr_database_addr.do_send(SetDrInfoBridge(
+                                        U256::from(i),
+                                        DrInfoBridge {
+                                            dr_bytes,
+                                            dr_state: DrState::Finished,
+                                            dr_tx_hash: Some(Hash::SHA256(dr_tx_hash.into())),
+                                        },
+                                    ));
                                 } else {
                                     log::info!("[{}] new dr in wrb", i);
                                     dr_database_addr.do_send(SetDrInfoBridge(
