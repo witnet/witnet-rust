@@ -20,8 +20,15 @@ pub enum Error {
     TransactionBalanceUnderflow,
     #[fail(display = "Invalid PKH: {}", _0)]
     Pkh(#[cause] PublicKeyHashParseError),
-    #[fail(display = "not enough balance in account")]
-    InsufficientBalance,
+    #[fail(
+        display = "Wallet account has not enough balance: total {}, available {}, transaction value {}",
+        total_balance, available_balance, transaction_value
+    )]
+    InsufficientBalance {
+        total_balance: u64,
+        available_balance: u64,
+        transaction_value: u64,
+    },
     #[fail(display = "maximum transaction id reached for account")]
     TransactionIdOverflow,
     #[fail(display = "mutex poison error")]
@@ -117,7 +124,15 @@ impl From<HashParseError> for Error {
 impl From<TransactionError> for Error {
     fn from(err: TransactionError) -> Self {
         match err {
-            TransactionError::NoMoney { .. } => Error::InsufficientBalance,
+            TransactionError::NoMoney {
+                total_balance,
+                available_balance,
+                transaction_value,
+            } => Error::InsufficientBalance {
+                total_balance,
+                available_balance,
+                transaction_value,
+            },
             TransactionError::OutputValueOverflow => Error::TransactionValueOverflow,
             TransactionError::FeeOverflow => Error::FeeTooLarge,
             TransactionError::ValueTransferWeightLimitExceeded { weight, .. } => {
