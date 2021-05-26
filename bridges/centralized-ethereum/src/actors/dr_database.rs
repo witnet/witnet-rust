@@ -1,7 +1,7 @@
 use actix::prelude::*;
-use ethabi::Bytes;
 use serde::{Deserialize, Serialize};
 use std::{cmp, collections::HashMap, fmt};
+use web3::ethabi::Bytes;
 use web3::types::U256;
 use witnet_data_structures::chain::Hash;
 use witnet_node::storage_mngr;
