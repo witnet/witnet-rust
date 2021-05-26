@@ -42,6 +42,7 @@ use crate::{
     config_mngr, signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
+use witnet_data_structures::mainnet_validations::ActiveWips;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -246,6 +247,22 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         }
 
         self.peers_beacons_received = false;
+
+        // Checking WIP-0014
+        let active_wips = self.chain_state.tapi_engine.wip_activation.clone();
+        let active_wips = ActiveWips {
+            active_wips,
+            block_epoch: current_epoch,
+        };
+
+        if active_wips.wip0014() {
+            log::error!(
+                "WIP-0014 Activado en: {}",
+                active_wips.active_wips.get("WIP0014").unwrap()
+            );
+        } else {
+            log::error!("WIP-0014: Na de na");
+        }
     }
 }
 

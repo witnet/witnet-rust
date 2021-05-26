@@ -102,6 +102,18 @@ impl TapiEngine {
                 self.wip_activation.insert("WIP0008".to_string(), 0);
                 self.wip_activation
                     .insert("WIP0009-0011-0012".to_string(), 0);
+
+                // Hardcoded information about WIPs in vote processing
+                let bit = 0;
+                let wip_0014 = BitVotesCounter {
+                    votes: 0,
+                    period: 120, // 120*30sec (1hour)
+                    wip: "WIP0014".to_string(),
+                    init: 5200,
+                    end: u32::MAX,
+                    bit,
+                };
+                voting_wips[bit] = Some(wip_0014);
             }
         };
 
