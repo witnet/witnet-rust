@@ -11,8 +11,11 @@ use crate::{
     get_environment,
     utxo_pool::UtxoSelectionStrategy,
 };
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use std::{fmt::Display, str::FromStr};
+use serde::{
+    de::{self, IntoDeserializer, MapAccess, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+use std::{fmt, fmt::Display, str::FromStr};
 
 #[derive(Deserialize, Serialize)]
 enum HashSerializationHelper {
@@ -205,8 +208,11 @@ impl From<GenesisBlock> for GenesisBlockInfo {
 
 #[derive(Serialize, Deserialize)]
 enum UtxoSelectionStrategyName {
+    #[serde(rename = "random", alias = "Random")]
     Random,
+    #[serde(rename = "big_first", alias = "BigFirst")]
     BigFirst,
+    #[serde(rename = "small_first", alias = "SmallFirst")]
     SmallFirst,
 }
 
@@ -232,21 +238,30 @@ impl<'a> From<&'a UtxoSelectionStrategy> for UtxoSelectionStrategyName {
     }
 }
 
+// #[serde(untagged)] is a great way to allow serializing as one of many possible representations,
+// however the error messages are really bad:
+// "data did not match any variant of untagged enum UtxoSelectionStrategyHelper"
+// There is a pull request in serde to fix this:
+// https://github.com/serde-rs/serde/pull/1544
+// But it is not merged, so the alternative is to manually implement a visitor to deserialize this.
 #[derive(Deserialize, Serialize)]
 #[serde(untagged)]
 enum UtxoSelectionStrategyHelper {
     String(UtxoSelectionStrategyName),
-    Object {
-        strategy: UtxoSelectionStrategyName,
-        from: Option<PublicKeyHash>,
-    },
+    Object(UtxoSelectionStrategyObject),
+}
+
+#[derive(Deserialize, Serialize)]
+struct UtxoSelectionStrategyObject {
+    strategy: UtxoSelectionStrategyName,
+    from: Option<PublicKeyHash>,
 }
 
 impl From<UtxoSelectionStrategyHelper> for UtxoSelectionStrategy {
     fn from(x: UtxoSelectionStrategyHelper) -> UtxoSelectionStrategy {
         match x {
             UtxoSelectionStrategyHelper::String(name) => name.into(),
-            UtxoSelectionStrategyHelper::Object { strategy, from } => {
+            UtxoSelectionStrategyHelper::Object(UtxoSelectionStrategyObject { strategy, from }) => {
                 let mut strategy = UtxoSelectionStrategy::from(strategy);
                 *strategy.get_from_mut() = from;
                 strategy
@@ -265,10 +280,10 @@ impl<'a> From<&'a UtxoSelectionStrategy> for UtxoSelectionStrategyHelper {
             }
             Some(from) => {
                 // If from field is Some, serialize as {"strategy": name, "from": from }
-                UtxoSelectionStrategyHelper::Object {
+                UtxoSelectionStrategyHelper::Object(UtxoSelectionStrategyObject {
                     strategy: name,
                     from: Some(*from),
-                }
+                })
             }
         }
     }
@@ -280,72 +295,39 @@ impl Serialize for UtxoSelectionStrategy {
     }
 }
 
+struct UtxoSelectionStrategyVisitor;
+
+impl<'de> Visitor<'de> for UtxoSelectionStrategyVisitor {
+    type Value = UtxoSelectionStrategy;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "a string or an object")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        // Delegate implementation of visit_str to UtxoSelectionStrategyName
+        UtxoSelectionStrategyName::deserialize(v.into_deserializer())
+            .map(|x| UtxoSelectionStrategyHelper::String(x).into())
+    }
+
+    fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        // Delegate implementation of visit_map to UtxoSelectionStrategyObject
+        UtxoSelectionStrategyObject::deserialize(de::value::MapAccessDeserializer::new(map))
+            .map(|x| UtxoSelectionStrategyHelper::Object(x).into())
+    }
+}
+
 impl<'de> Deserialize<'de> for UtxoSelectionStrategy {
     fn deserialize<D>(deserializer: D) -> Result<UtxoSelectionStrategy, D::Error>
     where
         D: Deserializer<'de>,
     {
-        UtxoSelectionStrategyHelper::deserialize(deserializer).map(|x| x.into())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn test_json_serialization<T>(value: T, json_str: &'static str)
-    where
-        T: Serialize,
-        T: serde::de::DeserializeOwned,
-        T: std::fmt::Debug,
-        T: PartialEq,
-    {
-        let x = value;
-        let res = serde_json::to_string(&x).unwrap();
-
-        assert_eq!(&res, json_str);
-
-        let d: T = serde_json::from_str(&res).unwrap();
-        assert_eq!(d, x);
-    }
-
-    #[test]
-    fn serialize_utxo_selection_strategy_no_from() {
-        test_json_serialization(UtxoSelectionStrategy::Random { from: None }, r#""Random""#);
-        test_json_serialization(
-            UtxoSelectionStrategy::BigFirst { from: None },
-            r#""BigFirst""#,
-        );
-        test_json_serialization(
-            UtxoSelectionStrategy::SmallFirst { from: None },
-            r#""SmallFirst""#,
-        );
-    }
-    #[test]
-    fn serialize_utxo_selection_strategy_with_from() {
-        // Address with all zeros for testing
-        let my_pkh = "wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"
-            .parse()
-            .unwrap();
-
-        test_json_serialization(
-            UtxoSelectionStrategy::Random { from: Some(my_pkh) },
-            r#"{"strategy":"Random","from":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"}"#,
-        );
-        test_json_serialization(
-            UtxoSelectionStrategy::BigFirst { from: Some(my_pkh) },
-            r#"{"strategy":"BigFirst","from":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"}"#,
-        );
-        test_json_serialization(
-            UtxoSelectionStrategy::SmallFirst { from: Some(my_pkh) },
-            r#"{"strategy":"SmallFirst","from":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4"}"#,
-        );
-    }
-
-    #[test]
-    fn deserialize_utxo_selection_strategy_object_no_from() {
-        // Check that the "from" field is optional and defaults to None
-        let d: UtxoSelectionStrategy = serde_json::from_str(r#"{"strategy": "Random"}"#).unwrap();
-        assert_eq!(d, UtxoSelectionStrategy::Random { from: None });
+        deserializer.deserialize_any(UtxoSelectionStrategyVisitor)
     }
 }
