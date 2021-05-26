@@ -99,9 +99,9 @@ impl TapiEngine {
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
                 // active since epoch 0. And there is no voting.
-                self.wip_activation.insert("WIP0008".to_string(), 0);
+                self.wip_activation.insert("WIP0008".to_string(), u32::MAX);
                 self.wip_activation
-                    .insert("WIP0009-0011-0012".to_string(), 0);
+                    .insert("WIP0009-0011-0012".to_string(), u32::MAX);
 
                 // Hardcoded information about WIPs in vote processing
                 let bit = 0;
@@ -290,7 +290,7 @@ pub fn in_emergency_period(
 pub fn after_first_hard_fork(epoch: Epoch, environment: Environment) -> bool {
     match environment {
         Environment::Mainnet => epoch >= FIRST_HARD_FORK,
-        Environment::Testnet | Environment::Development => true,
+        Environment::Testnet | Environment::Development => false,
     }
 }
 
@@ -298,7 +298,7 @@ pub fn after_first_hard_fork(epoch: Epoch, environment: Environment) -> bool {
 pub fn after_second_hard_fork(epoch: Epoch, environment: Environment) -> bool {
     match environment {
         Environment::Mainnet => epoch >= SECOND_HARD_FORK,
-        Environment::Testnet | Environment::Development => true,
+        Environment::Testnet | Environment::Development => false,
     }
 }
 
