@@ -1624,7 +1624,11 @@ impl Handler<GetSignalingInfo> for ChainManager {
 
     fn handle(&mut self, _msg: GetSignalingInfo, _ctx: &mut Self::Context) -> Self::Result {
         let active_upgrades = self.chain_state.tapi_engine.wip_activation.clone();
-        let pending_upgrades = self.chain_state.tapi_engine.bit_tapi_counter.info();
+        let pending_upgrades = self
+            .chain_state
+            .tapi_engine
+            .bit_tapi_counter
+            .info(&active_upgrades);
         let epoch = self.chain_state.tapi_engine.bit_tapi_counter.last_epoch();
         Ok(SignalingInfo {
             active_upgrades,
