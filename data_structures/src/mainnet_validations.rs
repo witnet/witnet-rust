@@ -254,10 +254,20 @@ impl BitTapiCounter {
         self.current_length == 0
     }
 
-    pub fn info(&self) -> Vec<BitVotesCounter> {
+    pub fn info(&self, active_wips: &HashMap<String, Epoch>) -> Vec<BitVotesCounter> {
         self.info[..self.current_length]
             .iter()
-            .flatten()
+            .filter_map(|x| {
+                if let Some(bit_info) = x {
+                    if active_wips.contains_key(&bit_info.wip) {
+                        None
+                    } else {
+                        Some(bit_info)
+                    }
+                } else {
+                    None
+                }
+            })
             .cloned()
             .collect()
     }
