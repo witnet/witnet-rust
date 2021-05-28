@@ -58,3 +58,7 @@ jobs:
         with:
           command: test
           args: --all --verbose
+
+      # This is used to ensure that Cargo.lock is up to date
+      - name: Check for unstaged files
+        run: git diff --exit-code
