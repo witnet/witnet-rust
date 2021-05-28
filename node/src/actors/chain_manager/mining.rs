@@ -763,6 +763,7 @@ pub fn build_block(
     initial_block_reward: u64,
     halving_period: u32,
     tapi_version: u32,
+    active_wips: &ActiveWips,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -884,9 +885,9 @@ pub fn build_block(
         witnesses: 1,
         ..DataRequestOutput::default()
     };
-    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
+    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).old_weight();
     for dr_tx in transactions_pool.dr_iter() {
-        let transaction_weight = dr_tx.weight();
+        let transaction_weight = dr_tx.old_weight();
         let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
@@ -1078,7 +1079,7 @@ mod tests {
             VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
             vec![],
         ));
-        transaction_pool.insert(transaction.clone(), 0);
+        transaction_pool.insert(transaction.clone(), 0, &ActiveWips::default());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -1136,7 +1137,7 @@ mod tests {
             VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()]),
             vec![],
         ));
-        transaction_pool.insert(transaction, 0);
+        transaction_pool.insert(transaction, 0, &ActiveWips::default());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -1444,7 +1445,7 @@ mod tests {
 
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
-        let max_dr_weight = dr_tx1.weight();
+        let max_dr_weight = dr_tx1.old_weight();
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1527,8 +1528,8 @@ mod tests {
         let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
         let dr_tx2 = DRTransaction::new(dr_body_one_output2, vec![]);
         let dr_tx3 = DRTransaction::new(dr_body_one_output3, vec![]);
-        assert_eq!(dr_tx1.weight(), dr_tx2.weight());
-        assert_eq!(dr_tx1.weight(), dr_tx3.weight());
+        assert_eq!(dr_tx1.old_weight(), dr_tx2.old_weight());
+        assert_eq!(dr_tx1.old_weight(), dr_tx3.old_weight());
 
         let transaction_1 = Transaction::DataRequest(dr_tx1);
         let transaction_2 = Transaction::DataRequest(dr_tx2.clone());
@@ -1536,7 +1537,7 @@ mod tests {
 
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
-        let max_dr_weight = dr_tx2.weight();
+        let max_dr_weight = dr_tx2.old_weight();
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();

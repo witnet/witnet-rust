@@ -72,7 +72,7 @@ impl Handler<CreateDataReqRequest> for app::App {
                 .map_ok(move |transaction, _, _| {
                     let fee = match fee_type {
                         FeeType::Absolute => msg.fee,
-                        FeeType::Weighted => msg.fee * u64::from(transaction.weight()),
+                        FeeType::Weighted => msg.fee * u64::from(transaction.old_weight()),
                     };
 
                     let transaction_id = hex::encode(transaction.hash().as_ref());

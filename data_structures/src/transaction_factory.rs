@@ -218,7 +218,7 @@ pub fn calculate_weight(
 
     let weight = if let Some(dr_output) = dro {
         let drt = DRTransactionBody::new(inputs, outputs, dr_output.clone());
-        let dr_weight = drt.weight();
+        let dr_weight = drt.old_weight();
         if dr_weight > max_weight {
             return Err(TransactionError::DataRequestWeightLimitExceeded {
                 weight: dr_weight,

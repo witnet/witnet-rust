@@ -2429,10 +2429,10 @@ impl TransactionsPool {
                 }
             }
             Transaction::DataRequest(dr_tx) => {
-                let weight = f64::from(dr_tx.weight());
+                let weight = f64::from(dr_tx.old_weight());
                 let priority = OrderedFloat(fee as f64 / weight);
 
-                self.total_dr_weight += u64::from(dr_tx.weight());
+                self.total_dr_weight += u64::from(dr_tx.old_weight());
 
                 for input in &dr_tx.body.inputs {
                     self.output_pointer_map

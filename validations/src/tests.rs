@@ -1959,7 +1959,7 @@ fn dr_validation_weight_limit_exceeded() {
         dro.clone(),
     );
     let dr_tx = DRTransaction::new(dr_body, vec![]);
-    let dr_weight = dr_tx.weight();
+    let dr_weight = dr_tx.old_weight();
     assert_eq!(dr_weight, 1625);
 
     let x = validate_dr_transaction(
@@ -8785,12 +8785,12 @@ fn validate_dr_weight_overflow() {
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-        assert_eq!(dr_tx.weight(), 1589);
+        assert_eq!(dr_tx.old_weight(), 1589);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
-        assert_eq!(dr_tx2.weight(), 1589);
+        assert_eq!(dr_tx2.old_weight(), 1589);
 
         (
             BlockTransactions {
@@ -8828,7 +8828,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
 
-        assert_eq!(dr_tx.weight(), 80453);
+        assert_eq!(dr_tx.old_weight(), 80453);
 
         (
             BlockTransactions {
@@ -8866,12 +8866,12 @@ fn validate_dr_weight_valid() {
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
-        assert_eq!(dr_tx.weight(), 1589);
+        assert_eq!(dr_tx.old_weight(), 1589);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
-        assert_eq!(dr_tx2.weight(), 1589);
+        assert_eq!(dr_tx2.old_weight(), 1589);
 
         (
             BlockTransactions {

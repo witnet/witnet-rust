@@ -174,11 +174,11 @@ impl Transaction {
         u32::try_from(self.to_pb().write_to_bytes().unwrap().len()).unwrap()
     }
 
-    /// Get the weight of the transaction
-    pub fn weight(&self) -> u32 {
+    /// Get the weight of the transaction (before WIP0014)
+    pub fn old_weight(&self) -> u32 {
         match self {
             Transaction::ValueTransfer(vt_txn) => vt_txn.weight(),
-            Transaction::DataRequest(dr_txn) => dr_txn.weight(),
+            Transaction::DataRequest(dr_txn) => dr_txn.old_weight(),
             _ => 0,
         }
     }
@@ -340,6 +340,11 @@ impl DRTransaction {
         self.body.weight()
     }
 
+    /// weight function before WIP0014 activation
+    pub fn old_weight(&self) -> u32 {
+        self.body.old_weight()
+    }
+
     /// Modify the proof of inclusion adding a new level that divide a specified data
     /// from the rest of transaction
     pub fn data_proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
@@ -377,10 +382,9 @@ impl DRTransactionBody {
         }
     }
 
-    /// Data Request Transaction weight
-    pub fn weight(&self) -> u32 {
-        // DR_weight = DR_size*alpha + W*COMMIT + W*REVEAL*beta + TALLY*beta + W*OUTPUT_SIZE
-
+    /// Data Request Transaction weight (Before WIP0014 activation)
+    pub fn old_weight(&self) -> u32 {
+        // DR_weight = N*INPUT_SIZE + M*OUTPUT_SIZE + DR_size*alpha + W*COMMIT + W*REVEAL*beta + TALLY*beta + W*OUTPUT_SIZE
         let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
         let outputs_len = u32::try_from(self.outputs.len()).unwrap_or(u32::MAX);
         let inputs_weight = inputs_len.saturating_mul(INPUT_SIZE);
@@ -393,6 +397,15 @@ impl DRTransactionBody {
 
         let dr_extra_weight = self.dr_output.extra_weight();
         dr_weight.saturating_add(dr_extra_weight)
+    }
+
+    /// Data Request Transaction weight
+    pub fn weight(&self) -> u32 {
+        // DR_weight = DR_size*alpha + W*COMMIT + W*REVEAL*beta + TALLY*beta + W*OUTPUT_SIZE
+        self.dr_output
+            .weight()
+            .saturating_mul(ALPHA)
+            .saturating_add(self.dr_output.extra_weight())
     }
 
     /// Specified data to be divided in a new level in the proof of inclusion
@@ -974,9 +987,9 @@ mod tests {
                 + 2 * REVEAL_WEIGHT * BETA
                 + TALLY_WEIGHT * BETA
                 + 2 * OUTPUT_SIZE,
-            dr_tx.weight()
+            dr_tx.old_weight()
         );
-        assert_eq!(1587, dr_tx.weight());
+        assert_eq!(1587, dr_tx.old_weight());
 
         let dro = DataRequestOutput {
             witnesses: 5,
@@ -995,8 +1008,8 @@ mod tests {
                 + 5 * REVEAL_WEIGHT * BETA
                 + TALLY_WEIGHT * BETA
                 + 5 * OUTPUT_SIZE,
-            dr_tx.weight()
+            dr_tx.old_weight()
         );
-        assert_eq!(3495, dr_tx.weight());
+        assert_eq!(3495, dr_tx.old_weight());
     }
 }

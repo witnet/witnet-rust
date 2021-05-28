@@ -713,9 +713,9 @@ pub fn validate_dr_transaction<'a>(
     collateral_minimum: u64,
     max_dr_weight: u32,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
-    if dr_tx.weight() > max_dr_weight {
+    if dr_tx.old_weight() > max_dr_weight {
         return Err(TransactionError::DataRequestWeightLimitExceeded {
-            weight: dr_tx.weight(),
+            weight: dr_tx.old_weight(),
             max_weight: max_dr_weight,
             dr_output: dr_tx.body.dr_output.clone(),
         }
@@ -1860,7 +1860,7 @@ pub fn validate_block_transactions(
         dr_mt.push(Sha256(sha));
 
         // Update dr weight
-        let acc_weight = dr_weight.saturating_add(transaction.weight());
+        let acc_weight = dr_weight.saturating_add(transaction.old_weight());
         if acc_weight > consensus_constants.max_dr_weight {
             return Err(BlockError::TotalDataRequestWeightLimitExceeded {
                 weight: acc_weight,
