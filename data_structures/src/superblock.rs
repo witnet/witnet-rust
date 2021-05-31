@@ -129,6 +129,11 @@ impl SuperBlockVotesMempool {
                 .unwrap();
             let pos = v.iter().position(|x| *x == old_sbv).unwrap();
             v.swap_remove(pos);
+
+            if v.is_empty() {
+                self.votes_on_each_superblock
+                    .remove(&old_sbv.superblock_hash);
+            }
         }
         self.penalized_identities.insert(pkh);
     }
