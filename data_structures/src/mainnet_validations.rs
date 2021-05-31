@@ -102,18 +102,7 @@ impl TapiEngine {
                 self.wip_activation.insert("WIP0008".to_string(), u32::MAX);
                 self.wip_activation
                     .insert("WIP0009-0011-0012".to_string(), u32::MAX);
-
-                // Hardcoded information about WIPs in vote processing
-                let bit = 0;
-                let wip_0014 = BitVotesCounter {
-                    votes: 0,
-                    period: 120, // 120*30sec (1hour)
-                    wip: "WIP0014".to_string(),
-                    init: 5200,
-                    end: u32::MAX,
-                    bit,
-                };
-                voting_wips[bit] = Some(wip_0014);
+                self.wip_activation.insert("WIP0014".to_string(), 8941);
             }
         };
 
@@ -630,6 +619,10 @@ mod tests {
     }
 
     #[test]
+    // Ignore this test because we are testing tapi in a separate branch, and we are activating
+    // extra upgrades in testnet
+    // TODO: remove ignore before merging to master
+    #[ignore]
     fn test_initialize_mainnet_and_testnet() {
         let mut t_mainnet = TapiEngine::default();
         let (_epoch, _old_wips) = t_mainnet.initialize_wip_information(Environment::Mainnet);
