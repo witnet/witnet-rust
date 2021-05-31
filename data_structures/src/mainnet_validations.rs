@@ -103,6 +103,18 @@ impl TapiEngine {
                 self.wip_activation
                     .insert("WIP0009-0011-0012".to_string(), u32::MAX);
                 self.wip_activation.insert("WIP0014".to_string(), 8941);
+
+                // Hardcoded information about WIPs in vote processing
+                let bit = 1;
+                let wip_001x = BitVotesCounter {
+                    votes: 0,
+                    period: 120, // 120*30sec (1hour)
+                    wip: "WIP001X".to_string(),
+                    init: 5200,
+                    end: u32::MAX,
+                    bit,
+                };
+                voting_wips[bit] = Some(wip_001x);
             }
         };
 
@@ -328,6 +340,13 @@ impl ActiveWips {
     pub fn wip0014(&self) -> bool {
         self.active_wips
             .get("WIP0014")
+            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
+            .unwrap_or(false)
+    }
+
+    pub fn wip001x(&self) -> bool {
+        self.active_wips
+            .get("WIP001X")
             .map(|activation_epoch| self.block_epoch >= *activation_epoch)
             .unwrap_or(false)
     }
