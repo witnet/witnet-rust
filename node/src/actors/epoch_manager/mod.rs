@@ -114,25 +114,32 @@ impl EpochManager {
     fn process_config(&mut self, ctx: &mut <Self as Actor>::Context) {
         config_mngr::get()
             .into_actor(self)
-            .and_then(|config, actor, ctx| {
-                actor.set_checkpoint_zero_and_period(
+            .and_then(|config, act, ctx| {
+                act.set_checkpoint_zero_and_period(
                     config.consensus_constants.checkpoint_zero_timestamp,
                     config.consensus_constants.checkpoints_period,
                 );
                 log::info!(
                     "Checkpoint zero timestamp: {}, checkpoints period: {}",
-                    actor.constants.as_ref().unwrap().checkpoint_zero_timestamp,
-                    actor.constants.as_ref().unwrap().checkpoints_period,
+                    act.constants.as_ref().unwrap().checkpoint_zero_timestamp,
+                    act.constants.as_ref().unwrap().checkpoints_period,
                 );
 
                 // Start checkpoint monitoring process
-                actor.checkpoint_monitor(ctx);
+                let time_to_next_checkpoint = act
+                    .time_to_next_checkpoint(act.current_epoch())
+                    .unwrap_or_else(|_| {
+                        let retry_seconds = act.constants.as_ref().unwrap().checkpoints_period;
+                        log::warn!("Failed to calculate time to next checkpoint");
+                        Duration::from_secs(u64::from(retry_seconds))
+                    });
+                act.checkpoint_monitor(ctx, time_to_next_checkpoint);
 
                 // Start ntp update process
                 if config.ntp.enabled {
                     let ntp_addr = config.ntp.servers[0].clone();
                     update_global_timestamp(ntp_addr.as_str());
-                    actor.update_ntp_timestamp(ctx, config.ntp.update_period, ntp_addr);
+                    act.update_ntp_timestamp(ctx, config.ntp.update_period, ntp_addr);
                 }
 
                 fut::ok(())
@@ -143,11 +150,14 @@ impl EpochManager {
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
-    /// Method to compute time remaining to next checkpoint
-    fn time_to_next_checkpoint(&self) -> EpochResult<Duration> {
+    /// Method to compute time remaining to next checkpoint.
+    /// If the next checkpoint is in the past, return 0 seconds.
+    fn time_to_next_checkpoint(
+        &self,
+        current_epoch_res: EpochResult<Epoch>,
+    ) -> EpochResult<Duration> {
         // Get current timestamp and epoch
         let (now_secs, now_nanos) = get_timestamp_nanos();
-        let current_epoch_res = self.epoch_at(now_secs);
 
         let next_checkpoint = match current_epoch_res {
             Err(EpochManagerError::CheckpointZeroInTheFuture(zero)) => zero,
@@ -163,17 +173,15 @@ impl EpochManager {
             }
         };
 
-        duration_between_timestamps((now_secs, now_nanos), (next_checkpoint, 0))
-            .ok_or(EpochManagerError::Overflow)
+        Ok(
+            duration_between_timestamps((now_secs, now_nanos), (next_checkpoint, 0))
+                // If the duration is negative, return 0 seconds
+                .unwrap_or_else(|| Duration::from_secs(0)),
+        )
     }
     /// Method to monitor checkpoints and execute some actions on each
-    fn checkpoint_monitor(&self, ctx: &mut Context<Self>) {
+    fn checkpoint_monitor(&self, ctx: &mut Context<Self>, time_to_next_checkpoint: Duration) {
         // Wait until next checkpoint to execute the periodic function
-        let time_to_next_checkpoint = self.time_to_next_checkpoint().unwrap_or_else(|_| {
-            let retry_seconds = self.constants.as_ref().unwrap().checkpoints_period;
-            log::warn!("Failed to calculate time to next checkpoint");
-            Duration::from_secs(u64::from(retry_seconds))
-        });
         log::debug!(
             "Checkpoint monitor: time to next checkpoint: {:?}",
             time_to_next_checkpoint
@@ -189,12 +197,26 @@ impl EpochManager {
                 let epoch_timestamp = act.epoch_timestamp(current_epoch).unwrap_or(0);
                 let last_checked_epoch = act.last_checked_epoch.unwrap_or(0);
 
+                // Sometimes the checkpoint monitor wakes up just before the next epoch, and
+                // current_epoch == last_checked_epoch
+                // In that case we want to retry as soon as possible
+                if current_epoch <= last_checked_epoch && last_checked_epoch != 0 {
+                    // Reschedule checkpoint monitor process
+                    let time_to_next_checkpoint = act
+                        .time_to_next_checkpoint(Ok(last_checked_epoch))
+                        .unwrap_or_else(|_| {
+                            let retry_seconds = act.constants.as_ref().unwrap().checkpoints_period;
+                            log::warn!("Failed to calculate time to next checkpoint");
+                            Duration::from_secs(u64::from(retry_seconds))
+                        });
+                    act.checkpoint_monitor(ctx, time_to_next_checkpoint);
+                    return;
+                }
+
                 // Send message to actors which subscribed to all epochs
-                if current_epoch > last_checked_epoch || current_epoch == 0 {
-                    for subscription in &mut act.subscriptions_all {
-                        // Only send new epoch notification
-                        subscription.send_notification(current_epoch, epoch_timestamp);
-                    }
+                for subscription in &mut act.subscriptions_all {
+                    // Only send new epoch notification
+                    subscription.send_notification(current_epoch, epoch_timestamp);
                 }
 
                 // Get all the checkpoints that had some subscription but were skipped for some
@@ -233,7 +255,14 @@ impl EpochManager {
             }
 
             // Reschedule checkpoint monitor process
-            act.checkpoint_monitor(ctx);
+            let time_to_next_checkpoint = act
+                .time_to_next_checkpoint(current_epoch)
+                .unwrap_or_else(|_| {
+                    let retry_seconds = act.constants.as_ref().unwrap().checkpoints_period;
+                    log::warn!("Failed to calculate time to next checkpoint");
+                    Duration::from_secs(u64::from(retry_seconds))
+                });
+            act.checkpoint_monitor(ctx, time_to_next_checkpoint);
         });
     }
 
