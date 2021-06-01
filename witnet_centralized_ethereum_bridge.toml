@@ -22,6 +22,9 @@ wit_tally_polling_rate_ms = 45_000
 # Period to post new requests to Witnet
 wit_dr_sender_polling_rate_ms = 45_000
 
+# If the data request has been sent to witnet but it is not included in a block, retry after this many milliseconds
+dr_tx_unresolved_timeout_ms = 600_000 # 10 minutes
+
 # Maximum data request result size (in bytes)
 # TODO: Choose a proper value
 max_result_size = 100

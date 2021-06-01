@@ -1,3 +1,4 @@
+use crate::actors::dr_database::{DrInfoBridge, DrState, SetDrInfoBridge};
 use crate::{
     actors::{
         dr_database::{DrDatabase, GetAllPendingDrs},
@@ -12,8 +13,9 @@ use async_jsonrpc_client::{
 };
 use futures_util::compat::Compat01As03;
 use serde_json::json;
-use std::{sync::Arc, time::Duration};
+use std::{convert::TryFrom, sync::Arc, time::Duration};
 use witnet_data_structures::chain::DataRequestInfo;
+use witnet_util::timestamp::get_timestamp;
 
 /// WitPoller actor checks periodically the state of the requests in Witnet to call DrReporter
 /// in case of found a tally
@@ -22,6 +24,7 @@ pub struct WitPoller {
     witnet_client: Option<Arc<TcpSocket>>,
     _handle: Option<EventLoopHandle>,
     wit_tally_polling_rate_ms: u64,
+    dr_tx_unresolved_timeout_ms: Option<u64>,
 }
 
 /// Make actor from WitPoller
@@ -47,6 +50,7 @@ impl WitPoller {
     /// Initialize `PeersManager` taking the configuration from a `Config` structure
     pub fn from_config(config: &Config) -> Result<Self, String> {
         let wit_tally_polling_rate_ms = config.wit_tally_polling_rate_ms;
+        let dr_tx_unresolved_timeout_ms = config.dr_tx_unresolved_timeout_ms;
         let witnet_addr = config.witnet_jsonrpc_addr.to_string();
 
         let (_handle, witnet_client) = TcpSocket::new(&witnet_addr).unwrap();
@@ -56,11 +60,13 @@ impl WitPoller {
             witnet_client: Some(witnet_client),
             _handle: Some(_handle),
             wit_tally_polling_rate_ms,
+            dr_tx_unresolved_timeout_ms,
         })
     }
 
     fn check_tally_pending_drs(&self, ctx: &mut Context<Self>, period: Duration) {
         let witnet_client = self.witnet_client.clone().unwrap();
+        let dr_tx_unresolved_timeout_ms = self.dr_tx_unresolved_timeout_ms;
 
         let fut = async move {
             let dr_database_addr = DrDatabase::from_registry();
@@ -70,8 +76,9 @@ impl WitPoller {
                 .await
                 .unwrap()
                 .unwrap();
+            let current_timestamp = get_timestamp();
 
-            for (dr_id, dr_bytes, dr_tx_hash) in pending_drs {
+            for (dr_id, dr_bytes, dr_tx_hash, dr_tx_creation_timestamp) in pending_drs {
                 let report = witnet_client.execute("dataRequestReport", json!([dr_tx_hash]));
 
                 let report = Compat01As03::new(report).await;
@@ -84,6 +91,28 @@ impl WitPoller {
                             dr_id,
                             e.to_string()
                         );
+
+                        if let Some(dr_timeout_ms) = dr_tx_unresolved_timeout_ms {
+                            // In case of error, if the data request has been unresolved for more than
+                            // X milliseconds, retry by setting it to "New"
+                            if (current_timestamp - dr_tx_creation_timestamp)
+                                > i64::try_from(dr_timeout_ms / 1000).unwrap()
+                            {
+                                log::debug!("[{}] has been unresolved after more than {} ms, setting to New", dr_id, dr_timeout_ms);
+                                dr_database_addr
+                                    .send(SetDrInfoBridge(
+                                        dr_id,
+                                        DrInfoBridge {
+                                            dr_bytes,
+                                            dr_state: DrState::New,
+                                            dr_tx_hash: None,
+                                            dr_tx_creation_timestamp: None,
+                                        },
+                                    ))
+                                    .await
+                                    .unwrap();
+                            }
+                        }
                         continue;
                     }
                 };

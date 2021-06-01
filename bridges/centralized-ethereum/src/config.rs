@@ -28,6 +28,8 @@ pub struct Config {
     pub wit_tally_polling_rate_ms: u64,
     /// Period to post new requests to Witnet
     pub wit_dr_sender_polling_rate_ms: u64,
+    /// If the data request has been sent to witnet but it is not included in a block, retry after this many milliseconds
+    pub dr_tx_unresolved_timeout_ms: Option<u64>,
     /// Max value that will be accepted by the bridge node in a data request
     pub max_dr_value_nanowits: u64,
     /// Running in the witnet testnet?
