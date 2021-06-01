@@ -28,6 +28,8 @@ pub struct DrInfoBridge {
     pub dr_state: DrState,
     /// Data Request Transaction Hash
     pub dr_tx_hash: Option<Hash>,
+    /// Data Request Transaction creation date
+    pub dr_tx_creation_timestamp: Option<i64>,
 }
 
 /// Data request state

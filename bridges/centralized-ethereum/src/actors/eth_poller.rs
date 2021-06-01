@@ -11,6 +11,7 @@ use web3::{
     types::{H160, U256},
 };
 use witnet_data_structures::chain::Hash;
+use witnet_util::timestamp::get_timestamp;
 
 /// EthPoller actor reads periodically new requests from the WRB Contract and includes them
 /// in the DrDatabase
@@ -116,6 +117,7 @@ impl EthPoller {
                                             dr_bytes,
                                             dr_state: DrState::Finished,
                                             dr_tx_hash: Some(Hash::SHA256(dr_tx_hash.into())),
+                                            dr_tx_creation_timestamp: Some(get_timestamp()),
                                         },
                                     ));
                                 } else {
@@ -126,6 +128,7 @@ impl EthPoller {
                                             dr_bytes,
                                             dr_state: DrState::New,
                                             dr_tx_hash: None,
+                                            dr_tx_creation_timestamp: None,
                                         },
                                     ));
                                 }

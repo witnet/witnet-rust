@@ -10,6 +10,7 @@ use web3::{
     types::{H160, U256},
 };
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};
+use witnet_util::timestamp::get_timestamp;
 
 /// DrReporter actor sends the the Witnet Request tally results to Ethereum
 #[derive(Default)]
@@ -125,6 +126,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                                         dr_bytes: msg.dr_bytes,
                                         dr_state: DrState::Finished,
                                         dr_tx_hash: Some(msg.dr_tx_hash),
+                                        dr_tx_creation_timestamp: Some(get_timestamp()),
                                     },
                                 ))
                                 .await

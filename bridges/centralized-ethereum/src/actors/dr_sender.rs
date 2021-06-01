@@ -18,6 +18,7 @@ use witnet_data_structures::{
     proto::ProtobufConvert,
     radon_error::RadonErrors,
 };
+use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
 #[cfg(test)]
@@ -101,6 +102,7 @@ impl DrSender {
                                                     dr_bytes,
                                                     dr_state: DrState::Pending,
                                                     dr_tx_hash: Some(dr_tx_hash),
+                                                    dr_tx_creation_timestamp: Some(get_timestamp()),
                                                 },
                                             ))
                                             .await
