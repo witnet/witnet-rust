@@ -808,8 +808,10 @@ fn check_beacon_compatibility(
         }),
         // current_checkpoint == received_checkpoint
         Ordering::Equal => {
-            if current_beacon.highest_block_checkpoint.hash_prev_block
-                == received_beacon.highest_block_checkpoint.hash_prev_block
+            if current_beacon.highest_superblock_checkpoint.hash_prev_block
+                == received_beacon
+                    .highest_superblock_checkpoint
+                    .hash_prev_block
             {
                 // Beacons are equal
                 Ok(())
