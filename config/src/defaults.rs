@@ -62,7 +62,7 @@ pub trait Defaults {
 
     /// Default period for melt peers
     fn connections_check_melted_peers_period(&self) -> Duration {
-        Duration::from_secs(3600)
+        Duration::from_secs(300)
     }
 
     /// Default period for trying connecting to recently discovered peer addresses
@@ -84,7 +84,7 @@ pub trait Defaults {
     /// Period in seconds for a potential peer address to be kept "iced", i.e. will not be tried
     /// again before that amount of time.
     fn connections_bucketing_ice_period(&self) -> Duration {
-        Duration::from_secs(14400) // 4 hours
+        Duration::from_secs(3600) // 4 hours
     }
 
     /// Period that indicate the validity of a checked peer
