@@ -26,7 +26,7 @@ use witnet_data_structures::{
     },
     error::{BlockError, DataRequestError, TransactionError},
     get_environment,
-    mainnet_validations::{after_first_hard_fork, after_second_hard_fork},
+    mainnet_validations::{after_first_hard_fork, after_second_hard_fork, after_third_hard_fork},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
@@ -916,7 +916,15 @@ pub fn validate_commit_transaction(
     let pkh = proof_pkh;
     let backup_witnesses = dr_state.backup_witnesses();
     let num_witnesses = dr_output.witnesses + backup_witnesses;
-    let (target_hash, _) = calculate_reppoe_threshold(rep_eng, &pkh, num_witnesses);
+    // TODO: pass difficulty as an argument to this function (from consensus constants)
+    let minimum_reppoe_difficulty = 2000;
+    let (target_hash, _) = calculate_reppoe_threshold(
+        rep_eng,
+        &pkh,
+        num_witnesses,
+        epoch,
+        minimum_reppoe_difficulty,
+    );
     add_dr_vrf_signature_to_verify(
         signatures_to_verify,
         &co_tx.body.proof,
@@ -1548,6 +1556,7 @@ struct WitnessesCount {
     current: u32,
     target: u32,
 }
+
 type WitnessesCounter<S> = HashMap<Hash, WitnessesCount, S>;
 
 // Add 1 in the number assigned to a OutputPointer
@@ -2091,20 +2100,31 @@ pub fn calculate_reppoe_threshold(
     rep_eng: &ReputationEngine,
     pkh: &PublicKeyHash,
     num_witnesses: u16,
+    block_epoch: u32,
+    minimum_difficulty: u32,
 ) -> (Hash, f64) {
-    let total_active_rep = rep_eng.total_active_reputation();
-
     // Add 1 to reputation because otherwise a node with 0 reputation would
     // never be eligible for a data request
-    let my_reputation = u64::from(rep_eng.get_eligibility(pkh)) + 1;
+    let my_eligibility = u64::from(rep_eng.get_eligibility(pkh)) + 1;
     let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
 
     let max = u64::max_value();
-    // Check for overflow: when the probability is more than 100%, cap it to 100%
-    let target = if my_reputation.saturating_mul(factor) >= total_active_rep {
-        max
+    // Compute target eligibility and hard-cap it if required
+    let target = if after_third_hard_fork(block_epoch, get_environment()) {
+        // TODO: Review if next line is required (check if total active reputation could be zero)
+        let total_active_rep = std::cmp::max(rep_eng.total_active_reputation(), 1);
+        // If eligibility is more than 100%, cap it to (max/minimum_difficulty*factor)%
+        std::cmp::min(
+            max / u64::from(minimum_difficulty),
+            (max / total_active_rep).saturating_mul(my_eligibility),
+        )
+        .saturating_mul(factor)
     } else {
-        (max / total_active_rep) * my_reputation.saturating_mul(factor)
+        // Check for overflow: when the probability is more than 100%, cap it to 100%
+        let total_active_rep = rep_eng.total_active_reputation();
+        (max / total_active_rep)
+            .saturating_mul(my_eligibility)
+            .saturating_mul(factor)
     };
     let target = u32::try_from(target >> 32).unwrap();
 
@@ -2222,7 +2242,8 @@ pub fn validate_merkle_tree(block: &Block) -> bool {
 
 /// 1 nanowit is the minimal unit of value
 /// 1 wit = 10^9 nanowits
-pub const NANOWITS_PER_WIT: u64 = 1_000_000_000; // 10 ^ WIT_DECIMAL_PLACES
+pub const NANOWITS_PER_WIT: u64 = 1_000_000_000;
+// 10 ^ WIT_DECIMAL_PLACES
 /// Number of decimal places used in the string representation of wit value.
 pub const WIT_DECIMAL_PLACES: u8 = 9;
 
@@ -2482,7 +2503,7 @@ mod tests {
                                         rep_2,
                                         vrf_j,
                                         act_j,
-                                        &vrf_sections
+                                        &vrf_sections,
                                     ),
                                     Ordering::Less
                                 );
@@ -2496,7 +2517,7 @@ mod tests {
                                         rep_1,
                                         vrf_j,
                                         act_j,
-                                        &vrf_sections
+                                        &vrf_sections,
                                     ),
                                     Ordering::Greater
                                 );
@@ -2522,7 +2543,7 @@ mod tests {
                                 rep_1,
                                 vrf_j,
                                 false,
-                                &vrf_sections
+                                &vrf_sections,
                             ),
                             Ordering::Greater
                         );
@@ -2536,7 +2557,7 @@ mod tests {
                                 rep_2,
                                 vrf_j,
                                 true,
-                                &vrf_sections
+                                &vrf_sections,
                             ),
                             Ordering::Less
                         );
@@ -2558,7 +2579,7 @@ mod tests {
                         rep_1,
                         vrf_2,
                         true,
-                        &vrf_sections
+                        &vrf_sections,
                     ),
                     Ordering::Greater
                 );
@@ -2572,7 +2593,7 @@ mod tests {
                         rep_1,
                         vrf_1,
                         true,
-                        &vrf_sections
+                        &vrf_sections,
                     ),
                     Ordering::Less
                 );
@@ -2590,7 +2611,7 @@ mod tests {
                 rep_1,
                 vrf_1,
                 true,
-                &vrf_sections
+                &vrf_sections,
             ),
             Ordering::Greater
         );
@@ -2604,7 +2625,7 @@ mod tests {
                 rep_1,
                 vrf_1,
                 true,
-                &vrf_sections
+                &vrf_sections,
             ),
             Ordering::Less
         );
@@ -2620,7 +2641,7 @@ mod tests {
                 rep_1,
                 vrf_1,
                 true,
-                &vrf_sections
+                &vrf_sections,
             ),
             Ordering::Equal
         );
@@ -2656,7 +2677,7 @@ mod tests {
                                         rep_j,
                                         vrf_2,
                                         act_j,
-                                        &vrf_sections
+                                        &vrf_sections,
                                     ),
                                     Ordering::Greater
                                 );
@@ -2670,7 +2691,7 @@ mod tests {
                                         rep_j,
                                         vrf_1,
                                         act_j,
-                                        &vrf_sections
+                                        &vrf_sections,
                                     ),
                                     Ordering::Less
                                 );
@@ -2704,7 +2725,7 @@ mod tests {
                 rep_2,
                 vrf_2,
                 true,
-                &vrf_sections
+                &vrf_sections,
             ),
             Ordering::Greater
         );
@@ -2719,7 +2740,7 @@ mod tests {
                 rep_2,
                 vrf_1,
                 true,
-                &vrf_sections
+                &vrf_sections,
             ),
             Ordering::Less
         );
@@ -2950,7 +2971,7 @@ mod tests {
         rep_engine.ars_mut().push_activity(vec![id1]);
 
         // 100% when we have all the reputation
-        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id1, 1);
+        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id1, 1, 0, 2000);
         assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!((p00 * 100_f64).round() as i128, 100);
 
@@ -2962,7 +2983,7 @@ mod tests {
         rep_engine.ars_mut().push_activity(vec![id2]);
 
         // 50% when there are 2 nodes with 50% of the reputation each
-        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id1, 1);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id1, 1, 0, 2000);
         // Since the calculate_reppoe function first divides and later
         // multiplies, we get a rounding error here
         assert_eq!(t01, Hash::with_first_u32(0x7FFF_FFFF));
@@ -3003,7 +3024,8 @@ mod tests {
             let mut v = vec![];
             for id in ids.iter() {
                 v.push(
-                    (calculate_reppoe_threshold(&rep_engine, id, thres).1 * 100_f64).round() as u32,
+                    (calculate_reppoe_threshold(&rep_engine, id, thres, 0, 2000).1 * 100_f64)
+                        .round() as u32,
                 );
             }
             v
@@ -3034,16 +3056,16 @@ mod tests {
         let id0 = PublicKeyHash::from_bytes(&[0; 20]).unwrap();
 
         // 100% when the total reputation is 0
-        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
-        assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
+        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
         assert_eq!((p00 * 100_f64).round() as i128, 100);
-        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 100);
+        assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 100, 0, 2000);
         assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!((p01 * 100_f64).round() as i128, 100);
 
         let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
         rep_engine.ars_mut().push_activity(vec![id1]);
-        let (t02, p02) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
+        let (t02, p02) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
         assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!((p02 * 100_f64).round() as i128, 100);
 
@@ -3052,14 +3074,14 @@ mod tests {
             .trs_mut()
             .gain(Alpha(10), vec![(id1, Reputation(1))])
             .unwrap();
-        let (t03, p03) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
+        let (t03, p03) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
         assert_eq!(t03, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!((p03 * 100_f64).round() as i128, 50);
 
         // 33% when the total reputation is 1 but there are 2 active identities
         let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
         rep_engine.ars_mut().push_activity(vec![id2]);
-        let (t04, p04) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
+        let (t04, p04) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
         assert_eq!(t04, Hash::with_first_u32(0x5555_5555));
         assert_eq!((p04 * 100_f64).round() as i128, 33);
 
@@ -3073,7 +3095,7 @@ mod tests {
             .trs_mut()
             .gain(Alpha(10), vec![(id1, Reputation(99))])
             .unwrap();
-        let (t05, p05) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
+        let (t05, p05) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
         assert_eq!(t05, Hash::with_first_u32(0x0253_C825));
         assert_eq!((p05 * 100_f64).round() as i128, 1);
     }
@@ -3094,7 +3116,7 @@ mod tests {
             .unwrap();
 
         // Test big values that result in < 100%
-        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 1, 0, 2000);
         assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFE));
         assert_eq!((p01 * 100_f64).round() as i128, 100);
     }
@@ -3388,7 +3410,7 @@ mod tests {
             out,
             RadError::InsufficientConsensus {
                 achieved: 0.5,
-                required: 0.51
+                required: 0.51,
             }
         );
     }
@@ -3415,7 +3437,7 @@ mod tests {
             out,
             RadError::InsufficientConsensus {
                 achieved: 0.5,
-                required: 0.51
+                required: 0.51,
             }
         );
     }
