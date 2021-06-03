@@ -25,8 +25,8 @@ const SECOND_EMERGENCY_COMMITTEE: [&str; 6] = [
 pub const FIRST_HARD_FORK: Epoch = 192000;
 /// 28 April 2021 @ 9:00:00 UTC
 pub const SECOND_HARD_FORK: Epoch = 376320;
-/// 4 June 2021  @ 9:00:00 UTC
-pub const THIRD_HARD_FORK: Epoch = 447360;
+/// 3 June 2021  @ 9:00:00 UTC
+pub const THIRD_HARD_FORK: Epoch = 445440;
 
 /// Return a hard-coded signing committee if the provided epoch belongs to an emergency period.
 /// 750 and 1344: Between those indices, a special committee of 7 nodes was set.
