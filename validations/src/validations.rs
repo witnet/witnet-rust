@@ -2103,6 +2103,8 @@ pub fn calculate_reppoe_threshold(
     block_epoch: u32,
     minimum_difficulty: u32,
 ) -> (Hash, f64) {
+    // Set minimum total_active_reputation to 1 to avoid division by zero
+    let total_active_rep = std::cmp::max(rep_eng.total_active_reputation(), 1);
     // Add 1 to reputation because otherwise a node with 0 reputation would
     // never be eligible for a data request
     let my_eligibility = u64::from(rep_eng.get_eligibility(pkh)) + 1;
@@ -2111,9 +2113,7 @@ pub fn calculate_reppoe_threshold(
     let max = u64::max_value();
     // Compute target eligibility and hard-cap it if required
     let target = if after_third_hard_fork(block_epoch, get_environment()) {
-        // TODO: Review if next line is required (check if total active reputation could be zero)
-        let total_active_rep = std::cmp::max(rep_eng.total_active_reputation(), 1);
-        // If eligibility is more than 100%, cap it to (max/minimum_difficulty*factor)%
+        // Eligibility must never be greater than (max/minimum_difficulty)
         std::cmp::min(
             max / u64::from(minimum_difficulty),
             (max / total_active_rep).saturating_mul(my_eligibility),
@@ -2121,7 +2121,6 @@ pub fn calculate_reppoe_threshold(
         .saturating_mul(factor)
     } else {
         // Check for overflow: when the probability is more than 100%, cap it to 100%
-        let total_active_rep = rep_eng.total_active_reputation();
         (max / total_active_rep)
             .saturating_mul(my_eligibility)
             .saturating_mul(factor)
