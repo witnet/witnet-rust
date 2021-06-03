@@ -73,7 +73,7 @@ fn be<I>(
     }
     // Initialize cache
     rep_eng.total_active_reputation();
-    validations::calculate_reppoe_threshold(&rep_eng, &my_pkh, num_witnesses);
+    validations::calculate_reppoe_threshold(&rep_eng, &my_pkh, num_witnesses, 0, 2000);
     b.iter(|| {
         if invalidate_sorted_cache {
             rep_eng.invalidate_reputation_threshold_cache()
@@ -81,7 +81,7 @@ fn be<I>(
         if invalidate_threshold_cache {
             rep_eng.clear_threshold_cache();
         }
-        validations::calculate_reppoe_threshold(&rep_eng, &my_pkh, num_witnesses)
+        validations::calculate_reppoe_threshold(&rep_eng, &my_pkh, num_witnesses, 0, 2000)
     })
 }
 
