@@ -324,8 +324,15 @@ impl ChainManager {
                 ..vrf_input
             };
 
-            let (target_hash, probability) =
-                calculate_reppoe_threshold(rep_eng, &own_pkh, num_witnesses + num_backup_witnesses);
+            // TODO: pass difficulty as an argument to this function (from consensus constants)
+            let minimum_reppoe_difficulty = 2000;
+            let (target_hash, probability) = calculate_reppoe_threshold(
+                rep_eng,
+                &own_pkh,
+                num_witnesses + num_backup_witnesses,
+                current_epoch,
+                minimum_reppoe_difficulty,
+            );
 
             // Grab a reference to `current_retrieval_count`
             let cloned_retrieval_count = Arc::clone(&current_retrieval_count);
