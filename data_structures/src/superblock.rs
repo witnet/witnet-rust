@@ -4,7 +4,7 @@ use crate::{
         PublicKeyHash, SuperBlock, SuperBlockVote,
     },
     get_environment,
-    mainnet_validations::after_second_hard_fork,
+    mainnet_validations::{after_second_hard_fork, in_emergency_period},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -422,7 +422,7 @@ impl SuperBlockState {
         // to construct our own superblocks.
         let superblock = if let Some(sb) = sync_superblock {
             // Before updating the superblock_beacon, calculate the signing committee
-            self.signing_committee = calculate_superblock_signing_committee(
+            let signing_committee = calculate_superblock_signing_committee(
                 self.ars_previous_identities.clone(),
                 sb.signing_committee_length,
                 superblock_index,
@@ -430,16 +430,32 @@ impl SuperBlockState {
                 block_epoch,
             );
 
+            // Override superblock signing committee during each of the different emergency periods
+            self.signing_committee =
+                if let Some(ars_ids) = in_emergency_period(superblock_index, get_environment()) {
+                    ars_ids.into_iter().collect()
+                } else {
+                    signing_committee
+                };
+
             sb
         } else {
             // Before updating the superblock_beacon, calculate the signing committee
-            self.signing_committee = calculate_superblock_signing_committee(
+            let signing_committee = calculate_superblock_signing_committee(
                 self.ars_previous_identities.clone(),
                 signing_committee_size,
                 superblock_index,
                 self.current_superblock_beacon.hash_prev_block,
                 block_epoch,
             );
+
+            // Override superblock signing committee during each of the different emergency periods
+            self.signing_committee =
+                if let Some(ars_ids) = in_emergency_period(superblock_index, get_environment()) {
+                    ars_ids.into_iter().collect()
+                } else {
+                    signing_committee
+                };
 
             mining_build_superblock(
                 block_headers,
