@@ -1153,6 +1153,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn handshake_between_forked_nodes() {
         let hash_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             .parse()
