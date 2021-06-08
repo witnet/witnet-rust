@@ -1035,6 +1035,17 @@ impl Message for SetLastBeacon {
     type Result = ();
 }
 
+/// Set the target superblock beacon
+#[derive(Clone, Debug)]
+pub struct SetTargetSuperblockBeacon {
+    /// Target superblock beacon
+    pub beacon: Option<CheckpointBeacon>,
+}
+
+impl Message for SetTargetSuperblockBeacon {
+    type Result = ();
+}
+
 /// Set the outbound limit
 #[derive(Clone, Debug)]
 pub struct SetPeersLimits {

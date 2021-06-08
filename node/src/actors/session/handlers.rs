@@ -59,6 +59,14 @@ enum HandshakeError {
         received_beacon: LastBeacon,
     },
     #[fail(
+        display = "Received superblock beacon is not the target superblock beacon. Target superblock beacon: {:?}, received superblock beacon: {:?}",
+        target_superblock_beacon, received_superblock_beacon
+    )]
+    PeerBeaconDifferentThanTargetSuperblock {
+        received_superblock_beacon: CheckpointBeacon,
+        target_superblock_beacon: CheckpointBeacon,
+    },
+    #[fail(
         display = "Their epoch is different from ours. Current epoch: {}, received beacon: {:?}",
         current_epoch, received_beacon
     )]
@@ -863,8 +871,22 @@ fn handshake_version(
     let received_beacon = &command_version.beacon;
 
     match session.session_type {
-        SessionType::Outbound | SessionType::Feeler => {
+        SessionType::Feeler => {
             check_beacon_compatibility(current_beacon, received_beacon, current_epoch)?;
+        }
+        SessionType::Outbound => {
+            check_beacon_compatibility(current_beacon, received_beacon, current_epoch)?;
+
+            // In case of outbound sessions, if the target_superblock_beacon is set, the received
+            // superblock must be exactly the same as the target superblock
+            if let Some(target_superblock) = &session.target_superblock_beacon {
+                if received_beacon.highest_superblock_checkpoint != *target_superblock {
+                    return Err(HandshakeError::PeerBeaconDifferentThanTargetSuperblock {
+                        received_superblock_beacon: received_beacon.highest_superblock_checkpoint,
+                        target_superblock_beacon: *target_superblock,
+                    });
+                }
+            }
         }
         // Do not check beacon for inbound peers
         SessionType::Inbound => {}

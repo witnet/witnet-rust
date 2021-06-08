@@ -6,7 +6,7 @@ use ansi_term::Color::Green;
 
 use witnet_config::config::Config;
 use witnet_data_structures::{
-    chain::{Block, Epoch, Hash},
+    chain::{Block, CheckpointBeacon, Epoch, Hash},
     proto::ProtobufConvert,
     types::{Command, LastBeacon, Message as WitnetMessage},
 };
@@ -73,6 +73,10 @@ pub struct Session {
     /// Current top of the chain
     last_beacon: LastBeacon,
 
+    /// Target superblock beacon. If Some, only allow peers that send this superblock beacon in the
+    /// handshake
+    target_superblock_beacon: Option<CheckpointBeacon>,
+
     /// Requested block hashes vector
     requested_block_hashes: Vec<Hash>,
 
@@ -101,6 +105,7 @@ impl Session {
         magic_number: u16,
         current_epoch: Epoch,
         last_beacon: LastBeacon,
+        target_superblock_beacon: Option<CheckpointBeacon>,
         config: Arc<Config>,
     ) -> Session {
         Session {
@@ -114,6 +119,7 @@ impl Session {
             magic_number,
             current_epoch,
             last_beacon,
+            target_superblock_beacon,
             requested_block_hashes: vec![],
             requested_blocks: HashMap::new(),
             blocks_timestamp: 0,

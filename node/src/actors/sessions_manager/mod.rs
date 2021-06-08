@@ -24,7 +24,7 @@ use crate::actors::{
 use failure::Fail;
 use witnet_config::config::Config;
 use witnet_data_structures::{
-    chain::{Epoch, EpochConstants},
+    chain::{CheckpointBeacon, Epoch, EpochConstants},
     types::LastBeacon,
 };
 
@@ -46,6 +46,9 @@ pub struct SessionsManager {
     // Current tip of the chain, used to check if outbound peers are in consensus when connecting
     // Note that the sessions manager will not be able to create any sessions if this field is None
     last_beacon: Option<LastBeacon>,
+    // Target superblock beacon. If Some, only allow peers that send this superblock beacon in the
+    // handshake
+    target_superblock_beacon: Option<CheckpointBeacon>,
     // Logging message hashset
     logging_messages: HashSet<String>,
     // Reference to config

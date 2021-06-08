@@ -19,7 +19,7 @@ use crate::actors::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropAllPeers,
         DropOutboundPeers, EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions,
         NumSessionsResult, PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult,
-        SetLastBeacon, SetPeersLimits, TryMineBlock, Unregister,
+        SetLastBeacon, SetPeersLimits, SetTargetSuperblockBeacon, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -54,6 +54,8 @@ impl Handler<Create> for SessionsManager {
                 return;
             }
         };
+
+        let target_superblock_beacon = self.target_superblock_beacon;
 
         // Get remote peer address
         let remote_addr = match msg.stream.peer_addr() {
@@ -101,6 +103,7 @@ impl Handler<Create> for SessionsManager {
                 magic_number,
                 current_epoch,
                 last_beacon,
+                target_superblock_beacon,
                 config,
             )
         });
@@ -470,6 +473,14 @@ impl Handler<SetLastBeacon> for SessionsManager {
 
     fn handle(&mut self, msg: SetLastBeacon, _ctx: &mut Context<Self>) -> Self::Result {
         self.last_beacon = Some(msg.beacon);
+    }
+}
+
+impl Handler<SetTargetSuperblockBeacon> for SessionsManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetTargetSuperblockBeacon, _ctx: &mut Context<Self>) -> Self::Result {
+        self.target_superblock_beacon = msg.beacon;
     }
 }
 
