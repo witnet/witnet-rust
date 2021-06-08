@@ -76,9 +76,10 @@ use crate::{
         json_rpc::JsonRpcServer,
         messages::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
-            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
-            SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-            StoreInventoryItem, SuperBlockNotify,
+            DropOutboundPeersOnDifferentSuperblock, GetBlocksEpochRange, GetItemBlock,
+            NodeStatusNotify, RemoveAddressesFromTried, SendInventoryItem, SendInventoryRequest,
+            SendLastBeacon, SendSuperBlockVote, SetTargetSuperblockBeacon, StoreInventoryItem,
+            SuperBlockNotify,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -1520,7 +1521,24 @@ impl ChainManager {
                         }
                     };
                     let sessions_manager_addr = SessionsManager::from_registry();
-                    sessions_manager_addr.do_send(DropOutboundPeers {peers_to_drop: peers_to_unregister});
+                    sessions_manager_addr.do_send(SetTargetSuperblockBeacon {
+                        beacon: Some(CheckpointBeacon {
+                            checkpoint: voted_superblock_beacon.checkpoint,
+                            hash_prev_block: target_superblock_hash,
+                        })
+                    });
+                    // TODO: when to "unset" the target superblock beacon?
+                    // After changing state to Synchronizing, or after 1 or 2 epochs? Or never?
+
+                    // TODO: how to drop outbound peers? Implement that logic in SessionsManager or
+                    // in the ChainManager (PeersBeacons handler).
+                    //sessions_manager_addr.do_send(DropOutboundPeers {peers_to_drop: peers_to_unregister});
+                    sessions_manager_addr.do_send(DropOutboundPeersOnDifferentSuperblock {
+                        beacon: CheckpointBeacon {
+                            checkpoint: voted_superblock_beacon.checkpoint,
+                            hash_prev_block: target_superblock_hash,
+                        }
+                    });
 
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);

@@ -17,9 +17,10 @@ use crate::actors::{
     codec::P2PCodec,
     messages::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropAllPeers,
-        DropOutboundPeers, EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions,
-        NumSessionsResult, PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult,
-        SetLastBeacon, SetPeersLimits, SetTargetSuperblockBeacon, TryMineBlock, Unregister,
+        DropOutboundPeers, DropOutboundPeersOnDifferentSuperblock, EpochNotification,
+        GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult, PeerBeacon, Register,
+        RemoveAddressesFromTried, SessionsUnitResult, SetLastBeacon, SetPeersLimits,
+        SetTargetSuperblockBeacon, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -489,6 +490,19 @@ impl Handler<DropOutboundPeers> for SessionsManager {
 
     fn handle(&mut self, msg: DropOutboundPeers, _ctx: &mut Context<Self>) -> Self::Result {
         self.drop_outbound_peers(msg.peers_to_drop.as_ref());
+    }
+}
+
+impl Handler<DropOutboundPeersOnDifferentSuperblock> for SessionsManager {
+    type Result = <DropOutboundPeersOnDifferentSuperblock as Message>::Result;
+
+    fn handle(
+        &mut self,
+        _msg: DropOutboundPeersOnDifferentSuperblock,
+        _ctx: &mut Context<Self>,
+    ) -> Self::Result {
+        // TODO: We need to drop peers according to the next superblock beacon that they send us
+        unimplemented!()
     }
 }
 

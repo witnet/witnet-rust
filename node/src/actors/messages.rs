@@ -1016,6 +1016,16 @@ impl Message for DropOutboundPeers {
     type Result = ();
 }
 
+/// Drop outbound peers on different superblock
+#[derive(Clone, Debug)]
+pub struct DropOutboundPeersOnDifferentSuperblock {
+    /// Superblock beacon
+    pub beacon: CheckpointBeacon,
+}
+impl Message for DropOutboundPeersOnDifferentSuperblock {
+    type Result = ();
+}
+
 /// Drop all peers
 #[derive(Clone, Debug)]
 pub struct DropAllPeers;
