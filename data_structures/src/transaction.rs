@@ -379,20 +379,21 @@ impl DRTransactionBody {
 
     /// Data Request Transaction weight
     pub fn weight(&self) -> u32 {
-        // DR_weight = DR_size*alpha + W*COMMIT + W*REVEAL*beta + TALLY*beta + W*OUTPUT_SIZE
+        // DR_weight = DR_size*alpha + (W*COMMIT + W*REVEAL*beta + TALLY*beta + W*OUTPUT_SIZE)
+        // + N*INPUTS_SIZE + M*OUTPUTS_SIZE
 
         let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
         let outputs_len = u32::try_from(self.outputs.len()).unwrap_or(u32::MAX);
         let inputs_weight = inputs_len.saturating_mul(INPUT_SIZE);
         let outputs_weight = outputs_len.saturating_mul(OUTPUT_SIZE);
 
-        let dr_weight = inputs_weight
-            .saturating_add(outputs_weight)
-            .saturating_add(self.dr_output.weight())
-            .saturating_mul(ALPHA);
-
+        let dr_size = self.dr_output.weight().saturating_mul(ALPHA);
         let dr_extra_weight = self.dr_output.extra_weight();
-        dr_weight.saturating_add(dr_extra_weight)
+
+        dr_size
+            .saturating_add(dr_extra_weight)
+            .saturating_add(inputs_weight)
+            .saturating_add(outputs_weight)
     }
 
     /// Specified data to be divided in a new level in the proof of inclusion
