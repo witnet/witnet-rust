@@ -14,14 +14,19 @@ use std::sync::{Arc, RwLock};
 use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 // These constants were calculated in:
-// TODO: add link to WIP about transaction weights
+// https://github.com/witnet/WIPs/blob/master/wip-0007.md
 pub const INPUT_SIZE: u32 = 133;
 pub const OUTPUT_SIZE: u32 = 36;
 pub const COMMIT_WEIGHT: u32 = 400;
 pub const REVEAL_WEIGHT: u32 = 200;
 pub const TALLY_WEIGHT: u32 = 100;
+/// Data request complexity factor
 pub const ALPHA: u32 = 1;
+/// Data request return type factor
 pub const BETA: u32 = 1;
+/// Output multiplicative factor.
+/// Value transfers that join several UTXOs are favored in detriment of value transfer that split
+/// to many UTXOs
 pub const GAMMA: u32 = 10;
 
 pub trait MemoizedHashable {
@@ -243,9 +248,12 @@ impl VTTransactionBody {
         }
     }
 
-    /// Value Transfer transaction weight
+    /// Value Transfer transaction weight. It is calculated as:
+    ///
+    /// ```text
+    /// VT_weight = N*INPUT_SIZE + M*OUTPUT_SIZE*gamma
+    /// ```
     pub fn weight(&self) -> u32 {
-        // VT_weight = N*INPUT_SIZE + M*OUTPUT_SIZE*gamma
         let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
         let outputs_len = u32::try_from(self.outputs.len()).unwrap_or(u32::MAX);
 
@@ -377,22 +385,23 @@ impl DRTransactionBody {
         }
     }
 
-    /// Data Request Transaction weight
+    /// Data Request Transaction weight. It is calculated as:
+    ///
+    /// ```text
+    /// DR_weight = DR_output_size*alpha + W*COMMIT + W*REVEAL*beta + TALLY*beta + N*INPUT_SIZE + (W + M)*OUTPUT_SIZE
+    /// ```
     pub fn weight(&self) -> u32 {
-        // DR_weight = DR_size*alpha + W*COMMIT + W*REVEAL*beta + TALLY*beta + W*OUTPUT_SIZE
-
         let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
         let outputs_len = u32::try_from(self.outputs.len()).unwrap_or(u32::MAX);
+        let dr_output_size = self.dr_output.weight().saturating_mul(ALPHA);
+        let dr_extra_weight = self.dr_output.extra_weight();
         let inputs_weight = inputs_len.saturating_mul(INPUT_SIZE);
         let outputs_weight = outputs_len.saturating_mul(OUTPUT_SIZE);
 
-        let dr_weight = inputs_weight
+        dr_output_size
+            .saturating_add(dr_extra_weight)
+            .saturating_add(inputs_weight)
             .saturating_add(outputs_weight)
-            .saturating_add(self.dr_output.weight())
-            .saturating_mul(ALPHA);
-
-        let dr_extra_weight = self.dr_output.extra_weight();
-        dr_weight.saturating_add(dr_extra_weight)
     }
 
     /// Specified data to be divided in a new level in the proof of inclusion
