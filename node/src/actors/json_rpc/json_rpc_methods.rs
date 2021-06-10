@@ -77,7 +77,7 @@ pub fn jsonrpc_io_handler(
         Compat::new(Box::pin(data_request_report(params.parse())))
     });
     io.add_method("getBalance", |params: Params| {
-        Compat::new(Box::pin(get_balance(params.parse())))
+        Compat::new(Box::pin(get_balance(params)))
     });
     io.add_method("getReputation", |params: Params| {
         Compat::new(Box::pin(get_reputation(params.parse(), false)))
@@ -1098,17 +1098,46 @@ pub async fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -
         .await
 }
 
+/// Params of getBlockChain method
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct GetBalanceParams {
+    /// Public key hash
+    pub pkh: PublicKeyHash,
+    /// Distinguish between fetching a simple balance or fetching confirmed and unconfirmed balance
+    #[serde(default)] // default to false
+    pub simple: bool,
+}
+
 /// Get balance
-pub async fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResult {
-    let pkh = match params {
-        Ok(x) => x.0,
-        Err(e) => return Err(e),
+pub async fn get_balance(params: Params) -> JsonRpcResult {
+    let (pkh, simple): (PublicKeyHash, bool);
+
+    // Handle parameters as an array with a first obligatory PublicKeyHash field plus an optional bool field
+    if let Params::Array(params) = params {
+        if let Some(Value::String(public_key)) = params.get(0) {
+            match public_key.parse() {
+                Ok(public_key) => pkh = public_key,
+                Err(e) => {
+                    return Err(internal_error(e));
+                }
+            }
+        } else {
+            return Err(jsonrpc_core::Error::invalid_params(
+                "First argument of `get_balance` must have type `PublicKeyHash`",
+            ));
+        };
+
+        simple = false;
+    } else {
+        let params: GetBalanceParams = params.parse()?;
+        pkh = params.pkh;
+        simple = params.simple;
     };
 
     let chain_manager_addr = ChainManager::from_registry();
 
     chain_manager_addr
-        .send(GetBalance { pkh })
+        .send(GetBalance { pkh, simple })
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|dr_info| match dr_info {

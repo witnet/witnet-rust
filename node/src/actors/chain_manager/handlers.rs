@@ -1302,7 +1302,11 @@ impl Handler<GetDataRequestInfo> for ChainManager {
 impl Handler<GetBalance> for ChainManager {
     type Result = ResponseActFuture<Self, Result<NodeBalance, failure::Error>>;
 
-    fn handle(&mut self, GetBalance { pkh }: GetBalance, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        GetBalance { pkh, simple }: GetBalance,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
             return Box::pin(actix::fut::err(
                 ChainManagerError::NotSynced {
@@ -1312,22 +1316,32 @@ impl Handler<GetBalance> for ChainManager {
             ));
         }
 
-        let magic = self.get_magic();
+        if simple {
+            Box::pin(actix::fut::ok(transaction_factory::get_total_balance(
+                &self.chain_state.unspent_outputs_pool,
+                None,
+                pkh,
+                simple,
+            )))
+        } else {
+            let magic = self.get_magic();
 
-        let res = storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
-            .into_actor(self)
-            .map(move |chain_state_from_storage, act, _| {
-                chain_state_from_storage.map(|x| {
-                    transaction_factory::get_total_balance(
-                        &act.chain_state.unspent_outputs_pool,
-                        // If there is no chain state in storage, send None and set the balance to 0
-                        x.as_ref().map(|x| &x.unspent_outputs_pool),
-                        pkh,
-                    )
-                })
-            });
+            let res = storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
+                .into_actor(self)
+                .map(move |chain_state_from_storage, act, _| {
+                    chain_state_from_storage.map(|x| {
+                        transaction_factory::get_total_balance(
+                            &act.chain_state.unspent_outputs_pool,
+                            // If there is no chain state in storage, send None and set the balance to 0
+                            x.as_ref().map(|x| &x.unspent_outputs_pool),
+                            pkh,
+                            simple,
+                        )
+                    })
+                });
 
-        Box::pin(res)
+            Box::pin(res)
+        }
     }
 }
 

@@ -52,9 +52,17 @@ pub fn exec_cmd(
         Command::BlockChain { node, epoch, limit } => {
             rpc::get_blockchain(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
         }
-        Command::GetBalance { node, address } => {
+        Command::GetBalance {
+            node,
+            address,
+            simple,
+        } => {
             let address = address.map(|x| x.parse()).transpose()?;
-            rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), address)
+            rpc::get_balance(
+                node.unwrap_or(config.jsonrpc.server_address),
+                address,
+                simple,
+            )
         }
         Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
         Command::GetUtxoInfo { node, long, pkh } => {
@@ -349,12 +357,11 @@ pub enum Command {
     #[structopt(
         name = "balance",
         alias = "getBalance",
-        about = "Get the balance of the given account",
-        long_about = "Get the confirmed and pending balance of the given account:\n\n\
-                      
-                      Confirmed balance: balance that has been confirmed in a superblock by a majority of the network.\n\n\
-                      
-                      Pending balance: balance that is waiting to be confirmed. Negative amount corresponds to transactions sent by the given account."
+        about = "Get the balance of the own or supplied account",
+        long_about = "Get either the simple balance or the confirmed and pending balance of the own or supplied account:\n\
+                      \tBalance: the total balance of this node without distinguishing between fully confirmed and pending balance.\n\
+                      \tConfirmed balance: balance that has been confirmed in a superblock by a majority of the network.\n\
+                      \tPending balance: balance that is waiting to be confirmed, a negative amount corresponds to sent transactions."
     )]
     GetBalance {
         /// Socket address of the Witnet node to query
@@ -363,6 +370,9 @@ pub enum Command {
         /// Address for which to get balance. If omitted, defaults to the node address
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
+        /// Fetch and print only the simple balance
+        #[structopt(long = "simple")]
+        simple: bool,
     },
     #[structopt(
         name = "address",

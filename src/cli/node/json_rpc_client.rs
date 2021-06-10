@@ -32,7 +32,7 @@ use witnet_data_structures::{
 };
 use witnet_node::actors::{
     json_rpc::json_rpc_methods::{
-        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult,
+        AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
     messages::{BuildVtt, GetReputationResult},
 };
@@ -78,7 +78,11 @@ pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: i64) -> Result<(), fa
     Ok(())
 }
 
-pub fn get_balance(addr: SocketAddr, pkh: Option<PublicKeyHash>) -> Result<(), failure::Error> {
+pub fn get_balance(
+    addr: SocketAddr,
+    pkh: Option<PublicKeyHash>,
+    simple: bool,
+) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
     let pkh = match pkh {
@@ -94,19 +98,28 @@ pub fn get_balance(addr: SocketAddr, pkh: Option<PublicKeyHash>) -> Result<(), f
         }
     };
 
+    let params = GetBalanceParams { pkh, simple };
+
     let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "getBalance", "params": [{}], "id": "1"}}"#,
-        serde_json::to_string(&pkh)?,
+        r#"{{"jsonrpc": "2.0","method": "getBalance", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params).unwrap()
     );
+    log::info!("{}", request);
     let response = send_request(&mut stream, &request)?;
     log::info!("{}", response);
+
     let amount = parse_response::<NodeBalance>(&response)?;
-    println!(
-        "Confirmed balance:   {} wits\n\
-        Pending balance:     {} wits",
-        Wit::from_nanowits(amount.confirmed),
-        wit_difference_to_string(amount.confirmed, amount.total)
-    );
+    if simple {
+        println!("Balance:   {} wits", Wit::from_nanowits(amount.total));
+    } else {
+        println!(
+            "Confirmed balance:   {} wits\n\
+            Pending balance:     {} wits",
+            Wit::from_nanowits(amount.confirmed.unwrap()),
+            wit_difference_to_string(amount.confirmed.unwrap(), amount.total)
+        );
+    }
+
     Ok(())
 }
 

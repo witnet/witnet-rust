@@ -25,7 +25,7 @@ pub struct TransactionInfo {
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeBalance {
     /// Total amount of a node's funds after last confirmed superblock
-    pub confirmed: u64,
+    pub confirmed: Option<u64>,
     /// Total amount of node's funds after last block
     pub total: u64,
 }
@@ -249,6 +249,7 @@ pub fn get_total_balance(
     all_utxos: &UnspentOutputsPool,
     old_all_utxos: Option<&UnspentOutputsPool>,
     pkh: PublicKeyHash,
+    simple: bool,
 ) -> NodeBalance {
     // FIXME: this does not scale, we need to be able to get UTXOs by PKH
     // Get the balance of the current utxo set
@@ -262,6 +263,13 @@ pub fn get_total_balance(
             }
         })
         .sum();
+
+    if simple {
+        return NodeBalance {
+            confirmed: None,
+            total: new_balance,
+        };
+    }
 
     // Get the balance of the confirmed utxo set from storage
     let old_balance = match old_all_utxos {
@@ -279,7 +287,7 @@ pub fn get_total_balance(
     };
 
     NodeBalance {
-        confirmed: old_balance,
+        confirmed: Some(old_balance),
         total: new_balance,
     }
 }
@@ -1195,19 +1203,35 @@ mod tests {
             pay_me(334),
         ];
         let (_own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
-        // If the utxo set from the storage is None it should set the confirmed bbalance to 0
+        // If the utxo set from the storage is None it should set the confirmed balance to 0
         assert_eq!(
-            get_total_balance(&all_utxos, None, own_pkh),
+            get_total_balance(&all_utxos, None, own_pkh, false),
             NodeBalance {
-                confirmed: 0,
+                confirmed: Some(0),
+                total: 1000,
+            }
+        );
+        // When using simple balance, both balances should be 1000
+        assert_eq!(
+            get_total_balance(&all_utxos, None, own_pkh, true),
+            NodeBalance {
+                confirmed: None,
                 total: 1000,
             }
         );
         // Assert the balance is 1000 when the superblock is confirmed
         assert_eq!(
-            get_total_balance(&all_utxos, Some(&all_utxos), own_pkh),
+            get_total_balance(&all_utxos, Some(&all_utxos), own_pkh, false),
             NodeBalance {
-                confirmed: 1000,
+                confirmed: Some(1000),
+                total: 1000,
+            }
+        );
+        // Assert the balance is 1000 when the superblock is confirmed when using simple balance
+        assert_eq!(
+            get_total_balance(&all_utxos, Some(&all_utxos), own_pkh, true),
+            NodeBalance {
+                confirmed: None,
                 total: 1000,
             }
         );
@@ -1224,17 +1248,33 @@ mod tests {
         let (mut _own_utxos, all_utxos_2) = build_utxo_set(outputs2, None, vec![]);
         // Assert the balance is 900 after paying 100 to Bob
         assert_eq!(
-            get_total_balance(&all_utxos_2, Some(&all_utxos), own_pkh),
+            get_total_balance(&all_utxos_2, Some(&all_utxos), own_pkh, false),
             NodeBalance {
-                confirmed: 1000,
+                confirmed: Some(1000),
                 total: 900,
             }
         );
-        // Asster Bob's balance is 100
+        // Assert both balances are 900 after paying 100 to Bob when using simple balance
         assert_eq!(
-            get_total_balance(&all_utxos_2, Some(&all_utxos), bob_pkh),
+            get_total_balance(&all_utxos_2, Some(&all_utxos), own_pkh, true),
             NodeBalance {
-                confirmed: 0,
+                confirmed: None,
+                total: 900,
+            }
+        );
+        // Assert Bob's balance is 100
+        assert_eq!(
+            get_total_balance(&all_utxos_2, Some(&all_utxos), bob_pkh, false),
+            NodeBalance {
+                confirmed: Some(0),
+                total: 100,
+            }
+        );
+        // Assert both of Bob's balance are 100 when using simple balance
+        assert_eq!(
+            get_total_balance(&all_utxos_2, Some(&all_utxos), bob_pkh, true),
+            NodeBalance {
+                confirmed: None,
                 total: 100,
             }
         );
@@ -1253,9 +1293,17 @@ mod tests {
         let (mut _own_utxos, all_utxos_3) = build_utxo_set(outputs3, None, vec![]);
         // Assert the balance is 1500 after receiving 600
         assert_eq!(
-            get_total_balance(&all_utxos_3, Some(&all_utxos_2), own_pkh),
+            get_total_balance(&all_utxos_3, Some(&all_utxos_2), own_pkh, false),
             NodeBalance {
-                confirmed: 900,
+                confirmed: Some(900),
+                total: 1500,
+            }
+        );
+        // Assert both balances are 1500 after receiving 600 when using simple balance
+        assert_eq!(
+            get_total_balance(&all_utxos_3, Some(&all_utxos_2), own_pkh, true),
+            NodeBalance {
+                confirmed: None,
                 total: 1500,
             }
         );

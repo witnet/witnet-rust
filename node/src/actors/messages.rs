@@ -243,6 +243,8 @@ impl Message for GetDataRequestInfo {
 pub struct GetBalance {
     /// Public key hash
     pub pkh: PublicKeyHash,
+    /// Distinguish between fetching a simple balance or fetching confirmed and unconfirmed balance
+    pub simple: bool,
 }
 
 impl Message for GetBalance {
