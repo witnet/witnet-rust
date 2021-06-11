@@ -44,20 +44,20 @@ use witnet_util::timestamp::get_timestamp;
 #[derive(Debug, Eq, Fail, PartialEq)]
 enum HandshakeError {
     #[fail(
-        display = "Received beacon is behind our beacon. Current beacon: {:?}, received beacon: {:?}",
+        display = "Received beacon is behind our beacon (or target beacon). Current beacon: {:?}, received beacon: {:?}",
         current_beacon, received_beacon
     )]
     PeerBeaconOld {
-        current_beacon: LastBeacon,
-        received_beacon: LastBeacon,
+        current_beacon: CheckpointBeacon,
+        received_beacon: CheckpointBeacon,
     },
     #[fail(
-        display = "Received beacon is on the same epoch but different block hash. Current beacon: {:?}, received beacon: {:?}",
+        display = "Received beacon is on the same superepoch but different superblock hash. Current beacon: {:?}, received beacon: {:?}",
         current_beacon, received_beacon
     )]
     PeerBeaconDifferentBlockHash {
-        current_beacon: LastBeacon,
-        received_beacon: LastBeacon,
+        current_beacon: CheckpointBeacon,
+        received_beacon: CheckpointBeacon,
     },
     #[fail(
         display = "Their epoch is different from ours. Current epoch: {}, received beacon: {:?}",
@@ -786,6 +786,7 @@ fn check_beacon_compatibility(
     current_beacon: &LastBeacon,
     received_beacon: &LastBeacon,
     current_epoch: Epoch,
+    target_superblock_beacon: Option<CheckpointBeacon>,
 ) -> Result<(), HandshakeError> {
     if received_beacon.highest_block_checkpoint.checkpoint > current_epoch {
         return Err(HandshakeError::DifferentEpoch {
@@ -794,21 +795,34 @@ fn check_beacon_compatibility(
         });
     }
 
-    match current_beacon
-        .highest_block_checkpoint
+    let my_beacon = if let Some(target_beacon) = target_superblock_beacon {
+        target_beacon
+    } else {
+        current_beacon.highest_superblock_checkpoint
+    };
+
+    match my_beacon
         .checkpoint
-        .cmp(&received_beacon.highest_block_checkpoint.checkpoint)
+        .cmp(&received_beacon.highest_superblock_checkpoint.checkpoint)
     {
         // current_checkpoint < received_checkpoint: received beacon is ahead of us
         Ordering::Less => Ok(()),
         // current_checkpoint > received_checkpoint: received beacon is behind us
-        Ordering::Greater => Err(HandshakeError::PeerBeaconOld {
-            current_beacon: current_beacon.clone(),
-            received_beacon: received_beacon.clone(),
-        }),
+        Ordering::Greater => {
+            log::debug!(
+                "Current SuperBlock beacon: {:?}",
+                current_beacon.highest_superblock_checkpoint
+            );
+            log::debug!("Target SuperBlock beacon: {:?}", my_beacon);
+
+            Err(HandshakeError::PeerBeaconOld {
+                current_beacon: my_beacon,
+                received_beacon: received_beacon.highest_superblock_checkpoint,
+            })
+        }
         // current_checkpoint == received_checkpoint
         Ordering::Equal => {
-            if current_beacon.highest_superblock_checkpoint.hash_prev_block
+            if my_beacon.hash_prev_block
                 == received_beacon
                     .highest_superblock_checkpoint
                     .hash_prev_block
@@ -816,9 +830,15 @@ fn check_beacon_compatibility(
                 // Beacons are equal
                 Ok(())
             } else {
+                log::debug!(
+                    "Current SuperBlock beacon: {:?}",
+                    current_beacon.highest_superblock_checkpoint
+                );
+                log::debug!("Target SuperBlock beacon: {:?}", my_beacon);
+
                 Err(HandshakeError::PeerBeaconDifferentBlockHash {
-                    current_beacon: current_beacon.clone(),
-                    received_beacon: received_beacon.clone(),
+                    current_beacon: my_beacon,
+                    received_beacon: received_beacon.highest_superblock_checkpoint,
                 })
             }
         }
@@ -865,7 +885,12 @@ fn handshake_version(
 
     match session.session_type {
         SessionType::Outbound | SessionType::Feeler => {
-            check_beacon_compatibility(current_beacon, received_beacon, current_epoch)?;
+            check_beacon_compatibility(
+                current_beacon,
+                received_beacon,
+                current_epoch,
+                session.superblock_beacon_target,
+            )?;
         }
         // Do not check beacon for inbound peers
         SessionType::Inbound => {}
@@ -1053,6 +1078,7 @@ fn process_superblock_vote(_session: &mut Session, superblock_vote: SuperBlockVo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use witnet_data_structures::chain::Hash;
 
     #[test]
     fn handshake_bootstrap_before_epoch_zero() {
@@ -1076,7 +1102,7 @@ mod tests {
         let current_epoch = 0;
 
         assert_eq!(
-            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch),
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
             Ok(())
         );
     }
@@ -1102,7 +1128,7 @@ mod tests {
         let current_epoch = 1;
 
         assert_eq!(
-            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch),
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
             Ok(()),
         );
     }
@@ -1137,69 +1163,109 @@ mod tests {
         };
         let current_epoch = 1;
 
-        // We cannot peer with the other node
+        // Both nodes can peer because they share the same superblock
         assert_eq!(
-            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch),
-            Err(HandshakeError::PeerBeaconOld {
-                current_beacon: current_beacon.clone(),
-                received_beacon: received_beacon.clone(),
-            })
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
+            Ok(())
         );
-        // But the other node can peer with us and start syncing
         assert_eq!(
-            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch),
+            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch, None),
             Ok(())
         );
     }
 
     #[test]
-    #[ignore]
-    fn handshake_between_forked_nodes() {
+    fn handshake_between_node_at_superepoch_0_and_node_at_superepoch_1() {
+        let genesis_hash = "1111111111111111111111111111111111111111111111111111111111111111"
+            .parse()
+            .unwrap();
+        let hash_block_10 = "aa11111111111111111111111111111111111111111111111111111111111111"
+            .parse()
+            .unwrap();
+        let hash_superblock_1 = "aaaa111111111111111111111111111111111111111111111111111111111111"
+            .parse()
+            .unwrap();
+        let current_beacon = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                hash_prev_block: hash_block_10,
+                checkpoint: 10,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                hash_prev_block: hash_superblock_1,
+                checkpoint: 1,
+            },
+        };
+        let received_beacon = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                hash_prev_block: genesis_hash,
+                checkpoint: 0,
+            },
+        };
+        let current_epoch = 10;
+
+        // We cannot peer with the other node
+        assert_eq!(
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
+            Err(HandshakeError::PeerBeaconOld {
+                current_beacon: current_beacon.highest_superblock_checkpoint,
+                received_beacon: received_beacon.highest_superblock_checkpoint,
+            })
+        );
+        // But the other node can peer with us and start syncing
+        assert_eq!(
+            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch, None),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn handshake_between_superforked_nodes() {
         let hash_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             .parse()
             .unwrap();
         let hash_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
             .parse()
             .unwrap();
-        let genesis_hash = "1111111111111111111111111111111111111111111111111111111111111111"
-            .parse()
-            .unwrap();
         let current_beacon = LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
-                hash_prev_block: hash_a,
-                checkpoint: 1,
+                hash_prev_block: Hash::default(),
+                checkpoint: 10,
             },
             highest_superblock_checkpoint: CheckpointBeacon {
-                hash_prev_block: genesis_hash,
-                checkpoint: 0,
+                hash_prev_block: hash_a,
+                checkpoint: 1,
             },
         };
         let received_beacon = LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
+                hash_prev_block: Hash::default(),
+                checkpoint: 10,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
                 hash_prev_block: hash_b,
                 checkpoint: 1,
             },
-            highest_superblock_checkpoint: CheckpointBeacon {
-                hash_prev_block: genesis_hash,
-                checkpoint: 0,
-            },
         };
-        let current_epoch = 1;
+        let current_epoch = 10;
 
         // We cannot peer with the other node
         assert_eq!(
-            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch),
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
             Err(HandshakeError::PeerBeaconDifferentBlockHash {
-                current_beacon: current_beacon.clone(),
-                received_beacon: received_beacon.clone(),
+                current_beacon: current_beacon.highest_superblock_checkpoint,
+                received_beacon: received_beacon.highest_superblock_checkpoint,
             })
         );
         // And the other node cannot peer with us
         assert_eq!(
-            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch),
+            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch, None),
             Err(HandshakeError::PeerBeaconDifferentBlockHash {
-                current_beacon: received_beacon,
-                received_beacon: current_beacon,
+                current_beacon: received_beacon.highest_superblock_checkpoint,
+                received_beacon: current_beacon.highest_superblock_checkpoint,
             })
         );
     }

@@ -19,7 +19,7 @@ use crate::actors::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropAllPeers,
         DropOutboundPeers, EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions,
         NumSessionsResult, PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult,
-        SetLastBeacon, SetPeersLimits, TryMineBlock, Unregister,
+        SetLastBeacon, SetPeersLimits, SetSuperBlockTargetBeacon, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -68,6 +68,8 @@ impl Handler<Create> for SessionsManager {
             }
         };
 
+        let target_superblock = self.superblock_beacon_target;
+
         // Refuse creating multiple inbound sessions for similar IP ranges
         // This is guarded once here and again when consolidating, just to mitigate a possible race
         // condition
@@ -102,6 +104,7 @@ impl Handler<Create> for SessionsManager {
                 current_epoch,
                 last_beacon,
                 config,
+                target_superblock,
             )
         });
     }
@@ -470,6 +473,14 @@ impl Handler<SetLastBeacon> for SessionsManager {
 
     fn handle(&mut self, msg: SetLastBeacon, _ctx: &mut Context<Self>) -> Self::Result {
         self.last_beacon = Some(msg.beacon);
+    }
+}
+
+impl Handler<SetSuperBlockTargetBeacon> for SessionsManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetSuperBlockTargetBeacon, _ctx: &mut Context<Self>) -> Self::Result {
+        self.superblock_beacon_target = msg.beacon;
     }
 }
 

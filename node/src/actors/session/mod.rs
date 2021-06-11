@@ -15,6 +15,7 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 use crate::actors::{codec::P2PCodec, messages::LogMessage, sessions_manager::SessionsManager};
 use bytes::BytesMut;
 use tokio::net::tcp::OwnedWriteHalf;
+use witnet_data_structures::chain::CheckpointBeacon;
 
 mod actor;
 
@@ -87,6 +88,9 @@ pub struct Session {
 
     /// Expected number of "peers" message from this peer
     expected_peers_msg: u8,
+
+    /// Superblock beacon target
+    superblock_beacon_target: Option<CheckpointBeacon>,
 }
 
 /// Session helper methods
@@ -102,6 +106,7 @@ impl Session {
         current_epoch: Epoch,
         last_beacon: LastBeacon,
         config: Arc<Config>,
+        superblock_beacon_target: Option<CheckpointBeacon>,
     ) -> Session {
         Session {
             public_addr,
@@ -119,6 +124,7 @@ impl Session {
             blocks_timestamp: 0,
             config,
             expected_peers_msg: 0,
+            superblock_beacon_target,
         }
     }
 

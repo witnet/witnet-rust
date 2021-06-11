@@ -78,7 +78,7 @@ use crate::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
             GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
             SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-            StoreInventoryItem, SuperBlockNotify,
+            SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -1485,6 +1485,11 @@ impl ChainManager {
                         .superblock_state
                         .set_current_superblock(superblock.clone());
 
+                    // Remove superblock beacon target in order to use our own SuperBlockBeacon that
+                    // in this case is the same that the consensus one
+                    let sessions_manager_addr = SessionsManager::from_registry();
+                    sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: None});
+
                     actix::fut::ok(superblock)
                 }
                 SuperBlockConsensus::Different(target_superblock_hash) => {
@@ -1513,6 +1518,12 @@ impl ChainManager {
                     let sessions_manager_addr = SessionsManager::from_registry();
                     sessions_manager_addr.do_send(DropOutboundPeers {peers_to_drop: peers_to_unregister});
 
+                    // Include superblock beacon target in SessionsManager
+                    sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: Some(CheckpointBeacon{
+                        checkpoint: voted_superblock_beacon.checkpoint,
+                        hash_prev_block: target_superblock_hash,
+                    })});
+
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
 
@@ -1535,6 +1546,10 @@ impl ChainManager {
                                    act.chain_state.superblock_state.get_committee_length()
                         );
                     }
+
+                    // Remove superblock beacon target in SessionsManager
+                    let sessions_manager_addr = SessionsManager::from_registry();
+                    sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: None});
 
                     act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 
@@ -1560,6 +1575,10 @@ impl ChainManager {
                                    act.chain_state.superblock_state.get_committee_length()
                         );
                     }
+
+                    // Remove superblock beacon target in SessionsManager
+                    let sessions_manager_addr = SessionsManager::from_registry();
+                    sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: None});
 
                     act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 

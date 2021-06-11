@@ -24,7 +24,7 @@ use crate::actors::{
 use failure::Fail;
 use witnet_config::config::Config;
 use witnet_data_structures::{
-    chain::{Epoch, EpochConstants},
+    chain::{CheckpointBeacon, Epoch, EpochConstants},
     types::LastBeacon,
 };
 
@@ -50,6 +50,8 @@ pub struct SessionsManager {
     logging_messages: HashSet<String>,
     // Reference to config
     config: Option<Arc<Config>>,
+    // SuperBlock target
+    superblock_beacon_target: Option<CheckpointBeacon>,
 }
 
 #[derive(Debug, Fail)]
