@@ -35,10 +35,7 @@ export CLIPPY_LINTS := '-D warnings
     -D clippy::checked-conversions
     -A clippy::field-reassign-with-default
     -A clippy::upper-case-acronyms
-    -A clippy::inconsistent-struct-constructor
 '
-
-export RUSTFLAGS := '-A soft_unstable'
 
 # run clippy
 clippy +flags="":

@@ -10,7 +10,6 @@ jobs:
     env:
       ROCKSDB_LIB_DIR: /usr/lib/
       RUST_BACKTRACE: 1
-      RUSTFLAGS: -A soft_unstable
       CLIPPY_LINTS: >-
         -D warnings
         -D clippy::cast-lossless
@@ -21,7 +20,6 @@ jobs:
         -D clippy::checked-conversions
         -A clippy::field-reassign-with-default
         -A clippy::upper-case-acronyms
-        -A clippy::inconsistent-struct-constructor
 
     steps:
       - uses: actions/checkout@v1
