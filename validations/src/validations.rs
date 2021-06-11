@@ -2114,11 +2114,16 @@ pub fn calculate_reppoe_threshold(
     // Add 1 to reputation because otherwise a node with 0 reputation would
     // never be eligible for a data request
     let my_eligibility = u64::from(rep_eng.get_eligibility(pkh)) + 1;
-    let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
 
     let max = u64::max_value();
     // Compute target eligibility and hard-cap it if required
-    let target = if active_wips.third_hard_fork() {
+    let target = if active_wips.wip0016() {
+        let factor = u64::from(num_witnesses);
+        (max / std::cmp::max(total_active_rep, u64::from(minimum_difficulty)))
+            .saturating_mul(my_eligibility)
+            .saturating_mul(factor)
+    } else if active_wips.third_hard_fork() {
+        let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
         // Eligibility must never be greater than (max/minimum_difficulty)
         std::cmp::min(
             max / u64::from(minimum_difficulty),
@@ -2126,6 +2131,7 @@ pub fn calculate_reppoe_threshold(
         )
         .saturating_mul(factor)
     } else {
+        let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
         // Check for overflow: when the probability is more than 100%, cap it to 100%
         (max / total_active_rep)
             .saturating_mul(my_eligibility)
