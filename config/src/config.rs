@@ -885,7 +885,7 @@ impl Wallet {
     pub fn from_partial(config: &PartialWallet, defaults: &dyn Defaults) -> Self {
         Wallet {
             testnet: config.testnet,
-            session_expires_in: config.session_expires_in.unwrap_or(3_600),
+            session_expires_in: config.session_expires_in.unwrap_or(900),
             requests_timeout: config.requests_timeout.unwrap_or(5_000),
             server_addr: config
                 .server_addr
