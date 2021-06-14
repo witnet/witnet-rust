@@ -834,6 +834,36 @@ impl PeersBeacons {
             .collect()
     }
 
+    /// Ignore beacons that are old or has a different hash if is the same super epoch
+    pub fn ignore_no_consensus_beacons(&mut self, superbeacon: CheckpointBeacon) {
+        let mut valid_peers = vec![];
+
+        for (addr, last_beacon) in &self.pb {
+            if let Some(last_beacon) = last_beacon {
+                // Ignore beacons that would have an old superblock checkpoint
+                if last_beacon.highest_superblock_checkpoint.checkpoint < superbeacon.checkpoint
+                    // Ignore beacons that are different from the consensus superblock
+                    || (last_beacon.highest_superblock_checkpoint.checkpoint
+                        == superbeacon.checkpoint
+                        && last_beacon.highest_superblock_checkpoint != superbeacon)
+                {
+                    // Peers out of consensus there will be handle as no beacon peers
+                    log::debug!("LastBeacon from: {} was set to NO_BEACON", *addr);
+                    valid_peers.push((*addr, None));
+
+                // Do not ignore beacons with newer superblock beacon or with the same as consensus
+                } else {
+                    valid_peers.push((*addr, Some(last_beacon.clone())))
+                }
+            } else {
+                // No beacons
+                valid_peers.push((*addr, None));
+            }
+        }
+
+        self.pb = valid_peers;
+    }
+
     /// Collects the peers that have not sent us a beacon
     pub fn peers_with_no_beacon(&self) -> Vec<SocketAddr> {
         // Unregister peers which have not sent us a beacon
@@ -849,7 +879,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
     // FIXME(#676): Remove clippy skip error
     #[allow(clippy::cognitive_complexity)]
-    fn handle(&mut self, peers_beacons: PeersBeacons, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, mut peers_beacons: PeersBeacons, ctx: &mut Context<Self>) -> Self::Result {
         log::debug!(
             "PeersBeacons received while StateMachine is in state {:?}",
             self.sm_state
@@ -860,6 +890,11 @@ impl Handler<PeersBeacons> for ChainManager {
         // Activate peers beacons index to continue synced
         if !peers_beacons.pb.is_empty() {
             self.peers_beacons_received = true;
+        }
+
+        // Remove beacons that not are compatible with the last superblock consensus
+        if let Some(last_superblock_consensus) = self.last_superblock_consensus {
+            peers_beacons.ignore_no_consensus_beacons(last_superblock_consensus);
         }
 
         // Calculate the consensus, or None if there is no consensus
@@ -874,7 +909,13 @@ impl Handler<PeersBeacons> for ChainManager {
                 (usize::from(x) * consensus_threshold + 99) / 100
             })
             .unwrap_or(1);
+
         let peers_with_no_beacon = peers_beacons.peers_with_no_beacon();
+        // Ice peers with no beacon (or out of last superblock consensus)
+        for peer in &peers_with_no_beacon {
+            self.ice_peer(Some(*peer));
+        }
+
         let peers_to_unregister = if let Some((consensus, is_there_block_consensus)) =
             beacon_consensus.as_ref()
         {
@@ -886,7 +927,7 @@ impl Handler<PeersBeacons> for ChainManager {
         } else if pb_len < peers_needed_for_consensus {
             // Not enough outbound peers, do not unregister any peers
             log::debug!(
-                "Got {} peers but need at least {} to calculate the consensus",
+                "Got {} peers after filtering but need at least {} to calculate the consensus",
                 pb_len,
                 peers_needed_for_consensus
             );
@@ -1070,7 +1111,8 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         // If we are synced, it does not matter what blocks have been consolidated
                         // by our outbound peers, we will stay synced until the next superblock
-                        // vote
+                        // vote. We will remove those that are different from the last consensus or
+                        // peers that did not send any beacon
 
                         Ok(peers_with_no_beacon)
                     }
@@ -1092,9 +1134,10 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         // If we are synced, it does not matter what blocks have been consolidated
                         // by our outbound peers, we will stay synced until the next superblock
-                        // vote
+                        // vote. We will remove those that are different from the last consensus or
+                        // peers that has a block different to us
 
-                        Ok(peers_with_no_beacon)
+                        Ok(peers_to_unregister)
                     }
                 }
             }

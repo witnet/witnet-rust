@@ -219,6 +219,8 @@ pub struct ChainManager {
     max_reinserted_transactions: usize,
     /// Last received Beacons
     last_received_beacons: Vec<(SocketAddr, Option<LastBeacon>)>,
+    /// Last SuperBlock consensus
+    last_superblock_consensus: Option<CheckpointBeacon>,
 }
 
 /// Wrapper around a block candidate that contains additional metadata regarding
@@ -1496,6 +1498,9 @@ impl ChainManager {
                         },
                     });
 
+                    // Update last superblock consensus in ChainManager
+                    act.last_superblock_consensus = Some(voted_superblock_beacon);
+
                     // Remove superblock beacon target in order to use our own SuperBlockBeacon that
                     // in this case is the same that the consensus one
                     sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: None});
@@ -1514,25 +1519,17 @@ impl ChainManager {
                         act.chain_state.superblock_state.get_committee_length()
                     );
 
-                    // We are on a different chain than the one dictated by the network. Thus we need
-                    // to throw away those outbound peers that were in the wrong consensus with us, and
-                    // find new ones that can give us the blocks consolidated by the network
-                    let mut peers_to_unregister: Vec<SocketAddr> = Vec::new();
-                    for (addr, peer_beacon) in act.last_received_beacons.iter() {
-                        if let Some(peer_beacon) = peer_beacon {
-                            if peer_beacon.highest_block_checkpoint == act.get_chain_beacon() {
-                                peers_to_unregister.push(*addr)
-                            }
-                        }
-                    };
-                    let sessions_manager_addr = SessionsManager::from_registry();
-                    sessions_manager_addr.do_send(DropOutboundPeers {peers_to_drop: peers_to_unregister});
-
-                    // Include superblock beacon target in SessionsManager
-                    sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: Some(CheckpointBeacon{
+                    let consensus_superblock = CheckpointBeacon{
                         checkpoint: voted_superblock_beacon.checkpoint,
                         hash_prev_block: target_superblock_hash,
-                    })});
+                    };
+
+                    // Include superblock beacon target in SessionsManager
+                    let sessions_manager_addr = SessionsManager::from_registry();
+                    sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: Some(consensus_superblock)});
+
+                    // Update last superblock consensus in ChainManager
+                    act.last_superblock_consensus = Some(consensus_superblock);
 
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus);
