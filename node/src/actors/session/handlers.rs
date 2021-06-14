@@ -180,13 +180,33 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                 try_consolidate_session(self, ctx);
                             }
                             Err(err) => {
-                                if session_type == SessionType::Feeler {
-                                    let peers_manager_addr = PeersManager::from_registry();
-                                    // Ice the peer that was an error
+                                let peers_manager_addr = PeersManager::from_registry();
+                                if let HandshakeError::DifferentTimestamp { .. } = err {
                                     peers_manager_addr.do_send(RemoveAddressesFromTried {
                                         addresses: vec![self.remote_addr],
                                         ice: true,
                                     });
+                                } else if let HandshakeError::DifferentEpoch { .. } = err {
+                                    peers_manager_addr.do_send(RemoveAddressesFromTried {
+                                        addresses: vec![self.remote_addr],
+                                        ice: true,
+                                    });
+                                } else if session_type == SessionType::Feeler
+                                    || session_type == SessionType::Outbound
+                                {
+                                    // Ice the peer that was an error, except epochs where superblock is updated.
+                                    // During superblock updates, there will be nodes perfectly synced that they
+                                    // are in the process of updating the superblock field for handshaking, and
+                                    // icing them would be an error.
+                                    if self.current_epoch % 10 != 0 {
+                                        peers_manager_addr.do_send(RemoveAddressesFromTried {
+                                            addresses: vec![self.remote_addr],
+                                            ice: true,
+                                        });
+                                    }
+                                }
+
+                                if session_type == SessionType::Feeler {
                                     log::debug!(
                                         "Dropping feeler connection {}: {}",
                                         self.remote_addr,

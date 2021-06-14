@@ -172,11 +172,11 @@ impl Handler<Unregister> for SessionsManager {
                         self.beacons.remove(&msg.address);
 
                         let peers_manager_addr = PeersManager::from_registry();
-                        // Ice the peer that was unregistered
+
                         peers_manager_addr.do_send(RemoveAddressesFromTried {
                             // Use the address to which we connected to, not the public address reported by the peer
                             addresses: vec![msg.address],
-                            ice: true,
+                            ice: false,
                         });
                     }
                 }
