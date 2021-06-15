@@ -5321,6 +5321,7 @@ dependencies = [
  "failure",
  "itertools",
  "log 0.4.11",
+ "witnet_config",
  "witnet_crypto",
  "witnet_data_structures",
  "witnet_protected",
