@@ -1163,6 +1163,7 @@ impl ChainManager {
                 chain_info.consensus_constants.collateral_age,
                 chain_info.consensus_constants.max_vt_weight,
                 chain_info.consensus_constants.max_dr_weight,
+                chain_info.consensus_constants.minimum_difficulty,
                 &active_wips,
             ))
             .into_actor(self)

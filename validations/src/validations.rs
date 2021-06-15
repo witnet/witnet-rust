@@ -836,6 +836,7 @@ pub fn validate_commit_transaction(
     collateral_minimum: u64,
     collateral_age: u32,
     block_number: u32,
+    minimum_reppoe_difficulty: u32,
     active_wips: &ActiveWips,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
@@ -916,8 +917,6 @@ pub fn validate_commit_transaction(
     let pkh = proof_pkh;
     let backup_witnesses = dr_state.backup_witnesses();
     let num_witnesses = dr_output.witnesses + backup_witnesses;
-    // TODO: pass difficulty as an argument to this function (from consensus constants)
-    let minimum_reppoe_difficulty = 2000;
     let (target_hash, _) = calculate_reppoe_threshold(
         rep_eng,
         &pkh,
@@ -1716,6 +1715,7 @@ pub fn validate_block_transactions(
             consensus_constants.collateral_minimum,
             consensus_constants.collateral_age,
             block_number,
+            consensus_constants.minimum_difficulty,
             active_wips,
         )?;
 
@@ -2026,6 +2026,7 @@ pub fn validate_new_transaction(
     collateral_age: u32,
     max_vt_weight: u32,
     max_dr_weight: u32,
+    minimum_reppoe_difficulty: u32,
     active_wips: &ActiveWips,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
@@ -2063,6 +2064,7 @@ pub fn validate_new_transaction(
             collateral_minimum,
             collateral_age,
             block_number,
+            minimum_reppoe_difficulty,
             active_wips,
         )
         .map(|(_, _, fee)| fee),

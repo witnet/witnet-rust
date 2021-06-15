@@ -2326,6 +2326,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let collateral_minimum = 1;
     let collateral_age = 1;
     let block_number = 0;
+    let minimum_reppoe_difficulty = 1;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     validate_commit_transaction(
@@ -2340,6 +2341,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         collateral_minimum,
         collateral_age,
         block_number,
+        minimum_reppoe_difficulty,
         &all_wips_active(),
     )
     .map(|_| ())
@@ -2356,6 +2358,7 @@ fn test_commit_with_dr_and_utxo_set(
     let utxo_diff = UtxoDiff::new(utxo_set, 0);
     let collateral_minimum = 1;
     let collateral_age = 1;
+    let minimum_reppoe_difficulty = 1;
 
     let mut dr_pool = DataRequestPool::default();
     let vrf_input = CheckpointVRF::default();
@@ -2392,6 +2395,7 @@ fn test_commit_with_dr_and_utxo_set(
         collateral_minimum,
         collateral_age,
         block_number,
+        minimum_reppoe_difficulty,
         &all_wips_active(),
     )?;
     verify_signatures_test(signatures_to_verify)?;
@@ -2452,6 +2456,7 @@ fn test_commit_difficult_proof() {
     let block_number = 100_000;
     let collateral_minimum = 1;
     let collateral_age = 1;
+    let minimum_reppoe_difficulty = 1;
     let utxo_diff = UtxoDiff::new(&utxo_set, 0);
     let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
@@ -2481,6 +2486,7 @@ fn test_commit_difficult_proof() {
         collateral_minimum,
         collateral_age,
         block_number,
+        minimum_reppoe_difficulty,
         &active_wips,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
@@ -2534,6 +2540,7 @@ fn test_commit_with_collateral(
     let collateral_minimum = 1;
     let collateral_age = 10;
     let utxo_diff = UtxoDiff::new(&utxo_set, 0);
+    let minimum_reppoe_difficulty = 1;
 
     let (inputs, outputs) = collateral;
     cb.collateral = inputs;
@@ -2555,6 +2562,7 @@ fn test_commit_with_collateral(
         collateral_minimum,
         collateral_age,
         block_number,
+        minimum_reppoe_difficulty,
         &all_wips_active(),
     )
     .map(|_| ())
@@ -2759,6 +2767,7 @@ fn commitment_invalid_proof() {
     let block_number = 100_000;
     let collateral_minimum = 1;
     let collateral_age = 1;
+    let minimum_reppoe_difficulty = 1;
     let utxo_diff = UtxoDiff::new(&utxo_set, 0);
     let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
@@ -2798,6 +2807,7 @@ fn commitment_invalid_proof() {
         collateral_minimum,
         collateral_age,
         block_number,
+        minimum_reppoe_difficulty,
         &all_wips_active(),
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
@@ -2819,6 +2829,7 @@ fn commitment_dr_in_reveal_stage() {
     let block_number = 0;
     let collateral_minimum = 1;
     let collateral_age = 1;
+    let minimum_reppoe_difficulty = 1;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     let mut dr_pool = DataRequestPool::default();
@@ -2872,6 +2883,7 @@ fn commitment_dr_in_reveal_stage() {
         collateral_minimum,
         collateral_age,
         block_number,
+        minimum_reppoe_difficulty,
         &all_wips_active(),
     );
     assert_eq!(
@@ -3233,6 +3245,7 @@ fn commitment_collateral_zero_is_minimum() {
         let block_number = 100_000;
         let collateral_minimum = 1;
         let collateral_age = 1;
+        let minimum_reppoe_difficulty = 1;
         let utxo_diff = UtxoDiff::new(&utxo_set, 0);
 
         let (inputs, outputs) = collateral;
@@ -3255,6 +3268,7 @@ fn commitment_collateral_zero_is_minimum() {
             collateral_minimum,
             collateral_age,
             block_number,
+            minimum_reppoe_difficulty,
             &all_wips_active(),
         )
         .map(|_| ())
@@ -3319,6 +3333,7 @@ fn commitment_timelock() {
         let block_number = 100_000;
         let collateral_minimum = 1;
         let collateral_age = 1;
+        let minimum_reppoe_difficulty = 1;
         let utxo_diff = UtxoDiff::new(&utxo_set, 0);
         let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
@@ -3344,6 +3359,7 @@ fn commitment_timelock() {
             collateral_minimum,
             collateral_age,
             block_number,
+            minimum_reppoe_difficulty,
             &active_wips,
         )
         .map(|_| ())?;
@@ -8570,7 +8586,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             bootstrap_hash: Default::default(),
             mining_replication_factor: 0,
             extra_rounds: 0,
-            minimum_difficulty: 0,
+            minimum_difficulty: 1,
             epochs_with_minimum_difficulty: 0,
             superblock_signing_committee_size: 100,
             superblock_committee_decreasing_period: 100,

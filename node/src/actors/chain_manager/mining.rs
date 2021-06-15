@@ -289,6 +289,8 @@ impl ChainManager {
         let current_epoch = self.current_epoch.unwrap();
         let data_request_timeout = self.data_request_timeout;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
+        let consensus_constants = self.consensus_constants();
+        let minimum_reppoe_difficulty = consensus_constants.minimum_difficulty;
 
         // Data Request mining
         let dr_pointers = self
@@ -333,8 +335,6 @@ impl ChainManager {
                 ..vrf_input
             };
 
-            // TODO: pass difficulty as an argument to this function (from consensus constants)
-            let minimum_reppoe_difficulty = 2000;
             let active_wips = ActiveWips {
                 active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: current_epoch,
