@@ -1,6 +1,7 @@
 //! # Storage Manager
 //!
 //! This module provides a Storage Manager
+use std::any::{Any, TypeId};
 use std::future;
 use std::sync::Arc;
 
@@ -10,6 +11,7 @@ use futures::Future;
 
 use crate::config_mngr;
 use witnet_config::{config, config::Config};
+use witnet_data_structures::chain::ChainState;
 use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
 use witnet_storage::{backends, storage};
 
@@ -39,8 +41,13 @@ pub fn start_from_config(config: Config) {
 pub fn get<K, T>(key: &K) -> impl Future<Output = Result<Option<T>, failure::Error>>
 where
     K: serde::Serialize,
-    T: serde::de::DeserializeOwned,
+    T: serde::de::DeserializeOwned + 'static,
 {
+    // Check that we don't accidentally use this function with some certain special types
+    if TypeId::of::<T>() == TypeId::of::<ChainState>() {
+        panic!("Please use get_chain_state instead");
+    }
+
     let addr = StorageManagerAdapter::from_registry();
 
     let key_bytes = match serialize(key) {
@@ -67,8 +74,13 @@ where
 pub fn put<K, V>(key: &K, value: &V) -> impl Future<Output = Result<(), failure::Error>>
 where
     K: serde::Serialize,
-    V: serde::Serialize,
+    V: serde::Serialize + Any,
 {
+    // Check that we don't accidentally use this function with some certain special types
+    if value.type_id() == TypeId::of::<ChainState>() {
+        panic!("Please use put_chain_state instead");
+    }
+
     let addr = StorageManagerAdapter::from_registry();
 
     let key_bytes = match serialize(key) {
