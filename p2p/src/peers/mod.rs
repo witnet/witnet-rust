@@ -408,7 +408,7 @@ impl Peers {
     /// Put a peer address into the ice bucket using the provided timestamp as the tag for tracking
     /// when the address became iced.
     pub fn ice_peer_address_pure(&mut self, address: &SocketAddr, timestamp: i64) -> bool {
-        log::trace!("Putting peer address {} into the ice bucket", address);
+        log::debug!("Putting peer address {} into the ice bucket", address);
 
         self.ice_bucket.insert(*address, timestamp);
 

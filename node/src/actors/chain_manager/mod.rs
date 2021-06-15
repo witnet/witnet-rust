@@ -69,7 +69,6 @@ use witnet_validations::validations::{
     validate_new_transaction, verify_signatures, VrfSlots,
 };
 
-use crate::actors::messages::SetLastBeacon;
 use crate::{
     actors::{
         chain_manager::handlers::SYNCED_BANNER,
@@ -79,7 +78,7 @@ use crate::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
             GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
             SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-            SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
+            SetLastBeacon, SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -1488,6 +1487,9 @@ impl ChainManager {
                         .superblock_state
                         .set_current_superblock(superblock.clone());
 
+                    // Update last superblock consensus in ChainManager
+                    act.last_superblock_consensus = Some(voted_superblock_beacon);
+
                     // Set last beacon in sessions manager
                     let sessions_manager_addr = SessionsManager::from_registry();
                     let chain_beacon = act.get_chain_beacon();
@@ -1497,9 +1499,6 @@ impl ChainManager {
                             highest_superblock_checkpoint: voted_superblock_beacon,
                         },
                     });
-
-                    // Update last superblock consensus in ChainManager
-                    act.last_superblock_consensus = Some(voted_superblock_beacon);
 
                     // Remove superblock beacon target in order to use our own SuperBlockBeacon that
                     // in this case is the same that the consensus one
@@ -1524,7 +1523,8 @@ impl ChainManager {
                         hash_prev_block: target_superblock_hash,
                     };
 
-                    // Include superblock beacon target in SessionsManager
+                    // Include superblock target beacon in SessionsManager
+                    // This allow to look for peers that are currently synced in the last superblock consensus
                     let sessions_manager_addr = SessionsManager::from_registry();
                     sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: Some(consensus_superblock)});
 

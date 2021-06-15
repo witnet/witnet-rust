@@ -198,10 +198,11 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                 } else if session_type == SessionType::Feeler
                                     || session_type == SessionType::Outbound
                                 {
-                                    // Ice the peer that was an error, except epochs where superblock is updated.
-                                    // During superblock updates, there will be nodes perfectly synced that they
-                                    // are in the process of updating the superblock field for handshaking, and
-                                    // icing them would be an error.
+                                    // Ice the peer who failed to complete a successful handshake, except in epochs
+                                    // where superblock is updated.
+                                    // During superblock updates, there will be nodes that are perfectly synced
+                                    // yet they are in the process of updating their superblock field for handshaking,
+                                    // so mistakenly icing them would be wrong.
                                     if self.current_epoch % 10 != 0 {
                                         // Remove this address from tried bucket and ice it
                                         self.remove_and_ice_peer();
@@ -820,6 +821,9 @@ fn check_beacon_compatibility(
         });
     }
 
+    // In order to improve the synchronization process, if we have information about the last
+    // superblock consensus achieved by more than 2/3 of the signing committee, we will use it
+    // to check the beacon compatibility instead of our own beacon
     let my_beacon = if let Some(target_beacon) = target_superblock_beacon {
         target_beacon
     } else {
@@ -834,11 +838,11 @@ fn check_beacon_compatibility(
         Ordering::Less => Ok(()),
         // current_checkpoint > received_checkpoint: received beacon is behind us
         Ordering::Greater => {
-            log::debug!(
+            log::trace!(
                 "Current SuperBlock beacon: {:?}",
                 current_beacon.highest_superblock_checkpoint
             );
-            log::debug!("Target SuperBlock beacon: {:?}", my_beacon);
+            log::trace!("Target SuperBlock beacon: {:?}", my_beacon);
 
             Err(HandshakeError::PeerBeaconOld {
                 current_beacon: my_beacon,
@@ -855,11 +859,11 @@ fn check_beacon_compatibility(
                 // Beacons are equal
                 Ok(())
             } else {
-                log::debug!(
+                log::trace!(
                     "Current SuperBlock beacon: {:?}",
                     current_beacon.highest_superblock_checkpoint
                 );
-                log::debug!("Target SuperBlock beacon: {:?}", my_beacon);
+                log::trace!("Target SuperBlock beacon: {:?}", my_beacon);
 
                 Err(HandshakeError::PeerBeaconDifferentBlockHash {
                     current_beacon: my_beacon,

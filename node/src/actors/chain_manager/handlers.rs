@@ -836,32 +836,21 @@ impl PeersBeacons {
 
     /// Ignore beacons that are old or has a different hash if is the same super epoch
     pub fn ignore_no_consensus_beacons(&mut self, superbeacon: CheckpointBeacon) {
-        let mut valid_peers = vec![];
-
-        for (addr, last_beacon) in &self.pb {
-            if let Some(last_beacon) = last_beacon {
-                // Ignore beacons that would have an old superblock checkpoint
+        for (addr, last_beacon_opt) in &mut self.pb {
+            if let Some(last_beacon) = last_beacon_opt {
+                // Ignore beacons that point to an old superblock checkpoint
                 if last_beacon.highest_superblock_checkpoint.checkpoint < superbeacon.checkpoint
-                    // Ignore beacons that are different from the consensus superblock
+                    // Ignore beacons that do not point to the right consensus superblock
                     || (last_beacon.highest_superblock_checkpoint.checkpoint
                         == superbeacon.checkpoint
                         && last_beacon.highest_superblock_checkpoint != superbeacon)
                 {
-                    // Peers out of consensus there will be handle as no beacon peers
+                    // Peers out of consensus will be treated the same as peers from which we receive no beacon
                     log::debug!("LastBeacon from: {} was set to NO_BEACON", *addr);
-                    valid_peers.push((*addr, None));
-
-                // Do not ignore beacons with newer superblock beacon or with the same as consensus
-                } else {
-                    valid_peers.push((*addr, Some(last_beacon.clone())))
+                    *last_beacon_opt = None;
                 }
-            } else {
-                // No beacons
-                valid_peers.push((*addr, None));
             }
         }
-
-        self.pb = valid_peers;
     }
 
     /// Collects the peers that have not sent us a beacon
@@ -911,7 +900,7 @@ impl Handler<PeersBeacons> for ChainManager {
             .unwrap_or(1);
 
         let peers_with_no_beacon = peers_beacons.peers_with_no_beacon();
-        // Ice peers with no beacon (or out of last superblock consensus)
+        // Ice peers with a beacon that does not point to last consensus superblock, or provided no beacon at all
         for peer in &peers_with_no_beacon {
             self.ice_peer(Some(*peer));
         }
@@ -927,7 +916,7 @@ impl Handler<PeersBeacons> for ChainManager {
         } else if pb_len < peers_needed_for_consensus {
             // Not enough outbound peers, do not unregister any peers
             log::debug!(
-                "Got {} peers after filtering but need at least {} to calculate the consensus",
+                "Got {} peers but need at least {} to calculate the consensus",
                 pb_len,
                 peers_needed_for_consensus
             );
@@ -1137,7 +1126,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         // vote. We will remove those that are different from the last consensus or
                         // peers that has a block different to us
 
-                        Ok(peers_to_unregister)
+                        Ok(peers_with_no_beacon)
                     }
                 }
             }

@@ -26,7 +26,7 @@ impl Actor for Session {
         // Set Handshake timeout for stopping actor if session is still unconsolidated after given period of time
         ctx.run_later(self.config.connections.handshake_timeout, |act, ctx| {
             if act.status != SessionStatus::Consolidated {
-                log::info!(
+                log::debug!(
                     "Handshake timeout expired, disconnecting session with peer {:?}",
                     act.remote_addr
                 );

@@ -35,22 +35,24 @@ mod handlers;
 /// SessionsManager actor
 #[derive(Default)]
 pub struct SessionsManager {
-    // Registered Sessions
+    /// Registered Sessions
     sessions: Sessions<Addr<Session>>,
-    // List of beacons of outbound sessions
+    /// List of beacons of outbound sessions
     beacons: Beacons,
-    // Constants used to calculate instants in time
+    /// Constants used to calculate instants in time
     epoch_constants: Option<EpochConstants>,
-    // Current epoch
+    /// Current epoch
     current_epoch: Epoch,
-    // Current tip of the chain, used to check if outbound peers are in consensus when connecting
-    // Note that the sessions manager will not be able to create any sessions if this field is None
+    /// Current tip of the chain, used to check if outbound peers are in consensus when connecting
+    /// Note that the sessions manager will not be able to create any sessions if this field is None
     last_beacon: Option<LastBeacon>,
-    // Logging message hashset
+    /// Logging message hashset
     logging_messages: HashSet<String>,
-    // Reference to config
+    /// Reference to config
     config: Option<Arc<Config>>,
-    // SuperBlock target
+    /// SuperBlock target.
+    /// Last SuperBlock consensus achieved in the previous SuperEpoch by more than 2/3 of the signing
+    /// committee when our node reached another superblock
     superblock_beacon_target: Option<CheckpointBeacon>,
 }
 
