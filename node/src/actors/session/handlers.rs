@@ -110,6 +110,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
             // Get ChainManager address
             let chain_manager_addr = ChainManager::from_registry();
 
+            // Remove this address from tried bucket and ice it
+            self.remove_and_ice_peer();
+
             chain_manager_addr.do_send(AddBlocks {
                 blocks: vec![],
                 sender: None,
@@ -136,6 +139,9 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
             Err(err) => {
                 log::error!("Error decoding message: {:?}", err);
 
+                // Remove this address from tried bucket and ice it
+                self.remove_and_ice_peer();
+
                 ctx.stop();
             }
             Ok(msg) => {
@@ -149,6 +155,9 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                         msg.magic,
                         self.magic_number
                     );
+
+                    // Remove this address from tried bucket and ice it
+                    self.remove_and_ice_peer();
 
                     // Stop this session
                     ctx.stop();
@@ -180,17 +189,12 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                 try_consolidate_session(self, ctx);
                             }
                             Err(err) => {
-                                let peers_manager_addr = PeersManager::from_registry();
                                 if let HandshakeError::DifferentTimestamp { .. } = err {
-                                    peers_manager_addr.do_send(RemoveAddressesFromTried {
-                                        addresses: vec![self.remote_addr],
-                                        ice: true,
-                                    });
+                                    // Remove this address from tried bucket and ice it
+                                    self.remove_and_ice_peer();
                                 } else if let HandshakeError::DifferentEpoch { .. } = err {
-                                    peers_manager_addr.do_send(RemoveAddressesFromTried {
-                                        addresses: vec![self.remote_addr],
-                                        ice: true,
-                                    });
+                                    // Remove this address from tried bucket and ice it
+                                    self.remove_and_ice_peer();
                                 } else if session_type == SessionType::Feeler
                                     || session_type == SessionType::Outbound
                                 {
@@ -199,10 +203,8 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                     // are in the process of updating the superblock field for handshaking, and
                                     // icing them would be an error.
                                     if self.current_epoch % 10 != 0 {
-                                        peers_manager_addr.do_send(RemoveAddressesFromTried {
-                                            addresses: vec![self.remote_addr],
-                                            ice: true,
-                                        });
+                                        // Remove this address from tried bucket and ice it
+                                        self.remove_and_ice_peer();
                                     }
                                 }
 
@@ -576,6 +578,9 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                             "Failed to consolidate session {:?} in SessionManager",
                             act.remote_addr
                         );
+
+                        // Remove this address from tried bucket and ice it
+                        act.remove_and_ice_peer();
 
                         ctx.stop();
                     }

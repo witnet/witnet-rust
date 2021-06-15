@@ -6,16 +6,20 @@ use ansi_term::Color::Green;
 
 use witnet_config::config::Config;
 use witnet_data_structures::{
-    chain::{Block, Epoch, Hash},
+    chain::{Block, CheckpointBeacon, Epoch, Hash},
     proto::ProtobufConvert,
     types::{Command, LastBeacon, Message as WitnetMessage},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
-use crate::actors::{codec::P2PCodec, messages::LogMessage, sessions_manager::SessionsManager};
+use crate::actors::{
+    codec::P2PCodec,
+    messages::{LogMessage, RemoveAddressesFromTried},
+    peers_manager::PeersManager,
+    sessions_manager::SessionsManager,
+};
 use bytes::BytesMut;
 use tokio::net::tcp::OwnedWriteHalf;
-use witnet_data_structures::chain::CheckpointBeacon;
 
 mod actor;
 
@@ -197,5 +201,14 @@ impl Session {
         }
 
         log::trace!("\t{:?}", msg);
+    }
+
+    // Remove this address from tried bucket and move to the ice bucket
+    fn remove_and_ice_peer(&self) {
+        let peers_manager_addr = PeersManager::from_registry();
+        peers_manager_addr.do_send(RemoveAddressesFromTried {
+            addresses: vec![self.remote_addr],
+            ice: true,
+        });
     }
 }

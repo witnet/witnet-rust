@@ -31,6 +31,11 @@ impl Actor for Session {
                     act.remote_addr
                 );
 
+                if act.session_type == SessionType::Outbound {
+                    // Remove this address from tried bucket and ice it
+                    act.remove_and_ice_peer();
+                }
+
                 ctx.stop();
             }
         });
