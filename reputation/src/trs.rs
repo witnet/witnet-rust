@@ -913,9 +913,9 @@ mod tests {
         ];
         assert_eq!(trs.get_total_sum(), Reputation(0));
         assert_eq!(trs.num_identities(), 0);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
 
         trs.gain(Alpha(4), v4).unwrap();
         assert_eq!(trs.get_total_sum(), Reputation(4096));
@@ -924,25 +924,25 @@ mod tests {
         assert_eq!(trs.num_identities(), 3);
 
         ars.push_activity(vec![id1.clone(), id2.clone(), id3.clone()]);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.active_identities_number(), 3);
         assert_eq!(trs.get_sum(ars.active_identities()), Reputation(4096));
 
         ars.push_activity(vec![id2.clone(), id3.clone()]);
         ars.push_activity(vec![id2.clone(), id3.clone()]);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(!ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.active_identities_number(), 2);
         assert_eq!(trs.get_sum(ars.active_identities()), Reputation(3072));
 
         ars.push_activity(vec![id3.clone()]);
         ars.push_activity(vec![id3.clone()]);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.active_identities_number(), 1);
         assert_eq!(trs.get_sum(ars.active_identities()), Reputation(1024));
     }

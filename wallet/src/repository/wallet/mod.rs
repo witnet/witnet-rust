@@ -1176,7 +1176,7 @@ where
             self._gen_internal_address(state, None)?.pkh
         } else {
             // In case of DRTransaction, the first input pkh will be used
-            let first_input = inputs.first().clone().unwrap().output_pointer();
+            let first_input = inputs.first().unwrap().output_pointer();
             let key_balance = state.utxo_set.get(&first_input.into()).unwrap();
 
             key_balance.pkh

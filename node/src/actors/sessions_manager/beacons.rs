@@ -127,7 +127,7 @@ mod tests {
         let va = beacon(0);
 
         let mut b = Beacons::default();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         // Since we are waiting for 0 beacons
         assert_eq!(b.total_count(), 0);
         // Before calling clear for the first time, insert always accepts new beacons
@@ -138,14 +138,14 @@ mod tests {
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb.len(), 2);
         assert!(pnb.is_empty());
-        assert_eq!(b.already_sent(), true);
+        assert!(b.already_sent());
 
         // Wait for two beacons
         b.clear([k0, k1].iter().cloned());
         assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         assert_eq!(b.total_count(), 0);
         // Try to send before receiving any beacons
         let (pb, pnb) = b.send().unwrap();
@@ -166,7 +166,7 @@ mod tests {
         assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         assert_eq!(b.total_count(), 0);
         b.insert(k0, va.clone());
         assert_eq!(b.total_count(), 1);
@@ -181,7 +181,7 @@ mod tests {
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, vb.clone()), (k1, vb)]);
         assert!(pnb.is_empty());
-        assert_eq!(b.already_sent(), true);
+        assert!(b.already_sent());
     }
 
     #[test]
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         assert_eq!(b.total_count(), 0);
         b.insert(k0, va.clone());
         assert_eq!(b.total_count(), 1);
@@ -212,7 +212,7 @@ mod tests {
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, vb.clone()), (k1, vb)]);
         assert!(pnb.is_empty());
-        assert_eq!(b.already_sent(), true);
+        assert!(b.already_sent());
     }
 
     #[test]
@@ -229,7 +229,7 @@ mod tests {
         assert_eq!(b.total_count(), 1);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         // But the beacons are only cleared when calling .clear()
         assert_eq!(b.total_count(), 1);
         b.insert(k1, va.clone());
@@ -238,7 +238,7 @@ mod tests {
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, va.clone()), (k1, va)]);
         assert!(pnb.is_empty());
-        assert_eq!(b.already_sent(), true);
+        assert!(b.already_sent());
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod tests {
         assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         assert_eq!(b.total_count(), 0);
         b.insert(k0, va.clone());
         assert_eq!(b.total_count(), 1);
@@ -261,7 +261,7 @@ mod tests {
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, va.clone())]);
         assert_eq!(pnb_to_sorted_vec(pnb), vec![k1]);
-        assert_eq!(b.already_sent(), true);
+        assert!(b.already_sent());
 
         b.insert(k1, va);
         assert_eq!(b.total_count(), 2);
@@ -281,7 +281,7 @@ mod tests {
         assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         assert_eq!(b.total_count(), 0);
         b.insert(k0, va.clone());
         assert_eq!(b.total_count(), 1);
@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(pb_to_sorted_vec(pb), vec![(k1, va)]);
         // The first peer is not marked as "out of consensus" because it has already disconnected
         assert_eq!(pnb_to_sorted_vec(pnb), vec![]);
-        assert_eq!(b.already_sent(), true);
+        assert!(b.already_sent());
     }
 
     #[test]
@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
-        assert_eq!(b.already_sent(), false);
+        assert!(!b.already_sent());
         assert_eq!(b.total_count(), 0);
         b.insert(k0, va.clone());
         assert_eq!(b.total_count(), 1);
@@ -326,6 +326,6 @@ mod tests {
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, va)]);
         // The second peer is marked as "out of consensus" because it has not sent any beacon
         assert_eq!(pnb_to_sorted_vec(pnb), vec![k1]);
-        assert_eq!(b.already_sent(), true);
+        assert!(b.already_sent());
     }
 }

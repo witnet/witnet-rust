@@ -347,7 +347,7 @@ impl DataRequestPool {
 
     /// Get the data request info of the finished data requests, to be persisted to the storage
     pub fn finished_data_requests(&mut self) -> Vec<DataRequestInfo> {
-        std::mem::replace(&mut self.to_be_stored, vec![])
+        std::mem::take(&mut self.to_be_stored)
     }
 }
 

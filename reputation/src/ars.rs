@@ -183,10 +183,10 @@ mod tests {
     fn insert_id() {
         let mut ars = ActiveReputationSet::new(2);
         let id1 = "Alice".to_string();
-        assert_eq!(ars.contains(&id1), false);
+        assert!(!ars.contains(&id1));
 
         ars.push_activity(vec![id1.clone()]);
-        assert_eq!(ars.contains(&id1), true);
+        assert!(ars.contains(&id1));
         assert_eq!(ars.map[&id1], 1);
         assert_eq!(ars.active_identities_number(), 1);
     }
@@ -195,10 +195,10 @@ mod tests {
     fn insert_id_twice_in_same_time() {
         let mut ars = ActiveReputationSet::new(2);
         let id1 = "Alice".to_string();
-        assert_eq!(ars.contains(&id1), false);
+        assert!(!ars.contains(&id1));
 
         ars.push_activity(vec![id1.clone(), id1.clone()]);
-        assert_eq!(ars.contains(&id1), true);
+        assert!(ars.contains(&id1));
         assert_eq!(ars.map[&id1], 1);
         assert_eq!(ars.active_identities_number(), 1);
     }
@@ -207,15 +207,15 @@ mod tests {
     fn insert_id_twice() {
         let mut ars = ActiveReputationSet::new(2);
         let id1 = "Alice".to_string();
-        assert_eq!(ars.contains(&id1), false);
+        assert!(!ars.contains(&id1));
 
         ars.push_activity(vec![id1.clone()]);
-        assert_eq!(ars.contains(&id1), true);
+        assert!(ars.contains(&id1));
         assert_eq!(ars.map[&id1], 1);
         assert_eq!(ars.active_identities_number(), 1);
 
         ars.push_activity(vec![id1.clone()]);
-        assert_eq!(ars.contains(&id1), true);
+        assert!(ars.contains(&id1));
         assert_eq!(ars.map[&id1], 2);
         assert_eq!(ars.active_identities_number(), 1);
     }
@@ -226,28 +226,28 @@ mod tests {
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
         let id3 = "Charlie".to_string();
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
 
         ars.push_activity(vec![id1.clone()]);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.map[&id1], 1);
         assert_eq!(ars.active_identities_number(), 1);
 
         ars.push_activity(vec![id2.clone()]);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.map[&id2], 1);
         assert_eq!(ars.active_identities_number(), 2);
 
         ars.push_activity(vec![id3.clone()]);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(!ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.map[&id3], 1);
         assert_eq!(ars.active_identities_number(), 2);
     }
@@ -258,37 +258,37 @@ mod tests {
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
         let id3 = "Charlie".to_string();
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 0);
         assert_eq!(ars.active_identities_number(), 0);
 
         let _res = ars.update(vec![id1.clone()], 1);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 1);
         assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id2.clone()], 2);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 2);
         assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id2.clone()], 3);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 3);
         assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id3.clone()], 4);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(!ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.last_update, 4);
         assert_eq!(ars.active_identities_number(), 2);
     }
@@ -299,37 +299,37 @@ mod tests {
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
         let id3 = "Charlie".to_string();
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 0);
         assert_eq!(ars.active_identities_number(), 0);
 
         let _res = ars.update(vec![id1.clone()], 1);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 1);
         assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id2.clone()], 2);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 2);
         assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id3.clone()], 10);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.last_update, 10);
         assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id3.clone()], 20);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.last_update, 20);
         assert_eq!(ars.active_identities_number(), 1);
     }
@@ -340,23 +340,23 @@ mod tests {
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
         let id3 = "Charlie".to_string();
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 0);
         assert_eq!(ars.active_identities_number(), 0);
 
         let _res = ars.update(vec![id1.clone()], 1);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 1);
         assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id2.clone()], 10);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 10);
         assert_eq!(ars.active_identities_number(), 1);
 
@@ -364,9 +364,9 @@ mod tests {
         let _res = ars.update(vec![id3.clone()], 12);
         assert_eq!(ars.active_identities_number(), 2);
         let _res = ars.update(vec![id3.clone()], 13);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), true);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(ars.contains(&id3));
         assert_eq!(ars.last_update, 13);
         assert_eq!(ars.active_identities_number(), 1);
     }
@@ -377,16 +377,16 @@ mod tests {
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
         let id3 = "Charlie".to_string();
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 0);
         assert_eq!(ars.active_identities_number(), 0);
 
         let _res = ars.update(vec![id1.clone()], 10);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 10);
         assert_eq!(ars.active_identities_number(), 1);
 
@@ -423,32 +423,32 @@ mod tests {
         let id1 = "Alice".to_string();
         let id2 = "Bob".to_string();
         let id3 = "Charlie".to_string();
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 0);
         assert_eq!(ars.active_identities_number(), 0);
 
         let _res = ars.update(vec![id1.clone()], 10);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), false);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(!ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 10);
         assert_eq!(ars.active_identities_number(), 1);
 
         let _res = ars.update(vec![id2.clone()], 11);
-        assert_eq!(ars.contains(&id1), true);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 11);
         assert_eq!(ars.active_identities_number(), 2);
 
         let _res = ars.update(vec![id2.clone()], 21);
         let _res = ars.update(vec![id2.clone()], 23);
         let _res = ars.update(vec![id2.clone()], 24);
-        assert_eq!(ars.contains(&id1), false);
-        assert_eq!(ars.contains(&id2), true);
-        assert_eq!(ars.contains(&id3), false);
+        assert!(!ars.contains(&id1));
+        assert!(ars.contains(&id2));
+        assert!(!ars.contains(&id3));
         assert_eq!(ars.last_update, 24);
         assert_eq!(ars.active_identities_number(), 1);
     }

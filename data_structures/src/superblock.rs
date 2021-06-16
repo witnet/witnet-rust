@@ -2514,15 +2514,15 @@ mod tests {
 
     #[test]
     fn test_two_thirds_consensus() {
-        assert_eq!(two_thirds_consensus(2, 3), false);
-        assert_eq!(two_thirds_consensus(3, 3), true);
-        assert_eq!(two_thirds_consensus(2, 4), false);
-        assert_eq!(two_thirds_consensus(3, 4), true);
-        assert_eq!(two_thirds_consensus(21, 32), false);
-        assert_eq!(two_thirds_consensus(22, 32), true);
-        assert_eq!(two_thirds_consensus(22, 33), false);
-        assert_eq!(two_thirds_consensus(23, 33), true);
-        assert_eq!(two_thirds_consensus(22, 34), false);
-        assert_eq!(two_thirds_consensus(23, 34), true);
+        assert!(!two_thirds_consensus(2, 3));
+        assert!(two_thirds_consensus(3, 3));
+        assert!(!two_thirds_consensus(2, 4));
+        assert!(two_thirds_consensus(3, 4));
+        assert!(!two_thirds_consensus(21, 32));
+        assert!(two_thirds_consensus(22, 32));
+        assert!(!two_thirds_consensus(22, 33));
+        assert!(two_thirds_consensus(23, 33));
+        assert!(!two_thirds_consensus(22, 34));
+        assert!(two_thirds_consensus(23, 34));
     }
 }

@@ -937,18 +937,15 @@ mod tests {
             }
         );
 
-        assert_eq!(
-            build_vtt_tx_with_timestamp(
-                vec![pay_bob(100)],
-                0,
-                &mut own_utxos,
-                own_pkh,
-                &all_utxos,
-                1_000_001
-            )
-            .is_ok(),
-            true
-        );
+        assert!(build_vtt_tx_with_timestamp(
+            vec![pay_bob(100)],
+            0,
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+            1_000_001
+        )
+        .is_ok());
     }
 
     #[test]

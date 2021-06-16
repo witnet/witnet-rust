@@ -1293,7 +1293,7 @@ mod tests {
         assert_eq!(block.txns.len(), 2);
 
         // Check that exist Mint Transaction
-        assert_eq!(block.txns.mint.is_empty(), false);
+        assert!(!block.txns.mint.is_empty());
 
         // Check that the included transaction is the only one that fits the `max_block_weight`
         assert_eq!(block.txns.value_transfer_txns[0], vt_tx1);
@@ -1387,7 +1387,7 @@ mod tests {
         assert_eq!(block.txns.len(), 2);
 
         // Check that exist Mint Transaction
-        assert_eq!(block.txns.mint.is_empty(), false);
+        assert!(!block.txns.mint.is_empty());
 
         // Check that the included transaction is the only one that fits the `max_block_weight`
         assert_eq!(block.txns.value_transfer_txns[0], vt_tx2);
@@ -1476,7 +1476,7 @@ mod tests {
         assert_eq!(block.txns.len(), 2);
 
         // Check that exist Mint Transaction
-        assert_eq!(block.txns.mint.is_empty(), false);
+        assert!(!block.txns.mint.is_empty());
 
         // Check that the included transaction is the only one that fits the `max_block_weight`
         assert_eq!(block.txns.data_request_txns[0], dr_tx1);
@@ -1567,7 +1567,7 @@ mod tests {
         assert_eq!(block.txns.len(), 2);
 
         // Check that exist Mint Transaction
-        assert_eq!(block.txns.mint.is_empty(), false);
+        assert!(!block.txns.mint.is_empty());
 
         // Check that the included transaction is the only one that fits the `max_block_weight`
         assert_eq!(block.txns.data_request_txns[0], dr_tx2);

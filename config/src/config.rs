@@ -924,7 +924,6 @@ impl Wallet {
                 .unwrap_or_else(|| defaults.wallet_id_hash_function()),
             sync_address_batch_length: config
                 .sync_address_batch_length
-                .clone()
                 .unwrap_or_else(|| defaults.wallet_sync_address_batch_length()),
         }
     }
@@ -1254,7 +1253,7 @@ mod tests {
         assert_eq!(config.consensus_c, 51);
         assert_eq!(config.bucketing_ice_period, Duration::from_secs(13200));
         assert_eq!(config.bucketing_update_period, 200);
-        assert_eq!(config.reject_sybil_inbounds, true);
+        assert!(config.reject_sybil_inbounds);
         assert_eq!(config.reject_sybil_inbounds_range_limit, 14);
         assert_eq!(config.requested_blocks_batch_limit, 99);
     }

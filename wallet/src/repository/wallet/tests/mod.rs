@@ -1323,13 +1323,10 @@ fn test_export_xprv_key() {
         .export_master_key(password.clone())
         .unwrap()
         .starts_with("xprv"));
-    assert_eq!(
-        wallet
-            .export_master_key(password)
-            .unwrap()
-            .starts_with("xprvdouble"),
-        false
-    );
+    assert!(!wallet
+        .export_master_key(password)
+        .unwrap()
+        .starts_with("xprvdouble"));
 }
 
 #[test]

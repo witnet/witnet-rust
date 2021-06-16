@@ -1408,7 +1408,7 @@ mod tests {
 
         // Required fields for Secpk1 signature verification
         let secp = Secp256k1::new();
-        let signed_data = calculate_sha256(signature_with_data.identifier.as_bytes().as_ref());
+        let signed_data = calculate_sha256(signature_with_data.identifier.as_bytes());
         let public_key =
             SecpPublicKey::from_slice(&hex::decode(signature_with_data.public_key).unwrap())
                 .unwrap();

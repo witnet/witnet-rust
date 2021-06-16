@@ -1209,7 +1209,7 @@ impl PublicKeyHash {
     }
 
     /// Serialize the PKH as hex bytes
-    pub fn to_hex(&self) -> String {
+    pub fn to_hex(self) -> String {
         self.hash
             .iter()
             .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x))
@@ -5826,7 +5826,7 @@ mod tests {
             public_key: bls_pk.public_key[1..63].to_vec(),
             uncompressed: Default::default(),
         };
-        assert_eq!(bls_pk_2.is_valid(), false);
+        assert!(!bls_pk_2.is_valid());
     }
 
     #[test]
@@ -5835,7 +5835,7 @@ mod tests {
             public_key: vec![1; 65],
             uncompressed: Default::default(),
         };
-        assert_eq!(bls_pk.is_valid(), false);
+        assert!(!bls_pk.is_valid());
     }
 
     #[test]

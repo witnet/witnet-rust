@@ -61,7 +61,7 @@ fn test_partial_attr_skip() {
     let p = PartialObj::default();
 
     assert_eq!(p.a, None);
-    assert_eq!(p.b, false);
+    assert!(!p.b);
 }
 
 #[test]
