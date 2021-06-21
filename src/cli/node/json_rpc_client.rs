@@ -303,7 +303,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
         collateralized_data_requests_total_wit.to_formatted_string(&Locale::en)
     ]);
     supply_table.add_row(row![
-        "Current supply".to_string(),
+        "Circulating supply".to_string(),
         "".to_string(),
         current_supply.to_formatted_string(&Locale::en)
     ]);
@@ -313,7 +313,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
         locked_supply.to_formatted_string(&Locale::en)
     ]);
     supply_table.add_row(row![
-        "Total supply".to_string(),
+        "Maximum supply".to_string(),
         "".to_string(),
         total_supply.to_formatted_string(&Locale::en)
     ]);
