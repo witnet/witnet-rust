@@ -103,8 +103,9 @@ impl TapiEngine {
                 let wip_0014 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
-                    wip: "WIP0014".to_string(),
-                    init: 500000,
+                    wip: "WIP0014-0016".to_string(),
+                    // TODO: decide activation date
+                    init: 999999999,
                     end: u32::MAX,
                     bit,
                 };
@@ -363,7 +364,7 @@ impl ActiveWips {
 
     pub fn wip0014(&self) -> bool {
         self.active_wips
-            .get("WIP0014")
+            .get("WIP0014-0016")
             .map(|activation_epoch| self.block_epoch >= *activation_epoch)
             .unwrap_or(false)
     }
@@ -632,7 +633,7 @@ mod tests {
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // The first block whose vote must be counted is the one from WIP0014
-        let init_epoch_wip0014 = 500000;
+        let init_epoch_wip0014 = 999999999;
         assert_eq!(epoch, init_epoch_wip0014);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
@@ -646,7 +647,7 @@ mod tests {
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // WIP0014 is already included and it won't be updated
-        let name_wip0014 = "WIP0014".to_string();
+        let name_wip0014 = "WIP0014-0016".to_string();
         let mut hs = HashSet::new();
         hs.insert(name_wip0014);
         assert_eq!(old_wips, hs);
