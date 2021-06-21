@@ -339,34 +339,34 @@ pub struct ActiveWips {
 }
 
 impl ActiveWips {
-    // WIP 0008 was activated through community coordination on January 22, 2021
-    pub fn wip_0008(&self) -> bool {
+    // Returns true if the provided WIP is active
+    fn wip_active(&self, wip: &str) -> bool {
         self.active_wips
-            .get("WIP0008")
+            .get(wip)
             .map(|activation_epoch| self.block_epoch >= *activation_epoch)
             .unwrap_or(false)
+    }
+
+    // WIP 0008 was activated through community coordination on January 22, 2021
+    pub fn wip_0008(&self) -> bool {
+        self.wip_active("WIP0008")
     }
 
     // WIPs 0009, 0011 and 0012 were activated through community coordination on April 28, 2021
     pub fn wips_0009_0011_0012(&self) -> bool {
-        self.active_wips
-            .get("WIP0009-0011-0012")
-            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
-            .unwrap_or(false)
+        self.wip_active("WIP0009-0011-0012")
     }
 
     pub fn third_hard_fork(&self) -> bool {
-        self.active_wips
-            .get("THIRD_HARD_FORK")
-            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
-            .unwrap_or(false)
+        self.wip_active("THIRD_HARD_FORK")
     }
 
     pub fn wip0014(&self) -> bool {
-        self.active_wips
-            .get("WIP0014-0016")
-            .map(|activation_epoch| self.block_epoch >= *activation_epoch)
-            .unwrap_or(false)
+        self.wip_active("WIP0014-0016")
+    }
+
+    pub fn wip0016(&self) -> bool {
+        self.wip_active("WIP0014-0016")
     }
 }
 
