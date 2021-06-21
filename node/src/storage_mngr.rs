@@ -1,9 +1,11 @@
 //! # Storage Manager
 //!
 //! This module provides a Storage Manager
-use std::any::{Any, TypeId};
-use std::future;
-use std::sync::Arc;
+use std::{
+    any::{Any, TypeId},
+    future,
+    sync::Arc,
+};
 
 use actix::prelude::*;
 use bincode::{deserialize, serialize};

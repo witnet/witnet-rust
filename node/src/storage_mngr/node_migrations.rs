@@ -1,6 +1,5 @@
 use super::*;
-use witnet_data_structures::chain::ChainState;
-use witnet_data_structures::mainnet_validations::TapiEngine;
+use witnet_data_structures::{chain::ChainState, mainnet_validations::TapiEngine};
 
 macro_rules! as_failure {
     ($e:expr) => {
