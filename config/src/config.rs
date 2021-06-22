@@ -378,6 +378,7 @@ pub struct Mempool {
 /// Allow miners to oppose activation of future protocol improvements even if their nodes
 /// do implement the required logic.
 #[derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq)]
+#[serde(default)]
 pub struct Tapi {
     /// Oppose WIP0014
     pub oppose_wip0014: bool,

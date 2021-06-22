@@ -228,4 +228,24 @@ enabled = false
         assert_eq!(empty_config.mining, PartialMining::default());
         assert_eq!(config_disabled.mining.enabled, Some(false),);
     }
+
+    #[test]
+    fn test_configure_tapi_missing_fields() {
+        // Check that the tapi table does not need to explicitly set all the new "oppose_wip" fields
+        // and they default to "false"
+        let empty_config = super::from_str("[tapi]").unwrap();
+        let config_oppose_0016 = super::from_str(
+            r"
+[tapi]
+oppose_wip0016 = true
+    ",
+        )
+        .unwrap();
+
+        assert_eq!(empty_config.tapi, Tapi::default());
+        assert!(!empty_config.tapi.oppose_wip0014);
+        assert!(!empty_config.tapi.oppose_wip0016);
+        assert!(!config_oppose_0016.tapi.oppose_wip0014);
+        assert!(config_oppose_0016.tapi.oppose_wip0016);
+    }
 }
