@@ -336,7 +336,7 @@ impl ChainManager {
             // TODO: pass difficulty as an argument to this function (from consensus constants)
             let minimum_reppoe_difficulty = 2000;
             let active_wips = ActiveWips {
-                active_wips: Default::default(),
+                active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: current_epoch,
             };
             let (target_hash, probability) = calculate_reppoe_threshold(
