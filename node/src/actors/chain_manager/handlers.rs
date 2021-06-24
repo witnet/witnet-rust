@@ -886,6 +886,11 @@ impl Handler<PeersBeacons> for ChainManager {
             peers_beacons.ignore_no_consensus_beacons(last_superblock_consensus);
         }
 
+        if self.current_epoch.is_none() {
+            return Err(());
+        }
+        let current_epoch = self.current_epoch.unwrap();
+
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
         let beacon_consensus = peers_beacons.superblock_consensus(consensus_threshold);
@@ -926,7 +931,7 @@ impl Handler<PeersBeacons> for ChainManager {
             // Else, unregister all peers
             if self.sm_state == StateMachine::AlmostSynced || self.sm_state == StateMachine::Synced
             {
-                log::warn!("Lack of peer consensus while state is `AlmostSynced`: peers that do not coincide with our last beacon will be unregistered");
+                log::warn!("Lack of peer consensus while state is {:?}: peers that do not coincide with our last beacon will be unregistered", self.sm_state);
                 peers_beacons.decide_peers_to_unregister(self.get_chain_beacon())
             } else {
                 log::warn!("Lack of peer consensus: all peers will be unregistered");
@@ -934,17 +939,18 @@ impl Handler<PeersBeacons> for ChainManager {
             }
         };
 
-        let beacon_consensus = beacon_consensus.map(|(beacon, _)| beacon);
-
         let peers_to_unregister = match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
                 match beacon_consensus {
-                    Some(LastBeacon {
-                        highest_superblock_checkpoint: superblock_consensus,
-                        highest_block_checkpoint: consensus_beacon,
-                    }) => {
+                    Some((
+                        LastBeacon {
+                            highest_superblock_checkpoint: superblock_consensus,
+                            highest_block_checkpoint: consensus_beacon,
+                        },
+                        _,
+                    )) => {
                         self.sync_target = Some(SyncTarget {
                             block: consensus_beacon,
                             superblock: superblock_consensus,
@@ -1028,10 +1034,13 @@ impl Handler<PeersBeacons> for ChainManager {
             }
             StateMachine::Synchronizing => {
                 match beacon_consensus {
-                    Some(LastBeacon {
-                        highest_superblock_checkpoint: superblock_consensus,
-                        highest_block_checkpoint: consensus_beacon,
-                    }) => {
+                    Some((
+                        LastBeacon {
+                            highest_superblock_checkpoint: superblock_consensus,
+                            highest_block_checkpoint: consensus_beacon,
+                        },
+                        _,
+                    )) => {
                         self.sync_target = Some(SyncTarget {
                             block: consensus_beacon,
                             superblock: superblock_consensus,
@@ -1075,10 +1084,13 @@ impl Handler<PeersBeacons> for ChainManager {
             StateMachine::AlmostSynced | StateMachine::Synced => {
                 let our_beacon = self.get_chain_beacon();
                 match beacon_consensus {
-                    Some(LastBeacon {
-                        highest_block_checkpoint: consensus_beacon,
-                        ..
-                    }) if consensus_beacon == our_beacon => {
+                    Some((
+                        LastBeacon {
+                            highest_block_checkpoint: consensus_beacon,
+                            ..
+                        },
+                        _,
+                    )) if consensus_beacon == our_beacon => {
                         if self.sm_state == StateMachine::AlmostSynced {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
@@ -1087,10 +1099,13 @@ impl Handler<PeersBeacons> for ChainManager {
                         }
                         Ok(peers_to_unregister)
                     }
-                    Some(LastBeacon {
-                        highest_block_checkpoint: consensus_beacon,
-                        ..
-                    }) => {
+                    Some((
+                        LastBeacon {
+                            highest_block_checkpoint: consensus_beacon,
+                            ..
+                        },
+                        is_there_block_consensus,
+                    )) => {
                         // We are out of consensus!
                         log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
@@ -1098,12 +1113,26 @@ impl Handler<PeersBeacons> for ChainManager {
                             consensus_beacon,
                         );
 
-                        // If we are synced, it does not matter what blocks have been consolidated
-                        // by our outbound peers, we will stay synced until the next superblock
-                        // vote. We will remove those that are different from the last consensus or
-                        // peers that did not send any beacon
+                        // If there are a block consensus (more than 2/3) and we didn't consolidate
+                        // any block in the last epoch, because it could be that we lost a candidate
+                        // by any reason
+                        if is_there_block_consensus
+                            && consensus_beacon.checkpoint == current_epoch - 1
+                            && our_beacon.checkpoint != current_epoch - 1
+                        {
+                            self.update_state_machine(StateMachine::WaitingConsensus);
 
-                        Ok(peers_with_no_beacon)
+                            Ok(peers_to_unregister)
+                        // In the rest of cases we will move to AlmostSynced to do not allow
+                        // mining and preserve network stability
+                        } else {
+                            self.update_state_machine(StateMachine::AlmostSynced);
+
+                            // We will remove those that are different from the last consensus or
+                            // peers that did not send any beacon
+
+                            Ok(peers_with_no_beacon)
+                        }
                     }
                     None => {
                         // If we are synced and the consensus beacon is not the same as our beacon, then
@@ -1121,9 +1150,10 @@ impl Handler<PeersBeacons> for ChainManager {
                             );
                         }
 
-                        // If we are synced, it does not matter what blocks have been consolidated
-                        // by our outbound peers, we will stay synced until the next superblock
-                        // vote. We will remove those that are different from the last consensus or
+                        // We will move to AlmostSynced to do not allow mining and preserve network stability
+                        self.update_state_machine(StateMachine::AlmostSynced);
+
+                        // We will remove those that are different from the last consensus or
                         // peers that has a block different to us
 
                         Ok(peers_with_no_beacon)
