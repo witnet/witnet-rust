@@ -793,4 +793,39 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn unhandled_intercept_wrong_single_quote_escape() {
+        use crate::RadonString;
+
+        // Try to convert RadonErrors to RadError with no arguments
+        let rad_error = RadError::UnhandledIntercept {
+            inner: Some(Box::new(RadError::ModeTie {
+                values: RadonArray::from(vec![
+                    RadonTypes::String(RadonString::from("'")),
+                    RadonTypes::String(RadonString::from("Cat's")),
+                ]),
+                max_count: 1,
+            })),
+            message: None,
+        };
+
+        // Now try to serialize the resulting rad_error
+        let serde_cbor_array = rad_error.try_into_cbor_array().unwrap();
+        // The first element of the serialized CBOR array is the error code
+        // the rest are arguments
+        let error_code = u8::from(RadonErrors::UnhandledIntercept);
+        assert_eq!(serde_cbor_array[0], Value::Integer(error_code.into()));
+
+        // Deserialize the result and compare
+        let deserialized_rad_error =
+            RadError::try_from_cbor_array(serde_cbor_array).map(|r| r.into_inner());
+
+        let expected_rad_error = RadError::UnhandledIntercept {
+            inner: None,
+            message: Some(r#"inner: ModeTie { values: RadonArray { value: [String(RadonString { value: "\'" }), String(RadonString { value: "Cat\'s" })], is_homogeneous: true }, max_count: 1 }"#.to_string()),
+        };
+
+        assert_eq!(deserialized_rad_error.unwrap(), expected_rad_error);
+    }
 }
