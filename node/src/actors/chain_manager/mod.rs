@@ -902,19 +902,19 @@ impl ChainManager {
                             .into_actor(act)
                     })
                     .map_ok(|res, act, ctx| {
-                        // Broadcast vote between one and ("superblock_period" - 3) epoch checkpoints later.
+                        // Broadcast vote between one and ("superblock_period" - 5) epoch checkpoints later.
                         // This is used to prevent the race condition described in issue #1573
                         // It is also used to spread the CPU load by checking superblock votes along
                         // the superblock period with a safe margin
                         let mut rng = rand::thread_rng();
                         let checkpoints_period = act.consensus_constants().checkpoints_period;
                         let superblock_period = act.consensus_constants().superblock_period;
-                        let end_range = if superblock_period > 4 {
-                            (superblock_period - 3) * checkpoints_period
+                        let end_range = if superblock_period > 5 {
+                            (superblock_period - 5) * checkpoints_period
                         } else {
-                            checkpoints_period + 1
+                            checkpoints_period
                         };
-                        let random_waiting = rng.gen_range(checkpoints_period, end_range);
+                        let random_waiting = rng.gen_range(checkpoints_period, end_range + 1);
                         ctx.run_later(
                             Duration::from_secs(u64::from(random_waiting)),
                             |act, ctx| act.add_superblock_vote(res, ctx),
