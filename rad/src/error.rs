@@ -496,7 +496,14 @@ impl RadError {
                     // Only serialize the message
                     (_, Some(message)) => message.clone(),
                     // But if there is no message, serialize the debug representation of inner
-                    (Some(inner), None) => format!("inner: {:?}", inner),
+                    (Some(inner), None) => {
+                        // Fix #1993 by emulating a bug from old versions of Rust (rust-lang/rust#83046)
+                        if_rust_version::if_rust_version! { >= 1.53 {
+                            format!("inner: {:?}", inner).replace("'", "\\'")
+                        } else {
+                            format!("inner: {:?}", inner)
+                        }}
+                    }
                     // And if there is no inner, serialize this string
                     (None, None) => "inner: None".to_string(),
                 };

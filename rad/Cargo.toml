@@ -11,6 +11,7 @@ cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/
 failure = "0.1.8"
 futures = "0.3.4"
 hex = "0.4.1"
+if_rust_version = "1.0.0"
 json = "0.12.1"
 log = "0.4.8"
 num_enum = "0.4.2"
