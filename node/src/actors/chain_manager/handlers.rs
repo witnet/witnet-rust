@@ -196,7 +196,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         self.transactions_pool.clear_commits();
 
                         // Mining
-                        if self.mining_enabled {
+                        if self.mining_enabled && self.sm_state == StateMachine::Synced {
                             // Block mining is now triggered by SessionsManager on peers beacon timeout
                             // Data request mining MUST finish BEFORE the block has been mined!!!!
                             // The transactions must be included into this block, both the transactions from
