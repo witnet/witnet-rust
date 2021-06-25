@@ -158,16 +158,16 @@ impl OwnUnspentOutputsPool {
 
 /// Struct that keeps the unspent outputs pool and the own unspent outputs pool
 #[derive(Debug)]
-pub struct NodeUtxos<'a> {
+pub struct NodeUtxosRef<'a> {
     /// OutputPointers of all UTXOs with the ValueTransferOutput information
     pub all_utxos: &'a UnspentOutputsPool,
     /// OutputPointers of our own UTXOs
-    pub own_utxos: &'a mut OwnUnspentOutputsPool,
+    pub own_utxos: &'a OwnUnspentOutputsPool,
     /// Node address
     pub pkh: PublicKeyHash,
 }
 
-impl<'a> OutputsCollection for NodeUtxos<'a> {
+impl<'a> OutputsCollection for NodeUtxosRef<'a> {
     fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
         if !strategy.allows_from(&self.pkh) {
             return vec![];
@@ -205,6 +205,49 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
 
     fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<u32> {
         self.all_utxos.included_in_block_number(outptr)
+    }
+
+    fn set_used_output_pointer(&mut self, _inputs: &[Input], _ts: u64) {
+        log::warn!("Mutable operations not supported in `NodeUtxosRef`, use `NodeUtxos` instead");
+    }
+}
+
+/// Struct that keeps the unspent outputs pool and the own unspent outputs pool
+#[derive(Debug)]
+pub struct NodeUtxos<'a> {
+    /// OutputPointers of all UTXOs with the ValueTransferOutput information
+    pub all_utxos: &'a UnspentOutputsPool,
+    /// OutputPointers of our own UTXOs
+    pub own_utxos: &'a mut OwnUnspentOutputsPool,
+    /// Node address
+    pub pkh: PublicKeyHash,
+}
+
+impl NodeUtxos<'_> {
+    pub fn as_ref(&self) -> NodeUtxosRef {
+        NodeUtxosRef {
+            all_utxos: self.all_utxos,
+            own_utxos: self.own_utxos,
+            pkh: self.pkh,
+        }
+    }
+}
+
+impl<'a> OutputsCollection for NodeUtxos<'a> {
+    fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
+        self.as_ref().sort_by(strategy)
+    }
+
+    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
+        self.as_ref().get_time_lock(outptr)
+    }
+
+    fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
+        self.as_ref().get_value(outptr)
+    }
+
+    fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<u32> {
+        self.as_ref().get_included_block_number(outptr)
     }
 
     fn set_used_output_pointer(&mut self, inputs: &[Input], ts: u64) {
