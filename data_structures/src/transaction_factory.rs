@@ -6,7 +6,8 @@ use crate::{
     error::TransactionError,
     transaction::{DRTransactionBody, VTTransactionBody, INPUT_SIZE},
     utxo_pool::{
-        NodeUtxos, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoSelectionStrategy,
+        NodeUtxos, NodeUtxosRef, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff,
+        UtxoSelectionStrategy,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -401,6 +402,35 @@ pub fn build_drt(
     );
 
     Ok(DRTransactionBody::new(tx_info.inputs, outputs, dr_output))
+}
+
+/// Check if there are enough collateral for a CommitTransaction
+pub fn check_commit_collateral(
+    collateral: u64,
+    own_utxos: &OwnUnspentOutputsPool,
+    own_pkh: PublicKeyHash,
+    all_utxos: &UnspentOutputsPool,
+    timestamp: u64,
+    // The block number must be lower than this limit
+    block_number_limit: u32,
+) -> bool {
+    let mut utxos = NodeUtxosRef {
+        all_utxos,
+        own_utxos,
+        pkh: own_pkh,
+    };
+    utxos
+        .build_inputs_outputs(
+            vec![],
+            None,
+            collateral,
+            FeeType::Absolute,
+            timestamp,
+            Some(block_number_limit),
+            &UtxoSelectionStrategy::SmallFirst { from: None },
+            u32::MAX,
+        )
+        .is_ok()
 }
 
 /// Build inputs and outputs to be used as the collateral in a CommitTransaction

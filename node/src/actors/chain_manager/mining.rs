@@ -33,7 +33,7 @@ use witnet_data_structures::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
     },
-    transaction_factory::build_commit_collateral,
+    transaction_factory::{build_commit_collateral, check_commit_collateral},
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
@@ -43,7 +43,7 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_randpoe_threshold,
     calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root, radon_report_from_error,
-    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
+    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee, Wit,
 };
 
 use crate::{
@@ -327,6 +327,17 @@ impl ChainManager {
                 .data_request_state(&dr_pointer)
                 .map(|dr_state| (dr_pointer, dr_state.clone()))
         }) {
+            let (collateral_age, checkpoint_period) = match &self.chain_state.chain_info {
+                Some(x) => (
+                    x.consensus_constants.collateral_age,
+                    x.consensus_constants.checkpoints_period,
+                ),
+                None => {
+                    log::error!("ChainInfo is None");
+                    return;
+                }
+            };
+
             let num_witnesses = dr_state.data_request.witnesses;
             let num_backup_witnesses = dr_state.backup_witnesses();
             // The vrf_input used to create and verify data requests must be set to the current epoch
@@ -364,6 +375,25 @@ impl ChainManager {
             } else {
                 dr_state.data_request.collateral
             };
+
+            // Check if we have enough collateralizable unspent outputs before starting
+            // retrieval
+            let block_number_limit = self
+                .chain_state
+                .block_number()
+                .saturating_sub(collateral_age);
+            if !check_commit_collateral(
+                collateral_amount,
+                &self.chain_state.own_utxos,
+                own_pkh,
+                &self.chain_state.unspent_outputs_pool,
+                timestamp,
+                // The block number must be lower than this limit
+                block_number_limit,
+            ) {
+                log::debug!("Mining data request: Insufficient collateral, the data request need {} mature wits", Wit::from_nanowits(collateral_amount));
+                continue;
+            }
 
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_vrf_input, dr_pointer))
                 .map(move |res|
@@ -466,17 +496,6 @@ impl ChainManager {
                 // Collect outputs to be used as input for collateralized commitment,
                 // as well as outputs for change.
                 .and_then(move |vrf_proof, act, _| {
-                    let (collateral_age, checkpoint_period) = match &act.chain_state.chain_info {
-                        Some(x) => (x.consensus_constants.collateral_age, x.consensus_constants.checkpoints_period),
-                        None => {
-                            log::error!("ChainInfo is None");
-                            return actix::fut::err(());
-                        }
-                    };
-
-                    let block_number_limit = act.chain_state.block_number().saturating_sub(collateral_age);
-                    // Check if we have enough collateralizable unspent outputs before starting
-                    // retrieval
                     match build_commit_collateral(
                         collateral_amount,
                         &mut act.chain_state.own_utxos,
