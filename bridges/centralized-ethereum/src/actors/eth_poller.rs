@@ -72,7 +72,12 @@ impl EthPoller {
                     contract::Options::default(),
                     None,
                 )
-                .await;
+                .await
+                .map_err(|err| {
+                    log::error!("Fail to read dr bytes from contract: {:?}", err.to_string());
+
+                    err
+                });
 
             let dr_database_addr = DrDatabase::from_registry();
             let db_request_count = dr_database_addr.send(GetLastDrId).await;
@@ -133,9 +138,17 @@ impl EthPoller {
                                     ));
                                 }
                             } else {
+                                log::error!(
+                                    "Fail to read dr tx hash from contract: {}",
+                                    dr_tx_hash.map_err(|err| err.to_string()).unwrap_err()
+                                );
                                 break;
                             }
                         } else {
+                            log::error!(
+                                "Fail to read dr bytes from contract: {}",
+                                dr_bytes.map_err(|err| err.to_string()).unwrap_err()
+                            );
                             break;
                         }
                     }
