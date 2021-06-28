@@ -38,7 +38,7 @@ pub enum AddSuperBlockVote {
 }
 
 /// Possible result of SuperBlockState::has_consensus
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum SuperBlockConsensus {
     /// The local superblock has the majority of votes, everything ok
     SameAsLocal,
@@ -2524,5 +2524,103 @@ mod tests {
         assert!(two_thirds_consensus(23, 33));
         assert!(!two_thirds_consensus(22, 34));
         assert!(two_thirds_consensus(23, 34));
+    }
+
+    #[test]
+    fn superblock_state_double_vote_consensus() {
+        // Check that when an identity votes more than one superblock per index, the vote is invalid
+        // but it counts towards the consensus: if all the identities send double votes, the
+        // consensus should be NoConsensus
+        let mut sbs = SuperBlockState::default();
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let p2 = PublicKey::from_bytes([2; 33]);
+        let p3 = PublicKey::from_bytes([3; 33]);
+        let p4 = PublicKey::from_bytes([4; 33]);
+        let p5 = PublicKey::from_bytes([5; 33]);
+        let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh(), p4.pkh(), p5.pkh()];
+        let keys = vec![
+            create_bn256(1),
+            create_bn256(2),
+            create_bn256(3),
+            create_bn256(4),
+            create_bn256(5),
+        ];
+        let ars0 = ARSIdentities::new(vec![]);
+        let ars1 = ARSIdentities::new(pkhs.clone());
+        let ars2 = ARSIdentities::new(pkhs.clone());
+
+        let alt_keys = create_alt_keys(pkhs, keys);
+
+        // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
+        // (because it does not exist)
+        let _sb0 = sbs.build_superblock(
+            &block_headers,
+            ars0,
+            100,
+            0,
+            genesis_hash,
+            &alt_keys,
+            None,
+            1,
+        );
+
+        // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
+        // can be valid, they all return `NotInSigningCommittee`
+        let _sb1 = sbs.build_superblock(
+            &block_headers,
+            ars1,
+            100,
+            1,
+            genesis_hash,
+            &alt_keys,
+            None,
+            1,
+        );
+
+        // The ARS included in superblock 1 contains only identity p1, so only its vote will be
+        // valid in superblock votes for index 2
+        let sb2 = sbs.build_superblock(
+            &block_headers,
+            ars2,
+            100,
+            2,
+            genesis_hash,
+            &alt_keys,
+            None,
+            1,
+        );
+
+        // 2 valid votes and 3 missing votes -> Unknown
+        let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v1.secp256k1_signature.public_key = p1.clone();
+        assert_eq!(sbs.add_vote(&v1, 2), AddSuperBlockVote::ValidWithSameHash);
+        let mut v2 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v2.secp256k1_signature.public_key = p2.clone();
+        assert_eq!(sbs.add_vote(&v2, 2), AddSuperBlockVote::ValidWithSameHash);
+
+        assert_eq!(sbs.has_consensus(), SuperBlockConsensus::Unknown);
+
+        // 4 valid votes -> SameAsLocal
+        let mut v3 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v3.secp256k1_signature.public_key = p3;
+        assert_eq!(sbs.add_vote(&v3, 2), AddSuperBlockVote::ValidWithSameHash);
+        let mut v4 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v4.secp256k1_signature.public_key = p4;
+        assert_eq!(sbs.add_vote(&v4, 2), AddSuperBlockVote::ValidWithSameHash);
+
+        assert_eq!(sbs.has_consensus(), SuperBlockConsensus::SameAsLocal);
+
+        // 2 valid votes, 2 double votes and 1 missing vote -> NoConsensus
+        let mut v1_b = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
+        v1_b.secp256k1_signature.public_key = p1;
+        assert_eq!(sbs.add_vote(&v1_b, 2), AddSuperBlockVote::DoubleVote);
+        let mut v2_b = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
+        v2_b.secp256k1_signature.public_key = p2;
+        assert_eq!(sbs.add_vote(&v2_b, 2), AddSuperBlockVote::DoubleVote);
+
+        assert_eq!(sbs.has_consensus(), SuperBlockConsensus::NoConsensus);
     }
 }
