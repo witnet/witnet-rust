@@ -102,7 +102,7 @@ fn run(callback: fn()) -> Result<(), String> {
             log::info!("post post_example DR");
         } else {
             // Check if ethereum and witnet nodes are running
-            check_ethereum_node_running(&config)
+            check_ethereum_node_running(&config.eth_client_url)
                 .await
                 .expect("ethereum node not running");
             check_witnet_node_running(&config)

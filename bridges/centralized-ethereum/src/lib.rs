@@ -74,22 +74,24 @@ pub async fn check_witnet_node_running(config: &Config) -> Result<(), String> {
 }
 
 /// Check if the ethereum node is running
-pub async fn check_ethereum_node_running(config: &Config) -> Result<(), String> {
-    let web3_http = web3::transports::Http::new(&config.eth_client_url)
-        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e));
+pub async fn check_ethereum_node_running(eth_client_url: &str) -> Result<(), String> {
+    let web3_http = web3::transports::Http::new(eth_client_url)
+        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
+        .unwrap();
+    let web3 = web3::Web3::new(web3_http);
 
-    // TODO: check if the contract address is correct?
-
-    match web3_http {
+    // Use a sample web3 call to check http connection
+    let res = web3.eth().syncing().await;
+    match res {
         Ok(_x) => {
-            log::debug!("Ethereum node is running at {}", config.eth_client_url);
+            log::debug!("Ethereum node is running at {}", eth_client_url);
 
             Ok(())
         }
         Err(e) => {
             log::error!("Failed to connect to ethereum node: {}", e);
 
-            Err(e)
+            Err(e.to_string())
         }
     }
 }
