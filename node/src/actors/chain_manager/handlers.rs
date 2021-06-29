@@ -714,7 +714,9 @@ impl PeersBeacons {
     /// We do not take into account our beacon to calculate the consensus.
     /// The beacons are `Option<CheckpointBeacon>`, so peers that have not
     /// sent us a beacon are counted as `None`. Keeping that in mind, we
-    /// reach consensus as long as consensus_threshold % of peers agree.
+    /// reach a superblock consensus as long as consensus_threshold % of peers agree.
+    /// It also returns a boolean to indicate if there is a block consensus,
+    /// it means a consensus_threshold % of peers agree in superblock and block.
     pub fn superblock_consensus(&self, consensus_threshold: usize) -> Option<(LastBeacon, bool)> {
         // We need to add `num_missing_peers` times NO BEACON, to take into account
         // missing outbound peers.
