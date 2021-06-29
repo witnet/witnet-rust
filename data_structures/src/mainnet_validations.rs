@@ -104,8 +104,9 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0014-0016".to_string(),
-                    // TODO: decide activation date
-                    init: 999999999,
+                    // Start voting at
+                    // 13 July 2021 @ 9:00:00 UTC
+                    init: 522240,
                     end: u32::MAX,
                     bit,
                 };
@@ -637,7 +638,7 @@ mod tests {
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // The first block whose vote must be counted is the one from WIP0014
-        let init_epoch_wip0014 = 999999999;
+        let init_epoch_wip0014 = 522240;
         assert_eq!(epoch, init_epoch_wip0014);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
