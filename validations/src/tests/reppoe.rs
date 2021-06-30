@@ -1,5 +1,5 @@
 use witnet_data_structures::{
-    chain::{Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine},
+    chain::{calculate_backup_witnesses, Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine},
     mainnet_validations::ActiveWips,
     transaction::DRTransaction,
 };
@@ -1031,14 +1031,6 @@ fn reppoe_worst_case() {
         }
 
         num_witnesses - 1
-    }
-
-    // TODO: copied from chain.rs, make public instead?
-    fn calculate_backup_witnesses(witnesses: u16, commit_round: u16) -> u16 {
-        let exponent = u32::from(commit_round).saturating_sub(1);
-        let coefficient = 2_u16.saturating_pow(exponent);
-
-        witnesses.saturating_mul(coefficient) / 2
     }
 
     let consensus_constants = witnet_config::config::consensus_constants_from_partial(

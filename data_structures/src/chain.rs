@@ -2940,7 +2940,10 @@ impl DataRequestState {
     }
 }
 
-fn calculate_backup_witnesses(witnesses: u16, commit_round: u16) -> u16 {
+/// Calculate the number of backup witnesses that will be added to the number of witnesses depending
+/// on the current commit round. The first commit round is 1 (not 0) and there are as many
+/// additional rounds as the extra_rounds value from consensus constants.
+pub fn calculate_backup_witnesses(witnesses: u16, commit_round: u16) -> u16 {
     let exponent = u32::from(commit_round).saturating_sub(1);
     let coefficient = 2_u16.saturating_pow(exponent);
 
