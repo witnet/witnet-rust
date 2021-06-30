@@ -1,3 +1,4 @@
+use approx::assert_abs_diff_eq;
 use witnet_data_structures::{
     chain::{calculate_backup_witnesses, Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine},
     mainnet_validations::ActiveWips,
@@ -82,8 +83,6 @@ fn add_rep(rep_engine: &mut ReputationEngine, alpha: u32, pkh: PublicKeyHash, re
         .unwrap();
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn target_reppoe_v1() {
     let mut rep_engine = ReputationEngine::new(1000);
@@ -94,7 +93,7 @@ fn target_reppoe_v1() {
     // 100% when we have all the reputation
     let (t00, p00) = calculate_reppoe_threshold_v1(&rep_engine, &id1, 1, 2000);
     assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p00 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p00, 1.0, epsilon = 1e-9);
 
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     add_rep(&mut rep_engine, 10, id2, 50);
@@ -103,11 +102,9 @@ fn target_reppoe_v1() {
     // 50% when there are 2 nodes with 50% of the reputation each
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id1, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x7FFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 50);
+    assert_abs_diff_eq!(p01, 0.5, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn target_reppoe_v2() {
     let mut rep_engine = ReputationEngine::new(1000);
@@ -118,8 +115,7 @@ fn target_reppoe_v2() {
     // 0.05% when the total reputation is less than 2000
     let (t00, p00) = calculate_reppoe_threshold_v2(&rep_engine, &id1, 1, 2000);
     assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    // 1 / 2000 = 500 / 1_000_000
-    assert_eq!((p00 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p00, 1.0 / 2000.00, epsilon = 1e-9);
 
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     add_rep(&mut rep_engine, 10, id2, 50);
@@ -128,12 +124,9 @@ fn target_reppoe_v2() {
     // 0.05% when the total reputation is less than 2000
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id1, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    // 1 / 2000 = 500 / 1_000_000
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p01, 1.0 / 2000.00, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn target_reppoe_v3() {
     let mut rep_engine = ReputationEngine::new(1000);
@@ -146,7 +139,7 @@ fn target_reppoe_v3() {
     let (t00, p00) = calculate_reppoe_threshold_v3(&rep_engine, &id1, 1, 2000);
     // 0xFFFF_FFFF / 2000 * 51
     assert_eq!(t00, Hash::with_first_u32(0x06872b02));
-    assert_eq!((p00 * 100_f64).round() as i128, 3);
+    assert_abs_diff_eq!(p00, 51.0 / 2000.00, epsilon = 1e-9);
 
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     add_rep(&mut rep_engine, 10, id2, 50);
@@ -157,7 +150,7 @@ fn target_reppoe_v3() {
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id1, 1, 2000);
     // 0xFFFF_FFFF / 2000 * 51
     assert_eq!(t01, Hash::with_first_u32(0x06872b02));
-    assert_eq!((p01 * 100_f64).round() as i128, 3);
+    assert_abs_diff_eq!(p01, 51.0 / 2000.00, epsilon = 1e-9);
 }
 
 #[test]
@@ -192,6 +185,9 @@ fn target_reppoe_specific_example_v1() {
         }
         v
     };
+
+    // Doesnt work, will need to compare items one by one
+    //assert_abs_diff_eq!(vec![1.0f64, 2.0, 3.0], vec![1.0f64, 2.0, 3.1]);
 
     assert_eq!(
         rep_thresholds(1),
@@ -346,8 +342,6 @@ fn target_reppoe_specific_example_v3() {
     );
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn target_reppoe_zero_reputation_v1() {
     // Test the behavior of the algorithm when our node has 0 reputation
@@ -356,48 +350,48 @@ fn target_reppoe_zero_reputation_v1() {
 
     // 100% when the total reputation is 0
     let (t00, p00) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 1, 2000);
-    assert_eq!((p00 * 100_f64).round() as i128, 100);
     assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
+    assert_abs_diff_eq!(p00, 1.0, epsilon = 1e-9);
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 100, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
 
     let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id1]);
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p02 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 1.0, epsilon = 1e-9);
     let (t02b, p02b) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 2, 2000);
     assert_eq!(t02b, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p02b * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02b, 1.0, epsilon = 1e-9);
 
     // 50% when the total reputation is 1
     add_rep(&mut rep_engine, 10, id1, 1);
     let (t03, p03) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x7FFF_FFFF));
-    assert_eq!((p03 * 100_f64).round() as i128, 50);
+    assert_abs_diff_eq!(p03, 0.5, epsilon = 1e-9);
     // 100% when the total reputation is 1
     // but the number of witnesses is greater than the number of active identities
     let (t03b, p03b) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 2, 2000);
     assert_eq!(t03b, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p03b * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p03b, 1.0, epsilon = 1e-9);
 
     // 33% when the total reputation is 1 but there are 2 active identities
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id2]);
     let (t04, p04) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 1, 2000);
     assert_eq!(t04, Hash::with_first_u32(0x5555_5555));
-    assert_eq!((p04 * 100_f64).round() as i128, 33);
+    assert_abs_diff_eq!(p04, 1.0 / 3.0, epsilon = 1e-9);
     // 100% when the total reputation is 1 but there are 2 active identities
     // but the number of witnesses is greater than the number of active identities
     let (t04b, p04b) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 2, 2000);
     assert_eq!(t04b, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p04b * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p04b, 1.0, epsilon = 1e-9);
     // 100% when the total reputation is 1 but there are 2 active identities
     // but the number of witnesses is greater than the number of active identities
     let (t04c, p04c) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 3, 2000);
     assert_eq!(t04c, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p04c * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p04c, 1.0, epsilon = 1e-9);
 
     // 10 identities with 100 total reputation: 1 / (100 + 10) ~= 0.9%
     for i in 3..=10 {
@@ -408,17 +402,15 @@ fn target_reppoe_zero_reputation_v1() {
     add_rep(&mut rep_engine, 10, id1, 99);
     let (t05, p05) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 1, 2000);
     assert_eq!(t05, Hash::with_first_u32(0x0253_C825));
-    assert_eq!((p05 * 100_f64).round() as i128, 1);
+    assert_abs_diff_eq!(p05, 1.0 / (100.0 + 10.0), epsilon = 1e-9);
 
     // 10 identities with 10000 total reputation: 1 / (10000 + 10) ~= 0.01%
     add_rep(&mut rep_engine, 10, id1, 9900);
     let (t05b, p05b) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t05b, Hash::with_first_u32(0xFFFF_FFFF / (10_000 + 10)));
-    assert_eq!((p05b * 1_000_000_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p05b, 1.0 / (10000.0 + 10.0), epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn target_reppoe_zero_reputation_v2() {
     // Test the behavior of the algorithm when our node has 0 reputation
@@ -428,51 +420,51 @@ fn target_reppoe_zero_reputation_v2() {
     // 100% when the total reputation is 0
     let (t00, p00) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p00 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p00, 1.0, epsilon = 1e-9);
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 100, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
 
     // 0.05% when the total reputation is 0 but there is 1 active identity
     let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id1]);
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p02, 1.0 / 2000.0, epsilon = 1e-9);
     // 100% when the total reputation is 0 and there is 1 active identity,
     // but the number of witnesses is greater than the number of active identities
     let (t02b, p02b) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 2, 2000);
     assert_eq!(t02b, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p02b * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02b, 1.0, epsilon = 1e-9);
 
     // 0.05% when the total reputation is 1
     add_rep(&mut rep_engine, 10, id1, 1);
     let (t03, p03) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p03, 1.0 / 2000.0, epsilon = 1e-9);
     // 100% when the total reputation is 1
     // but the number of witnesses is greater than the number of active identities
     let (t03b, p03b) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 2, 2000);
     assert_eq!(t03b, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p03b * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p03b, 1.0, epsilon = 1e-9);
 
     // 0.05% when the total reputation is 1 but there are 2 active identities
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id2]);
     let (t04, p04) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t04, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p04 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p04, 1.0 / 2000.0, epsilon = 1e-9);
     // 0.15% when the total reputation is 1 but there are 2 active identities
     // but the number of witnesses is greater than 1
     let (t04b, p04b) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 2, 2000);
     // 0xFFFF_FFFF / 2000 * 3
     assert_eq!(t04b, Hash::with_first_u32(0x00624dd2));
-    assert_eq!((p04b * 1_000_000_f64).round() as i128, 1500);
+    assert_abs_diff_eq!(p04b, 3.0 / 2000.0, epsilon = 1e-9);
     // 100% when the total reputation is 1 but there are 2 active identities
     // but the number of witnesses is greater than the number of active identities
     let (t04c, p04c) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 3, 2000);
     assert_eq!(t04c, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p04c * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p04c, 1.0, epsilon = 1e-9);
 
     // 10 identities with 100 total reputation: 0.15% (100 is less than the minimum of 2000)
     for i in 3..=10 {
@@ -483,17 +475,15 @@ fn target_reppoe_zero_reputation_v2() {
     add_rep(&mut rep_engine, 10, id1, 99);
     let (t05, p05) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t05, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p05 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p05, 1.0 / 2000.0, epsilon = 1e-9);
 
     // 10 identities with 10000 total reputation: 1 / (10000 + 10) ~= 0.01%
     add_rep(&mut rep_engine, 10, id1, 9900);
     let (t05b, p05b) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t05b, Hash::with_first_u32(0xFFFF_FFFF / (10_000 + 10)));
-    assert_eq!((p05b * 1_000_000_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p05b, 1.0 / (10000.0 + 10.0), epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn target_reppoe_zero_reputation_v3() {
     // Test the behavior of the algorithm when our node has 0 reputation
@@ -503,35 +493,35 @@ fn target_reppoe_zero_reputation_v3() {
     // 0.05% when the total reputation is 0
     let (t00, p00) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p00 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p00, 1.0 / 2000.0, epsilon = 1e-9);
     // 5% when the total reputation is 0 but the number of witnesses is 100
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 100, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF / (2000 / 100)));
-    assert_eq!((p01 * 100_f64).round() as i128, 5);
+    assert_abs_diff_eq!(p01, 100.0 / 2000.0, epsilon = 1e-9);
 
     let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id1]);
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p02, 1.0 / 2000.0, epsilon = 1e-9);
     // 0.10% when the total reputation is 0 and there is 1 active identity,
     // but the number of witnesses is 2
     let (t02b, p02b) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 2, 2000);
     // 0xFFFF_FFFF / 2000 * 2
     assert_eq!(t02b, Hash::with_first_u32(0x00418937));
-    assert_eq!((p02b * 1_000_000_f64).round() as i128, 1000);
+    assert_abs_diff_eq!(p02b, 2.0 / 2000.0, epsilon = 1e-9);
 
     // 0.05% when the total reputation is 1
     add_rep(&mut rep_engine, 10, id1, 1);
     let (t03, p03) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p03, 1.0 / 2000.0, epsilon = 1e-9);
     // 0.10% when the total reputation is 1
     // but the number of witnesses is greater than the number of active identities
     let (t03b, p03b) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 2, 2000);
     // 0xFFFF_FFFF / 2000 * 2 + 1
     assert_eq!(t03b, Hash::with_first_u32(0x00418937));
-    assert_eq!((p03b * 1_000_000_f64).round() as i128, 1000);
+    assert_abs_diff_eq!(p03b, 2.0 / 2000.0, epsilon = 1e-9);
 
     // When the total reputation is 1 but there are 2 active identities:
     // 0.05% when the number of witnesses is 1
@@ -539,17 +529,17 @@ fn target_reppoe_zero_reputation_v3() {
     rep_engine.ars_mut().push_activity(vec![id2]);
     let (t04, p04) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t04, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p04 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p04, 1.0 / 2000.0, epsilon = 1e-9);
     // 0.10% when the number of witnesses is 2
     let (t04b, p04b) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 2, 2000);
     // 0xFFFF_FFFF / 2000 * 2
     assert_eq!(t04b, Hash::with_first_u32(0x00418937));
-    assert_eq!((p04b * 1_000_000_f64).round() as i128, 1000);
+    assert_abs_diff_eq!(p04b, 2.0 / 2000.0, epsilon = 1e-9);
     // 0.15% when the number of witnesses is 3
     let (t04c, p04c) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 3, 2000);
     // 0xFFFF_FFFF / 2000 * 3
     assert_eq!(t04c, Hash::with_first_u32(0x00624dd2));
-    assert_eq!((p04c * 1_000_000_f64).round() as i128, 1500);
+    assert_abs_diff_eq!(p04c, 3.0 / 2000.0, epsilon = 1e-9);
 
     // 10 identities with 100 total reputation: 0.15% (100 is less than the minimum of 2000)
     for i in 3..=10 {
@@ -560,17 +550,15 @@ fn target_reppoe_zero_reputation_v3() {
     add_rep(&mut rep_engine, 10, id1, 99);
     let (t05, p05) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t05, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    assert_eq!((p05 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p05, 1.0 / 2000.0, epsilon = 1e-9);
 
     // 10 identities with 10000 total reputation: 1 / (10000 + 10) ~= 0.01%
     add_rep(&mut rep_engine, 10, id1, 9900);
     let (t05b, p05b) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t05b, Hash::with_first_u32(0xFFFF_FFFF / (10_000 + 10)));
-    assert_eq!((p05b * 1_000_000_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p05b, 1.0 / (10000.0 + 10.0), epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_overflow_v1() {
     // Test the behavior of the algorithm when one node has 99% of the reputation
@@ -586,34 +574,32 @@ fn reppoe_overflow_v1() {
     // Active identity with 100% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFE));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Active identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id1, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00000001));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p02, 0.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v1(&rep_engine, &id2, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000001));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 100% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 2, 2000);
     // 100% eligibility because the number of witnesses is greater than the number of active identities
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Active identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id1, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p02 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v1(&rep_engine, &id2, 2, 2000);
     assert_eq!(t03, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p03 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p03, 1.0, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_overflow_v2() {
     // Test the behavior of the algorithm when one node has 99% of the reputation
@@ -629,35 +615,32 @@ fn reppoe_overflow_v2() {
     // Active identity with 100% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    // 1 / 2000 = 500 / 1_000_000
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p01, 1.0 / 2000.0, epsilon = 1e-9);
     // Active identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id1, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00000001));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p02, 0.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v2(&rep_engine, &id2, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000001));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 100% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 2, 2000);
     // 100% eligibility because the number of witnesses is greater than the number of active identities
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Active identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id1, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p02 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v2(&rep_engine, &id2, 2, 2000);
     assert_eq!(t03, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p03 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p03, 1.0, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_overflow_v3() {
     // Test the behavior of the algorithm when one node has 99% of the reputation
@@ -673,33 +656,31 @@ fn reppoe_overflow_v3() {
     // Active identity with 100% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFE));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Active identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id1, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00000001));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p02, 0.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v3(&rep_engine, &id2, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000001));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 100% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 2, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Active identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id1, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00000002));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p02, 0.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v3(&rep_engine, &id2, 2, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000002));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_much_rep_trapezoid_v1() {
     // Test the behavior of the algorithm when one node has 99% reputation and another node has 1%
@@ -716,33 +697,31 @@ fn reppoe_much_rep_trapezoid_v1() {
     // Active identity with 99% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xDFFF_FFFE));
-    assert_eq!((p01 * 100_f64).round() as i128, 87);
+    assert_abs_diff_eq!(p01, 0.875, epsilon = 1e-9);
     // Active identity with 1 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id1, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x20000001));
-    assert_eq!((p02 * 100_f64).round() as i128, 13);
+    assert_abs_diff_eq!(p02, 0.125, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v1(&rep_engine, &id2, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000001));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 99% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id0, 2, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Active identity with 1 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id1, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p02 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v1(&rep_engine, &id2, 2, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000008));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 1e-9, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_much_rep_trapezoid_v2() {
     // Test the behavior of the algorithm when one node has 99% reputation and another node has 1%
@@ -760,36 +739,32 @@ fn reppoe_much_rep_trapezoid_v2() {
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF / 2000));
     // 1 / 2000 = 500 / 1_000_000
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p01, 1.0 / 2000.0, epsilon = 1e-9);
     // Active identity with 1 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id1, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF / 2000));
-    // 1 / 2000 = 500 / 1_000_000
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p02, 1.0 / 2000.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v2(&rep_engine, &id2, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000001));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 99% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id0, 2, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x010624dd));
     // 8 / 2000 = 4_000 / 1_000_000
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 4_000);
+    assert_abs_diff_eq!(p01, 8.0 / 2000.0, epsilon = 1e-9);
     // Active identity with 1 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id1, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x010624dd));
-    // 8 / 2000 = 4_000 / 1_000_000
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 4_000);
+    assert_abs_diff_eq!(p02, 8.0 / 2000.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v2(&rep_engine, &id2, 2, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000008));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 1e-9, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_much_rep_trapezoid_v3() {
     // Test the behavior of the algorithm when one node has 99% reputation and another node has 1%
@@ -806,33 +781,31 @@ fn reppoe_much_rep_trapezoid_v3() {
     // Active identity with 99% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xDFFF_FFFE));
-    assert_eq!((p01 * 100_f64).round() as i128, 87);
+    assert_abs_diff_eq!(p01, 0.875, epsilon = 1e-9);
     // Active identity with 1 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id1, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x20000001));
-    assert_eq!((p02 * 100_f64).round() as i128, 13);
+    assert_abs_diff_eq!(p02, 0.125, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v3(&rep_engine, &id2, 1, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000001));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 99% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id0, 2, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Active identity with 1 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id1, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x40000002));
-    assert_eq!((p02 * 100_f64).round() as i128, 25);
+    assert_abs_diff_eq!(p02, 0.25, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t03, p03) = calculate_reppoe_threshold_v3(&rep_engine, &id2, 2, 2000);
     assert_eq!(t03, Hash::with_first_u32(0x00000002));
-    assert_eq!((p03 * 1_000_000_f64).round() as i128, 0);
+    assert_abs_diff_eq!(p03, 0.0, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_100_reputed_nodes_v1() {
     // Test the behavior of the algorithm when 100 nodes have equally large reputation
@@ -855,45 +828,43 @@ fn reppoe_100_reputed_nodes_v1() {
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id_rep, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x028f5c28));
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 10_000);
+    assert_abs_diff_eq!(p01, 0.01, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id_no_active, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x000010c6));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 1);
+    assert_abs_diff_eq!(p02, 1e-6, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id_rep, 2, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x051eb851));
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 20_000);
+    assert_abs_diff_eq!(p01, 0.02, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id_no_active, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x0000218d));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 2);
+    assert_abs_diff_eq!(p02, 2e-6, epsilon = 1e-9);
 
     // Repeat test with 100 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id_rep, 100, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id_no_active, 100, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00068d8d));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 99.99e-6, epsilon = 1e-9);
 
     // Repeat test with 101 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v1(&rep_engine, &id_rep, 101, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v1(&rep_engine, &id_no_active, 101, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p02 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 1.0, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_100_reputed_nodes_v2() {
     // Test the behavior of the algorithm when 100 nodes have equally large reputation
@@ -916,45 +887,43 @@ fn reppoe_100_reputed_nodes_v2() {
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id_rep, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x0020c49b));
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 500);
+    assert_abs_diff_eq!(p01, 1.0 / 2000.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id_no_active, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x000010c6));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 1);
+    assert_abs_diff_eq!(p02, 1e-6, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id_rep, 2, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x00418937));
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 1000);
+    assert_abs_diff_eq!(p01, 2.0 / 2000.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id_no_active, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x0000218d));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 2);
+    assert_abs_diff_eq!(p02, 2e-6, epsilon = 1e-9);
 
     // Repeat test with 100 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id_rep, 100, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x0ccccccc));
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 50000);
+    assert_abs_diff_eq!(p01, 100.0 / 2000.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id_no_active, 100, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00068d8d));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 99.99e-6, epsilon = 1e-9);
 
     // Repeat test with 101 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v2(&rep_engine, &id_rep, 101, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xffffffff));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v2(&rep_engine, &id_no_active, 101, 2000);
     assert_eq!(t02, Hash::with_first_u32(0xffffffff));
-    assert_eq!((p02 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 1.0, epsilon = 1e-9);
 }
 
-// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
-#[allow(clippy::cast_possible_truncation)]
 #[test]
 fn reppoe_100_reputed_nodes_v3() {
     // Test the behavior of the algorithm when 100 nodes have equally large reputation
@@ -977,46 +946,44 @@ fn reppoe_100_reputed_nodes_v3() {
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id_rep, 1, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x028f5c28));
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 10_000);
+    assert_abs_diff_eq!(p01, 0.01, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id_no_active, 1, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x000010c6));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 1);
+    assert_abs_diff_eq!(p02, 1e-6, epsilon = 1e-9);
 
     // Repeat test with 2 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id_rep, 2, 2000);
     assert_eq!(t01, Hash::with_first_u32(0x051eb851));
-    assert_eq!((p01 * 1_000_000_f64).round() as i128, 20_000);
+    assert_abs_diff_eq!(p01, 0.02, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id_no_active, 2, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x0000218d));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 2);
+    assert_abs_diff_eq!(p02, 2e-6, epsilon = 1e-9);
 
     // Repeat test with 100 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id_rep, 100, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id_no_active, 100, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00068d8d));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p02, 99.99e-6, epsilon = 1e-9);
 
     // Repeat test with 100 witnesses
     // Active identity with 1% of the reputation
     let (t01, p01) = calculate_reppoe_threshold_v3(&rep_engine, &id_rep, 101, 2000);
     assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-    assert_eq!((p01 * 100_f64).round() as i128, 100);
+    assert_abs_diff_eq!(p01, 1.0, epsilon = 1e-9);
     // Inactive identity with 0 reputation
     let (t02, p02) = calculate_reppoe_threshold_v3(&rep_engine, &id_no_active, 101, 2000);
     assert_eq!(t02, Hash::with_first_u32(0x00069e54));
-    assert_eq!((p02 * 1_000_000_f64).round() as i128, 101);
+    assert_abs_diff_eq!(p02, 100.99e-6, epsilon = 1e-9);
 }
 
 #[test]
-// FIXME: Allow for now, since there is no safe cast function from a usize to float yet
-#[allow(clippy::cast_possible_truncation)]
 fn reppoe_worst_case() {
     // Check the worst case reppoe probability in mainnet with an empty ARS, a data request with
     // the maximum number of witnesses, and taking into account the extra commit rounds.
@@ -1059,5 +1026,5 @@ fn reppoe_worst_case() {
         minimum_difficulty,
     );
 
-    assert_eq!((p00 * 100_f64).round() as i128, 32);
+    assert_abs_diff_eq!(p00, 0.315, epsilon = 1e-9);
 }
