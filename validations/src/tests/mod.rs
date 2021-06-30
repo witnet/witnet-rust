@@ -35,6 +35,11 @@ use witnet_rad::{
 
 use crate::validations::*;
 
+mod compare_block_candidates;
+mod randpoe;
+mod reppoe;
+mod tally_precondition;
+
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
