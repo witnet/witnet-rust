@@ -14,7 +14,6 @@ use witnet_data_structures::{
     transaction::Transaction,
     transaction_factory::FeeType,
 };
-use witnet_futures_utils::ActorFutureExt2;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDataReqRequest {

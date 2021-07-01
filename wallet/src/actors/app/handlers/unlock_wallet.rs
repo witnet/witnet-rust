@@ -1,6 +1,5 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use witnet_futures_utils::ActorFutureExt2;
 
 use crate::{actors::app, model, types};
 

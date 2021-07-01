@@ -14,7 +14,6 @@ use crate::{
     },
     config_mngr,
 };
-use witnet_futures_utils::ActorFutureExt2;
 
 mod actor;
 mod handlers;

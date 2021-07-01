@@ -19,7 +19,7 @@ use witnet_data_structures::{
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
-use witnet_futures_utils::ActorFutureExt2;
+
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::validate_rad_request;
 

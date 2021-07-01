@@ -63,7 +63,7 @@ use witnet_data_structures::{
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::VrfCtx,
 };
-use witnet_futures_utils::ActorFutureExt2;
+
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{

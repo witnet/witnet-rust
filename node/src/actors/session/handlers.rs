@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, convert::TryFrom, io::Error, net::SocketAddr};
 
 use actix::{
-    io::WriteHandler, ActorContext, ActorFutureExt, Context, ContextFutureSpawner, Handler,
-    StreamHandler, SystemService, WrapFuture,
+    io::WriteHandler, ActorContext, ActorFutureExt, ActorTryFutureExt, Context,
+    ContextFutureSpawner, Handler, StreamHandler, SystemService, WrapFuture,
 };
 use bytes::BytesMut;
 use failure::Fail;
@@ -38,7 +38,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
-use witnet_futures_utils::ActorFutureExt2;
+
 use witnet_util::timestamp::get_timestamp;
 
 #[derive(Debug, Eq, Fail, PartialEq)]

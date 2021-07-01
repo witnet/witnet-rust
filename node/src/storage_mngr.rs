@@ -14,7 +14,7 @@ use futures::Future;
 use crate::config_mngr;
 use witnet_config::{config, config::Config};
 use witnet_data_structures::chain::ChainState;
-use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
+use witnet_futures_utils::TryFutureExt2;
 use witnet_storage::{backends, storage};
 
 pub use node_migrations::*;

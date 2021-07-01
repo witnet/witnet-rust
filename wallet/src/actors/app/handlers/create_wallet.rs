@@ -4,7 +4,6 @@ use std::str;
 
 use crate::{actors::app, types};
 use futures_util::FutureExt;
-use witnet_futures_utils::ActorFutureExt2;
 
 /// Create Wallet request, where name, description and overwrite are optional and backup_password
 /// is only needed if seed_source is xprv

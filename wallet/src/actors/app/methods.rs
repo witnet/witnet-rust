@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::*;
-use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
+use witnet_futures_utils::TryFutureExt2;
 
 pub struct Validated {
     pub description: Option<String>,

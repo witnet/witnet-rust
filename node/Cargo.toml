@@ -7,7 +7,7 @@ description = "node component"
 edition = "2018"
 
 [dependencies]
-actix = { version = "0.11.1", default-features = false }
+actix = { version = "0.12.0", default-features = false }
 ansi_term = "0.12.1"
 async-stream = "0.3"
 bincode = "1.2.1"

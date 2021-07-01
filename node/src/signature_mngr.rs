@@ -28,7 +28,7 @@ use witnet_data_structures::{
     transaction::MemoizedHashable,
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
-use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
+use witnet_futures_utils::TryFutureExt2;
 use witnet_protected::ProtectedString;
 use witnet_validations::validations;
 

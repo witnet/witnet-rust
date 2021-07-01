@@ -17,7 +17,6 @@ use bytes::BytesMut;
 use futures::future::Either;
 use futures_util::compat::Compat01As03;
 use jsonrpc_pubsub::{PubSubHandler, Session};
-use witnet_futures_utils::ActorFutureExt2;
 
 /// JSON RPC server
 #[derive(Default)]

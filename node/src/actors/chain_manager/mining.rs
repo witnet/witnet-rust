@@ -10,7 +10,8 @@ use std::{
 };
 
 use actix::{
-    ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, SystemService, WrapFuture,
+    ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner, SystemService,
+    WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
@@ -37,7 +38,7 @@ use witnet_data_structures::{
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
-use witnet_futures_utils::{ActorFutureExt2, TryFutureExt2};
+use witnet_futures_utils::TryFutureExt2;
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{

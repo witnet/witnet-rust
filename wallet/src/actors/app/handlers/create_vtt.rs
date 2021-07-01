@@ -16,7 +16,6 @@ use witnet_data_structures::{
     transaction_factory::FeeType,
     utxo_pool::UtxoSelectionStrategy,
 };
-use witnet_futures_utils::ActorFutureExt2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VttOutputParams {
