@@ -80,8 +80,16 @@ impl WitPoller {
 
             for (dr_id, dr_bytes, dr_tx_hash, dr_tx_creation_timestamp) in pending_drs {
                 let report = witnet_client.execute("dataRequestReport", json!([dr_tx_hash]));
+                let report =
+                    tokio::time::timeout(Duration::from_secs(5), Compat01As03::new(report)).await;
+                let report = match report {
+                    Ok(report) => report,
+                    Err(_) => {
+                        log::error!("Failed to connect to witnet client, will retry later");
+                        break;
+                    }
+                };
 
-                let report = Compat01As03::new(report).await;
                 let report = match report {
                     Ok(report) => report,
 
