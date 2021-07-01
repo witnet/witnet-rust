@@ -6,12 +6,11 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-use crate::config::Config;
 use async_jsonrpc_client::{transports::tcp::TcpSocket, Transport};
 use futures_util::compat::Compat01As03;
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
-use web3::{contract::Contract, transports::Http};
+use web3::{contract::Contract, transports::Http, types::H160};
 
 /// Actors
 pub mod actors;
@@ -19,8 +18,8 @@ pub mod actors;
 pub mod config;
 
 /// Creates a Witnet Request Board contract from Config information
-pub fn create_wrb_contract(config: &Config) -> Contract<Http> {
-    let web3_http = web3::transports::Http::new(&config.eth_client_url)
+pub fn create_wrb_contract(eth_client_url: &str, wrb_contract_addr: H160) -> Contract<Http> {
+    let web3_http = web3::transports::Http::new(eth_client_url)
         .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
         .unwrap();
     let web3 = web3::Web3::new(web3_http);
@@ -29,14 +28,11 @@ pub fn create_wrb_contract(config: &Config) -> Contract<Http> {
     let wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
         .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
         .unwrap();
-    let wrb_contract_address = config.wrb_contract_addr;
-    Contract::new(web3.eth(), wrb_contract_address, wrb_contract_abi)
+    Contract::new(web3.eth(), wrb_contract_addr, wrb_contract_abi)
 }
 
 /// Check if the witnet node is running
-pub async fn check_witnet_node_running(config: &Config) -> Result<(), String> {
-    let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-
+pub async fn check_witnet_node_running(witnet_addr: &str) -> Result<(), String> {
     let (_handle, witnet_client) = TcpSocket::new(&witnet_addr).unwrap();
     let witnet_client = Arc::new(witnet_client);
     let res = witnet_client.execute("syncStatus", json!(null));

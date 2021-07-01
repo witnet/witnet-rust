@@ -45,7 +45,7 @@ impl SystemService for DrReporter {}
 impl DrReporter {
     /// Initialize `DrReporter` taking the configuration from a `Config` structure
     pub fn from_config(config: &Config) -> Result<Self, String> {
-        let wrb_contract = create_wrb_contract(config);
+        let wrb_contract = create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
 
         Ok(Self {
             wrb_contract: Some(wrb_contract),

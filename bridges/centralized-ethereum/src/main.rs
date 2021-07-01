@@ -42,7 +42,7 @@ fn init_logger() {
 
 async fn post_example_dr(config: Arc<config::Config>) {
     log::info!("Posting an example of Data Request");
-    let wrb_contract = create_wrb_contract(&config);
+    let wrb_contract = create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
 
     log::info!("calling postDataRequest");
 
@@ -105,7 +105,7 @@ fn run(callback: fn()) -> Result<(), String> {
             check_ethereum_node_running(&config.eth_client_url)
                 .await
                 .expect("ethereum node not running");
-            check_witnet_node_running(&config)
+            check_witnet_node_running(&config.witnet_jsonrpc_addr.to_string())
                 .await
                 .expect("witnet node not running");
 
