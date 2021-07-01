@@ -185,9 +185,9 @@ pub fn exec_cmd(
             config.connections.known_peers.extend(params.known_peers);
 
             node::actors::node::run(Arc::new(config), || {
-                // FIXME(#72): decide what to do when interrupt signals are received
+                let system = node::actors::node::System::current();
                 ctrlc::set_handler(move || {
-                    node::actors::node::close();
+                    node::actors::node::close(&system);
                 })
                 .expect("Error setting handler for both SIGINT (Ctrl+C) and SIGTERM (kill)");
             })

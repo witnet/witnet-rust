@@ -1,6 +1,7 @@
-use std::{process::exit, result::Result, sync::Arc};
+use std::sync::Arc;
 
-use actix::{Actor, System, SystemRegistry};
+pub use actix::System;
+use actix::{Actor, SystemRegistry};
 
 use crate::{
     actors::{
@@ -67,12 +68,8 @@ pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
 }
 
 /// Function to close the main system
-pub fn close() {
+pub fn close(system: &System) {
     log::info!("Closing node");
 
-    // FIXME(#72): find out how to gracefully stop the system
-    // System::current().stop();
-
-    // Process exit
-    exit(0);
+    system.stop();
 }
