@@ -5185,9 +5185,7 @@ dependencies = [
 name = "witnet_futures_utils"
 version = "0.1.0"
 dependencies = [
- "actix",
  "futures 0.3.8",
- "pin-project-lite 0.2.6",
 ]
 
 [[package]]
