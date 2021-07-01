@@ -5,6 +5,7 @@ use std::{
     any::{Any, TypeId},
     future,
     sync::Arc,
+    time::Duration,
 };
 
 use actix::prelude::*;
@@ -154,6 +155,10 @@ impl Drop for StorageManager {
     fn drop(&mut self) {
         log::trace!("Dropping StorageManager");
         stop_system_if_panicking("StorageManager");
+        // FIXME(#2008): sometimes rocksdb is not closed correctly, resulting in error
+        // pure virtual method called
+        // This sleep seems to fix that error, but it doesn't look like a solid fix
+        std::thread::sleep(Duration::from_millis(500));
     }
 }
 
