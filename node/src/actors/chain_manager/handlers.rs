@@ -1091,9 +1091,9 @@ impl Handler<PeersBeacons> for ChainManager {
                             highest_block_checkpoint: consensus_beacon,
                             ..
                         },
-                        _,
+                        is_there_block_consensus,
                     )) if consensus_beacon == our_beacon => {
-                        if self.sm_state == StateMachine::AlmostSynced {
+                        if self.sm_state == StateMachine::AlmostSynced && is_there_block_consensus {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
                             self.update_state_machine(StateMachine::Synced);
