@@ -2218,6 +2218,94 @@ impl VrfSlots {
     }
 }
 
+#[allow(clippy::many_single_char_names)]
+fn internal_calculate_mining_probability(
+    rf: u32,
+    n: f64,
+    k: u32, // k: iterative rf until reach bf
+    m: i32, // M: nodes with reputation greater than me
+    l: i32, // L: nodes with reputation equal than me
+    r: i32, // R: nodes with reputation less than me
+) -> f64 {
+    if k == rf {
+        let rf = f64::from(rf);
+        // Prob to mine is the probability that a node with the same reputation than me mine,
+        // divided by all the nodes with the same reputation:
+        // 1/L * (1 - ((N-RF)/N)^L)
+        let prob_to_mine = (1.0 / f64::from(l)) * (1.0 - ((n - rf) / n).powi(l));
+        // Prob that a node with more reputation than me mine is:
+        // ((N-RF)/N)^M
+        let prob_greater_neg = ((n - rf) / n).powi(m);
+
+        prob_to_mine * prob_greater_neg
+    } else {
+        let k = f64::from(k);
+        // Here we take into account that rf = 1 because is only a new slot
+        let prob_to_mine = (1.0 / f64::from(l)) * (1.0 - ((n - 1.0) / n).powi(l));
+        // The same equation than before
+        let prob_bigger_neg = ((n - k) / n).powi(m);
+        // Prob that a node with less or equal reputation than me mine with a lower slot is:
+        // ((N+1-RF)/N)^(L+R-1)
+        let prob_lower_slot_neg = ((n + 1.0 - k) / n).powi(l + r - 1);
+
+        prob_to_mine * prob_bigger_neg * prob_lower_slot_neg
+    }
+}
+
+/// Calculate the probability that the block candidate proposed by this identity will be the
+/// consolidated block selected by the network.
+pub fn calculate_mining_probability(
+    rep_engine: &ReputationEngine,
+    own_pkh: PublicKeyHash,
+    rf: u32,
+    bf: u32,
+) -> f64 {
+    let n = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
+
+    // In case of any active node, the probability is maximum
+    if n == 0 {
+        return 1.0;
+    }
+
+    // First we need to know how many nodes have more or equal reputation than us
+    let own_rep = rep_engine.trs().get(&own_pkh);
+    let is_active_node = rep_engine.ars().contains(&own_pkh);
+    let mut greater = 0;
+    let mut equal = 0;
+    let mut less = 0;
+    for &active_id in rep_engine.ars().active_identities() {
+        let rep = rep_engine.trs().get(&active_id);
+        match (rep.0 > 0, own_rep.0 > 0) {
+            (true, false) => greater += 1,
+            (false, true) => less += 1,
+            _ => equal += 1,
+        }
+    }
+    // In case of not being active, the equal value is plus 1.
+    if !is_active_node {
+        equal += 1;
+    }
+
+    if rf > n && greater == 0 {
+        // In case of replication factor exceed the active node number and being the most reputed
+        // we obtain the maximum probability divided in the nodes we share the same reputation
+        1.0 / f64::from(equal)
+    } else if rf > n && greater > 0 {
+        // In case of replication factor exceed the active node number and not being the most reputed
+        // we obtain the minimum probability
+        0.0
+    } else {
+        let mut aux =
+            internal_calculate_mining_probability(rf, f64::from(n), rf, greater, equal, less);
+        let mut k = rf + 1;
+        while k <= bf && k <= n {
+            aux += internal_calculate_mining_probability(rf, f64::from(n), k, greater, equal, less);
+            k += 1;
+        }
+        aux
+    }
+}
+
 /// Function to calculate a merkle tree from a transaction vector
 pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
 where
