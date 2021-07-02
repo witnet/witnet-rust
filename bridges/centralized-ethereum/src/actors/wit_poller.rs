@@ -7,22 +7,17 @@ use crate::{
     config::Config,
 };
 use actix::prelude::*;
-use async_jsonrpc_client::{
-    transports::{shared::EventLoopHandle, tcp::TcpSocket},
-    Transport,
-};
-use futures_util::compat::Compat01As03;
 use serde_json::json;
 use std::{convert::TryFrom, sync::Arc, time::Duration};
 use witnet_data_structures::chain::DataRequestInfo;
+use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_util::timestamp::get_timestamp;
 
 /// WitPoller actor checks periodically the state of the requests in Witnet to call DrReporter
 /// in case of found a tally
 #[derive(Default)]
 pub struct WitPoller {
-    witnet_client: Option<Arc<TcpSocket>>,
-    _handle: Option<EventLoopHandle>,
+    witnet_client: Option<Arc<Addr<JsonRpcClient>>>,
     wit_tally_polling_rate_ms: u64,
     dr_tx_unresolved_timeout_ms: Option<u64>,
 }
@@ -47,18 +42,17 @@ impl actix::Supervised for WitPoller {}
 impl SystemService for WitPoller {}
 
 impl WitPoller {
-    /// Initialize `PeersManager` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config) -> Result<Self, String> {
+    /// Initialize the `WitPoller` taking the configuration from a `Config` structure
+    /// and a Json-RPC client connected to a Witnet node
+    pub fn from_config(
+        config: &Config,
+        node_client: Arc<Addr<JsonRpcClient>>,
+    ) -> Result<Self, String> {
         let wit_tally_polling_rate_ms = config.wit_tally_polling_rate_ms;
         let dr_tx_unresolved_timeout_ms = config.dr_tx_unresolved_timeout_ms;
-        let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-
-        let (_handle, witnet_client) = TcpSocket::new(&witnet_addr).unwrap();
-        let witnet_client = Arc::new(witnet_client);
 
         Ok(Self {
-            witnet_client: Some(witnet_client),
-            _handle: Some(_handle),
+            witnet_client: Some(node_client),
             wit_tally_polling_rate_ms,
             dr_tx_unresolved_timeout_ms,
         })
@@ -79,9 +73,13 @@ impl WitPoller {
             let current_timestamp = get_timestamp();
 
             for (dr_id, dr_bytes, dr_tx_hash, dr_tx_creation_timestamp) in pending_drs {
-                let report = witnet_client.execute("dataRequestReport", json!([dr_tx_hash]));
-                let report =
-                    tokio::time::timeout(Duration::from_secs(5), Compat01As03::new(report)).await;
+                let method = String::from("dataRequestReport");
+                let params = json!([dr_tx_hash]);
+                let req = jsonrpc::Request::method(method)
+                    .timeout(Duration::from_millis(5_000))
+                    .params(params)
+                    .expect("params failed serialization");
+                let report = witnet_client.send(req).await;
                 let report = match report {
                     Ok(report) => report,
                     Err(_) => {

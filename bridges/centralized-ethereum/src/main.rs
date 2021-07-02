@@ -13,6 +13,7 @@ use witnet_centralized_ethereum_bridge::{
     check_ethereum_node_running, check_witnet_node_running, config, create_wrb_contract,
 };
 use witnet_config::config::Config as NodeConfig;
+use witnet_net::client::tcp::JsonRpcClient;
 use witnet_node::storage_mngr;
 
 /// Command line usage and flags
@@ -101,13 +102,20 @@ fn run(callback: fn()) -> Result<(), String> {
             post_example_dr(config).await;
             log::info!("post post_example DR");
         } else {
+            let witnet_client_url = config.witnet_jsonrpc_addr.to_string();
+
             // Check if ethereum and witnet nodes are running
             check_ethereum_node_running(&config.eth_client_url)
                 .await
                 .expect("ethereum node not running");
-            check_witnet_node_running(&config.witnet_jsonrpc_addr.to_string())
+            check_witnet_node_running(&witnet_client_url)
                 .await
                 .expect("witnet node not running");
+
+            // Start Json-RPC actor connected to Witnet node
+            let node_client_actor = JsonRpcClient::start(&witnet_client_url)
+                .expect("Json-RPC Client actor failed to started");
+            let node_client = Arc::new(node_client_actor);
 
             // Start EthPoller actor
             // TODO: Remove unwrap
@@ -115,11 +123,13 @@ fn run(callback: fn()) -> Result<(), String> {
             SystemRegistry::set(eth_poller_addr);
 
             // Start WitPoller actor
-            let wit_poller_addr = WitPoller::from_config(&config).unwrap().start();
+            let wit_poller_addr = WitPoller::from_config(&config, node_client.clone())
+                .unwrap()
+                .start();
             SystemRegistry::set(wit_poller_addr);
 
             // Start DrSender actor
-            let dr_sender_addr = DrSender::from_config(&config).unwrap().start();
+            let dr_sender_addr = DrSender::from_config(&config, node_client).unwrap().start();
             SystemRegistry::set(dr_sender_addr);
 
             // Start DrReporter actor

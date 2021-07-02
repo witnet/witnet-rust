@@ -5089,6 +5089,7 @@ dependencies = [
  "web3 0.16.0",
  "witnet_config",
  "witnet_data_structures",
+ "witnet_net",
  "witnet_node",
  "witnet_util",
  "witnet_validations",

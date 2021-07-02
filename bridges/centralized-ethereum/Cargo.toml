@@ -19,6 +19,7 @@ toml = "0.5.6"
 web3 = { version = "0.16.0", default-features = false, features = ["http-tls"] }
 witnet_data_structures = { path = "../../data_structures" }
 witnet_config = { path = "../../config" }
+witnet_net = { path = "../../net" }
 witnet_node = { path = "../../node" }
 witnet_util = { path = "../../util" }
 witnet_validations = { path = "../../validations" }

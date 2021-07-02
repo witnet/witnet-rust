@@ -6,11 +6,6 @@ use crate::{
     config::Config,
 };
 use actix::prelude::*;
-use async_jsonrpc_client::{
-    transports::{shared::EventLoopHandle, tcp::TcpSocket},
-    Transport,
-};
-use futures_util::compat::Compat01As03;
 use serde_json::json;
 use std::{fmt, sync::Arc, time::Duration};
 use witnet_data_structures::{
@@ -18,6 +13,7 @@ use witnet_data_structures::{
     proto::ProtobufConvert,
     radon_error::RadonErrors,
 };
+use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
@@ -27,8 +23,7 @@ mod tests;
 /// DrSender actor reads the new requests from DrDatabase and includes them in Witnet
 #[derive(Default)]
 pub struct DrSender {
-    witnet_client: Option<Arc<TcpSocket>>,
-    _handle: Option<EventLoopHandle>,
+    witnet_client: Option<Arc<Addr<JsonRpcClient>>>,
     wit_dr_sender_polling_rate_ms: u64,
     max_dr_value_nanowits: u64,
 }
@@ -56,18 +51,17 @@ impl actix::Supervised for DrSender {}
 impl SystemService for DrSender {}
 
 impl DrSender {
-    /// Initialize `PeersManager` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config) -> Result<Self, String> {
+    /// Initialize the `DrSender` taking the configuration from a `Config` structure
+    /// and a Json-RPC client connected to a Witnet node
+    pub fn from_config(
+        config: &Config,
+        node_client: Arc<Addr<JsonRpcClient>>,
+    ) -> Result<Self, String> {
         let max_dr_value_nanowits = config.max_dr_value_nanowits;
         let wit_dr_sender_polling_rate_ms = config.wit_dr_sender_polling_rate_ms;
-        let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-
-        let (_handle, witnet_client) = TcpSocket::new(&witnet_addr).unwrap();
-        let witnet_client = Arc::new(witnet_client);
 
         Ok(Self {
-            witnet_client: Some(witnet_client),
-            _handle: Some(_handle),
+            witnet_client: Some(node_client),
             wit_dr_sender_polling_rate_ms,
             max_dr_value_nanowits,
         })
@@ -86,9 +80,18 @@ impl DrSender {
             for (dr_id, dr_bytes) in new_drs {
                 match deserialize_and_validate_dr_bytes(&dr_bytes, max_dr_value_nanowits) {
                     Ok(dr_output) => {
-                        let bdr_params = json!({"dro": dr_output, "fee": 0});
-                        let res = witnet_client.execute("sendRequest", bdr_params);
-                        let res = Compat01As03::new(res).await;
+                        let req = jsonrpc::Request::method("sendRequest")
+                            .timeout(Duration::from_millis(5_000))
+                            .params(json!({"dro": dr_output, "fee": 0}))
+                            .expect("params failed serialization");
+                        let res = witnet_client.send(req).await;
+                        let res = match res {
+                            Ok(res) => res,
+                            Err(_) => {
+                                log::error!("Failed to connect to witnet client, will retry later");
+                                break;
+                            }
+                        };
 
                         match res {
                             Ok(dr_tx_hash) => {
