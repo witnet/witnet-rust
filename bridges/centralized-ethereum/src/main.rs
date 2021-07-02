@@ -112,20 +112,19 @@ fn run(callback: fn()) -> Result<(), String> {
                 .await
                 .expect("witnet node not running");
 
+            // Web3 contract using HTTP transport with an Ethereum client
+            let wrb_contract = Arc::new(create_wrb_contract(
+                &config.eth_client_url,
+                config.wrb_contract_addr,
+            ));
+
             // Start DrDatabase actor
             let dr_database_addr = DrDatabase::default().start();
             SystemRegistry::set(dr_database_addr);
 
             // Start Json-RPC actor connected to Witnet node
-            let node_client_actor = JsonRpcClient::start(&witnet_client_url)
+            let node_client = JsonRpcClient::start(&witnet_client_url)
                 .expect("Json-RPC Client actor failed to started");
-
-            // Params for starting actors
-            let node_client = Arc::new(node_client_actor);
-            let wrb_contract = Arc::new(create_wrb_contract(
-                &config.eth_client_url,
-                config.wrb_contract_addr,
-            ));
 
             // Start WitPoller actor
             let wit_poller_addr = WitPoller::from_config(&config, node_client.clone()).start();

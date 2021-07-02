@@ -7,7 +7,7 @@ use crate::{
 };
 use actix::prelude::*;
 use serde_json::json;
-use std::{fmt, sync::Arc, time::Duration};
+use std::{fmt, time::Duration};
 use witnet_data_structures::{
     chain::{DataRequestOutput, Hash},
     proto::ProtobufConvert,
@@ -23,7 +23,7 @@ mod tests;
 /// DrSender actor reads the new requests from DrDatabase and includes them in Witnet
 #[derive(Default)]
 pub struct DrSender {
-    witnet_client: Option<Arc<Addr<JsonRpcClient>>>,
+    witnet_client: Option<Addr<JsonRpcClient>>,
     wit_dr_sender_polling_rate_ms: u64,
     max_dr_value_nanowits: u64,
 }
@@ -53,7 +53,7 @@ impl SystemService for DrSender {}
 impl DrSender {
     /// Initialize the `DrSender` taking the configuration from a `Config` structure
     /// and a Json-RPC client connected to a Witnet node
-    pub fn from_config(config: &Config, node_client: Arc<Addr<JsonRpcClient>>) -> Self {
+    pub fn from_config(config: &Config, node_client: Addr<JsonRpcClient>) -> Self {
         let max_dr_value_nanowits = config.max_dr_value_nanowits;
         let wit_dr_sender_polling_rate_ms = config.wit_dr_sender_polling_rate_ms;
 

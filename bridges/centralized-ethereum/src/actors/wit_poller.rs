@@ -7,7 +7,7 @@ use crate::{
 };
 use actix::prelude::*;
 use serde_json::json;
-use std::{convert::TryFrom, sync::Arc, time::Duration};
+use std::{convert::TryFrom, time::Duration};
 use witnet_data_structures::chain::DataRequestInfo;
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_util::timestamp::get_timestamp;
@@ -16,7 +16,7 @@ use witnet_util::timestamp::get_timestamp;
 /// in case of found a tally
 #[derive(Default)]
 pub struct WitPoller {
-    witnet_client: Option<Arc<Addr<JsonRpcClient>>>,
+    witnet_client: Option<Addr<JsonRpcClient>>,
     wit_tally_polling_rate_ms: u64,
     dr_tx_unresolved_timeout_ms: Option<u64>,
 }
@@ -43,7 +43,7 @@ impl SystemService for WitPoller {}
 impl WitPoller {
     /// Initialize the `WitPoller` taking the configuration from a `Config` structure
     /// and a Json-RPC client connected to a Witnet node
-    pub fn from_config(config: &Config, node_client: Arc<Addr<JsonRpcClient>>) -> Self {
+    pub fn from_config(config: &Config, node_client: Addr<JsonRpcClient>) -> Self {
         let wit_tally_polling_rate_ms = config.wit_tally_polling_rate_ms;
         let dr_tx_unresolved_timeout_ms = config.dr_tx_unresolved_timeout_ms;
 
