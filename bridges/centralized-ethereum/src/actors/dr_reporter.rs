@@ -44,15 +44,15 @@ impl SystemService for DrReporter {}
 
 impl DrReporter {
     /// Initialize `DrReporter` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config) -> Result<Self, String> {
+    pub fn from_config(config: &Config) -> Self {
         let wrb_contract = create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
 
-        Ok(Self {
+        Self {
             wrb_contract: Some(wrb_contract),
             eth_account: config.eth_account,
             report_result_limit: config.gas_limits.report_result,
             max_result_size: config.max_result_size,
-        })
+        }
     }
 }
 

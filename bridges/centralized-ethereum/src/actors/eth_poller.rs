@@ -49,14 +49,14 @@ impl SystemService for EthPoller {}
 
 impl EthPoller {
     /// Initialize `PeersManager` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config) -> Result<Self, String> {
+    pub fn from_config(config: &Config) -> Self {
         let wrb_contract = create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
 
-        Ok(Self {
+        Self {
             wrb_contract: Some(wrb_contract),
             eth_new_dr_polling_rate_ms: config.eth_new_dr_polling_rate_ms,
             eth_account: config.eth_account,
-        })
+        }
     }
 
     fn check_new_requests_from_ethereum(&self, ctx: &mut Context<Self>, period: Duration) {

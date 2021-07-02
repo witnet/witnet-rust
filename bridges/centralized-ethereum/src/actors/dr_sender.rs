@@ -53,18 +53,15 @@ impl SystemService for DrSender {}
 impl DrSender {
     /// Initialize the `DrSender` taking the configuration from a `Config` structure
     /// and a Json-RPC client connected to a Witnet node
-    pub fn from_config(
-        config: &Config,
-        node_client: Arc<Addr<JsonRpcClient>>,
-    ) -> Result<Self, String> {
+    pub fn from_config(config: &Config, node_client: Arc<Addr<JsonRpcClient>>) -> Self {
         let max_dr_value_nanowits = config.max_dr_value_nanowits;
         let wit_dr_sender_polling_rate_ms = config.wit_dr_sender_polling_rate_ms;
 
-        Ok(Self {
+        Self {
             witnet_client: Some(node_client),
             wit_dr_sender_polling_rate_ms,
             max_dr_value_nanowits,
-        })
+        }
     }
 
     fn check_new_drs(&self, ctx: &mut Context<Self>, period: Duration) {

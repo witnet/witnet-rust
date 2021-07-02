@@ -104,7 +104,7 @@ fn run(callback: fn()) -> Result<(), String> {
         } else {
             let witnet_client_url = config.witnet_jsonrpc_addr.to_string();
 
-            // Check if ethereum and witnet nodes are running
+            // Check if Ethereum and Witnet nodes are running before starting actors
             check_ethereum_node_running(&config.eth_client_url)
                 .await
                 .expect("ethereum node not running");
@@ -118,22 +118,19 @@ fn run(callback: fn()) -> Result<(), String> {
             let node_client = Arc::new(node_client_actor);
 
             // Start EthPoller actor
-            // TODO: Remove unwrap
-            let eth_poller_addr = EthPoller::from_config(&config).unwrap().start();
+            let eth_poller_addr = EthPoller::from_config(&config).start();
             SystemRegistry::set(eth_poller_addr);
 
             // Start WitPoller actor
-            let wit_poller_addr = WitPoller::from_config(&config, node_client.clone())
-                .unwrap()
-                .start();
+            let wit_poller_addr = WitPoller::from_config(&config, node_client.clone()).start();
             SystemRegistry::set(wit_poller_addr);
 
             // Start DrSender actor
-            let dr_sender_addr = DrSender::from_config(&config, node_client).unwrap().start();
+            let dr_sender_addr = DrSender::from_config(&config, node_client).start();
             SystemRegistry::set(dr_sender_addr);
 
             // Start DrReporter actor
-            let dr_reporter_addr = DrReporter::from_config(&config).unwrap().start();
+            let dr_reporter_addr = DrReporter::from_config(&config).start();
             SystemRegistry::set(dr_reporter_addr);
 
             // Initialize Storage Manager

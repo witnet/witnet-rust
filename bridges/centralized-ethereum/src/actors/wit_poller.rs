@@ -44,18 +44,15 @@ impl SystemService for WitPoller {}
 impl WitPoller {
     /// Initialize the `WitPoller` taking the configuration from a `Config` structure
     /// and a Json-RPC client connected to a Witnet node
-    pub fn from_config(
-        config: &Config,
-        node_client: Arc<Addr<JsonRpcClient>>,
-    ) -> Result<Self, String> {
+    pub fn from_config(config: &Config, node_client: Arc<Addr<JsonRpcClient>>) -> Self {
         let wit_tally_polling_rate_ms = config.wit_tally_polling_rate_ms;
         let dr_tx_unresolved_timeout_ms = config.dr_tx_unresolved_timeout_ms;
 
-        Ok(Self {
+        Self {
             witnet_client: Some(node_client),
             wit_tally_polling_rate_ms,
             dr_tx_unresolved_timeout_ms,
-        })
+        }
     }
 
     fn check_tally_pending_drs(&self, ctx: &mut Context<Self>, period: Duration) {
