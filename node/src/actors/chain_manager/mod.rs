@@ -763,10 +763,19 @@ impl ChainManager {
                             self.persist_data_requests(ctx, to_be_stored);
                         }
 
-                        let _reveals = self
+                        let reveals = self
                             .chain_state
                             .data_request_pool
                             .update_data_request_stages();
+
+                        for reveal in reveals {
+                            // Send AddTransaction message to self
+                            // And broadcast it to all of peers
+                            ctx.address().do_send(AddTransaction {
+                                transaction: Transaction::Reveal(reveal),
+                                broadcast_flag: true,
+                            })
+                        }
 
                         if !resynchronizing {
                             self.persist_items(
@@ -778,10 +787,19 @@ impl ChainManager {
                     StateMachine::Synchronizing => {
                         // In Synchronizing stage, blocks and data requests are persisted
                         // trough batches in AddBlocks handler
-                        let _reveals = self
+                        let reveals = self
                             .chain_state
                             .data_request_pool
                             .update_data_request_stages();
+
+                        for reveal in reveals {
+                            // Send AddTransaction message to self
+                            // And broadcast it to all of peers
+                            ctx.address().do_send(AddTransaction {
+                                transaction: Transaction::Reveal(reveal),
+                                broadcast_flag: true,
+                            })
+                        }
                     }
                     StateMachine::AlmostSynced | StateMachine::Synced => {
                         // Persist finished data requests into storage
@@ -1085,15 +1103,20 @@ impl ChainManager {
         );
         // Ignore AddTransaction when not in Synced state
         match self.sm_state {
-            StateMachine::Synced => {}
-            _ => {
-                return Box::pin(actix::fut::err(
-                    ChainManagerError::NotSynced {
-                        current_state: self.sm_state,
-                    }
-                    .into(),
-                ));
-            }
+            StateMachine::Synced | StateMachine::AlmostSynced => {}
+            _ => match (&msg.transaction, self.own_pkh) {
+                (Transaction::Reveal(reveal), Some(own_pkh)) if reveal.body.pkh == own_pkh => {
+                    // The node will always include our own reveals, it doesn't matter in which state we are
+                }
+                _ => {
+                    return Box::pin(actix::fut::err(
+                        ChainManagerError::NotSynced {
+                            current_state: self.sm_state,
+                        }
+                        .into(),
+                    ));
+                }
+            },
         };
 
         match self.transactions_pool.contains(&msg.transaction) {
