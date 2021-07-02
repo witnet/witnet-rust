@@ -1,13 +1,13 @@
 use crate::{
     actors::dr_database::{DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge},
     config::Config,
-    create_wrb_contract,
 };
 use actix::prelude::*;
-use std::{convert::TryFrom, time::Duration};
+use std::{convert::TryFrom, sync::Arc, time::Duration};
 use web3::{
     contract::{self, Contract},
     ethabi::Bytes,
+    transports::Http,
     types::{H160, U256},
 };
 use witnet_data_structures::chain::Hash;
@@ -18,7 +18,7 @@ use witnet_util::timestamp::get_timestamp;
 #[derive(Default)]
 pub struct EthPoller {
     /// WRB contract
-    pub wrb_contract: Option<Contract<web3::transports::Http>>,
+    pub wrb_contract: Option<Arc<Contract<web3::transports::Http>>>,
     /// Period to check for new requests in the WRB
     pub eth_new_dr_polling_rate_ms: u64,
     /// eth_account
@@ -49,9 +49,7 @@ impl SystemService for EthPoller {}
 
 impl EthPoller {
     /// Initialize `PeersManager` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config) -> Self {
-        let wrb_contract = create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
-
+    pub fn from_config(config: &Config, wrb_contract: Arc<Contract<Http>>) -> Self {
         Self {
             wrb_contract: Some(wrb_contract),
             eth_new_dr_polling_rate_ms: config.eth_new_dr_polling_rate_ms,
@@ -60,6 +58,8 @@ impl EthPoller {
     }
 
     fn check_new_requests_from_ethereum(&self, ctx: &mut Context<Self>, period: Duration) {
+        log::debug!("Checking new DRs from Ethereum contract...");
+
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
         // Check requests

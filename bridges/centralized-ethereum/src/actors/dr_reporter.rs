@@ -1,12 +1,13 @@
 use crate::{
     actors::dr_database::{DrDatabase, DrId, DrInfoBridge, DrState, SetDrInfoBridge},
     config::Config,
-    create_wrb_contract,
 };
 use actix::prelude::*;
+use std::sync::Arc;
 use web3::{
     contract::{self, Contract},
     ethabi::Bytes,
+    transports::Http,
     types::{H160, U256},
 };
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};
@@ -16,7 +17,7 @@ use witnet_util::timestamp::get_timestamp;
 #[derive(Default)]
 pub struct DrReporter {
     /// WRB contract
-    pub wrb_contract: Option<Contract<web3::transports::Http>>,
+    pub wrb_contract: Option<Arc<Contract<web3::transports::Http>>>,
     /// eth_account
     pub eth_account: H160,
     /// report_result_limit
@@ -44,9 +45,7 @@ impl SystemService for DrReporter {}
 
 impl DrReporter {
     /// Initialize `DrReporter` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config) -> Self {
-        let wrb_contract = create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
-
+    pub fn from_config(config: &Config, wrb_contract: Arc<Contract<Http>>) -> Self {
         Self {
             wrb_contract: Some(wrb_contract),
             eth_account: config.eth_account,
