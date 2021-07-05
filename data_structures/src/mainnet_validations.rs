@@ -128,7 +128,7 @@ impl TapiEngine {
         for (i, wip) in voting_wips.into_iter().enumerate() {
             match wip {
                 Some(wip) => {
-                    if self.bit_tapi_counter.contains(i, &wip.wip) {
+                    if self.bit_tapi_counter.contains(i, &wip) {
                         old_wips.insert(wip.wip.clone());
                     } else {
                         if wip.init < min_epoch {
@@ -240,9 +240,13 @@ impl BitTapiCounter {
         self.current_length = length;
     }
 
-    pub fn contains(&self, bit: usize, wip: &str) -> bool {
+    pub fn contains(&self, bit: usize, wip: &BitVotesCounter) -> bool {
         match self.info.get(bit) {
-            Some(Some(bit_info)) => bit_info.wip == wip,
+            Some(Some(bit_info)) => {
+                let mut zero_votes_bit_info = bit_info.clone();
+                zero_votes_bit_info.votes = 0;
+                zero_votes_bit_info == *wip
+            }
             _ => false,
         }
     }
@@ -420,11 +424,11 @@ mod tests {
         aux.end = 50;
         aux.wip = "Wip1".to_string();
         aux.bit = 0;
-        tapi_counter.insert(aux);
+        tapi_counter.insert(aux.clone());
         assert!(!tapi_counter.is_empty());
         assert!(tapi_counter.get(0, &100).is_none());
-        assert!(tapi_counter.contains(0, &"Wip1".to_string()));
-        assert!(!tapi_counter.contains(1, &"Wip1".to_string()));
+        assert!(tapi_counter.contains(0, &aux));
+        assert!(!tapi_counter.contains(1, &aux));
         assert_eq!(tapi_counter.current_length, 1);
 
         let mut aux2 = BitVotesCounter::default();
@@ -432,10 +436,10 @@ mod tests {
         aux2.end = 125;
         aux2.wip = "Wip2".to_string();
         aux2.bit = 0;
-        tapi_counter.insert(aux2);
+        tapi_counter.insert(aux2.clone());
         assert_eq!(tapi_counter.get(0, &100).unwrap().wip, "Wip2".to_string());
         assert!(tapi_counter.get(1, &100).is_none());
-        assert!(tapi_counter.contains(0, &"Wip2".to_string()));
+        assert!(tapi_counter.contains(0, &aux2));
         assert_eq!(tapi_counter.current_length, 1);
 
         assert_eq!(tapi_counter.get(0, &100).unwrap().votes, 0);
