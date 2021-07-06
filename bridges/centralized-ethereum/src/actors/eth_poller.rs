@@ -74,7 +74,10 @@ impl EthPoller {
                 )
                 .await
                 .map_err(|err| {
-                    log::error!("Fail to read dr bytes from contract: {:?}", err.to_string());
+                    log::error!(
+                        "Fail to read requestsCount from contract: {:?}",
+                        err.to_string()
+                    );
 
                     err
                 });
