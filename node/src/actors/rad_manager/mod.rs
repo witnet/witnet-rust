@@ -6,6 +6,8 @@
 //! [Data Requests]: https://docs.witnet.io/protocol/data-requests/overview/
 //! [RAD Engine]: https://docs.witnet.io/protocol/data-requests/overview/#the-rad-engine
 
+use crate::utils::stop_system_if_panicking;
+
 mod actor;
 mod handlers;
 
@@ -16,7 +18,10 @@ pub struct RadManager;
 impl Drop for RadManager {
     fn drop(&mut self) {
         log::trace!("Dropping RadManager");
-        // TODO: RadManager is expected to restart on panic, ensure
-        //stop_system_if_panicking("RadManager");
+        // RadManager handles radon panics so it should never stop because of a panic.
+        // That's handled by ensuring that the panics always happen inside a future.
+        // If for some reason RadManager panics outside of a future, then we want to stop the actor
+        // system.
+        stop_system_if_panicking("RadManager");
     }
 }

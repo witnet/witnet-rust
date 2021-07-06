@@ -154,6 +154,9 @@ mod tests {
             type Result = ResponseFuture<String>;
 
             fn handle(&mut self, msg: PanicMsg, _ctx: &mut Self::Context) -> Self::Result {
+                // This panic would kill the actor. Only panics inside a future are handled
+                // correctly
+                //panic!("{}", msg.0);
                 let fut = async move {
                     panic!("{}", msg.0);
                 };
