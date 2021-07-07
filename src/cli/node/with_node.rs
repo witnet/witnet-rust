@@ -244,6 +244,9 @@ pub fn exec_cmd(
         Command::Rewind { node, epoch } => {
             rpc::rewind(node.unwrap_or(config.jsonrpc.server_address), epoch)
         }
+        Command::SignalingInfo { node } => {
+            rpc::signaling_info(node.unwrap_or(config.jsonrpc.server_address))
+        }
     }
 }
 
@@ -628,6 +631,15 @@ pub enum Command {
         /// The epoch of the top block of the chain after the rewind has completed.
         #[structopt(short = "e", long = "epoch")]
         epoch: Epoch,
+    },
+    #[structopt(
+        name = "signalingInfo",
+        about = "Get Information related to TAPI signaling"
+    )]
+    SignalingInfo {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
     },
 }
 

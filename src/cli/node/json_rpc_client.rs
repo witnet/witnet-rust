@@ -34,7 +34,7 @@ use witnet_node::actors::{
     json_rpc::json_rpc_methods::{
         AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
-    messages::{BuildVtt, GetReputationResult},
+    messages::{BuildVtt, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
@@ -1166,6 +1166,74 @@ pub fn rewind(addr: SocketAddr, epoch: Epoch) -> Result<(), failure::Error> {
         println!("Use the nodeStats command to check the progress.");
     } else {
         bail!("Failed to rewind chain");
+    }
+
+    Ok(())
+}
+
+pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let request = r#"{"jsonrpc": "2.0","method": "signalingInfo", "id": "1"}"#;
+
+    let response = send_request(&mut stream, &request)?;
+    let signaling_info: SignalingInfo = parse_response(&response)?;
+
+    println!("Current epoch: {}", signaling_info.epoch);
+    println!("\nList of activated upgrades:");
+    let sorted_upgrades = signaling_info
+        .active_upgrades
+        .iter()
+        .sorted_by(|a, b| a.1.cmp(&b.1));
+    for (upgrade, epoch) in sorted_upgrades {
+        println!("- Epoch {}: {}", epoch, upgrade);
+    }
+    println!("\nList of pending upgrades:");
+    for i in signaling_info.pending_upgrades {
+        if i.init < signaling_info.epoch {
+            let mut next_check = i.init + i.period;
+            while next_check < signaling_info.epoch {
+                next_check += i.period;
+            }
+            println!(
+                "- {} (using bit {}): Started in {}. Next check will be on {}",
+                i.wip, i.bit, i.init, next_check
+            );
+
+            let blocks_last_period = signaling_info
+                .epoch
+                .saturating_sub(next_check.saturating_sub(i.period));
+            let signaling_blocks = i.votes;
+            let non_signaling_block = blocks_last_period.saturating_sub(i.votes);
+            let upcoming_blocks = next_check.saturating_sub(signaling_info.epoch);
+            println!(
+                "    Blocks: {} signaling, {} non-signaling, {} upcoming",
+                signaling_blocks, non_signaling_block, upcoming_blocks
+            );
+
+            let percentage = i.votes.saturating_mul(100) / i.period;
+            let relative_percentage =
+                i.votes.saturating_mul(100) / std::cmp::max(1, blocks_last_period);
+            println!(
+                "    Total percentage achieved: {}%. Relative percentage: {}%",
+                percentage, relative_percentage
+            );
+
+            let percentage_target = 80;
+            let max_possible_votes = i.votes + upcoming_blocks;
+            let max_possible_percentage = max_possible_votes.saturating_mul(100) / i.period;
+            if percentage >= percentage_target {
+                println!("    Will be activated in this period");
+            } else if max_possible_percentage < percentage_target {
+                println!("    Will not be activated in this period");
+            } else if relative_percentage >= percentage_target {
+                println!("    Will probably be activated in this period");
+            } else {
+                println!("    Will probably not be activated in this period");
+            }
+        } else {
+            println!("- {} (using bit {}): Starts in {}", i.wip, i.bit, i.init);
+        }
     }
 
     Ok(())
