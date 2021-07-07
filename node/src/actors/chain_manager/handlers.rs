@@ -760,7 +760,7 @@ impl PeersBeacons {
             let block_beacons: Vec<_> = self
                 .pb
                 .iter()
-                .filter_map(|(_p, b)| {
+                .map(|(_p, b)| {
                     b.as_ref().and_then(|last_beacon| {
                         if last_beacon.highest_superblock_checkpoint == superblock_consensus {
                             Some(last_beacon.highest_block_checkpoint)
@@ -770,24 +770,24 @@ impl PeersBeacons {
                     })
                 })
                 .collect();
-            // Case 1
-            let block_consensus_mode = mode_consensus(block_beacons.iter(), consensus_threshold);
 
-            let (block_consensus, is_there_block_consensus) = if let Some(x) = block_consensus_mode
-            {
-                (*x, true)
-            } else {
-                (
+            let block_consensus_mode = mode_consensus(block_beacons.iter(), consensus_threshold);
+            let (block_consensus, is_there_block_consensus) = match block_consensus_mode {
+                // Case 1
+                Some(Some(x)) => (*x, true),
+                _ => {
                     // Case 2
-                    mode_consensus(block_beacons.iter(), 0)
-                        .copied()
-                        .unwrap_or_else(|| {
-                            // Case 3
-                            // TODO: choose one at random?
-                            block_beacons[0]
-                        }),
-                    false,
-                )
+                    let block_beacons_flatten: Vec<CheckpointBeacon> =
+                        block_beacons.into_iter().flatten().collect();
+                    let first = block_beacons_flatten[0];
+                    match mode_consensus(block_beacons_flatten.iter(), 0) {
+                        Some(x) => (*x, false),
+                        None => {
+                            // Case 3: In case of tie, we can choose one random different to None
+                            (first, false)
+                        }
+                    }
+                }
             };
 
             (
@@ -1804,6 +1804,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn peers_beacons_consensus_less_peers_than_outbound() {
@@ -1924,6 +1925,142 @@ mod tests {
             peers_beacons.superblock_consensus(60),
             Some((beacon1, true))
         );
+    }
+
+    #[test]
+    fn test_superblock_consensus() {
+        let hash_1 =
+            Hash::from_str("1111111111111111111111111111111111111111111111111111111111111111")
+                .unwrap();
+        let hash_2 =
+            Hash::from_str("1111111111111111111111111111111111111111111111111111111111111112")
+                .unwrap();
+        let beacon1 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: hash_1,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                    .parse()
+                    .unwrap(),
+            },
+        };
+        let beacon2 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: hash_2,
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                    .parse()
+                    .unwrap(),
+            },
+        };
+
+        let beacon3 = LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: 1,
+                hash_prev_block: Hash::default(),
+            },
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+                    .parse()
+                    .unwrap(),
+            },
+        };
+
+        // 12 peers (SB 12/12, B 8/12)
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10005".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10006".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10007".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10008".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10009".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10010".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10011".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10012".parse().unwrap(), Some(beacon2.clone())),
+            ],
+            outbound_limit: Some(12),
+        };
+        assert_eq!(
+            peers_beacons.superblock_consensus(60),
+            Some((beacon1.clone(), true))
+        );
+
+        // 12 peers (SB 12/12, B 7/12)
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10005".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10006".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10007".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10008".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10009".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10010".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10011".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10012".parse().unwrap(), Some(beacon2.clone())),
+            ],
+            outbound_limit: Some(12),
+        };
+        assert_eq!(
+            peers_beacons.superblock_consensus(60),
+            Some((beacon1.clone(), false))
+        );
+
+        // 12 peers (SB 12/12, B 7/12 with 1 missing)
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10005".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10006".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10007".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10008".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10009".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10010".parse().unwrap(), Some(beacon2.clone())),
+                ("127.0.0.1:10011".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10012".parse().unwrap(), None),
+            ],
+            outbound_limit: Some(12),
+        };
+        assert_eq!(
+            peers_beacons.superblock_consensus(60),
+            Some((beacon1.clone(), false))
+        );
+
+        // 12 peers (SB 7/12, B 7/12)
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10005".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10006".parse().unwrap(), Some(beacon1.clone())),
+                ("127.0.0.1:10007".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10008".parse().unwrap(), Some(beacon3.clone())),
+                ("127.0.0.1:10009".parse().unwrap(), Some(beacon3.clone())),
+                ("127.0.0.1:10010".parse().unwrap(), Some(beacon3.clone())),
+                ("127.0.0.1:10011".parse().unwrap(), Some(beacon3.clone())),
+                ("127.0.0.1:10012".parse().unwrap(), Some(beacon3)),
+            ],
+            outbound_limit: Some(12),
+        };
+        assert_eq!(peers_beacons.superblock_consensus(60), None);
     }
 
     #[test]
