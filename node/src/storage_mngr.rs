@@ -11,14 +11,16 @@ use std::{
 use actix::prelude::*;
 use bincode::{deserialize, serialize};
 use futures::Future;
+use futures_util::FutureExt;
 
-use crate::config_mngr;
+use crate::{
+    config_mngr,
+    utils::{stop_system_if_panicking, FlattenResult},
+};
 use witnet_config::{config, config::Config};
 use witnet_data_structures::chain::ChainState;
-use witnet_futures_utils::TryFutureExt2;
 use witnet_storage::{backends, storage};
 
-use crate::utils::stop_system_if_panicking;
 pub use node_migrations::*;
 
 mod node_migrations;
@@ -346,34 +348,18 @@ impl Supervised for StorageManagerAdapter {}
 
 impl SystemService for StorageManagerAdapter {}
 
-impl Handler<Get> for StorageManagerAdapter {
-    type Result = ResponseFuture<Result<Option<Vec<u8>>, failure::Error>>;
+// Delegate all the StorageManager messages to the inner StorageManager
+impl<M> Handler<M> for StorageManagerAdapter
+where
+    M: Message + Send + 'static,
+    <M as actix::Message>::Result: Send,
+    Result<<M as actix::Message>::Result, actix::MailboxError>:
+        FlattenResult<OutputResult = <M as actix::Message>::Result>,
+    StorageManager: Handler<M>,
+{
+    type Result = ResponseFuture<<M as Message>::Result>;
 
-    fn handle(&mut self, msg: Get, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.storage.send(msg).flatten_err())
-    }
-}
-
-impl Handler<Put> for StorageManagerAdapter {
-    type Result = ResponseFuture<Result<(), failure::Error>>;
-
-    fn handle(&mut self, msg: Put, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.storage.send(msg).flatten_err())
-    }
-}
-
-impl Handler<PutBatch> for StorageManagerAdapter {
-    type Result = ResponseFuture<Result<(), failure::Error>>;
-
-    fn handle(&mut self, msg: PutBatch, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.storage.send(msg).flatten_err())
-    }
-}
-
-impl Handler<Delete> for StorageManagerAdapter {
-    type Result = ResponseFuture<Result<(), failure::Error>>;
-
-    fn handle(&mut self, msg: Delete, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.storage.send(msg).flatten_err())
+    fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
+        Box::pin(self.storage.send(msg).map(FlattenResult::flatten_result))
     }
 }

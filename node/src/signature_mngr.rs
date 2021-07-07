@@ -11,7 +11,7 @@ use futures_util::FutureExt;
 use crate::{
     actors::storage_keys::{BN256_SECRET_KEY, MASTER_KEY},
     config_mngr, storage_mngr,
-    utils::stop_system_if_panicking,
+    utils::{stop_system_if_panicking, FlattenResult},
 };
 
 use rand::{thread_rng, Rng};
@@ -579,91 +579,19 @@ impl Actor for SignatureManagerAdapter {
     }
 }
 
-impl Handler<SetKey> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<(), failure::Error>>;
+// Delegate all the SignatureManager messages to the inner SignatureManager
+impl<M> Handler<M> for SignatureManagerAdapter
+where
+    M: Message + Send + 'static,
+    <M as actix::Message>::Result: Send,
+    Result<<M as actix::Message>::Result, actix::MailboxError>:
+        FlattenResult<OutputResult = <M as actix::Message>::Result>,
+    SignatureManager: Handler<M>,
+{
+    type Result = ResponseFuture<<M as Message>::Result>;
 
-    fn handle(&mut self, msg: SetKey, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<SetBn256Key> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<(), failure::Error>>;
-
-    fn handle(&mut self, msg: SetBn256Key, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<Sign> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<KeyedSignature, failure::Error>>;
-
-    fn handle(&mut self, msg: Sign, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<Bn256Sign> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<Bn256KeyedSignature, failure::Error>>;
-
-    fn handle(&mut self, msg: Bn256Sign, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<GetPkh> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<PublicKeyHash, failure::Error>>;
-
-    fn handle(&mut self, msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<GetPublicKey> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<PublicKey, failure::Error>>;
-
-    fn handle(&mut self, msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<GetBn256PublicKey> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<Bn256PublicKey, failure::Error>>;
-
-    fn handle(&mut self, msg: GetBn256PublicKey, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<GetKeyPair> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<(ExtendedPK, ExtendedSK), failure::Error>>;
-
-    fn handle(&mut self, msg: GetKeyPair, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<GetBn256KeyPair> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<(Bn256PublicKey, Bn256SecretKey), failure::Error>>;
-
-    fn handle(&mut self, msg: GetBn256KeyPair, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<VrfProve> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<(VrfProof, Hash), failure::Error>>;
-
-    fn handle(&mut self, msg: VrfProve, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
-    }
-}
-
-impl Handler<VerifySignatures> for SignatureManagerAdapter {
-    type Result = ResponseFuture<Result<(), failure::Error>>;
-
-    fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
-        Box::pin(self.crypto.send(msg).flatten_err())
+    fn handle(&mut self, msg: M, _ctx: &mut Self::Context) -> Self::Result {
+        Box::pin(self.crypto.send(msg).map(FlattenResult::flatten_result))
     }
 }
 
