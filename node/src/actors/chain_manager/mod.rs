@@ -2107,11 +2107,20 @@ impl ChainManager {
 
         let fut = async move {
             let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
+            log::debug!("Updating TAPI votes from blocks since #{}", init);
+            let mut block_counter = 0;
             let aux = block_hashes.into_iter().map(move |hash| {
+                block_counter += 1;
                 inventory_manager
                     .send(GetItemBlock { hash })
                     .then(move |res| match res {
-                        Ok(Ok(block)) => future::ready(Ok(block.block_header)),
+                        Ok(Ok(block)) => {
+                            if block_counter % 1000 == 0 {
+                                let block_epoch = block.block_header.beacon.checkpoint;
+                                log::debug!("[{}/{}] Updating TAPI votes", block_epoch, end);
+                            }
+                            future::ready(Ok(block.block_header))
+                        }
                         Ok(Err(e)) => {
                             log::error!("Error in GetItemBlock {}: {}", hash, e);
                             future::ready(Err(()))
