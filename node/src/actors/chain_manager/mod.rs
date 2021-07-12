@@ -210,7 +210,7 @@ pub struct ChainManager {
     /// Mint Percentage to share with the external address
     external_percentage: u8,
     /// List of superblock votes received while we are synchronizing
-    temp_superblock_votes: Vec<SuperBlockVote>,
+    temp_superblock_votes: HashSet<SuperBlockVote>,
     /// Commits and reveals to process later
     temp_commits_and_reveals: Vec<Transaction>,
     /// Value transfers and data requests to process later
@@ -1006,7 +1006,7 @@ impl ChainManager {
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
         if self.sm_state != StateMachine::Synced {
-            self.temp_superblock_votes.push(superblock_vote.clone());
+            self.temp_superblock_votes.insert(superblock_vote.clone());
         }
 
         // Check if we already received this vote
