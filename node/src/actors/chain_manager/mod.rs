@@ -965,7 +965,7 @@ impl ChainManager {
             log::debug!("add_temp_superblock_votes {:?}", superblock_vote);
             // Check if we already received this vote
             if self.chain_state.superblock_state.contains(&superblock_vote) {
-                return;
+                continue;
             }
 
             // Validate secp256k1 signature
