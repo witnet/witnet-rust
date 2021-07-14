@@ -1,6 +1,7 @@
 use crate::{
     actors::dr_database::{DrDatabase, DrId, DrInfoBridge, DrState, SetDrInfoBridge},
     config::Config,
+    handle_receipt,
 };
 use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
@@ -147,22 +148,32 @@ impl Handler<DrReporterMsg> for DrReporter {
                     );
                     let receipt = tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await;
                     match receipt {
-                        Ok(Ok(tx)) => {
-                            log::debug!("Request [{}], reportResult: {:?}", msg.dr_id, tx);
-                            let dr_database_addr = DrDatabase::from_registry();
+                        Ok(Ok(receipt)) => {
+                            log::debug!("Request [{}], reportResult: {:?}", msg.dr_id, receipt);
+                            match handle_receipt(receipt).await {
+                                Ok(()) => {
+                                    let dr_database_addr = DrDatabase::from_registry();
 
-                            dr_database_addr
-                                .send(SetDrInfoBridge(
-                                    msg.dr_id,
-                                    DrInfoBridge {
-                                        dr_bytes: msg.dr_bytes,
-                                        dr_state: DrState::Finished,
-                                        dr_tx_hash: Some(msg.dr_tx_hash),
-                                        dr_tx_creation_timestamp: Some(get_timestamp()),
-                                    },
-                                ))
-                                .await
-                                .ok();
+                                    dr_database_addr
+                                        .send(SetDrInfoBridge(
+                                            msg.dr_id,
+                                            DrInfoBridge {
+                                                dr_bytes: msg.dr_bytes,
+                                                dr_state: DrState::Finished,
+                                                dr_tx_hash: Some(msg.dr_tx_hash),
+                                                dr_tx_creation_timestamp: Some(get_timestamp()),
+                                            },
+                                        ))
+                                        .await
+                                        .ok();
+                                }
+                                Err(()) => {
+                                    log::error!(
+                                        "reportResult{:?}: transaction reverted (?)",
+                                        params_str
+                                    );
+                                }
+                            }
                         }
                         Ok(Err(e)) => {
                             // Error in call_with_confirmations
