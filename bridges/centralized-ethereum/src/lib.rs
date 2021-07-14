@@ -10,7 +10,11 @@ use async_jsonrpc_client::{transports::tcp::TcpSocket, Transport};
 use futures_util::compat::Compat01As03;
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
-use web3::{contract::Contract, transports::Http, types::H160};
+use web3::{
+    contract::Contract,
+    transports::Http,
+    types::{TransactionReceipt, H160},
+};
 
 /// Actors
 pub mod actors;
@@ -88,6 +92,27 @@ pub async fn check_ethereum_node_running(eth_client_url: &str) -> Result<(), Str
             log::error!("Failed to connect to ethereum node: {}", e);
 
             Err(e.to_string())
+        }
+    }
+}
+
+/// Handle Ethereum transaction receipt
+// This function is async because in the future it may be possible
+// to retrieve the failure reason (for example: transaction reverted, invalid
+// opcode).
+pub async fn handle_receipt(receipt: TransactionReceipt) -> Result<(), ()> {
+    match receipt.status {
+        Some(x) if x == 1.into() => {
+            // Success
+            Ok(())
+        }
+        Some(x) if x == 0.into() => {
+            // Fail
+            Err(())
+        }
+        x => {
+            log::error!("Unknown return code, should be 0 or 1, is: {:?}", x);
+            Err(())
         }
     }
 }
