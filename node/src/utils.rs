@@ -73,3 +73,25 @@ pub fn test_actix_system<F: FnOnce() -> Fut, Fut: Future>(test_function: F) {
         "test system has stopped for an unknown reason"
     );
 }
+
+/// TODO: hack to flatten Result<generic_type, error> into generic_type
+pub trait FlattenResult {
+    /// Output type
+    type OutputResult;
+    /// Flatten result
+    fn flatten_result(self) -> Self::OutputResult;
+}
+
+impl<T, E1, E2> FlattenResult for Result<Result<T, E1>, E2>
+where
+    E1: From<E2>,
+{
+    type OutputResult = Result<T, E1>;
+    fn flatten_result(self) -> Self::OutputResult {
+        match self {
+            Ok(Ok(x)) => Ok(x),
+            Ok(Err(e)) => Err(e),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
