@@ -3,7 +3,7 @@ use crate::{
     config::Config,
 };
 use actix::prelude::*;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 use web3::{
     contract::{self, Contract},
     ethabi::Bytes,
@@ -24,6 +24,11 @@ pub struct DrReporter {
     pub report_result_limit: Option<u64>,
     /// maximum result size (in bytes)
     pub max_result_size: usize,
+    /// Pending reportResult transactions. The actor should not attempt to report these requests
+    /// until the timeout has elapsed
+    pub pending_report_result: HashSet<DrId>,
+    /// Max time to wait for an ethereum transaction to be confirmed before returning an error
+    pub eth_confirmation_timeout_ms: u64,
 }
 
 /// Make actor from EthPoller
@@ -51,6 +56,8 @@ impl DrReporter {
             eth_account: config.eth_account,
             report_result_limit: config.gas_limits.report_result,
             max_result_size: config.max_result_size,
+            pending_report_result: Default::default(),
+            eth_confirmation_timeout_ms: config.eth_confirmation_timeout_ms,
         }
     }
 }
@@ -75,9 +82,20 @@ impl Handler<DrReporterMsg> for DrReporter {
     type Result = ();
 
     fn handle(&mut self, mut msg: DrReporterMsg, ctx: &mut Self::Context) -> Self::Result {
+        if self.pending_report_result.contains(&msg.dr_id) {
+            // Timeout not elapsed, abort
+            log::debug!(
+                "Request [{}] is already being resolved, ignoring DrReporterMsg",
+                msg.dr_id
+            );
+            return;
+        }
+
+        let dr_id = msg.dr_id;
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
         let report_result_limit = self.report_result_limit;
+        let eth_confirmation_timeout = Duration::from_millis(self.eth_confirmation_timeout_ms);
         let params_str = format!("{:?}", &(msg.dr_id, msg.dr_tx_hash, msg.result.clone()));
         let dr_hash: U256 = match msg.dr_tx_hash {
             Hash::SHA256(x) => x.into(),
@@ -87,6 +105,9 @@ impl Handler<DrReporterMsg> for DrReporter {
             let radon_error = RadonErrors::BridgeOversizedResult as u8;
             msg.result = vec![0xD8, 0x27, 0x81, 0x18, radon_error]
         }
+
+        // New request or timeout elapsed, save dr_id
+        self.pending_report_result.insert(msg.dr_id);
 
         let fut = async move {
             let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract
@@ -101,20 +122,20 @@ impl Handler<DrReporterMsg> for DrReporter {
 
             match dr_gas_price {
                 Ok(dr_gas_price) => {
-                    let receipt = wrb_contract
-                        .call_with_confirmations(
-                            "reportResult",
-                            (msg.dr_id, dr_hash, msg.result),
-                            eth_account,
-                            contract::Options::with(|opt| {
-                                opt.gas = report_result_limit.map(Into::into);
-                                opt.gas_price = Some(dr_gas_price);
-                            }),
-                            1,
-                        )
-                        .await;
+                    log::debug!("Request [{}], calling reportResult", msg.dr_id);
+                    let receipt_fut = wrb_contract.call_with_confirmations(
+                        "reportResult",
+                        (msg.dr_id, dr_hash, msg.result),
+                        eth_account,
+                        contract::Options::with(|opt| {
+                            opt.gas = report_result_limit.map(Into::into);
+                            opt.gas_price = Some(dr_gas_price);
+                        }),
+                        1,
+                    );
+                    let receipt = tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await;
                     match receipt {
-                        Ok(tx) => {
+                        Ok(Ok(tx)) => {
                             log::debug!("Request [{}], reportResult: {:?}", msg.dr_id, tx);
                             let dr_database_addr = DrDatabase::from_registry();
 
@@ -131,8 +152,13 @@ impl Handler<DrReporterMsg> for DrReporter {
                                 .await
                                 .ok();
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
+                            // Error in call_with_confirmations
                             log::error!("reportResult{:?}: {:?}", params_str, e);
+                        }
+                        Err(_e) => {
+                            // Timeout elapsed
+                            log::warn!("reportResult{:?}: timeout elapsed", params_str);
                         }
                     }
                 }
@@ -142,8 +168,9 @@ impl Handler<DrReporterMsg> for DrReporter {
             }
         };
 
-        // Wait here to only allow to report one data request at a time to prevent reporting the
-        // same data request more than once.
-        ctx.wait(fut.into_actor(self));
+        ctx.spawn(fut.into_actor(self).map(move |(), act, _ctx| {
+            // Reset timeout
+            act.pending_report_result.remove(&dr_id);
+        }));
     }
 }

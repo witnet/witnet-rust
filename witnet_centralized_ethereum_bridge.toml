@@ -29,6 +29,9 @@ dr_tx_unresolved_timeout_ms = 600_000 # 10 minutes
 # TODO: Choose a proper value
 max_result_size = 100
 
+# Max time to wait for an ethereum transaction to be confirmed before returning an error
+eth_confirmation_timeout_ms = 900_000 # 15 minutes
+
 # Max value that will be accepted by the bridge node in a data request
 # This is the maximum amount that the relayer is willing to lose per one data request
 max_dr_value_nanowits = 100_000_000_000

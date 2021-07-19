@@ -40,6 +40,8 @@ pub struct Config {
     pub storage: Storage,
     /// Maximum data request result size (in bytes)
     pub max_result_size: usize,
+    /// Max time to wait for an ethereum transaction to be confirmed before returning an error
+    pub eth_confirmation_timeout_ms: u64,
 }
 
 /// Gas limits for some methods. If missing, let the client estimate
