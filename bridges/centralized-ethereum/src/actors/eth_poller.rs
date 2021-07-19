@@ -116,8 +116,8 @@ impl EthPoller {
                                 .await;
 
                             if let Ok(dr_tx_hash) = dr_tx_hash {
-                                // Non-empty result: this data request is already "Finished"
                                 if dr_tx_hash != U256::from(0u8) {
+                                    // Non-zero data request transaction hash: this data request is already "Finished"
                                     log::debug!("[{}] already finished", i);
                                     dr_database_addr.do_send(SetDrInfoBridge(
                                         U256::from(i),

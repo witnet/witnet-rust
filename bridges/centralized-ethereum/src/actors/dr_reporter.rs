@@ -110,6 +110,18 @@ impl Handler<DrReporterMsg> for DrReporter {
         self.pending_report_result.insert(msg.dr_id);
 
         let fut = async move {
+            // Check if the request has already been resolved by some old pending transaction
+            // that got confirmed after the eth_confirmation_timeout has elapsed
+            if let Some(set_dr_info_bridge_msg) =
+                read_resolved_request_from_contract(msg.dr_id, &wrb_contract, eth_account).await
+            {
+                let dr_database_addr = DrDatabase::from_registry();
+                dr_database_addr.send(set_dr_info_bridge_msg).await.ok();
+                // The request is already resolved, nothing more to do
+                return;
+            }
+
+            // Report result
             let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract
                 .query(
                     "readGasPrice",
@@ -173,4 +185,66 @@ impl Handler<DrReporterMsg> for DrReporter {
             act.pending_report_result.remove(&dr_id);
         }));
     }
+}
+
+/// Check if the request is already resolved in the WRB contract
+async fn read_resolved_request_from_contract(
+    dr_id: U256,
+    wrb_contract: &Contract<Http>,
+    eth_account: H160,
+) -> Option<SetDrInfoBridge> {
+    match wrb_contract
+        .query(
+            "readDrTxHash",
+            (dr_id,),
+            eth_account,
+            contract::Options::default(),
+            None,
+        )
+        .await
+    {
+        Err(e) => {
+            log::warn!(
+                "[{}] readDrTxHash error, assuming that the request is not resolved yet: {:?}",
+                dr_id,
+                e
+            );
+        }
+        Ok(dr_tx_hash) => {
+            let dr_tx_hash: U256 = dr_tx_hash;
+            if dr_tx_hash != U256::from(0u8) {
+                // Non-zero data request transaction hash: this data request is already "Finished"
+                log::debug!("[{}] already finished", dr_id);
+
+                match wrb_contract
+                    .query(
+                        "readDataRequest",
+                        (dr_id,),
+                        eth_account,
+                        contract::Options::default(),
+                        None,
+                    )
+                    .await
+                {
+                    Err(e) => {
+                        log::warn!("[{}] readDataRequest error, assuming that the request is not resolved yet: {:?}", dr_id, e);
+                    }
+                    Ok(dr_bytes) => {
+                        log::debug!("[{}] was already resolved", dr_id);
+                        return Some(SetDrInfoBridge(
+                            dr_id,
+                            DrInfoBridge {
+                                dr_bytes,
+                                dr_state: DrState::Finished,
+                                dr_tx_hash: Some(Hash::SHA256(dr_tx_hash.into())),
+                                dr_tx_creation_timestamp: Some(get_timestamp()),
+                            },
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
