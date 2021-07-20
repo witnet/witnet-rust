@@ -10,6 +10,7 @@ mod get;
 mod get_addresses;
 mod get_balance;
 mod get_transactions;
+mod get_utxo_info;
 mod get_wallet_infos;
 mod lock_wallet;
 mod next_subscription_id;

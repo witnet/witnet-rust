@@ -214,6 +214,27 @@ impl App {
         Box::pin(f)
     }
 
+    /// Get a list of OutPtr associated to a wallet account.
+    pub fn get_utxo_info(
+        &mut self,
+        session_id: types::SessionId,
+        wallet_id: String,
+    ) -> ResponseActFuture<model::UtxoSet> {
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::GetUtxoInfo { wallet })
+                .flatten_err()
+                .into_actor(slf)
+        });
+
+        Box::pin(f)
+    }
+
     /// Run a RADRequest and return the computed result.
     pub fn run_rad_request(
         &self,

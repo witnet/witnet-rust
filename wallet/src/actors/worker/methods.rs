@@ -373,6 +373,12 @@ impl Worker {
         Ok(balance)
     }
 
+    pub fn get_utxo_info(&mut self, wallet: &types::Wallet) -> Result<model::UtxoSet> {
+        let utxo_info = wallet.get_utxo_info()?;
+
+        Ok(utxo_info)
+    }
+
     pub fn transactions(
         &mut self,
         wallet: &types::Wallet,

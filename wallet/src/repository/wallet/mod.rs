@@ -1057,6 +1057,14 @@ where
         Ok(balance)
     }
 
+    /// Retrieve the utxo information for the current wallet account.
+    pub fn get_utxo_info(&self) -> Result<model::UtxoSet> {
+        let state = self.state.read()?;
+        let utxo_info = state.utxo_set.clone();
+
+        Ok(utxo_info)
+    }
+
     /// Create a new value transfer transaction using available UTXOs.
     pub fn create_vtt(
         &self,
