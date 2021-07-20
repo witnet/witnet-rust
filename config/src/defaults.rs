@@ -373,6 +373,10 @@ pub trait Defaults {
         20
     }
 
+    fn wallet_use_unconfirmed_utxos(&self) -> bool {
+        true
+    }
+
     fn rocksdb_create_if_missing(&self) -> bool {
         true
     }

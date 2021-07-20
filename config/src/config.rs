@@ -899,6 +899,8 @@ pub struct Wallet {
     /// Length of the batch of transient addresses to be used for synchronization purposes
     /// (e.g. for re-importing a wallet with seed phrase).
     pub sync_address_batch_length: u16,
+    /// Allow to use outputs that have not been confirmed by a superblock in new transactions
+    pub use_unconfirmed_utxos: bool,
 }
 
 impl Wallet {
@@ -945,6 +947,9 @@ impl Wallet {
             sync_address_batch_length: config
                 .sync_address_batch_length
                 .unwrap_or_else(|| defaults.wallet_sync_address_batch_length()),
+            use_unconfirmed_utxos: config
+                .use_unconfirmed_utxos
+                .unwrap_or_else(|| defaults.wallet_use_unconfirmed_utxos()),
         }
     }
 
@@ -967,6 +972,7 @@ impl Wallet {
             session_expires_in: Some(self.session_expires_in),
             requests_timeout: Some(self.requests_timeout),
             sync_address_batch_length: Some(self.sync_address_batch_length),
+            use_unconfirmed_utxos: Some(self.use_unconfirmed_utxos),
         }
     }
 }

@@ -63,6 +63,7 @@ fn wallet_inner(
             initial_block_reward: 250 * 1_000_000_000,
             halving_period: 3_500_000,
         },
+        use_unconfirmed_utxos: true,
     };
     let mnemonic = mnemonic::MnemonicGen::new()
         .with_len(mnemonic::Length::Words12)

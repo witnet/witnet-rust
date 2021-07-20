@@ -1230,10 +1230,16 @@ where
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
+        let empty_hashset = HashSet::default();
+        let unconfirmed_transactions = if self.params.use_unconfirmed_utxos {
+            &empty_hashset
+        } else {
+            &state.pending_transactions
+        };
         let mut wallet_utxos = WalletUtxos {
             utxo_set: &state.utxo_set,
             used_outputs: &mut state.used_outputs,
-            unconfirmed_transactions: &state.pending_transactions,
+            unconfirmed_transactions,
         };
 
         let tx_info = wallet_utxos.build_inputs_outputs(
@@ -1403,10 +1409,16 @@ where
             Transaction::Mint(_) => None,
         };
 
+        let empty_hashset = HashSet::default();
+        let unconfirmed_transactions = if self.params.use_unconfirmed_utxos {
+            &empty_hashset
+        } else {
+            &state.pending_transactions
+        };
         let mut wallet_utxos = WalletUtxos {
             utxo_set: &state.utxo_set,
             used_outputs: &mut state.used_outputs,
-            unconfirmed_transactions: &state.pending_transactions,
+            unconfirmed_transactions,
         };
         if let Some(inputs) = inputs {
             wallet_utxos.set_used_output_pointer(inputs, timestamp + tx_pending_timeout);

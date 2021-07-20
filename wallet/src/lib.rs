@@ -82,6 +82,9 @@ pub fn run(conf: Config) -> Result<(), Error> {
     // Size of the address synchronization batch
     let sync_address_batch_length = conf.wallet.sync_address_batch_length;
 
+    // Allow to use outputs that have not been confirmed by a superblock in new transactions
+    let use_unconfirmed_utxos = conf.wallet.use_unconfirmed_utxos;
+
     let system = System::new();
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
@@ -138,6 +141,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             max_vt_weight,
             max_dr_weight,
             consensus_constants,
+            use_unconfirmed_utxos,
         };
 
         let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {

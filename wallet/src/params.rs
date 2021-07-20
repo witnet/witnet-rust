@@ -29,6 +29,7 @@ pub struct Params {
     pub max_vt_weight: u32,
     pub max_dr_weight: u32,
     pub consensus_constants: ConsensusConstants,
+    pub use_unconfirmed_utxos: bool,
 }
 
 #[derive(Clone)]
