@@ -181,6 +181,7 @@ pub fn connect_routes<T, S>(
         ("Close-Session", "close_session", CloseSessionRequest),
         ("Refresh-Session", "refresh_session", RefreshSessionRequest),
         ("Get-Balance", "get_balance", GetBalanceRequest),
+        ("Get-Utxo-Info", "get_utxo_info", UtxoInfoRequest),
         (
             "Get-Transactions",
             "get_transactions",

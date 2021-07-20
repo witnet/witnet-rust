@@ -340,6 +340,7 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -394,6 +395,7 @@ fn test_create_transaction_components_without_a_change_address() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -447,6 +449,7 @@ fn test_create_transaction_components_with_a_change_address() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -517,6 +520,7 @@ fn test_create_transaction_components_which_value_overflows() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -581,6 +585,7 @@ fn test_create_vtt_does_not_spend_utxos() {
             }],
             fee_type: FeeType::Absolute,
             utxo_strategy,
+            selected_utxos: HashSet::default(),
         })
         .unwrap();
 
@@ -984,6 +989,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
             }],
             fee_type: FeeType::Absolute,
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
+            selected_utxos: HashSet::default(),
         })
         .unwrap();
 
@@ -1098,6 +1104,7 @@ fn test_get_transaction() {
             }],
             fee_type: FeeType::Absolute,
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
+            selected_utxos: HashSet::default(),
         })
         .unwrap();
 
@@ -1170,6 +1177,7 @@ fn test_get_transactions() {
             }],
             fee_type: FeeType::Absolute,
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
+            selected_utxos: HashSet::default(),
         })
         .unwrap();
 
@@ -1242,6 +1250,7 @@ fn test_create_vtt_with_locked_balance() {
             }],
             fee_type: FeeType::Absolute,
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
+            selected_utxos: HashSet::default(),
         })
         .unwrap_err();
 
@@ -1304,6 +1313,7 @@ fn test_create_vtt_with_multiple_outputs() {
             ],
             fee_type: FeeType::Absolute,
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
+            selected_utxos: HashSet::default(),
         })
         .unwrap();
 
@@ -1391,6 +1401,7 @@ fn test_create_vt_components_weighted_fee() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -1460,6 +1471,7 @@ fn test_create_vt_components_weighted_fee_2() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -1526,6 +1538,7 @@ fn test_create_vt_components_weighted_fee_3() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -1616,6 +1629,7 @@ fn test_create_vt_components_weighted_fee_4() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -1702,6 +1716,7 @@ fn test_create_vt_components_weighted_fee_5() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -1794,6 +1809,7 @@ fn test_create_vt_components_weighted_fee_6() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -1837,6 +1853,7 @@ fn test_create_vt_components_weighted_fee_without_outputs() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -1894,6 +1911,7 @@ fn test_create_vt_components_weighted_fee_with_too_large_fee() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -1956,6 +1974,7 @@ fn test_create_vt_weight_too_large() {
             fee,
             FeeType::Weighted,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -2374,6 +2393,7 @@ fn test_create_transaction_components_filter_from_address() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -2445,6 +2465,7 @@ fn test_create_transaction_components_filter_from_address_2() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -2516,6 +2537,7 @@ fn test_create_transaction_components_filter_from_address_3() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -2594,6 +2616,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap_err();
 
@@ -2617,6 +2640,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 
@@ -2692,6 +2716,7 @@ fn test_create_transaction_components_uses_unconfirmed_utxos() {
             fee,
             FeeType::Absolute,
             &utxo_strategy,
+            HashSet::default(),
         )
         .unwrap();
 

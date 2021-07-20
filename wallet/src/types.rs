@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     convert::TryFrom,
     fmt,
     str::FromStr,
@@ -152,6 +153,7 @@ pub struct VttParams {
     pub outputs: Vec<ValueTransferOutput>,
     pub fee_type: FeeType,
     pub utxo_strategy: UtxoSelectionStrategy,
+    pub selected_utxos: HashSet<model::OutPtr>,
 }
 
 pub struct DataReqParams {

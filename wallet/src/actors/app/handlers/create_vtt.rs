@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use crate::{
     actors::app,
@@ -10,7 +11,7 @@ use crate::{
 };
 
 use witnet_data_structures::{
-    chain::{Environment, Hashable, PublicKeyHash, ValueTransferOutput},
+    chain::{Environment, Hashable, OutputPointer, PublicKeyHash, ValueTransferOutput},
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,
@@ -42,6 +43,8 @@ pub struct CreateVttRequest {
     fee_type: Option<FeeType>,
     #[serde(default)]
     utxo_strategy: UtxoSelectionStrategy,
+    #[serde(default)]
+    selected_utxos: HashSet<OutputPointer>,
 }
 
 /// Part of CreateVttResponse struct, containing additional data to be displayed in clients
@@ -92,6 +95,7 @@ impl Handler<CreateVttRequest> for app::App {
                 outputs,
                 fee_type,
                 utxo_strategy: msg.utxo_strategy.clone(),
+                selected_utxos: msg.selected_utxos.iter().map(|x| x.into()).collect(),
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)

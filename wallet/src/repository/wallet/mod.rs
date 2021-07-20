@@ -59,31 +59,34 @@ pub struct WalletUtxos<'a> {
     pub utxo_set: &'a model::UtxoSet,
     pub used_outputs: &'a mut model::UsedOutputs,
     pub unconfirmed_transactions: &'a HashSet<Hash>,
+    pub selected_utxos: HashSet<model::OutPtr>,
 }
 
 impl<'a> OutputsCollection for WalletUtxos<'a> {
     fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
-        let filter_unconfirmed = |out_ptr: &model::OutPtr| {
+        let filter_utxos = |out_ptr: &model::OutPtr| {
             let pointer: OutputPointer = out_ptr.into();
-            if self
+
+            if !self
                 .unconfirmed_transactions
                 .contains(&pointer.transaction_id)
+                && (self.selected_utxos.contains(&out_ptr) || self.selected_utxos.is_empty())
             {
-                None
-            } else {
                 Some(pointer)
+            } else {
+                None
             }
         };
 
         match strategy {
             UtxoSelectionStrategy::BigFirst { from } => {
                 sort_utxo_set(&self.utxo_set, true, from.as_ref())
-                    .filter_map(filter_unconfirmed)
+                    .filter_map(filter_utxos)
                     .collect()
             }
             UtxoSelectionStrategy::SmallFirst { from } => {
                 sort_utxo_set(&self.utxo_set, false, from.as_ref())
-                    .filter_map(filter_unconfirmed)
+                    .filter_map(filter_utxos)
                     .collect()
             }
             UtxoSelectionStrategy::Random { from } => self
@@ -99,7 +102,7 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
                         }
                     }
                 })
-                .filter_map(filter_unconfirmed)
+                .filter_map(filter_utxos)
                 .collect(),
         }
     }
@@ -1073,6 +1076,7 @@ where
             outputs,
             fee_type,
             utxo_strategy,
+            selected_utxos,
         }: types::VttParams,
     ) -> Result<VTTransaction> {
         let mut state = self.state.write()?;
@@ -1082,6 +1086,7 @@ where
             fee,
             fee_type,
             &utxo_strategy,
+            selected_utxos,
         )?;
 
         let body = VTTransactionBody::new(inputs.clone(), outputs);
@@ -1156,6 +1161,7 @@ where
         fee: u64,
         fee_type: FeeType,
         utxo_strategy: &UtxoSelectionStrategy,
+        selected_utxos: HashSet<model::OutPtr>,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
@@ -1169,6 +1175,7 @@ where
             None,
             utxo_strategy,
             self.params.max_vt_weight,
+            selected_utxos,
         )?;
 
         Ok((inputs, outputs))
@@ -1194,6 +1201,7 @@ where
             None,
             &utxo_strategy,
             self.params.max_dr_weight,
+            HashSet::default(),
         )?;
 
         Ok((inputs, outputs))
@@ -1237,6 +1245,7 @@ where
         block_number_limit: Option<u32>,
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
+        selected_utxos: HashSet<model::OutPtr>,
     ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
         let empty_hashset = HashSet::default();
         let unconfirmed_transactions = if self.params.use_unconfirmed_utxos {
@@ -1244,10 +1253,12 @@ where
         } else {
             &state.pending_transactions
         };
+
         let mut wallet_utxos = WalletUtxos {
             utxo_set: &state.utxo_set,
             used_outputs: &mut state.used_outputs,
             unconfirmed_transactions,
+            selected_utxos,
         };
 
         let tx_info = wallet_utxos.build_inputs_outputs(
@@ -1427,6 +1438,7 @@ where
             utxo_set: &state.utxo_set,
             used_outputs: &mut state.used_outputs,
             unconfirmed_transactions,
+            selected_utxos: HashSet::default(),
         };
         if let Some(inputs) = inputs {
             wallet_utxos.set_used_output_pointer(inputs, timestamp + tx_pending_timeout);

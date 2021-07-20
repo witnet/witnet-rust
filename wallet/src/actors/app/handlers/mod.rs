@@ -40,6 +40,7 @@ pub use get::*;
 pub use get_addresses::*;
 pub use get_balance::*;
 pub use get_transactions::*;
+pub use get_utxo_info::*;
 pub use get_wallet_infos::*;
 pub use lock_wallet::*;
 pub use next_subscription_id::*;
