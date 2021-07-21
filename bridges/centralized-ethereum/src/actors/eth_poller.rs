@@ -105,6 +105,14 @@ impl EthPoller {
                             .await;
 
                         if let Ok(dr_bytes) = dr_bytes {
+                            // Data requests can be deleted after being resolved.
+                            // This can be detected because the data request id is lower than the
+                            // requestsCount, and the data request bytes is empty.
+                            if dr_bytes.is_empty() {
+                                log::debug!("[{}] has been deleted, skipping", i);
+                                continue;
+                            }
+
                             let dr_tx_hash: Result<U256, web3::contract::Error> = wrb_contract
                                 .query(
                                     "readDrTxHash",

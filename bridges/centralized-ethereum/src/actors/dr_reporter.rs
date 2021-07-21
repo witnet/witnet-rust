@@ -206,7 +206,7 @@ async fn read_resolved_request_from_contract(
 ) -> Option<SetDrInfoBridge> {
     match wrb_contract
         .query(
-            "readDrTxHash",
+            "readDataRequest",
             (dr_id,),
             eth_account,
             contract::Options::default(),
@@ -216,32 +216,52 @@ async fn read_resolved_request_from_contract(
     {
         Err(e) => {
             log::warn!(
-                "[{}] readDrTxHash error, assuming that the request is not resolved yet: {:?}",
+                "[{}] readDataRequest error, assuming that the request is not resolved yet: {:?}",
                 dr_id,
                 e
             );
         }
-        Ok(dr_tx_hash) => {
-            let dr_tx_hash: U256 = dr_tx_hash;
-            if dr_tx_hash != U256::from(0u8) {
-                // Non-zero data request transaction hash: this data request is already "Finished"
-                log::debug!("[{}] already finished", dr_id);
+        Ok(dr_bytes) => {
+            let dr_bytes: Bytes = dr_bytes;
+            // Data requests can be deleted after being resolved.
+            // This can be detected because the data request id is lower than the
+            // requestsCount, and the data request bytes is empty.
+            if dr_bytes.is_empty() {
+                log::debug!("[{}] has been deleted, setting to finished", dr_id);
+                return Some(SetDrInfoBridge(
+                    dr_id,
+                    DrInfoBridge {
+                        dr_bytes,
+                        dr_state: DrState::Finished,
+                        dr_tx_hash: None,
+                        dr_tx_creation_timestamp: None,
+                    },
+                ));
+            }
 
-                match wrb_contract
-                    .query(
-                        "readDataRequest",
-                        (dr_id,),
-                        eth_account,
-                        contract::Options::default(),
-                        None,
-                    )
-                    .await
-                {
-                    Err(e) => {
-                        log::warn!("[{}] readDataRequest error, assuming that the request is not resolved yet: {:?}", dr_id, e);
-                    }
-                    Ok(dr_bytes) => {
-                        log::debug!("[{}] was already resolved", dr_id);
+            match wrb_contract
+                .query(
+                    "readDrTxHash",
+                    (dr_id,),
+                    eth_account,
+                    contract::Options::default(),
+                    None,
+                )
+                .await
+            {
+                Err(e) => {
+                    log::warn!(
+                "[{}] readDrTxHash error, assuming that the request is not resolved yet: {:?}",
+                dr_id,
+                e
+            );
+                }
+                Ok(dr_tx_hash) => {
+                    let dr_tx_hash: U256 = dr_tx_hash;
+                    if dr_tx_hash != U256::from(0u8) {
+                        // Non-zero data request transaction hash: this data request is already "Finished"
+                        log::debug!("[{}] already finished", dr_id);
+
                         return Some(SetDrInfoBridge(
                             dr_id,
                             DrInfoBridge {
