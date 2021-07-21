@@ -2724,3 +2724,175 @@ fn test_create_transaction_components_uses_unconfirmed_utxos() {
     assert_eq!(inputs.len(), 2);
     assert_eq!(outputs.len(), 1);
 }
+
+#[test]
+fn test_create_vtt_selecting_utxos() {
+    let pkh = factories::pkh();
+    let out_pointer_0 = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 0,
+    };
+    let out_pointer_1 = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 1,
+    };
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![
+        (
+            out_pointer_0.clone(),
+            model::OutputInfo {
+                pkh,
+                amount: 2,
+                time_lock: 0,
+            },
+        ),
+        (
+            out_pointer_1.clone(),
+            model::OutputInfo {
+                pkh,
+                amount: 5,
+                time_lock: 0,
+            },
+        ),
+    ]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
+    let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
+
+    let pkh = factories::pkh();
+    let value = 4;
+    let fee = 0;
+    let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
+
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+
+    // In case of using the small utxo, return Error::InsufficientBalance
+    let err = wallet
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto.clone()],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+            vec![out_pointer_0].into_iter().collect(),
+        )
+        .unwrap_err();
+
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
+        "{:?}",
+        err
+    );
+
+    // In case of using the big utxo, everything goes well
+    let (inputs, outputs) = wallet
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto.clone()],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+            vec![out_pointer_1].into_iter().collect(),
+        )
+        .unwrap();
+
+    assert_eq!(1, inputs.len());
+    assert_eq!(2, outputs.len());
+    assert_eq!(value, outputs[0].value);
+    let expected_change = 1;
+    assert_eq!(expected_change, outputs[1].value);
+
+    // In case of no specify any utxo, everything goes well
+    let (_inputs, outputs) = wallet
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+            HashSet::default(),
+        )
+        .unwrap();
+
+    assert_eq!(value, outputs[0].value);
+}
+
+#[test]
+fn test_create_transaction_components_does_not_use_unconfirmed_utxos_and_selecting_utxos() {
+    let txn_hash_pending = vec![2; 32];
+    let pkh = factories::pkh();
+    let pending_outptr = model::OutPtr {
+        txn_hash: txn_hash_pending.clone(),
+        output_index: 1,
+    };
+    let utxo_set: HashMap<model::OutPtr, model::OutputInfo> = HashMap::from_iter(vec![(
+        pending_outptr.clone(),
+        model::OutputInfo {
+            pkh,
+            amount: 5,
+            time_lock: 0,
+        },
+    )]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let new_balance = model::BalanceInfo {
+        available: 7,
+        locked: 0u64,
+    };
+
+    let db = HashMapDb::default();
+    db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
+    db.put(&keys::pkh(&pkh), path).unwrap();
+    let (mut wallet, _db) = factories::wallet(Some(db));
+    // Forbid wallet from using unconfirmed UTXOs
+    wallet.params.use_unconfirmed_utxos = false;
+    let mut state = wallet.state.write().unwrap();
+    // Mark transaction as pending
+    state
+        .pending_transactions
+        .insert(Hash::from(txn_hash_pending));
+    let pkh = factories::pkh();
+    let value = 4;
+    let fee = 0;
+    let time_lock = 0;
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
+    let vto = ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    };
+
+    // In case of no using unconfirmed transaction and we select a pending utxo, we still can not use it
+    let err = wallet
+        .create_vt_transaction_components(
+            &mut state,
+            vec![vto],
+            fee,
+            FeeType::Absolute,
+            &utxo_strategy,
+            vec![pending_outptr].into_iter().collect(),
+        )
+        .unwrap_err();
+
+    assert!(
+        matches!(err, repository::Error::InsufficientBalance { .. }),
+        "{:?}",
+        err
+    );
+}
