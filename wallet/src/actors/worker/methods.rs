@@ -232,6 +232,13 @@ impl Worker {
         Ok(id)
     }
 
+    /// Delete a wallet providing its WalletID and its SessionID
+    pub fn delete_wallet(&mut self, _wallet: &types::Wallet, wallet_id: String) -> Result<()> {
+        self.wallets.delete(wallet_id)?;
+
+        Ok(())
+    }
+
     /// Check if wallet with given seed source already exists
     pub fn check_wallet_seed(&self, seed: types::SeedSource) -> Result<(bool, String)> {
         let id = match seed {
@@ -297,7 +304,8 @@ impl Worker {
             .wallets
             .wallet_salt_and_iv(wallet_id)
             .map_err(|err| match err {
-                repository::Error::Db(db::Error::DbKeyNotFound { .. }) => Error::WalletNotFound,
+                repository::Error::Db(db::Error::DbKeyNotFound { .. })
+                | repository::Error::WalletNotFound => Error::WalletNotFound,
                 err => Error::Repository(err),
             })?;
         let key = crypto::key_from_password(password, &salt, self.params.db_hash_iterations);

@@ -122,11 +122,34 @@ impl<T: Database> Wallets<T> {
         Ok(())
     }
 
+    /// Delete a wallet by its ID
+    pub fn delete(&self, wallet_id: String) -> Result<()> {
+        let mut batch = self.db.batch();
+        let lock = self.wallets_mutex.lock()?;
+        let mut ids: Vec<String> = self.db.get_or_default(&keys::wallet_ids())?;
+
+        if let Some(index) = ids.iter().position(|x| x == &wallet_id) {
+            ids.remove(index);
+            batch.put(&keys::wallet_ids(), ids)?;
+        }
+
+        self.db.write(batch)?;
+        drop(lock);
+
+        Ok(())
+    }
+
     /// Get a wallet's salt and IV based on its provided ID
     pub fn wallet_salt_and_iv(&self, id: &str) -> Result<(Vec<u8>, Vec<u8>)> {
-        let salt = self.db.get(&keys::wallet_id_salt(id))?;
-        let iv = self.db.get(&keys::wallet_id_iv(id))?;
+        let ids: Vec<String> = self.db.get_or_default(&keys::wallet_ids())?;
+        // This check is necessary because without it, a deleted wallet could be unlocked
+        if !ids.contains(&id.to_string()) {
+            Err(Error::WalletNotFound)
+        } else {
+            let salt = self.db.get(&keys::wallet_id_salt(id))?;
+            let iv = self.db.get(&keys::wallet_id_iv(id))?;
 
-        Ok((salt, iv))
+            Ok((salt, iv))
+        }
     }
 }

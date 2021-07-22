@@ -77,6 +77,8 @@ pub enum Error {
     FeeTooLarge,
     #[fail(display = "Unknown Fee Type specified")]
     UnknownFeeType,
+    #[fail(display = "Wallet not found")]
+    WalletNotFound,
 }
 
 impl From<failure::Error> for Error {

@@ -174,6 +174,7 @@ pub fn connect_routes<T, S>(
             ValidateMnemonicsRequest
         ),
         ("Create-Wallet", "create_wallet", CreateWalletRequest),
+        ("Delete-Wallet", "delete_wallet", DeleteWalletRequest),
         ("Update-Wallet", "update_wallet", UpdateWalletRequest),
         ("Lock-Wallet", "lock_wallet", LockWalletRequest),
         ("Unlock-Wallet", "unlock_wallet", UnlockWalletRequest),

@@ -187,6 +187,27 @@ impl App {
         Box::pin(f)
     }
 
+    /// Delete a wallet providing its WalletID and its SessionID
+    pub fn delete_wallet(
+        &mut self,
+        session_id: types::SessionId,
+        wallet_id: String,
+    ) -> ResponseActFuture<()> {
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::DeleteWallet { wallet, wallet_id })
+                .flatten_err()
+                .into_actor(slf)
+        });
+
+        Box::pin(f)
+    }
+
     /// Get a list of transactions associated to a wallet account.
     pub fn get_transactions(
         &mut self,
