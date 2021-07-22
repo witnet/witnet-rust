@@ -65,6 +65,16 @@ impl Database for PlainDb {
         Ok(())
     }
 
+    fn delete<K, V, Vref>(&self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized,
+    {
+        self.as_ref().delete(key)?;
+
+        Ok(())
+    }
+
     fn write(&self, batch: Self::WriteBatch) -> Result<()> {
         self.as_ref().write(batch.into())?;
 

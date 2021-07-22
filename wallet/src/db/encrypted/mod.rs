@@ -85,6 +85,19 @@ impl Database for EncryptedDb {
         Ok(())
     }
 
+    fn delete<K, V, Vref>(&self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized,
+    {
+        let prefix_key = self.prefixer.prefix(key);
+        let enc_key = self.engine.encrypt(&prefix_key)?;
+
+        self.as_ref().delete(enc_key)?;
+
+        Ok(())
+    }
+
     fn write(&self, batch: Self::WriteBatch) -> Result<()> {
         self.as_ref().write(batch.into())?;
 

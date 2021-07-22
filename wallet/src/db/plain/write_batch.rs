@@ -18,6 +18,16 @@ impl WriteBatch for PlainWriteBatch {
 
         Ok(())
     }
+
+    fn delete<K, V>(&mut self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized,
+    {
+        self.batch.delete(key)?;
+
+        Ok(())
+    }
 }
 
 impl From<PlainWriteBatch> for rocksdb::WriteBatch {

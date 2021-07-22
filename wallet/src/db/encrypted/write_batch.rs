@@ -31,6 +31,19 @@ impl WriteBatch for EncryptedWriteBatch {
 
         Ok(())
     }
+
+    fn delete<K, V>(&mut self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized,
+    {
+        let prefix_key = self.prefixer.prefix(key.as_ref());
+        let enc_key = self.engine.encrypt(&prefix_key)?;
+
+        self.batch.delete(enc_key)?;
+
+        Ok(())
+    }
 }
 
 impl From<EncryptedWriteBatch> for rocksdb::WriteBatch {

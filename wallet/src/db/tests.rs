@@ -62,6 +62,16 @@ impl Database for HashMapDb {
         Ok(())
     }
 
+    fn delete<K, V, Vref>(&self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized,
+    {
+        self.rc.borrow_mut().remove(key.as_ref());
+
+        Ok(())
+    }
+
     fn write(&self, batch: Self::WriteBatch) -> Result<()> {
         let mut map = self.rc.borrow_mut();
 
@@ -97,6 +107,16 @@ impl WriteBatch for HashMapWriteBatch {
         let v = bincode::serialize(value.borrow())?;
 
         self.data.insert(k, v);
+
+        Ok(())
+    }
+
+    fn delete<K, V>(&mut self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized,
+    {
+        self.data.remove(key.as_ref());
 
         Ok(())
     }

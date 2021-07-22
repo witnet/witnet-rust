@@ -57,6 +57,11 @@ pub trait Database {
         V: serde::Serialize + ?Sized,
         Vref: Borrow<V>;
 
+    fn delete<K, V, Vref>(&self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized;
+
     fn write(&self, batch: Self::WriteBatch) -> Result<()>;
 
     fn flush(&self) -> Result<()>;
@@ -70,4 +75,8 @@ pub trait WriteBatch {
         K: AsRef<[u8]>,
         V: serde::Serialize + ?Sized,
         Vref: Borrow<V>;
+    fn delete<K, V>(&mut self, key: &Key<K, V>) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: serde::Serialize + ?Sized;
 }
