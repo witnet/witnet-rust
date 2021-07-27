@@ -64,13 +64,13 @@ pub fn standard_filter(
                     filter: RadonFilters::DeviationStandard.to_string(),
                 });
             }
-            let bool_matrix = boolean_standard_filter(&input, sigmas_float)?;
+            let bool_matrix = boolean_standard_filter(input, sigmas_float)?;
 
             Ok(keep_rows(input, &bool_matrix, context))
         }
         Some(_rad_types) => {
             // 1D array
-            let bool_array = boolean_standard_filter(&input, sigmas_float)?;
+            let bool_array = boolean_standard_filter(input, sigmas_float)?;
 
             let bool_vec: Vec<bool> = bool_array
                 .value()

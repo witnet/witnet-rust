@@ -2335,7 +2335,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     validate_commit_transaction(
-        &c_tx,
+        c_tx,
         &dr_pool,
         vrf_input,
         &mut signatures_to_verify,
@@ -2389,7 +2389,7 @@ fn test_commit_with_dr_and_utxo_set(
 
     let mut signatures_to_verify = vec![];
     validate_commit_transaction(
-        &c_tx,
+        c_tx,
         &dr_pool,
         vrf_input,
         &mut signatures_to_verify,
@@ -2544,7 +2544,7 @@ fn test_commit_with_collateral(
 
     let collateral_minimum = 1;
     let collateral_age = 10;
-    let utxo_diff = UtxoDiff::new(&utxo_set, 0);
+    let utxo_diff = UtxoDiff::new(utxo_set, 0);
     let minimum_reppoe_difficulty = 1;
 
     let (inputs, outputs) = collateral;
@@ -3863,7 +3863,7 @@ fn include_commits(
 
     let fake_block_hash = Hash::SHA256([1; 32]);
     for commit in commits.iter().take(commits_count) {
-        dr_pool.process_commit(&commit, &fake_block_hash).unwrap();
+        dr_pool.process_commit(commit, &fake_block_hash).unwrap();
     }
     dr_pool.update_data_request_stages();
 }
@@ -3877,7 +3877,7 @@ fn include_reveals(
 
     let fake_block_hash = Hash::SHA256([2; 32]);
     for reveal in reveals.iter().take(reveals_count) {
-        dr_pool.process_reveal(&reveal, &fake_block_hash).unwrap();
+        dr_pool.process_reveal(reveal, &fake_block_hash).unwrap();
     }
     dr_pool.update_data_request_stages();
 }

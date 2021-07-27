@@ -86,7 +86,7 @@ impl StreamHandler<Result<BytesMut, io::Error>> for JsonRpc {
         let session = Arc::clone(&self.session);
 
         // Handle response asynchronously
-        let fut01 = self.jsonrpc_io.handle_request(&msg, session);
+        let fut01 = self.jsonrpc_io.handle_request(msg, session);
 
         Compat01As03::new(fut01)
             .into_actor(self)

@@ -90,7 +90,7 @@ pub fn get_balance(
         None => {
             log::info!("No pkh specified, will default to node pkh");
             let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-            let response = send_request(&mut stream, &request)?;
+            let response = send_request(&mut stream, request)?;
             let node_pkh = parse_response::<PublicKeyHash>(&response)?;
             log::info!("Node pkh: {}", node_pkh);
 
@@ -137,7 +137,7 @@ fn wit_difference_to_string(confirmed: u64, total: u64) -> String {
 pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     log::info!("{}", response);
     let pkh = parse_response::<PublicKeyHash>(&response)?;
 
@@ -161,7 +161,7 @@ pub fn get_utxo_info(
         None => {
             log::info!("No pkh specified, will default to node pkh");
             let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-            let response = send_request(&mut stream, &request)?;
+            let response = send_request(&mut stream, request)?;
             let node_pkh = parse_response::<PublicKeyHash>(&response)?;
             log::info!("Node pkh: {}", node_pkh);
 
@@ -292,7 +292,7 @@ pub fn get_reputation(
             None => {
                 log::info!("No pkh specified, will default to node pkh");
                 let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-                let response = send_request(&mut stream, &request)?;
+                let response = send_request(&mut stream, request)?;
                 let node_pkh = parse_response::<PublicKeyHash>(&response)?;
                 log::info!("Node pkh: {}", node_pkh);
 
@@ -430,7 +430,7 @@ pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), failure::Erro
         r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
         request_payload,
     );
-    //let response = send_request(&mut stream, &request)?;
+    //let response = send_request(&mut stream, request)?;
     let response = "unimplemented yet";
 
     println!("{}", response);
@@ -461,7 +461,7 @@ pub fn send_vtt(
         None => {
             log::info!("No pkh specified, will default to node pkh");
             let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-            let response = send_request(&mut stream, &request)?;
+            let response = send_request(&mut stream, request)?;
             let node_pkh = parse_response::<PublicKeyHash>(&response)?;
             log::info!("Node pkh: {}", node_pkh);
 
@@ -599,7 +599,7 @@ pub fn master_key_export(
 ) -> Result<(), failure::Error> {
     let request = r#"{"jsonrpc": "2.0","method":"masterKeyExport","id": "1"}"#;
     let mut stream = start_client(addr)?;
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
 
     match parse_response(&response) {
         Ok(private_key_slip32) => {
@@ -955,7 +955,7 @@ pub fn data_request_report(
 pub fn get_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "peers", "id": "1"}"#;
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     let peers: PeersResult = parse_response(&response)?;
 
     if peers.is_empty() {
@@ -977,7 +977,7 @@ pub fn get_peers(addr: SocketAddr) -> Result<(), failure::Error> {
 pub fn get_known_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "knownPeers", "id": "1"}"#;
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     let peers: PeersResult = parse_response(&response)?;
 
     if peers.is_empty() {
@@ -999,7 +999,7 @@ pub fn get_known_peers(addr: SocketAddr) -> Result<(), failure::Error> {
 pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "nodeStats", "id": "1"}"#;
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     let node_stats: NodeStats = parse_response(&response)?;
 
     println!(
@@ -1020,7 +1020,7 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
     );
 
     let request = r#"{"jsonrpc": "2.0","method": "syncStatus", "id": "1"}"#;
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     let sync_status: SyncStatus = parse_response(&response)?;
 
     if let Some(current_epoch) = sync_status.current_epoch {
@@ -1123,7 +1123,7 @@ pub fn clear_peers(addr: SocketAddr) -> Result<(), failure::Error> {
 
     let request = r#"{"jsonrpc": "2.0","method": "clearPeers", "id": "1"}"#;
 
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     let response: bool = parse_response(&response)?;
     if response {
         println!("Successfully cleared peers from buckets");
@@ -1139,7 +1139,7 @@ pub fn initialize_peers(addr: SocketAddr) -> Result<(), failure::Error> {
 
     let request = r#"{"jsonrpc": "2.0","method": "initializePeers", "id": "1"}"#;
 
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     let response: bool = parse_response(&response)?;
     if response {
         println!("Successfully cleared peers from buckets and initialized to config");
@@ -1176,7 +1176,7 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
 
     let request = r#"{"jsonrpc": "2.0","method": "signalingInfo", "id": "1"}"#;
 
-    let response = send_request(&mut stream, &request)?;
+    let response = send_request(&mut stream, request)?;
     let signaling_info: SignalingInfo = parse_response(&response)?;
 
     println!("Current epoch: {}", signaling_info.epoch);
@@ -1184,7 +1184,7 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
     let sorted_upgrades = signaling_info
         .active_upgrades
         .iter()
-        .sorted_by(|a, b| a.1.cmp(&b.1));
+        .sorted_by(|a, b| a.1.cmp(b.1));
     for (upgrade, epoch) in sorted_upgrades {
         println!("- Epoch {}: {}", epoch, upgrade);
     }
@@ -1422,14 +1422,14 @@ mod tests {
     fn parse_server_error() {
         let response =
             r#"{"jsonrpc":"2.0","error":{"code":-32601,"message":"Method not found"},"id":1}"#;
-        let block_chain: Result<ResponseBlockChain<'_>, _> = parse_response(&response);
+        let block_chain: Result<ResponseBlockChain<'_>, _> = parse_response(response);
         assert!(block_chain.is_err());
     }
 
     #[test]
     fn parse_get_block_chain() {
         let response = r#"{"jsonrpc":"2.0","result":[[0,"ed28899af8c3148a4162736af942bc68c4466da93c5124dabfaa7c582af49e30"],[1,"9c9038cfb31a7050796920f91b17f4a68c7e9a795ee8962916b35d39fc1efefc"]],"id":1}"#;
-        let block_chain: ResponseBlockChain<'_> = parse_response(&response).unwrap();
+        let block_chain: ResponseBlockChain<'_> = parse_response(response).unwrap();
         assert_eq!(
             block_chain[0],
             (

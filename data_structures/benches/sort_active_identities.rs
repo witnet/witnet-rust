@@ -17,7 +17,7 @@ mod old {
             .ars()
             .active_identities()
             .cloned()
-            .sorted_by(|a, b| compare_reputed_pkh(a, b, &rep_eng).reverse())
+            .sorted_by(|a, b| compare_reputed_pkh(a, b, rep_eng).reverse())
             .collect()
     }
 
@@ -48,7 +48,7 @@ mod old {
             } else {
                 // If both identities have 0 reputation their ordering is not important because
                 // they will have the same eligibility, so compare them by PublicKeyHash
-                a.cmp(&b)
+                a.cmp(b)
             }
         })
     }

@@ -519,7 +519,7 @@ impl Worker {
         data: &str,
         extended_pk: bool,
     ) -> Result<model::ExtendedKeyedSignature> {
-        let signed_data = wallet.sign_data(&data, extended_pk)?;
+        let signed_data = wallet.sign_data(data, extended_pk)?;
 
         Ok(signed_data)
     }
@@ -739,11 +739,11 @@ impl Worker {
                 sync_end,
                 e
             );
-            if let Error::JsonRpcTimeoutError = e {
+            if let Error::JsonRpcTimeout = e {
                 log::error!("JsonRpc timeout error during synchronization");
             } else {
                 let events = Some(vec![types::Event::SyncError(sync_start, sync_end)]);
-                self.notify_client(&wallet, sink, events).ok();
+                self.notify_client(wallet, sink, events).ok();
             }
         }
 
@@ -817,7 +817,7 @@ impl Worker {
             since_beacon.checkpoint,
             tip.checkpoint,
         )]);
-        self.notify_client(&wallet, sink.clone(), events).ok();
+        self.notify_client(wallet, sink.clone(), events).ok();
 
         log::info!(
             "[SU] Starting synchronization of wallet {}.\n\t[Local beacon] {:?}\n\t[Node height ]   BlockInfo {{ checkpoint: {:?}, block_hash: {:?} }}",
@@ -861,7 +861,7 @@ impl Worker {
                 latest_beacon.checkpoint,
                 tip.checkpoint,
             )]);
-            self.notify_client(&wallet, sink.clone(), events).ok();
+            self.notify_client(wallet, sink.clone(), events).ok();
 
             // Keep asking for new batches of blocks until we get less than expected, which signals
             // that there are no more blocks to process.
@@ -883,7 +883,7 @@ impl Worker {
             first_beacon.checkpoint,
             latest_beacon.checkpoint,
         )]);
-        self.notify_client(&wallet, sink, events).ok();
+        self.notify_client(wallet, sink, events).ok();
 
         log::info!(
             "[SU] Wallet {} is now synced up to latest beacon ({:?})",
@@ -1184,7 +1184,7 @@ impl Worker {
         for balance_movement in balance_movements {
             events.push(types::Event::Movement(balance_movement));
         }
-        self.notify_client(&wallet, sink, Some(events)).ok();
+        self.notify_client(wallet, sink, Some(events)).ok();
 
         Ok(block_own_beacon)
     }

@@ -111,7 +111,7 @@ impl Peers {
         let ice_period = self.current_ice_period();
         let (contains, needs_removal) = self
             .ice_bucket
-            .get(&addr)
+            .get(addr)
             .map(|entry_timestamp| {
                 // If the address was iced more than `ice_period` seconds ago, we can remove it from
                 // the ice bucket and pretend it was not even there in the first place.
@@ -122,7 +122,7 @@ impl Peers {
             .unwrap_or((false, false));
 
         if needs_removal {
-            self.ice_bucket.remove(&addr);
+            self.ice_bucket.remove(addr);
         }
 
         contains
@@ -280,7 +280,7 @@ impl Peers {
                     self.ice_peer_address(address);
                 }
 
-                let bucket_index = self.tried_bucket_index(&address);
+                let bucket_index = self.tried_bucket_index(address);
                 let bucket_entry = self.tried_bucket.get(&bucket_index);
 
                 if bucket_entry
@@ -303,7 +303,7 @@ impl Peers {
     pub fn remove_from_new_with_index(&mut self, indexes: &[u16]) -> Vec<SocketAddr> {
         let v = indexes
             .iter()
-            .filter_map(|index| self.new_bucket.remove(&index))
+            .filter_map(|index| self.new_bucket.remove(index))
             .map(|info| info.address)
             .collect();
 

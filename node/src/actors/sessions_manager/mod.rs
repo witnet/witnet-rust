@@ -298,7 +298,7 @@ impl SessionsManager {
     fn drop_outbound_peers(&mut self, peers_to_unregister: &[SocketAddr]) {
         // Unregister peers out of consensus
         for peer in peers_to_unregister {
-            if let Some(a) = self.sessions.outbound_consolidated.collection.get(&peer) {
+            if let Some(a) = self.sessions.outbound_consolidated.collection.get(peer) {
                 a.reference.do_send(CloseSession);
             }
         }

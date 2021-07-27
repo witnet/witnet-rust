@@ -442,7 +442,7 @@ impl App {
     ) -> ResponseActFuture<Transaction> {
         let f = fut::result(
             self.state
-                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+                .get_wallet_by_session_and_id(session_id, wallet_id),
         )
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
@@ -463,7 +463,7 @@ impl App {
     ) -> ResponseActFuture<Transaction> {
         let f = fut::result(
             self.state
-                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+                .get_wallet_by_session_and_id(session_id, wallet_id),
         )
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
@@ -619,7 +619,7 @@ impl App {
 
         for wallet in &wallets {
             let sink = self.state.get_sink(&wallet.session_id);
-            self.handle_block_in_worker(block.clone(), &wallet, sink.clone());
+            self.handle_block_in_worker(block.clone(), wallet, sink.clone());
         }
 
         Ok(())
@@ -762,7 +762,7 @@ impl App {
     ) -> ResponseActFuture<model::ExtendedKeyedSignature> {
         let f = fut::result(
             self.state
-                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+                .get_wallet_by_session_and_id(session_id, wallet_id),
         )
         .and_then(move |wallet, slf: &mut Self, _| {
             slf.params
@@ -1011,7 +1011,7 @@ impl App {
 
     /// Handle status from sync error
     pub fn handle_sync_error(&mut self, e: &Error) {
-        if let Error::JsonRpcTimeoutError = e {
+        if let Error::JsonRpcTimeout = e {
             log::error!(
                 "Detected timeout while syncing, waiting until next periodic sync to connect"
             );

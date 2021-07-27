@@ -563,7 +563,7 @@ impl ChainManager {
                 );
                 let block_pkh = &block.block_sig.public_key.pkh();
                 let reputation = rep_engine.trs().get(block_pkh);
-                let is_active = rep_engine.ars().contains(&block_pkh);
+                let is_active = rep_engine.ars().contains(block_pkh);
                 let vrf_proof = match block.block_header.proof.proof.proof_to_hash(vrf_ctx) {
                     Ok(vrf) => vrf,
                     Err(e) => {
@@ -814,7 +814,7 @@ impl ChainManager {
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
                         for dr_info in &to_be_stored {
-                            show_tally_info(&dr_info.tally.as_ref().unwrap(), block_epoch);
+                            show_tally_info(dr_info.tally.as_ref().unwrap(), block_epoch);
                         }
 
                         if !resynchronizing {
@@ -1389,8 +1389,8 @@ impl ChainManager {
         ));
 
         let fut = async move {
-            let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
-            let aux = block_hashes.into_iter().map(move |hash| {
+            let block_hashes = res.into_iter().map(|(_epoch, hash)| hash);
+            let aux = block_hashes.map(move |hash| {
                 inventory_manager
                     .send(GetItemBlock { hash })
                     .then(move |res| match res {
@@ -1856,7 +1856,7 @@ impl ChainManager {
             let beacon = self.get_chain_beacon();
             show_sync_progress(
                 beacon,
-                &sync_target,
+                sync_target,
                 self.epoch_constants.unwrap(),
                 self.current_epoch.unwrap(),
             );
@@ -1872,7 +1872,7 @@ impl ChainManager {
         blocks: &[Block],
     ) -> (bool, usize) {
         let (batch_succeeded, num_processed_blocks) =
-            self.process_blocks_batch(ctx, &sync_target, &blocks);
+            self.process_blocks_batch(ctx, sync_target, blocks);
 
         if !batch_succeeded {
             log::error!("Received invalid blocks batch");
@@ -2003,10 +2003,10 @@ impl ChainManager {
         let res = self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(epoch.., 0));
 
         let fut = async {
-            let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
+            let block_hashes = res.into_iter().map(|(_epoch, hash)| hash);
             // For each block, collect all the transactions that may be valid if this block is
             // reverted. This includes value transfer transactions and data request transactions.
-            let aux = block_hashes.into_iter().map(move |hash| {
+            let aux = block_hashes.map(move |hash| {
                 inventory_manager
                     .send(GetItemBlock { hash })
                     .then(move |res| match res {
@@ -2114,10 +2114,10 @@ impl ChainManager {
         let res = self.get_blocks_epoch_range(GetBlocksEpochRange::new_with_limit(init..=end, 0));
 
         let fut = async move {
-            let block_hashes: Vec<Hash> = res.into_iter().map(|(_epoch, hash)| hash).collect();
+            let block_hashes = res.into_iter().map(|(_epoch, hash)| hash);
             log::debug!("Updating TAPI votes from blocks since #{}", init);
             let mut block_counter = 0;
-            let aux = block_hashes.into_iter().map(move |hash| {
+            let aux = block_hashes.map(move |hash| {
                 block_counter += 1;
                 inventory_manager
                     .send(GetItemBlock { hash })
@@ -2342,7 +2342,7 @@ pub fn process_validations(
             chain_beacon,
             &mut signatures_to_verify,
             rep_eng,
-            &consensus_constants,
+            consensus_constants,
             active_wips,
         )?;
         verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
@@ -2445,10 +2445,10 @@ fn update_pools(
 
     for ta_tx in &block.txns.tally_txns {
         // Process tally transactions: used to update reputation engine
-        rep_info.update(&ta_tx, data_request_pool, own_pkh, node_stats);
+        rep_info.update(ta_tx, data_request_pool, own_pkh, node_stats);
 
         // IMPORTANT: Update the data request pool after updating reputation info
-        if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_tally(ta_tx, &block.hash()) {
             log::error!("Error processing tally transaction:\n{}", e);
         }
 
@@ -2456,23 +2456,23 @@ fn update_pools(
     }
 
     for vt_tx in &block.txns.value_transfer_txns {
-        transactions_pool.vt_remove(&vt_tx);
+        transactions_pool.vt_remove(vt_tx);
     }
 
     for dr_tx in &block.txns.data_request_txns {
         if let Err(e) = data_request_pool.process_data_request(
-            &dr_tx,
+            dr_tx,
             block.block_header.beacon.checkpoint,
             &block.hash(),
         ) {
             log::error!("Error processing data request transaction:\n{}", e);
         } else {
-            transactions_pool.dr_remove(&dr_tx);
+            transactions_pool.dr_remove(dr_tx);
         }
     }
 
     for co_tx in &block.txns.commit_txns {
-        if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_commit(co_tx, &block.hash()) {
             log::error!("Error processing commit transaction:\n{}", e);
         } else {
             if co_tx.body.proof.proof.pkh() == own_pkh {
@@ -2489,7 +2489,7 @@ fn update_pools(
     }
 
     for re_tx in &block.txns.reveal_txns {
-        if let Err(e) = data_request_pool.process_reveal(&re_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_reveal(re_tx, &block.hash()) {
             log::error!("Error processing reveal transaction:\n{}", e);
         }
         transactions_pool.remove_one_reveal(&re_tx.body.dr_pointer, &re_tx.body.pkh, &re_tx.hash());
@@ -2506,7 +2506,7 @@ fn update_pools(
         },
         |own_utxos, output_pointer| {
             // Remove spent inputs
-            own_utxos.remove(&output_pointer);
+            own_utxos.remove(output_pointer);
         },
     );
 

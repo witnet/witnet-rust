@@ -70,7 +70,7 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
             if !self
                 .unconfirmed_transactions
                 .contains(&pointer.transaction_id)
-                && (self.selected_utxos.contains(&out_ptr) || self.selected_utxos.is_empty())
+                && (self.selected_utxos.contains(out_ptr) || self.selected_utxos.is_empty())
             {
                 Some(pointer)
             } else {
@@ -80,12 +80,12 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
 
         match strategy {
             UtxoSelectionStrategy::BigFirst { from } => {
-                sort_utxo_set(&self.utxo_set, true, from.as_ref())
+                sort_utxo_set(self.utxo_set, true, from.as_ref())
                     .filter_map(filter_utxos)
                     .collect()
             }
             UtxoSelectionStrategy::SmallFirst { from } => {
-                sort_utxo_set(&self.utxo_set, false, from.as_ref())
+                sort_utxo_set(self.utxo_set, false, from.as_ref())
                     .filter_map(filter_utxos)
                     .collect()
             }
@@ -1313,7 +1313,7 @@ where
     ) -> Result<Option<model::BalanceMovement>> {
         // Wallet's account mutation (utxo set changes + balance movement)
         let account_mutation =
-            match self._get_account_mutation(state, &txn, &block_info, confirmed)? {
+            match self._get_account_mutation(state, txn, block_info, confirmed)? {
                 // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
                 None => return Ok(None),
                 Some(account_mutation) => account_mutation,
@@ -1445,7 +1445,7 @@ where
         }
 
         if let Some(mut account_mutation) =
-            self._get_account_mutation(&state, txn, &model::Beacon::default(), false)?
+            self._get_account_mutation(state, txn, &model::Beacon::default(), false)?
         {
             account_mutation.balance_movement.transaction.timestamp =
                 u64::try_from(get_timestamp())
@@ -1668,11 +1668,11 @@ where
 
         let balance_movement = build_balance_movement(
             state.transaction_next_id,
-            &txn,
+            txn,
             miner_fee,
             kind,
             amount,
-            &block_info,
+            block_info,
             convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
             confirmed,
             own_outputs,
@@ -1724,7 +1724,7 @@ where
         } else {
             "".to_string()
         };
-        let public_key = ExtendedPK::from_secret_key(&self.engine, &parent_key)
+        let public_key = ExtendedPK::from_secret_key(&self.engine, parent_key)
             .key
             .to_string();
 
@@ -1907,7 +1907,7 @@ where
         let (tag, key) = if let Some(master_key) = self.db.get_opt(&keys::master_key())? {
             let master_key_string = match master_key.to_slip32(&KeyPath::default()) {
                 Ok(x) => x,
-                Err(_e) => return Err(Error::KeySerializationError),
+                Err(_e) => return Err(Error::KeySerialization),
             };
             ("xprv", master_key_string)
         } else {
@@ -1916,18 +1916,18 @@ where
             let internal_secret_key = internal_parent_key.to_slip32(&KeyPath::default());
             let mut internal_secret_key_hex = match internal_secret_key {
                 Ok(x) => x,
-                Err(_e) => return Err(Error::KeySerializationError),
+                Err(_e) => return Err(Error::KeySerialization),
             };
             let external_secret_key = external_parent_key.to_slip32(&KeyPath::default());
             let external_secret_key_hex = match external_secret_key {
                 Ok(x) => x,
-                Err(_e) => return Err(Error::KeySerializationError),
+                Err(_e) => return Err(Error::KeySerialization),
             };
             internal_secret_key_hex.push_str(&external_secret_key_hex);
             ("xprvdouble", internal_secret_key_hex)
         };
         let encrypted_final_key =
-            crypto::encrypt_cbc(key.as_ref(), password.as_ref()).map_err(Error::CryptoError)?;
+            crypto::encrypt_cbc(key.as_ref(), password.as_ref()).map_err(Error::Crypto)?;
         let final_key =
             bech32::encode(tag, encrypted_final_key.to_base32()).map_err(Error::Bech32)?;
         Ok(final_key)
@@ -2062,7 +2062,7 @@ fn build_tally_report(
 
             // Set not `in_consensus` reveals
             for pkh in &tally.out_of_consensus {
-                let outlier = reveals.get_mut(&pkh).cloned();
+                let outlier = reveals.get_mut(pkh).cloned();
                 if let Some(mut reveal) = outlier {
                     reveal.in_consensus = false;
                 } else {

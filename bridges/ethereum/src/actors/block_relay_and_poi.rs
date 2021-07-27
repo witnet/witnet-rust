@@ -124,7 +124,7 @@ pub fn block_relay_and_poi(
                                         for dr in &dr_txs {
                                             for dr_id in claimed_drs.get_by_right(&dr.body.dr_output.hash())
                                             {
-                                                let dr_inclusion_proof = match superblock.dr_proof_of_inclusion(&confirmed_blocks, &dr) {
+                                                let dr_inclusion_proof = match superblock.dr_proof_of_inclusion(&confirmed_blocks, dr) {
                                                     Some(x) => x,
                                                     None => {
                                                         log::error!("Error creating data request proof of inclusion");
@@ -160,7 +160,7 @@ pub fn block_relay_and_poi(
                                             {
                                                 let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
                                                 log::info!("[{}] Found tally for data request, posting to WRB", dr_id);
-                                                let tally_inclusion_proof = match superblock.tally_proof_of_inclusion(&confirmed_blocks, &tally) {
+                                                let tally_inclusion_proof = match superblock.tally_proof_of_inclusion(&confirmed_blocks, tally) {
                                                     Some(x) => x,
                                                     None => {
                                                         log::error!("Error creating tally data proof of inclusion");

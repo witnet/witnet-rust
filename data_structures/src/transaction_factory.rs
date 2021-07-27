@@ -182,7 +182,7 @@ pub trait OutputsCollection {
                         amount,
                         timestamp,
                         block_number_limit,
-                        &utxo_strategy,
+                        utxo_strategy,
                     )?;
                     let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
 
@@ -493,7 +493,7 @@ pub fn transaction_inputs_sum(
     let mut seen_output_pointers = HashSet::with_capacity(inputs.len());
 
     for input in inputs {
-        let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
+        let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
             TransactionError::OutputNotFound {
                 output: input.output_pointer().clone(),
             }
@@ -692,7 +692,7 @@ mod tests {
                 Transaction::ValueTransfer(vt_tx) => {
                     // Remove spent inputs
                     for input in &vt_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer());
+                        own_utxos.remove(input.output_pointer());
                     }
                     // Insert new outputs
                     for (i, output) in vt_tx.body.outputs.iter().enumerate() {
@@ -711,7 +711,7 @@ mod tests {
                 Transaction::DataRequest(dr_tx) => {
                     // Remove spent inputs
                     for input in &dr_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer());
+                        own_utxos.remove(input.output_pointer());
                     }
                     // Insert new outputs
                     for (i, output) in dr_tx.body.outputs.iter().enumerate() {

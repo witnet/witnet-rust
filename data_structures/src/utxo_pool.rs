@@ -175,10 +175,10 @@ impl<'a> OutputsCollection for NodeUtxosRef<'a> {
 
         match strategy {
             UtxoSelectionStrategy::BigFirst { from: _ } => {
-                self.own_utxos.sort(&self.all_utxos, true)
+                self.own_utxos.sort(self.all_utxos, true)
             }
             UtxoSelectionStrategy::SmallFirst { from: _ } => {
-                self.own_utxos.sort(&self.all_utxos, false)
+                self.own_utxos.sort(self.all_utxos, false)
             }
             UtxoSelectionStrategy::Random { from: _ } => {
                 self.own_utxos.iter().map(|(o, _ts)| o.clone()).collect()

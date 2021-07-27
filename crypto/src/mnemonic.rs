@@ -195,9 +195,9 @@ mod tests {
     #[test]
     fn test_generate() {
         let mnemonic = MnemonicGen::new().generate();
-        let words: Vec<&str> = mnemonic.words().split_whitespace().collect();
+        let words = mnemonic.words().split_whitespace();
 
-        assert_eq!(words.len(), 12);
+        assert_eq!(words.count(), 12);
     }
 
     #[test]

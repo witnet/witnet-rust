@@ -1412,7 +1412,7 @@ impl PublicKey {
 
     /// Returns the PublicKeyHash related to the PublicKey
     pub fn pkh(&self) -> PublicKeyHash {
-        PublicKeyHash::from_public_key(&self)
+        PublicKeyHash::from_public_key(self)
     }
 }
 
@@ -1542,7 +1542,7 @@ impl Bn256SecretKey {
     /// Use the secret key to sign a message.
     /// The message can be of any length, and it will be hashed internally.
     pub fn sign(&self, message: &[u8]) -> Result<Bn256Signature, failure::Error> {
-        let signature = Bn256.sign(&self.bytes, &message)?;
+        let signature = Bn256.sign(&self.bytes, message)?;
 
         Ok(Bn256Signature { signature })
     }
@@ -2231,7 +2231,7 @@ impl TransactionsPool {
             .fold(
                 Vec::with_capacity(20),
                 |mut commits_vec, (dr_pointer, commits)| {
-                    if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
+                    if let Some(dr_output) = dr_pool.get_dr_output(dr_pointer) {
                         let n_commits = dr_output.witnesses as usize;
 
                         if commits.len() >= n_commits {
@@ -2295,10 +2295,10 @@ impl TransactionsPool {
             .fold(
                 Vec::with_capacity(20),
                 |mut reveals_vec, (dr_pointer, reveals)| {
-                    if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
+                    if let Some(dr_output) = dr_pool.get_dr_output(dr_pointer) {
                         let n_reveals = reveals.len();
                         reveals_vec
-                            .extend(reveals.iter().map(|(_h, r)| re_hash_index.get(&r).unwrap()));
+                            .extend(reveals.iter().map(|(_h, r)| re_hash_index.get(r).unwrap()));
 
                         total_fee += dr_output.commit_and_reveal_fee * n_reveals as u64;
                     }
@@ -2717,7 +2717,7 @@ impl Ord for OutputPointer {
 
 impl PartialOrd for OutputPointer {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -3386,7 +3386,7 @@ fn trapezoidal_eligibility(
         return (HashMap::default(), 0);
     }
     // Calculate upper triangle reputation in the trapezoidal eligibility
-    let minimum_rep = trs.get(&active_reputed_ids.last().unwrap()).0;
+    let minimum_rep = trs.get(active_reputed_ids.last().unwrap()).0;
     let (triangle_reputation, total_triangle_reputation) =
         calculate_trapezoid_triangle(total_active_rep, active_reputed_ids_len, minimum_rep);
 
@@ -3638,7 +3638,7 @@ fn update_utxo_inputs(utxo: &mut UnspentOutputsPool, inputs: &[Input]) {
         let output_pointer = input.output_pointer();
 
         // This does not check for missing inputs
-        utxo.remove(&output_pointer);
+        utxo.remove(output_pointer);
     }
 }
 

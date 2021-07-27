@@ -13,7 +13,7 @@ pub fn pbkdf2_sha256(password: &[u8], salt: &[u8], c: u32) -> Protected {
     pbkdf2::derive(
         pbkdf2::PBKDF2_HMAC_SHA256,
         n_iter,
-        &salt,
+        salt,
         password,
         &mut secret,
     );

@@ -37,7 +37,7 @@ pub fn create_wrb_contract(eth_client_url: &str, wrb_contract_addr: H160) -> Con
 
 /// Check if the witnet node is running
 pub async fn check_witnet_node_running(witnet_addr: &str) -> Result<(), String> {
-    let (_handle, witnet_client) = TcpSocket::new(&witnet_addr).unwrap();
+    let (_handle, witnet_client) = TcpSocket::new(witnet_addr).unwrap();
     let witnet_client = Arc::new(witnet_client);
     let res = witnet_client.execute("syncStatus", json!(null));
     let res = Compat01As03::new(res);

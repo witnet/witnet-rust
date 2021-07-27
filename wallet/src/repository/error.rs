@@ -52,15 +52,15 @@ pub enum Error {
     #[fail(display = "block consolidation failed: {}", _0)]
     BlockConsolidation(String),
     #[fail(display = "hash parsing failed: {}", _0)]
-    HashParseError(#[cause] HashParseError),
+    HashParse(#[cause] HashParseError),
     #[fail(display = "failed creating a transaction: {}", _0)]
     TransactionCreation(#[cause] TransactionError),
     #[fail(display = "Bech32 serialization error: {}", _0)]
     Bech32(#[cause] bech32::Error),
     #[fail(display = "Crypto operation failed: {}", _0)]
-    CryptoError(#[cause] crypto::Error),
+    Crypto(#[cause] crypto::Error),
     #[fail(display = "Master key serialization failed")]
-    KeySerializationError,
+    KeySerialization,
     #[fail(display = "failed because wallet is still syncing: {}", _0)]
     StillSyncing(String),
     #[fail(
@@ -119,7 +119,7 @@ impl From<PublicKeyHashParseError> for Error {
 
 impl From<HashParseError> for Error {
     fn from(err: HashParseError) -> Self {
-        Error::HashParseError(err)
+        Error::HashParse(err)
     }
 }
 

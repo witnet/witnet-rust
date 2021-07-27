@@ -253,7 +253,7 @@ mod tests {
         ]);
         let expected = RadonTypes::from(RadonFloat::from(0.5));
 
-        let output = standard(&input).unwrap();
+        let output = standard(input).unwrap();
 
         assert_eq!(output, expected);
     }
@@ -286,7 +286,7 @@ mod tests {
             RadonString::from("Hello").into(),
             RadonString::from("world").into(),
         ]);
-        let result = standard(&input);
+        let result = standard(input);
 
         let expected = RadError::UnsupportedReducer {
             array: input.clone(),

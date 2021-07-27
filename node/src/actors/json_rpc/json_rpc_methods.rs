@@ -1682,7 +1682,7 @@ mod tests {
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions, true);
-        let response = io.handle_request_sync(&msg, meta);
+        let response = io.handle_request_sync(msg, meta);
         // Compare only the first N characters
         let response =
             response.map(|s| s.chars().take(expected.chars().count()).collect::<String>());
@@ -1700,7 +1700,7 @@ mod tests {
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions, true);
-        let response = io.handle_request_sync(&msg, meta);
+        let response = io.handle_request_sync(msg, meta);
         assert_eq!(response, Some(expected));
     }
 
@@ -1766,7 +1766,7 @@ mod tests {
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions, true);
-        let response = io.handle_request_sync(&msg, meta);
+        let response = io.handle_request_sync(msg, meta);
         assert_eq!(response, Some(expected));
     }
 
@@ -1779,7 +1779,7 @@ mod tests {
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions, true);
-        let response = io.handle_request_sync(&msg, meta);
+        let response = io.handle_request_sync(msg, meta);
         assert_eq!(response, Some(expected));
     }
 
@@ -1794,8 +1794,8 @@ mod tests {
         let io = jsonrpc_io_handler(subscriptions, true);
         // But first, subscribe to blocks
         let msg1 = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["blocks"],"id":1}"#;
-        let _response1 = io.handle_request_sync(&msg1, meta.clone());
-        let response2 = io.handle_request_sync(&msg2, meta);
+        let _response1 = io.handle_request_sync(msg1, meta.clone());
+        let response2 = io.handle_request_sync(msg2, meta);
         assert_eq!(response2, Some(expected2));
     }
 
@@ -1808,7 +1808,7 @@ mod tests {
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions, true);
-        let response = io.handle_request_sync(&msg, meta);
+        let response = io.handle_request_sync(msg, meta);
         assert_eq!(response, Some(expected));
     }
 

@@ -114,7 +114,7 @@ pub fn validate_commit_collateral(
     let mut seen_output_pointers = HashSet::with_capacity(co_tx.body.collateral.len());
 
     for input in &co_tx.body.collateral {
-        let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
+        let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
             TransactionError::OutputNotFound {
                 output: input.output_pointer().clone(),
             }
@@ -759,7 +759,7 @@ pub fn validate_dr_transaction<'a>(
 
         // The output must have the same pkh as the first input
         let first_input = utxo_diff
-            .get(&dr_tx.body.inputs[0].output_pointer())
+            .get(dr_tx.body.inputs[0].output_pointer())
             .unwrap();
         let expected_pkh = first_input.pkh;
 
@@ -1016,7 +1016,7 @@ fn create_expected_report(
         let clause_result =
             evaluate_tally_precondition_clause(results, non_error_min, commits_count, active_wips);
         let report =
-            construct_report_from_clause_result(clause_result, &tally, results_len, active_wips);
+            construct_report_from_clause_result(clause_result, tally, results_len, active_wips);
         if active_wips.wips_0009_0011_0012() {
             evaluate_tally_postcondition_clause(report, non_error_min, commits_count)
         } else {
@@ -1085,7 +1085,7 @@ fn create_expected_tally_transaction(
     );
     let ta_tx = create_tally(
         dr_pointer,
-        &dr_output,
+        dr_output,
         dr_state.pkh,
         &report,
         reveal_txns.into_iter().map(|tx| tx.body.pkh).collect(),
@@ -1386,7 +1386,7 @@ pub fn validate_pkh_signature(
     keyed_signature: &KeyedSignature,
     utxo_diff: &UtxoDiff<'_>,
 ) -> Result<(), failure::Error> {
-    let output = utxo_diff.get(&input.output_pointer());
+    let output = utxo_diff.get(input.output_pointer());
     if let Some(x) = output {
         let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
         let expected_pkh = x.pkh;
@@ -1704,7 +1704,7 @@ pub fn validate_block_transactions(
     let mut commit_hs = HashSet::with_capacity(block.txns.commit_txns.len());
     for transaction in &block.txns.commit_txns {
         let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
-            &transaction,
+            transaction,
             dr_pool,
             vrf_input,
             signatures_to_verify,
@@ -1757,7 +1757,7 @@ pub fn validate_block_transactions(
     let mut re_mt = ProgressiveMerkleTree::sha256();
     let mut reveal_hs = HashSet::with_capacity(block.txns.reveal_txns.len());
     for transaction in &block.txns.reveal_txns {
-        let fee = validate_reveal_transaction(&transaction, dr_pool, signatures_to_verify)?;
+        let fee = validate_reveal_transaction(transaction, dr_pool, signatures_to_verify)?;
 
         // Validation for only one reveal for pkh/data request in a block
         let pkh = transaction.body.pkh;
@@ -1972,7 +1972,7 @@ pub fn validate_block(
             target_hash,
         );
 
-        validate_block_signature(&block, signatures_to_verify)
+        validate_block_signature(block, signatures_to_verify)
     }
 }
 
@@ -2029,11 +2029,11 @@ pub fn validate_new_transaction(
     minimum_reppoe_difficulty: u32,
     active_wips: &ActiveWips,
 ) -> Result<u64, failure::Error> {
-    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
+    let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
 
     match transaction {
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
-            &tx,
+            tx,
             &utxo_diff,
             current_epoch,
             epoch_constants,
@@ -2043,7 +2043,7 @@ pub fn validate_new_transaction(
         .map(|(_, _, fee)| fee),
 
         Transaction::DataRequest(tx) => validate_dr_transaction(
-            &tx,
+            tx,
             &utxo_diff,
             current_epoch,
             epoch_constants,
@@ -2053,11 +2053,11 @@ pub fn validate_new_transaction(
         )
         .map(|(_, _, fee)| fee),
         Transaction::Commit(tx) => validate_commit_transaction(
-            &tx,
-            &data_request_pool,
+            tx,
+            data_request_pool,
             vrf_input,
             signatures_to_verify,
-            &reputation_engine,
+            reputation_engine,
             current_epoch,
             epoch_constants,
             &utxo_diff,
@@ -2069,7 +2069,7 @@ pub fn validate_new_transaction(
         )
         .map(|(_, _, fee)| fee),
         Transaction::Reveal(tx) => {
-            validate_reveal_transaction(&tx, &data_request_pool, signatures_to_verify)
+            validate_reveal_transaction(tx, data_request_pool, signatures_to_verify)
         }
         _ => Err(TransactionError::NotValidTransaction.into()),
     }

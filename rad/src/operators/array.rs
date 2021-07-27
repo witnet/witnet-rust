@@ -262,13 +262,13 @@ pub fn sort(
     match &mapped_array_value.first() {
         Some(RadonTypes::String(_)) => {
             tuple_array.sort_by(|a, b| match (a.1, b.1) {
-                (RadonTypes::String(a), RadonTypes::String(b)) => a.cmp(&b),
+                (RadonTypes::String(a), RadonTypes::String(b)) => a.cmp(b),
                 _ => unreachable!(),
             });
         }
         Some(RadonTypes::Integer(_)) => {
             tuple_array.sort_by(|a, b| match (a.1, b.1) {
-                (RadonTypes::Integer(a), RadonTypes::Integer(b)) => a.cmp(&b),
+                (RadonTypes::Integer(a), RadonTypes::Integer(b)) => a.cmp(b),
                 _ => unreachable!(),
             });
         }
@@ -383,8 +383,8 @@ mod tests {
 
         let empty = &RadonArray::from(vec![]);
 
-        assert_eq!(count(&input), RadonInteger::from(2));
-        assert_eq!(count(&empty), RadonInteger::from(0));
+        assert_eq!(count(input), RadonInteger::from(2));
+        assert_eq!(count(empty), RadonInteger::from(0));
     }
 
     #[test]

@@ -28,7 +28,7 @@ pub enum Error {
     #[fail(display = "node error: {}", _0)]
     Node(#[cause] failure::Error),
     #[fail(display = "JsonRPC timeout error")]
-    JsonRpcTimeoutError,
+    JsonRpcTimeout,
     #[fail(display = "error processing a block: {}", _0)]
     Block(#[cause] failure::Error),
     #[fail(display = "output ({}) not found in transaction: {}", _0, _1)]
@@ -71,7 +71,7 @@ pub fn node_error<T: Fail>(err: T) -> Error {
 
 /// Helper function to simplify .map_err on timeout errors.
 pub fn jsonrpc_timeout_error<T: Fail>(_err: T) -> Error {
-    Error::JsonRpcTimeoutError
+    Error::JsonRpcTimeout
 }
 
 /// Helper function to simplify .map_err on block errors.

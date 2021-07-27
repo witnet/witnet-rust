@@ -48,7 +48,7 @@ impl<T: Database> Wallets<T> {
         let mut batch = self.db.batch();
 
         if let Some(name) = name {
-            batch.put(&keys::wallet_id_name(&id), name)?;
+            batch.put(&keys::wallet_id_name(id), name)?;
         }
 
         self.db.write(batch)?;
@@ -83,7 +83,7 @@ impl<T: Database> Wallets<T> {
         // We first write name and description into private wallet DB
         if let Some(name) = name.as_ref() {
             wbatch.put(&keys::wallet_name(), name.clone())?;
-            batch.put(&keys::wallet_id_name(&id), name.clone())?;
+            batch.put(&keys::wallet_id_name(id), name.clone())?;
         }
 
         if let Some(description) = description {
@@ -105,8 +105,8 @@ impl<T: Database> Wallets<T> {
 
         wallet_db.write(wbatch)?;
 
-        batch.put(&keys::wallet_id_salt(&id), &salt)?;
-        batch.put(&keys::wallet_id_iv(&id), &iv)?;
+        batch.put(&keys::wallet_id_salt(id), &salt)?;
+        batch.put(&keys::wallet_id_iv(id), &iv)?;
 
         // FIXME: Use merge operator or a transaction when available in rocksdb crate
         let wallet_id = id.to_string();

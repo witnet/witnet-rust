@@ -9,7 +9,7 @@ pub fn mode_filter(
     input: &RadonArray,
     context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
-    let mode = mode(&input)?;
+    let mode = mode(input)?;
     let mut liars = vec![];
 
     let filtered_vec: Vec<RadonTypes> = input

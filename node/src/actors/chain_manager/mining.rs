@@ -815,7 +815,7 @@ pub fn build_block(
 
     for vt_tx in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();
-        let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff, epoch, epoch_constants) {
+        let transaction_fee = match vt_transaction_fee(vt_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
                 log::warn!(
@@ -852,7 +852,7 @@ pub fn build_block(
             let commits_count = dr_state.info.commits.len();
             let reveals_count = dr_state.info.reveals.len();
 
-            let (liars_count, errors_count) = calculate_liars_and_errors_count_from_tally(&ta_tx);
+            let (liars_count, errors_count) = calculate_liars_and_errors_count_from_tally(ta_tx);
 
             let collateral = if dr_state.data_request.collateral == 0 {
                 collateral_minimum
@@ -919,7 +919,7 @@ pub fn build_block(
     let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
     for dr_tx in transactions_pool.dr_iter() {
         let transaction_weight = dr_tx.weight();
-        let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff, epoch, epoch_constants) {
+        let transaction_fee = match dr_transaction_fee(dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
                 log::warn!(

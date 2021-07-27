@@ -489,7 +489,7 @@ fn get_chain_code_and_secret(
     let i = hmac512.result().code();
     let (il, ir) = i.split_at(32);
     let chain_code = Protected::from(ir);
-    let secret_key = SecretKey::from_slice(&il).map_err(KeyDerivationError::Secp256k1Error)?;
+    let secret_key = SecretKey::from_slice(il).map_err(KeyDerivationError::Secp256k1Error)?;
 
     Ok((chain_code, secret_key))
 }

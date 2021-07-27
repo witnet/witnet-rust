@@ -46,10 +46,10 @@ fn migrate_chain_state_v0_to_v2(old_chain_state_bytes: &[u8]) -> Vec<u8> {
 }
 
 fn migrate_chain_state(bytes: &[u8]) -> Result<ChainState, failure::Error> {
-    match check_chain_state_version(&bytes) {
+    match check_chain_state_version(bytes) {
         Ok(0) => {
             // Migrate from v0 to v2
-            let bytes = migrate_chain_state_v0_to_v2(&bytes);
+            let bytes = migrate_chain_state_v0_to_v2(bytes);
             log::debug!("Successfully migrated ChainState v0 to v2");
 
             // Latest version

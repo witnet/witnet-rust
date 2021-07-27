@@ -83,7 +83,7 @@ impl State {
         session_id: &types::SessionId,
         wallet_id: &str,
     ) -> Result<types::SessionWallet> {
-        let wallets = self.get_wallets_by_session(&session_id)?;
+        let wallets = self.get_wallets_by_session(session_id)?;
 
         let wallet = wallets
             .get(wallet_id)
