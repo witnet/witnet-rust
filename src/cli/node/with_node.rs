@@ -152,8 +152,13 @@ pub fn exec_cmd(
             node,
             hex,
             fee,
-            run,
-        } => rpc::send_dr(node.unwrap_or(config.jsonrpc.server_address), hex, fee, run),
+            dry_run,
+        } => rpc::send_dr(
+            node.unwrap_or(config.jsonrpc.server_address),
+            hex,
+            fee,
+            dry_run,
+        ),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
@@ -522,9 +527,9 @@ pub enum Command {
         hex: String,
         #[structopt(long = "fee", default_value = "0")]
         fee: u64,
-        /// Run the data request locally before sending, to ensure correctness of RADON scripts
-        #[structopt(long = "run")]
-        run: bool,
+        /// Run the data request locally to ensure correctness of RADON scripts
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
     },
     #[structopt(
         name = "config",

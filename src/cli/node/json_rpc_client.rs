@@ -573,22 +573,24 @@ pub fn send_dr(
     addr: SocketAddr,
     hex_bytes: String,
     fee: u64,
-    run: bool,
+    dry_run: bool,
 ) -> Result<(), failure::Error> {
     let dr_output = deserialize_and_validate_hex_dr(hex_bytes)?;
-    if run {
-        run_dr_locally(&dr_output)?;
+    if dry_run {
+        let tally_result = run_dr_locally(&dr_output)?;
+
+        println!("Request run locally with Tally result: {}", tally_result);
+    } else {
+        let bdr_params = json!({"dro": dr_output, "fee": fee});
+        let request = format!(
+            r#"{{"jsonrpc": "2.0","method": "sendRequest", "params": {}, "id": "1"}}"#,
+            serde_json::to_string(&bdr_params)?
+        );
+        let mut stream = start_client(addr)?;
+        let response = send_request(&mut stream, &request)?;
+
+        println!("{}", response);
     }
-
-    let bdr_params = json!({"dro": dr_output, "fee": fee});
-    let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "sendRequest", "params": {}, "id": "1"}}"#,
-        serde_json::to_string(&bdr_params)?
-    );
-    let mut stream = start_client(addr)?;
-    let response = send_request(&mut stream, &request)?;
-
-    println!("{}", response);
 
     Ok(())
 }
