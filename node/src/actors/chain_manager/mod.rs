@@ -28,7 +28,7 @@
 use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     future,
     net::SocketAddr,
     time::Duration,
@@ -49,9 +49,10 @@ use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestInfo, DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry,
-        InventoryItem, NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify,
-        StateMachine, SuperBlock, SuperBlockVote, TransactionsPool,
+        DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
+        Hashable, InventoryEntry, InventoryItem, NodeStats, PublicKeyHash, Reputation,
+        ReputationEngine, SignaturesToVerify, StateMachine, SuperBlock, SuperBlockVote,
+        TransactionsPool,
     },
     data_request::DataRequestPool,
     get_environment,
@@ -2876,6 +2877,36 @@ pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_t
             removed_tx_hashes
         );
     }
+}
+
+/// Run data request locally
+pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> {
+    // Block on data request retrieval because the CLI application blocks everywhere anyway
+    let run_retrieval_blocking =
+        |retrieve| futures::executor::block_on(witnet_rad::run_retrieval(retrieve));
+
+    let mut retrieval_results = vec![];
+    for r in &dr.data_request.retrieve {
+        log::info!("Running retrieval for {}", r.url);
+        retrieval_results.push(run_retrieval_blocking(r)?);
+    }
+
+    log::info!("Running aggregation with values {:?}", retrieval_results);
+    let aggregation_result =
+        witnet_rad::run_aggregation(retrieval_results, &dr.data_request.aggregate)?;
+    log::info!("Aggregation result: {:?}", aggregation_result);
+
+    // Assume that all the required witnesses will report the same value
+    let reported_values: Result<Vec<RadonTypes>, _> =
+        vec![aggregation_result; dr.witnesses.try_into()?]
+            .into_iter()
+            .map(RadonTypes::try_from)
+            .collect();
+    log::info!("Running tally with values {:?}", reported_values);
+    let tally_result = witnet_rad::run_tally(reported_values?, &dr.data_request.tally)?;
+    log::info!("Tally result: {:?}", tally_result);
+
+    Ok(tally_result)
 }
 
 #[cfg(test)]

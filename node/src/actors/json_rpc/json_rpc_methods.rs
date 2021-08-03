@@ -16,14 +16,16 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
-    chain::{Block, Epoch, Hash, Hashable, PublicKeyHash, StateMachine, SyncStatus},
+    chain::{
+        Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, StateMachine, SyncStatus,
+    },
     transaction::Transaction,
     vrf::VrfMessage,
 };
 
 use crate::{
     actors::{
-        chain_manager::{ChainManager, ChainManagerError},
+        chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
@@ -135,6 +137,14 @@ pub fn jsonrpc_io_handler(
             "sendRequest",
             params,
             |params| send_request(params.parse()),
+        )))
+    });
+    io.add_method("tryRequest", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "tryRequest",
+            params,
+            |params| try_request(params.parse()),
         )))
     });
     io.add_method("sendValue", move |params| {
@@ -594,7 +604,7 @@ pub async fn get_block_chain(
 ///
 /// - First argument is the hash of the block that we are querying.
 /// - Second argument is whether we want the response to contain a list of hashes of the
-///   transactions found in the block.  
+///   transactions found in the block.
 /* test
 {"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb", false]}
 */
@@ -921,6 +931,19 @@ pub async fn send_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> Json
                 })
                 .await
         }
+        Err(err) => Err(err),
+    }
+}
+
+/// Try a data request locally
+pub async fn try_request(params: Result<DataRequestOutput, jsonrpc_core::Error>) -> JsonRpcResult {
+    log::debug!("Trying a data request from JSON-RPC.");
+
+    match params {
+        Ok(dr_output) => match run_dr_locally(&dr_output) {
+            Ok(result) => Ok(Value::String(result.to_string())),
+            Err(e) => Err(internal_error_s(e)),
+        },
         Err(err) => Err(err),
     }
 }
@@ -1947,6 +1970,7 @@ mod tests {
                 "sign",
                 "signalingInfo",
                 "syncStatus",
+                "tryRequest",
                 "witnet_subscribe",
                 "witnet_unsubscribe",
             ]
@@ -1978,6 +2002,7 @@ mod tests {
             "sendRequest",
             "sendValue",
             "sign",
+            "tryRequest",
         ];
 
         for method_name in expected_sensitive_methods {

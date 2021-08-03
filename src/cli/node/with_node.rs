@@ -528,6 +528,7 @@ pub enum Command {
         #[structopt(long = "fee", default_value = "0")]
         fee: u64,
         /// Run the data request locally to ensure correctness of RADON scripts
+        /// It will returns a RadonTypes with the Tally result
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
