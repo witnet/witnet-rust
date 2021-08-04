@@ -1,0 +1,15 @@
+[package]
+name = "witnet_toolkit"
+version = "0.1.0"
+authors = ["Adán SDPC <adan.sdpc@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+failure = "0.1.8"
+hex = "0.4.3"
+serde_json = "1.0.66"
+structopt = "0.3.22"
+witnet_data_structures = { path = "../data_structures" }
+witnet_rad = { path = "../rad" }

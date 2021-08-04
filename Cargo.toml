@@ -11,7 +11,7 @@ description = "An in-progress open source implementation of the Witnet protocol 
 edition = "2018"
 
 [workspace]
-members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "bridges/ethereum", "bridges/centralized-ethereum", "futures_utils"]
+members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "toolkit", "bridges/ethereum", "bridges/centralized-ethereum", "futures_utils"]
 
 [features]
 default = ["wallet", "node", "telemetry"]
@@ -46,6 +46,7 @@ witnet_crypto = { path = "./crypto" }
 witnet_data_structures = { path = "./data_structures" }
 witnet_node = { path = "./node", optional = true }
 witnet_rad = { path = "./rad" }
+witnet_toolkit = { path = "./toolkit" }
 witnet_util = { path = "./util" }
 witnet_validations = { path = "./validations" }
 witnet_wallet = { path = "./wallet", optional = true }
