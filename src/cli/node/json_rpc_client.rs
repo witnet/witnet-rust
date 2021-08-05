@@ -102,9 +102,9 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
     let block_rewards_missing_wit =
         Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.blocks_missing_reward)).0;
     let collateralized_data_requests_total_wit =
-        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.collateral_locked)).0;
+        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.locked_wits_by_requests)).0;
     let current_supply = Wit::wits_and_nanowits(Wit::from_nanowits(
-        supply_info.current_unlocked_supply + supply_info.collateral_locked,
+        supply_info.current_unlocked_supply + supply_info.locked_wits_by_requests,
     ))
     .0;
     let locked_supply =
@@ -128,9 +128,9 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
         block_rewards_missing_wit.to_formatted_string(&Locale::en)
     ]);
     supply_table.add_row(row![
-        "Collateralized data requests".to_string(),
+        "In flight requests".to_string(),
         supply_info
-            .collateralized_data_requests
+            .in_flight_requests
             .to_formatted_string(&Locale::en),
         collateralized_data_requests_total_wit.to_formatted_string(&Locale::en)
     ]);
