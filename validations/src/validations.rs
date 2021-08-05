@@ -2369,7 +2369,7 @@ impl Wit {
         Self(nanowits)
     }
     /// Return integer and fractional part, useful for pretty printing
-    fn wits_and_nanowits(self) -> (u64, u64) {
+    pub fn wits_and_nanowits(self) -> (u64, u64) {
         let nanowits = self.0;
         let amount_wits = nanowits / NANOWITS_PER_WIT;
         let amount_nanowits = nanowits % NANOWITS_PER_WIT;

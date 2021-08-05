@@ -64,6 +64,9 @@ pub fn exec_cmd(
                 simple,
             )
         }
+        Command::GetSupplyInfo { node } => {
+            rpc::get_supply_info(node.unwrap_or(config.jsonrpc.server_address))
+        }
         Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
         Command::GetUtxoInfo { node, long, pkh } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
@@ -381,6 +384,17 @@ pub enum Command {
         /// Fetch and print only the simple balance
         #[structopt(long = "simple")]
         simple: bool,
+    },
+    #[structopt(
+        name = "supply",
+        alias = "getSupply",
+        alias = "getSupplyInfo",
+        about = "Get the total supply of witnet tokens"
+    )]
+    GetSupplyInfo {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
     },
     #[structopt(
         name = "address",

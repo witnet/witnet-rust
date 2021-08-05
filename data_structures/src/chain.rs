@@ -1359,6 +1359,33 @@ impl DataRequestOutput {
     }
 }
 
+/// Information about the total supply
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SupplyInfo {
+    /// Current epoch
+    pub epoch: u32,
+    /// Current time
+    pub current_time: u64,
+    /// Number of blocks minted
+    pub blocks_minted: u32,
+    /// WIT minted through block creation
+    pub blocks_minted_reward: u64,
+    /// Number of blocks missing
+    pub blocks_missing: u32,
+    /// WIT missing because a block was not created
+    pub blocks_missing_reward: u64,
+    /// Amount of in-flight data requests
+    pub collateralized_data_requests: u32,
+    /// Supply currently locked in data requests
+    pub collateral_locked: u64,
+    /// Current unlocked supply
+    pub current_unlocked_supply: u64,
+    /// Current locked supply
+    pub current_locked_supply: u64,
+    /// Total supply
+    pub total_supply: u64,
+}
+
 /// Keyed signature data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::KeyedSignature")]
