@@ -45,6 +45,7 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
+use crate::actors::messages::GetSupplyInfo;
 use futures::FutureExt;
 use futures_util::compat::Compat;
 use std::future::Future;
@@ -89,6 +90,9 @@ pub fn jsonrpc_io_handler(
             Ok((PublicKeyHash::default(),)),
             true,
         )))
+    });
+    io.add_method("getSupplyInfo", |_params: Params| {
+        Compat::new(Box::pin(get_supply_info()))
     });
     io.add_method("peers", |_params: Params| Compat::new(Box::pin(peers())));
     io.add_method("knownPeers", |_params: Params| {
@@ -1180,6 +1184,28 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
         .await
 }
 
+/// Get supply info
+pub async fn get_supply_info() -> JsonRpcResult {
+    let chain_manager_addr = ChainManager::from_registry();
+
+    chain_manager_addr
+        .send(GetSupplyInfo)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|supply_info| match supply_info {
+                    Ok(x) => match serde_json::to_value(&x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
+}
+
 /// Get utxos
 pub async fn get_utxo_info(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
@@ -1956,6 +1982,7 @@ mod tests {
                 "getReputation",
                 "getReputationAll",
                 "getSuperblock",
+                "getSupplyInfo",
                 "getTransaction",
                 "getUtxoInfo",
                 "initializePeers",

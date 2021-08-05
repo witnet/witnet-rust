@@ -1,6 +1,7 @@
 use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
+use num_format::{Locale, ToFormattedString};
 use prettytable::{cell, row, Table};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -19,6 +20,7 @@ use witnet_crypto::{
     hash::calculate_sha256,
     key::{CryptoEngine, ExtendedPK, ExtendedSK},
 };
+use witnet_data_structures::chain::SupplyInfo;
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
@@ -75,6 +77,79 @@ pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: i64) -> Result<(), fa
     for (epoch, hash) in block_chain {
         println!("block for epoch #{} had digest {}", epoch, hash);
     }
+
+    Ok(())
+}
+
+#[allow(clippy::cast_possible_wrap)]
+pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo", "id": "1"}"#;
+    let response = send_request(&mut stream, request)?;
+    let supply_info = parse_response::<SupplyInfo>(&response)?;
+
+    log::info!("{:?}", supply_info);
+
+    println!(
+        "\nSupply info at {} (epoch {}):\n",
+        pretty_print(supply_info.current_time as i64, 0),
+        supply_info.epoch
+    );
+
+    let block_rewards_wit =
+        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.blocks_minted_reward)).0;
+    let block_rewards_missing_wit =
+        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.blocks_missing_reward)).0;
+    let collateralized_data_requests_total_wit =
+        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.collateral_locked)).0;
+    let current_supply = Wit::wits_and_nanowits(Wit::from_nanowits(
+        supply_info.current_unlocked_supply + supply_info.collateral_locked,
+    ))
+    .0;
+    let locked_supply =
+        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.current_locked_supply)).0;
+    let total_supply = Wit::wits_and_nanowits(Wit::from_nanowits(
+        supply_info.total_supply - supply_info.blocks_missing_reward,
+    ))
+    .0;
+
+    let mut supply_table = Table::new();
+    supply_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    supply_table.set_titles(row!["Supply type", "Amount", "Total WITs"]);
+    supply_table.add_row(row![
+        "Blocks and WIT minted".to_string(),
+        supply_info.blocks_minted.to_formatted_string(&Locale::en),
+        block_rewards_wit.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Blocks and WIT missing".to_string(),
+        supply_info.blocks_missing.to_formatted_string(&Locale::en),
+        block_rewards_missing_wit.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Collateralized data requests".to_string(),
+        supply_info
+            .collateralized_data_requests
+            .to_formatted_string(&Locale::en),
+        collateralized_data_requests_total_wit.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Circulating supply".to_string(),
+        "".to_string(),
+        current_supply.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Locked supply".to_string(),
+        "".to_string(),
+        locked_supply.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Maximum supply".to_string(),
+        "".to_string(),
+        total_supply.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.printstd();
 
     Ok(())
 }

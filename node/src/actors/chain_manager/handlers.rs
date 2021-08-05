@@ -2,16 +2,16 @@ use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
 use futures::future::Either;
 use std::{
     collections::{BTreeMap, HashSet, VecDeque},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     future,
     net::SocketAddr,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use witnet_data_structures::{
     chain::{
         Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, NodeStats,
-        SuperBlockVote,
+        SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -19,9 +19,8 @@ use witnet_data_structures::{
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
-
 use witnet_util::timestamp::get_timestamp;
-use witnet_validations::validations::validate_rad_request;
+use witnet_validations::validations::{block_reward, validate_rad_request};
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
@@ -32,8 +31,8 @@ use crate::{
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
             GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetUtxoInfo,
-            IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
+            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
+            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
             SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
         },
         sessions_manager::SessionsManager,
@@ -1406,6 +1405,82 @@ impl Handler<GetBalance> for ChainManager {
 
             Box::pin(res)
         }
+    }
+}
+
+impl Handler<GetSupplyInfo> for ChainManager {
+    type Result = Result<SupplyInfo, failure::Error>;
+
+    fn handle(&mut self, _msg: GetSupplyInfo, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
+        }
+
+        let total_supply = 2_500_000_000_000_000_000;
+
+        let chain_info = self.chain_state.chain_info.as_ref().unwrap();
+        let halving_period = chain_info.consensus_constants.halving_period;
+        let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
+
+        let epoch = self.current_epoch.unwrap();
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+
+        let mut current_unlocked_supply = 0;
+        let mut current_locked_supply = 0;
+        for (_output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter()
+        {
+            if value_transfer_output.0.time_lock <= current_time {
+                current_unlocked_supply += value_transfer_output.0.value;
+            } else {
+                current_locked_supply += value_transfer_output.0.value;
+            }
+        }
+
+        let collateralized_data_requests = self
+            .chain_state
+            .data_request_pool
+            .data_request_pool
+            .len()
+            .try_into()
+            .unwrap();
+
+        // TODO: Calculate properly
+        let collateral_locked = 0;
+
+        let (mut blocks_minted, mut blocks_minted_reward) = (0, 0);
+        let (mut blocks_missing, mut blocks_missing_reward) = (0, 0);
+        for e in 1..epoch {
+            let block_reward = block_reward(epoch, initial_block_reward, halving_period);
+            // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+            if self.chain_state.block_chain.contains_key(&e) {
+                blocks_minted += 1;
+                blocks_minted_reward += block_reward;
+                // Otherwise, a block was rolled back or no block was proposed, add the reward to blocks_missing_reward
+            } else {
+                blocks_missing += 1;
+                blocks_missing_reward += block_reward;
+            }
+        }
+
+        Ok(SupplyInfo {
+            epoch,
+            current_time,
+            blocks_minted,
+            blocks_minted_reward,
+            blocks_missing,
+            blocks_missing_reward,
+            collateralized_data_requests,
+            collateral_locked,
+            current_unlocked_supply,
+            current_locked_supply,
+            total_supply,
+        })
     }
 }
 

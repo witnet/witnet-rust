@@ -19,7 +19,8 @@ use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, ValueTransferOutput,
+        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
+        ValueTransferOutput,
     },
     mainnet_validations::{ActiveWips, BitVotesCounter},
     radon_report::RadonReport,
@@ -250,6 +251,14 @@ pub struct GetBalance {
 
 impl Message for GetBalance {
     type Result = Result<NodeBalance, failure::Error>;
+}
+
+/// Get Supply
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetSupplyInfo;
+
+impl Message for GetSupplyInfo {
+    type Result = Result<SupplyInfo, failure::Error>;
 }
 
 /// Get Balance
