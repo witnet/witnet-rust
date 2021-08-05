@@ -349,10 +349,9 @@ impl DataRequestPool {
         std::mem::take(&mut self.to_be_stored)
     }
 
-    /// Return the sum of all the collateral that is currently being used to resolve data requests
-    pub fn collateral_locked(&self, collateral_minimum: u64) -> u64 {
+    /// Return the sum of all the wits that is currently being used to resolve data requests
+    pub fn locked_wits_by_requests(&self, collateral_minimum: u64) -> u64 {
         let mut total = 0;
-
         for dr_state in self.data_request_pool.values() {
             let dr_collateral = dr_state.data_request.collateral;
             let dr_collateral = if dr_collateral == 0 {
@@ -361,7 +360,33 @@ impl DataRequestPool {
                 dr_collateral
             };
 
-            total += dr_collateral * u64::try_from(dr_state.info.commits.len()).unwrap();
+            let locked_wits = match dr_state.stage {
+                DataRequestStage::COMMIT => {
+                    // In commit stage, there are not collateralized wits yet,
+                    // but the requester has locked wits to pay fees and rewards
+                    dr_state.data_request.checked_total_value().unwrap()
+                }
+                DataRequestStage::REVEAL | DataRequestStage::TALLY => {
+                    // In reveal and tally stage, there are some wits collateralized by the witnesses,
+                    // and there are some fees that were already paid
+                    let dr_total_value = dr_state.data_request.checked_total_value().unwrap();
+                    let n_commits = u64::try_from(dr_state.info.commits.len()).unwrap();
+                    let n_reveals = u64::try_from(dr_state.info.reveals.len()).unwrap();
+
+                    let collateralized_wits = n_commits.saturating_mul(dr_collateral);
+                    let commit_fees =
+                        n_commits.saturating_mul(dr_state.data_request.commit_and_reveal_fee);
+                    let reveal_fees =
+                        n_reveals.saturating_mul(dr_state.data_request.commit_and_reveal_fee);
+
+                    dr_total_value
+                        .saturating_add(collateralized_wits)
+                        .saturating_sub(commit_fees)
+                        .saturating_sub(reveal_fees)
+                }
+            };
+
+            total += locked_wits;
         }
 
         total

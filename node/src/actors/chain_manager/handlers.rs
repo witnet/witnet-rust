@@ -1443,17 +1443,17 @@ impl Handler<GetSupplyInfo> for ChainManager {
             }
         }
 
-        let collateralized_data_requests = self
+        let in_flight_requests = self
             .chain_state
             .data_request_pool
             .data_request_pool
             .len()
             .try_into()
             .unwrap();
-        let collateral_locked = self
+        let locked_wits_by_requests = self
             .chain_state
             .data_request_pool
-            .collateral_locked(collateral_minimum);
+            .locked_wits_by_requests(collateral_minimum);
 
         let (mut blocks_minted, mut blocks_minted_reward) = (0, 0);
         let (mut blocks_missing, mut blocks_missing_reward) = (0, 0);
@@ -1477,8 +1477,8 @@ impl Handler<GetSupplyInfo> for ChainManager {
             blocks_minted_reward,
             blocks_missing,
             blocks_missing_reward,
-            collateralized_data_requests,
-            collateral_locked,
+            in_flight_requests,
+            locked_wits_by_requests,
             current_unlocked_supply,
             current_locked_supply,
             total_supply,

@@ -1375,9 +1375,9 @@ pub struct SupplyInfo {
     /// WIT missing because a block was not created
     pub blocks_missing_reward: u64,
     /// Amount of in-flight data requests
-    pub collateralized_data_requests: u32,
+    pub in_flight_requests: u32,
     /// Supply currently locked in data requests
-    pub collateral_locked: u64,
+    pub locked_wits_by_requests: u64,
     /// Current unlocked supply
     pub current_unlocked_supply: u64,
     /// Current locked supply
