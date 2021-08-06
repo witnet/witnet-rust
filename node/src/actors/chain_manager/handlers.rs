@@ -977,6 +977,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                             StateMachine::WaitingConsensus
                         } else if our_beacon == consensus_beacon {
+                            self.add_temp_superblock_votes(ctx);
                             StateMachine::AlmostSynced
                         } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                             && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
@@ -1006,6 +1007,7 @@ impl Handler<PeersBeacons> for ChainManager {
                                         log::info!(
                                             "Consolidate consensus candidate. AlmostSynced state"
                                         );
+                                        self.add_temp_superblock_votes(ctx);
                                         StateMachine::AlmostSynced
                                     }
                                     Err(e) => {
@@ -1052,6 +1054,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         // Check if we are already synchronized
                         let next_state = if our_beacon == consensus_beacon {
+                            self.add_temp_superblock_votes(ctx);
                             StateMachine::AlmostSynced
                         } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                             && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
@@ -1097,7 +1100,6 @@ impl Handler<PeersBeacons> for ChainManager {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
                             self.update_state_machine(StateMachine::Synced);
-                            self.add_temp_superblock_votes(ctx);
                         }
                         Ok(peers_to_unregister)
                     }
@@ -1129,7 +1131,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         // mining and preserve network stability
                         } else {
                             self.update_state_machine(StateMachine::AlmostSynced);
-
+                            self.add_temp_superblock_votes(ctx);
                             // We will remove those that are different from the last consensus or
                             // peers that did not send any beacon
 
@@ -1154,6 +1156,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         // We will move to AlmostSynced to do not allow mining and preserve network stability
                         self.update_state_machine(StateMachine::AlmostSynced);
+                        self.add_temp_superblock_votes(ctx);
 
                         // We will remove those that are different from the last consensus or
                         // peers that has a block different to us
