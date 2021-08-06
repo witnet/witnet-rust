@@ -1624,6 +1624,7 @@ impl ChainManager {
 
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::AlmostSynced);
+                    act.add_temp_superblock_votes(ctx);
 
                     actix::fut::err(())
                 }
