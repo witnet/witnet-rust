@@ -8,8 +8,14 @@ use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport
 use crate::errors::Error;
 
 /// Decode a data request from its Protocol Buffers hexadecimal string representation.
-pub fn decode_from_hex(hex: String) -> Result<DataRequestOutput, Error> {
+pub fn decode_from_hex_string(hex: &str) -> Result<DataRequestOutput, Error> {
     let pb_bytes = hex::decode(hex).map_err(Error::DataRequestHexNotValid)?;
+
+    decode_from_pb_bytes(&pb_bytes)
+}
+
+/// Decode a data request from its Protocol Buffers bytecode.
+pub fn decode_from_pb_bytes(pb_bytes: &[u8]) -> Result<DataRequestOutput, Error> {
     let request =
         DataRequestOutput::from_pb_bytes(&pb_bytes).map_err(Error::DataRequestProtoBufNotValid)?;
 
