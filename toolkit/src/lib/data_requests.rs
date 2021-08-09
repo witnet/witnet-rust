@@ -17,7 +17,7 @@ pub fn decode_from_hex_string(hex: &str) -> Result<DataRequestOutput, Error> {
 /// Decode a data request from its Protocol Buffers bytecode.
 pub fn decode_from_pb_bytes(pb_bytes: &[u8]) -> Result<DataRequestOutput, Error> {
     let request =
-        DataRequestOutput::from_pb_bytes(&pb_bytes).map_err(Error::DataRequestProtoBufNotValid)?;
+        DataRequestOutput::from_pb_bytes(pb_bytes).map_err(Error::DataRequestProtoBufNotValid)?;
 
     Ok(request)
 }
