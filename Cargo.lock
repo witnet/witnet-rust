@@ -5290,7 +5290,6 @@ dependencies = [
  "log 0.4.11",
  "num_enum",
  "rand 0.7.3",
- "reqwest 0.10.8",
  "serde",
  "serde_cbor",
  "surf",

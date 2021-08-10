@@ -589,19 +589,6 @@ impl Serialize for RadError {
     }
 }
 
-impl From<reqwest::Error> for RadError {
-    fn from(err: reqwest::Error) -> Self {
-        match err.status() {
-            Some(status_code) => RadError::HttpStatus {
-                status_code: status_code.as_u16(),
-            },
-            None => RadError::HttpOther {
-                message: err.to_string(),
-            },
-        }
-    }
-}
-
 impl From<std::num::ParseFloatError> for RadError {
     fn from(err: std::num::ParseFloatError) -> Self {
         RadError::ParseFloat {
