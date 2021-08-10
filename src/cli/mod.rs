@@ -95,8 +95,7 @@ fn configure_logger(opts: &LogOptions) -> env_logger::Builder {
 /// Implementation of `init_logger` for non-debug environments with the `telemetry` feature being
 /// enabled. Note that telemetry is ultimately enabled through configuration.
 #[cfg(all(not(debug_assertions), feature = "telemetry"))]
-fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
-    use std::borrow::Cow;
+fn init_logger(opts: LogOptions) -> Option<sentry::ClientInitGuard> {
     use std::str::FromStr;
     use std::sync::Arc;
 
@@ -106,18 +105,15 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
     // Initialize Sentry (automated bug reporting) if explicitly enabled in configuration
     if opts.sentry_telemetry {
         // Configure Sentry DSN
-        let dsn = sentry::internals::Dsn::from_str(
+        let dsn = sentry::types::Dsn::from_str(
             "https://def0c5d0fb354ef9ad6dddb576a21624@o394464.ingest.sentry.io/5244595",
         )
         .ok();
         // Acquire the crate name and version from the environment at compile time so Sentry can
         // report which release is being used
-        let release = option_env!("CARGO_PKG_NAME")
-            .and_then(|name| {
-                option_env!("CARGO_PKG_VERSION").map(|version| format!("{}@{}", name, version))
-            })
-            .map(Cow::from);
+        let release = sentry::release_name!();
         // Initialize client. The guard binding needs to live as long as `main()` so as not to drop it
+        // This enables panic capturing
         let guard = sentry::init(sentry::ClientOptions {
             dsn,
             release,
@@ -126,9 +122,13 @@ fn init_logger(opts: LogOptions) -> Option<sentry::internals::ClientInitGuard> {
         });
         // Logger integration for capturing errors. This actually intercepts errors but forwards all
         // log lines to the underlying logging backend, `env_logger` in this case.
-        sentry::integrations::env_logger::init(Some(logger_builder.build()), Default::default());
-        // Panic capturing
-        sentry::integrations::panic::register_panic_handler();
+        let logger = logger_builder.build();
+        let max_level = logger.filter();
+        let logger = sentry::integrations::log::SentryLogger::with_dest(logger);
+        log::set_boxed_logger(Box::new(logger)).unwrap();
+        log::set_max_level(max_level);
+
+        log::info!("Sentry telemetry enabled");
 
         // Return client guard so it is not freed and it lives for as long as the application does
         Some(guard)
