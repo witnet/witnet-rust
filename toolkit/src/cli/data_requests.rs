@@ -51,8 +51,7 @@ fn extract_pb_bytes_from_solidity_file(path: &Path) -> Result<Vec<u8>, Error> {
     file.read_to_string(&mut contents)
         .map_err(Error::SolidityFileCantRead)?;
 
-    let hex_reg_ex: Regex =
-        Regex::new(r#"\s*constructor.*public\s*Request\s*\(\s*hex"([\da-f]+)"#)?;
+    let hex_reg_ex: Regex = Regex::new(r#"\s*constructor.*Request\s*\(\s*hex"([\da-f]+)"#)?;
 
     let hex_string = hex_reg_ex
         .captures(&contents)
