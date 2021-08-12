@@ -12,12 +12,12 @@ pub enum Error {
     )]
     DataRequestNoBytes,
     #[fail(
-        display = "The string provided in the --hex field is not a valid hexadecimal byte string: {}",
+        display = "The provided bytes are not a valid hexadecimal byte string: {}",
         _0
     )]
     DataRequestHexNotValid(#[cause] hex::FromHexError),
     #[fail(
-        display = "The string provided in the --hex field is not a valid Protocol Buffers byte string: {}",
+        display = "The provided bytes are not a valid Protocol Buffers byte string: {}",
         _0
     )]
     DataRequestProtoBufNotValid(#[cause] failure::Error),
