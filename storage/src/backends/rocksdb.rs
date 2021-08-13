@@ -11,7 +11,7 @@ use crate::storage::{Result, Storage};
 pub type Backend = rocksdb::DB;
 
 #[derive(Debug, Fail)]
-#[fail(display = "RocksDB error")]
+#[fail(display = "RocksDB error: {}", _0)]
 struct Error(#[fail(cause)] rocksdb::Error);
 
 impl Storage for Backend {
