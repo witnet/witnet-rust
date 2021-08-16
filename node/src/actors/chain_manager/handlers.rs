@@ -5,7 +5,7 @@ use std::{
     convert::{TryFrom, TryInto},
     future,
     net::SocketAddr,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
 use witnet_data_structures::{
@@ -1427,10 +1427,7 @@ impl Handler<GetSupplyInfo> for ChainManager {
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
 
         let epoch = self.current_epoch.unwrap();
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_secs();
+        let current_time = u64::try_from(get_timestamp()).unwrap();
 
         let mut current_unlocked_supply = 0;
         let mut current_locked_supply = 0;
