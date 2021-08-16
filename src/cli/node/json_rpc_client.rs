@@ -81,6 +81,11 @@ pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: i64) -> Result<(), fa
     Ok(())
 }
 
+// Get integer part of `nanowits / 10^9`: number of whole wits
+fn whole_wits(nanowits: u64) -> u64 {
+    Wit::wits_and_nanowits(Wit::from_nanowits(nanowits)).0
+}
+
 #[allow(
     clippy::cast_possible_wrap,
     clippy::cast_precision_loss,
@@ -102,24 +107,14 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
         supply_info.epoch
     );
 
-    let block_rewards_wit =
-        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.blocks_minted_reward)).0;
-    let block_rewards_missing_wit =
-        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.blocks_missing_reward)).0;
-    let collateralized_data_requests_total_wit =
-        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.locked_wits_by_requests)).0;
-    let current_supply = Wit::wits_and_nanowits(Wit::from_nanowits(
-        supply_info.current_unlocked_supply + supply_info.locked_wits_by_requests,
-    ))
-    .0;
-    let locked_supply =
-        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.current_locked_supply)).0;
-    let total_supply = Wit::wits_and_nanowits(Wit::from_nanowits(
-        supply_info.total_supply - supply_info.blocks_missing_reward,
-    ))
-    .0;
-    let expected_total_supply =
-        Wit::wits_and_nanowits(Wit::from_nanowits(supply_info.total_supply)).0;
+    let block_rewards_wit = whole_wits(supply_info.blocks_minted_reward);
+    let block_rewards_missing_wit = whole_wits(supply_info.blocks_missing_reward);
+    let collateralized_data_requests_total_wit = whole_wits(supply_info.locked_wits_by_requests);
+    let current_supply =
+        whole_wits(supply_info.current_unlocked_supply + supply_info.locked_wits_by_requests);
+    let locked_supply = whole_wits(supply_info.current_locked_supply);
+    let total_supply = whole_wits(supply_info.total_supply - supply_info.blocks_missing_reward);
+    let expected_total_supply = whole_wits(supply_info.total_supply);
 
     let mut supply_table = Table::new();
     supply_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
