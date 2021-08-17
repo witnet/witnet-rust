@@ -1419,14 +1419,14 @@ impl Handler<GetSupplyInfo> for ChainManager {
             .into());
         }
 
-        let total_supply = 2_500_000_000_000_000_000;
+        let maximum_supply = 2_500_000_000_000_000_000;
 
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
         let halving_period = chain_info.consensus_constants.halving_period;
         let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
 
-        let epoch = self.current_epoch.unwrap();
+        let current_epoch = self.current_epoch.unwrap();
         let current_time = u64::try_from(get_timestamp()).unwrap();
 
         let mut current_unlocked_supply = 0;
@@ -1454,10 +1454,10 @@ impl Handler<GetSupplyInfo> for ChainManager {
 
         let (mut blocks_minted, mut blocks_minted_reward) = (0, 0);
         let (mut blocks_missing, mut blocks_missing_reward) = (0, 0);
-        for e in 1..epoch {
+        for epoch in 1..current_epoch {
             let block_reward = block_reward(epoch, initial_block_reward, halving_period);
             // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
-            if self.chain_state.block_chain.contains_key(&e) {
+            if self.chain_state.block_chain.contains_key(&epoch) {
                 blocks_minted += 1;
                 blocks_minted_reward += block_reward;
                 // Otherwise, a block was rolled back or no block was proposed, add the reward to blocks_missing_reward
@@ -1468,7 +1468,7 @@ impl Handler<GetSupplyInfo> for ChainManager {
         }
 
         Ok(SupplyInfo {
-            epoch,
+            epoch: current_epoch,
             current_time,
             blocks_minted,
             blocks_minted_reward,
@@ -1478,7 +1478,7 @@ impl Handler<GetSupplyInfo> for ChainManager {
             locked_wits_by_requests,
             current_unlocked_supply,
             current_locked_supply,
-            total_supply,
+            maximum_supply,
         })
     }
 }

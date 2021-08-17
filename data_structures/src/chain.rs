@@ -1382,8 +1382,8 @@ pub struct SupplyInfo {
     pub current_unlocked_supply: u64,
     /// Current locked supply
     pub current_locked_supply: u64,
-    /// Total supply
-    pub total_supply: u64,
+    /// Maximum supply: the number of nanowits that will ever exist
+    pub maximum_supply: u64,
 }
 
 /// Keyed signature data structure

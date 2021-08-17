@@ -113,14 +113,14 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
     let current_supply =
         whole_wits(supply_info.current_unlocked_supply + supply_info.locked_wits_by_requests);
     let locked_supply = whole_wits(supply_info.current_locked_supply);
-    let total_supply = whole_wits(supply_info.total_supply - supply_info.blocks_missing_reward);
-    let expected_total_supply = whole_wits(supply_info.total_supply);
+    let total_supply = whole_wits(supply_info.maximum_supply - supply_info.blocks_missing_reward);
+    let expected_total_supply = whole_wits(supply_info.maximum_supply);
 
     let mut supply_table = Table::new();
     supply_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
     supply_table.set_titles(row!["Supply type", r->"Total WITs"]);
     supply_table.add_row(row![
-        "In flight requests".to_string(),
+        "Temporarily locked in data requests".to_string(),
         r->collateralized_data_requests_total_wit.to_formatted_string(&Locale::en)
     ]);
     supply_table.add_row(row![
@@ -155,7 +155,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
         r->block_rewards_wit.to_formatted_string(&Locale::en)
     ]);
     blocks_table.add_row(row![
-        "Missing".to_string(),
+        "Reverted".to_string(),
         r->supply_info.blocks_missing.to_formatted_string(&Locale::en),
         r->block_rewards_missing_wit.to_formatted_string(&Locale::en)
     ]);
@@ -172,7 +172,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
         ((locked_supply as f64 / (current_supply + locked_supply) as f64) * 100.0).round() as u8
     );
     println!(
-        "{}% of all blocks that should have been mined are missing.",
+        "{}% of all blocks so far have been reverted.",
         ((block_rewards_missing_wit as f64
             / (block_rewards_wit + block_rewards_missing_wit) as f64)
             * 100.0)
