@@ -20,7 +20,7 @@ use witnet_data_structures::{
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
 use witnet_util::timestamp::get_timestamp;
-use witnet_validations::validations::{block_reward, validate_rad_request};
+use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
@@ -1419,8 +1419,6 @@ impl Handler<GetSupplyInfo> for ChainManager {
             .into());
         }
 
-        let maximum_supply = 2_500_000_000_000_000_000;
-
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
         let halving_period = chain_info.consensus_constants.halving_period;
         let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
@@ -1466,6 +1464,12 @@ impl Handler<GetSupplyInfo> for ChainManager {
                 blocks_missing_reward += block_reward;
             }
         }
+
+        let genesis_amount =
+            current_locked_supply + current_unlocked_supply + locked_wits_by_requests
+                - blocks_minted_reward;
+        let maximum_block_reward = total_block_reward(initial_block_reward, halving_period);
+        let maximum_supply = genesis_amount + maximum_block_reward;
 
         Ok(SupplyInfo {
             epoch: current_epoch,
