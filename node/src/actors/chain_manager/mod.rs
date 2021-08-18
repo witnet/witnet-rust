@@ -331,9 +331,9 @@ impl ChainManager {
         .map_err(|err, _, _| {
             log::error!("Failed to persist empty chain state into storage: {}", err);
         })
-        .and_then(|(), act, _ctx| {
+        .and_then(|(), act, ctx| {
             log::info!("Successfully persisted empty chain state into storage");
-            act.update_state_machine(StateMachine::WaitingConsensus);
+            act.update_state_machine(StateMachine::WaitingConsensus, ctx);
             act.initialize_from_storage_fut()
         });
 
@@ -1343,7 +1343,7 @@ impl ChainManager {
                         superblock.hash(),
                         superblock
                     );
-                    act.update_state_machine(StateMachine::WaitingConsensus);
+                    act.update_state_machine(StateMachine::WaitingConsensus, ctx);
                     act.initialize_from_storage(ctx);
                     log::info!("Restored chain state from storage");
 
@@ -1594,7 +1594,7 @@ impl ChainManager {
                     act.last_superblock_consensus = Some(consensus_superblock);
 
                     act.initialize_from_storage(ctx);
-                    act.update_state_machine(StateMachine::WaitingConsensus);
+                    act.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
                     actix::fut::err(())
                 }
@@ -1623,8 +1623,7 @@ impl ChainManager {
                     act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 
                     act.initialize_from_storage(ctx);
-                    act.update_state_machine(StateMachine::AlmostSynced);
-                    act.add_temp_superblock_votes(ctx);
+                    act.update_state_machine(StateMachine::AlmostSynced, ctx);
 
                     actix::fut::err(())
                 }
@@ -1653,7 +1652,7 @@ impl ChainManager {
                     act.reinsert_transactions_from_unconfirmed_blocks(init_epoch.saturating_sub(superblock_period)).map(|_res: Result<(), ()>, _act, _ctx| ()).wait(ctx);
 
                     act.initialize_from_storage(ctx);
-                    act.update_state_machine(StateMachine::WaitingConsensus);
+                    act.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
                     actix::fut::err(())
                 }
@@ -1730,9 +1729,10 @@ impl ChainManager {
     ///
     /// This is expected to be the only means for updating the state machine, so debugging is easier
     /// and to ensure that every transition gets logged in a predictable format.
-    fn update_state_machine(&mut self, next_state: StateMachine) {
+    fn update_state_machine(&mut self, next_state: StateMachine, ctx: &mut Context<Self>) {
+        let same_state = self.sm_state == next_state;
         match (&self.sm_state, &next_state) {
-            (old, new) if old == new => log::debug!("State machine staying in state {:?}", old),
+            (old, _new) if same_state => log::debug!("State machine staying in state {:?}", old),
             (_, StateMachine::Synced) => log::debug!(
                 "State machine is transitioning from {:?} into {:?}\n{}",
                 self.sm_state,
@@ -1744,6 +1744,10 @@ impl ChainManager {
                 self.sm_state,
                 next_state
             ),
+        }
+
+        if !same_state && next_state == StateMachine::AlmostSynced {
+            self.add_temp_superblock_votes(ctx)
         }
 
         self.notify_node_status(next_state);
@@ -1763,13 +1767,13 @@ impl ChainManager {
                 safu: true,
             })
             .into_actor(self)
-            .then(|res, act, _ctx| match res {
+            .then(|res, act, ctx| match res {
                 Ok(Ok(())) => actix::fut::ready(()),
                 _ => {
                     // On error case go back to WaitingConsensus state
                     log::warn!("Failed to send LastBeacon to random peer");
                     if act.sm_state == StateMachine::Synchronizing {
-                        act.update_state_machine(StateMachine::WaitingConsensus);
+                        act.update_state_machine(StateMachine::WaitingConsensus, ctx);
                         act.sync_waiting_for_add_blocks_since = None;
                     }
 
@@ -1878,7 +1882,7 @@ impl ChainManager {
 
         if !batch_succeeded {
             log::error!("Received invalid blocks batch");
-            self.update_state_machine(StateMachine::WaitingConsensus);
+            self.update_state_machine(StateMachine::WaitingConsensus, ctx);
             self.sync_waiting_for_add_blocks_since = None;
         }
 

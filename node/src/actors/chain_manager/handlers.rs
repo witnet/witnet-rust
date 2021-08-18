@@ -106,7 +106,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         // Handle case consensus not achieved
         if !self.peers_beacons_received {
             log::warn!("No beacon messages received from peers. Moving to WaitingConsensus state");
-            self.update_state_machine(StateMachine::WaitingConsensus);
+            self.update_state_machine(StateMachine::WaitingConsensus, ctx);
             // Clear candidates
             self.candidates.clear();
             self.seen_candidates.clear();
@@ -115,7 +115,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         if let Some(last_checked_epoch) = last_checked_epoch {
             if msg.checkpoint - last_checked_epoch != 1 {
                 log::warn!("Missed epoch notification {}.", last_checked_epoch + 1);
-                self.update_state_machine(StateMachine::WaitingConsensus);
+                self.update_state_machine(StateMachine::WaitingConsensus, ctx);
             }
         }
 
@@ -350,7 +350,7 @@ impl Handler<AddBlocks> for ChainManager {
                         // Clean all outbounds to avoid possible forked outbounds
                         self.drop_all_outbounds();
 
-                        self.update_state_machine(StateMachine::WaitingConsensus);
+                        self.update_state_machine(StateMachine::WaitingConsensus, ctx);
                         self.initialize_from_storage(ctx);
                         log::info!("Restored chain state from storage");
 
@@ -358,7 +358,7 @@ impl Handler<AddBlocks> for ChainManager {
                     }
                 } else {
                     log::debug!("Received an empty AddBlocks message");
-                    self.update_state_machine(StateMachine::WaitingConsensus);
+                    self.update_state_machine(StateMachine::WaitingConsensus, ctx);
                     return;
                 }
 
@@ -467,7 +467,7 @@ impl Handler<AddBlocks> for ChainManager {
                             Either::Right(actix::fut::ok(()))
                         }
                             .and_then(move |(), act, ctx| {
-                                act.update_state_machine(StateMachine::WaitingConsensus);
+                                act.update_state_machine(StateMachine::WaitingConsensus, ctx);
                                 // Process remaining blocks
                                 let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remainig_blocks);
                                 if !batch_succeeded {
@@ -530,7 +530,7 @@ impl Handler<AddBlocks> for ChainManager {
                                     if !batch_succeeded {
                                         act.drop_all_outbounds_and_ice_sender(sender);
 
-                                        act.update_state_machine(StateMachine::WaitingConsensus);
+                                        act.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
                                         return actix::fut::err(());
                                     }
@@ -549,7 +549,7 @@ impl Handler<AddBlocks> for ChainManager {
 
                                     log::info!("Block sync target achieved");
                                     // Target achieved, go back to state 1
-                                    act.update_state_machine(StateMachine::WaitingConsensus);
+                                    act.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
                                     // We must construct the second superblock in order to be able
                                     // to validate the votes for this superblock later
@@ -577,7 +577,7 @@ impl Handler<AddBlocks> for ChainManager {
                                     act.drop_all_outbounds_and_ice_sender(sender);
 
                                     log::error!("Received invalid blocks batch...");
-                                    act.update_state_machine(StateMachine::WaitingConsensus);
+                                    act.update_state_machine(StateMachine::WaitingConsensus, ctx);
                                     act.sync_waiting_for_add_blocks_since = None;
 
                                     return actix::fut::err(());
@@ -585,7 +585,7 @@ impl Handler<AddBlocks> for ChainManager {
                                 log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
                                 log::info!("Block sync target achieved");
                                 // Target achieved, go back to state 1
-                                act.update_state_machine(StateMachine::WaitingConsensus);
+                                act.update_state_machine(StateMachine::WaitingConsensus, ctx);
                                 actix::fut::ok(())
                             })
                             .map(|_res: Result<(), ()>, _act, _ctx| ())
@@ -602,7 +602,7 @@ impl Handler<AddBlocks> for ChainManager {
                             current_superblock_index,
 
                         );
-                        self.update_state_machine(StateMachine::WaitingConsensus);
+                        self.update_state_machine(StateMachine::WaitingConsensus, ctx);
                         self.sync_waiting_for_add_blocks_since = None;
                     }
                     Err(e) => {
@@ -976,7 +976,6 @@ impl Handler<PeersBeacons> for ChainManager {
 
                             StateMachine::WaitingConsensus
                         } else if our_beacon == consensus_beacon {
-                            self.add_temp_superblock_votes(ctx);
                             StateMachine::AlmostSynced
                         } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                             && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
@@ -1006,7 +1005,6 @@ impl Handler<PeersBeacons> for ChainManager {
                                         log::info!(
                                             "Consolidate consensus candidate. AlmostSynced state"
                                         );
-                                        self.add_temp_superblock_votes(ctx);
                                         StateMachine::AlmostSynced
                                     }
                                     Err(e) => {
@@ -1027,7 +1025,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             }
                         };
 
-                        self.update_state_machine(next_state);
+                        self.update_state_machine(next_state, ctx);
 
                         Ok(peers_to_unregister)
                     }
@@ -1053,7 +1051,6 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         // Check if we are already synchronized
                         let next_state = if our_beacon == consensus_beacon {
-                            self.add_temp_superblock_votes(ctx);
                             StateMachine::AlmostSynced
                         } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                             && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
@@ -1073,13 +1070,13 @@ impl Handler<PeersBeacons> for ChainManager {
                             StateMachine::Synchronizing
                         };
 
-                        self.update_state_machine(next_state);
+                        self.update_state_machine(next_state, ctx);
 
                         Ok(peers_to_unregister)
                     }
                     // No consensus: unregister all peers
                     None => {
-                        self.update_state_machine(StateMachine::WaitingConsensus);
+                        self.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
                         Ok(peers_to_unregister)
                     }
@@ -1098,7 +1095,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         if self.sm_state == StateMachine::AlmostSynced && is_there_block_consensus {
                             // This is the only point in the whole base code for the state
                             // machine to move into `Synced` state.
-                            self.update_state_machine(StateMachine::Synced);
+                            self.update_state_machine(StateMachine::Synced, ctx);
                         }
                         Ok(peers_to_unregister)
                     }
@@ -1123,14 +1120,14 @@ impl Handler<PeersBeacons> for ChainManager {
                             && consensus_beacon.checkpoint == current_epoch - 1
                             && our_beacon.checkpoint != current_epoch - 1
                         {
-                            self.update_state_machine(StateMachine::WaitingConsensus);
+                            self.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
                             Ok(peers_to_unregister)
                         // In the rest of cases we will move to AlmostSynced to do not allow
                         // mining and preserve network stability
                         } else {
-                            self.update_state_machine(StateMachine::AlmostSynced);
-                            self.add_temp_superblock_votes(ctx);
+                            self.update_state_machine(StateMachine::AlmostSynced, ctx);
+
                             // We will remove those that are different from the last consensus or
                             // peers that did not send any beacon
 
@@ -1154,8 +1151,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         }
 
                         // We will move to AlmostSynced to do not allow mining and preserve network stability
-                        self.update_state_machine(StateMachine::AlmostSynced);
-                        self.add_temp_superblock_votes(ctx);
+                        self.update_state_machine(StateMachine::AlmostSynced, ctx);
 
                         // We will remove those that are different from the last consensus or
                         // peers that has a block different to us
