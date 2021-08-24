@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use witnet_data_structures::chain::DataRequestOutput;
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
+    current_active_wips,
     script::RadonScriptExecutionSettings,
     types::{float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes},
 };
@@ -52,12 +53,16 @@ fn run_dr_locally_with_data(
             r,
             *d,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )?);
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);
-    let aggregation_result =
-        witnet_rad::run_aggregation(retrieval_results, &dr.data_request.aggregate)?;
+    let aggregation_result = witnet_rad::run_aggregation(
+        retrieval_results,
+        &dr.data_request.aggregate,
+        current_active_wips(),
+    )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
     // Assume that all the required witnesses will report the same value
@@ -67,7 +72,11 @@ fn run_dr_locally_with_data(
             .map(RadonTypes::try_from)
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_tally(reported_values?, &dr.data_request.tally)?;
+    let tally_result = witnet_rad::run_tally(
+        reported_values?,
+        &dr.data_request.tally,
+        current_active_wips(),
+    )?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(tally_result)

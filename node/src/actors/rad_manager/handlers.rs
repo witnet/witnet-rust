@@ -24,10 +24,11 @@ impl Handler<ResolveRA> for RadManager {
         let fut = async {
             let sources = msg.rad_request.retrieve;
             let aggregator = msg.rad_request.aggregate;
+            let active_wips = msg.active_wips.clone();
 
             let retrieve_responses_fut = sources
                 .iter()
-                .map(|retrieve| witnet_rad::run_retrieval(retrieve));
+                .map(|retrieve| witnet_rad::run_retrieval(retrieve, active_wips.clone()));
 
             // Perform retrievals in parallel for the sake of synchronization between sources
             //  (increasing the likeliness of multiple sources returning results that are closer to each
@@ -56,6 +57,7 @@ impl Handler<ResolveRA> for RadManager {
                         values,
                         &aggregator,
                         RadonScriptExecutionSettings::all_but_partial_results(),
+                        msg.active_wips,
                     )
                 }
                 Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {

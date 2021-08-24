@@ -65,7 +65,7 @@ use witnet_data_structures::{
     vrf::VrfCtx,
 };
 
-use witnet_rad::types::RadonTypes;
+use witnet_rad::{current_active_wips, types::RadonTypes};
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
     compare_block_candidates, validate_block, validate_block_transactions,
@@ -2887,8 +2887,9 @@ pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_t
 /// Run data request locally
 pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> {
     // Block on data request retrieval because the CLI application blocks everywhere anyway
-    let run_retrieval_blocking =
-        |retrieve| futures::executor::block_on(witnet_rad::run_retrieval(retrieve));
+    let run_retrieval_blocking = |retrieve| {
+        futures::executor::block_on(witnet_rad::run_retrieval(retrieve, current_active_wips()))
+    };
 
     let mut retrieval_results = vec![];
     for r in &dr.data_request.retrieve {
@@ -2897,8 +2898,11 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);
-    let aggregation_result =
-        witnet_rad::run_aggregation(retrieval_results, &dr.data_request.aggregate)?;
+    let aggregation_result = witnet_rad::run_aggregation(
+        retrieval_results,
+        &dr.data_request.aggregate,
+        current_active_wips(),
+    )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
     // Assume that all the required witnesses will report the same value
@@ -2908,7 +2912,11 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
             .map(RadonTypes::try_from)
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_tally(reported_values?, &dr.data_request.tally)?;
+    let tally_result = witnet_rad::run_tally(
+        reported_values?,
+        &dr.data_request.tally,
+        current_active_wips(),
+    )?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(tally_result)

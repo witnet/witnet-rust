@@ -5,11 +5,6 @@ use serde::Serialize;
 pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
 
-use witnet_data_structures::{
-    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
-    radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
-};
-
 use crate::{
     error::RadError,
     script::{
@@ -18,6 +13,11 @@ use crate::{
     },
     types::{array::RadonArray, string::RadonString, RadonTypes},
     user_agents::UserAgent,
+};
+use witnet_data_structures::{
+    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
+    mainnet_validations::{wip_info, ActiveWips},
+    radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
 };
 
 pub mod error;
@@ -40,6 +40,15 @@ pub struct RADRequestExecutionReport {
     pub retrieve: Vec<RadonReport<RadonTypes>>,
     /// Report about aggregation of reports (reveals, actually).
     pub tally: RadonReport<RadonTypes>,
+}
+
+/// Auxiliary function that returns the current active wips for using in RADON
+/// It is only used for testing or for external libraries, so we set epoch to MAX
+pub fn current_active_wips() -> ActiveWips {
+    ActiveWips {
+        active_wips: wip_info(),
+        block_epoch: u32::MAX,
+    }
 }
 
 /// Executes a data request locally.
@@ -69,7 +78,7 @@ pub fn try_data_request(
             request
                 .retrieve
                 .iter()
-                .map(|retrieve| run_retrieval_report(retrieve, settings))
+                .map(|retrieve| run_retrieval_report(retrieve, settings, current_active_wips()))
                 .collect::<Vec<_>>(),
         ))
     };
@@ -134,8 +143,10 @@ pub fn run_retrieval_with_data(
     retrieve: &RADRetrieve,
     response: &str,
     settings: RadonScriptExecutionSettings,
+    active_wips: ActiveWips,
 ) -> Result<RadonTypes> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
+    context.set_active_wips(active_wips);
     run_retrieval_with_data_report(retrieve, response, context, settings)
         .map(RadonReport::into_inner)
 }
@@ -144,8 +155,10 @@ pub fn run_retrieval_with_data(
 pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
+    active_wips: ActiveWips,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
+    context.set_active_wips(active_wips);
 
     match retrieve.kind {
         RADType::HttpGet => {
@@ -199,11 +212,15 @@ pub async fn run_retrieval_report(
 }
 
 /// Run retrieval stage of a data request, return `RadonTypes`.
-pub async fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
+pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: ActiveWips) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
-    run_retrieval_report(retrieve, RadonScriptExecutionSettings::disable_all())
-        .await
-        .map(RadonReport::into_inner)
+    run_retrieval_report(
+        retrieve,
+        RadonScriptExecutionSettings::disable_all(),
+        active_wips,
+    )
+    .await
+    .map(RadonReport::into_inner)
 }
 
 /// Run aggregate stage of a data request, return `RadonReport`.
@@ -211,8 +228,10 @@ pub fn run_aggregation_report(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
     settings: RadonScriptExecutionSettings,
+    active_wips: ActiveWips,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::from_stage(Stage::Aggregation);
+    context.set_active_wips(active_wips);
 
     run_aggregation_with_context_report(radon_types_vec, aggregate, context, settings)
 }
@@ -237,12 +256,14 @@ pub fn run_aggregation_with_context_report(
 pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
+    active_wips: ActiveWips,
 ) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     run_aggregation_report(
         radon_types_vec,
         aggregate,
         RadonScriptExecutionSettings::disable_all(),
+        active_wips,
     )
     .map(RadonReport::into_inner)
 }
@@ -254,6 +275,7 @@ pub fn run_tally_report(
     liars: Option<Vec<bool>>,
     errors: Option<Vec<bool>>,
     settings: RadonScriptExecutionSettings,
+    active_wips: ActiveWips,
 ) -> Result<RadonReport<RadonTypes>> {
     let mut metadata = TallyMetaData::default();
     if let Some(liars) = liars {
@@ -268,6 +290,7 @@ pub fn run_tally_report(
     }
     let mut context = ReportContext {
         stage: Stage::Tally(metadata),
+        active_wips: Some(active_wips),
         ..Default::default()
     };
 
@@ -295,10 +318,22 @@ pub fn run_tally_with_context_report(
 }
 
 /// Run tally stage of a data request, return `RadonTypes`.
-pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
+pub fn run_tally(
+    radon_types_vec: Vec<RadonTypes>,
+    consensus: &RADTally,
+    active_wips: ActiveWips,
+) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     let settings = RadonScriptExecutionSettings::disable_all();
-    run_tally_report(radon_types_vec, consensus, None, None, settings).map(RadonReport::into_inner)
+    run_tally_report(
+        radon_types_vec,
+        consensus,
+        None,
+        None,
+        settings,
+        active_wips,
+    )
+    .map(RadonReport::into_inner)
 }
 
 #[cfg(test)]
@@ -347,6 +382,7 @@ mod tests {
             &retrieve,
             response,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
 
@@ -371,6 +407,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            current_active_wips(),
         )
         .unwrap();
         let output_tally = run_tally(
@@ -379,6 +416,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            current_active_wips(),
         )
         .unwrap();
 
@@ -412,10 +450,12 @@ mod tests {
             &retrieve,
             response,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
-        let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally).unwrap();
+        let aggregated =
+            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -445,10 +485,12 @@ mod tests {
             &retrieve,
             response,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
-        let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally).unwrap();
+        let aggregated =
+            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -494,10 +536,12 @@ mod tests {
             &retrieve,
             response,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
-        let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally).unwrap();
+        let aggregated =
+            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -534,10 +578,12 @@ mod tests {
             &retrieve,
             response,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
-        let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally).unwrap();
+        let aggregated =
+            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -574,6 +620,7 @@ mod tests {
             &retrieve,
             response,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
         let expected = RadonTypes::Integer(RadonInteger::from(9));
@@ -595,6 +642,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
 
@@ -627,6 +675,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
 
@@ -660,6 +709,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
 
@@ -694,6 +744,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
 
@@ -740,6 +791,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
 
@@ -775,6 +827,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap();
 
@@ -816,6 +869,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap_err();
 
@@ -858,6 +912,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap_err();
 
@@ -900,6 +955,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap_err();
 
@@ -925,6 +981,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
         )
         .unwrap()
         .into_inner();

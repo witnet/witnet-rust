@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
 
-use crate::radon_error::ErrorLike;
+use crate::{mainnet_validations::ActiveWips, radon_error::ErrorLike};
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
 ///
@@ -131,6 +131,8 @@ where
     pub start_time: Option<SystemTime>,
     /// The index of the last script or subscript in a stage that has been processed.
     pub script_index: Option<usize>,
+    /// Active WIPs
+    pub active_wips: Option<ActiveWips>,
 }
 
 impl<RT> Default for ReportContext<RT>
@@ -147,6 +149,7 @@ where
             stage: Stage::Contextless,
             start_time: None,
             script_index: None,
+            active_wips: None,
         }
     }
 }
@@ -182,6 +185,11 @@ where
             stage,
             ..Default::default()
         }
+    }
+
+    /// Include ActiveWips information in ReportContext
+    pub fn set_active_wips(&mut self, active_wips: ActiveWips) {
+        self.active_wips = Some(active_wips);
     }
 }
 

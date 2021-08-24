@@ -39,6 +39,16 @@ pub struct TapiEngine {
     pub wip_activation: HashMap<String, Epoch>,
 }
 
+/// Initial information about WIPs
+pub fn wip_info() -> HashMap<String, Epoch> {
+    let mut active_wips = HashMap::<String, Epoch>::default();
+    active_wips.insert("WIP0008".to_string(), FIRST_HARD_FORK);
+    active_wips.insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
+    active_wips.insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
+
+    active_wips
+}
+
 impl TapiEngine {
     pub fn update_bit_counter(
         &mut self,
@@ -91,12 +101,9 @@ impl TapiEngine {
         match environment {
             Environment::Mainnet => {
                 // Hardcoded information about WIPs
-                self.wip_activation
-                    .insert("WIP0008".to_string(), FIRST_HARD_FORK);
-                self.wip_activation
-                    .insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
-                self.wip_activation
-                    .insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
+                for (k, v) in wip_info() {
+                    self.wip_activation.insert(k, v);
+                }
 
                 // Hardcoded information about WIPs in vote processing
                 let bit = 0;
@@ -337,7 +344,7 @@ pub fn after_third_hard_fork(epoch: Epoch, environment: Environment) -> bool {
 }
 
 /// Allows to check the active Witnet Improvement Proposals
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ActiveWips {
     pub active_wips: HashMap<String, Epoch>,
     pub block_epoch: Epoch,
