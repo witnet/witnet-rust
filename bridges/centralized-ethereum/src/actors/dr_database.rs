@@ -35,12 +35,12 @@ pub struct DrInfoBridge {
 /// Data request state
 #[derive(Serialize, Deserialize, Clone)]
 pub enum DrState {
-    /// New: the data request has just been posted to the ethereum contract.
+    /// New: the data request has just been posted to the smart contract.
     New,
-    /// Pending: the data request has been created and broadcasted to witnet, but it has not been
+    /// Pending: the data request has been created and broadcast to witnet, but it has not been
     /// included in a witnet block yet.
     Pending,
-    /// Finished: data request has been resolved in witnet and the result is in the ethreum
+    /// Finished: data request has been resolved in witnet and the result is in the smart
     /// contract.
     Finished,
 }
@@ -60,6 +60,32 @@ impl fmt::Display for DrState {
 impl Default for DrState {
     fn default() -> Self {
         Self::New
+    }
+}
+
+/// Data request states in Witnet Request Board contract
+#[derive(Serialize, Deserialize, Clone)]
+pub enum WitnetQueryStatus {
+    /// Unknown: the data request does not exist.
+    Unknown,
+    /// Posted: the data request has just been posted to the smart contract.
+    Posted,
+    /// Reported: the data request has been resolved in witnet and the result is in the smart
+    /// contract.
+    Reported,
+    /// Deleted: the data request has been resolved in witnet but the result was deleted.
+    Deleted,
+}
+
+impl WitnetQueryStatus {
+    /// Maps uint8 to WitnetQueryStatus enum
+    pub fn from_code(i: u8) -> Self {
+        match i {
+            1 => WitnetQueryStatus::Posted,
+            2 => WitnetQueryStatus::Reported,
+            3 => WitnetQueryStatus::Deleted,
+            _ => WitnetQueryStatus::Unknown,
+        }
     }
 }
 

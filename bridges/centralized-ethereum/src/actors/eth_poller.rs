@@ -1,5 +1,7 @@
 use crate::{
-    actors::dr_database::{DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge},
+    actors::dr_database::{
+        DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge, WitnetQueryStatus,
+    },
     config::Config,
 };
 use actix::prelude::*;
@@ -66,7 +68,7 @@ impl EthPoller {
         let fut = async move {
             let total_requests_count: Result<U256, web3::contract::Error> = wrb_contract
                 .query(
-                    "requestsCount",
+                    "getNextQueryId",
                     (),
                     eth_account,
                     contract::Options::default(),
@@ -75,7 +77,7 @@ impl EthPoller {
                 .await
                 .map_err(|err| {
                     log::error!(
-                        "Fail to read requestsCount from contract: {:?}",
+                        "Fail to read getNextQueryId from contract: {:?}",
                         err.to_string()
                     );
 
@@ -94,9 +96,10 @@ impl EthPoller {
 
                     for i in init_index..last_index {
                         log::debug!("[{}] checking dr in wrb", i);
-                        let dr_bytes: Result<Bytes, web3::contract::Error> = wrb_contract
+
+                        let query_status: Result<u8, web3::contract::Error> = wrb_contract
                             .query(
-                                "readDataRequest",
+                                "getQueryStatus",
                                 (U256::from(i),),
                                 eth_account,
                                 contract::Options::default(),
@@ -104,63 +107,44 @@ impl EthPoller {
                             )
                             .await;
 
-                        if let Ok(dr_bytes) = dr_bytes {
-                            // Data requests can be deleted after being resolved.
-                            // This can be detected because the data request id is lower than the
-                            // requestsCount, and the data request bytes is empty.
-                            if dr_bytes.is_empty() {
-                                log::debug!("[{}] has been deleted, skipping", i);
-                                continue;
-                            }
-
-                            let dr_tx_hash: Result<U256, web3::contract::Error> = wrb_contract
-                                .query(
-                                    "readDrTxHash",
-                                    (U256::from(i),),
-                                    eth_account,
-                                    contract::Options::default(),
-                                    None,
-                                )
-                                .await;
-
-                            if let Ok(dr_tx_hash) = dr_tx_hash {
-                                if dr_tx_hash != U256::from(0u8) {
-                                    // Non-zero data request transaction hash: this data request is already "Finished"
-                                    log::debug!("[{}] already finished", i);
-                                    dr_database_addr.do_send(SetDrInfoBridge(
-                                        U256::from(i),
-                                        DrInfoBridge {
-                                            dr_bytes,
-                                            dr_state: DrState::Finished,
-                                            dr_tx_hash: Some(Hash::SHA256(dr_tx_hash.into())),
-                                            dr_tx_creation_timestamp: Some(get_timestamp()),
-                                        },
-                                    ));
-                                } else {
-                                    log::info!("[{}] new dr in wrb", i);
-                                    dr_database_addr.do_send(SetDrInfoBridge(
-                                        U256::from(i),
-                                        DrInfoBridge {
-                                            dr_bytes,
-                                            dr_state: DrState::New,
-                                            dr_tx_hash: None,
-                                            dr_tx_creation_timestamp: None,
-                                        },
-                                    ));
+                        match query_status {
+                            Ok(status) => match WitnetQueryStatus::from_code(status) {
+                                WitnetQueryStatus::Unknown => {
+                                    log::debug!("[{}] has not exist, skipping", i)
                                 }
-                            } else {
+                                WitnetQueryStatus::Posted => {
+                                    log::info!("[{}] new dr in wrb", i);
+                                    if let Some(set_dr_info_bridge) =
+                                        process_posted_request(i.into(), &wrb_contract, eth_account)
+                                            .await
+                                    {
+                                        dr_database_addr.do_send(set_dr_info_bridge);
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                WitnetQueryStatus::Reported => {
+                                    log::debug!("[{}] already reported", i);
+                                    if let Some(set_dr_info_bridge) =
+                                        process_posted_request(i.into(), &wrb_contract, eth_account)
+                                            .await
+                                    {
+                                        dr_database_addr.do_send(set_dr_info_bridge);
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                WitnetQueryStatus::Deleted => {
+                                    log::debug!("[{}] has been deleted, skipping", i)
+                                }
+                            },
+                            Err(err) => {
                                 log::error!(
-                                    "Fail to read dr tx hash from contract: {}",
-                                    dr_tx_hash.map_err(|err| err.to_string()).unwrap_err()
+                                    "Fail to read getQueryStatus from contract: {:?}",
+                                    err.to_string(),
                                 );
                                 break;
                             }
-                        } else {
-                            log::error!(
-                                "Fail to read dr bytes from contract: {}",
-                                dr_bytes.map_err(|err| err.to_string()).unwrap_err()
-                            );
-                            break;
                         }
                     }
                 }
@@ -177,5 +161,94 @@ impl EthPoller {
 
             actix::fut::ready(())
         }));
+    }
+}
+
+/// Auxiliary function that process the information of a new posted request
+async fn process_posted_request(
+    query_id: U256,
+    wrb_contract: &Contract<web3::transports::Http>,
+    eth_account: H160,
+) -> Option<SetDrInfoBridge> {
+    let dr_bytes: Result<Bytes, web3::contract::Error> = wrb_contract
+        .query(
+            "readRequestBytecode",
+            (query_id,),
+            eth_account,
+            contract::Options::default(),
+            None,
+        )
+        .await;
+
+    match dr_bytes {
+        Ok(dr_bytes) => Some(SetDrInfoBridge(
+            query_id,
+            DrInfoBridge {
+                dr_bytes,
+                dr_state: DrState::New,
+                dr_tx_hash: None,
+                dr_tx_creation_timestamp: None,
+            },
+        )),
+        Err(err) => {
+            log::error!("Fail to read dr bytes from contract: {}", err.to_string());
+
+            None
+        }
+    }
+}
+
+/// Auxiliary function that process the information of an already reported request
+pub async fn process_reported_request(
+    query_id: U256,
+    wrb_contract: &Contract<web3::transports::Http>,
+    eth_account: H160,
+) -> Option<SetDrInfoBridge> {
+    let dr_tx_hash: Result<Bytes, web3::contract::Error> = wrb_contract
+        .query(
+            "readResponseDrTxHash",
+            (query_id,),
+            eth_account,
+            contract::Options::default(),
+            None,
+        )
+        .await;
+
+    let dr_bytes: Result<Bytes, web3::contract::Error> = wrb_contract
+        .query(
+            "readRequestBytecode",
+            (query_id,),
+            eth_account,
+            contract::Options::default(),
+            None,
+        )
+        .await;
+
+    match (dr_bytes, dr_tx_hash) {
+        (Ok(dr_bytes), Ok(dr_tx_hash)) => {
+            let mut x = [0; 32];
+            x.copy_from_slice(&dr_tx_hash[..32]);
+
+            Some(SetDrInfoBridge(
+                query_id,
+                DrInfoBridge {
+                    dr_bytes,
+                    dr_state: DrState::Finished,
+                    dr_tx_hash: Some(Hash::SHA256(x)),
+                    dr_tx_creation_timestamp: Some(get_timestamp()),
+                },
+            ))
+        }
+        (Err(err), _) => {
+            log::error!("Fail to read dr bytes from contract: {}", err.to_string());
+
+            None
+        }
+
+        (_, Err(err)) => {
+            log::error!("Fail to read dr bytes from contract: {}", err.to_string());
+
+            None
+        }
     }
 }

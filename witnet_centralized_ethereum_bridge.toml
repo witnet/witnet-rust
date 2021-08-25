@@ -1,17 +1,17 @@
 # Address of the witnet node JSON-RPC server
-witnet_jsonrpc_addr = "127.0.0.1:21336"
+witnet_jsonrpc_addr = "127.0.0.1:21338"
 
 # Url of the ethereum client
 eth_client_url = "http://127.0.0.1:8544"
 
 # Address of the WitnetRequestsBoard deployed contract
-wrb_contract_addr = "0x6BBa7106d4931976C61C23d4951bb09ED491651f"
+wrb_contract_addr = "0x6cE42a35C61ccfb42907EEE57eDF14Bb69C7fEF4"
 
 # Address of a Request Example deployed contract
 request_example_contract_addr = "0xEaA9e7Ea612b169f5b41cfF86dA6322f57264a19"
 
 # Ethereum account used to create the transactions
-eth_account = "0xa550Cf4F03Bd2417Cf83c8a652703cdC33c016ee"
+eth_account = "0x8d86Bc475bEDCB08179c5e6a4d494EbD3b44Ea8B"
 
 # Period to check for new requests in the WRB
 eth_new_dr_polling_rate_ms = 45_000
@@ -37,7 +37,7 @@ eth_confirmation_timeout_ms = 900_000 # 15 minutes
 max_dr_value_nanowits = 100_000_000_000
 
 # Running in the witnet testnet?
-witnet_testnet = true
+witnet_testnet = false
 
 # Gas limits for some methods.
 # To let the client estimate, comment out the fields

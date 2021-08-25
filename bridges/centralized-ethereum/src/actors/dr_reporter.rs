@@ -1,5 +1,10 @@
 use crate::{
-    actors::dr_database::{DrDatabase, DrId, DrInfoBridge, DrState, SetDrInfoBridge},
+    actors::{
+        dr_database::{
+            DrDatabase, DrId, DrInfoBridge, DrState, SetDrInfoBridge, WitnetQueryStatus,
+        },
+        eth_poller::process_reported_request,
+    },
     config::Config,
     handle_receipt,
 };
@@ -7,7 +12,7 @@ use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use web3::{
     contract::{self, Contract},
-    ethabi::Bytes,
+    ethabi::{ethereum_types::H256, Bytes},
     transports::Http,
     types::{H160, U256},
 };
@@ -98,9 +103,7 @@ impl Handler<DrReporterMsg> for DrReporter {
         let report_result_limit = self.report_result_limit;
         let eth_confirmation_timeout = Duration::from_millis(self.eth_confirmation_timeout_ms);
         let params_str = format!("{:?}", &(msg.dr_id, msg.dr_tx_hash, msg.result.clone()));
-        let dr_hash: U256 = match msg.dr_tx_hash {
-            Hash::SHA256(x) => x.into(),
-        };
+        let dr_hash = H256::from_slice(msg.dr_tx_hash.as_ref());
 
         if msg.result.len() > self.max_result_size {
             let radon_error = RadonErrors::BridgeOversizedResult as u8;
@@ -125,7 +128,7 @@ impl Handler<DrReporterMsg> for DrReporter {
             // Report result
             let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract
                 .query(
-                    "readGasPrice",
+                    "readRequestGasPrice",
                     msg.dr_id,
                     eth_account,
                     contract::Options::default(),
@@ -136,6 +139,7 @@ impl Handler<DrReporterMsg> for DrReporter {
             match dr_gas_price {
                 Ok(dr_gas_price) => {
                     log::debug!("Request [{}], calling reportResult", msg.dr_id);
+                    // FIXME(#2046): ReportResult with 4 arguments (with timestamp)
                     let receipt_fut = wrb_contract.call_with_confirmations(
                         "reportResult",
                         (msg.dr_id, dr_hash, msg.result),
@@ -204,78 +208,45 @@ async fn read_resolved_request_from_contract(
     wrb_contract: &Contract<Http>,
     eth_account: H160,
 ) -> Option<SetDrInfoBridge> {
-    match wrb_contract
+    let query_status: Result<u8, web3::contract::Error> = wrb_contract
         .query(
-            "readDataRequest",
+            "getQueryStatus",
             (dr_id,),
             eth_account,
             contract::Options::default(),
             None,
         )
-        .await
-    {
-        Err(e) => {
-            log::warn!(
-                "[{}] readDataRequest error, assuming that the request is not resolved yet: {:?}",
-                dr_id,
-                e
-            );
-        }
-        Ok(dr_bytes) => {
-            let dr_bytes: Bytes = dr_bytes;
-            // Data requests can be deleted after being resolved.
-            // This can be detected because the data request id is lower than the
-            // requestsCount, and the data request bytes is empty.
-            if dr_bytes.is_empty() {
-                log::debug!("[{}] has been deleted, setting to finished", dr_id);
+        .await;
+
+    match query_status {
+        Ok(status) => match WitnetQueryStatus::from_code(status) {
+            WitnetQueryStatus::Unknown => log::debug!("[{}] does not exist, skipping", dr_id),
+            WitnetQueryStatus::Posted => {
+                log::debug!("[{}] has not got a result yet, skipping", dr_id)
+            }
+            WitnetQueryStatus::Reported => {
+                log::debug!("[{}] already reported", dr_id);
+                return process_reported_request(dr_id, wrb_contract, eth_account).await;
+            }
+            WitnetQueryStatus::Deleted => {
+                log::debug!("[{}] already reported and deleted", dr_id);
                 return Some(SetDrInfoBridge(
                     dr_id,
                     DrInfoBridge {
-                        dr_bytes,
+                        dr_bytes: Bytes::default(),
                         dr_state: DrState::Finished,
                         dr_tx_hash: None,
                         dr_tx_creation_timestamp: None,
                     },
                 ));
             }
-
-            match wrb_contract
-                .query(
-                    "readDrTxHash",
-                    (dr_id,),
-                    eth_account,
-                    contract::Options::default(),
-                    None,
-                )
-                .await
-            {
-                Err(e) => {
-                    log::warn!(
-                "[{}] readDrTxHash error, assuming that the request is not resolved yet: {:?}",
-                dr_id,
-                e
+        },
+        Err(err) => {
+            log::error!(
+                "Fail to read getQueryStatus from contract: {:?}",
+                err.to_string(),
             );
-                }
-                Ok(dr_tx_hash) => {
-                    let dr_tx_hash: U256 = dr_tx_hash;
-                    if dr_tx_hash != U256::from(0u8) {
-                        // Non-zero data request transaction hash: this data request is already "Finished"
-                        log::debug!("[{}] already finished", dr_id);
-
-                        return Some(SetDrInfoBridge(
-                            dr_id,
-                            DrInfoBridge {
-                                dr_bytes,
-                                dr_state: DrState::Finished,
-                                dr_tx_hash: Some(Hash::SHA256(dr_tx_hash.into())),
-                                dr_tx_creation_timestamp: Some(get_timestamp()),
-                            },
-                        ));
-                    }
-                }
-            }
         }
     }
-
     None
 }

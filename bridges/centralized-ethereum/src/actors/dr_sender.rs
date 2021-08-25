@@ -79,7 +79,7 @@ impl DrSender {
                     Ok(dr_output) => {
                         let req = jsonrpc::Request::method("sendRequest")
                             .timeout(Duration::from_millis(5_000))
-                            .params(json!({"dro": dr_output, "fee": 0}))
+                            .params(json!({"dro": dr_output, "fee": 10_000}))
                             .expect("params failed serialization");
                         let res = witnet_client.send(req).await;
                         let res = match res {
