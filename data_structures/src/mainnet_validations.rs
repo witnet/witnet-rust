@@ -45,6 +45,18 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0008".to_string(), FIRST_HARD_FORK);
     active_wips.insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
     active_wips.insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
+    active_wips.insert("WIP0014-0016".to_string(), 549141);
+
+    active_wips
+}
+
+/// Initial information about WIPs for Testnet and Development
+fn test_wip_info() -> HashMap<String, Epoch> {
+    let mut active_wips = HashMap::<String, Epoch>::default();
+    active_wips.insert("WIP0008".to_string(), 0);
+    active_wips.insert("WIP0009-0011-0012".to_string(), 0);
+    active_wips.insert("THIRD_HARD_FORK".to_string(), 0);
+    active_wips.insert("WIP0014-0016".to_string(), 0);
 
     active_wips
 }
@@ -106,26 +118,24 @@ impl TapiEngine {
                 }
 
                 // Hardcoded information about WIPs in vote processing
-                let bit = 0;
-                let wip_0014 = BitVotesCounter {
+                let bit = 1;
+                let wip_0017 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
-                    wip: "WIP0014-0016".to_string(),
+                    wip: "WIP0017".to_string(),
                     // Start voting at
+                    // TODO: Choose a right date
                     // 13 July 2021 @ 9:00:00 UTC
                     init: 522240,
                     end: u32::MAX,
                     bit,
                 };
-                voting_wips[bit] = Some(wip_0014);
+                voting_wips[bit] = Some(wip_0017);
             }
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
                 // active since epoch 0. And there is no voting.
-                self.wip_activation.insert("WIP0008".to_string(), 0);
-                self.wip_activation
-                    .insert("WIP0009-0011-0012".to_string(), 0);
-                self.wip_activation.insert("THIRD_HARD_FORK".to_string(), 0);
+                self.wip_activation = test_wip_info();
             }
         };
 
@@ -379,6 +389,10 @@ impl ActiveWips {
 
     pub fn wip0016(&self) -> bool {
         self.wip_active("WIP0014-0016")
+    }
+
+    pub fn wip0017(&self) -> bool {
+        self.wip_active("WIP0017")
     }
 }
 
@@ -644,24 +658,25 @@ mod tests {
         let mut t = TapiEngine::default();
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // The first block whose vote must be counted is the one from WIP0014
-        let init_epoch_wip0014 = 522240;
-        assert_eq!(epoch, init_epoch_wip0014);
+        // The first block whose vote must be counted is the one from WIP0017
+        // TODO: Update block number
+        let init_epoch_wip0017 = 522240;
+        assert_eq!(epoch, init_epoch_wip0017);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
         // The list of active WIPs only contains the first, second, and third hard forks
         let mut hm = HashMap::new();
-        hm.insert("WIP0008".to_string(), FIRST_HARD_FORK);
-        hm.insert("WIP0009-0011-0012".to_string(), SECOND_HARD_FORK);
-        hm.insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
+        for (k, v) in wip_info() {
+            hm.insert(k, v);
+        }
         assert_eq!(t.wip_activation, hm);
 
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // WIP0014 is already included and it won't be updated
-        let name_wip0014 = "WIP0014-0016".to_string();
+        // WIP0017 is already included and it won't be updated
+        let name_wip0017 = "WIP0017".to_string();
         let mut hs = HashSet::new();
-        hs.insert(name_wip0014);
+        hs.insert(name_wip0017);
         assert_eq!(old_wips, hs);
 
         // There is no new WIPs to update so we obtain the max value
