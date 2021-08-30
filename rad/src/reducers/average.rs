@@ -125,11 +125,6 @@ pub fn mean(input: &RadonArray, return_policy: MeanReturnPolicy) -> Result<Radon
     }
 }
 
-pub fn median(_input: &RadonArray) -> Result<RadonTypes, RadError> {
-    // TODO: implement
-    Ok(RadonTypes::Array(RadonArray::from(vec![])))
-}
-
 #[cfg(test)]
 mod tests {
     use serde_cbor::Value;
