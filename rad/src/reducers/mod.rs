@@ -6,6 +6,7 @@ use crate::{
     error::RadError,
     types::{array::RadonArray, RadonType, RadonTypes},
 };
+use witnet_data_structures::radon_report::ReportContext;
 
 pub mod average;
 pub mod deviation;
@@ -17,13 +18,13 @@ pub enum RadonReducers {
     // Implemented
     Mode = 0x02,
     AverageMean = 0x03,
+    AverageMedian = 0x05,
     DeviationStandard = 0x07,
 
     // Not implemented
     Min = 0x00,
     Max = 0x01,
     AverageMeanWeighted = 0x04,
-    AverageMedian = 0x05,
     AverageMedianWeighted = 0x06,
     DeviationAverageAbsolute = 0x08,
     DeviationMedianAbsolute = 0x09,
@@ -36,7 +37,11 @@ impl fmt::Display for RadonReducers {
     }
 }
 
-pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTypes, RadError> {
+pub fn reduce(
+    input: &RadonArray,
+    reducer_code: RadonReducers,
+    context: &mut ReportContext<RadonTypes>,
+) -> Result<RadonTypes, RadError> {
     let error = || {
         Err(RadError::UnsupportedReducer {
             array: input.clone(),
@@ -51,6 +56,10 @@ pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTy
             }
             RadonReducers::Mode => mode::mode(input),
             RadonReducers::DeviationStandard => deviation::standard(input),
+            RadonReducers::AverageMedian => match &context.active_wips {
+                Some(active_wips) if active_wips.wip0017() => average::median(input),
+                _ => error(),
+            },
             _ => error(),
         }
     } else {
