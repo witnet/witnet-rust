@@ -2175,14 +2175,14 @@ impl ChainManager {
         let Tapi { oppose_wip0017 } = &self.tapi;
 
         let mut v = 0;
+        // Bit 0
+        // FIXME(#2051): Assess when remove achieved bit signaling
+        let bit = 0;
+        v |= 1 << bit;
+
         // Bit 1
         let bit = 1;
         if !oppose_wip0017
-            && !self
-                .chain_state
-                .tapi_engine
-                .wip_activation
-                .contains_key("WIP0017")
             && self
                 .chain_state
                 .tapi_engine

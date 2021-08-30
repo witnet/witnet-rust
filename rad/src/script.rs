@@ -252,7 +252,7 @@ pub fn create_radon_script_from_filters_and_reducer(
     )
     .map_err(|_| unknown_reducer(i128::from(reducer)))?;
     match rad_reducer {
-        RadonReducers::AverageMean | RadonReducers::Mode => {}
+        RadonReducers::AverageMean | RadonReducers::Mode | RadonReducers::AverageMedian => {}
         _ => {
             return Err(RadError::UnsupportedReducerInAT {
                 operator: rad_reducer as u8,

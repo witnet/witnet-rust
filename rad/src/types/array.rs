@@ -149,7 +149,7 @@ impl Operable for RadonArray {
                 array_operators::map(self, args.as_slice(), &mut ReportContext::default())
             }
             (RadonOpCodes::ArrayReduce, Some(args)) => {
-                array_operators::reduce(self, args.as_slice())
+                array_operators::reduce(self, args.as_slice(), &mut ReportContext::default())
             }
             (RadonOpCodes::ArraySort, Some(args)) => {
                 array_operators::sort(self, args.as_slice(), &mut ReportContext::default())
@@ -174,6 +174,9 @@ impl Operable for RadonArray {
             }
             (RadonOpCodes::ArrayMap, Some(args)) => {
                 array_operators::map(self, args.as_slice(), context)
+            }
+            (RadonOpCodes::ArrayReduce, Some(args)) => {
+                array_operators::reduce(self, args.as_slice(), context)
             }
             (RadonOpCodes::ArraySort, Some(args)) => {
                 array_operators::sort(self, args.as_slice(), context)
