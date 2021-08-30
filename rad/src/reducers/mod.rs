@@ -10,6 +10,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 pub mod average;
 pub mod deviation;
+pub mod median;
 pub mod mode;
 
 #[derive(Debug, PartialEq, TryFromPrimitive)]
@@ -57,7 +58,7 @@ pub fn reduce(
             RadonReducers::Mode => mode::mode(input),
             RadonReducers::DeviationStandard => deviation::standard(input),
             RadonReducers::AverageMedian => match &context.active_wips {
-                Some(active_wips) if active_wips.wip0017() => average::median(input),
+                Some(active_wips) if active_wips.wip0017() => median::median(input),
                 _ => error(),
             },
             _ => error(),
