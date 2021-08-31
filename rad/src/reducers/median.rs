@@ -109,8 +109,13 @@ pub fn median(input: &RadonArray) -> Result<RadonTypes, RadError> {
 mod tests {
     use super::*;
 
-    use crate::types::{float::RadonFloat, integer::RadonInteger, string::RadonString};
-    use crate::RadError::ModeEmpty;
+    use crate::{
+        current_active_wips,
+        operators::array::reduce,
+        types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
+        RadError::ModeEmpty,
+    };
+    use serde_cbor::Value;
 
     #[test]
     fn test_operate_reduce_median_empty() {
@@ -281,6 +286,33 @@ mod tests {
 
         let expected = RadonTypes::from(RadonInteger::from(18446744073709551616));
         let output = median(&input).unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_average_median_tapi_activation() {
+        let mut active_wips = current_active_wips();
+        let mut context = ReportContext::default();
+        context.active_wips = Some(active_wips.clone());
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+        let args = &[Value::Integer(RadonReducers::AverageMedian as i128)];
+
+        let expected_err = RadError::UnsupportedReducer {
+            array: input.clone(),
+            reducer: "RadonReducers::AverageMedian".to_string(),
+        };
+        let output = reduce(input, args, &mut context).unwrap_err();
+        assert_eq!(output, expected_err);
+
+        // Activate WIP-0017
+        active_wips.active_wips.insert("WIP0017".to_string(), 0);
+        context.active_wips = Some(active_wips);
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
+        let output = reduce(input, args, &mut context).unwrap();
         assert_eq!(output, expected);
     }
 }
