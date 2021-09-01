@@ -69,3 +69,90 @@ pub fn reduce(
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        current_active_wips,
+        error::RadError,
+        reducers::{reduce, RadonReducers},
+        types::{array::RadonArray, float::RadonFloat, RadonTypes},
+    };
+    use witnet_data_structures::radon_report::ReportContext;
+
+    #[test]
+    fn test_reduce_average_mean_float() {
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+        let expected = RadonTypes::from(RadonFloat::from(1.5f64));
+
+        let output = reduce(
+            input,
+            RadonReducers::AverageMean,
+            &mut ReportContext::default(),
+        )
+        .unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_deviation_standard_float() {
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+        let expected = RadonTypes::from(RadonFloat::from(0.5));
+
+        let output = reduce(
+            input,
+            RadonReducers::DeviationStandard,
+            &mut ReportContext::default(),
+        )
+        .unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_average_median_tapi_activation() {
+        let mut active_wips = current_active_wips();
+        let mut context = ReportContext::default();
+        context.active_wips = Some(active_wips.clone());
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+
+        let expected_err = RadError::UnsupportedReducer {
+            array: input.clone(),
+            reducer: "RadonReducers::AverageMedian".to_string(),
+        };
+        let output = reduce(input, RadonReducers::AverageMedian, &mut context).unwrap_err();
+
+        assert_eq!(output, expected_err);
+
+        // Activate WIP-0017
+        active_wips.active_wips.insert("WIP0017".to_string(), 0);
+        context.active_wips = Some(active_wips);
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
+        let output = reduce(input, RadonReducers::AverageMedian, &mut context).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_mode_float() {
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
+        let output = reduce(input, RadonReducers::Mode, &mut ReportContext::default()).unwrap();
+        assert_eq!(output, expected);
+    }
+}

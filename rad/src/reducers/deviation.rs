@@ -102,7 +102,7 @@ mod tests {
     use std::convert::TryFrom;
 
     #[test]
-    fn test_reduce_deviation_standard_float() {
+    fn test_deviation_standard_float() {
         let input = &RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -117,7 +117,7 @@ mod tests {
     // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
-    fn test_reduce_deviation_standard_float2() {
+    fn test_deviation_standard_float2() {
         let input = &RadonArray::from(vec![
             RadonFloat::from(100f64).into(),
             RadonFloat::from(256f64).into(),
@@ -136,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_deviation_standard_float_arrays() {
+    fn test_deviation_standard_float_arrays() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -158,7 +158,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_deviation_standard_float_arrays_different_size() {
+    fn test_deviation_standard_float_arrays_different_size() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_deviation_standard_float_array_of_arrays() {
+    fn test_deviation_standard_float_array_of_arrays() {
         let array_11 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(7f64).into(),
@@ -232,21 +232,21 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_deviation_standard_empty() {
+    fn test_operate_deviation_standard_empty() {
         let input = RadonArray::from(vec![]);
         let output = standard(&input).unwrap();
         assert_eq!(output, RadonTypes::from(RadonFloat::from(std::f64::NAN)));
     }
 
     #[test]
-    fn test_operate_reduce_deviation_standard_one_element() {
+    fn test_operate_deviation_standard_one_element() {
         let input = RadonArray::from(vec![RadonTypes::Float(RadonFloat::from(4f64))]);
         let output = standard(&input).unwrap();
         assert_eq!(output, RadonTypes::from(RadonFloat::from(0f64)));
     }
 
     #[test]
-    fn test_reduce_deviation_standard_integer() {
+    fn test_deviation_standard_integer() {
         let input = &RadonArray::from(vec![
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_deviation_standard_integer_arrays() {
+    fn test_deviation_standard_integer_arrays() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonInteger::from(1i128).into(),
             RadonInteger::from(6i128).into(),
@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_deviation_standard_string_unsupported() {
+    fn test_deviation_standard_string_unsupported() {
         let input = &RadonArray::from(vec![
             RadonString::from("Hello").into(),
             RadonString::from("world").into(),
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_deviation_standard_float_int_arrays() {
+    fn test_deviation_standard_float_int_arrays() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),

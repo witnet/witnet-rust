@@ -190,6 +190,7 @@ impl Operable for RadonArray {
 mod tests {
     use super::*;
     use crate::{
+        current_active_wips,
         reducers::RadonReducers,
         types::{
             boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
@@ -241,6 +242,76 @@ mod tests {
             Some(vec![Value::Integer(RadonReducers::AverageMean as i128)]),
         );
         let expected = RadonTypes::from(RadonFloat::from(1.5f64));
+
+        let output = input.operate(&call).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_operate_reduce_deviation_standard_float() {
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+        let call = (
+            RadonOpCodes::ArrayReduce,
+            Some(vec![Value::Integer(
+                RadonReducers::DeviationStandard as i128,
+            )]),
+        );
+        let expected = RadonTypes::from(RadonFloat::from(0.5));
+
+        let output = input.operate(&call).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_operate_reduce_average_median_tapi_activation() {
+        let mut active_wips = current_active_wips();
+        let mut context = ReportContext::default();
+        context.active_wips = Some(active_wips.clone());
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+        let call = (
+            RadonOpCodes::ArrayReduce,
+            Some(vec![Value::Integer(RadonReducers::AverageMedian as i128)]),
+        );
+
+        let expected_err = RadError::UnsupportedReducer {
+            array: input.clone(),
+            reducer: "RadonReducers::AverageMedian".to_string(),
+        };
+
+        let output = input.operate_in_context(&call, &mut context).unwrap_err();
+
+        assert_eq!(output, expected_err);
+
+        // Activate WIP-0017
+        active_wips.active_wips.insert("WIP0017".to_string(), 0);
+        context.active_wips = Some(active_wips);
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
+        let output = input.operate_in_context(&call, &mut context).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_operate_reduce_mode_float() {
+        let input = RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+        let call = (
+            RadonOpCodes::ArrayReduce,
+            Some(vec![Value::Integer(RadonReducers::Mode as i128)]),
+        );
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
 
         let output = input.operate(&call).unwrap();
 
