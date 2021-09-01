@@ -18,7 +18,7 @@ pub fn median(input: &RadonArray) -> Result<RadonTypes, RadError> {
     let value_len = value.len();
 
     match value.first() {
-        None => Err(RadError::ModeEmpty),
+        None => Err(RadError::EmptyArray),
         Some(RadonTypes::Float(_)) => {
             // Collect non-NaN values into a vector, and sort them
             let mut input_not_nan: Vec<NotNan<f64>> = Vec::with_capacity(value_len);
@@ -44,7 +44,7 @@ pub fn median(input: &RadonArray) -> Result<RadonTypes, RadError> {
 
             if input_not_nan.is_empty() {
                 // This can happen if all elements are NaN
-                Err(RadError::ModeEmpty)
+                Err(RadError::EmptyArray)
             } else if input_not_nan.len() % 2 == 1 {
                 // Odd number of elements: take element at floor(N/2):
                 let median_pos = input_not_nan.len() / 2;
@@ -77,7 +77,7 @@ pub fn median(input: &RadonArray) -> Result<RadonTypes, RadError> {
 
             if sorted_input.is_empty() {
                 // This is unreachable
-                Err(RadError::ModeEmpty)
+                Err(RadError::EmptyArray)
             } else if sorted_input.len() % 2 == 1 {
                 // Odd number of elements: take element at floor(N/2):
                 let median_pos = sorted_input.len() / 2;
@@ -111,14 +111,14 @@ mod tests {
 
     use crate::{
         types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
-        RadError::ModeEmpty,
+        RadError::EmptyArray,
     };
 
     #[test]
     fn test_operate_reduce_median_empty() {
         let input = RadonArray::from(vec![]);
         let output = median(&input).unwrap_err();
-        let expected_error = ModeEmpty;
+        let expected_error = EmptyArray;
         assert_eq!(output, expected_error);
     }
 
@@ -167,7 +167,7 @@ mod tests {
         ]);
 
         let output = median(&input).unwrap_err();
-        let expected_error = ModeEmpty;
+        let expected_error = EmptyArray;
         assert_eq!(output, expected_error);
     }
 

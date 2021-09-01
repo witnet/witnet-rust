@@ -17,7 +17,7 @@ pub fn mode(input: &RadonArray) -> Result<RadonTypes, RadError> {
     let temp_counter = counter.clone();
 
     // Compute how many times does the most frequent item appear
-    let max_count = temp_counter.values().max().ok_or(RadError::ModeEmpty)?;
+    let max_count = temp_counter.values().max().ok_or(RadError::EmptyArray)?;
 
     // Collect items that appear as many times as the one that appears the most
     let mode_vector: Vec<RadonTypes> = counter
@@ -42,7 +42,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        error::RadError::{ModeEmpty, ModeTie},
+        error::RadError::{EmptyArray, ModeTie},
         types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
     };
 
@@ -129,7 +129,7 @@ mod tests {
     fn test_mode_empty() {
         let input = RadonArray::from(vec![]);
         let output = mode(&input).unwrap_err();
-        let expected_error = ModeEmpty;
+        let expected_error = EmptyArray;
         assert_eq!(output, expected_error);
     }
 
