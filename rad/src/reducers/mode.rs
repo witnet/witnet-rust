@@ -47,7 +47,7 @@ mod tests {
     };
 
     #[test]
-    fn test_operate_reduce_mode_float() {
+    fn test_mode_float() {
         let input = RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -59,7 +59,7 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_mode_float_invalid() {
+    fn test_mode_float_invalid() {
         let input = RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_mode_int() {
+    fn test_mode_int() {
         let input = RadonArray::from(vec![
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_mode_int_invalid() {
+    fn test_mode_int_invalid() {
         let input = RadonArray::from(vec![
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_mode_str() {
+    fn test_mode_str() {
         let input = RadonArray::from(vec![
             RadonString::from("Hello world!").into(),
             RadonString::from("Hello world!").into(),
@@ -112,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_mode_str_invalid() {
+    fn test_mode_str_invalid() {
         let input = RadonArray::from(vec![
             RadonString::from("Hello world!").into(),
             RadonString::from("Bye world!").into(),
@@ -126,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_mode_empty() {
+    fn test_mode_empty() {
         let input = RadonArray::from(vec![]);
         let output = mode(&input).unwrap_err();
         let expected_error = ModeEmpty;
@@ -134,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn test_operate_reduce_mode_array() {
+    fn test_mode_array() {
         let array1 = RadonArray::from(vec![
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
