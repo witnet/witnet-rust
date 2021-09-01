@@ -127,32 +127,25 @@ pub fn mean(input: &RadonArray, return_policy: MeanReturnPolicy) -> Result<Radon
 
 #[cfg(test)]
 mod tests {
-    use serde_cbor::Value;
-
-    use crate::{
-        operators::array::reduce,
-        types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
-    };
+    use crate::types::{float::RadonFloat, integer::RadonInteger, string::RadonString};
 
     use super::*;
-    use witnet_data_structures::radon_report::ReportContext;
 
     #[test]
-    fn test_reduce_average_mean_float() {
-        let input = &RadonArray::from(vec![
+    fn test_average_mean_float() {
+        let input = RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
         ]);
-        let args = &[Value::Integer(RadonReducers::AverageMean as i128)];
         let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
-        let output = reduce(input, args, &mut ReportContext::default()).unwrap();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap();
 
         assert_eq!(output, expected);
     }
 
     #[test]
-    fn test_reduce_average_mean_float_arrays() {
+    fn test_average_mean_float_arrays() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -168,14 +161,13 @@ mod tests {
             RadonFloat::from(6f64).into(),
         ]));
 
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args, &mut ReportContext::default()).unwrap();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap();
 
         assert_eq!(output, expected);
     }
 
     #[test]
-    fn test_reduce_average_mean_float_arrays_different_size() {
+    fn test_average_mean_float_arrays_different_size() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -193,14 +185,13 @@ mod tests {
             second: 2,
         };
 
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args, &mut ReportContext::default()).unwrap_err();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap_err();
 
         assert_eq!(output, expected);
     }
 
     #[test]
-    fn test_reduce_average_mean_float_array_of_arrays() {
+    fn test_average_mean_float_array_of_arrays() {
         let array_11 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -244,35 +235,33 @@ mod tests {
         ]));
         let expected = RadonTypes::from(RadonArray::from(vec![array_e1, array_e2, array_e3]));
 
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args, &mut ReportContext::default()).unwrap();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap();
 
         assert_eq!(output, expected);
     }
 
     #[test]
-    fn test_operate_reduce_mean_empty() {
+    fn test_average_mean_empty() {
         let input = RadonArray::from(vec![]);
         let output = mean(&input, MeanReturnPolicy::ReturnFloat).unwrap();
         assert_eq!(output, RadonTypes::from(RadonFloat::from(std::f64::NAN)));
     }
 
     #[test]
-    fn test_reduce_average_mean_integer() {
-        let input = &RadonArray::from(vec![
+    fn test_average_mean_integer() {
+        let input = RadonArray::from(vec![
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
         ]);
-        let args = &[Value::Integer(RadonReducers::AverageMean as i128)];
         let expected = RadonTypes::Integer(RadonInteger::from(2));
 
-        let output = reduce(input, args, &mut ReportContext::default()).unwrap();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap();
 
         assert_eq!(output, expected);
     }
 
     #[test]
-    fn test_reduce_average_mean_integer_arrays() {
+    fn test_average_mean_integer_arrays() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonInteger::from(1).into(),
             RadonInteger::from(2).into(),
@@ -288,23 +277,21 @@ mod tests {
             RadonInteger::from(6).into(),
         ]));
 
-        let args = &[Value::Integer(RadonReducers::AverageMean as i128)];
-        let output = reduce(&input, args, &mut ReportContext::default()).unwrap();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap();
 
         assert_eq!(output, expected);
     }
 
     #[test]
-    fn test_reduce_average_mean_string_unsupported() {
-        let input = &RadonArray::from(vec![
+    fn test_average_mean_string_unsupported() {
+        let input = RadonArray::from(vec![
             RadonString::from("Hello").into(),
             RadonString::from("world").into(),
         ]);
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(input, args, &mut ReportContext::default()).unwrap_err();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap_err();
 
         let expected = RadError::UnsupportedReducer {
-            array: input.clone(),
+            array: input,
             reducer: "RadonReducers::AverageMean".to_string(),
         };
 
@@ -312,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_average_mean_float_int_arrays() {
+    fn test_average_mean_float_int_arrays() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -329,8 +316,7 @@ mod tests {
             found: RadonInteger::radon_type_name(),
         };
 
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args, &mut ReportContext::default()).unwrap_err();
+        let output = mean(&input, MeanReturnPolicy::RoundToInteger).unwrap_err();
 
         assert_eq!(output, expected);
     }
