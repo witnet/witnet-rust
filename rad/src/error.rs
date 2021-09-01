@@ -137,7 +137,7 @@ pub enum RadError {
     ModeTie { values: RadonArray, max_count: u16 },
     /// Tried to apply mod reducer on an empty array
     #[fail(display = "Tried to apply mode reducer on an empty array")]
-    ModeEmpty,
+    EmptyArray,
     /// The given arguments are not valid for the given operator
     #[fail(
         display = "Wrong `{}::{}()` arguments: `{:?}`",

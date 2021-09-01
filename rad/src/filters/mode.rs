@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn test_filter_mode_empty() {
         let input = vec![];
-        let expected = RadError::ModeEmpty;
+        let expected = RadError::EmptyArray;
 
         let mut ctx = ReportContext {
             stage: Stage::Tally(TallyMetaData::default()),
