@@ -18,7 +18,7 @@ use witnet_data_structures::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
         DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
         Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
-        Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
+        RADType, Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward,
@@ -247,7 +247,17 @@ pub fn validate_rad_request(
     if retrieval_paths.is_empty() {
         return Err(DataRequestError::NoRetrievalSources.into());
     }
+    let mut is_rng = false;
     for path in retrieval_paths {
+        if path.kind == RADType::Rng {
+            if path.url.is_empty() && path.script.is_empty() {
+                is_rng = true;
+                break;
+            } else {
+                return Err(DataRequestError::InvalidRngRequest.into());
+            }
+        }
+
         // If the sources are empty the data request is set as invalid
         if path.url.is_empty() {
             return Err(DataRequestError::NoRetrievalSources.into());
@@ -255,15 +265,31 @@ pub fn validate_rad_request(
         unpack_radon_script(path.script.as_slice())?;
     }
 
+    if is_rng && retrieval_paths.len() > 1 {
+        return Err(DataRequestError::InvalidRngRequest.into());
+    }
+
     let aggregate = &rad_request.aggregate;
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
-    create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
+    if is_rng {
+        if !filters.is_empty() || reducer != 0x11 {
+            return Err(DataRequestError::InvalidRngRequest.into());
+        }
+    } else {
+        create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
+    }
 
     let consensus = &rad_request.tally;
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
-    create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
+    if is_rng {
+        if !filters.is_empty() || reducer != 0x11 {
+            return Err(DataRequestError::InvalidRngRequest.into());
+        }
+    } else {
+        create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
+    }
 
     Ok(())
 }

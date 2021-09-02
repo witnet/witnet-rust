@@ -118,6 +118,7 @@ message DataRequestOutput {
     message RADRequest {
         enum RADType {
             HttpGet = 0;
+            Rng = 1;
         }
         message RADFilter {
             uint32 op = 1;

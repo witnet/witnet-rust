@@ -21,6 +21,7 @@ pub enum RadonReducers {
     AverageMean = 0x03,
     AverageMedian = 0x05,
     DeviationStandard = 0x07,
+    HashConcat = 0x11,
 
     // Not implemented
     Min = 0x00,

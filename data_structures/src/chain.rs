@@ -1587,6 +1587,9 @@ pub enum RADType {
     /// HTTP GET request
     #[serde(rename = "HTTP-GET")]
     HttpGet,
+    /// Random number generation
+    #[serde(rename = "RNG")]
+    Rng,
 }
 
 impl Default for RADType {

@@ -48,12 +48,14 @@ impl ProtobufConvert for chain::RADType {
     fn to_pb(&self) -> Self::ProtoStruct {
         match self {
             chain::RADType::HttpGet => witnet::DataRequestOutput_RADRequest_RADType::HttpGet,
+            chain::RADType::Rng => witnet::DataRequestOutput_RADRequest_RADType::Rng,
         }
     }
 
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
         Ok(match pb {
             witnet::DataRequestOutput_RADRequest_RADType::HttpGet => chain::RADType::HttpGet,
+            witnet::DataRequestOutput_RADRequest_RADType::Rng => chain::RADType::Rng,
         })
     }
 }

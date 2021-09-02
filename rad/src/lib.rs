@@ -7,11 +7,12 @@ pub use serde_cbor::Value as CborValue;
 
 use crate::{
     error::RadError,
+    operators::string as string_operators,
     script::{
         create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
         RadonScriptExecutionSettings,
     },
-    types::{array::RadonArray, string::RadonString, RadonTypes},
+    types::{array::RadonArray, bytes::RadonBytes, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
 use witnet_data_structures::{
@@ -135,6 +136,13 @@ pub fn run_retrieval_with_data_report(
 
             execute_radon_script(input, &radon_script, context, settings)
         }
+
+        RADType::Rng => {
+            let random_int = string_operators::to_int(&RadonString::from(response.to_string()))?;
+            let result = RadonTypes::from(random_int);
+
+            Ok(RadonReport::from_result(Ok(result), context))
+        }
     }
 }
 
@@ -207,6 +215,12 @@ pub async fn run_retrieval_report(
             }
 
             result
+        }
+        RADType::Rng => {
+            let random_bytes: [u8; 32] = rand::random();
+            let random_bytes = RadonTypes::from(RadonBytes::from(random_bytes.to_vec()));
+
+            Ok(RadonReport::from_result(Ok(random_bytes), context))
         }
     }
 }
