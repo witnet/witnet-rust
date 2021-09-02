@@ -1021,13 +1021,20 @@ fn create_expected_report(
         let results_len = results.len();
         let clause_result =
             evaluate_tally_precondition_clause(results, non_error_min, commits_count, active_wips);
-        let report =
+        let mut report =
             construct_report_from_clause_result(clause_result, tally, results_len, active_wips);
         if active_wips.wips_0009_0011_0012() {
-            evaluate_tally_postcondition_clause(report, non_error_min, commits_count)
-        } else {
-            report
+            report = evaluate_tally_postcondition_clause(report, non_error_min, commits_count);
         }
+        if active_wips.wip0018() {
+            // If the result of a tally transaction is RadonError::UnhandledIntercept, this will
+            // remove the message field, as specified in WIP0018.
+            report
+                .result
+                .remove_message_from_error_unhandled_intercept();
+        }
+
+        report
     }) {
         Ok(x) => x,
         Err(_e) => {

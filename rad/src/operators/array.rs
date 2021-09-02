@@ -239,6 +239,9 @@ pub fn sort(
             if let RadError::UnhandledIntercept {
                 inner: Some(super_inner),
                 message: _,
+            }
+            | RadError::UnhandledInterceptV2 {
+                inner: Some(super_inner),
             } = error.inner()
             {
                 return Err(*super_inner.clone());

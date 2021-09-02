@@ -119,6 +119,18 @@ impl RadonTypes {
             }),
         }
     }
+
+    /// If this RadonTypes is a RadonError<RadError::UnhandledIntercept>, remove the message field
+    /// from the `UnhandledIntercept` error. Otherwise, do nothing.
+    pub fn remove_message_from_error_unhandled_intercept(&mut self) {
+        if let RadonTypes::RadonError(radon_error) = self {
+            if let RadError::UnhandledIntercept { inner, message: _ } = radon_error.inner() {
+                let inner = inner.clone();
+                let new_radon_error = RadonError::new(RadError::UnhandledInterceptV2 { inner });
+                *radon_error = new_radon_error;
+            }
+        }
+    }
 }
 
 /// Satisfy the `TypeLike` trait that ensures generic compatibility of `witnet_rad` and

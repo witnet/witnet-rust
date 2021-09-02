@@ -334,6 +334,12 @@ pub enum RadError {
         inner: Option<Box<RadError>>,
         message: Option<String>,
     },
+    /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
+    #[fail(
+        display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Inner: `{:?}`",
+        inner
+    )]
+    UnhandledInterceptV2 { inner: Option<Box<RadError>> },
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     #[fail(display = "The reveal was not serialized correctly")]
     MalformedReveal,
@@ -441,10 +447,14 @@ impl RadError {
                 }
             }
             RadonErrors::UnhandledIntercept => {
-                let (message,) = deserialize_args(error_args)?;
-                RadError::UnhandledIntercept {
-                    inner: None,
-                    message: Some(message),
+                if error_args.is_none() {
+                    RadError::UnhandledInterceptV2 { inner: None }
+                } else {
+                    let (message,) = deserialize_args(error_args)?;
+                    RadError::UnhandledIntercept {
+                        inner: None,
+                        message: Some(message),
+                    }
                 }
             }
             RadonErrors::Unknown => RadError::Unknown,
@@ -550,7 +560,9 @@ impl RadError {
             RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
             RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,
             RadError::TallyExecution { .. } => RadonErrors::TallyExecution,
-            RadError::UnhandledIntercept { .. } => RadonErrors::UnhandledIntercept,
+            RadError::UnhandledIntercept { .. } | RadError::UnhandledInterceptV2 { .. } => {
+                RadonErrors::UnhandledIntercept
+            }
             RadError::MalformedReveal => RadonErrors::MalformedReveal,
             RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
             RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,

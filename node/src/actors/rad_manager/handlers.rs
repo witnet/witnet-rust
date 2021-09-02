@@ -109,21 +109,28 @@ impl Handler<RunTally> for RadManager {
                 msg.commits_count,
                 &msg.active_wips,
             );
-            let report = construct_report_from_clause_result(
+            let mut report = construct_report_from_clause_result(
                 clause_result,
                 &packed_script,
                 reports_len,
                 &msg.active_wips,
             );
             if msg.active_wips.wips_0009_0011_0012() {
-                evaluate_tally_postcondition_clause(
+                report = evaluate_tally_postcondition_clause(
                     report,
                     msg.min_consensus_ratio,
                     msg.commits_count,
-                )
-            } else {
-                report
+                );
             }
+            if msg.active_wips.wip0018() {
+                // If the result of a tally transaction is RadonError::UnhandledIntercept, this will
+                // remove the message field, as specified in WIP0018.
+                report
+                    .result
+                    .remove_message_from_error_unhandled_intercept();
+            }
+
+            report
         };
 
         Box::pin(fut)
