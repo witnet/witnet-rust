@@ -10,6 +10,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 pub mod average;
 pub mod deviation;
+pub mod hash_concatenate;
 pub mod median;
 pub mod mode;
 
@@ -21,7 +22,7 @@ pub enum RadonReducers {
     AverageMean = 0x03,
     AverageMedian = 0x05,
     DeviationStandard = 0x07,
-    HashConcat = 0x11,
+    HashConcatenate = 0x11,
 
     // Not implemented
     Min = 0x00,
@@ -62,6 +63,10 @@ pub fn reduce(
                 Some(active_wips) if active_wips.wip0017() => median::median(input),
                 _ => error(),
             },
+            RadonReducers::HashConcatenate => {
+                // TODO: Handle with tapi
+                hash_concatenate::hash_concatenate(input)
+            }
             _ => error(),
         }
     } else {

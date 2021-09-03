@@ -1,13 +1,13 @@
 use std::fmt;
 
-use num_enum::TryFromPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::error::RadError;
 use crate::hash_functions::sha2::sha2_256;
 
 mod sha2;
 
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum RadonHashFunctions {
     Fail = 0xFF,

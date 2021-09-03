@@ -271,6 +271,13 @@ pub fn create_radon_script_from_filters_and_reducer(
                 });
             }
         }
+        RadonReducers::HashConcatenate => {
+            if !active_wips.wip0017() {
+                return Err(RadError::UnsupportedReducerInAT {
+                    operator: rad_reducer as u8,
+                });
+            }
+        }
         _ => {
             return Err(RadError::UnsupportedReducerInAT {
                 operator: rad_reducer as u8,
