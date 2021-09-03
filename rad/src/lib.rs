@@ -259,16 +259,24 @@ pub fn run_aggregation_with_context_report(
 ) -> Result<RadonReport<RadonTypes>> {
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
+    let is_rng = reducer == 0x11;
 
-    let radon_script = create_radon_script_from_filters_and_reducer(
-        filters,
-        reducer,
-        context.active_wips.as_ref(),
-    )?;
+    if is_rng {
+        Ok(RadonReport::from_result(
+            Ok(radon_types_vec[0].clone()),
+            context,
+        ))
+    } else {
+        let radon_script = create_radon_script_from_filters_and_reducer(
+            filters,
+            reducer,
+            context.active_wips.as_ref(),
+        )?;
 
-    let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
+        let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
 
-    execute_radon_script(items_to_aggregate, &radon_script, context, settings)
+        execute_radon_script(items_to_aggregate, &radon_script, context, settings)
+    }
 }
 
 /// Run aggregate stage of a data request, return `RadonTypes`.
