@@ -681,7 +681,7 @@ mod tests {
 
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // WIP0017 is already included and it won't be updated
+        // WIP0017-18-19 is already included and it won't be updated
         let name_wip0017_18_19 = "WIP0017-0018-0019".to_string();
         let mut hs = HashSet::new();
         hs.insert(name_wip0017_18_19);
