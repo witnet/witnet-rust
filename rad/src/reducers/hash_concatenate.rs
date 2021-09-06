@@ -23,7 +23,22 @@ pub fn hash_concatenate(input: &RadonArray) -> Result<RadonTypes, RadError> {
                     .try_fold(vec![], |mut bytes, item| match item {
                         RadonTypes::Bytes(rad_bytes) => {
                             let new_bytes = rad_bytes.value();
-                            bytes.extend_from_slice(&new_bytes);
+                            match new_bytes.len() {
+                                32 => bytes.extend_from_slice(&new_bytes),
+                                x if x < 32 => {
+                                    let diff = 32 - x;
+                                    bytes.extend_from_slice(&new_bytes);
+                                    for _i in 0..diff {
+                                        bytes.extend_from_slice(&[0]);
+                                    }
+                                }
+                                x if x > 32 => {
+                                    bytes.extend_from_slice(&new_bytes[..32]);
+                                }
+                                _ => {
+                                    unreachable!()
+                                }
+                            }
 
                             Ok(bytes)
                         }
