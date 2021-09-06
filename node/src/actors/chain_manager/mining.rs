@@ -647,8 +647,13 @@ impl ChainManager {
             .consensus_constants
             .collateral_minimum;
 
+        let active_wips = ActiveWips {
+            active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
+            block_epoch,
+        };
+
         let dr_reveals = data_request_pool
-            .get_all_reveals()
+            .get_all_reveals(&active_wips)
             .into_iter()
             .map(|(dr_pointer, reveals)| {
                 (
@@ -659,13 +664,12 @@ impl ChainManager {
                 )
             })
             .collect::<Vec<_>>();
-        let active_wips = self.chain_state.tapi_engine.wip_activation.clone();
 
         let future_tally_transactions =
             dr_reveals
                 .into_iter()
                 .map(move |(dr_pointer, reveals, dr_state)| {
-                    let active_wips = active_wips.clone();
+                    let active_wips_inside_move = active_wips.clone();
 
                     async move {
                         log::debug!("Building tally for data request {}", dr_pointer);
@@ -703,17 +707,13 @@ impl ChainManager {
                         let rad_manager_addr = RadManager::from_registry();
 
                         // The result of `RunTally` will be published as tally
-                        let active_wips = ActiveWips {
-                            active_wips,
-                            block_epoch,
-                        };
                         let tally_result = rad_manager_addr
                             .send(RunTally {
                                 min_consensus_ratio,
                                 reports: reports.clone(),
                                 script: dr_state.data_request.data_request.tally.clone(),
                                 commits_count,
-                                active_wips: active_wips.clone(),
+                                active_wips: active_wips_inside_move.clone(),
                             })
                             .await
                             .unwrap_or_else(|e| {
@@ -738,7 +738,7 @@ impl ChainManager {
                             committers,
                             collateral_minimum,
                             tally_bytes_on_encode_error(),
-                            &active_wips,
+                            &active_wips_inside_move,
                         );
 
                         log::info!(

@@ -63,10 +63,12 @@ pub fn reduce(
                 Some(active_wips) if active_wips.wip0017() => median::median(input),
                 _ => error(),
             },
-            RadonReducers::HashConcatenate => {
-                // TODO: Handle with tapi
-                hash_concatenate::hash_concatenate(input)
-            }
+            RadonReducers::HashConcatenate => match &context.active_wips {
+                Some(active_wips) if active_wips.wip0019() => {
+                    hash_concatenate::hash_concatenate(input)
+                }
+                _ => error(),
+            },
             _ => error(),
         }
     } else {

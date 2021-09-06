@@ -71,14 +71,24 @@ impl DataRequestPool {
     }
 
     /// Get all the reveals
-    pub fn get_all_reveals(&self) -> HashMap<Hash, Vec<RevealTransaction>> {
+    pub fn get_all_reveals(
+        &self,
+        active_wips: &ActiveWips,
+    ) -> HashMap<Hash, Vec<RevealTransaction>> {
         self.data_request_pool
             .iter()
             .filter_map(|(dr_pointer, dr_state)| {
                 if let DataRequestStage::TALLY = dr_state.stage {
                     let mut reveals: Vec<RevealTransaction> =
                         dr_state.info.reveals.values().cloned().collect();
-                    reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
+                    reveals.sort_unstable_by_key(|reveal| {
+                        if active_wips.wip0019() {
+                            // TODO: Hash(pkh+dr)
+                            PublicKeyHash::default()
+                        } else {
+                            reveal.body.pkh
+                        }
+                    });
 
                     Some((*dr_pointer, reveals))
                 } else {
