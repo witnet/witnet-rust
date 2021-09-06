@@ -1,5 +1,7 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::convert::TryFrom;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    convert::TryFrom,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +15,7 @@ use crate::{
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
+use witnet_crypto::hash::calculate_sha256;
 
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -56,10 +59,24 @@ impl DataRequestPool {
     }
 
     /// Get all reveals related to a `DataRequestOuput`
-    pub fn get_reveals(&self, dr_pointer: &Hash) -> Option<Vec<&RevealTransaction>> {
+    pub fn get_reveals(
+        &self,
+        dr_pointer: &Hash,
+        active_wips: &ActiveWips,
+    ) -> Option<Vec<&RevealTransaction>> {
         self.data_request_pool.get(dr_pointer).map(|dr_state| {
             let mut reveals: Vec<&RevealTransaction> = dr_state.info.reveals.values().collect();
-            reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
+            if active_wips.wip0019() {
+                reveals.sort_unstable_by_key(|reveal| {
+                    let mut bytes_to_hash = vec![];
+                    bytes_to_hash.extend(reveal.body.pkh.hash);
+                    bytes_to_hash.extend(dr_pointer.as_ref());
+
+                    calculate_sha256(bytes_to_hash.as_ref()).0
+                });
+            } else {
+                reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
+            }
 
             reveals
         })
@@ -81,14 +98,18 @@ impl DataRequestPool {
                 if let DataRequestStage::TALLY = dr_state.stage {
                     let mut reveals: Vec<RevealTransaction> =
                         dr_state.info.reveals.values().cloned().collect();
-                    reveals.sort_unstable_by_key(|reveal| {
-                        if active_wips.wip0019() {
-                            // TODO: Hash(pkh+dr)
-                            PublicKeyHash::default()
-                        } else {
-                            reveal.body.pkh
-                        }
-                    });
+
+                    if active_wips.wip0019() {
+                        reveals.sort_unstable_by_key(|reveal| {
+                            let mut bytes_to_hash = vec![];
+                            bytes_to_hash.extend(reveal.body.pkh.hash);
+                            bytes_to_hash.extend(dr_pointer.as_ref());
+
+                            calculate_sha256(bytes_to_hash.as_ref()).0
+                        });
+                    } else {
+                        reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
+                    }
 
                     Some((*dr_pointer, reveals))
                 } else {

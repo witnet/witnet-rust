@@ -1118,7 +1118,7 @@ fn create_expected_tally_transaction(
     let dr_output = &dr_state.data_request;
 
     // The unwrap is safe because we know that the data request exists
-    let reveal_txns = dr_pool.get_reveals(&dr_pointer).unwrap();
+    let reveal_txns = dr_pool.get_reveals(&dr_pointer, active_wips).unwrap();
     let non_error_min = f64::from(dr_output.min_consensus_percentage) / 100.0;
     let committers = dr_state
         .info
