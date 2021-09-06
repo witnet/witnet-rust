@@ -31,7 +31,7 @@ use witnet_rad::{
     error::RadError,
     filters::RadonFilters,
     reducers::RadonReducers,
-    types::{integer::RadonInteger, RadonTypes},
+    types::{bytes::RadonBytes, integer::RadonInteger, RadonTypes},
 };
 
 use crate::validations::*;
@@ -1773,6 +1773,25 @@ fn example_data_request_with_mode_filter() -> RADRequest {
     }
 }
 
+fn example_data_request_rng() -> RADRequest {
+    RADRequest {
+        time_lock: 0,
+        retrieve: vec![RADRetrieve {
+            kind: RADType::Rng,
+            url: "".to_string(),
+            script: vec![],
+        }],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: 17,
+        },
+        tally: RADTally {
+            filters: vec![],
+            reducer: 17,
+        },
+    }
+}
+
 fn example_data_request_output(witnesses: u16, witness_reward: u64, fee: u64) -> DataRequestOutput {
     DataRequestOutput {
         witnesses,
@@ -1780,6 +1799,21 @@ fn example_data_request_output(witnesses: u16, witness_reward: u64, fee: u64) ->
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
+    }
+}
+
+fn example_data_request_output_rng(
+    witnesses: u16,
+    witness_reward: u64,
+    fee: u64,
+) -> DataRequestOutput {
+    DataRequestOutput {
+        witnesses,
+        commit_and_reveal_fee: fee,
+        witness_reward,
+        min_consensus_percentage: 51,
+        data_request: example_data_request_rng(),
         collateral: ONE_WIT,
     }
 }
@@ -4511,6 +4545,15 @@ fn generic_tally_test_stddev_dr(
     generic_tally_test_inner(num_commits, reveals, dr_output)
 }
 
+fn generic_tally_test_rng(
+    num_commits: usize,
+    reveals: Vec<Vec<u8>>,
+) -> (Vec<PublicKeyHash>, PublicKeyHash, Hash, DataRequestPool) {
+    let dr_output = example_data_request_output_rng(u16::try_from(num_commits).unwrap(), 200, 20);
+
+    generic_tally_test_inner(num_commits, reveals, dr_output)
+}
+
 fn generic_tally_test(
     num_commits: usize,
     reveals: Vec<Vec<u8>>,
@@ -6556,6 +6599,381 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
         vec![vt0, vt1, vt2, vt3, vt4],
         vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
         vec![pkhs[0], pkhs[1], pkhs[2]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_rng() {
+    let reveals = vec![
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a")
+                .unwrap(),
+        )),
+    ];
+    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let collateral = ONE_WIT;
+    let reward = collateral + 200;
+
+    let tally_value = RadonTypes::from(RadonBytes::from(
+        hex::decode("d65b4b0c92948fda3fd61fcdcf98bffdf816eb861967a45a0c3d9c4abfa148c0").unwrap(),
+    ))
+    .encode()
+    .unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: reward,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        vec![],
+        vec![],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_rng_wrong_bytes_len() {
+    let reveals = vec![
+        RadonTypes::from(RadonBytes::from(hex::decode("").unwrap())),
+        RadonTypes::from(RadonBytes::from(hex::decode("d4").unwrap())),
+        RadonTypes::from(RadonBytes::from(hex::decode("4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce").unwrap())),
+        RadonTypes::from(RadonBytes::from(hex::decode("4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8affffffffffffffffffffffff").unwrap())),
+    ];
+    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let collateral = ONE_WIT;
+    let reward = collateral + 200;
+
+    let tally_value = RadonTypes::from(RadonBytes::from(
+        hex::decode("482c6793a0d64ddb142aafa391f4ddb3bf546b83d921d778e8acf4fafd1e9d64").unwrap(),
+    ))
+    .encode()
+    .unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: reward,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        vec![],
+        vec![],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_rng_one_error() {
+    let reveals = vec![
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce")
+                .unwrap(),
+        )),
+        RadonTypes::from(
+            RadonError::try_from(RadError::TallyExecution {
+                inner: None,
+                message: Some("dummy error".to_string()),
+            })
+            .unwrap(),
+        ),
+    ];
+    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let collateral = ONE_WIT;
+    let reward = collateral + 200;
+    let change = 200;
+
+    let tally_value = RadonTypes::from(RadonBytes::from(
+        hex::decode("1ea51598cbb9b3744ebfe90ff77cdee9f3c646b25808015c78bb7aa070961c3d").unwrap(),
+    ))
+    .encode()
+    .unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: collateral,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3, vt4],
+        vec![pkhs[3]],
+        vec![pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_rng_all_errors() {
+    let reveals = vec![
+        RadonTypes::from(
+            RadonError::try_from(RadError::TallyExecution {
+                inner: None,
+                message: Some("dummy error".to_string()),
+            })
+            .unwrap(),
+        ),
+        RadonTypes::from(
+            RadonError::try_from(RadError::TallyExecution {
+                inner: None,
+                message: Some("dummy error".to_string()),
+            })
+            .unwrap(),
+        ),
+        RadonTypes::from(
+            RadonError::try_from(RadError::TallyExecution {
+                inner: None,
+                message: Some("dummy error".to_string()),
+            })
+            .unwrap(),
+        ),
+        RadonTypes::from(
+            RadonError::try_from(RadError::TallyExecution {
+                inner: None,
+                message: Some("dummy error".to_string()),
+            })
+            .unwrap(),
+        ),
+    ];
+    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let collateral = ONE_WIT;
+    let reward = collateral + 200;
+
+    let tally_value = RadonTypes::from(
+        RadonError::try_from(RadError::TallyExecution {
+            inner: None,
+            message: Some("dummy error".to_string()),
+        })
+        .unwrap(),
+    )
+    .encode()
+    .unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: reward,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        vec![],
+        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_rng_one_invalid_type() {
+    let reveals = vec![
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonBytes::from(
+            hex::decode("4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce")
+                .unwrap(),
+        )),
+        RadonTypes::from(RadonInteger::from(4)),
+    ];
+    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let collateral = ONE_WIT;
+    let reward = collateral + 200 + collateral / 3;
+    let change = 200;
+
+    let tally_value = RadonTypes::from(RadonBytes::from(
+        hex::decode("1ea51598cbb9b3744ebfe90ff77cdee9f3c646b25808015c78bb7aa070961c3d").unwrap(),
+    ))
+    .encode()
+    .unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt4 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt4],
+        vec![pkhs[3]],
+        vec![],
+    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
+        .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_valid_rng_all_invalid_type() {
+    let reveals = vec![
+        RadonTypes::from(RadonInteger::from(1)),
+        RadonTypes::from(RadonInteger::from(2)),
+        RadonTypes::from(RadonInteger::from(3)),
+        RadonTypes::from(RadonInteger::from(4)),
+    ];
+    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let collateral = ONE_WIT;
+    let reward = collateral + 200;
+
+    let tally_value = RadonTypes::from(
+        RadonError::try_from(RadError::UnhandledIntercept {
+            inner: None,
+            message: Some("inner: UnsupportedReducer { array: RadonArray { value: [Integer(RadonInteger { value: 1 }), Integer(RadonInteger { value: 2 }), Integer(RadonInteger { value: 3 }), Integer(RadonInteger { value: 4 })], is_homogeneous: true }, reducer: \"RadonReducers::HashConcatenate\" }".to_string()),
+        })
+            .unwrap(),
+    )
+        .encode()
+        .unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[1],
+        value: reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[2],
+        value: reward,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkhs[3],
+        value: reward,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value,
+        vec![vt0, vt1, vt2, vt3],
+        vec![],
+        vec![],
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
         .map(|_| ());

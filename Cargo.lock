@@ -5229,6 +5229,7 @@ dependencies = [
  "approx",
  "bencher",
  "failure",
+ "hex 0.4.3",
  "itertools",
  "log 0.4.11",
  "witnet_config",

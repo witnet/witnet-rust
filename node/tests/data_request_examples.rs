@@ -7,9 +7,9 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use witnet_data_structures::chain::DataRequestOutput;
+use witnet_data_structures::mainnet_validations::ActiveWips;
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
-    current_active_wips,
     script::RadonScriptExecutionSettings,
     types::{
         bytes::RadonBytes, float::RadonFloat, integer::RadonInteger, string::RadonString,
@@ -17,6 +17,13 @@ use witnet_rad::{
     },
 };
 use witnet_validations::validations::validate_rad_request;
+
+fn current_active_wips() -> ActiveWips {
+    let mut h = witnet_rad::current_active_wips();
+    h.active_wips.insert("WIP0017".to_string(), 0);
+    h.active_wips.insert("WIP0019".to_string(), 0);
+    h
+}
 
 /// Id. Can be null, a number, or a string
 #[derive(Debug, Serialize, Deserialize)]
@@ -183,9 +190,9 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
             examples::random_bytes(),
             &["4"],
             RadonTypes::Bytes(RadonBytes::from(vec![
-                0xE1, 0x1D, 0x8C, 0xB9, 0x4B, 0x54, 0xE0, 0xA2, 0xFD, 0x0E, 0x78, 0x0F, 0x93, 0xDD,
-                0x51, 0x83, 0x7F, 0xD3, 0x9B, 0xF0, 0xC9, 0xB8, 0x6F, 0x21, 0xE7, 0x60, 0xD0, 0x2A,
-                0x85, 0x50, 0xDD, 0xF7,
+                0xC0, 0xCD, 0x96, 0xF3, 0xBB, 0x86, 0xE2, 0x60, 0x74, 0x3C, 0x99, 0x9C, 0xB6, 0xE4,
+                0x93, 0x39, 0xA2, 0x15, 0x1F, 0xD3, 0xC2, 0x5E, 0xEB, 0x4C, 0x14, 0x66, 0xB3, 0x55,
+                0xD9, 0x30, 0x0D, 0x40,
             ])),
         ),
     ];
