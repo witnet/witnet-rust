@@ -7,7 +7,6 @@ pub use serde_cbor::Value as CborValue;
 
 use crate::{
     error::RadError,
-    operators::string as string_operators,
     script::{
         create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
         RadonScriptExecutionSettings,
@@ -138,8 +137,8 @@ pub fn run_retrieval_with_data_report(
         }
 
         RADType::Rng => {
-            let random_int = string_operators::to_int(&RadonString::from(response.to_string()))?;
-            let result = RadonTypes::from(random_int);
+            let response_bytes = response.as_bytes();
+            let result = RadonTypes::from(RadonBytes::from(response_bytes.to_vec()));
 
             Ok(RadonReport::from_result(Ok(result), context))
         }

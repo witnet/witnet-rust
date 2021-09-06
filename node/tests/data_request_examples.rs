@@ -11,7 +11,10 @@ use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
     current_active_wips,
     script::RadonScriptExecutionSettings,
-    types::{float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes},
+    types::{
+        bytes::RadonBytes, float::RadonFloat, integer::RadonInteger, string::RadonString,
+        RadonTypes,
+    },
 };
 use witnet_validations::validations::validate_rad_request;
 
@@ -174,6 +177,16 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
             RadonTypes::String(RadonString::from(
                 "0000000000000000000e3b5418f6c92cb19494dfea28a83da8643485925aba1b",
             )),
+        ),
+        (
+            "random_bytes.json",
+            examples::random_bytes(),
+            &["4"],
+            RadonTypes::Bytes(RadonBytes::from(vec![
+                0xE1, 0x1D, 0x8C, 0xB9, 0x4B, 0x54, 0xE0, 0xA2, 0xFD, 0x0E, 0x78, 0x0F, 0x93, 0xDD,
+                0x51, 0x83, 0x7F, 0xD3, 0x9B, 0xF0, 0xC9, 0xB8, 0x6F, 0x21, 0xE7, 0x60, 0xD0, 0x2A,
+                0x85, 0x50, 0xDD, 0xF7,
+            ])),
         ),
     ];
 
@@ -416,6 +429,38 @@ mod examples {
                 },
                 witness_reward: 1000,
                 witnesses: 3,
+                commit_and_reveal_fee: 10,
+                min_consensus_percentage: 51,
+                collateral: 1_000_000_000,
+            },
+            fee: 0,
+        }
+    }
+
+    pub fn random_bytes() -> BuildDrt {
+        let url_0 = "";
+        let r0_script = vec![];
+
+        BuildDrt {
+            dro: DataRequestOutput {
+                data_request: RADRequest {
+                    time_lock: 0,
+                    retrieve: vec![RADRetrieve {
+                        kind: RADType::Rng,
+                        url: url_0.to_string(),
+                        script: r0_script,
+                    }],
+                    aggregate: RADAggregate {
+                        filters: vec![],
+                        reducer: 17,
+                    },
+                    tally: RADTally {
+                        filters: vec![],
+                        reducer: 17,
+                    },
+                },
+                witness_reward: 1000,
+                witnesses: 5,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
