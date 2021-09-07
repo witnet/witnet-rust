@@ -258,7 +258,7 @@ pub fn run_aggregation_with_context_report(
 ) -> Result<RadonReport<RadonTypes>> {
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
-    let is_rng = reducer == 0x11;
+    let is_rng = reducer == 0x0b;
 
     if is_rng {
         Ok(RadonReport::from_result(

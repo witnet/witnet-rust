@@ -38,7 +38,7 @@ use witnet_data_structures::{
 };
 use witnet_rad::{
     error::RadError,
-    reducers::mode::mode,
+    reducers::{mode::mode, RadonReducers},
     run_tally_report,
     script::{
         create_radon_script_from_filters_and_reducer, unpack_radon_script,
@@ -272,8 +272,9 @@ pub fn validate_rad_request(
     let aggregate = &rad_request.aggregate;
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
+    let hash_concatenate_reducer_code = u8::from(RadonReducers::HashConcatenate);
     if is_rng {
-        if !filters.is_empty() || reducer != 0x11 {
+        if !filters.is_empty() || reducer != u32::from(hash_concatenate_reducer_code) {
             return Err(DataRequestError::InvalidRngRequest.into());
         }
     } else {
@@ -1222,11 +1223,6 @@ pub fn validate_tally_transaction<'a>(
         .into());
     }
 
-    #[cfg(test)]
-    println!(
-        "expected_ta_tx.tally: {}",
-        hex::encode(&expected_ta_tx.tally)
-    );
     // Validation of tally result
     if expected_ta_tx.tally != ta_tx.tally {
         return Err(TransactionError::MismatchedConsensus {

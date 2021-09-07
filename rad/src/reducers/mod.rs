@@ -1,6 +1,6 @@
 use std::fmt;
 
-use num_enum::TryFromPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
     error::RadError,
@@ -14,7 +14,7 @@ pub mod hash_concatenate;
 pub mod median;
 pub mod mode;
 
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum RadonReducers {
     // Implemented
@@ -22,7 +22,7 @@ pub enum RadonReducers {
     AverageMean = 0x03,
     AverageMedian = 0x05,
     DeviationStandard = 0x07,
-    HashConcatenate = 0x11,
+    HashConcatenate = 0x0b,
 
     // Not implemented
     Min = 0x00,
@@ -31,7 +31,7 @@ pub enum RadonReducers {
     AverageMedianWeighted = 0x06,
     DeviationAverageAbsolute = 0x08,
     DeviationMedianAbsolute = 0x09,
-    DeviationMaximumAbsolute = 0x10,
+    DeviationMaximumAbsolute = 0x0a,
 }
 
 impl fmt::Display for RadonReducers {

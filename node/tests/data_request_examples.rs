@@ -459,11 +459,11 @@ mod examples {
                     }],
                     aggregate: RADAggregate {
                         filters: vec![],
-                        reducer: 17,
+                        reducer: RadonReducers::HashConcatenate as u32,
                     },
                     tally: RADTally {
                         filters: vec![],
-                        reducer: 17,
+                        reducer: RadonReducers::HashConcatenate as u32,
                     },
                 },
                 witness_reward: 1000,
