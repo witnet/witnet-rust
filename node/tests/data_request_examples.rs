@@ -190,9 +190,8 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
             examples::random_bytes(),
             &["4"],
             RadonTypes::Bytes(RadonBytes::from(vec![
-                0xC0, 0xCD, 0x96, 0xF3, 0xBB, 0x86, 0xE2, 0x60, 0x74, 0x3C, 0x99, 0x9C, 0xB6, 0xE4,
-                0x93, 0x39, 0xA2, 0x15, 0x1F, 0xD3, 0xC2, 0x5E, 0xEB, 0x4C, 0x14, 0x66, 0xB3, 0x55,
-                0xD9, 0x30, 0x0D, 0x40,
+                37, 243, 87, 33, 196, 171, 163, 135, 8, 21, 38, 67, 130, 180, 217, 50, 108, 156,
+                143, 166, 82, 161, 221, 100, 98, 226, 10, 230, 226, 213, 143, 190,
             ])),
         ),
     ];
@@ -459,7 +458,7 @@ mod examples {
                     }],
                     aggregate: RADAggregate {
                         filters: vec![],
-                        reducer: RadonReducers::HashConcatenate as u32,
+                        reducer: RadonReducers::Unwrap as u32,
                     },
                     tally: RADTally {
                         filters: vec![],

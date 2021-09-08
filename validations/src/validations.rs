@@ -272,25 +272,24 @@ pub fn validate_rad_request(
     let aggregate = &rad_request.aggregate;
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
-    let hash_concatenate_reducer_code = u8::from(RadonReducers::HashConcatenate);
-    if is_rng {
-        if !filters.is_empty() || reducer != u32::from(hash_concatenate_reducer_code) {
-            return Err(DataRequestError::InvalidRngRequest.into());
-        }
-    } else {
-        create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
+    let valid_rng_aggregation_script =
+        filters.is_empty() && reducer == u32::from(u8::from(RadonReducers::Unwrap));
+
+    if is_rng && !valid_rng_aggregation_script {
+        return Err(DataRequestError::InvalidRngRequest.into());
     }
+    create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
 
     let consensus = &rad_request.tally;
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
-    if is_rng {
-        if !filters.is_empty() || reducer != 0x11 {
-            return Err(DataRequestError::InvalidRngRequest.into());
-        }
-    } else {
-        create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
+    let valid_rng_tally_script =
+        filters.is_empty() && reducer == u32::from(u8::from(RadonReducers::HashConcatenate));
+
+    if is_rng && !valid_rng_tally_script {
+        return Err(DataRequestError::InvalidRngRequest.into());
     }
+    create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
 
     Ok(())
 }
