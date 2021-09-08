@@ -38,7 +38,7 @@ use witnet_data_structures::{
 };
 use witnet_rad::{
     error::RadError,
-    reducers::{mode::mode, RadonReducers},
+    reducers::mode::mode,
     run_tally_report,
     script::{
         create_radon_script_from_filters_and_reducer, unpack_radon_script,
@@ -247,48 +247,22 @@ pub fn validate_rad_request(
     if retrieval_paths.is_empty() {
         return Err(DataRequestError::NoRetrievalSources.into());
     }
-    let mut is_rng = false;
     for path in retrieval_paths {
-        if path.kind == RADType::Rng {
-            if path.url.is_empty() && path.script.is_empty() {
-                is_rng = true;
-                break;
-            } else {
-                return Err(DataRequestError::InvalidRngRequest.into());
-            }
-        }
-
         // If the sources are empty the data request is set as invalid
-        if path.url.is_empty() {
+        if path.url.is_empty() && path.kind != RADType::Rng {
             return Err(DataRequestError::NoRetrievalSources.into());
         }
         unpack_radon_script(path.script.as_slice())?;
     }
 
-    if is_rng && retrieval_paths.len() > 1 {
-        return Err(DataRequestError::InvalidRngRequest.into());
-    }
-
     let aggregate = &rad_request.aggregate;
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
-    let valid_rng_aggregation_script =
-        filters.is_empty() && reducer == u32::from(u8::from(RadonReducers::Unwrap));
-
-    if is_rng && !valid_rng_aggregation_script {
-        return Err(DataRequestError::InvalidRngRequest.into());
-    }
     create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
 
     let consensus = &rad_request.tally;
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
-    let valid_rng_tally_script =
-        filters.is_empty() && reducer == u32::from(u8::from(RadonReducers::HashConcatenate));
-
-    if is_rng && !valid_rng_tally_script {
-        return Err(DataRequestError::InvalidRngRequest.into());
-    }
     create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
 
     Ok(())

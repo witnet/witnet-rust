@@ -485,8 +485,6 @@ pub enum DataRequestError {
     UnfinishedDataRequest,
     #[fail(display = "The data request is not valid since it has no retrieval sources")]
     NoRetrievalSources,
-    #[fail(display = "The data request to generate a Random Number is invalid")]
-    InvalidRngRequest,
 }
 
 /// Possible errors when converting between epoch and timestamp
