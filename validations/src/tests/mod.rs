@@ -1783,11 +1783,11 @@ fn example_data_request_rng() -> RADRequest {
         }],
         aggregate: RADAggregate {
             filters: vec![],
-            reducer: 17,
+            reducer: 12,
         },
         tally: RADTally {
             filters: vec![],
-            reducer: 17,
+            reducer: 11,
         },
     }
 }
@@ -6631,7 +6631,7 @@ fn tally_valid_rng() {
     let reward = collateral + 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("d65b4b0c92948fda3fd61fcdcf98bffdf816eb861967a45a0c3d9c4abfa148c0").unwrap(),
+        hex::decode("010d3b53674bcebefca0d8041c3fd938ac1f570a06aaad9fe3fe6f171b43317d").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6681,7 +6681,7 @@ fn tally_valid_rng_wrong_bytes_len() {
     let reward = collateral + 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("482c6793a0d64ddb142aafa391f4ddb3bf546b83d921d778e8acf4fafd1e9d64").unwrap(),
+        hex::decode("74660978522d7dc6f03030689665b2053143352f3e43b13cbb0d645895f7cb17").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6747,7 +6747,7 @@ fn tally_valid_rng_one_error() {
     let change = 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("1ea51598cbb9b3744ebfe90ff77cdee9f3c646b25808015c78bb7aa070961c3d").unwrap(),
+        hex::decode("afd6ef93a654a25be00a897ca8fcdb3d74c49460e27086262040a6dbd887cac0").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6890,7 +6890,7 @@ fn tally_valid_rng_one_invalid_type() {
     let change = 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("1ea51598cbb9b3744ebfe90ff77cdee9f3c646b25808015c78bb7aa070961c3d").unwrap(),
+        hex::decode("afd6ef93a654a25be00a897ca8fcdb3d74c49460e27086262040a6dbd887cac0").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6942,7 +6942,7 @@ fn tally_valid_rng_all_invalid_type() {
     let tally_value = RadonTypes::from(
         RadonError::try_from(RadError::UnhandledIntercept {
             inner: None,
-            message: Some("inner: UnsupportedReducer { array: RadonArray { value: [Integer(RadonInteger { value: 1 }), Integer(RadonInteger { value: 2 }), Integer(RadonInteger { value: 3 }), Integer(RadonInteger { value: 4 })], is_homogeneous: true }, reducer: \"RadonReducers::HashConcatenate\" }".to_string()),
+            message: Some("inner: UnsupportedReducer { array: RadonArray { value: [Integer(RadonInteger { value: 4 }), Integer(RadonInteger { value: 2 }), Integer(RadonInteger { value: 1 }), Integer(RadonInteger { value: 3 })], is_homogeneous: true }, reducer: \"RadonReducers::HashConcatenate\" }".to_string()),
         })
             .unwrap(),
     )
