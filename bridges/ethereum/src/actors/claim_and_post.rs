@@ -97,7 +97,7 @@ fn try_to_claim_local_query(
 
                 let dr_output: DataRequestOutput =
                     match ProtobufConvert::from_pb_bytes(&dr_bytes).and_then(|dr: DataRequestOutput| {
-                        validate_rad_request(&dr.data_request)?;
+                        validate_rad_request(&dr.data_request, None)?;
                         Ok(dr)
                     }) {
                         Ok(x) => {

@@ -14,6 +14,7 @@ use witnet_data_structures::{
         SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
+    mainnet_validations::ActiveWips,
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
@@ -1270,7 +1271,13 @@ impl Handler<BuildDrt> for ChainManager {
                 .into(),
             ));
         }
-        if let Err(e) = validate_rad_request(&msg.dro.data_request) {
+
+        let active_wips = ActiveWips {
+            active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
+            block_epoch: self.current_epoch.unwrap(),
+        };
+
+        if let Err(e) = validate_rad_request(&msg.dro.data_request, Some(&active_wips)) {
             return Box::pin(actix::fut::err(e));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
