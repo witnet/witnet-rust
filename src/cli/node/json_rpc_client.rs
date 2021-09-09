@@ -624,7 +624,7 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
     log::debug!("{}", serde_json::to_string(&dr)?);
 
     validate_data_request_output(&dr)?;
-    validate_rad_request(&dr.data_request)?;
+    validate_rad_request(&dr.data_request, None)?;
 
     // Is the data request serialized correctly?
     // Check that serializing the deserialized struct results in exactly the same bytes

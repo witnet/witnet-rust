@@ -27,6 +27,7 @@ use witnet_data_structures::{
 };
 use witnet_protected::Protected;
 use witnet_rad::{
+    current_active_wips,
     error::RadError,
     filters::RadonFilters,
     reducers::RadonReducers,
@@ -1337,6 +1338,7 @@ fn data_request_no_inputs() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1372,6 +1374,7 @@ fn data_request_no_inputs_but_one_signature() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1416,6 +1419,7 @@ fn data_request_one_input_but_no_signature() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1461,6 +1465,7 @@ fn data_request_one_input_signatures() {
             &mut signatures_to_verify,
             ONE_WIT,
             MAX_DR_WEIGHT,
+            &current_active_wips(),
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -1502,6 +1507,7 @@ fn data_request_input_double_spend() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1540,6 +1546,7 @@ fn data_request_input_not_in_utxo() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1583,6 +1590,7 @@ fn data_request_input_not_enough_value() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1650,6 +1658,7 @@ fn data_request_output_value_overflow() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1685,6 +1694,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         &mut signatures_to_verify,
         ONE_WIT,
         u32::max_value(),
+        &current_active_wips(),
     )
     .map(|_| ())
 }
@@ -1975,6 +1985,7 @@ fn dr_validation_weight_limit_exceeded() {
         &mut signatures_to_verify,
         ONE_WIT,
         1625 - 1,
+        &current_active_wips(),
     );
 
     assert_eq!(
@@ -2061,6 +2072,7 @@ fn data_request_miner_fee() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -2107,6 +2119,7 @@ fn data_request_miner_fee_with_change() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -2154,6 +2167,7 @@ fn data_request_change_to_different_pkh() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
 
     assert_eq!(
@@ -2213,6 +2227,7 @@ fn data_request_two_change_outputs() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
 
     assert_eq!(
@@ -2264,6 +2279,7 @@ fn data_request_miner_fee_with_too_much_change() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2311,6 +2327,7 @@ fn data_request_zero_value_output() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        &current_active_wips(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),

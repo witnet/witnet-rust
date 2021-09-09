@@ -238,7 +238,10 @@ pub fn validate_mint_transaction(
 }
 
 /// Function to validate a rad request
-pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Error> {
+pub fn validate_rad_request(
+    rad_request: &RADRequest,
+    active_wips: Option<&ActiveWips>,
+) -> Result<(), failure::Error> {
     let retrieval_paths = &rad_request.retrieve;
     // If the data request has no sources to retrieve, it is set as invalid
     if retrieval_paths.is_empty() {
@@ -255,12 +258,12 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
     let aggregate = &rad_request.aggregate;
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
-    create_radon_script_from_filters_and_reducer(filters, reducer)?;
+    create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
 
     let consensus = &rad_request.tally;
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
-    create_radon_script_from_filters_and_reducer(filters, reducer)?;
+    create_radon_script_from_filters_and_reducer(filters, reducer, active_wips)?;
 
     Ok(())
 }
@@ -705,6 +708,7 @@ pub fn validate_genesis_vt_transaction(
 }
 
 /// Function to validate a data request transaction
+#[allow(clippy::too_many_arguments)]
 pub fn validate_dr_transaction<'a>(
     dr_tx: &'a DRTransaction,
     utxo_diff: &UtxoDiff<'_>,
@@ -713,6 +717,7 @@ pub fn validate_dr_transaction<'a>(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     collateral_minimum: u64,
     max_dr_weight: u32,
+    active_wips: &ActiveWips,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     if dr_tx.weight() > max_dr_weight {
         return Err(TransactionError::DataRequestWeightLimitExceeded {
@@ -789,7 +794,7 @@ pub fn validate_dr_transaction<'a>(
         .into());
     }
 
-    validate_rad_request(&dr_tx.body.dr_output.data_request)?;
+    validate_rad_request(&dr_tx.body.dr_output.data_request, Some(active_wips))?;
 
     Ok((
         dr_tx.body.inputs.iter().collect(),
@@ -1859,6 +1864,7 @@ pub fn validate_block_transactions(
             signatures_to_verify,
             consensus_constants.collateral_minimum,
             consensus_constants.max_dr_weight,
+            active_wips,
         )?;
         total_fee += fee;
 
@@ -2051,6 +2057,7 @@ pub fn validate_new_transaction(
             signatures_to_verify,
             collateral_minimum,
             max_dr_weight,
+            active_wips,
         )
         .map(|(_, _, fee)| fee),
         Transaction::Commit(tx) => validate_commit_transaction(
