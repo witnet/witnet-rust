@@ -13,6 +13,7 @@ use witnet_rad::{
     script::RadonScriptExecutionSettings,
     types::{float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes},
 };
+use witnet_validations::validations::validate_rad_request;
 
 /// Id. Can be null, a number, or a string
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,6 +46,11 @@ fn run_dr_locally_with_data(
     dr: &DataRequestOutput,
     data: &[&str],
 ) -> Result<RadonTypes, failure::Error> {
+    // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
+    // This does not validate other data request parameters such as number of witnesses, weight, or
+    // collateral, so it is still possible that this request is considered invalid by miners.
+    validate_rad_request(&dr.data_request)?;
+
     let mut retrieval_results = vec![];
     assert_eq!(dr.data_request.retrieve.len(), data.len());
     for (r, d) in dr.data_request.retrieve.iter().zip(data.iter()) {
