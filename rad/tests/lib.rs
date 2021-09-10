@@ -51,7 +51,7 @@ fn test_radon_types_display() {
 
     let radon_bytes = RadonTypes::try_from(Value::Bytes(vec![1, 2, 3])).unwrap();
     let radon_bytes_type_display = radon_bytes.to_string();
-    let radon_bytes_expected = "RadonTypes::RadonBytes([1, 2, 3])".to_string();
+    let radon_bytes_expected = r#"RadonTypes::RadonBytes("010203")"#.to_string();
     assert_eq!(radon_bytes_type_display, radon_bytes_expected);
 
     let radon_string = RadonTypes::try_from(Value::Text(String::from("Hello, World!"))).unwrap();
