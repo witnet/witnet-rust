@@ -382,6 +382,10 @@ pub struct Mempool {
 pub struct Tapi {
     /// Oppose WIP0017
     pub oppose_wip0017: bool,
+    /// Oppose WIP0018
+    pub oppose_wip0018: bool,
+    /// Oppose WIP0019
+    pub oppose_wip0019: bool,
 }
 
 fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusConstants {

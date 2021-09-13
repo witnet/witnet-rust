@@ -245,5 +245,9 @@ oppose_wip0017 = true
         assert_eq!(empty_config.tapi, Tapi::default());
         assert!(!empty_config.tapi.oppose_wip0017);
         assert!(config_oppose_0017.tapi.oppose_wip0017);
+        assert!(!empty_config.tapi.oppose_wip0018);
+        assert!(!config_oppose_0017.tapi.oppose_wip0018);
+        assert!(!empty_config.tapi.oppose_wip0019);
+        assert!(!config_oppose_0017.tapi.oppose_wip0019);
     }
 }

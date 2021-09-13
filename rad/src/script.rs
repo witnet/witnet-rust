@@ -218,10 +218,12 @@ pub fn create_radon_script_from_filters_and_reducer(
     let unknown_filter = |code| RadError::UnknownFilter { code };
     let unknown_reducer = |code| RadError::UnknownReducer { code };
 
+    let current_wips;
     let active_wips = if let Some(active_wips) = active_wips {
-        active_wips.clone()
+        active_wips
     } else {
-        current_active_wips()
+        current_wips = current_active_wips();
+        &current_wips
     };
 
     let mut radoncall_vec = vec![];
