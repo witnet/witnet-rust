@@ -292,7 +292,9 @@ mod tests {
         assert_eq!(output, expected_err);
 
         // Activate WIP-0017
-        active_wips.active_wips.insert("WIP0017".to_string(), 0);
+        active_wips
+            .active_wips
+            .insert("WIP0017-0018-0019".to_string(), 0);
         context.active_wips = Some(active_wips);
         let expected = RadonTypes::from(RadonFloat::from(2f64));
         let output = input.operate_in_context(&call, &mut context).unwrap();
