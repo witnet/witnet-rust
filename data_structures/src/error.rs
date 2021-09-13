@@ -485,6 +485,8 @@ pub enum DataRequestError {
     UnfinishedDataRequest,
     #[fail(display = "The data request is not valid since it has no retrieval sources")]
     NoRetrievalSources,
+    #[fail(display = "The data request has not a valid RadType")]
+    InvalidRadType,
 }
 
 /// Possible errors when converting between epoch and timestamp

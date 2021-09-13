@@ -37,6 +37,7 @@ use witnet_data_structures::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
 use witnet_rad::{
+    current_active_wips,
     error::RadError,
     reducers::mode::mode,
     run_tally_report,
@@ -247,9 +248,26 @@ pub fn validate_rad_request(
     if retrieval_paths.is_empty() {
         return Err(DataRequestError::NoRetrievalSources.into());
     }
+
+    let active_wips2 = if let Some(active_wips) = active_wips {
+        active_wips.clone()
+    } else {
+        current_active_wips()
+    };
+
     for path in retrieval_paths {
+        // Regarding WIP-0019 activation:
+        // Before -> Only RadType enum 0 position is valid
+        // After -> RadType::Unknown are invalid
+        if (!active_wips2.wip0019() && path.kind != RADType::Unknown)
+            || (active_wips2.wip0019() && path.kind == RADType::Unknown)
+        {
+            return Err(DataRequestError::InvalidRadType.into());
+        }
+
+        let is_rng = active_wips2.wip0019() && path.kind == RADType::Rng;
         // If the sources are empty the data request is set as invalid
-        if path.url.is_empty() && path.kind != RADType::Rng {
+        if path.url.is_empty() && !is_rng {
             return Err(DataRequestError::NoRetrievalSources.into());
         }
         unpack_radon_script(path.script.as_slice())?;

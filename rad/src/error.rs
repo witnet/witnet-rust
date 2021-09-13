@@ -80,6 +80,9 @@ pub enum RadError {
     /// The given reducer code is unknown
     #[fail(display = "Reducer code `{}` is unknown", code)]
     UnknownReducer { code: i128 },
+    /// The given retrieval code is unknown
+    #[fail(display = "Retrieval code is unknown")]
+    UnknownRetrieval,
     /// The given hash function is not implemented
     #[fail(display = "Hash function `{}` is not implemented", function)]
     UnsupportedHashFunction { function: String },

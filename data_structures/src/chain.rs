@@ -1584,6 +1584,9 @@ impl Hashable for Bn256Signature {
 /// Retrieval type
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub enum RADType {
+    /// Unknown
+    #[serde(rename = "Unknown")]
+    Unknown,
     /// HTTP GET request
     #[serde(rename = "HTTP-GET")]
     HttpGet,
@@ -4006,7 +4009,7 @@ mod tests {
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();
-        let expected = "7b4001b4a43b3e3dccec642791031d8094ea52164d89c2a4732d0be79ed1af83";
+        let expected = "9221b651aaef0f6d75a175958825775ed0add54102a431a27e485052478e0f9b";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
         assert_eq!(transaction.hash().to_string(), expected);

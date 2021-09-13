@@ -121,6 +121,30 @@ pub fn try_data_request(
     }
 }
 
+/// Handle HTTP-GET response with data report
+fn http_get_response_with_data_report(
+    retrieve: &RADRetrieve,
+    response: &str,
+    context: &mut ReportContext<RadonTypes>,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
+    let input = RadonTypes::from(RadonString::from(response));
+    let radon_script = unpack_radon_script(&retrieve.script)?;
+
+    execute_radon_script(input, &radon_script, context, settings)
+}
+
+/// Handle Rng response with data report
+fn rng_response_with_data_report(
+    response: &str,
+    context: &mut ReportContext<RadonTypes>,
+) -> Result<RadonReport<RadonTypes>> {
+    let response_bytes = response.as_bytes();
+    let result = RadonTypes::from(RadonBytes::from(response_bytes.to_vec()));
+
+    Ok(RadonReport::from_result(Ok(result), context))
+}
+
 /// Run retrieval without performing any external network requests, return `RadonReport`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
@@ -128,20 +152,15 @@ pub fn run_retrieval_with_data_report(
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    match retrieve.kind {
-        RADType::HttpGet => {
-            let input = RadonTypes::from(RadonString::from(response));
-            let radon_script = unpack_radon_script(&retrieve.script)?;
-
-            execute_radon_script(input, &radon_script, context, settings)
-        }
-
-        RADType::Rng => {
-            let response_bytes = response.as_bytes();
-            let result = RadonTypes::from(RadonBytes::from(response_bytes.to_vec()));
-
-            Ok(RadonReport::from_result(Ok(result), context))
-        }
+    match &context.active_wips {
+        Some(active_wips) if active_wips.wip0019() => match retrieve.kind {
+            RADType::Unknown => Err(RadError::UnknownRetrieval),
+            RADType::HttpGet => {
+                http_get_response_with_data_report(retrieve, response, context, settings)
+            }
+            RADType::Rng => rng_response_with_data_report(response, context),
+        },
+        _ => http_get_response_with_data_report(retrieve, response, context, settings),
     }
 }
 
@@ -158,69 +177,84 @@ pub fn run_retrieval_with_data(
         .map(RadonReport::into_inner)
 }
 
+/// Handle HTTP-GET response
+async fn http_get_response(
+    retrieve: &RADRetrieve,
+    context: &mut ReportContext<RadonTypes>,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
+    // Validate URL because surf::get panics on invalid URL
+    // It could still panic if surf gets updated and changes their URL parsing library
+    let _valid_url = url::Url::parse(&retrieve.url).map_err(|err| RadError::UrlParseError {
+        inner: err,
+        url: retrieve.url.clone(),
+    })?;
+
+    // Set a random user-agent from the list
+    let mut response = surf::get(&retrieve.url)
+        .set_header("User-Agent", UserAgent::random())
+        .await
+        .map_err(|x| RadError::HttpOther {
+            message: x.to_string(),
+        })?;
+
+    if !response.status().is_success() {
+        return Err(RadError::HttpStatus {
+            status_code: response.status().into(),
+        });
+    }
+
+    let response_string = response
+        // TODO: replace with .body_bytes() and let RADON handle the encoding?
+        .body_string()
+        .await
+        .map_err(|x| RadError::HttpOther {
+            message: x.to_string(),
+        })?;
+
+    let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
+
+    match &result {
+        Ok(report) => {
+            log::debug!(
+                "Successful result for source {}: {:?}",
+                retrieve.url,
+                report.result
+            );
+        }
+        Err(e) => log::debug!("Failed result for source {}: {:?}", retrieve.url, e),
+    }
+
+    result
+}
+
+/// Handle Rng response
+async fn rng_response(context: &mut ReportContext<RadonTypes>) -> Result<RadonReport<RadonTypes>> {
+    let random_bytes: [u8; 32] = rand::random();
+    let random_bytes = RadonTypes::from(RadonBytes::from(random_bytes.to_vec()));
+
+    Ok(RadonReport::from_result(Ok(random_bytes), context))
+}
+
 /// Run retrieval stage of a data request, return `RadonReport`.
 pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
 ) -> Result<RadonReport<RadonTypes>> {
+    let wip_0019_active = active_wips.wip0019();
+
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     context.set_active_wips(active_wips);
 
-    match retrieve.kind {
-        RADType::HttpGet => {
-            // Validate URL because surf::get panics on invalid URL
-            // It could still panic if surf gets updated and changes their URL parsing library
-            let _valid_url =
-                url::Url::parse(&retrieve.url).map_err(|err| RadError::UrlParseError {
-                    inner: err,
-                    url: retrieve.url.clone(),
-                })?;
-
-            // Set a random user-agent from the list
-            let mut response = surf::get(&retrieve.url)
-                .set_header("User-Agent", UserAgent::random())
-                .await
-                .map_err(|x| RadError::HttpOther {
-                    message: x.to_string(),
-                })?;
-
-            if !response.status().is_success() {
-                return Err(RadError::HttpStatus {
-                    status_code: response.status().into(),
-                });
-            }
-
-            let response_string = response
-                // TODO: replace with .body_bytes() and let RADON handle the encoding?
-                .body_string()
-                .await
-                .map_err(|x| RadError::HttpOther {
-                    message: x.to_string(),
-                })?;
-
-            let result =
-                run_retrieval_with_data_report(retrieve, &response_string, context, settings);
-
-            match &result {
-                Ok(report) => {
-                    log::debug!(
-                        "Successful result for source {}: {:?}",
-                        retrieve.url,
-                        report.result
-                    );
-                }
-                Err(e) => log::debug!("Failed result for source {}: {:?}", retrieve.url, e),
-            }
-
-            result
+    if wip_0019_active {
+        match retrieve.kind {
+            RADType::Unknown => Err(RadError::UnknownRetrieval),
+            RADType::HttpGet => http_get_response(retrieve, context, settings).await,
+            RADType::Rng => rng_response(context).await,
         }
-        RADType::Rng => {
-            let random_bytes: [u8; 32] = rand::random();
-            let random_bytes = RadonTypes::from(RadonBytes::from(random_bytes.to_vec()));
-
-            Ok(RadonReport::from_result(Ok(random_bytes), context))
-        }
+    } else {
+        http_get_response(retrieve, context, settings).await
     }
 }
 
