@@ -2149,8 +2149,9 @@ impl ChainManager {
 
             try_join_all(aux)
                 .await
-                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
-                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+                // Map Vec<Option<T>> to Vec<T>, this returns all the non-error results and ignores
+                // the errors.
+                .map(|x| x.into_iter().flatten())
         }
         .into_actor(self)
         .and_then(move |block_headers, act, _ctx| {
