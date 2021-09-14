@@ -20,26 +20,25 @@ use witnet_crypto::{
     hash::calculate_sha256,
     key::{CryptoEngine, ExtendedPK, ExtendedSK},
 };
-use witnet_data_structures::chain::SupplyInfo;
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
-        SyncStatus, ValueTransferOutput,
+        SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
-use witnet_node::actors::chain_manager::run_dr_locally;
 use witnet_node::actors::{
+    chain_manager::run_dr_locally,
     json_rpc::json_rpc_methods::{
         AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
     messages::{BuildVtt, GetReputationResult, SignalingInfo},
 };
-use witnet_rad::types::RadonTypes;
+use witnet_rad::{current_active_wips, types::RadonTypes};
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request, Wit};
 
@@ -624,7 +623,7 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
     log::debug!("{}", serde_json::to_string(&dr)?);
 
     validate_data_request_output(&dr)?;
-    validate_rad_request(&dr.data_request, None)?;
+    validate_rad_request(&dr.data_request, &current_active_wips())?;
 
     // Is the data request serialized correctly?
     // Check that serializing the deserialized struct results in exactly the same bytes

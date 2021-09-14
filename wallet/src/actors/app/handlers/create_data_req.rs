@@ -14,6 +14,7 @@ use witnet_data_structures::{
     transaction::Transaction,
     transaction_factory::FeeType,
 };
+use witnet_rad::current_active_wips;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDataReqRequest {
@@ -101,9 +102,11 @@ fn validate(request: DataRequestOutput) -> Result<DataRequestOutput, app::Valida
     let request = witnet_validations::validations::validate_data_request_output(&req)
         .map_err(|err| app::field_error("request", format!("{}", err)));
 
-    let data_request =
-        witnet_validations::validations::validate_rad_request(&req.data_request, None)
-            .map_err(|err| app::field_error("dataRequest", format!("{}", err)));
+    let data_request = witnet_validations::validations::validate_rad_request(
+        &req.data_request,
+        &current_active_wips(),
+    )
+    .map_err(|err| app::field_error("dataRequest", format!("{}", err)));
 
     app::combine_field_errors(request, data_request, move |_, _| req)
 }

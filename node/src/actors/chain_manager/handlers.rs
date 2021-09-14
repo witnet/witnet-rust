@@ -1277,7 +1277,7 @@ impl Handler<BuildDrt> for ChainManager {
             block_epoch: self.current_epoch.unwrap(),
         };
 
-        if let Err(e) = validate_rad_request(&msg.dro.data_request, Some(&active_wips)) {
+        if let Err(e) = validate_rad_request(&msg.dro.data_request, &active_wips) {
             return Box::pin(actix::fut::err(e));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();

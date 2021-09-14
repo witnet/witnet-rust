@@ -14,6 +14,7 @@ use witnet_data_structures::{
     radon_error::RadonErrors,
 };
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
+use witnet_rad::current_active_wips;
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
@@ -263,7 +264,7 @@ fn deserialize_and_validate_dr_bytes(
                 });
             }
 
-            validate_rad_request(&dr_output.data_request, None)
+            validate_rad_request(&dr_output.data_request, &current_active_wips())
                 .map_err(|e| DrSenderError::RadonValidation { msg: e.to_string() })?;
 
             // Check if we want to claim this data request:

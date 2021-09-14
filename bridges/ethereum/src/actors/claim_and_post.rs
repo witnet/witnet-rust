@@ -24,6 +24,7 @@ use witnet_data_structures::{
     chain::{DataRequestOutput, Hashable, KeyedSignature},
     proto::ProtobufConvert,
 };
+use witnet_rad::current_active_wips;
 use witnet_util::timestamp::get_local_timestamp;
 use witnet_validations::validations::validate_rad_request;
 
@@ -97,7 +98,7 @@ fn try_to_claim_local_query(
 
                 let dr_output: DataRequestOutput =
                     match ProtobufConvert::from_pb_bytes(&dr_bytes).and_then(|dr: DataRequestOutput| {
-                        validate_rad_request(&dr.data_request, None)?;
+                        validate_rad_request(&dr.data_request, &current_active_wips())?;
                         Ok(dr)
                     }) {
                         Ok(x) => {

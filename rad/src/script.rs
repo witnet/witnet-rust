@@ -12,7 +12,6 @@ use witnet_data_structures::{
 };
 
 use crate::{
-    current_active_wips,
     error::RadError,
     filters::RadonFilters,
     operators::{operate, operate_in_context, RadonOpCodes},
@@ -213,18 +212,10 @@ fn errorify(kind: RadError) -> RadError {
 pub fn create_radon_script_from_filters_and_reducer(
     filters: &[RADFilter],
     reducer: u32,
-    active_wips: Option<&ActiveWips>,
+    active_wips: &ActiveWips,
 ) -> Result<Vec<RadonCall>, RadError> {
     let unknown_filter = |code| RadError::UnknownFilter { code };
     let unknown_reducer = |code| RadError::UnknownReducer { code };
-
-    let current_wips;
-    let active_wips = if let Some(active_wips) = active_wips {
-        active_wips
-    } else {
-        current_wips = current_active_wips();
-        &current_wips
-    };
 
     let mut radoncall_vec = vec![];
     for filter in filters {
@@ -294,6 +285,7 @@ pub fn create_radon_script_from_filters_and_reducer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::current_active_wips;
     use std::collections::BTreeMap;
 
     #[test]
@@ -617,9 +609,12 @@ mod tests {
             args: vec![249, 60, 0],
         }];
         let reducer = RadonReducers::AverageMean as u32;
-        let output =
-            create_radon_script_from_filters_and_reducer(filters.as_slice(), reducer, None)
-                .unwrap();
+        let output = create_radon_script_from_filters_and_reducer(
+            filters.as_slice(),
+            reducer,
+            &current_active_wips(),
+        )
+        .unwrap();
 
         assert_eq!(output, expected);
     }
@@ -631,9 +626,12 @@ mod tests {
             args: vec![249, 60, 0],
         }];
         let reducer = RadonReducers::AverageMean as u32;
-        let output =
-            create_radon_script_from_filters_and_reducer(filters.as_slice(), reducer, None)
-                .unwrap_err();
+        let output = create_radon_script_from_filters_and_reducer(
+            filters.as_slice(),
+            reducer,
+            &current_active_wips(),
+        )
+        .unwrap_err();
 
         let expected = RadError::UnsupportedFilterInAT {
             operator: RadonFilters::DeviationAbsolute as u8,
@@ -644,9 +642,12 @@ mod tests {
             op: 99,
             args: vec![],
         }];
-        let output =
-            create_radon_script_from_filters_and_reducer(filters.as_slice(), reducer, None)
-                .unwrap_err();
+        let output = create_radon_script_from_filters_and_reducer(
+            filters.as_slice(),
+            reducer,
+            &current_active_wips(),
+        )
+        .unwrap_err();
 
         let expected = RadError::UnknownFilter { code: 99 };
         assert_eq!(output, expected);
@@ -659,17 +660,24 @@ mod tests {
             args: vec![249, 60, 0],
         }];
         let reducer = RadonReducers::Min as u32;
-        let output =
-            create_radon_script_from_filters_and_reducer(filters.as_slice(), reducer, None)
-                .unwrap_err();
+        let output = create_radon_script_from_filters_and_reducer(
+            filters.as_slice(),
+            reducer,
+            &current_active_wips(),
+        )
+        .unwrap_err();
 
         let expected = RadError::UnsupportedReducerInAT {
             operator: RadonReducers::Min as u8,
         };
         assert_eq!(output, expected);
 
-        let output =
-            create_radon_script_from_filters_and_reducer(filters.as_slice(), 99, None).unwrap_err();
+        let output = create_radon_script_from_filters_and_reducer(
+            filters.as_slice(),
+            99,
+            &current_active_wips(),
+        )
+        .unwrap_err();
 
         let expected = RadError::UnknownReducer { code: 99 };
         assert_eq!(output, expected);

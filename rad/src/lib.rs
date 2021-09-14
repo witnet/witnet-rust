@@ -293,11 +293,14 @@ pub fn run_aggregation_with_context_report(
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
 
-    let radon_script = create_radon_script_from_filters_and_reducer(
-        filters,
-        reducer,
-        context.active_wips.as_ref(),
-    )?;
+    let active_wips = if let Some(active_wips) = context.active_wips.as_ref() {
+        active_wips.clone()
+    } else {
+        current_active_wips()
+    };
+
+    let radon_script =
+        create_radon_script_from_filters_and_reducer(filters, reducer, &active_wips)?;
 
     let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
 
@@ -358,11 +361,15 @@ pub fn run_tally_with_context_report(
 ) -> Result<RadonReport<RadonTypes>> {
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
-    let radon_script = create_radon_script_from_filters_and_reducer(
-        filters,
-        reducer,
-        context.active_wips.as_ref(),
-    )?;
+
+    let active_wips = if let Some(active_wips) = context.active_wips.as_ref() {
+        active_wips.clone()
+    } else {
+        current_active_wips()
+    };
+
+    let radon_script =
+        create_radon_script_from_filters_and_reducer(filters, reducer, &active_wips)?;
 
     if radon_types_vec.is_empty() {
         return Ok(RadonReport::from_result(Err(RadError::NoReveals), context));

@@ -37,7 +37,6 @@ use witnet_data_structures::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
 use witnet_rad::{
-    current_active_wips,
     error::RadError,
     reducers::mode::mode,
     run_tally_report,
@@ -241,7 +240,7 @@ pub fn validate_mint_transaction(
 /// Function to validate a rad request
 pub fn validate_rad_request(
     rad_request: &RADRequest,
-    active_wips: Option<&ActiveWips>,
+    active_wips: &ActiveWips,
 ) -> Result<(), failure::Error> {
     let retrieval_paths = &rad_request.retrieve;
     // If the data request has no sources to retrieve, it is set as invalid
@@ -249,23 +248,17 @@ pub fn validate_rad_request(
         return Err(DataRequestError::NoRetrievalSources.into());
     }
 
-    let active_wips2 = if let Some(active_wips) = active_wips {
-        active_wips.clone()
-    } else {
-        current_active_wips()
-    };
-
     for path in retrieval_paths {
         // Regarding WIP-0019 activation:
         // Before -> Only RadType enum 0 position is valid
         // After -> RadType::Unknown are invalid
-        if (!active_wips2.wip0019() && path.kind != RADType::Unknown)
-            || (active_wips2.wip0019() && path.kind == RADType::Unknown)
+        if (!active_wips.wip0019() && path.kind != RADType::Unknown)
+            || (active_wips.wip0019() && path.kind == RADType::Unknown)
         {
             return Err(DataRequestError::InvalidRadType.into());
         }
 
-        let is_rng = active_wips2.wip0019() && path.kind == RADType::Rng;
+        let is_rng = active_wips.wip0019() && path.kind == RADType::Rng;
         // If the sources are empty the data request is set as invalid
         if path.url.is_empty() && !is_rng {
             return Err(DataRequestError::NoRetrievalSources.into());
@@ -812,7 +805,7 @@ pub fn validate_dr_transaction<'a>(
         .into());
     }
 
-    validate_rad_request(&dr_tx.body.dr_output.data_request, Some(active_wips))?;
+    validate_rad_request(&dr_tx.body.dr_output.data_request, active_wips)?;
 
     Ok((
         dr_tx.body.inputs.iter().collect(),
