@@ -6,9 +6,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::{chain::DataRequestOutput, mainnet_validations::ActiveWips};
+use witnet_data_structures::chain::DataRequestOutput;
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
+    all_wips_active,
     script::RadonScriptExecutionSettings,
     types::{
         bytes::RadonBytes, float::RadonFloat, integer::RadonInteger, string::RadonString,
@@ -16,13 +17,6 @@ use witnet_rad::{
     },
 };
 use witnet_validations::validations::validate_rad_request;
-
-fn current_active_wips() -> ActiveWips {
-    let mut h = witnet_rad::current_active_wips();
-    h.active_wips.insert("WIP0017".to_string(), 0);
-    h.active_wips.insert("WIP0019".to_string(), 0);
-    h
-}
 
 /// Id. Can be null, a number, or a string
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,7 +52,7 @@ fn run_dr_locally_with_data(
     // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
     // This does not validate other data request parameters such as number of witnesses, weight, or
     // collateral, so it is still possible that this request is considered invalid by miners.
-    validate_rad_request(&dr.data_request, &current_active_wips())?;
+    validate_rad_request(&dr.data_request, &all_wips_active())?;
 
     let mut retrieval_results = vec![];
     assert_eq!(dr.data_request.retrieve.len(), data.len());
@@ -68,7 +62,7 @@ fn run_dr_locally_with_data(
             r,
             *d,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            all_wips_active(),
         )?);
     }
 
@@ -76,7 +70,7 @@ fn run_dr_locally_with_data(
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
         &dr.data_request.aggregate,
-        current_active_wips(),
+        all_wips_active(),
     )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
@@ -87,11 +81,8 @@ fn run_dr_locally_with_data(
             .map(RadonTypes::try_from)
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_tally(
-        reported_values?,
-        &dr.data_request.tally,
-        current_active_wips(),
-    )?;
+    let tally_result =
+        witnet_rad::run_tally(reported_values?, &dr.data_request.tally, all_wips_active())?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(tally_result)

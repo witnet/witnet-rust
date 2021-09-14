@@ -1206,6 +1206,11 @@ pub fn validate_tally_transaction<'a>(
         }
         .into());
     }
+    #[cfg(test)]
+    println!(
+        "expected_ta_tx.tally: {}",
+        hex::encode(&expected_ta_tx.tally)
+    );
 
     // Validation of tally result
     if expected_ta_tx.tally != ta_tx.tally {

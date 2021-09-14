@@ -15,6 +15,25 @@ fn deserialize_dr_not_protobuf() {
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }
 
+fn example_request() -> RADRequest {
+    RADRequest {
+        retrieve: vec![RADRetrieve {
+            url: "http://127.0.0.1:8000".to_string(),
+            script: vec![128],
+            ..Default::default()
+        }],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: 3,
+        },
+        tally: RADTally {
+            filters: vec![],
+            reducer: 3,
+        },
+        time_lock: 0,
+    }
+}
+
 #[test]
 fn deserialize_dr_high_value() {
     // A minimal valid data request
@@ -22,22 +41,7 @@ fn deserialize_dr_high_value() {
         witness_reward: 1_000_000,
         witnesses: 20,
         min_consensus_percentage: 51,
-        data_request: RADRequest {
-            retrieve: vec![RADRetrieve {
-                url: "http://127.0.0.1:8000".to_string(),
-                script: vec![128],
-                ..Default::default()
-            }],
-            aggregate: RADAggregate {
-                filters: vec![],
-                reducer: 3,
-            },
-            tally: RADTally {
-                filters: vec![],
-                reducer: 3,
-            },
-            time_lock: 0,
-        },
+        data_request: example_request(),
         ..Default::default()
     };
     // The cost of creating this data request is the reward (1_000_000) times the number of
@@ -60,22 +64,7 @@ fn deserialize_dr_value_overflow() {
         witness_reward: u64::MAX,
         witnesses: 20,
         min_consensus_percentage: 51,
-        data_request: RADRequest {
-            retrieve: vec![RADRetrieve {
-                url: "http://127.0.0.1:8000".to_string(),
-                script: vec![128],
-                ..Default::default()
-            }],
-            aggregate: RADAggregate {
-                filters: vec![],
-                reducer: 3,
-            },
-            tally: RADTally {
-                filters: vec![],
-                reducer: 3,
-            },
-            time_lock: 0,
-        },
+        data_request: example_request(),
         ..Default::default()
     };
 

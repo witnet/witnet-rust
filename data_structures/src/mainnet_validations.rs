@@ -57,8 +57,6 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0009-0011-0012".to_string(), 0);
     active_wips.insert("THIRD_HARD_FORK".to_string(), 0);
     active_wips.insert("WIP0014-0016".to_string(), 0);
-    active_wips.insert("WIP0017".to_string(), 0);
-    active_wips.insert("WIP0019".to_string(), 0);
 
     active_wips
 }

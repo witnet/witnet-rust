@@ -27,7 +27,7 @@ use witnet_data_structures::{
 };
 use witnet_protected::Protected;
 use witnet_rad::{
-    current_active_wips,
+    all_wips_active, current_active_wips,
     error::RadError,
     filters::RadonFilters,
     reducers::RadonReducers,
@@ -48,17 +48,6 @@ const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
 const HALVING_PERIOD: u32 = 3_500_000;
 // Block epoch used in tally tests
 const E: Epoch = SECOND_HARD_FORK + 1;
-
-// This should only be used in tests
-fn all_wips_active() -> ActiveWips {
-    let mut tapi_engine = TapiEngine::default();
-    tapi_engine.initialize_wip_information(Environment::Testnet);
-
-    ActiveWips {
-        active_wips: tapi_engine.wip_activation,
-        block_epoch: u32::MAX,
-    }
-}
 
 // This should only be used in tests
 fn active_wips_from_mainnet(block_epoch: Epoch) -> ActiveWips {
@@ -1446,7 +1435,7 @@ fn data_request_one_input_signatures() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
-        data_request: example_data_request(),
+        data_request: adapted_example_data_request(),
         collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
@@ -1732,6 +1721,15 @@ fn example_data_request() -> RADRequest {
     }
 }
 
+// TODO: Remove after WIP-0019 activation
+// Auxiliary function to test old cases with Http-get position equals to 0
+fn adapted_example_data_request() -> RADRequest {
+    let mut request = example_data_request();
+    request.retrieve[0].kind = RADType::Unknown;
+
+    request
+}
+
 fn example_data_request_average_mean_reducer() -> RADRequest {
     RADRequest {
         time_lock: 0,
@@ -1867,7 +1865,8 @@ fn data_request_empty_scripts() {
     let data_request = RADRequest {
         time_lock: 0,
         retrieve: vec![RADRetrieve {
-            kind: RADType::HttpGet,
+            // TODO: Use RadType::HttpGet after WIP-0019 activation
+            kind: RADType::Unknown,
             url: "".to_string(),
             script: vec![0x80],
         }],
@@ -1911,7 +1910,7 @@ fn data_request_witnesses_0() {
 fn data_request_witnesses_1() {
     // A data request with 1 witness is currently accepted
     // But that can change in the future
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let x = test_drtx(DataRequestOutput {
         witness_reward: 1000,
         witnesses: 1,
@@ -1963,7 +1962,7 @@ fn data_request_insufficient_collateral() {
 #[test]
 fn data_request_minimum_value() {
     // Create a data request with the minimum possible value
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dro = DataRequestOutput {
         witness_reward: 1,
         witnesses: 1,
@@ -2034,7 +2033,7 @@ fn dr_validation_weight_limit_exceeded() {
 
 #[test]
 fn data_request_value_overflow() {
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dro = DataRequestOutput {
         witness_reward: 1,
         commit_and_reveal_fee: 1,
@@ -2075,7 +2074,7 @@ fn data_request_value_overflow() {
 fn data_request_miner_fee() {
     // Use 1000 input to pay 750 for data request
     let mut signatures_to_verify = vec![];
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
         witnesses: 2,
@@ -2117,7 +2116,7 @@ fn data_request_miner_fee() {
 fn data_request_miner_fee_with_change() {
     // Use 1000 input to pay 750 for data request, and request 200 change (+50 fee)
     let mut signatures_to_verify = vec![];
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
         witnesses: 2,
@@ -2165,7 +2164,7 @@ fn data_request_change_to_different_pkh() {
     // Use 1000 input to pay 750 for data request, and request 200 change to a different address
     // This should fail because the change can only be sent to the same pkh as the first input
     let mut signatures_to_verify = vec![];
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
         witnesses: 2,
@@ -2219,7 +2218,7 @@ fn data_request_two_change_outputs() {
     // split into two outputs
     // This should fail because the data request can only have one output
     let mut signatures_to_verify = vec![];
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
         witnesses: 2,
@@ -2277,7 +2276,7 @@ fn data_request_two_change_outputs() {
 fn data_request_miner_fee_with_too_much_change() {
     // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
     let mut signatures_to_verify = vec![];
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
         witnesses: 2,
@@ -2325,7 +2324,7 @@ fn data_request_miner_fee_with_too_much_change() {
 fn data_request_zero_value_output() {
     // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
     let mut signatures_to_verify = vec![];
-    let data_request = example_data_request();
+    let data_request = adapted_example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
         witnesses: 2,
@@ -2403,7 +2402,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "12532668336db5ab99f359881022f05af90ad68559a0f8d15a7552abbe61dbc4";
+static DR_HASH: &str = "469dc46106ef5008cc5a6106ff9dedcf4ac19a23b1ea41807ae1fc08ab79a08e";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr_and_utxo_set(
@@ -3272,7 +3271,7 @@ fn commitment_collateral_zero_is_minimum() {
             witness_reward: 1000,
             witnesses: 1,
             min_consensus_percentage: 51,
-            data_request: example_data_request(),
+            data_request: adapted_example_data_request(),
             collateral: 0,
             ..DataRequestOutput::default()
         };
@@ -6631,7 +6630,7 @@ fn tally_valid_rng() {
     let reward = collateral + 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("010d3b53674bcebefca0d8041c3fd938ac1f570a06aaad9fe3fe6f171b43317d").unwrap(),
+        hex::decode("93516711d6ff0d754f5079dac1e9f28e5bbd4e42afc7993deb760e204aa7f853").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6681,7 +6680,7 @@ fn tally_valid_rng_wrong_bytes_len() {
     let reward = collateral + 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("74660978522d7dc6f03030689665b2053143352f3e43b13cbb0d645895f7cb17").unwrap(),
+        hex::decode("376126d67768ed7e4f92a655f93b33f3a4fe3fd91159a55707a5cb6c1ce5f28d").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6747,7 +6746,7 @@ fn tally_valid_rng_one_error() {
     let change = 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("afd6ef93a654a25be00a897ca8fcdb3d74c49460e27086262040a6dbd887cac0").unwrap(),
+        hex::decode("0561af871bdfdff1893bbc41e3c422fa7710445a9d109d7e541846d41473aca9").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6890,7 +6889,7 @@ fn tally_valid_rng_one_invalid_type() {
     let change = 200;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("afd6ef93a654a25be00a897ca8fcdb3d74c49460e27086262040a6dbd887cac0").unwrap(),
+        hex::decode("0561af871bdfdff1893bbc41e3c422fa7710445a9d109d7e541846d41473aca9").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -6942,7 +6941,7 @@ fn tally_valid_rng_all_invalid_type() {
     let tally_value = RadonTypes::from(
         RadonError::try_from(RadError::UnhandledIntercept {
             inner: None,
-            message: Some("inner: UnsupportedReducer { array: RadonArray { value: [Integer(RadonInteger { value: 4 }), Integer(RadonInteger { value: 2 }), Integer(RadonInteger { value: 1 }), Integer(RadonInteger { value: 3 })], is_homogeneous: true }, reducer: \"RadonReducers::HashConcatenate\" }".to_string()),
+            message: Some("inner: UnsupportedReducer { array: RadonArray { value: [Integer(RadonInteger { value: 3 }), Integer(RadonInteger { value: 4 }), Integer(RadonInteger { value: 1 }), Integer(RadonInteger { value: 2 })], is_homogeneous: true }, reducer: \"RadonReducers::HashConcatenate\" }".to_string()),
         })
             .unwrap(),
     )
@@ -8162,7 +8161,7 @@ fn block_before_and_after_hard_fork() {
         witnesses: 100,
         commit_and_reveal_fee: 50,
         min_consensus_percentage: 51,
-        data_request: example_data_request(),
+        data_request: adapted_example_data_request(),
         collateral: ONE_WIT,
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro.clone());

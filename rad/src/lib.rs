@@ -51,6 +51,15 @@ pub fn current_active_wips() -> ActiveWips {
     }
 }
 
+/// Auxiliary function that returns the current active wips and the WIPs in voting process as actived
+/// It is only used for testing
+pub fn all_wips_active() -> ActiveWips {
+    let mut h = current_active_wips();
+    h.active_wips.insert("WIP0017-0018-0019".to_string(), 0);
+
+    h
+}
+
 /// Executes a data request locally.
 /// The `inputs_injection` allows for disabling the actual retrieval of the data sources and
 /// the provided strings will be fed to the retrieval scripts instead. It is therefore expected that
