@@ -692,7 +692,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_initialize_mainnet_and_testnet() {
         let mut t_mainnet = TapiEngine::default();
         let (_epoch, _old_wips) = t_mainnet.initialize_wip_information(Environment::Mainnet);

@@ -23,7 +23,6 @@ pub enum RadonReducers {
     AverageMedian = 0x05,
     DeviationStandard = 0x07,
     HashConcatenate = 0x0b,
-    Unwrap = 0x0c,
 
     // Not implemented
     Min = 0x00,
@@ -70,30 +69,12 @@ pub fn reduce(
                 }
                 _ => error(),
             },
-            RadonReducers::Unwrap => match &context.active_wips {
-                Some(active_wips) if active_wips.wip0019() => unwrap(input),
-                _ => error(),
-            },
             _ => error(),
         }
     } else {
         Err(RadError::UnsupportedOpNonHomogeneous {
             operator: reducer_code.to_string(),
         })
-    }
-}
-
-/// Special reducer to unwrap an array of one element
-fn unwrap(input: &RadonArray) -> Result<RadonTypes, RadError> {
-    let value = input.value();
-
-    if value.first().is_none() || value.len() > 1 {
-        Err(RadError::UnsupportedReducer {
-            array: input.clone(),
-            reducer: RadonReducers::Unwrap.to_string(),
-        })
-    } else {
-        Ok(value.first().unwrap().clone())
     }
 }
 

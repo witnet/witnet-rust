@@ -448,7 +448,7 @@ mod examples {
                     }],
                     aggregate: RADAggregate {
                         filters: vec![],
-                        reducer: RadonReducers::Unwrap as u32,
+                        reducer: RadonReducers::Mode as u32,
                     },
                     tally: RADTally {
                         filters: vec![],
