@@ -3793,11 +3793,9 @@ fn create_commit_reveal(
 fn create_commits_reveals(
     dr_pointer: Hash,
     commits_count: usize,
-    liars_count: usize,
-    errors_count: usize,
-    reveal_value: Vec<u8>,
-    liar_value: Vec<u8>,
-    error_value: Vec<u8>,
+    reveal_values: Vec<Vec<u8>>,
+    liar_values: Vec<Vec<u8>>,
+    error_values: Vec<Vec<u8>>,
     dr_mk: Option<[u8; 32]>,
     dr_liar: bool,
 ) -> (
@@ -3806,6 +3804,11 @@ fn create_commits_reveals(
     Vec<PublicKey>,
     Vec<PublicKey>,
 ) {
+    let liars_count = liar_values.len();
+    let errors_count = error_values.len();
+    let mut reveal_value = reveal_values.into_iter();
+    let mut liar_value = liar_values.into_iter();
+    let mut error_value = error_values.into_iter();
     let mut commits = vec![];
     let mut reveals = vec![];
     let mut liars = vec![];
@@ -3829,9 +3832,9 @@ fn create_commits_reveals(
         if commits_count > 0 {
             let reveal_value = if dr_liar {
                 liars_count -= 1;
-                liar_value.clone()
+                liar_value.next().unwrap()
             } else {
-                reveal_value.clone()
+                reveal_value.next().unwrap()
             };
 
             let (dr_public_key, commit, reveal) =
@@ -3848,11 +3851,11 @@ fn create_commits_reveals(
     // Create the rest of commits and reveals
     for i in 0..commits_count {
         let reveal_value = if liars_count > 0 {
-            liar_value.clone()
+            liar_value.next().unwrap()
         } else if errors_count > 0 {
-            error_value.clone()
+            error_value.next().unwrap()
         } else {
-            reveal_value.clone()
+            reveal_value.next().unwrap()
         };
         let index = i as u8 + 1;
         let (public_key, commit, reveal) =
@@ -3930,17 +3933,11 @@ fn get_rewarded_and_slashed(
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn dr_pool_with_dr_in_tally_stage_generic(
+fn dr_pool_with_dr_in_tally_all_errors(
     dr_output: DataRequestOutput,
-    commits_count: usize,  // Commits number included in DataRequestPool
-    reveals_count: usize,  // Reveals number included in DataRequestPool
-    liars_count: usize,    // Liars number inside of the reveals
-    errors_count: usize,   // Errors number inside of the reveals
-    reveal_value: Vec<u8>, // Honest reveal value
-    liar_value: Vec<u8>,   // Dishonest reveal value
-    error_value: Vec<u8>,  // Error reveal value
-    dr_committer: bool,    // Flag to indicate that the data requester is also a committer
-    dr_liar: bool,         // Flag to indicate that the data requester lies
+    commits_count: usize, // Commits number included in DataRequestPool
+    reveals_count: usize, // Reveals number included in DataRequestPool
+    error_value: Vec<u8>, // Error reveal value
 ) -> (
     DataRequestPool,    // DataRequestPool updated
     Hash,               // Data Request pointer
@@ -3951,6 +3948,111 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     u64,                // Tally change value
     u64,                // Witnesses reward value
 ) {
+    assert!(
+        commits_count >= reveals_count,
+        "Reveals count cannot be greater than commits count"
+    );
+
+    // Create DataRequestPool
+    let mut dr_pool = DataRequestPool::default();
+
+    // Create Data Requester public key
+    let dr_mk = [0xBB; 32];
+    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default()).public_key;
+
+    // Create DRTransaction
+    let epoch = 0;
+    let dr_transaction = DRTransaction {
+        body: DRTransactionBody::new(vec![], vec![], dr_output.clone()),
+        signatures: vec![KeyedSignature {
+            signature: Default::default(),
+            public_key: dr_public_key.clone(),
+        }],
+    };
+    let dr_pointer = dr_transaction.hash();
+
+    // Create requested commits and reveals
+    let dr_mk = None;
+    let liars_count = 0;
+    let errors_count = reveals_count;
+    let reveal_value = vec![];
+    let liar_value = vec![];
+    let dr_liar = false;
+    let (commits, reveals, liars, errors) = create_commits_reveals(
+        dr_pointer,
+        commits_count,
+        vec![reveal_value; commits_count],
+        vec![liar_value; liars_count],
+        vec![error_value; errors_count],
+        dr_mk,
+        dr_liar,
+    );
+
+    // Include DRTransaction in DataRequestPool
+    dr_pool
+        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .unwrap();
+    dr_pool.update_data_request_stages();
+
+    // Include commits and reveals in DataRequestPool
+    include_commits(&mut dr_pool, commits_count, commits.clone());
+    include_reveals(&mut dr_pool, reveals_count, reveals);
+
+    // Create vector of rewarded and slashed public key hashes
+    let (rewarded, slashed, error_witnesses) =
+        get_rewarded_and_slashed(reveals_count, liars, errors, commits);
+
+    // Calculate tally change assuming that the consensus will be error, and therefore errors will
+    // be rewarded
+    let change = calculate_tally_change(commits_count, reveals_count, reveals_count, &dr_output);
+
+    // To calculate witness reward we take into account than non-revealers are considered liars
+    let liars_count = liars_count + commits_count - reveals_count;
+    // Calculate tally change assuming that the consensus will be error, and therefore errors will
+    // be rewarded
+    let (reward, _) = calculate_witness_reward(
+        commits_count,
+        liars_count,
+        0,
+        dr_output.witness_reward,
+        ONE_WIT,
+    );
+
+    (
+        dr_pool,
+        dr_pointer,
+        rewarded,
+        slashed,
+        error_witnesses,
+        dr_public_key.pkh(),
+        change,
+        reward,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn dr_pool_with_dr_in_tally_stage_generic(
+    dr_output: DataRequestOutput,
+    commits_count: usize,        // Commits number included in DataRequestPool
+    reveal_values: Vec<Vec<u8>>, // Honest reveal values
+    liar_values: Vec<Vec<u8>>,   // Dishonest reveal values
+    error_values: Vec<Vec<u8>>,  // Error reveal values
+    dr_committer: bool,          // Flag to indicate that the data requester is also a committer
+    dr_liar: bool,               // Flag to indicate that the data requester lies
+) -> (
+    DataRequestPool,    // DataRequestPool updated
+    Hash,               // Data Request pointer
+    Vec<PublicKeyHash>, // Rewarded witnesses
+    Vec<PublicKeyHash>, // Slashed witnesses
+    Vec<PublicKeyHash>, // Error witnesses
+    PublicKeyHash,      // Data Requester
+    u64,                // Tally change value
+    u64,                // Witnesses reward value
+) {
+    let reveals_count = reveal_values.len();
+    let liars_count = liar_values.len();
+    let errors_count = error_values.len();
+
     if !dr_committer && dr_liar {
         panic!("Data requester can not lie if he can not commit");
     }
@@ -3981,14 +4083,17 @@ fn dr_pool_with_dr_in_tally_stage_generic(
 
     // Create requested commits and reveals
     let dr_mk = if dr_committer { Some(dr_mk) } else { None };
+    // When reveals_count < commits_count, we need to add some dummy reveal values
+    let mut reveal_values = reveal_values;
+    for _ in reveals_count..commits_count {
+        reveal_values.push(vec![]);
+    }
     let (commits, reveals, liars, errors) = create_commits_reveals(
         dr_pointer,
         commits_count,
-        liars_count,
-        errors_count,
-        reveal_value,
-        liar_value,
-        error_value,
+        reveal_values,
+        liar_values,
+        error_values,
         dr_mk,
         dr_liar,
     );
@@ -4060,17 +4165,39 @@ fn dr_pool_with_dr_in_tally_stage(
     dr_pool_with_dr_in_tally_stage_generic(
         dr_output,
         commits_count,
-        reveals_count,
-        liars_count,
-        0,
-        reveal_value,
-        liar_value,
+        vec![reveal_value; reveals_count],
+        vec![liar_value; liars_count],
         vec![],
         false,
         false,
     )
 }
-
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn dr_pool_with_dr_in_tally_stage_different_reveals(
+    dr_output: DataRequestOutput,
+    commits_count: usize,
+    reveal_values: Vec<Vec<u8>>,
+    liar_values: Vec<Vec<u8>>,
+) -> (
+    DataRequestPool,
+    Hash,
+    Vec<PublicKeyHash>,
+    Vec<PublicKeyHash>,
+    Vec<PublicKeyHash>,
+    PublicKeyHash,
+    u64,
+    u64,
+) {
+    dr_pool_with_dr_in_tally_stage_generic(
+        dr_output,
+        commits_count,
+        reveal_values,
+        liar_values,
+        vec![],
+        false,
+        false,
+    )
+}
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn dr_pool_with_dr_in_tally_stage_with_errors(
     dr_output: DataRequestOutput,
@@ -4103,12 +4230,9 @@ fn dr_pool_with_dr_in_tally_stage_with_errors(
     dr_pool_with_dr_in_tally_stage_generic(
         dr_output,
         commits_count,
-        reveals_count,
-        liars_count,
-        errors_count,
-        reveal_value,
-        liar_value,
-        error_value,
+        vec![reveal_value; reveals_count],
+        vec![liar_value; liars_count],
+        vec![error_value; errors_count],
         false,
         false,
     )
@@ -4135,11 +4259,8 @@ fn dr_pool_with_dr_in_tally_stage_with_dr_liar(
     dr_pool_with_dr_in_tally_stage_generic(
         dr_output,
         commits_count,
-        reveals_count,
-        liars_count,
-        0,
-        reveal_value,
-        liar_value,
+        vec![reveal_value; reveals_count],
+        vec![liar_value; liars_count],
         vec![],
         true,
         true,
@@ -6483,6 +6604,226 @@ fn tally_unserializable_value() {
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &all_wips_active())
         .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_unhandled_intercept_with_message() {
+    // Reveals with value RadonErrors::UnhandledIntercept are accepted, but the message field must
+    // be removed from the tally transaction.
+
+    // Reveal value: 39([255, "Hello!"])
+    let reveal_value = vec![
+        216, 39, 130, 24, 255, 0x66, b'H', b'e', b'l', b'l', b'o', b'!',
+    ];
+    let dr_output = example_data_request_output(2, 200, 20);
+    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_all_errors(dr_output, 2, 2, reveal_value.clone());
+    assert_eq!(reward, ONE_WIT + 200);
+
+    // Tally value with message: 39([255, "Hello!"])
+    let tally_value_with_message = reveal_value;
+    // Tally value no message: 39([255])
+    let tally_value_no_message = vec![216, 39, 129, 24, 255];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: error_witnesses[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: error_witnesses[1],
+        value: reward,
+    };
+    assert_eq!(change, 0);
+    let tally_transaction_with_message = TallyTransaction::new(
+        dr_pointer,
+        tally_value_with_message.clone(),
+        vec![vt0.clone(), vt1.clone()],
+        slashed.clone(),
+        error_witnesses.clone(),
+    );
+    let tally_transaction_no_message = TallyTransaction::new(
+        dr_pointer,
+        tally_value_no_message.clone(),
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
+
+    let mut active_wips = current_active_wips();
+    // Disable WIP-0018
+    active_wips.active_wips.remove("WIP0017-0018-0019");
+
+    // Before WIP-0018:
+    // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
+    let x = validate_tally_transaction(
+        &tally_transaction_with_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    x.unwrap();
+    let x = validate_tally_transaction(
+        &tally_transaction_no_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::MismatchedConsensus {
+            miner_tally: tally_value_no_message.clone(),
+            expected_tally: tally_value_with_message.clone(),
+        }
+    );
+
+    // Enable WIP-0018
+    active_wips
+        .active_wips
+        .insert("WIP0017-0018-0019".to_string(), 0);
+
+    // After WIP-0018:
+    // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
+    let x = validate_tally_transaction(
+        &tally_transaction_with_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::MismatchedConsensus {
+            miner_tally: tally_value_with_message,
+            expected_tally: tally_value_no_message,
+        }
+    );
+    let x = validate_tally_transaction(
+        &tally_transaction_no_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_unhandled_intercept_mode_tie_has_no_message() {
+    // Check that UnhandledIntercept errors created during tally execution are serialized without
+    // the message field if WIP0018 is enabled
+
+    // Reveal value: integer(1)
+    let reveal_value_1 = vec![0x01];
+    // Reveal value: integer(2)
+    let reveal_value_2 = vec![0x02];
+    let reveal_values = vec![reveal_value_1, reveal_value_2];
+    let dr_output = example_data_request_output(2, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage_different_reveals(dr_output, 2, reveal_values, vec![]);
+    assert_eq!(reward, ONE_WIT + 200);
+
+    // Expeted tally value: ModeTie error because the mode of [1, 2] is not defined
+    // Tally value with message: 39([255, "(long description of ModeTie error)"])
+    let tally_value_with_message = vec![
+        216, 39, 130, 24, 255, 120, 157, 105, 110, 110, 101, 114, 58, 32, 77, 111, 100, 101, 84,
+        105, 101, 32, 123, 32, 118, 97, 108, 117, 101, 115, 58, 32, 82, 97, 100, 111, 110, 65, 114,
+        114, 97, 121, 32, 123, 32, 118, 97, 108, 117, 101, 58, 32, 91, 73, 110, 116, 101, 103, 101,
+        114, 40, 82, 97, 100, 111, 110, 73, 110, 116, 101, 103, 101, 114, 32, 123, 32, 118, 97,
+        108, 117, 101, 58, 32, 50, 32, 125, 41, 44, 32, 73, 110, 116, 101, 103, 101, 114, 40, 82,
+        97, 100, 111, 110, 73, 110, 116, 101, 103, 101, 114, 32, 123, 32, 118, 97, 108, 117, 101,
+        58, 32, 49, 32, 125, 41, 93, 44, 32, 105, 115, 95, 104, 111, 109, 111, 103, 101, 110, 101,
+        111, 117, 115, 58, 32, 116, 114, 117, 101, 32, 125, 44, 32, 109, 97, 120, 95, 99, 111, 117,
+        110, 116, 58, 32, 49, 32, 125,
+    ];
+    // Tally value no message: 39([255])
+    let tally_value_no_message = vec![216, 39, 129, 24, 255];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: reward,
+    };
+    assert_eq!(change, 0);
+    let tally_transaction_with_message = TallyTransaction::new(
+        dr_pointer,
+        tally_value_with_message.clone(),
+        vec![vt0.clone(), vt1.clone()],
+        slashed.clone(),
+        error_witnesses.clone(),
+    );
+    let tally_transaction_no_message = TallyTransaction::new(
+        dr_pointer,
+        tally_value_no_message.clone(),
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
+
+    let mut active_wips = current_active_wips();
+    // Disable WIP-0018
+    active_wips.active_wips.remove("WIP0017-0018-0019");
+
+    // Before WIP-0018:
+    // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
+    let x = validate_tally_transaction(
+        &tally_transaction_with_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    x.unwrap();
+    let x = validate_tally_transaction(
+        &tally_transaction_no_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::MismatchedConsensus {
+            miner_tally: tally_value_no_message.clone(),
+            expected_tally: tally_value_with_message.clone(),
+        }
+    );
+
+    // Enable WIP-0018
+    active_wips
+        .active_wips
+        .insert("WIP0017-0018-0019".to_string(), 0);
+
+    // After WIP-0018:
+    // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
+    let x = validate_tally_transaction(
+        &tally_transaction_with_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::MismatchedConsensus {
+            miner_tally: tally_value_with_message,
+            expected_tally: tally_value_no_message,
+        }
+    );
+    let x = validate_tally_transaction(
+        &tally_transaction_no_message,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
     x.unwrap();
 }
 
