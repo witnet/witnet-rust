@@ -4,8 +4,7 @@ use actix::{Handler, ResponseFuture};
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 use witnet_rad::{error::RadError, script::RadonScriptExecutionSettings, types::RadonTypes};
 use witnet_validations::validations::{
-    construct_report_from_clause_result, evaluate_tally_postcondition_clause,
-    evaluate_tally_precondition_clause, TallyPreconditionClauseResult,
+    evaluate_tally_precondition_clause, run_tally, TallyPreconditionClauseResult,
 };
 
 use crate::actors::messages::{ResolveRA, RunTally};
@@ -99,38 +98,13 @@ impl Handler<RunTally> for RadManager {
 
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
         let fut = async {
-            let packed_script = msg.script;
-            let reports = msg.reports;
-
-            let reports_len = reports.len();
-            let clause_result = evaluate_tally_precondition_clause(
-                reports,
+            run_tally(
+                msg.reports,
+                &msg.script,
                 msg.min_consensus_ratio,
                 msg.commits_count,
                 &msg.active_wips,
-            );
-            let mut report = construct_report_from_clause_result(
-                clause_result,
-                &packed_script,
-                reports_len,
-                &msg.active_wips,
-            );
-            if msg.active_wips.wips_0009_0011_0012() {
-                report = evaluate_tally_postcondition_clause(
-                    report,
-                    msg.min_consensus_ratio,
-                    msg.commits_count,
-                );
-            }
-            if msg.active_wips.wip0018() {
-                // If the result of a tally transaction is RadonError::UnhandledIntercept, this will
-                // remove the message field, as specified in WIP0018.
-                report
-                    .result
-                    .remove_message_from_error_unhandled_intercept();
-            }
-
-            report
+            )
         };
 
         Box::pin(fut)

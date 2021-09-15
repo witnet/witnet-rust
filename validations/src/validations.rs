@@ -992,7 +992,9 @@ pub fn validate_reveal_transaction(
     Ok(dr_state.data_request.commit_and_reveal_fee)
 }
 
-fn create_expected_report(
+/// Execute RADON tally given a list of reveals.
+/// If this function panics internally, the result will be set to RadError::Unknown.
+pub fn run_tally_panic_safe(
     reveals: &[&RevealTransaction],
     tally: &RADTally,
     non_error_min: f64,
@@ -1018,23 +1020,7 @@ fn create_expected_report(
             },
         );
 
-        let results_len = results.len();
-        let clause_result =
-            evaluate_tally_precondition_clause(results, non_error_min, commits_count, active_wips);
-        let mut report =
-            construct_report_from_clause_result(clause_result, tally, results_len, active_wips);
-        if active_wips.wips_0009_0011_0012() {
-            report = evaluate_tally_postcondition_clause(report, non_error_min, commits_count);
-        }
-        if active_wips.wip0018() {
-            // If the result of a tally transaction is RadonError::UnhandledIntercept, this will
-            // remove the message field, as specified in WIP0018.
-            report
-                .result
-                .remove_message_from_error_unhandled_intercept();
-        }
-
-        report
+        run_tally(results, tally, non_error_min, commits_count, active_wips)
     }) {
         Ok(x) => x,
         Err(_e) => {
@@ -1046,6 +1032,33 @@ fn create_expected_report(
             }
         }
     }
+}
+
+/// Execute RADON tally given a list of reveals.
+pub fn run_tally(
+    results: Vec<RadonReport<RadonTypes>>,
+    tally: &RADTally,
+    non_error_min: f64,
+    commits_count: usize,
+    active_wips: &ActiveWips,
+) -> RadonReport<RadonTypes> {
+    let results_len = results.len();
+    let clause_result =
+        evaluate_tally_precondition_clause(results, non_error_min, commits_count, active_wips);
+    let mut report =
+        construct_report_from_clause_result(clause_result, tally, results_len, active_wips);
+    if active_wips.wips_0009_0011_0012() {
+        report = evaluate_tally_postcondition_clause(report, non_error_min, commits_count);
+    }
+    if active_wips.wip0018() {
+        // If the result of a tally transaction is RadonError::UnhandledIntercept, this will
+        // remove the message field, as specified in WIP0018.
+        report
+            .result
+            .remove_message_from_error_unhandled_intercept();
+    }
+
+    report
 }
 
 /// Create report with error result and mark all revealers as errors and liars
@@ -1089,7 +1102,7 @@ fn create_expected_tally_transaction(
         .collect::<HashSet<PublicKeyHash>>();
     let commit_length = committers.len();
 
-    let report = create_expected_report(
+    let report = run_tally_panic_safe(
         &reveal_txns,
         &dr_output.data_request.tally,
         non_error_min,
