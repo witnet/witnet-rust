@@ -133,8 +133,10 @@ impl TapiEngine {
             }
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
-                // active since epoch 0. And there is no voting.
-                self.wip_activation = test_wip_info();
+                // active since epoch 0.
+                for (k, v) in test_wip_info() {
+                    self.wip_activation.insert(k, v);
+                }
             }
         };
 
