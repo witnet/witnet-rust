@@ -44,8 +44,8 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
     calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
-    radon_report_from_error, tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
-    Wit,
+    radon_report_from_error, tally_bytes_on_encode_error, update_utxo_diff, validate_rad_request,
+    vt_transaction_fee, Wit,
 };
 
 use crate::{
@@ -143,6 +143,8 @@ impl ChainManager {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: current_epoch,
         };
+        let active_wips = Arc::new(active_wips);
+        let active_wips2 = active_wips.clone();
 
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
@@ -232,6 +234,7 @@ impl ChainManager {
                     initial_block_reward,
                     halving_period,
                     tapi_version,
+                    &active_wips2,
                 );
 
                 // Sign the block hash
@@ -795,6 +798,7 @@ pub fn build_block(
     initial_block_reward: u64,
     halving_period: u32,
     tapi_signals: u32,
+    active_wips: &ActiveWips,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -930,6 +934,12 @@ pub fn build_block(
             }
         };
 
+        // TODO: Remove this validation after WIP-0019 activation
+        if let Err(e) = validate_rad_request(&dr_tx.body.dr_output.data_request, active_wips) {
+            log::warn!("DataRequest Transaction invalid: {}", e);
+            continue;
+        }
+
         let new_dr_weight = dr_weight.saturating_add(transaction_weight);
         if new_dr_weight <= max_dr_weight {
             update_utxo_diff(
@@ -1012,6 +1022,7 @@ mod tests {
     use crate::actors::chain_manager::verify_signatures;
 
     use super::*;
+    use witnet_rad::current_active_wips;
 
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;
@@ -1057,6 +1068,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1127,6 +1139,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &current_active_wips(),
         );
 
         // Create a KeyedSignature
@@ -1250,6 +1263,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1345,6 +1359,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1358,6 +1373,25 @@ mod tests {
         assert_eq!(block.txns.value_transfer_txns[0], vt_tx2);
     }
 
+    fn example_request() -> RADRequest {
+        RADRequest {
+            retrieve: vec![RADRetrieve {
+                url: "http://127.0.0.1:8000".to_string(),
+                script: vec![128],
+                ..Default::default()
+            }],
+            aggregate: RADAggregate {
+                filters: vec![],
+                reducer: 3,
+            },
+            tally: RADTally {
+                filters: vec![],
+                reducer: 3,
+            },
+            time_lock: 0,
+        }
+    }
+
     #[test]
     fn build_block_with_dr_transactions() {
         let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
@@ -1367,7 +1401,7 @@ mod tests {
             commit_and_reveal_fee: 1,
             witness_reward: 1,
             min_consensus_percentage: 51,
-            data_request: RADRequest::default(),
+            data_request: example_request(),
             collateral: 1_000_000_000,
         };
         let mut dr2 = dr1.clone();
@@ -1435,6 +1469,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1457,7 +1492,7 @@ mod tests {
             commit_and_reveal_fee: 1,
             witness_reward: 1,
             min_consensus_percentage: 51,
-            data_request: RADRequest::default(),
+            data_request: example_request(),
             collateral: 1_000_000_000,
         };
         let mut dr2 = dr1.clone();
@@ -1527,6 +1562,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 

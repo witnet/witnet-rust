@@ -336,6 +336,7 @@ mod tests {
         utxo_pool::UnspentOutputsPool,
         vrf::BlockEligibilityClaim,
     };
+    use witnet_rad::current_active_wips;
 
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;
@@ -426,6 +427,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &current_active_wips(),
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)
