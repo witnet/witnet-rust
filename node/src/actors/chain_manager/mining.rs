@@ -143,6 +143,9 @@ impl ChainManager {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: current_epoch,
         };
+
+        // TODO: Remove after WIP-0019 activation
+        // It is only used to include the active_wips in the extra validation of the rad_requests
         let active_wips = Arc::new(active_wips);
         let active_wips2 = active_wips.clone();
 

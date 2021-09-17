@@ -67,12 +67,9 @@ impl DataRequestPool {
         self.data_request_pool.get(dr_pointer).map(|dr_state| {
             let mut reveals: Vec<&RevealTransaction> = dr_state.info.reveals.values().collect();
             if active_wips.wip0019() {
+                // As specified in (7) in WIP-0019
                 reveals.sort_unstable_by_key(|reveal| {
-                    let mut bytes_to_hash = vec![];
-                    bytes_to_hash.extend(reveal.body.pkh.hash);
-                    bytes_to_hash.extend(dr_pointer.as_ref());
-
-                    calculate_sha256(bytes_to_hash.as_ref()).0
+                    concatenate_and_hash(&reveal.body.pkh.hash, dr_pointer.as_ref())
                 });
             } else {
                 reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
@@ -100,12 +97,9 @@ impl DataRequestPool {
                         dr_state.info.reveals.values().cloned().collect();
 
                     if active_wips.wip0019() {
+                        // As specified in (7) in WIP-0019
                         reveals.sort_unstable_by_key(|reveal| {
-                            let mut bytes_to_hash = vec![];
-                            bytes_to_hash.extend(reveal.body.pkh.hash);
-                            bytes_to_hash.extend(dr_pointer.as_ref());
-
-                            calculate_sha256(bytes_to_hash.as_ref()).0
+                            concatenate_and_hash(&reveal.body.pkh.hash, dr_pointer.as_ref())
                         });
                     } else {
                         reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
@@ -422,6 +416,15 @@ impl DataRequestPool {
 
         total
     }
+}
+
+/// Concatenate 2 bytes sequences and hash
+fn concatenate_and_hash(a: &[u8], b: &[u8]) -> [u8; 32] {
+    let mut bytes_to_hash = vec![];
+    bytes_to_hash.extend(a);
+    bytes_to_hash.extend(b);
+
+    calculate_sha256(bytes_to_hash.as_ref()).0
 }
 
 /// Return the change that should be returned to the creator of the data request if

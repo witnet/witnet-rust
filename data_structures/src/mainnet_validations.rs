@@ -73,10 +73,12 @@ pub fn current_active_wips() -> ActiveWips {
 /// Auxiliary function that returns the current active wips and the WIPs in voting process as actived
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
-    let mut h = current_active_wips();
-    h.active_wips.insert("WIP0017-0018-0019".to_string(), 0);
+    let mut active_wips = current_active_wips();
+    active_wips
+        .active_wips
+        .insert("WIP0017-0018-0019".to_string(), 0);
 
-    h
+    active_wips
 }
 
 impl TapiEngine {

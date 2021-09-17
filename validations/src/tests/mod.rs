@@ -6939,14 +6939,10 @@ fn tally_valid_rng_all_invalid_type() {
     let reward = collateral + 200;
 
     let tally_value = RadonTypes::from(
-        RadonError::try_from(RadError::UnhandledIntercept {
-            inner: None,
-            message: Some("inner: UnsupportedReducer { array: RadonArray { value: [Integer(RadonInteger { value: 2 }), Integer(RadonInteger { value: 4 }), Integer(RadonInteger { value: 3 }), Integer(RadonInteger { value: 1 })], is_homogeneous: true }, reducer: \"RadonReducers::HashConcatenate\" }".to_string()),
-        })
-            .unwrap(),
+        RadonError::try_from(RadError::UnhandledInterceptV2 { inner: None }).unwrap(),
     )
-        .encode()
-        .unwrap();
+    .encode()
+    .unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
         pkh: pkhs[0],

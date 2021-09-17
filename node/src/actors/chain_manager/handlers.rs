@@ -1277,26 +1277,26 @@ impl Handler<BuildDrt> for ChainManager {
             block_epoch: self.current_epoch.unwrap(),
         };
 
-        let mut dro = msg.dro;
+        let mut dr_output = msg.dro;
         // TODO: Remove after WIP-0019 activation
         // Before wip-0019 activation, RadType::HttpGet enum is serialized with a 0.
         // With the new update, position 0 is RadType::Unknown, so to keep backward compatibility,
         // we need to convert HttpGet retrievals to Unknown.
         if !active_wips.wip0019() {
-            for retrieval in &mut dro.data_request.retrieve {
+            for retrieval in &mut dr_output.data_request.retrieve {
                 if retrieval.kind == RADType::HttpGet {
                     retrieval.kind = RADType::Unknown;
                 }
             }
         }
 
-        if let Err(e) = validate_rad_request(&dro.data_request, &active_wips) {
+        if let Err(e) = validate_rad_request(&dr_output.data_request, &active_wips) {
             return Box::pin(actix::fut::err(e));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         let max_dr_weight = self.consensus_constants().max_dr_weight;
         match transaction_factory::build_drt(
-            dro,
+            dr_output,
             msg.fee,
             &mut self.chain_state.own_utxos,
             self.own_pkh.unwrap(),
