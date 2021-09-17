@@ -10,11 +10,11 @@ use serde_json::json;
 use std::{fmt, time::Duration};
 use witnet_data_structures::{
     chain::{DataRequestOutput, Hash},
+    mainnet_validations::current_active_wips,
     proto::ProtobufConvert,
     radon_error::RadonErrors,
 };
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
-use witnet_rad::current_active_wips;
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 

@@ -61,6 +61,24 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips
 }
 
+/// Auxiliary function that returns the current active wips for using in RADON
+/// It is only used for testing or for external libraries, so we set epoch to MAX
+pub fn current_active_wips() -> ActiveWips {
+    ActiveWips {
+        active_wips: wip_info(),
+        block_epoch: u32::MAX,
+    }
+}
+
+/// Auxiliary function that returns the current active wips and the WIPs in voting process as actived
+/// It is only used for testing
+pub fn all_wips_active() -> ActiveWips {
+    let mut h = current_active_wips();
+    h.active_wips.insert("WIP0017-0018-0019".to_string(), 0);
+
+    h
+}
+
 impl TapiEngine {
     pub fn update_bit_counter(
         &mut self,

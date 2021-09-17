@@ -332,11 +332,11 @@ mod tests {
             TransactionsPool, ValueTransferOutput,
         },
         data_request::DataRequestPool,
+        mainnet_validations::current_active_wips,
         transaction::{Transaction, VTTransaction, VTTransactionBody},
         utxo_pool::UnspentOutputsPool,
         vrf::BlockEligibilityClaim,
     };
-    use witnet_rad::current_active_wips;
 
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;

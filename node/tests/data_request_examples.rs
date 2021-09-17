@@ -6,10 +6,9 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::chain::DataRequestOutput;
+use witnet_data_structures::{chain::DataRequestOutput, mainnet_validations::all_wips_active};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
-    all_wips_active,
     script::RadonScriptExecutionSettings,
     types::{
         bytes::RadonBytes, float::RadonFloat, integer::RadonInteger, string::RadonString,

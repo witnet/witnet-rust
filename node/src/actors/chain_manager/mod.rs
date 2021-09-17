@@ -56,7 +56,9 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment,
-    mainnet_validations::{after_second_hard_fork, in_emergency_period, ActiveWips},
+    mainnet_validations::{
+        after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips,
+    },
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
@@ -65,7 +67,7 @@ use witnet_data_structures::{
     vrf::VrfCtx,
 };
 
-use witnet_rad::{current_active_wips, types::RadonTypes};
+use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
     compare_block_candidates, validate_block, validate_block_transactions,

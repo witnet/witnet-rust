@@ -26,6 +26,7 @@ use witnet_data_structures::{
         KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
+    mainnet_validations::current_active_wips,
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::NodeBalance,
@@ -38,7 +39,7 @@ use witnet_node::actors::{
     },
     messages::{BuildVtt, GetReputationResult, SignalingInfo},
 };
-use witnet_rad::{current_active_wips, types::RadonTypes};
+use witnet_rad::types::RadonTypes;
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request, Wit};
 

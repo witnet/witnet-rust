@@ -4970,7 +4970,6 @@ dependencies = [
  "witnet_data_structures",
  "witnet_net",
  "witnet_node",
- "witnet_rad",
  "witnet_util",
  "witnet_validations",
 ]
@@ -4995,7 +4994,6 @@ dependencies = [
  "web3 0.10.0",
  "witnet_crypto",
  "witnet_data_structures",
- "witnet_rad",
  "witnet_util",
  "witnet_validations",
 ]

@@ -27,7 +27,6 @@ use witnet_data_structures::{
 };
 use witnet_protected::Protected;
 use witnet_rad::{
-    all_wips_active, current_active_wips,
     error::RadError,
     filters::RadonFilters,
     reducers::RadonReducers,
@@ -35,6 +34,7 @@ use witnet_rad::{
 };
 
 use crate::validations::*;
+use witnet_data_structures::mainnet_validations::{all_wips_active, current_active_wips};
 
 mod compare_block_candidates;
 mod randpoe;

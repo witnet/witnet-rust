@@ -22,9 +22,9 @@ use web3::{contract, futures::Future, types::U256};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_data_structures::{
     chain::{DataRequestOutput, Hashable, KeyedSignature},
+    mainnet_validations::current_active_wips,
     proto::ProtobufConvert,
 };
-use witnet_rad::current_active_wips;
 use witnet_util::timestamp::get_local_timestamp;
 use witnet_validations::validations::validate_rad_request;
 

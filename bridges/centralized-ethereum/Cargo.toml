@@ -22,6 +22,5 @@ witnet_data_structures = { path = "../../data_structures" }
 witnet_config = { path = "../../config" }
 witnet_net = { path = "../../net" }
 witnet_node = { path = "../../node" }
-witnet_rad = { path = "../../rad" }
 witnet_util = { path = "../../util" }
 witnet_validations = { path = "../../validations" }

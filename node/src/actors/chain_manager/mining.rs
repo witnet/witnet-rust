@@ -1015,14 +1015,15 @@ mod tests {
     };
 
     use witnet_crypto::signature::{sign, verify};
-    use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
+    use witnet_data_structures::{
+        chain::*, mainnet_validations::current_active_wips, transaction::*, vrf::VrfCtx,
+    };
     use witnet_protected::Protected;
     use witnet_validations::validations::validate_block_signature;
 
     use crate::actors::chain_manager::verify_signatures;
 
     use super::*;
-    use witnet_rad::current_active_wips;
 
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;

@@ -10,11 +10,11 @@ use crate::{
 };
 use witnet_data_structures::{
     chain::{DataRequestOutput, Hashable},
+    mainnet_validations::current_active_wips,
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,
 };
-use witnet_rad::current_active_wips;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDataReqRequest {
