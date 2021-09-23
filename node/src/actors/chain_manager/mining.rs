@@ -44,8 +44,8 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
     calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
-    radon_report_from_error, tally_bytes_on_encode_error, update_utxo_diff, validate_rad_request,
-    vt_transaction_fee, Wit,
+    radon_report_from_error, tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
+    Wit,
 };
 
 use crate::{
@@ -144,11 +144,6 @@ impl ChainManager {
             block_epoch: current_epoch,
         };
 
-        // TODO: Remove after WIP-0019 activation
-        // It is only used to include the active_wips in the extra validation of the rad_requests
-        let active_wips = Arc::new(active_wips);
-        let active_wips2 = active_wips.clone();
-
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
             .map(move |res| {
@@ -237,7 +232,6 @@ impl ChainManager {
                     initial_block_reward,
                     halving_period,
                     tapi_version,
-                    &active_wips2,
                 );
 
                 // Sign the block hash
@@ -801,7 +795,6 @@ pub fn build_block(
     initial_block_reward: u64,
     halving_period: u32,
     tapi_signals: u32,
-    active_wips: &ActiveWips,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -937,12 +930,6 @@ pub fn build_block(
             }
         };
 
-        // TODO: Remove this validation after WIP-0019 activation
-        if let Err(e) = validate_rad_request(&dr_tx.body.dr_output.data_request, active_wips) {
-            log::warn!("DataRequest Transaction invalid: {}", e);
-            continue;
-        }
-
         let new_dr_weight = dr_weight.saturating_add(transaction_weight);
         if new_dr_weight <= max_dr_weight {
             update_utxo_diff(
@@ -1018,9 +1005,7 @@ mod tests {
     };
 
     use witnet_crypto::signature::{sign, verify};
-    use witnet_data_structures::{
-        chain::*, mainnet_validations::current_active_wips, transaction::*, vrf::VrfCtx,
-    };
+    use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
     use witnet_protected::Protected;
     use witnet_validations::validations::validate_block_signature;
 
@@ -1072,7 +1057,6 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
-            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1143,7 +1127,6 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
-            &current_active_wips(),
         );
 
         // Create a KeyedSignature
@@ -1267,7 +1250,6 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
-            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1363,7 +1345,6 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
-            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1473,7 +1454,6 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
-            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1566,7 +1546,6 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
-            &current_active_wips(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 

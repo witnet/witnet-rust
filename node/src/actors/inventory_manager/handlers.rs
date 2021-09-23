@@ -332,7 +332,6 @@ mod tests {
             TransactionsPool, ValueTransferOutput,
         },
         data_request::DataRequestPool,
-        mainnet_validations::current_active_wips,
         transaction::{Transaction, VTTransaction, VTTransactionBody},
         utxo_pool::UnspentOutputsPool,
         vrf::BlockEligibilityClaim,
@@ -427,7 +426,6 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
-            &current_active_wips(),
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)

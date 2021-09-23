@@ -6,7 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::{chain::DataRequestOutput, mainnet_validations::all_wips_active};
+use witnet_data_structures::{chain::DataRequestOutput, mainnet_validations::current_active_wips};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
     script::RadonScriptExecutionSettings,
@@ -51,7 +51,7 @@ fn run_dr_locally_with_data(
     // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
     // This does not validate other data request parameters such as number of witnesses, weight, or
     // collateral, so it is still possible that this request is considered invalid by miners.
-    validate_rad_request(&dr.data_request, &all_wips_active())?;
+    validate_rad_request(&dr.data_request, &current_active_wips())?;
 
     let mut retrieval_results = vec![];
     assert_eq!(dr.data_request.retrieve.len(), data.len());
@@ -61,7 +61,7 @@ fn run_dr_locally_with_data(
             r,
             *d,
             RadonScriptExecutionSettings::disable_all(),
-            all_wips_active(),
+            current_active_wips(),
         )?);
     }
 
@@ -69,7 +69,7 @@ fn run_dr_locally_with_data(
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
         &dr.data_request.aggregate,
-        all_wips_active(),
+        current_active_wips(),
     )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
@@ -80,8 +80,11 @@ fn run_dr_locally_with_data(
             .map(RadonTypes::try_from)
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result =
-        witnet_rad::run_tally(reported_values?, &dr.data_request.tally, all_wips_active())?;
+    let tally_result = witnet_rad::run_tally(
+        reported_values?,
+        &dr.data_request.tally,
+        current_active_wips(),
+    )?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(tally_result)

@@ -7,7 +7,8 @@ use witnet_data_structures::{
 
 use std::collections::HashMap;
 
-use crate::{tests::all_wips_active, validations::*};
+use crate::validations::*;
+use witnet_data_structures::mainnet_validations::current_active_wips;
 
 fn calculate_reppoe_threshold_v1(
     rep_eng: &ReputationEngine,
@@ -60,10 +61,7 @@ fn calculate_reppoe_threshold_v3(
     num_witnesses: u16,
     minimum_difficulty: u32,
 ) -> (Hash, f64) {
-    let mut active_wips = all_wips_active();
-    active_wips
-        .active_wips
-        .insert("WIP0014-0016".to_string(), 0);
+    let active_wips = current_active_wips();
     assert!(active_wips.wip0016());
     assert!(active_wips.third_hard_fork());
     calculate_reppoe_threshold(

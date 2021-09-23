@@ -2,10 +2,10 @@ use approx::assert_abs_diff_eq;
 use std::convert::TryFrom;
 use witnet_data_structures::{
     chain::{Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine},
-    mainnet_validations::{ActiveWips, SECOND_HARD_FORK},
+    mainnet_validations::{current_active_wips, ActiveWips, SECOND_HARD_FORK},
 };
 
-use crate::{tests::all_wips_active, validations::*};
+use crate::validations::*;
 
 #[test]
 fn target_randpoe() {
@@ -80,7 +80,7 @@ fn target_randpoe_minimum_difficulty() {
     assert_abs_diff_eq!(p, expected_prob, epsilon = 1e-9);
 
     // After second hard fork, minimum probability is used
-    let active_wips = all_wips_active();
+    let active_wips = current_active_wips();
     let block_epoch = SECOND_HARD_FORK + 1;
     let minimum_expected_prob =
         (1_f64 / f64::from(minimum_difficulty)) * f64::from(replication_factor);

@@ -1,5 +1,5 @@
 use super::*;
-use witnet_data_structures::chain::{RADAggregate, RADRequest, RADRetrieve, RADTally};
+use witnet_data_structures::chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType};
 
 #[test]
 fn deserialize_empty_dr() {
@@ -20,7 +20,7 @@ fn example_request() -> RADRequest {
         retrieve: vec![RADRetrieve {
             url: "http://127.0.0.1:8000".to_string(),
             script: vec![128],
-            ..Default::default()
+            kind: RADType::HttpGet,
         }],
         aggregate: RADAggregate {
             filters: vec![],

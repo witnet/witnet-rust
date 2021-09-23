@@ -1,8 +1,11 @@
-use witnet_data_structures::chain::{Hash, Reputation};
+use witnet_data_structures::{
+    chain::{Hash, Reputation},
+    mainnet_validations::current_active_wips,
+};
 
 use std::cmp::Ordering;
 
-use crate::{tests::all_wips_active, validations::*};
+use crate::validations::*;
 
 #[test]
 fn test_compare_candidate_same_section() {
@@ -183,7 +186,7 @@ fn test_compare_candidate_different_section() {
     let rep_1 = Reputation(0);
     let rep_2 = Reputation(2);
     // Candidate 1 should always be better than candidate 2
-    let vrf_sections = VrfSlots::from_rf(16, 1, 2, 1001, 0, 0, &all_wips_active());
+    let vrf_sections = VrfSlots::from_rf(16, 1, 2, 1001, 0, 0, &current_active_wips());
     // Candidate 1 is in section 0
     let vrf_1 = vrf_sections.target_hashes()[0];
     // Candidate 2 is in section 1

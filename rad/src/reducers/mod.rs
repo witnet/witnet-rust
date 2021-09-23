@@ -125,6 +125,22 @@ mod tests {
     }
 
     #[test]
+    fn test_reduce_average_median() {
+        let mut context = ReportContext::default();
+        context.active_wips = Some(current_active_wips());
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]);
+
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
+        let output = reduce(input, RadonReducers::AverageMedian, &mut context).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
     fn test_reduce_average_median_tapi_activation() {
         let mut active_wips = current_active_wips();
         let mut context = ReportContext::default();
@@ -135,6 +151,17 @@ mod tests {
             RadonFloat::from(2f64).into(),
         ]);
 
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
+        let output = reduce(input, RadonReducers::AverageMedian, &mut context).unwrap();
+
+        assert_eq!(output, expected);
+
+        // Deactivate WIP-0017
+        active_wips
+            .active_wips
+            .remove(&"WIP0017-0018-0019".to_string());
+        context.active_wips = Some(active_wips);
+
         let expected_err = RadError::UnsupportedReducer {
             array: input.clone(),
             reducer: "RadonReducers::AverageMedian".to_string(),
@@ -142,16 +169,6 @@ mod tests {
         let output = reduce(input, RadonReducers::AverageMedian, &mut context).unwrap_err();
 
         assert_eq!(output, expected_err);
-
-        // Activate WIP-0017
-        active_wips
-            .active_wips
-            .insert("WIP0017-0018-0019".to_string(), 0);
-        context.active_wips = Some(active_wips);
-        let expected = RadonTypes::from(RadonFloat::from(2f64));
-        let output = reduce(input, RadonReducers::AverageMedian, &mut context).unwrap();
-
-        assert_eq!(output, expected);
     }
 
     #[test]

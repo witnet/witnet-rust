@@ -46,7 +46,7 @@ mod validations {
 }
 
 // This should only be used in tests
-fn all_wips_active() -> ActiveWips {
+fn current_active_wips() -> ActiveWips {
     let mut tapi_engine = TapiEngine::default();
     tapi_engine.initialize_wip_information(Environment::Testnet);
 
@@ -92,7 +92,7 @@ fn be<I>(
         &my_pkh,
         num_witnesses,
         2000,
-        &all_wips_active(),
+        &current_active_wips(),
     );
     b.iter(|| {
         if invalidate_sorted_cache {
@@ -106,7 +106,7 @@ fn be<I>(
             &my_pkh,
             num_witnesses,
             2000,
-            &all_wips_active(),
+            &current_active_wips(),
         )
     })
 }
