@@ -227,11 +227,13 @@ pub fn exec_cmd(
             dr_tx_hash,
             json,
             print_data_request,
+            create_local_tally,
         } => rpc::data_request_report(
             node.unwrap_or(config.jsonrpc.server_address),
             dr_tx_hash,
             json,
             print_data_request,
+            create_local_tally,
         ),
         Command::GetPeers { node } => rpc::get_peers(node.unwrap_or(config.jsonrpc.server_address)),
         Command::GetKnownPeers { node } => {
@@ -579,6 +581,8 @@ pub enum Command {
         json: bool,
         #[structopt(long = "show-dr", help = "Print data request")]
         print_data_request: bool,
+        #[structopt(long = "run-tally", help = "Re-run tally stage locally")]
+        create_local_tally: bool,
     },
     #[structopt(
         name = "peers",

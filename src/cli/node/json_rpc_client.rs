@@ -26,7 +26,7 @@ use witnet_data_structures::{
         KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
-    mainnet_validations::current_active_wips,
+    mainnet_validations::{current_active_wips, ActiveWips},
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::NodeBalance,
@@ -41,7 +41,9 @@ use witnet_node::actors::{
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
-use witnet_validations::validations::{validate_data_request_output, validate_rad_request, Wit};
+use witnet_validations::validations::{
+    run_tally_panic_safe, validate_data_request_output, validate_rad_request, Wit,
+};
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
@@ -721,6 +723,8 @@ struct DataRequestTransactionInfo {
     reveals: Option<Vec<(String, String, String)>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tally: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    local_tally: Option<String>,
     #[serde(skip)]
     print_data_request: bool,
 }
@@ -878,6 +882,9 @@ impl fmt::Display for DataRequestTransactionInfo {
         if let Some(tally) = &self.tally {
             writeln!(f, "Tally: {}", Yellow.bold().paint(tally))?;
         }
+        if let Some(local_tally) = &self.local_tally {
+            writeln!(f, "Local tally: {}", Yellow.bold().paint(local_tally))?;
+        }
 
         Ok(())
     }
@@ -888,6 +895,7 @@ pub fn data_request_report(
     hash: String,
     json: bool,
     print_data_request: bool,
+    create_local_tally: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = format!(
@@ -921,92 +929,132 @@ pub fn data_request_report(
         dr_output.collateral = consensus_constants.collateral_minimum;
     }
 
-    let (data_request_state, reveals, tally, block_hash_tally_tx) = if transaction_block_hash
-        .is_none()
-    {
-        (None, None, None, None)
-    } else {
-        let request = format!(
-            r#"{{"jsonrpc": "2.0","method": "dataRequestReport", "params": [{:?}], "id": "1"}}"#,
-            hash,
-        );
-        let response = send_request(&mut stream, &request)?;
-        let dr_info: DataRequestInfo = parse_response(&response)?;
+    let (data_request_state, reveals, tally, local_tally, block_hash_tally_tx) =
+        if transaction_block_hash.is_none() {
+            (None, None, None, None, None)
+        } else {
+            let request = format!(
+                r#"{{"jsonrpc": "2.0","method": "dataRequestReport", "params": [{:?}], "id": "1"}}"#,
+                hash,
+            );
+            let response = send_request(&mut stream, &request)?;
+            let dr_info: DataRequestInfo = parse_response(&response)?;
 
-        let data_request_state = DataRequestState {
-            stage: dr_info
-                .current_stage
-                .map(|x| format!("{:?}", x))
-                .unwrap_or_else(|| "FINISHED".to_string()),
-            current_commit_round: dr_info.current_commit_round,
-            current_reveal_round: dr_info.current_reveal_round,
-        };
+            let data_request_state = DataRequestState {
+                stage: dr_info
+                    .current_stage
+                    .map(|x| format!("{:?}", x))
+                    .unwrap_or_else(|| "FINISHED".to_string()),
+                current_commit_round: dr_info.current_commit_round,
+                current_reveal_round: dr_info.current_reveal_round,
+            };
 
-        let mut reveals = vec![];
-        for (pkh, reveal_transaction) in &dr_info.reveals {
-            let reveal_radon_types =
-                RadonTypes::try_from(reveal_transaction.body.reveal.as_slice())?;
-            reveals.push((*pkh, Some(reveal_radon_types)));
-        }
-        for pkh in dr_info.commits.keys() {
-            if !reveals.iter().any(|(reveal_pkh, _)| reveal_pkh == pkh) {
-                reveals.push((*pkh, None));
+            let mut reveals = vec![];
+            let mut reveal_txns = vec![];
+            for (pkh, reveal_transaction) in &dr_info.reveals {
+                let reveal_radon_types =
+                    RadonTypes::try_from(reveal_transaction.body.reveal.as_slice())?;
+                reveals.push((*pkh, Some(reveal_radon_types)));
+                reveal_txns.push(reveal_transaction);
             }
-        }
-        // Sort reveal list by pkh
-        reveals.sort_unstable_by_key(|(pkh, _)| *pkh);
-        let reveals = reveals;
+            for pkh in dr_info.commits.keys() {
+                if !reveals.iter().any(|(reveal_pkh, _)| reveal_pkh == pkh) {
+                    reveals.push((*pkh, None));
+                }
+            }
+            // Sort reveal list by pkh
+            reveals.sort_unstable_by_key(|(pkh, _)| *pkh);
+            let reveals = reveals;
 
-        let tally = dr_info
-            .tally
-            .as_ref()
-            .map(|t| RadonTypes::try_from(t.tally.as_slice()))
-            .transpose()?;
+            let tally = dr_info
+                .tally
+                .as_ref()
+                .map(|t| RadonTypes::try_from(t.tally.as_slice()))
+                .transpose()?;
 
-        (
-            Some(data_request_state),
-            Some(
-                reveals
-                    .into_iter()
-                    .map(|(pkh, reveal)| {
-                        let honest = match dr_info.tally.as_ref() {
-                            None => format!(""),
-                            Some(tally) => {
-                                if tally.out_of_consensus.contains(&pkh)
-                                    && !tally.error_committers.contains(&pkh)
-                                {
-                                    format!("-{}", dr_output.collateral)
-                                } else {
-                                    let reward = tally
-                                        .outputs
-                                        .iter()
-                                        .find(|vto| vto.pkh == pkh)
-                                        .map(|vto| vto.value)
-                                        .unwrap();
+            let mut local_tally = None;
 
-                                    let reward = reward - dr_output.collateral;
+            if create_local_tally {
+                // Run the tally stage locally. This can be useful if the result is a RadonError,
+                // because it may report a better error message.
 
-                                    // Note: the collateral is not included in the reward
-                                    if reward == 0 {
-                                        "0".to_string()
+                // Get the activation epochs of the current active WIPs from the node
+                let request = r#"{"jsonrpc": "2.0","method": "signalingInfo", "id": "1"}"#;
+                let response = send_request(&mut stream, request)?;
+                let signaling_info: SignalingInfo = parse_response(&response)?;
+
+                // Get the tally block epoch from the tally block hash
+                let request = format!(
+                    r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
+                    dr_info.block_hash_tally_tx.unwrap().to_string(),
+                );
+                let response = send_request(&mut stream, &request)?;
+                let tally_block: Block = parse_response(&response)?;
+                let tally_block_epoch = tally_block.block_header.beacon.checkpoint;
+
+                // Run tally locally
+                let active_wips = ActiveWips {
+                    active_wips: signaling_info.active_upgrades,
+                    block_epoch: tally_block_epoch,
+                };
+                let non_error_min = f64::from(dr_output.min_consensus_percentage) / 100.0;
+                let commits_count = dr_info.commits.len();
+                let report = run_tally_panic_safe(
+                    &reveal_txns,
+                    &dr_output.data_request.tally,
+                    non_error_min,
+                    commits_count,
+                    &active_wips,
+                );
+
+                local_tally = Some(report.into_inner());
+            }
+
+            (
+                Some(data_request_state),
+                Some(
+                    reveals
+                        .into_iter()
+                        .map(|(pkh, reveal)| {
+                            let honest = match dr_info.tally.as_ref() {
+                                None => format!(""),
+                                Some(tally) => {
+                                    if tally.out_of_consensus.contains(&pkh)
+                                        && !tally.error_committers.contains(&pkh)
+                                    {
+                                        format!("-{}", dr_output.collateral)
                                     } else {
-                                        format!("+{}", reward)
+                                        let reward = tally
+                                            .outputs
+                                            .iter()
+                                            .find(|vto| vto.pkh == pkh)
+                                            .map(|vto| vto.value)
+                                            .unwrap();
+
+                                        let reward = reward - dr_output.collateral;
+
+                                        // Note: the collateral is not included in the reward
+                                        if reward == 0 {
+                                            "0".to_string()
+                                        } else {
+                                            format!("+{}", reward)
+                                        }
                                     }
                                 }
-                            }
-                        };
-                        (
-                            pkh.to_string(),
-                            reveal.map(|x| x.to_string()).unwrap_or_default(),
-                            honest,
-                        )
-                    })
-                    .collect(),
-            ),
-            tally.map(|x| x.to_string()),
-            dr_info.block_hash_tally_tx.map(|x| x.to_string()),
-        )
-    };
+                            };
+                            (
+                                pkh.to_string(),
+                                reveal.map(|x| x.to_string()).unwrap_or_default(),
+                                honest,
+                            )
+                        })
+                        .collect(),
+                ),
+                tally.map(|x| x.to_string()),
+                local_tally.map(|x| x.to_string()),
+                dr_info.block_hash_tally_tx.map(|x| x.to_string()),
+            )
+        };
 
     let dr_info = DataRequestTransactionInfo {
         data_request_tx_hash: hash,
@@ -1017,6 +1065,7 @@ pub fn data_request_report(
         data_request_state,
         reveals,
         tally,
+        local_tally,
         print_data_request,
     };
 
