@@ -47,7 +47,6 @@ witnet_crypto = { path = "./crypto" }
 witnet_data_structures = { path = "./data_structures" }
 witnet_node = { path = "./node", optional = true }
 witnet_rad = { path = "./rad" }
-witnet_toolkit = { path = "./toolkit" }
 witnet_util = { path = "./util" }
 witnet_validations = { path = "./validations" }
 witnet_wallet = { path = "./wallet", optional = true }

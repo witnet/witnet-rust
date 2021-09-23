@@ -21,7 +21,6 @@ jsonrpc-core = "15.1.0"
 jsonrpc-pubsub = "15.1.0"
 log = "0.4.8"
 rand = "0.7.3"
-rayon = "1.3.0"
 pin-project-lite = "0.2"
 secp256k1 = "0.17.2"
 sentry = { version = "0.23", features = ["log"], optional = true }
