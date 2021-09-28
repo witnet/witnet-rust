@@ -23,7 +23,7 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
-        KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
+        Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     mainnet_validations::{current_active_wips, ActiveWips},
@@ -1074,6 +1074,84 @@ pub fn data_request_report(
     } else {
         // dr_info already ends with a newline, no need to println
         print!("{}", dr_info);
+    }
+
+    Ok(())
+}
+
+pub fn search_requests(
+    addr: SocketAddr,
+    start: i64,
+    end: i64,
+    hex_dr_bytes: Option<String>,
+    same_as_dr_tx: Option<String>,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let expected_dr_output_bytes = match (hex_dr_bytes, same_as_dr_tx) {
+        (Some(hex_dr_bytes), None) => {
+            // Use dr_output_bytes from argument
+            hex::decode(&hex_dr_bytes)?
+        }
+        (None, Some(dr_tx_hash)) => {
+            // Use dr_output_bytes from data request provided as argument
+            let request = format!(
+                r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
+                dr_tx_hash,
+            );
+            let response = send_request(&mut stream, &request)?;
+            let transaction: GetTransactionOutput = parse_response(&response)?;
+
+            let dr_tx = if let Transaction::DataRequest(dr_tx) = transaction.transaction {
+                dr_tx
+            } else {
+                bail!("This is not a data request transaction");
+            };
+
+            let bytes = dr_tx.body.dr_output.to_pb_bytes()?;
+
+            log::info!(
+                "Searching for this dr_output_bytes: {}",
+                hex::encode(&bytes)
+            );
+
+            bytes
+        }
+        _ => {
+            bail!("Expected exactly 1 argument out of --hex-dr-bytes or --same-as-dr-tx")
+        }
+    };
+
+    let params = GetBlockChainParams {
+        epoch: start,
+        limit: end,
+    };
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "getBlockChain", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&params).unwrap()
+        ),
+    )?;
+    let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
+    log::info!("Processing {} blocks", block_chain.len());
+
+    for (_epoch, hash) in block_chain {
+        let request = format!(
+            r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
+            hash,
+        );
+        let response = send_request(&mut stream, &request)?;
+        let block: Block = parse_response(&response)?;
+
+        for data_request in &block.txns.data_request_txns {
+            let dr_output = &data_request.body.dr_output;
+            let dr_output_bytes = dr_output.to_pb_bytes()?;
+            if dr_output_bytes == expected_dr_output_bytes {
+                let dr_hash = data_request.hash();
+                println!("{}", dr_hash);
+            }
+        }
     }
 
     Ok(())

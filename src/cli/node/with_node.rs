@@ -235,6 +235,19 @@ pub fn exec_cmd(
             print_data_request,
             create_local_tally,
         ),
+        Command::SearchRequests {
+            node,
+            start,
+            end,
+            hex_dr_bytes,
+            same_as_dr_tx,
+        } => rpc::search_requests(
+            node.unwrap_or(config.jsonrpc.server_address),
+            start,
+            end,
+            hex_dr_bytes,
+            same_as_dr_tx,
+        ),
         Command::GetPeers { node } => rpc::get_peers(node.unwrap_or(config.jsonrpc.server_address)),
         Command::GetKnownPeers { node } => {
             rpc::get_known_peers(node.unwrap_or(config.jsonrpc.server_address))
@@ -319,7 +332,6 @@ pub enum Command {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// init
         /// First epoch for which to return block hashes
         /// If negative, return block hashes from the last n epochs
         #[structopt(
@@ -329,7 +341,6 @@ pub enum Command {
             default_value = "0"
         )]
         start: i64,
-        /// end
         /// If negative, return the last n block hashes from this epoch range.
         /// If zero, unlimited
         #[structopt(
@@ -583,6 +594,45 @@ pub enum Command {
         print_data_request: bool,
         #[structopt(long = "run-tally", help = "Re-run tally stage locally")]
         create_local_tally: bool,
+    },
+    #[structopt(
+        name = "searchRequests",
+        about = "Search data requests with a specific bytecode"
+    )]
+    SearchRequests {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// First epoch for which to search for requests
+        /// If negative, search the last n epochs
+        #[structopt(
+            long = "start",
+            alias = "s",
+            allow_hyphen_values = true,
+            default_value = "0"
+        )]
+        start: i64,
+        /// If negative, search the last n blocks from this epoch range.
+        /// If zero, unlimited
+        #[structopt(
+            long = "end",
+            alias = "e",
+            allow_hyphen_values = true,
+            default_value = "4294967294"
+        )]
+        end: i64,
+        #[structopt(
+            long = "hex-dr-bytes",
+            value_name = "bytecode",
+            help = "Data request bytecode in hexadecimal format"
+        )]
+        hex_dr_bytes: Option<String>,
+        #[structopt(
+            long = "same-as-dr-tx",
+            value_name = "data request transaction hash",
+            help = "Search all the data requests that have the exact same bytecode as this one"
+        )]
+        same_as_dr_tx: Option<String>,
     },
     #[structopt(
         name = "peers",
