@@ -1,6 +1,7 @@
 //! Message handlers for `RadManager`
 
 use actix::{Handler, ResponseFuture};
+use std::time::Duration;
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 use witnet_rad::{error::RadError, script::RadonScriptExecutionSettings, types::RadonTypes};
 use witnet_validations::validations::{
@@ -11,6 +12,10 @@ use crate::actors::messages::{ResolveRA, RunTally};
 
 use super::RadManager;
 use futures::FutureExt;
+
+// This constant is used to ensure that a RetrievalTimeoutError is committed after 10 seconds
+// This value must be lower than half an epoch, and having enough time to broadcasting the commit.
+const MAX_RETRIEVAL_TIMEOUT: Duration = Duration::from_millis(10000);
 
 impl Handler<ResolveRA> for RadManager {
     // This must be ResponseFuture, otherwise the actor dies on panic
@@ -69,26 +74,26 @@ impl Handler<ResolveRA> for RadManager {
             }
         };
 
-        if let Some(timeout) = timeout {
-            // Add timeout, if there is one
-            // TODO: this timeout only works if there are no blocking operations.
-            // Since currently the execution of RADON is blocking this thread, we can only
-            // handle HTTP timeouts.
-            // A simple fix would be to offload computation to another thread, to avoid blocking
-            // the main thread. Then the timeout would apply to the message passing between threads.
-            Box::pin(
-                tokio::time::timeout(timeout, fut).map(|result| match result {
-                    Ok(Ok(x)) => Ok(x),
-                    Ok(Err(rad_error)) => Err(rad_error),
-                    Err(_elapsed) => Ok(RadonReport::from_result(
-                        Err(RadError::RetrieveTimeout),
-                        &ReportContext::default(),
-                    )),
-                }),
-            )
-        } else {
-            Box::pin(fut)
-        }
+        let timeout = match timeout {
+            None => MAX_RETRIEVAL_TIMEOUT,
+            Some(timeout_from_config) => std::cmp::min(timeout_from_config, MAX_RETRIEVAL_TIMEOUT),
+        };
+
+        // TODO: this timeout only works if there are no blocking operations.
+        // Since currently the execution of RADON is blocking this thread, we can only
+        // handle HTTP timeouts.
+        // A simple fix would be to offload computation to another thread, to avoid blocking
+        // the main thread. Then the timeout would apply to the message passing between threads.
+        Box::pin(
+            tokio::time::timeout(timeout, fut).map(|result| match result {
+                Ok(Ok(x)) => Ok(x),
+                Ok(Err(rad_error)) => Err(rad_error),
+                Err(_elapsed) => Ok(RadonReport::from_result(
+                    Err(RadError::RetrieveTimeout),
+                    &ReportContext::default(),
+                )),
+            }),
+        )
     }
 }
 
