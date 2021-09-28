@@ -22,17 +22,34 @@ impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<Result<RadonReport<RadonTypes>, RadError>>;
 
     fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
-        let timeout = msg.timeout;
         // The result of the RAD aggregation is computed asynchronously, because the async block
         // returns a future
         let fut = async {
             let sources = msg.rad_request.retrieve;
             let aggregator = msg.rad_request.aggregate;
             let active_wips = msg.active_wips.clone();
+            // Add a timeout to each source retrieval
+            // TODO: this timeout only works if there are no blocking operations.
+            // Since currently the execution of RADON is blocking this thread, we can only
+            // handle HTTP timeouts.
+            // A simple fix would be to offload computation to another thread, to avoid blocking
+            // the main thread. Then the timeout would apply to the message passing between threads.
+            let timeout = match msg.timeout {
+                None => MAX_RETRIEVAL_TIMEOUT,
+                Some(timeout_from_config) => {
+                    std::cmp::min(timeout_from_config, MAX_RETRIEVAL_TIMEOUT)
+                }
+            };
 
             let retrieve_responses_fut = sources
                 .iter()
-                .map(|retrieve| witnet_rad::run_retrieval(retrieve, active_wips.clone()));
+                .map(|retrieve| witnet_rad::run_retrieval(retrieve, active_wips.clone()))
+                .map(|fut| {
+                    tokio::time::timeout(timeout, fut).map(|response| {
+                        // In case of timeout, set response to "RetrieveTimeout" error
+                        response.unwrap_or(Err(RadError::RetrieveTimeout))
+                    })
+                });
 
             // Perform retrievals in parallel for the sake of synchronization between sources
             //  (increasing the likeliness of multiple sources returning results that are closer to each
@@ -41,7 +58,7 @@ impl Handler<ResolveRA> for RadManager {
                 futures::future::join_all(retrieve_responses_fut)
                     .await
                     .into_iter()
-                    .map(|retrieve| RadonReport::from_result(retrieve, &ReportContext::default()))
+                    .map(|result| RadonReport::from_result(result, &ReportContext::default()))
                     .collect();
 
             // Evaluate tally precondition to ensure that at least 20% of the data sources are not errors.
@@ -74,26 +91,7 @@ impl Handler<ResolveRA> for RadManager {
             }
         };
 
-        let timeout = match timeout {
-            None => MAX_RETRIEVAL_TIMEOUT,
-            Some(timeout_from_config) => std::cmp::min(timeout_from_config, MAX_RETRIEVAL_TIMEOUT),
-        };
-
-        // TODO: this timeout only works if there are no blocking operations.
-        // Since currently the execution of RADON is blocking this thread, we can only
-        // handle HTTP timeouts.
-        // A simple fix would be to offload computation to another thread, to avoid blocking
-        // the main thread. Then the timeout would apply to the message passing between threads.
-        Box::pin(
-            tokio::time::timeout(timeout, fut).map(|result| match result {
-                Ok(Ok(x)) => Ok(x),
-                Ok(Err(rad_error)) => Err(rad_error),
-                Err(_elapsed) => Ok(RadonReport::from_result(
-                    Err(RadError::RetrieveTimeout),
-                    &ReportContext::default(),
-                )),
-            }),
-        )
+        Box::pin(fut)
     }
 }
 
