@@ -185,7 +185,7 @@ async fn http_get_response(
 
     // Set a random user-agent from the list
     let mut response = surf::get(&retrieve.url)
-        .set_header("User-Agent", UserAgent::random())
+        .header("User-Agent", UserAgent::random())
         .await
         .map_err(|x| RadError::HttpOther {
             message: x.to_string(),
@@ -1084,8 +1084,13 @@ mod tests {
     #[test]
     fn test_header_correctly_set() {
         let test_header = UserAgent::random();
-        let req = surf::get("https://httpbin.org/get?page=2").set_header("User-Agent", test_header);
-        assert_eq!(req.header("User-Agent"), Some(test_header));
+        let req = surf::get("https://httpbin.org/get?page=2")
+            .header("User-Agent", test_header)
+            .build();
+        assert_eq!(
+            req.header("User-Agent").map(|x| x.as_str()),
+            Some(test_header)
+        );
     }
 
     /// Test try_data_request with a RNG source
