@@ -891,7 +891,6 @@ impl Handler<PeersBeacons> for ChainManager {
         if self.current_epoch.is_none() {
             return Err(());
         }
-        let current_epoch = self.current_epoch.unwrap();
 
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
@@ -1105,7 +1104,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             highest_block_checkpoint: consensus_beacon,
                             ..
                         },
-                        is_there_block_consensus,
+                        _,
                     )) => {
                         // We are out of consensus!
                         log::warn!(
@@ -1114,26 +1113,14 @@ impl Handler<PeersBeacons> for ChainManager {
                             consensus_beacon,
                         );
 
-                        // If there are a block consensus (more than 2/3) and we didn't consolidate
-                        // any block in the last epoch, because it could be that we lost a candidate
-                        // by any reason
-                        if is_there_block_consensus
-                            && consensus_beacon.checkpoint == current_epoch - 1
-                            && our_beacon.checkpoint != current_epoch - 1
-                        {
-                            self.update_state_machine(StateMachine::WaitingConsensus, ctx);
+                        // We will move to AlmostSynced to disable mining while preserving network
+                        // stability, as superblock votes should still be produced and broadcast
+                        self.update_state_machine(StateMachine::AlmostSynced, ctx);
 
-                            Ok(peers_to_unregister)
-                        // In the rest of cases we will move to AlmostSynced to do not allow
-                        // mining and preserve network stability
-                        } else {
-                            self.update_state_machine(StateMachine::AlmostSynced, ctx);
+                        // We will remove those peers that either signaled beacons differing from
+                        // the last consensus or did not send any beacon
 
-                            // We will remove those that are different from the last consensus or
-                            // peers that did not send any beacon
-
-                            Ok(peers_with_no_beacon)
-                        }
+                        Ok(peers_with_no_beacon)
                     }
                     None => {
                         // If we are synced and the consensus beacon is not the same as our beacon, then
