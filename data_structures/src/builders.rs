@@ -26,9 +26,6 @@ pub const PROTOCOL_VERSION: u32 = 0x0000_0001;
 /// Capabilities
 pub const CAPABILITIES: u64 = 0x0000_0000_0000_0001;
 
-/// User agent
-pub const USER_AGENT: &str = "full-node-desktop-edition";
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // BUILDER PUBLIC FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +67,7 @@ impl Message {
                 capabilities: CAPABILITIES,
                 sender_address: addr.unwrap_or_default(),
                 receiver_address: to_address(receiver_addr),
-                user_agent: USER_AGENT.to_string(),
+                user_agent: user_agent(),
                 nonce: random_nonce(),
                 beacon,
             }),
@@ -168,6 +165,14 @@ impl Message {
 /// Function to get a random nonce
 fn random_nonce() -> u64 {
     thread_rng().gen()
+}
+
+/// Function that returns the dynamic user agent
+pub fn user_agent() -> String {
+    // TODO: Read version, arch and OS
+    let release = "1.4.1";
+
+    format!("witnet-rust {}", release)
 }
 
 fn u128_to_be_u32(x: u128) -> [u32; 4] {

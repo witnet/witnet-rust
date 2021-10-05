@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use crate::user_agent;
 use witnet_data_structures::{builders::*, chain::*, transaction::Transaction, types::*, vrf::*};
 
 #[test]
@@ -133,7 +134,7 @@ fn builders_build_version() {
         capabilities: CAPABILITIES,
         sender_address: sender_addr,
         receiver_address: receiver_addr,
-        user_agent: USER_AGENT.to_string(),
+        user_agent: user_agent(),
         nonce: 1234,
         beacon: hardcoded_beacon.clone(),
     });
@@ -154,6 +155,7 @@ fn builders_build_version() {
 
     // Check that the build_version function builds the expected message
     assert_eq!(built_msg.magic, msg.magic);
+    let aux_user_agent = user_agent();
     match &built_msg.kind {
         Command::Version(Version {
             version,
@@ -168,7 +170,7 @@ fn builders_build_version() {
                 && *capabilities == CAPABILITIES
                 && *sender_address == sender_addr
                 && *receiver_address == receiver_addr
-                && user_agent == USER_AGENT
+                && *user_agent == aux_user_agent
                 && *beacon == hardcoded_beacon
         ),
         _ => panic!("Some field/s do not match the expected value"),
