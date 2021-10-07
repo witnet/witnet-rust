@@ -299,3 +299,16 @@ fn test_filter_private_data() {
         None
     );
 }
+
+#[test]
+fn user_agent_includes_witnet_version() {
+    let user_agent = witnet_data_structures::builders::user_agent();
+    let witnet_version = env!("CARGO_PKG_VERSION");
+
+    assert!(
+        user_agent.contains(witnet_version),
+        "user agent {:?} does not match the current witnet version {:?}",
+        user_agent,
+        witnet_version
+    );
+}
