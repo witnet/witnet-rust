@@ -994,30 +994,41 @@ impl Handler<PeersBeacons> for ChainManager {
                         } else {
                             // Review candidates
                             let consensus_block_hash = consensus_beacon.hash_prev_block;
-                            let candidate = self.candidates.remove(&consensus_block_hash);
+                            let candidates = self
+                                .candidates
+                                .remove(&consensus_block_hash)
+                                .unwrap_or_default();
                             // Clear candidates, as they are only valid for one epoch
                             self.candidates.clear();
                             self.seen_candidates.clear();
-                            // TODO: Be functional my friend
-                            if let Some(consensus_block) = candidate {
+
+                            if candidates.len() > 1 {
+                                log::warn!(
+                                    "There are {} block candidates with the same hash",
+                                    candidates.len()
+                                );
+                            }
+                            let mut consolidated_consensus_candidate = false;
+                            for consensus_block in candidates {
                                 match self.process_requested_block(ctx, consensus_block, false) {
                                     Ok(()) => {
+                                        consolidated_consensus_candidate = true;
                                         log::info!(
                                             "Consolidate consensus candidate. AlmostSynced state"
                                         );
-                                        StateMachine::AlmostSynced
+                                        break;
                                     }
                                     Err(e) => {
                                         log::debug!(
                                             "Failed to consolidate consensus candidate: {}",
                                             e
                                         );
-
-                                        self.request_blocks_batch(ctx);
-
-                                        StateMachine::Synchronizing
                                     }
                                 }
+                            }
+
+                            if consolidated_consensus_candidate {
+                                StateMachine::AlmostSynced
                             } else {
                                 self.request_blocks_batch(ctx);
 

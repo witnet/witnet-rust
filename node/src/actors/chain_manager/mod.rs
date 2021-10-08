@@ -182,7 +182,7 @@ pub struct ChainManager {
     sync_waiting_for_add_blocks_since: Option<Epoch>,
     /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
     /// (block_hash, block))
-    candidates: HashMap<Hash, Block>,
+    candidates: HashMap<Hash, Vec<Block>>,
     /// Best candidate
     best_candidate: Option<BlockCandidate>,
     /// Set that stores all the received candidates
@@ -541,7 +541,10 @@ impl ChainManager {
                 if self.sm_state == StateMachine::WaitingConsensus
                     || self.sm_state == StateMachine::Synchronizing
                 {
-                    self.candidates.insert(hash_block, block.clone());
+                    self.candidates
+                        .entry(hash_block)
+                        .or_default()
+                        .push(block.clone());
                     // If the node is not synced, broadcast recent candidates without validating them
                     self.broadcast_item(InventoryItem::Block(block));
 
