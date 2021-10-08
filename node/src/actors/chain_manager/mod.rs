@@ -575,6 +575,13 @@ impl ChainManager {
                             "Block candidate has an invalid mining eligibility proof: {}",
                             e
                         );
+
+                        // In order to do not block possible validate candidates in AlmostSynced
+                        // state, we would broadcast the errors too
+                        if self.sm_state == StateMachine::AlmostSynced {
+                            self.broadcast_item(InventoryItem::Block(block));
+                        }
+
                         return;
                     }
                 };
@@ -638,11 +645,19 @@ impl ChainManager {
 
                         self.broadcast_item(InventoryItem::Block(block));
                     }
-                    Err(e) => log::warn!(
-                        "Error when processing a block candidate {}: {}",
-                        hash_block,
-                        e
-                    ),
+                    Err(e) => {
+                        log::warn!(
+                            "Error when processing a block candidate {}: {}",
+                            hash_block,
+                            e
+                        );
+
+                        // In order to do not block possible validate candidates in AlmostSynced
+                        // state, we would broadcast the errors too
+                        if self.sm_state == StateMachine::AlmostSynced {
+                            self.broadcast_item(InventoryItem::Block(block));
+                        }
+                    }
                 }
             } else {
                 log::trace!("Block candidate already seen: {}", hash_block);
