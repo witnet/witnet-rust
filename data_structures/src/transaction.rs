@@ -196,7 +196,7 @@ pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::VTTransaction")]
 pub struct VTTransaction {
     pub body: VTTransactionBody,
@@ -227,7 +227,7 @@ impl VTTransaction {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::VTTransactionBody")]
 pub struct VTTransactionBody {
     pub inputs: Vec<Input>,
@@ -316,7 +316,7 @@ impl TxInclusionProof {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::DRTransaction")]
 pub struct DRTransaction {
     pub body: DRTransactionBody,
@@ -359,7 +359,7 @@ impl DRTransaction {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::DRTransactionBody")]
 pub struct DRTransactionBody {
     pub inputs: Vec<Input>,
@@ -417,7 +417,7 @@ impl DRTransactionBody {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::CommitTransaction")]
 pub struct CommitTransaction {
     pub body: CommitTransactionBody,
@@ -431,7 +431,7 @@ impl CommitTransaction {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::CommitTransactionBody")]
 pub struct CommitTransactionBody {
     // DRTransaction hash
@@ -491,7 +491,7 @@ impl CommitTransactionBody {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::RevealTransaction")]
 pub struct RevealTransaction {
     pub body: RevealTransactionBody,
@@ -505,7 +505,7 @@ impl RevealTransaction {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::RevealTransactionBody")]
 pub struct RevealTransactionBody {
     // Inputs
@@ -531,7 +531,7 @@ impl RevealTransactionBody {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::TallyTransaction")]
 pub struct TallyTransaction {
     /// DRTransaction hash
@@ -606,7 +606,7 @@ impl TallyTransaction {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::MintTransaction")]
 pub struct MintTransaction {
     pub epoch: Epoch,

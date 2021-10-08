@@ -186,7 +186,7 @@ pub struct ChainManager {
     /// Best candidate
     best_candidate: Option<BlockCandidate>,
     /// Set that stores all the received candidates
-    seen_candidates: HashSet<Hash>,
+    seen_candidates: HashSet<Block>,
     /// Our public key hash, used to create the mint transaction
     own_pkh: Option<PublicKeyHash>,
     /// Our BLS public key, used to append in commit transactions
@@ -536,7 +536,8 @@ impl ChainManager {
 
             let hash_block = block.hash();
             // If this candidate has not been seen before, validate it
-            if self.seen_candidates.insert(hash_block) {
+            if !self.seen_candidates.contains(&block) {
+                self.seen_candidates.insert(block.clone());
                 if self.sm_state == StateMachine::WaitingConsensus
                     || self.sm_state == StateMachine::Synchronizing
                 {

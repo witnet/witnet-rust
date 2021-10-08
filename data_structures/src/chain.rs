@@ -389,7 +389,7 @@ pub struct CheckpointVRF {
 pub type Epoch = u32;
 
 /// Block data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
 #[protobuf_convert(pb = "witnet::Block")]
 pub struct Block {
     /// The header of the block
@@ -405,7 +405,7 @@ pub struct Block {
 }
 
 /// Block transactions
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::Block_BlockTransactions")]
 pub struct BlockTransactions {
     /// Mint transaction,
@@ -635,7 +635,7 @@ impl Hashable for PublicKey {
 }
 
 /// Block header structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
 #[protobuf_convert(pb = "witnet::Block_BlockHeader")]
 pub struct BlockHeader {
     /// 32 bits for binary signaling new witnet protocol improvements.
@@ -651,7 +651,7 @@ pub struct BlockHeader {
     pub bn256_public_key: Option<Bn256PublicKey>,
 }
 /// Block merkle tree roots
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
 #[protobuf_convert(pb = "witnet::Block_BlockHeader_BlockMerkleRoots")]
 pub struct BlockMerkleRoots {
     /// A 256-bit hash based on the mint transaction committed to this block
