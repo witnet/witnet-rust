@@ -81,6 +81,18 @@ impl Message for AddBlocks {
     type Result = SessionUnitResult;
 }
 
+/// Add a missing block
+pub struct AddMissingBlock {
+    /// Block
+    pub block: Block,
+    /// Sender peer
+    pub sender: Option<SocketAddr>,
+}
+
+impl Message for AddMissingBlock {
+    type Result = SessionUnitResult;
+}
+
 /// Add a new candidate
 pub struct AddCandidates {
     /// Candidates
@@ -386,6 +398,13 @@ pub struct Rewind {
 
 impl Message for Rewind {
     type Result = Result<bool, failure::Error>;
+}
+
+/// Check block chain
+pub struct CheckBlockChain;
+
+impl Message for CheckBlockChain {
+    type Result = Result<Vec<(Epoch, Hash)>, failure::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -824,6 +843,23 @@ impl Message for SendInventoryRequest {
 impl fmt::Display for SendInventoryRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SendInventoryRequest")
+    }
+}
+
+/// Message to request missing blocks through the network
+#[derive(Clone, Debug)]
+pub struct RequestMissingBlocks {
+    /// Inventory entries
+    pub block_hashes: Vec<Hash>,
+}
+
+impl Message for RequestMissingBlocks {
+    type Result = ();
+}
+
+impl fmt::Display for RequestMissingBlocks {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "RequestMissingBlocks")
     }
 }
 

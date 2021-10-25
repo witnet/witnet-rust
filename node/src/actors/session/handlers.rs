@@ -28,12 +28,12 @@ use crate::actors::{
     chain_manager::ChainManager,
     inventory_manager::InventoryManager,
     messages::{
-        AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlock, AddSuperBlockVote,
-        AddTransaction, CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
-        GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
-        RemoveAddressesFromTried, RequestPeers, SendGetPeers, SendInventoryAnnouncement,
-        SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-        SessionUnitResult,
+        AddBlocks, AddCandidates, AddConsolidatedPeer, AddMissingBlock, AddPeers, AddSuperBlock,
+        AddSuperBlockVote, AddTransaction, CloseSession, Consolidate, EpochNotification,
+        GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
+        RemoveAddressesFromTried, RequestMissingBlocks, RequestPeers, SendGetPeers,
+        SendInventoryAnnouncement, SendInventoryItem, SendInventoryRequest, SendLastBeacon,
+        SendSuperBlockVote, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -472,6 +472,32 @@ impl Handler<SendInventoryRequest> for Session {
     }
 }
 
+/// Handler for SendInventoryRequest message (sent by other actors)
+impl Handler<RequestMissingBlocks> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: RequestMissingBlocks, _: &mut Context<Self>) {
+        log::trace!(
+            "Sending SendInventoryRequest message to peer at {:?}",
+            self.remote_addr
+        );
+
+        let items = msg
+            .block_hashes
+            .iter()
+            .map(|block_hash| InventoryEntry::Block(*block_hash))
+            .collect();
+
+        self.requested_missing_block_hashes.extend(msg.block_hashes);
+
+        // Try to create InventoryRequest protocol message to request missing inventory vectors
+        if let Ok(inv_req_msg) = WitnetMessage::build_inventory_request(self.magic_number, items) {
+            // Send InventoryRequest message through the session network connection
+            self.send_message(inv_req_msg);
+        }
+    }
+}
+
 /// Handler for SendInventoryItem message (sent by other actors)
 impl Handler<SendInventoryItem> for Session {
     type Result = SessionUnitResult;
@@ -709,6 +735,14 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
             session.requested_blocks.clear();
             // requested_block_hashes is cleared by using drain(..) above
         }
+    } else if session.requested_missing_block_hashes.contains(&block_hash) {
+        session.requested_missing_block_hashes.remove(&block_hash);
+
+        // TODO: we can add this block but we cannot validate it...
+        chain_manager_addr.do_send(AddMissingBlock {
+            block,
+            sender: Some(session.remote_addr),
+        })
     } else {
         // If this is not a requested block, assume it is a candidate
         // Send a message to the ChainManager to try to add a new candidate

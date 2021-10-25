@@ -10,8 +10,8 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, NodeStats,
-        SuperBlockVote, SupplyInfo,
+        Block, BlockMerkleRoots, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
+        Hashable, NodeStats, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     mainnet_validations::ActiveWips,
@@ -21,20 +21,26 @@ use witnet_data_structures::{
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
 use witnet_util::timestamp::get_timestamp;
-use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
+use witnet_validations::validations::{
+    block_reward, total_block_reward, validate_block_signature, validate_rad_request,
+    verify_signatures,
+};
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
+        inventory_manager::InventoryManager,
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
-            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
+            AddBlocks, AddCandidates, AddCommitReveal, AddMissingBlock, AddSuperBlock,
+            AddSuperBlockVote, AddTransaction, Anycast, Broadcast, BuildDrt, BuildVtt,
+            CheckBlockChain, EpochNotification, GetBalance, GetBlocksEpochRange,
+            GetDataRequestInfo, GetHighestCheckpointBeacon, GetItemBlock, GetMemoryTransaction,
+            GetMempool, GetMempoolResult, GetNodeStats, GetReputation, GetReputationResult,
+            GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo,
+            IsConfirmedBlock, PeersBeacons, ReputationStats, RequestMissingBlocks, Rewind,
+            SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
+            StoreInventoryItem, TryMineBlock,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -638,6 +644,75 @@ fn log_sync_progress(
             epoch_of_the_last_block,
             sync_target.superblock.checkpoint
         );
+    }
+}
+
+/// Handler for AddMissingBlock message
+impl Handler<AddMissingBlock> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddMissingBlock, ctx: &mut Context<Self>) -> Self::Result {
+        let block = msg.block;
+        // Verify that the block hash matches the excepted hash for this epoch
+        let block_epoch = block.block_header.beacon.checkpoint;
+
+        let expected_block_hash = match self.chain_state.block_chain.get(&block_epoch) {
+            Some(x) => x,
+            None => {
+                // TODO: error
+                return;
+            }
+        };
+
+        let block_hash = block.hash();
+        if block_hash != *expected_block_hash {
+            // TODO: error
+            return;
+        }
+
+        // Now we know that the block header is valid, but we still need to validate the block
+        // signature and the merkle roots
+        let block_merkle_roots = BlockMerkleRoots::from_transactions(&block.txns);
+        if block_merkle_roots != block.block_header.merkle_roots {
+            // TODO: error
+            return;
+        }
+
+        // Block header and transactions are valid, check signature
+        let mut signatures_to_verify = vec![];
+
+        if let Err(_e) = validate_block_signature(&block, &mut signatures_to_verify) {
+            // TODO: error
+            return;
+        }
+
+        // Get VRF context
+        let vrf_ctx = match self.vrf_ctx.as_mut() {
+            Some(x) => x,
+            None => {
+                log::error!("No VRF context available");
+                return;
+            }
+        };
+        // Get secp256k1 context
+        let secp_ctx = match self.secp.as_mut() {
+            Some(x) => x,
+            None => {
+                log::error!("No secp256k1 context available");
+                return;
+            }
+        };
+
+        if let Err(_e) = verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx) {
+            // TODO: error
+            return;
+        }
+
+        // Valid block, write to storage
+        self.persist_items(ctx, vec![StoreInventoryItem::Block(Box::new(block))]);
+
+        // TODO: need to persist_data_requests as well
+        // But how to get DataRequestReport from block?
     }
 }
 
@@ -1779,6 +1854,59 @@ impl Handler<GetSignalingInfo> for ChainManager {
             pending_upgrades,
             epoch,
         })
+    }
+}
+
+impl Handler<CheckBlockChain> for ChainManager {
+    type Result = ResponseFuture<Result<Vec<(Epoch, Hash)>, failure::Error>>;
+
+    fn handle(&mut self, _msg: CheckBlockChain, _ctx: &mut Self::Context) -> Self::Result {
+        // Get all block hashes
+        let inventory_manager_addr = InventoryManager::from_registry();
+        let blockchain = self.get_blocks_epoch_range(GetBlocksEpochRange::new(..));
+
+        let fut = async move {
+            let last_epoch_to_check = match blockchain.last() {
+                Some((epoch, _)) => *epoch,
+                None => 0,
+            };
+            let mut missing_blocks = vec![];
+
+            for (epoch, block_hash) in blockchain {
+                if epoch % 5000 == 0 {
+                    log::debug!("checkBlockChain: {:7}/{:7}", epoch, last_epoch_to_check);
+                }
+                let block = inventory_manager_addr
+                    .send(GetItemBlock { hash: block_hash })
+                    .await?;
+
+                match block {
+                    Ok(block) => {
+                        // Just a sanity check
+                        assert_eq!(block.hash(), block_hash);
+                    }
+                    Err(e) => {
+                        log::error!("Error when checking block #{} {}: {}", epoch, block_hash, e);
+                        missing_blocks.push((epoch, block_hash));
+                    }
+                }
+            }
+
+            // Request missing blocks
+            SessionsManager::from_registry().do_send(Anycast {
+                command: RequestMissingBlocks {
+                    block_hashes: missing_blocks
+                        .iter()
+                        .map(|(_epoch, block_hash)| *block_hash)
+                        .collect(),
+                },
+                safu: false,
+            });
+
+            Ok(missing_blocks)
+        };
+
+        Box::pin(fut)
     }
 }
 

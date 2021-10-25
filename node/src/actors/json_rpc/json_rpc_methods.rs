@@ -35,7 +35,8 @@ use crate::{
             GetBalance, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation,
-            GetSignalingInfo, GetState, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
+            GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
+            IsConfirmedBlock, Rewind,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -47,7 +48,7 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
-use crate::actors::messages::GetSupplyInfo;
+use crate::actors::messages::CheckBlockChain;
 use futures::FutureExt;
 use futures_util::compat::Compat;
 use std::future::Future;
@@ -239,6 +240,14 @@ pub fn jsonrpc_io_handler(
             "rewind",
             params,
             |params| rewind(params.parse()),
+        )))
+    });
+    io.add_method("checkBlockChain", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "checkBlockChain",
+            params,
+            |params| check_block_chain(params.parse()),
         )))
     });
 
@@ -1629,6 +1638,27 @@ pub async fn rewind(params: Result<(Epoch,), jsonrpc_core::Error>) -> JsonRpcRes
                 })
         })
         .await
+}
+
+/// Rewind
+pub async fn check_block_chain(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResult {
+    let _ = match params {
+        Ok(()) => (),
+        Err(e) => return Err(e),
+    };
+
+    let chain_manager_addr = ChainManager::from_registry();
+    let missing_blocks = chain_manager_addr
+        .send(CheckBlockChain)
+        .await
+        .map_err(internal_error_s)?
+        .map_err(internal_error_s)?;
+
+    if missing_blocks.is_empty() {
+        return Ok(Value::Bool(true));
+    }
+
+    serde_json::to_value(missing_blocks).map_err(internal_error_s)
 }
 
 /// Parameter of getSuperblock: can be either block epoch or superblock index

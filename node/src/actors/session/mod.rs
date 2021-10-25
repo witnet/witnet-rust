@@ -1,4 +1,8 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    sync::Arc,
+};
 
 use actix::{io::FramedWrite, SystemService};
 
@@ -81,6 +85,9 @@ pub struct Session {
     /// Requested block hashes vector
     requested_block_hashes: Vec<Hash>,
 
+    /// Requested missing block hashes (from corrupted storage)
+    requested_missing_block_hashes: HashSet<Hash>,
+
     /// HashMap with requested blocks
     requested_blocks: HashMap<Hash, Block>,
 
@@ -133,6 +140,7 @@ impl Session {
             current_epoch,
             last_beacon,
             requested_block_hashes: vec![],
+            requested_missing_block_hashes: HashSet::default(),
             requested_blocks: HashMap::new(),
             blocks_timestamp: 0,
             config,
