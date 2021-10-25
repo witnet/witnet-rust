@@ -189,10 +189,9 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                 try_consolidate_session(self, ctx);
                             }
                             Err(err) => {
-                                if let HandshakeError::DifferentTimestamp { .. } = err {
-                                    // Remove this address from tried bucket and ice it
-                                    self.remove_and_ice_peer();
-                                } else if let HandshakeError::DifferentEpoch { .. } = err {
+                                if let HandshakeError::DifferentTimestamp { .. }
+                                | HandshakeError::DifferentEpoch { .. } = err
+                                {
                                     // Remove this address from tried bucket and ice it
                                     self.remove_and_ice_peer();
                                 } else if session_type == SessionType::Feeler
