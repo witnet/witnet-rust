@@ -2946,6 +2946,7 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::test_actix_system;
     use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
     use witnet_data_structures::{
         chain::{
@@ -3067,28 +3068,30 @@ mod tests {
 
     #[test]
     fn get_superblock_beacon() {
-        let mut chain_manager = ChainManager::default();
-        chain_manager.chain_state.chain_info = Some(ChainInfo {
-            environment: Environment::default(),
-            consensus_constants: consensus_constants_from_partial(
-                &PartialConsensusConstants::default(),
-                &Testnet,
-            ),
-            highest_block_checkpoint: CheckpointBeacon::default(),
-            highest_superblock_checkpoint: CheckpointBeacon {
-                checkpoint: 0,
-                hash_prev_block: Hash::SHA256([1; 32]),
-            },
-            highest_vrf_output: CheckpointVRF::default(),
-        });
+        test_actix_system(|| async {
+            let mut chain_manager = ChainManager::default();
+            chain_manager.chain_state.chain_info = Some(ChainInfo {
+                environment: Environment::default(),
+                consensus_constants: consensus_constants_from_partial(
+                    &PartialConsensusConstants::default(),
+                    &Testnet,
+                ),
+                highest_block_checkpoint: CheckpointBeacon::default(),
+                highest_superblock_checkpoint: CheckpointBeacon {
+                    checkpoint: 0,
+                    hash_prev_block: Hash::SHA256([1; 32]),
+                },
+                highest_vrf_output: CheckpointVRF::default(),
+            });
 
-        assert_eq!(
-            chain_manager.get_superblock_beacon(),
-            CheckpointBeacon {
-                checkpoint: 0,
-                hash_prev_block: Hash::SHA256([1; 32]),
-            }
-        );
+            assert_eq!(
+                chain_manager.get_superblock_beacon(),
+                CheckpointBeacon {
+                    checkpoint: 0,
+                    hash_prev_block: Hash::SHA256([1; 32]),
+                }
+            );
+        });
     }
 
     #[test]
