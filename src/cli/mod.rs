@@ -83,7 +83,7 @@ fn configure_logger(opts: &LogOptions) -> env_logger::Builder {
         } else {
             None
         })
-        .format_module_path(opts.module_path)
+        .format_target(opts.module_path)
         .filter_level(log::LevelFilter::Info)
         .filter_module("witnet", opts.level)
         .filter_module("witnet_node", opts.level)

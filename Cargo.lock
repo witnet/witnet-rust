@@ -4913,7 +4913,7 @@ dependencies = [
  "ansi_term 0.12.1",
  "bytecount",
  "ctrlc",
- "env_logger 0.7.1",
+ "env_logger 0.9.0",
  "failure",
  "futures 0.3.17",
  "hex 0.4.3",
@@ -4960,7 +4960,7 @@ dependencies = [
  "actix",
  "async-jsonrpc-client",
  "ctrlc",
- "env_logger 0.7.1",
+ "env_logger 0.9.0",
  "futures-util",
  "hex 0.4.3",
  "log 0.4.11",
@@ -4983,7 +4983,7 @@ name = "witnet-ethereum-bridge"
 version = "0.1.0"
 dependencies = [
  "async-jsonrpc-client",
- "env_logger 0.7.1",
+ "env_logger 0.9.0",
  "ethabi 9.0.1",
  "futures 0.1.30",
  "futures-locks",
