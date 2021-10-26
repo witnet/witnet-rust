@@ -2958,7 +2958,7 @@ mod tests {
         vrf::BlockEligibilityClaim,
     };
     use witnet_protected::Protected;
-    use witnet_validations::validations::{block_reward, merkle_tree_root};
+    use witnet_validations::validations::block_reward;
 
     use secp256k1::{
         PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
@@ -3380,18 +3380,6 @@ mod tests {
     static PRIV_KEY_1: [u8; 32] = [0xcd; 32];
     static PRIV_KEY_2: [u8; 32] = [0x43; 32];
 
-    fn build_merkle_tree(block_header: &mut BlockHeader, txns: &BlockTransactions) {
-        let merkle_roots = BlockMerkleRoots {
-            mint_hash: txns.mint.hash(),
-            vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
-            dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
-            commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
-            reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
-            tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
-        };
-        block_header.merkle_roots = merkle_roots;
-    }
-
     fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
         let Hash::SHA256(data) = tx.hash();
 
@@ -3460,7 +3448,7 @@ mod tests {
         };
 
         let mut block_header = BlockHeader::default();
-        build_merkle_tree(&mut block_header, &txns);
+        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
         block_header.beacon = block_beacon;
         block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 

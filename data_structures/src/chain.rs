@@ -668,6 +668,36 @@ pub struct BlockMerkleRoots {
     pub tally_hash_merkle_root: Hash,
 }
 
+/// Function to calculate a merkle tree from a transaction vector
+pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
+where
+    T: Hashable,
+{
+    let transactions_hashes: Vec<Sha256> = transactions
+        .iter()
+        .map(|x| match x.hash() {
+            Hash::SHA256(x) => Sha256(x),
+        })
+        .collect();
+
+    Hash::from(witnet_crypto::merkle::merkle_tree_root(
+        &transactions_hashes,
+    ))
+}
+
+impl BlockMerkleRoots {
+    pub fn from_transactions(txns: &BlockTransactions) -> Self {
+        BlockMerkleRoots {
+            mint_hash: txns.mint.hash(),
+            vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
+            dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
+            commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
+            reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
+            tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+        }
+    }
+}
+
 /// `SuperBlock` abridges the tally and data request information that happened during a
 /// `superblock_period` number of Witnet epochs as well the ARS members merkle root
 /// as of the last block in that period.

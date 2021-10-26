@@ -7655,7 +7655,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     };
 
     let mut block_header = BlockHeader::default();
-    build_merkle_tree(&mut block_header, &txns);
+    block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
     block_header.beacon = block_beacon;
     block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
@@ -7696,18 +7696,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     verify_signatures_test(signatures_to_verify)?;
 
     Ok(())
-}
-
-fn build_merkle_tree(block_header: &mut BlockHeader, txns: &BlockTransactions) {
-    let merkle_roots = BlockMerkleRoots {
-        mint_hash: txns.mint.hash(),
-        vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
-        dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
-        commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
-        reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
-        tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
-    };
-    block_header.merkle_roots = merkle_roots;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7942,7 +7930,7 @@ fn block_difficult_proof() {
     };
 
     let mut block_header = BlockHeader::default();
-    build_merkle_tree(&mut block_header, &txns);
+    block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
     block_header.beacon = block_beacon;
     block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
@@ -8163,7 +8151,7 @@ fn block_duplicated_commits() {
                 }],
             );
 
-            build_merkle_tree(&mut b.block_header, &b.txns);
+            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
 
             true
         },
@@ -8271,7 +8259,7 @@ fn block_duplicated_reveals() {
                 }],
             );
 
-            build_merkle_tree(&mut b.block_header, &b.txns);
+            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
 
             true
         },
@@ -8338,7 +8326,7 @@ fn block_duplicated_tallies() {
                 }],
             );
 
-            build_merkle_tree(&mut b.block_header, &b.txns);
+            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
 
             true
         },
@@ -8395,7 +8383,7 @@ fn block_before_and_after_hard_fork() {
                 }],
             );
 
-            build_merkle_tree(&mut b.block_header, &b.txns);
+            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
 
             true
         },
@@ -8418,7 +8406,7 @@ fn block_before_and_after_hard_fork() {
                 }],
             );
 
-            build_merkle_tree(&mut b.block_header, &b.txns);
+            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
 
             true
         },
@@ -8643,7 +8631,7 @@ fn test_blocks_with_limits(
             hash_prev_block: last_block_hash,
         };
         let mut block_header = BlockHeader::default();
-        build_merkle_tree(&mut block_header, &txns);
+        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
         block_header.beacon = block_beacon;
         block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
@@ -9422,7 +9410,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         };
 
         let mut block_header = BlockHeader::default();
-        build_merkle_tree(&mut block_header, &txns);
+        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
         block_header.beacon = block_beacon;
         block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
@@ -9585,7 +9573,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         txns.commit_txns.push(c_tx);
 
         let mut block_header = BlockHeader::default();
-        build_merkle_tree(&mut block_header, &txns);
+        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
         block_header.beacon = block_beacon;
         block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 

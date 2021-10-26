@@ -1,36 +1,9 @@
 use std::convert::TryFrom;
 use witnet_crypto::{
     hash::Sha256,
-    merkle::{merkle_tree_root as crypto_merkle_tree_root, sha256_concat, InclusionProof},
+    merkle::{sha256_concat, InclusionProof},
 };
 use witnet_data_structures::{chain::*, transaction::*};
-
-/// Function to calculate a merkle tree from a transaction vector
-pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
-where
-    T: Hashable,
-{
-    let transactions_hashes: Vec<Sha256> = transactions
-        .iter()
-        .map(|x| match x.hash() {
-            Hash::SHA256(x) => Sha256(x),
-        })
-        .collect();
-
-    Hash::from(crypto_merkle_tree_root(&transactions_hashes))
-}
-
-fn build_merkle_tree(block_header: &mut BlockHeader, txns: &BlockTransactions) {
-    let merkle_roots = BlockMerkleRoots {
-        mint_hash: txns.mint.hash(),
-        vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
-        dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
-        commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
-        reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
-        tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
-    };
-    block_header.merkle_roots = merkle_roots;
-}
 
 fn h(left: Hash, right: Hash) -> Hash {
     let left = match left {
@@ -53,7 +26,7 @@ fn example_block(txns: BlockTransactions) -> Block {
         hash_prev_block: last_block_hash,
     };
     let mut block_header = BlockHeader::default();
-    build_merkle_tree(&mut block_header, &txns);
+    block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
     block_header.beacon = block_beacon;
 
     let block_sig = KeyedSignature::default();
