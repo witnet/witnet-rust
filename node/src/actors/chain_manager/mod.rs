@@ -2948,12 +2948,20 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 mod tests {
     use crate::utils::test_actix_system;
     use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
+    use witnet_crypto::signature::sign;
     use witnet_data_structures::{
         chain::{
-            ChainInfo, Environment, KeyedSignature, PartialConsensusConstants, PublicKey,
-            ValueTransferOutput,
+            BlockMerkleRoots, BlockTransactions, ChainInfo, Environment, KeyedSignature,
+            PartialConsensusConstants, PublicKey, SecretKey, Signature, ValueTransferOutput,
         },
-        transaction::{CommitTransaction, DRTransaction, RevealTransaction},
+        transaction::{CommitTransaction, DRTransaction, MintTransaction, RevealTransaction},
+        vrf::BlockEligibilityClaim,
+    };
+    use witnet_protected::Protected;
+    use witnet_validations::validations::{block_reward, merkle_tree_root};
+
+    use secp256k1::{
+        PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
     };
 
     use super::*;
@@ -3367,5 +3375,187 @@ mod tests {
                 94, 92, 92, 92, 92, 92, 90, 90, 90, 90, 90, 88
             ]
         );
+    }
+
+    static PRIV_KEY_1: [u8; 32] = [0xcd; 32];
+    static PRIV_KEY_2: [u8; 32] = [0x43; 32];
+
+    fn build_merkle_tree(block_header: &mut BlockHeader, txns: &BlockTransactions) {
+        let merkle_roots = BlockMerkleRoots {
+            mint_hash: txns.mint.hash(),
+            vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
+            dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
+            commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
+            reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
+            tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+        };
+        block_header.merkle_roots = merkle_roots;
+    }
+
+    fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
+        let Hash::SHA256(data) = tx.hash();
+
+        let secp = &Secp256k1::new();
+        let secret_key =
+            Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
+        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+        let public_key = PublicKey::from(public_key);
+
+        let signature = sign(secp, secret_key, &data).unwrap();
+
+        KeyedSignature {
+            signature: Signature::from(signature),
+            public_key,
+        }
+    }
+
+    fn create_valid_block(chain_manager: &mut ChainManager, priv_key: &[u8; 32]) -> Block {
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let current_epoch = chain_manager.current_epoch.unwrap();
+
+        let consensus_constants = chain_manager.consensus_constants();
+        let secret_key = SecretKey {
+            bytes: Protected::from(priv_key.to_vec()),
+        };
+        let last_block_hash = chain_manager
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .highest_block_checkpoint
+            .hash_prev_block;
+        let last_vrf_input = chain_manager
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .highest_vrf_output
+            .hash_prev_vrf;
+        let block_beacon = CheckpointBeacon {
+            checkpoint: current_epoch,
+            hash_prev_block: last_block_hash,
+        };
+
+        let vrf_input = CheckpointVRF {
+            checkpoint: current_epoch,
+            hash_prev_vrf: last_vrf_input,
+        };
+
+        let my_pkh = PublicKeyHash::default();
+
+        let txns = BlockTransactions {
+            mint: MintTransaction::new(
+                current_epoch,
+                vec![ValueTransferOutput {
+                    time_lock: 0,
+                    pkh: my_pkh,
+                    value: block_reward(
+                        current_epoch,
+                        consensus_constants.initial_block_reward,
+                        consensus_constants.halving_period,
+                    ),
+                }],
+            ),
+            ..BlockTransactions::default()
+        };
+
+        let mut block_header = BlockHeader::default();
+        build_merkle_tree(&mut block_header, &txns);
+        block_header.beacon = block_beacon;
+        block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
+
+        let block_sig = sign_tx(*priv_key, &block_header);
+
+        Block::new(block_header, block_sig, txns)
+    }
+
+    #[test]
+    fn test_process_candidate_malleability() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        test_actix_system(|| async {
+            let mut chain_manager = ChainManager::default();
+
+            chain_manager.current_epoch = Some(2000000);
+            // 1 epoch = 1000 seconds, for easy testing
+            chain_manager.epoch_constants = Some(EpochConstants {
+                checkpoint_zero_timestamp: 0,
+                checkpoints_period: 1_000,
+            });
+            chain_manager.chain_state.chain_info = Some(ChainInfo {
+                environment: Environment::default(),
+                consensus_constants: consensus_constants_from_partial(
+                    &PartialConsensusConstants::default(),
+                    &Testnet,
+                ),
+                highest_block_checkpoint: CheckpointBeacon::default(),
+                highest_superblock_checkpoint: CheckpointBeacon {
+                    checkpoint: 0,
+                    hash_prev_block: Hash::SHA256([1; 32]),
+                },
+                highest_vrf_output: CheckpointVRF::default(),
+            });
+            chain_manager.chain_state.reputation_engine = Some(ReputationEngine::new(1000));
+            chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
+            chain_manager.secp = Some(Secp256k1::new());
+            chain_manager.sm_state = StateMachine::Synced;
+
+            let block_1 = create_valid_block(&mut chain_manager, &PRIV_KEY_2);
+            let block_2 = create_valid_block(&mut chain_manager, &PRIV_KEY_1);
+
+            // block_1 should be better candidate than block_2
+            let vrf_ctx = &mut VrfCtx::secp256k1().unwrap();
+            let vrf_hash_1 = block_1
+                .block_header
+                .proof
+                .proof
+                .proof_to_hash(vrf_ctx)
+                .unwrap();
+            let vrf_hash_2 = block_2
+                .block_header
+                .proof
+                .proof
+                .proof_to_hash(vrf_ctx)
+                .unwrap();
+            assert_eq!(
+                compare_block_candidates(
+                    block_1.hash(),
+                    Reputation(0),
+                    vrf_hash_1,
+                    false,
+                    block_2.hash(),
+                    Reputation(0),
+                    vrf_hash_2,
+                    false,
+                    &VrfSlots::new(vec![Hash::default()]),
+                ),
+                Ordering::Greater
+            );
+
+            let mut block_mal_1 = block_1.clone();
+            // Malleability!
+            block_mal_1.txns.mint.outputs.clear();
+            // Changing block txns field does not change block hash
+            assert_eq!(block_1.hash(), block_mal_1.hash());
+            // But the blocks are different
+            assert_ne!(block_1, block_mal_1);
+
+            // Process the modified candidate first
+            chain_manager.process_candidate(block_mal_1);
+            // The best candidate should be None because this block is invalid
+            let best_cand = chain_manager.best_candidate.as_ref().map(|bc| &bc.block);
+            assert_eq!(best_cand, None);
+
+            // Process candidate with the same hash, but this one is valid
+            chain_manager.process_candidate(block_1.clone());
+            // The best candidate should be block_1
+            let best_cand = chain_manager.best_candidate.as_ref().map(|bc| &bc.block);
+            assert_eq!(best_cand, Some(&block_1));
+
+            // Process another valid candidate, but worse than the other one
+            chain_manager.process_candidate(block_2);
+            // The best candidate should still be block_1
+            let best_cand = chain_manager.best_candidate.as_ref().map(|bc| &bc.block);
+            assert_eq!(best_cand, Some(&block_1));
+        });
     }
 }
