@@ -1364,10 +1364,17 @@ pub async fn known_peers() -> JsonRpcResult {
                             .chain(
                                 x.tried
                                     .into_iter()
-                                    .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
-                                    .map(|p| AddrType {
-                                        address: p.to_string(),
-                                        type_: "tried".to_string(),
+                                    .sorted_by_key(|(p, _v)| (p.is_ipv6(), p.ip(), p.port()))
+                                    .map(|(p, v)| {
+                                        let type_message = if let Some(version) = v {
+                                            format!("tried\t{}", version)
+                                        } else {
+                                            "tried".to_string()
+                                        };
+                                        AddrType {
+                                            address: p.to_string(),
+                                            type_: type_message,
+                                        }
                                     }),
                             )
                             .collect();

@@ -95,6 +95,9 @@ pub struct Session {
 
     /// Superblock beacon target
     superblock_beacon_target: Option<CheckpointBeacon>,
+
+    /// Version
+    version: Option<String>,
 }
 
 impl Drop for Session {
@@ -138,6 +141,7 @@ impl Session {
             config,
             expected_peers_msg: 0,
             superblock_beacon_target,
+            version: None,
         }
     }
 

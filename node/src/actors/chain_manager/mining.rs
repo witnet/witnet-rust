@@ -199,49 +199,54 @@ impl ChainManager {
                     .into_actor(act)
             })
             .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
-                let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
-
-                // If pkh is in ARS, no need to send bn256 public key
-                let bn256_public_key = if is_ars_member {
-                    None
-                } else {
-                    act.bn256_public_key.clone()
-                };
-
-                let tapi_version = act.tapi_signals_mask(current_epoch);
-
-                // Build the block using the supplied beacon and eligibility proof
-                let (block_header, txns) = build_block(
-                    (
-                        &mut act.transactions_pool,
-                        &act.chain_state.unspent_outputs_pool,
-                        &act.chain_state.data_request_pool,
-                    ),
-                    max_vt_weight,
-                    max_dr_weight,
-                    beacon,
-                    eligibility_claim,
-                    &tally_transactions,
-                    own_pkh,
-                    epoch_constants,
-                    act.chain_state.block_number(),
-                    collateral_minimum,
-                    bn256_public_key,
-                    act.external_address,
-                    act.external_percentage,
-                    initial_block_reward,
-                    halving_period,
-                    tapi_version,
-                );
-
-                // Sign the block hash
-                signature_mngr::sign(&block_header)
-                    .map(|res| {
-                        res.map_err(|e| log::error!("Couldn't sign beacon: {}", e))
-                            .map(|block_sig| Block::new(block_header, block_sig, txns))
-                    })
-                    .into_actor(act)
+                act.tapi_signals_mask(current_epoch).map(|res, _act, _ctx| {
+                    res.map(|tapi_version| (vrf_proof, tally_transactions, tapi_version))
+                })
             })
+            .and_then(
+                move |(vrf_proof, tally_transactions, tapi_version), act, _ctx| {
+                    let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
+
+                    // If pkh is in ARS, no need to send bn256 public key
+                    let bn256_public_key = if is_ars_member {
+                        None
+                    } else {
+                        act.bn256_public_key.clone()
+                    };
+
+                    // Build the block using the supplied beacon and eligibility proof
+                    let (block_header, txns) = build_block(
+                        (
+                            &mut act.transactions_pool,
+                            &act.chain_state.unspent_outputs_pool,
+                            &act.chain_state.data_request_pool,
+                        ),
+                        max_vt_weight,
+                        max_dr_weight,
+                        beacon,
+                        eligibility_claim,
+                        &tally_transactions,
+                        own_pkh,
+                        epoch_constants,
+                        act.chain_state.block_number(),
+                        collateral_minimum,
+                        bn256_public_key,
+                        act.external_address,
+                        act.external_percentage,
+                        initial_block_reward,
+                        halving_period,
+                        tapi_version,
+                    );
+
+                    // Sign the block hash
+                    signature_mngr::sign(&block_header)
+                        .map(|res| {
+                            res.map_err(|e| log::error!("Couldn't sign beacon: {}", e))
+                                .map(|block_sig| Block::new(block_header, block_sig, txns))
+                        })
+                        .into_actor(act)
+                },
+            )
             .and_then(move |block, act, _ctx| {
                 act.future_process_validations(
                     block.clone(),

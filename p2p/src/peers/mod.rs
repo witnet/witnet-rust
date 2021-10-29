@@ -23,6 +23,8 @@ pub struct PeerInfo {
     pub address: SocketAddr,
     /// Last time that the peer address was tried
     pub timestamp: i64,
+    /// Version
+    pub version: Option<String>,
 }
 
 /// Peers TBD
@@ -221,6 +223,7 @@ impl Peers {
                                 PeerInfo {
                                     address,
                                     timestamp: get_timestamp(), //msg.timestamp,
+                                    version: None,
                                 },
                             )
                             .map(|v| v.address)
@@ -245,6 +248,7 @@ impl Peers {
     pub fn add_to_tried(
         &mut self,
         address: SocketAddr,
+        version: Option<String>,
     ) -> Result<Option<SocketAddr>, failure::Error> {
         // Insert address, silently ignoring unspecified addresses and "iced" addresses
         let result = if !address.ip().is_unspecified() && !self.ice_bucket_contains(&address) {
@@ -258,6 +262,7 @@ impl Peers {
                     PeerInfo {
                         address,
                         timestamp: get_timestamp(), //msg.timestamp,
+                        version,
                     },
                 )
                 .map(|v| v.address)
@@ -371,6 +376,40 @@ impl Peers {
     /// Get all the peers from the tried bucket
     pub fn get_all_from_tried(&self) -> Result<Vec<SocketAddr>, failure::Error> {
         Ok(self.tried_bucket.values().map(|v| v.address).collect())
+    }
+
+    /// Get all the peers from the tried bucket with version
+    pub fn get_all_from_tried_with_version(
+        &self,
+    ) -> Result<Vec<(SocketAddr, Option<String>)>, failure::Error> {
+        Ok(self
+            .tried_bucket
+            .values()
+            .map(|v| (v.address, v.version.clone()))
+            .collect())
+    }
+
+    /// Get percentage updated peers
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn get_updated_percentage(&self, version: String) -> u32 {
+        // TODO: use a const or parameter
+        let minimum_peers = 20;
+        if self.tried_bucket.len() < minimum_peers {
+            // If there is not a minimum, the network should not update
+            0
+        } else {
+            let mut counter: u32 = 0;
+            for peer_info in self.tried_bucket.values() {
+                if let Some(v) = peer_info.version.clone() {
+                    if v == version {
+                        counter += 1;
+                    }
+                }
+            }
+
+            let aux = counter * 100;
+            aux / (self.tried_bucket.len() as u32)
+        }
     }
 
     /// Get all the peers from the tried bucket

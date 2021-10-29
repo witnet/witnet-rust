@@ -174,6 +174,7 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                         SessionStatus::Unconsolidated,
                         Command::Version(command_version),
                     ) => {
+                        let user_agent_version = command_version.user_agent.clone();
                         let current_ts = get_timestamp();
                         match handshake_version(
                             self,
@@ -186,6 +187,7 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                     self.send_message(msg);
                                 }
 
+                                self.version = Some(user_agent_version);
                                 try_consolidate_session(self, ctx);
                             }
                             Err(err) => {
@@ -526,6 +528,7 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
 
 // Function to notify the SessionsManager that the session has been consolidated
 fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
+    let user_agent_version = session.version.clone();
     // First evaluate Feeler case
     if session.session_type == SessionType::Feeler {
         // Get peer manager address
@@ -536,6 +539,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
         peers_manager_addr.do_send(AddConsolidatedPeer {
             // Use the address to which we connected to, not the public address reported by the peer
             address: session.remote_addr,
+            version: user_agent_version,
         });
 
         // After add peer to tried bucket, this session is not longer useful
@@ -561,6 +565,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                 address: session.remote_addr,
                 potential_new_peer,
                 session_type: session.session_type,
+                version: user_agent_version,
             })
             .into_actor(session)
             .then(|res, act, ctx| {

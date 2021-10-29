@@ -74,6 +74,7 @@ use witnet_validations::validations::{
     validate_new_transaction, validate_rad_request, verify_signatures, VrfSlots,
 };
 
+use crate::actors::messages::GetUpdatedPeersPercentage;
 use crate::{
     actors::{
         chain_manager::handlers::SYNCED_BANNER,
@@ -92,6 +93,7 @@ use crate::{
     signature_mngr, storage_mngr,
     utils::stop_system_if_panicking,
 };
+use witnet_data_structures::builders::user_agent;
 
 mod actor;
 mod handlers;
@@ -2192,18 +2194,33 @@ impl ChainManager {
     }
 
     /// Return the value of the version field for a block in this epoch
-    fn tapi_signals_mask(&self, _epoch: Epoch) -> u32 {
-        let mut v = 0;
-        // Bit 0
-        // FIXME(#2051): Assess when remove achieved bit signaling
-        let bit = 0;
-        v |= 1 << bit;
+    fn tapi_signals_mask(&self, _epoch: Epoch) -> ResponseActFuture<Self, Result<u32, ()>> {
+        // EXAMPLE
+        let peers_manager_addr = PeersManager::from_registry();
+        let fut = peers_manager_addr
+            .send(GetUpdatedPeersPercentage {
+                version: user_agent(),
+            })
+            .into_actor(self)
+            .map_ok(|percentage, _act, _ctx| {
+                let mut v = 0;
 
-        // Bit 1
-        let bit = 1;
-        v |= 1 << bit;
+                // Bit 0
+                // FIXME(#2051): Assess when remove achieved bit signaling
+                let bit = 0;
+                v |= 1 << bit;
 
-        v
+                // Bit 1
+                let bit = 1;
+                if percentage.unwrap() >= 80u32 {
+                    v |= 1 << bit;
+                }
+
+                v
+            })
+            .map_err(|_e, _act, _ctx| ());
+
+        Box::pin(fut)
     }
 }
 

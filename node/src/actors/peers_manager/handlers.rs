@@ -3,8 +3,8 @@ use actix::{Context, Handler};
 use super::PeersManager;
 use crate::actors::messages::{
     AddConsolidatedPeer, AddPeers, ClearPeers, EpochNotification, GetKnownPeers, GetRandomPeers,
-    InitializePeers, PeersNewTried, PeersSocketAddrResult, PeersSocketAddrsResult,
-    RemoveAddressesFromTried, RequestPeers,
+    GetUpdatedPeersPercentage, InitializePeers, PeersNewTried, PeersSocketAddrResult,
+    PeersSocketAddrsResult, RemoveAddressesFromTried, RequestPeers,
 };
 use witnet_util::timestamp::get_timestamp;
 
@@ -80,7 +80,7 @@ impl Handler<AddConsolidatedPeer> for PeersManager {
                 // It is recently updated
                 Ok(None)
             }
-            _ => self.peers.add_to_tried(msg.address),
+            _ => self.peers.add_to_tried(msg.address, msg.version),
         }
     }
 }
@@ -128,15 +128,24 @@ impl Handler<RequestPeers> for PeersManager {
     }
 }
 
-/// Handler for RequestPeers message
+/// Handler for GetKnownPeers message
 impl Handler<GetKnownPeers> for PeersManager {
     type Result = Result<PeersNewTried, failure::Error>;
 
     fn handle(&mut self, _msg: GetKnownPeers, _: &mut Context<Self>) -> Self::Result {
         Ok(PeersNewTried {
             new: self.peers.get_all_from_new()?,
-            tried: self.peers.get_all_from_tried()?,
+            tried: self.peers.get_all_from_tried_with_version()?,
         })
+    }
+}
+
+/// Handler for GetUpdatedPeersPercentage
+impl Handler<GetUpdatedPeersPercentage> for PeersManager {
+    type Result = Result<u32, failure::Error>;
+
+    fn handle(&mut self, msg: GetUpdatedPeersPercentage, _: &mut Context<Self>) -> Self::Result {
+        Ok(self.peers.get_updated_percentage(msg.version))
     }
 }
 

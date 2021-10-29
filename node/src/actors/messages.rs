@@ -663,6 +663,8 @@ impl Message for InitializePeers {
 pub struct AddConsolidatedPeer {
     /// Tried addresses to add
     pub address: SocketAddr,
+    /// Version
+    pub version: Option<String>,
 }
 
 impl Message for AddConsolidatedPeer {
@@ -705,6 +707,16 @@ impl Message for GetKnownPeers {
     type Result = Result<PeersNewTried, failure::Error>;
 }
 
+/// Message to get the percentage of updated peers
+pub struct GetUpdatedPeersPercentage {
+    /// version
+    pub version: String,
+}
+
+impl Message for GetUpdatedPeersPercentage {
+    type Result = Result<u32, failure::Error>;
+}
+
 /// Message to get node stats
 pub struct GetNodeStats;
 
@@ -717,7 +729,7 @@ pub struct PeersNewTried {
     /// Peers in new bucket
     pub new: Vec<SocketAddr>,
     /// Peers in tried bucket
-    pub tried: Vec<SocketAddr>,
+    pub tried: Vec<(SocketAddr, Option<String>)>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -950,6 +962,9 @@ pub struct Consolidate {
 
     /// Session type
     pub session_type: SessionType,
+
+    /// Version
+    pub version: Option<String>,
 }
 
 impl Message for Consolidate {

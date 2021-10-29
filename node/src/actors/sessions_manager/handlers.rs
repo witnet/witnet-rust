@@ -217,6 +217,7 @@ impl Handler<Consolidate> for SessionsManager {
             // Try to add this potential peer in the tried addresses bucket
             peers_manager_addr.do_send(AddConsolidatedPeer {
                 address: msg.address,
+                version: msg.version,
             });
         }
 

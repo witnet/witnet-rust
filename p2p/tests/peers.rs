@@ -46,9 +46,9 @@ fn p2p_peers_add_to_tried() {
     // Add address
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
 
-    assert_eq!(peers.add_to_tried(address).unwrap(), None);
+    assert_eq!(peers.add_to_tried(address, None).unwrap(), None);
     // If we add the same address again, the method returns it
-    assert_eq!(peers.add_to_tried(address).unwrap(), Some(address));
+    assert_eq!(peers.add_to_tried(address, None).unwrap(), Some(address));
 
     // Get a random address (there is only 1)
     let result = peers.get_random_peers(1);
@@ -78,7 +78,7 @@ fn p2p_peers_random() {
     let address2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 8080);
 
     peers.add_to_new(vec![address], src_address).unwrap();
-    peers.add_to_tried(address2).unwrap();
+    peers.add_to_tried(address2, None).unwrap();
 
     // Get 2 random address (there is only 2)
     let result = peers.get_random_peers(2);
@@ -103,8 +103,8 @@ fn p2p_peers_random_less_than_in_tried() {
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
     let address2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 8080);
 
-    peers.add_to_tried(address).unwrap();
-    peers.add_to_tried(address2).unwrap();
+    peers.add_to_tried(address, None).unwrap();
+    peers.add_to_tried(address2, None).unwrap();
 
     // Get 1 random address when there are 2 in tried
     let result = peers.get_random_peers(1).unwrap();
@@ -118,7 +118,7 @@ fn p2p_peers_remove_from_tried() {
 
     // Add address
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
-    peers.add_to_tried(address).unwrap();
+    peers.add_to_tried(address, None).unwrap();
 
     // Remove address
     assert_eq!(peers.remove_from_tried(&[address], false), vec![address]);
@@ -196,7 +196,7 @@ fn p2p_peers_get_all_from_tried() {
     // Add 100 addresses
     for i in 0..100 {
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, i)), 8080);
-        peers.add_to_tried(address).unwrap();
+        peers.add_to_tried(address, None).unwrap();
     }
 
     assert!(peers.get_all_from_new().unwrap().is_empty());
@@ -213,8 +213,8 @@ fn p2p_add_2_peers_in_collision() {
 
     let peer1 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21305);
     let peer2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21306);
-    peers.add_to_tried(peer1).unwrap();
-    peers.add_to_tried(peer2).unwrap();
+    peers.add_to_tried(peer1, None).unwrap();
+    peers.add_to_tried(peer2, None).unwrap();
 
     assert_eq!(peers.get_all_from_tried().unwrap().len(), 1);
 }
