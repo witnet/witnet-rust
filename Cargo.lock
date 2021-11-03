@@ -393,7 +393,7 @@ dependencies = [
  "byteorder",
  "digest 0.8.1",
  "failure",
- "hex 0.4.3",
+ "hex",
  "rustc-hex",
  "serde_json",
  "sha2",
@@ -983,7 +983,7 @@ checksum = "c52991643379afc90bfe2df3c64d53983e59c35a82ba6e75c997cfc2880d8524"
 dependencies = [
  "anyhow",
  "ethereum-types 0.11.0",
- "hex 0.4.3",
+ "hex",
  "serde",
  "serde_json",
  "sha3",
@@ -1521,12 +1521,6 @@ checksum = "5aca5565f760fb5b220e499d72710ed156fdb74e631659e99377d9ebfbd13ae8"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "hex"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "805026a5d0141ffc30abb3be3173848ad46a1b1664fe632428479619a3644d77"
 
 [[package]]
 name = "hex"
@@ -4443,7 +4437,7 @@ checksum = "e11fe9a9348741cf134085ad57c249508345fe16411b3d7fb4ff2da2f1d6382e"
 dependencies = [
  "byteorder",
  "crunchy",
- "hex 0.4.3",
+ "hex",
  "static_assertions",
 ]
 
@@ -4582,12 +4576,11 @@ checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 
 [[package]]
 name = "vrf"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71327171f80b19c06263831d1c6aefb5629131c06dd7006d2865f108af656397"
+checksum = "d190db774aca311c9737f5309b6f1bf7906de5245bd8492e222c09ba44eda14f"
 dependencies = [
  "failure",
- "hex 0.3.2",
  "hmac-sha256",
  "openssl",
 ]
@@ -4774,7 +4767,7 @@ dependencies = [
  "futures 0.3.17",
  "futures-timer",
  "headers",
- "hex 0.4.3",
+ "hex",
  "jsonrpc-core 17.0.0",
  "log 0.4.11",
  "parking_lot 0.11.0",
@@ -4916,7 +4909,7 @@ dependencies = [
  "env_logger 0.9.0",
  "failure",
  "futures 0.3.17",
- "hex 0.4.3",
+ "hex",
  "itertools",
  "lazy_static",
  "log 0.4.11",
@@ -4962,7 +4955,7 @@ dependencies = [
  "ctrlc",
  "env_logger 0.9.0",
  "futures-util",
- "hex 0.4.3",
+ "hex",
  "log 0.4.11",
  "serde",
  "serde_json",
@@ -5028,7 +5021,7 @@ dependencies = [
  "byteorder",
  "digest 0.8.1",
  "failure",
- "hex 0.4.3",
+ "hex",
  "hmac",
  "memzero",
  "rand 0.7.3",
@@ -5053,7 +5046,7 @@ dependencies = [
  "ethereum-types 0.11.0",
  "exonum-build",
  "failure",
- "hex 0.4.3",
+ "hex",
  "itertools",
  "lazy_static",
  "log 0.4.11",
@@ -5166,7 +5159,7 @@ dependencies = [
  "cbor-codec",
  "failure",
  "futures 0.3.17",
- "hex 0.4.3",
+ "hex",
  "if_rust_version",
  "json",
  "log 0.4.11",
@@ -5206,7 +5199,7 @@ name = "witnet_toolkit"
 version = "0.1.0"
 dependencies = [
  "failure",
- "hex 0.4.3",
+ "hex",
  "regex",
  "serde_json",
  "structopt",
@@ -5233,7 +5226,7 @@ dependencies = [
  "approx",
  "bencher",
  "failure",
- "hex 0.4.3",
+ "hex",
  "itertools",
  "log 0.4.11",
  "witnet_config",
@@ -5256,7 +5249,7 @@ dependencies = [
  "futures 0.1.30",
  "futures 0.3.17",
  "futures-util",
- "hex 0.4.3",
+ "hex",
  "itertools",
  "jsonrpc-core 15.1.0",
  "jsonrpc-pubsub",
