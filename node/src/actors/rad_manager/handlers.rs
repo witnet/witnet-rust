@@ -74,12 +74,14 @@ impl Handler<ResolveRA> for RadManager {
                     // Perform aggregation on the values that made it to the output vector after applying the
                     // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
                     // failures.
-                    witnet_rad::run_aggregation_report(
+                    let (res, _) = witnet_rad::run_aggregation_report(
                         values,
                         &aggregator,
                         RadonScriptExecutionSettings::all_but_partial_results(),
                         msg.active_wips,
-                    )
+                    );
+
+                    res
                 }
                 Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
                     Ok(RadonReport::from_result(

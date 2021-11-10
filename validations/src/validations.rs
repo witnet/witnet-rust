@@ -580,8 +580,8 @@ pub fn construct_report_from_clause_result(
                 RadonScriptExecutionSettings::all_but_partial_results(),
                 active_wips.clone(),
             ) {
-                Ok(x) => x,
-                Err(e) => {
+                (Ok(x), _) => x,
+                (Err(e), _) => {
                     if active_wips.wips_0009_0011_0012() {
                         radon_report_from_error(
                             RadError::TallyExecution {

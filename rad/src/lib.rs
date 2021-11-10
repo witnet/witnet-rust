@@ -86,24 +86,26 @@ pub fn try_data_request(
         .map(|report| report.result.clone())
         .collect();
 
-    let mut aggregation_context = ReportContext::from_stage(Stage::Contextless);
-    let aggregation_report = run_aggregation_with_context_report(
+    let (aggregation_result, aggregation_context) = run_aggregation_report(
         retrieval_values,
         &request.aggregate,
-        &mut aggregation_context,
         settings,
-    )
-    .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context));
+        current_active_wips(),
+    );
+    let aggregation_report = aggregation_result
+        .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context));
     let aggregation_value = aggregation_report.result.clone();
 
-    let mut tally_context = ReportContext::from_stage(Stage::Contextless);
-    let tally_report = run_tally_with_context_report(
+    let (tally_result, tally_context) = run_tally_report(
         vec![aggregation_value],
         &request.tally,
-        &mut tally_context,
+        None,
+        None,
         settings,
-    )
-    .unwrap_or_else(|error| RadonReport::from_result(Err(error), &tally_context));
+        current_active_wips(),
+    );
+    let tally_report =
+        tally_result.unwrap_or_else(|error| RadonReport::from_result(Err(error), &tally_context));
 
     RADRequestExecutionReport {
         retrieve: retrieval_reports,
@@ -136,7 +138,7 @@ fn rng_response_with_data_report(
     Ok(RadonReport::from_result(Ok(result), context))
 }
 
-/// Run retrieval without performing any external network requests, return `RadonReport`.
+/// Run retrieval without performing any external network requests, return `Result<RadonReport>`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
     response: &str,
@@ -155,7 +157,7 @@ pub fn run_retrieval_with_data_report(
     }
 }
 
-/// Run retrieval without performing any external network requests, return `RadonTypes`.
+/// Run retrieval without performing any external network requests, return `Result<RadonTypes>`.
 pub fn run_retrieval_with_data(
     retrieve: &RADRetrieve,
     response: &str,
@@ -227,7 +229,7 @@ async fn rng_response(context: &mut ReportContext<RadonTypes>) -> Result<RadonRe
     Ok(RadonReport::from_result(Ok(random_bytes), context))
 }
 
-/// Run retrieval stage of a data request, return `RadonReport`.
+/// Run retrieval stage of a data request, return `Result<RadonReport>`.
 pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
@@ -249,7 +251,7 @@ pub async fn run_retrieval_report(
     }
 }
 
-/// Run retrieval stage of a data request, return `RadonTypes`.
+/// Run retrieval stage of a data request, return `Result<RadonTypes>`.
 pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: ActiveWips) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     run_retrieval_report(
@@ -261,20 +263,23 @@ pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: ActiveWips) -> R
     .map(RadonReport::into_inner)
 }
 
-/// Run aggregate stage of a data request, return `RadonReport`.
+/// Run aggregate stage of a data request, return a tuple of `Result<RadonReport>` and `ReportContext`
 pub fn run_aggregation_report(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
-) -> Result<RadonReport<RadonTypes>> {
-    let context = &mut ReportContext::from_stage(Stage::Aggregation);
+) -> (Result<RadonReport<RadonTypes>>, ReportContext<RadonTypes>) {
+    let mut context = ReportContext::from_stage(Stage::Aggregation);
     context.set_active_wips(active_wips);
 
-    run_aggregation_with_context_report(radon_types_vec, aggregate, context, settings)
+    let aux =
+        run_aggregation_with_context_report(radon_types_vec, aggregate, &mut context, settings);
+
+    (aux, context)
 }
 
-/// Run aggregate stage of a data request on a custom context, return `RadonReport`.
+/// Run aggregate stage of a data request on a custom context, return `Result<RadonReport>`.
 pub fn run_aggregation_with_context_report(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
@@ -298,23 +303,24 @@ pub fn run_aggregation_with_context_report(
     execute_radon_script(items_to_aggregate, &radon_script, context, settings)
 }
 
-/// Run aggregate stage of a data request, return `RadonTypes`.
+/// Run aggregate stage of a data request, return `Result<RadonTypes>`.
 pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
     active_wips: ActiveWips,
 ) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
-    run_aggregation_report(
+    let (res, _) = run_aggregation_report(
         radon_types_vec,
         aggregate,
         RadonScriptExecutionSettings::disable_all(),
         active_wips,
-    )
-    .map(RadonReport::into_inner)
+    );
+
+    res.map(RadonReport::into_inner)
 }
 
-/// Run tally stage of a data request, return `RadonReport`.
+/// Run tally stage of a data request, return a tuple of `Result<RadonReport>` and `ReportContext`
 pub fn run_tally_report(
     radon_types_vec: Vec<RadonTypes>,
     consensus: &RADTally,
@@ -322,7 +328,7 @@ pub fn run_tally_report(
     errors: Option<Vec<bool>>,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
-) -> Result<RadonReport<RadonTypes>> {
+) -> (Result<RadonReport<RadonTypes>>, ReportContext<RadonTypes>) {
     let mut metadata = TallyMetaData::default();
     if let Some(liars) = liars {
         metadata.liars = liars;
@@ -340,10 +346,12 @@ pub fn run_tally_report(
         ..Default::default()
     };
 
-    run_tally_with_context_report(radon_types_vec, consensus, &mut context, settings)
+    let res = run_tally_with_context_report(radon_types_vec, consensus, &mut context, settings);
+
+    (res, context)
 }
 
-/// Run tally stage of a data request on a custom context, return `RadonReport`.
+/// Run tally stage of a data request on a custom context, return `Result<RadonReport>`.
 pub fn run_tally_with_context_report(
     radon_types_vec: Vec<RadonTypes>,
     consensus: &RADTally,
@@ -371,7 +379,7 @@ pub fn run_tally_with_context_report(
     execute_radon_script(items_to_tally, &radon_script, context, settings)
 }
 
-/// Run tally stage of a data request, return `RadonTypes`.
+/// Run tally stage of a data request, return `Result<RadonTypes>`.
 pub fn run_tally(
     radon_types_vec: Vec<RadonTypes>,
     consensus: &RADTally,
@@ -379,15 +387,16 @@ pub fn run_tally(
 ) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     let settings = RadonScriptExecutionSettings::disable_all();
-    run_tally_report(
+    let (res, _) = run_tally_report(
         radon_types_vec,
         consensus,
         None,
         None,
         settings,
         active_wips,
-    )
-    .map(RadonReport::into_inner)
+    );
+
+    res.map(RadonReport::into_inner)
 }
 
 #[cfg(test)]
@@ -687,7 +696,7 @@ mod tests {
 
         let reveals = vec![RadonTypes::Integer(RadonInteger::from(0))];
 
-        let consensus = run_tally_report(
+        let (res, _) = run_tally_report(
             reveals,
             &RADTally {
                 filters: vec![],
@@ -697,8 +706,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap();
+        );
+        let consensus = res.unwrap();
 
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false];
@@ -720,7 +729,7 @@ mod tests {
             RadonTypes::Integer(RadonInteger::from(0)),
         ];
 
-        let consensus = run_tally_report(
+        let (res, _) = run_tally_report(
             reveals,
             &RADTally {
                 filters: vec![],
@@ -730,8 +739,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap();
+        );
+        let consensus = res.unwrap();
 
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false, false];
@@ -754,7 +763,7 @@ mod tests {
             RadonTypes::Integer(RadonInteger::from(0)),
         ];
 
-        let consensus = run_tally_report(
+        let (res, _) = run_tally_report(
             reveals,
             &RADTally {
                 filters: vec![],
@@ -764,8 +773,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap();
+        );
+        let consensus = res.unwrap();
 
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false, false, false];
@@ -786,7 +795,7 @@ mod tests {
 
         let radon_types_vec = vec![f_1, f_3, f_out];
 
-        let report = run_tally_report(
+        let (res, _) = run_tally_report(
             radon_types_vec,
             &RADTally {
                 filters: vec![RADFilter {
@@ -799,8 +808,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap();
+        );
+        let report = res.unwrap();
 
         let expected = RadonTypes::Float(RadonFloat::from(2f64));
 
@@ -827,7 +836,7 @@ mod tests {
 
         let expected = RadonTypes::Float(RadonFloat::from(3f64));
 
-        let report = run_tally_report(
+        let (res, _) = run_tally_report(
             radon_types_vec,
             &RADTally {
                 filters: vec![
@@ -846,8 +855,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap();
+        );
+        let report = res.unwrap();
 
         let output_tally = report.clone().into_inner();
         assert_eq!(output_tally, expected);
@@ -872,7 +881,7 @@ mod tests {
 
         let expected = RadonTypes::Float(RadonFloat::from(3f64));
 
-        let report = run_tally_report(
+        let (res, _) = run_tally_report(
             radon_types_vec,
             &RADTally {
                 filters: vec![],
@@ -882,8 +891,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap();
+        );
+        let report = res.unwrap();
 
         let output_tally = report.clone().into_inner();
         assert_eq!(output_tally, expected);
@@ -905,7 +914,7 @@ mod tests {
 
         let radon_types_vec = vec![f_1, f_3, f_out];
 
-        let error = run_tally_report(
+        let (res, _) = run_tally_report(
             radon_types_vec,
             &RADTally {
                 filters: vec![
@@ -924,8 +933,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap_err();
+        );
+        let error = res.unwrap_err();
 
         assert_eq!(
             error,
@@ -954,7 +963,7 @@ mod tests {
         ]));
         let radon_types_vec = vec![f_1, f_2, f_3];
 
-        let error = run_tally_report(
+        let (res, _) = run_tally_report(
             radon_types_vec,
             &RADTally {
                 filters: vec![RADFilter {
@@ -967,8 +976,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap_err();
+        );
+        let error = res.unwrap_err();
 
         assert_eq!(
             error,
@@ -997,7 +1006,7 @@ mod tests {
         ]));
         let radon_types_vec = vec![f_1, f_2, f_3];
 
-        let error = run_tally_report(
+        let (res, _) = run_tally_report(
             radon_types_vec,
             &RADTally {
                 filters: vec![RADFilter {
@@ -1010,8 +1019,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap_err();
+        );
+        let error = res.unwrap_err();
 
         assert_eq!(
             error,
@@ -1026,7 +1035,7 @@ mod tests {
         // Trying to create a tally with no reveals will return a `RadonReport` with a
         // `RadonTypes::RadonError()`.
         let reveals = vec![];
-        let report = run_tally_report(
+        let (res, _) = run_tally_report(
             reveals,
             &RADTally {
                 filters: vec![],
@@ -1036,9 +1045,8 @@ mod tests {
             None,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        )
-        .unwrap()
-        .into_inner();
+        );
+        let report = res.unwrap().into_inner();
         let expected = RadonTypes::from(RadonError::try_from(RadError::NoReveals).unwrap());
 
         assert_eq!(report, expected);
