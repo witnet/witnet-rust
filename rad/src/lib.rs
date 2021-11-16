@@ -414,7 +414,7 @@ mod tests {
         filters::RadonFilters,
         operators::RadonOpCodes,
         reducers::RadonReducers,
-        types::{float::RadonFloat, integer::RadonInteger},
+        types::{float::RadonFloat, integer::RadonInteger, RadonType},
     };
 
     use super::*;
@@ -1073,5 +1073,34 @@ mod tests {
         let test_header = UserAgent::random();
         let req = surf::get("https://httpbin.org/get?page=2").set_header("User-Agent", test_header);
         assert_eq!(req.header("User-Agent"), Some(test_header));
+    }
+
+    /// Test try_data_request with a RNG source
+    #[test]
+    fn test_try_data_request_rng() {
+        let request = RADRequest {
+            time_lock: 0,
+            retrieve: vec![RADRetrieve {
+                kind: RADType::Rng,
+                url: String::from(""),
+                script: vec![128],
+            }],
+            aggregate: RADAggregate {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+            tally: RADTally {
+                filters: vec![],
+                reducer: RadonReducers::HashConcatenate as u32,
+            },
+        };
+        let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None);
+        let tally_result = report.tally.into_inner();
+
+        if let RadonTypes::Bytes(bytes) = tally_result {
+            assert_eq!(bytes.value().len(), 32);
+        } else {
+            panic!("No RadonBytes result in a RNG request");
+        }
     }
 }
