@@ -21,7 +21,7 @@ dependencies = [
  "parking_lot 0.11.0",
  "pin-project-lite 0.2.6",
  "smallvec 1.6.1",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "tokio-util",
 ]
 
@@ -32,7 +32,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc7d7cd957c9ed92288a7c3c96af81fa5291f65247a76a34dac7b6af74e52ba0"
 dependencies = [
  "futures-core",
- "tokio 1.12.0",
+ "tokio 1.14.0",
 ]
 
 [[package]]
@@ -1462,7 +1462,7 @@ dependencies = [
  "http 0.2.1",
  "indexmap",
  "slab 0.4.2",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "tokio-util",
  "tracing",
 ]
@@ -1694,7 +1694,7 @@ dependencies = [
  "itoa",
  "pin-project-lite 0.2.6",
  "socket2 0.4.1",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "tower-service",
  "tracing",
  "want 0.3.0",
@@ -1722,7 +1722,7 @@ dependencies = [
  "bytes 1.0.0",
  "hyper 0.14.11",
  "native-tls",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "tokio-native-tls",
 ]
 
@@ -2889,7 +2889,7 @@ version = "2.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4677a99cc1f866078918c00773cbb46dd72eecad949a31981de5aad1ff9bcc8d"
 dependencies = [
- "log 0.4.11",
+ "log 0.3.9",
  "which 4.0.2",
 ]
 
@@ -3244,7 +3244,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded 0.7.0",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "tokio-native-tls",
  "url 2.2.2",
  "wasm-bindgen",
@@ -3486,7 +3486,7 @@ dependencies = [
  "sentry-core",
  "sentry-log",
  "sentry-panic",
- "tokio 1.12.0",
+ "tokio 1.14.0",
 ]
 
 [[package]]
@@ -4035,9 +4035,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.12.0"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2c2416fdedca8443ae44b4527de1ea633af61d8f7169ffa6e72c5b53d24efcc"
+checksum = "70e992e41e0d2fb9f755b37446f20900f64446ef54874f40a60c78f021ac6144"
 dependencies = [
  "autocfg 1.0.1",
  "bytes 1.0.0",
@@ -4142,7 +4142,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
 dependencies = [
  "native-tls",
- "tokio 1.12.0",
+ "tokio 1.14.0",
 ]
 
 [[package]]
@@ -4172,7 +4172,7 @@ checksum = "e177a5d8c3bf36de9ebe6d58537d8879e964332f93fb3339e43f618c81361af0"
 dependencies = [
  "futures-core",
  "pin-project-lite 0.2.6",
- "tokio 1.12.0",
+ "tokio 1.14.0",
 ]
 
 [[package]]
@@ -4310,7 +4310,7 @@ dependencies = [
  "futures-sink",
  "log 0.4.11",
  "pin-project-lite 0.2.6",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "tokio-stream",
 ]
 
@@ -4375,7 +4375,7 @@ dependencies = [
  "rand 0.8.4",
  "smallvec 1.6.1",
  "thiserror",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "url 2.2.2",
 ]
 
@@ -4395,7 +4395,7 @@ dependencies = [
  "resolv-conf",
  "smallvec 1.6.1",
  "thiserror",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "trust-dns-proto",
 ]
 
@@ -4960,7 +4960,7 @@ dependencies = [
  "serde",
  "serde_json",
  "structopt",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "toml",
  "web3 0.16.0",
  "witnet_config",
@@ -5116,7 +5116,7 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "tokio-util",
  "trust-dns-resolver",
  "witnet_config",
@@ -5259,7 +5259,7 @@ dependencies = [
  "rocksdb",
  "serde",
  "serde_json",
- "tokio 1.12.0",
+ "tokio 1.14.0",
  "witnet_config",
  "witnet_crypto",
  "witnet_data_structures",
