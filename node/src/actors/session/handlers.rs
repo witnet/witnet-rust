@@ -39,7 +39,7 @@ use crate::actors::{
     sessions_manager::SessionsManager,
 };
 
-use witnet_util::timestamp::get_timestamp;
+use witnet_util::timestamp::{get_timestamp, get_timestamp_nanos};
 
 #[derive(Debug, Eq, Fail, PartialEq)]
 enum HandshakeError {
@@ -710,10 +710,12 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
             // requested_block_hashes is cleared by using drain(..) above
         }
     } else {
+        let ts = get_timestamp_nanos();
+
         // If this is not a requested block, assume it is a candidate
         // Send a message to the ChainManager to try to add a new candidate
         chain_manager_addr.do_send(AddCandidates {
-            blocks: vec![block],
+            blocks: vec![(block, ts)],
         });
     }
 }

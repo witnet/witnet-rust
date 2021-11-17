@@ -49,6 +49,7 @@ use crate::actors::messages::GetSupplyInfo;
 use futures::FutureExt;
 use futures_util::compat::Compat;
 use std::future::Future;
+use witnet_util::timestamp::get_timestamp_nanos;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 
@@ -433,9 +434,10 @@ pub async fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> Js
             log::debug!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
             let chain_manager_addr = ChainManager::from_registry();
+            let now = get_timestamp_nanos();
             let res = chain_manager_addr
                 .send(AddCandidates {
-                    blocks: vec![block],
+                    blocks: vec![(block, now)],
                 })
                 .await;
 
