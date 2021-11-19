@@ -551,6 +551,20 @@ impl ChainManager {
                     return;
                 }
 
+                // Calculate delay for broadcasting blocks
+                let delay = if let Some(delay) = calculate_delay_for_broadcasting_block(
+                    chain_info.consensus_constants.checkpoint_zero_timestamp,
+                    chain_info.consensus_constants.checkpoints_period,
+                    current_epoch,
+                    ts,
+                ) {
+                    delay
+                } else {
+                    log::debug!("Block received too late to broadcasting");
+
+                    return;
+                };
+
                 let mut vrf_input = chain_info.highest_vrf_output;
                 vrf_input.checkpoint = current_epoch;
                 let active_wips = ActiveWips {
@@ -582,14 +596,7 @@ impl ChainManager {
                         // In order to do not block possible validate candidates in AlmostSynced
                         // state, we would broadcast the errors too
                         if self.sm_state == StateMachine::AlmostSynced {
-                            let delay = calculate_delay_from_mining_timestamp(
-                                chain_info.consensus_constants.checkpoint_zero_timestamp,
-                                chain_info.consensus_constants.checkpoints_period,
-                                current_epoch,
-                                ts,
-                            );
-
-                            ctx.run_later(delay_function(delay), |act, _ctx| {
+                            ctx.run_later(delay, |act, _ctx| {
                                 act.broadcast_item(InventoryItem::Block(block))
                             });
                         }
@@ -655,14 +662,7 @@ impl ChainManager {
                             vrf_proof,
                         });
 
-                        let delay = calculate_delay_from_mining_timestamp(
-                            chain_info.consensus_constants.checkpoint_zero_timestamp,
-                            chain_info.consensus_constants.checkpoints_period,
-                            current_epoch,
-                            ts,
-                        );
-
-                        ctx.run_later(delay_function(delay), |act, _ctx| {
+                        ctx.run_later(delay, |act, _ctx| {
                             act.broadcast_item(InventoryItem::Block(block))
                         });
                     }
@@ -676,14 +676,7 @@ impl ChainManager {
                         // In order to do not block possible validate candidates in AlmostSynced
                         // state, we would broadcast the errors too
                         if self.sm_state == StateMachine::AlmostSynced {
-                            let delay = calculate_delay_from_mining_timestamp(
-                                chain_info.consensus_constants.checkpoint_zero_timestamp,
-                                chain_info.consensus_constants.checkpoints_period,
-                                current_epoch,
-                                ts,
-                            );
-
-                            ctx.run_later(delay_function(delay), |act, _ctx| {
+                            ctx.run_later(delay, |act, _ctx| {
                                 act.broadcast_item(InventoryItem::Block(block))
                             });
                         }
@@ -2234,28 +2227,49 @@ impl ChainManager {
     }
 }
 
-// Calculate delay between mining block timestamp and another timestamp
-fn calculate_delay_from_mining_timestamp(
-    checkpoint_zero_timestamp: i64,
-    checkpoints_period: u16,
-    current_epoch: Epoch,
-    ts: (i64, u32),
-) -> Duration {
-    let epoch_constants = EpochConstants {
-        checkpoint_zero_timestamp,
-        checkpoints_period,
-    };
-    let timestamp_mining = epoch_constants
-        .block_mining_timestamp(current_epoch)
-        .unwrap();
-
-    duration_between_timestamps((timestamp_mining, 0), ts).unwrap_or_else(|| Duration::from_secs(0))
-}
-
+// Auxiliary function that converts one delay in another
 fn delay_function(initial_delay: Duration) -> Duration {
     // TODO: Apply a right delay function
     // Direct delay
     initial_delay
+}
+
+// Calculate the delay to introduce in block broadcasting
+// Returns None in case of overflow the current epoch duration
+#[allow(clippy::cast_sign_loss)]
+fn calculate_delay_for_broadcasting_block(
+    checkpoint_zero_timestamp: i64,
+    checkpoints_period: u16,
+    current_epoch: Epoch,
+    ts: (i64, u32),
+) -> Option<Duration> {
+    let epoch_constants = EpochConstants {
+        checkpoint_zero_timestamp,
+        checkpoints_period,
+    };
+
+    // Calculate delay between mining block timestamp and another timestamp
+    let timestamp_mining = epoch_constants
+        .block_mining_timestamp(current_epoch)
+        .unwrap();
+    let delay_from_mining_ts = duration_between_timestamps((timestamp_mining, 0), ts)
+        .unwrap_or_else(|| Duration::from_secs(0));
+
+    // Apply magic delay function
+    let delay_to_broadcasting = delay_function(delay_from_mining_ts);
+
+    // Return delay only if is before the end of the epoch
+    let end_epoch_ts = epoch_constants
+        .epoch_timestamp(current_epoch + 1)
+        .unwrap_or(i64::MAX) as u64;
+    let ts_with_delay = Duration::new(ts.0 as u64, ts.1).checked_add(delay_to_broadcasting);
+
+    match ts_with_delay {
+        Some(ts_with_delay) if ts_with_delay.as_secs() < end_epoch_ts => {
+            Some(delay_to_broadcasting)
+        }
+        _ => None,
+    }
 }
 
 /// Helper struct used to persist an old copy of the `ChainState` to the storage
