@@ -222,9 +222,22 @@ async fn http_get_response(
 }
 
 /// Handle Rng response
-async fn rng_response(context: &mut ReportContext<RadonTypes>) -> Result<RadonReport<RadonTypes>> {
+async fn rng_response(
+    context: &mut ReportContext<RadonTypes>,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
+    // Set the execution start timestamp, if enabled by `timing` setting
+    if settings.timing {
+        context.start();
+    }
+
     let random_bytes: [u8; 32] = rand::random();
     let random_bytes = RadonTypes::from(RadonBytes::from(random_bytes.to_vec()));
+
+    // Set the completion timestamp, if enabled by `timing` settings
+    if settings.timing {
+        context.complete();
+    }
 
     Ok(RadonReport::from_result(Ok(random_bytes), context))
 }
@@ -244,7 +257,7 @@ pub async fn run_retrieval_report(
         match retrieve.kind {
             RADType::Unknown => Err(RadError::UnknownRetrieval),
             RADType::HttpGet => http_get_response(retrieve, context, settings).await,
-            RADType::Rng => rng_response(context).await,
+            RADType::Rng => rng_response(context, settings).await,
         }
     } else {
         http_get_response(retrieve, context, settings).await
