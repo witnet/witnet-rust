@@ -19,8 +19,9 @@ function read_public_addr_from_config {
 
 function guess_public_addr {
     log "Trying to guess 'public_addr'";
-    API_URL="http://bot.whatismyipaddress.com/";
-    PUBLIC_ADDR_FROM_API="$(curl --ipv4 $API_URL 2>/dev/null || log $DEFAULT_IP):${LISTENING_PORT_FROM_CONFIG:-$DEFAULT_PORT}";
+    API_URL="https://api.ipify.org";
+    PUBLIC_ADDR_FROM_API="$(curl --ipv4 $API_URL 2>/dev/null || echo $DEFAULT_IP):${LISTENING_PORT_FROM_CONFIG:-$DEFAULT_PORT}";
+    log $PUBLIC_ADDR_FROM_API
 }
 
 function replace_ip_in_config_if_not_set {
