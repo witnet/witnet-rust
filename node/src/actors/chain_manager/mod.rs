@@ -2230,8 +2230,8 @@ impl ChainManager {
 // Auxiliary function that converts one delay in another
 fn delay_function(initial_delay: Duration) -> Duration {
     // TODO: Apply a right delay function
-    // Direct delay
-    initial_delay
+    // Remove 7.5 secs to the delay
+    initial_delay.saturating_sub(Duration::new(7, 500000000))
 }
 
 // Calculate the delay to introduce in block broadcasting
