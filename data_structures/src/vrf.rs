@@ -223,7 +223,7 @@ mod tests {
         // Test that the public key derived by the VRF crate is the same as the
         // public key derived by the secp256k1 crate
         use crate::chain::PublicKey;
-        use secp256k1::{
+        use witnet_crypto::secp256k1::{
             PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
         };
 

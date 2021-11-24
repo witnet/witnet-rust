@@ -12,10 +12,6 @@ use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use failure::Fail;
 use ordered_float::OrderedFloat;
-use secp256k1::{
-    PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
-    Signature as Secp256k1_Signature,
-};
 use serde::{Deserialize, Serialize};
 
 use partial_struct::PartialStruct;
@@ -23,6 +19,10 @@ use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::ExtendedSK,
     merkle::merkle_tree_root as crypto_merkle_tree_root,
+    secp256k1::{
+        PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
+        Signature as Secp256k1_Signature,
+    },
 };
 use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
@@ -4298,7 +4298,7 @@ mod tests {
     #[test]
     fn secp256k1_from_into_secpk256k1_signatures() {
         use crate::chain::Secp256k1Signature;
-        use secp256k1::{
+        use witnet_crypto::secp256k1::{
             Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
             Signature as Secp256k1_Signature,
         };
@@ -4319,7 +4319,7 @@ mod tests {
     #[test]
     fn secp256k1_from_into_signatures() {
         use crate::chain::Signature;
-        use secp256k1::{
+        use witnet_crypto::secp256k1::{
             Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
             Signature as Secp256k1_Signature,
         };
@@ -4340,7 +4340,7 @@ mod tests {
     #[test]
     fn secp256k1_from_into_public_keys() {
         use crate::chain::PublicKey;
-        use secp256k1::{
+        use witnet_crypto::secp256k1::{
             PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
         };
 
@@ -4358,7 +4358,7 @@ mod tests {
     #[test]
     fn secp256k1_from_into_secret_keys() {
         use crate::chain::SecretKey;
-        use secp256k1::SecretKey as Secp256k1_SecretKey;
+        use witnet_crypto::secp256k1::SecretKey as Secp256k1_SecretKey;
 
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");

@@ -3765,9 +3765,9 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "secp256k1"
-version = "0.17.2"
+version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2932dc07acd2066ff2e3921a4419606b220ba6cd03a9935123856cc534877056"
+checksum = "97d03ceae636d0fed5bae6a7f4f664354c5f4fcedf6eef053fef17e49f837d0a"
 dependencies = [
  "secp256k1-sys",
  "serde",
@@ -3775,9 +3775,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-sys"
-version = "0.1.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ab2c26f0d3552a0f12e639ae8a64afc2e3db9c52fe32f5fc6c289d38519f220"
+checksum = "67e4b6455ee49f5901c8985b88f98fb0a0e1d90a6661f5a03f4888bd987dad29"
 dependencies = [
  "cc",
 ]
@@ -5563,7 +5563,6 @@ dependencies = [
  "protobuf",
  "protobuf-convert",
  "rand 0.7.3",
- "secp256k1",
  "serde",
  "serde_cbor",
  "serde_json",
@@ -5619,7 +5618,6 @@ dependencies = [
  "log 0.4.11",
  "pin-project-lite 0.2.6",
  "rand 0.7.3",
- "secp256k1",
  "sentry",
  "serde",
  "serde_json",

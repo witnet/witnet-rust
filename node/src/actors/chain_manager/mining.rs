@@ -999,7 +999,7 @@ pub fn build_block(
 mod tests {
     use std::convert::TryInto;
 
-    use secp256k1::{
+    use witnet_crypto::secp256k1::{
         PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
     };
 
