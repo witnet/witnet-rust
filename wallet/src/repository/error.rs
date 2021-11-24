@@ -79,6 +79,8 @@ pub enum Error {
     UnknownFeeType,
     #[fail(display = "Wallet not found")]
     WalletNotFound,
+    #[fail(display = "Secp256k1 error: {}", _0)]
+    Secp256k1(#[cause] witnet_crypto::secp256k1::Error),
 }
 
 impl From<failure::Error> for Error {
@@ -145,5 +147,11 @@ impl From<TransactionError> for Error {
             }
             _ => Error::TransactionCreation(err),
         }
+    }
+}
+
+impl From<witnet_crypto::secp256k1::Error> for Error {
+    fn from(err: witnet_crypto::secp256k1::Error) -> Self {
+        Error::Secp256k1(err)
     }
 }

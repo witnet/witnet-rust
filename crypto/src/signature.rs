@@ -1,8 +1,7 @@
 //! Signature module
 
 use crate::key::CryptoEngine;
-use failure::Fail;
-use secp256k1::{Message, SecretKey};
+use secp256k1::{Error, Message, SecretKey};
 
 /// Signature
 pub type Signature = secp256k1::Signature;
@@ -10,36 +9,25 @@ pub type Signature = secp256k1::Signature;
 /// PublicKey
 pub type PublicKey = secp256k1::PublicKey;
 
-/// The error type for operations with signatures
-#[derive(Debug, PartialEq, Fail)]
-pub enum SignatureError {
-    #[fail(display = "Fail in verify process")]
-    /// Fail in verify process
-    VerifyError,
-}
-
-/// Sign data with provided secret key
-/// - Returns an Error if data is all zeros or is not a 32-byte array
-pub fn sign(
-    secp: &CryptoEngine,
-    secret_key: SecretKey,
-    data: &[u8],
-) -> Result<Signature, failure::Error> {
+/// Sign `data` with provided secret key. `data` must be the 32-byte output of a cryptographically
+/// secure hash function, otherwise this function is not secure.
+/// - Returns an Error if data is not a 32-byte array
+pub fn sign(secp: &CryptoEngine, secret_key: SecretKey, data: &[u8]) -> Result<Signature, Error> {
     let msg = Message::from_slice(data)?;
 
     Ok(secp.sign(&msg, &secret_key))
 }
-/// Verify signature with a provided public key
+/// Verify signature with a provided public key.
+/// - Returns an Error if data is not a 32-byte array
 pub fn verify(
     secp: &CryptoEngine,
     public_key: &PublicKey,
     data: &[u8],
     sig: &Signature,
-) -> Result<(), failure::Error> {
-    let msg = Message::from_slice(data).unwrap();
+) -> Result<(), Error> {
+    let msg = Message::from_slice(data)?;
 
     secp.verify(&msg, sig, public_key)
-        .map_err(|_| SignatureError::VerifyError.into())
 }
 
 #[cfg(test)]

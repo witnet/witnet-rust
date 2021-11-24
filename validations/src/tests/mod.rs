@@ -483,7 +483,7 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            msg: "Fail in verify process".to_string(),
+            msg: "secp: signature failed verification".to_string(),
         },
     );
 
@@ -496,7 +496,7 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            // A "Fail in verify process" msg would also be correct here
+            // A "secp: signature failed verification" msg would also be correct here
             msg: TransactionError::PublicKeyHashMismatch {
                 expected_pkh: MY_PKH_1.parse().unwrap(),
                 signature_pkh,
@@ -2706,7 +2706,7 @@ fn commitment_signatures() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            msg: "Fail in verify process".to_string(),
+            msg: "secp: signature failed verification".to_string(),
         },
     );
 
