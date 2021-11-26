@@ -40,7 +40,7 @@ use witnet_data_structures::{
 };
 use witnet_futures_utils::TryFutureExt2;
 use witnet_rad::{error::RadError, types::serial_iter_decode};
-use witnet_util::timestamp::get_timestamp;
+use witnet_util::timestamp::{get_timestamp, get_timestamp_nanos};
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
     calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
@@ -250,7 +250,7 @@ impl ChainManager {
                     beacon,
                     epoch_constants,
                 )
-                .map_ok(|_diff, act, _ctx| {
+                .map_ok(|_diff, act, ctx| {
                     // Send AddCandidates message to self
                     // This will run all the validations again
 
@@ -263,7 +263,7 @@ impl ChainManager {
                         Yellow.bold().paint(block_hash.to_string())
                     );
 
-                    act.process_candidate(block);
+                    act.process_candidate(ctx, block, get_timestamp_nanos());
                 })
                 .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
             })

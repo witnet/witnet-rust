@@ -84,7 +84,7 @@ impl Message for AddBlocks {
 /// Add a new candidate
 pub struct AddCandidates {
     /// Candidates
-    pub blocks: Vec<Block>,
+    pub blocks: Vec<(Block, (i64, u32))>,
 }
 
 impl Message for AddCandidates {

@@ -645,10 +645,10 @@ fn log_sync_progress(
 impl Handler<AddCandidates> for ChainManager {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, msg: AddCandidates, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: AddCandidates, ctx: &mut Context<Self>) {
         // AddCandidates is needed in all states
-        for block in msg.blocks {
-            self.process_candidate(block);
+        for (block, ts) in msg.blocks {
+            self.process_candidate(ctx, block, ts);
         }
     }
 }
