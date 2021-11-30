@@ -16,6 +16,8 @@ fn random_request() -> RADRequest {
                 kind: RADType::HttpGet,
                 url: String::from("https://www.bitstamp.net/api/ticker/"),
                 script: vec![130, 24, 119, 130, 24, 100, 100, 108, 97, 115, 116],
+                body: vec![],
+                headers: vec![],
             },
             RADRetrieve {
                 kind: RADType::HttpGet,
@@ -24,6 +26,8 @@ fn random_request() -> RADRequest {
                     132, 24, 119, 130, 24, 102, 99, 98, 112, 105, 130, 24, 102, 99, 85, 83, 68,
                     130, 24, 100, 106, 114, 97, 116, 101, 95, 102, 108, 111, 97, 116,
                 ],
+                body: vec![],
+                headers: vec![],
             },
         ],
         aggregate: RADAggregate {

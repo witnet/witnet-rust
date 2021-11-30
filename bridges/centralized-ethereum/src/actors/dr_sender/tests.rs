@@ -21,6 +21,8 @@ fn example_request() -> RADRequest {
             url: "http://127.0.0.1:8000".to_string(),
             script: vec![128],
             kind: RADType::HttpGet,
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],
