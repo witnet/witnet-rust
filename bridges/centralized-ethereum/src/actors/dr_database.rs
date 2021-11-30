@@ -5,6 +5,7 @@ use web3::ethabi::Bytes;
 use web3::types::U256;
 use witnet_data_structures::chain::Hash;
 use witnet_node::storage_mngr;
+use witnet_node::utils::stop_system_if_panicking;
 
 /// Database key that stores the Data Request information
 const BRIDGE_DB_KEY: &[u8] = b"bridge_db_key";
@@ -14,6 +15,13 @@ const BRIDGE_DB_KEY: &[u8] = b"bridge_db_key";
 pub struct DrDatabase {
     dr: HashMap<DrId, DrInfoBridge>,
     max_dr_id: DrId,
+}
+
+impl Drop for DrDatabase {
+    fn drop(&mut self) {
+        log::trace!("Dropping DrDatabase");
+        stop_system_if_panicking("DrDatabase");
+    }
 }
 
 /// Data request ID, as set in the ethereum contract
@@ -103,9 +111,9 @@ impl Actor for DrDatabase {
             .map(
                 |dr_database_from_storage, act, _| match dr_database_from_storage {
                     Ok(dr_database_from_storage) => {
-                        if let Some(dr_database_from_storage) = dr_database_from_storage {
+                        if let Some(mut dr_database_from_storage) = dr_database_from_storage {
                             log::info!("Load database from storage");
-                            act.dr = dr_database_from_storage.dr;
+                            act.dr = std::mem::take(&mut dr_database_from_storage.dr);
                             act.max_dr_id = dr_database_from_storage.max_dr_id;
                         } else {
                             log::info!("No database in storage");

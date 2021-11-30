@@ -15,6 +15,7 @@ use witnet_data_structures::{
     radon_error::RadonErrors,
 };
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
+use witnet_node::utils::stop_system_if_panicking;
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
@@ -27,6 +28,13 @@ pub struct DrSender {
     witnet_client: Option<Addr<JsonRpcClient>>,
     wit_dr_sender_polling_rate_ms: u64,
     max_dr_value_nanowits: u64,
+}
+
+impl Drop for DrSender {
+    fn drop(&mut self) {
+        log::trace!("Dropping DrSender");
+        stop_system_if_panicking("DrSender");
+    }
 }
 
 /// Make actor from DrSender
