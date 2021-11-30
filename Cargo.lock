@@ -5750,6 +5750,7 @@ dependencies = [
  "failure",
  "futures 0.3.21",
  "hex",
+ "http 0.2.6",
  "if_rust_version",
  "json",
  "log 0.4.14",

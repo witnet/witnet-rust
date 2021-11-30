@@ -1623,6 +1623,9 @@ pub enum RADType {
     /// Random number generation
     #[serde(rename = "RNG")]
     Rng,
+    /// HTTP POST request
+    #[serde(rename = "HTTP-POST")]
+    HttpPost,
 }
 
 impl Default for RADType {
@@ -1674,19 +1677,149 @@ pub struct RADRetrieve {
     /// Kind of retrieval
     pub kind: RADType,
     /// URL
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub url: String,
     /// Serialized RADON script
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub script: Vec<u8>,
+    /// Body of a HTTP-POST request
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub body: Vec<u8>,
+    /// Extra headers of a HTTP-GET or HTTP-POST request
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
 }
 
 impl RADRetrieve {
+    /// Check whether the fields of the `RADRetrieve` are compatible with the kind of retrieval.
+    ///
+    /// Returns an error if any of the fields that should not exist (because they cannot be used
+    /// for this retrieval kind) has a value different from the default.
+    pub fn check_fields(&self) -> Result<(), DataRequestError> {
+        fn is_default<T: Default + PartialEq>(x: &T) -> bool {
+            x == &T::default()
+        }
+
+        #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+        enum Field {
+            Kind,
+            Url,
+            Script,
+            Body,
+            Headers,
+        }
+
+        impl std::fmt::Display for Field {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    Field::Kind => write!(f, "kind"),
+                    Field::Url => write!(f, "url"),
+                    Field::Script => write!(f, "script"),
+                    Field::Body => write!(f, "body"),
+                    Field::Headers => write!(f, "headers"),
+                }
+            }
+        }
+
+        fn hs_to_string(hs: &HashSet<Field>) -> String {
+            let mut s = String::new();
+            let mut field_names: Vec<String> = hs.iter().map(|field| field.to_string()).collect();
+            field_names.sort();
+
+            for field in field_names {
+                s.push_str(&format!("{}, ", field));
+            }
+
+            // Remove last ", "
+            if !s.is_empty() {
+                s.truncate(s.len() - 2);
+            }
+
+            s
+        }
+
+        // Initialize list of present fields with all the fields that have a non-default value
+        let mut present_fields = HashSet::new();
+
+        if !is_default(&self.kind) {
+            present_fields.insert(Field::Kind);
+        }
+        if !is_default(&self.url) {
+            present_fields.insert(Field::Url);
+        }
+        if !is_default(&self.script) {
+            present_fields.insert(Field::Script);
+        }
+        if !is_default(&self.body) {
+            present_fields.insert(Field::Body);
+        }
+        if !is_default(&self.headers) {
+            present_fields.insert(Field::Headers);
+        }
+
+        let check = |expected_fields: &[Field], optional_fields: &[Field]| {
+            let expected_fields: HashSet<Field> = expected_fields.iter().cloned().collect();
+            let optional_fields: HashSet<Field> = optional_fields.iter().cloned().collect();
+
+            // This must hold true:
+            // present_fields - optional_fields == expected_fields
+            let diff: HashSet<Field> = present_fields
+                .difference(&optional_fields)
+                .cloned()
+                .collect();
+            if diff == expected_fields {
+                Ok(())
+            } else {
+                Err(DataRequestError::MalformedRetrieval {
+                    kind: self.kind.clone(),
+                    expected_fields: hs_to_string(&expected_fields),
+                    actual_fields: hs_to_string(&diff),
+                })
+            }
+        };
+
+        match &self.kind {
+            RADType::Unknown => {
+                // Anything is fine
+                Ok(())
+            }
+            RADType::HttpGet => check(&[Field::Kind, Field::Url, Field::Script], &[Field::Headers]),
+            RADType::Rng => check(&[Field::Kind, Field::Script], &[]),
+            RADType::HttpPost => {
+                // In HttpPost the body is optional because empty body should also be allowed
+                check(
+                    &[Field::Kind, Field::Url, Field::Script],
+                    &[Field::Body, Field::Headers],
+                )
+            }
+        }
+    }
+
     /// Return the weight, used to enforce the block size limit.
     pub fn weight(&self) -> u32 {
-        // RADType: 1 byte
+        let kind_weight = 1;
         let script_weight = u32::try_from(self.script.len()).unwrap_or(u32::MAX);
         let url_weight = u32::try_from(self.url.len()).unwrap_or(u32::MAX);
+        let body_weight = u32::try_from(self.body.len()).unwrap_or(u32::MAX);
+        let mut headers_weight: u32 = 0;
+        for (key, value) in &self.headers {
+            let key_weight = u32::try_from(key.len()).unwrap_or(u32::MAX);
+            let value_weight = u32::try_from(value.len()).unwrap_or(u32::MAX);
+            // Approximation of the protobuf serialization overhead of `repeated StringPair`.
+            // See `rad_retrieve_header_overhead` test for more information.
+            let header_overhead = 6;
 
-        script_weight.saturating_add(url_weight).saturating_add(1)
+            headers_weight = headers_weight
+                .saturating_add(key_weight)
+                .saturating_add(value_weight)
+                .saturating_add(header_overhead);
+        }
+
+        script_weight
+            .saturating_add(url_weight)
+            .saturating_add(kind_weight)
+            .saturating_add(body_weight)
+            .saturating_add(headers_weight)
     }
 }
 

@@ -1711,6 +1711,8 @@ fn example_data_request() -> RADRequest {
             kind: RADType::HttpGet,
             url: "https://blockchain.info/q/latesthash".to_string(),
             script: vec![128],
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],
@@ -1732,6 +1734,8 @@ fn example_data_request_before_wip19() -> RADRequest {
             kind: RADType::Unknown,
             url: "https://blockchain.info/q/latesthash".to_string(),
             script: vec![128],
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],
@@ -1751,6 +1755,8 @@ fn example_data_request_average_mean_reducer() -> RADRequest {
             kind: RADType::HttpGet,
             url: "https://blockchain.info/q/latesthash".to_string(),
             script: vec![128],
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],
@@ -1770,6 +1776,8 @@ fn example_data_request_with_mode_filter() -> RADRequest {
             kind: RADType::HttpGet,
             url: "".to_string(),
             script: vec![0x80],
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],
@@ -1792,6 +1800,8 @@ fn example_data_request_rng() -> RADRequest {
             kind: RADType::Rng,
             url: "".to_string(),
             script: vec![],
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],
@@ -1882,6 +1892,8 @@ fn data_request_empty_scripts() {
             kind: RADType::HttpGet,
             url: "".to_string(),
             script: vec![0x80],
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],
@@ -1897,7 +1909,11 @@ fn data_request_empty_scripts() {
     // The data request should be invalid since the sources are empty
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
-        DataRequestError::NoRetrievalSources,
+        DataRequestError::MalformedRetrieval {
+            kind: RADType::HttpGet,
+            expected_fields: "kind, script, url".to_string(),
+            actual_fields: "kind, script".to_string(),
+        },
     );
 }
 
@@ -4540,6 +4556,8 @@ fn generic_tally_test_stddev_dr(
             kind: RADType::HttpGet,
             url: "".to_string(),
             script: vec![0x80],
+            body: vec![],
+            headers: vec![],
         }],
         aggregate: RADAggregate {
             filters: vec![],

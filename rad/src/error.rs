@@ -355,6 +355,16 @@ pub enum RadError {
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     #[fail(display = "The reveal was not serialized correctly")]
     MalformedReveal,
+    /// Error while parsing HTTP header
+    #[fail(
+        display = "Invalid HTTP header: {}. name={:?}, value={:?}",
+        error, name, value
+    )]
+    InvalidHttpHeader {
+        name: String,
+        value: String,
+        error: String,
+    },
 }
 
 impl RadError {

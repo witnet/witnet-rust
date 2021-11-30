@@ -12,6 +12,9 @@ failure = "0.1.8"
 futures = "0.3.4"
 hex = "0.4.1"
 if_rust_version = "1.0.0"
+# the http crate is used to perform additional validations before passing arguments to the surf http client
+# the version of http must be kept in sync with the version used by surf
+http = "0.2.1"
 json = "0.12.1"
 log = "0.4.8"
 minidom = "0.13.0"
@@ -21,6 +24,8 @@ rand = "0.7.3"
 serde = "1.0.111"
 serde_cbor = "0.11.1"
 surf = { version = "2.3.2", default-features = false, features = ["curl-client"] }
+# the url crate is used to perform additional validations before passing arguments to the surf http client
+# the version of url must be kept in sync with the version used by surf
 url = "2.1.1"
 
 witnet_crypto = { path = "../crypto" }
