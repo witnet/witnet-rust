@@ -3,7 +3,9 @@
 use failure::Fail;
 use std::num::ParseIntError;
 
-use crate::chain::{DataRequestOutput, Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash};
+use crate::chain::{
+    DataRequestOutput, Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash, RADType,
+};
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
 #[derive(Debug, PartialEq, Fail)]
@@ -487,6 +489,16 @@ pub enum DataRequestError {
     NoRetrievalSources,
     #[fail(display = "The data request has not a valid RadType")]
     InvalidRadType,
+    /// Invalid fields in retrieval struct
+    #[fail(
+        display = "The retrieval has some fields that are not allowed for this retrieval kind ({:?}):\nexpected fields: {}\nactual fields: {}",
+        kind, expected_fields, actual_fields
+    )]
+    MalformedRetrieval {
+        kind: RADType,
+        expected_fields: String,
+        actual_fields: String,
+    },
 }
 
 /// Possible errors when converting between epoch and timestamp
