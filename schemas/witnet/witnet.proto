@@ -120,6 +120,7 @@ message DataRequestOutput {
             Unknown = 0;
             HttpGet = 1;
             Rng = 2;
+            HttpPost = 3;
         }
         message RADFilter {
             uint32 op = 1;
@@ -130,6 +131,10 @@ message DataRequestOutput {
             string url = 2;
             // TODO: RADScript should maybe be a type?
             bytes script = 3;
+            // Body of HTTP-POST request
+            bytes body = 4;
+            // Extra headers for HTTP-GET and HTTP-POST requests
+            repeated StringPair headers = 5;
         }
         message RADAggregate {
             repeated RADFilter filters = 1;
@@ -152,6 +157,11 @@ message DataRequestOutput {
     uint64 commit_and_reveal_fee = 4;
     uint32 min_consensus_percentage = 5;
     uint64 collateral = 6;
+}
+
+message StringPair {
+    string left = 1;
+    string right = 2;
 }
 
 message Input {

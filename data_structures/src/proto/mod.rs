@@ -50,6 +50,7 @@ impl ProtobufConvert for chain::RADType {
             chain::RADType::Unknown => witnet::DataRequestOutput_RADRequest_RADType::Unknown,
             chain::RADType::HttpGet => witnet::DataRequestOutput_RADRequest_RADType::HttpGet,
             chain::RADType::Rng => witnet::DataRequestOutput_RADRequest_RADType::Rng,
+            chain::RADType::HttpPost => witnet::DataRequestOutput_RADRequest_RADType::HttpPost,
         }
     }
 
@@ -58,6 +59,7 @@ impl ProtobufConvert for chain::RADType {
             witnet::DataRequestOutput_RADRequest_RADType::Unknown => chain::RADType::Unknown,
             witnet::DataRequestOutput_RADRequest_RADType::HttpGet => chain::RADType::HttpGet,
             witnet::DataRequestOutput_RADRequest_RADType::Rng => chain::RADType::Rng,
+            witnet::DataRequestOutput_RADRequest_RADType::HttpPost => chain::RADType::HttpPost,
         })
     }
 }
@@ -299,5 +301,20 @@ impl ProtobufConvert for i16 {
             "Integer out of range"
         );
         Ok(Self::try_from(pb)?)
+    }
+}
+
+impl ProtobufConvert for (String, String) {
+    type ProtoStruct = witnet::StringPair;
+
+    fn to_pb(&self) -> Self::ProtoStruct {
+        let mut pb = Self::ProtoStruct::new();
+        pb.set_left(self.0.clone());
+        pb.set_right(self.1.clone());
+        pb
+    }
+
+    fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
+        Ok((pb.get_left().to_string(), pb.get_right().to_string()))
     }
 }

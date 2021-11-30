@@ -247,21 +247,25 @@ pub fn validate_rad_request(
     }
 
     for path in retrieval_paths {
-        // Regarding WIP-0019 activation:
-        // Before -> Only RadType enum 0 position is valid
-        // After -> RadType::Unknown are invalid
-        if (!active_wips.wip0019() && path.kind != RADType::Unknown)
+        if active_wips.wip0020() {
+            path.check_fields()?;
+            unpack_radon_script(path.script.as_slice())?;
+
+            // Regarding WIP-0019 activation:
+            // Before -> Only RadType enum 0 position is valid
+            // After -> RadType::Unknown are invalid
+        } else if (!active_wips.wip0019() && path.kind != RADType::Unknown)
             || (active_wips.wip0019() && path.kind == RADType::Unknown)
         {
             return Err(DataRequestError::InvalidRadType.into());
+        } else {
+            let is_rng = active_wips.wip0019() && path.kind == RADType::Rng;
+            // If the sources are empty the data request is set as invalid
+            if path.url.is_empty() && !is_rng {
+                return Err(DataRequestError::NoRetrievalSources.into());
+            }
+            unpack_radon_script(path.script.as_slice())?;
         }
-
-        let is_rng = active_wips.wip0019() && path.kind == RADType::Rng;
-        // If the sources are empty the data request is set as invalid
-        if path.url.is_empty() && !is_rng {
-            return Err(DataRequestError::NoRetrievalSources.into());
-        }
-        unpack_radon_script(path.script.as_slice())?;
     }
 
     let aggregate = &rad_request.aggregate;
