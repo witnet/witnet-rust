@@ -13,6 +13,7 @@ use web3::{
     types::{H160, U256},
 };
 use witnet_data_structures::chain::Hash;
+use witnet_node::utils::stop_system_if_panicking;
 use witnet_util::timestamp::get_timestamp;
 
 /// EthPoller actor reads periodically new requests from the WRB Contract and includes them
@@ -25,6 +26,13 @@ pub struct EthPoller {
     pub eth_new_dr_polling_rate_ms: u64,
     /// eth_account
     pub eth_account: H160,
+}
+
+impl Drop for EthPoller {
+    fn drop(&mut self) {
+        log::trace!("Dropping EthPoller");
+        stop_system_if_panicking("EthPoller");
+    }
 }
 
 /// Make actor from EthPoller

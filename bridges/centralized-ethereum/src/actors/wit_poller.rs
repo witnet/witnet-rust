@@ -10,6 +10,7 @@ use serde_json::json;
 use std::{convert::TryFrom, time::Duration};
 use witnet_data_structures::chain::DataRequestInfo;
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
+use witnet_node::utils::stop_system_if_panicking;
 use witnet_util::timestamp::get_timestamp;
 
 /// WitPoller actor checks periodically the state of the requests in Witnet to call DrReporter
@@ -19,6 +20,13 @@ pub struct WitPoller {
     witnet_client: Option<Addr<JsonRpcClient>>,
     wit_tally_polling_rate_ms: u64,
     dr_tx_unresolved_timeout_ms: Option<u64>,
+}
+
+impl Drop for WitPoller {
+    fn drop(&mut self) {
+        log::trace!("Dropping WitPoller");
+        stop_system_if_panicking("WitPoller");
+    }
 }
 
 /// Make actor from WitPoller

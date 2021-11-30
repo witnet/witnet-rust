@@ -17,6 +17,7 @@ use web3::{
     types::{H160, U256},
 };
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};
+use witnet_node::utils::stop_system_if_panicking;
 use witnet_util::timestamp::get_timestamp;
 
 /// DrReporter actor sends the the Witnet Request tally results to Ethereum
@@ -35,6 +36,13 @@ pub struct DrReporter {
     pub pending_report_result: HashSet<DrId>,
     /// Max time to wait for an ethereum transaction to be confirmed before returning an error
     pub eth_confirmation_timeout_ms: u64,
+}
+
+impl Drop for DrReporter {
+    fn drop(&mut self) {
+        log::trace!("Dropping DrReporter");
+        stop_system_if_panicking("DrReporter");
+    }
 }
 
 /// Make actor from EthPoller
