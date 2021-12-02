@@ -13,15 +13,9 @@ use witnet_data_structures::radon_report::ReportContext;
 
 const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RadonBytes {
     value: Vec<u8>,
-}
-
-impl Default for RadonBytes {
-    fn default() -> Self {
-        Self { value: vec![] }
-    }
 }
 
 impl RadonType<Vec<u8>> for RadonBytes {

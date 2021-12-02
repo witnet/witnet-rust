@@ -131,6 +131,7 @@ impl fmt::Display for ResolverError {
     }
 }
 
+#[derive(Default)]
 pub struct Resolver {
     resolver: Option<AsyncResolver>,
     cfg: Option<(ResolverConfig, ResolverOpts)>,
@@ -170,16 +171,6 @@ impl Actor for Resolver {
 impl Supervised for Resolver {}
 
 impl SystemService for Resolver {}
-
-impl Default for Resolver {
-    fn default() -> Resolver {
-        Resolver {
-            resolver: None,
-            cfg: None,
-            err: None,
-        }
-    }
-}
 
 impl Handler<Resolve> for Resolver {
     type Result = ResponseActFuture<Self, Result<VecDeque<SocketAddr>, ResolverError>>;

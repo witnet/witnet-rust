@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 use structopt::StructOpt;
 
 use witnet_config::config::Config;
@@ -62,9 +60,6 @@ pub enum Command {
 
 #[derive(Debug, StructOpt)]
 pub struct ConfigParams {
-    /// Socket address for the wallet server
-    #[structopt(short = "l", long = "listen", default_value = "127.0.0.1:11212")]
-    addr: SocketAddr,
     /// Socket address of the Witnet node to query
     #[structopt(short = "n", long = "node")]
     node: Option<String>,

@@ -1518,15 +1518,12 @@ type ResponseBlockChain<'a> = Vec<(u32, &'a str)>;
 struct JsonRpcResponse<'a, T> {
     // Lifetimes allow zero-copy string deserialization
     jsonrpc: &'a str,
-    id: Id<'a>,
     result: T,
 }
 
 /// A failed request returns an error with code and message
 #[derive(Debug, Deserialize)]
-struct JsonRpcError<'a> {
-    jsonrpc: &'a str,
-    id: Id<'a>,
+struct JsonRpcError {
     error: ServerError,
 }
 
@@ -1605,7 +1602,7 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failur
         }
         Err(e) => {
             log::info!("{}", e);
-            let error_json: JsonRpcError<'a> = serde_json::from_str(response)?;
+            let error_json: JsonRpcError = serde_json::from_str(response)?;
             Err(error_json.error.into())
         }
     }

@@ -5596,7 +5596,7 @@ mod tests {
     #[test]
     fn utxo_set_coin_age() {
         let mut p = UnspentOutputsPool::default();
-        let v = || ValueTransferOutput::default();
+        let v = ValueTransferOutput::default;
 
         let k0: OutputPointer =
             "0222222222222222222222222222222222222222222222222222222222222222:0"
@@ -5641,7 +5641,7 @@ mod tests {
     fn utxo_set_insert_twice() {
         // Inserting the same input twice into the UTXO set overwrites the transaction
         let mut p = UnspentOutputsPool::default();
-        let v = || ValueTransferOutput::default();
+        let v = ValueTransferOutput::default;
 
         let k0: OutputPointer =
             "0222222222222222222222222222222222222222222222222222222222222222:0"
@@ -5660,7 +5660,7 @@ mod tests {
         // Inserting the same transaction twice with different indexes means a different UTXO
         // so, each UTXO keeps their own block number
         let mut p = UnspentOutputsPool::default();
-        let v = || ValueTransferOutput::default();
+        let v = ValueTransferOutput::default;
 
         let k0: OutputPointer =
             "0222222222222222222222222222222222222222222222222222222222222222:0"

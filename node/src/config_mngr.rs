@@ -8,10 +8,7 @@ use witnet_futures_utils::TryFutureExt2;
 
 /// Start the configuration manager with an initial configuration
 pub fn start(config: Arc<Config>) {
-    let addr = ConfigManager::create(|_ctx| ConfigManager {
-        config,
-        config_source: Source::Default,
-    });
+    let addr = ConfigManager::create(|_ctx| ConfigManager { config });
     actix::SystemRegistry::set(addr);
 }
 
@@ -42,7 +39,6 @@ pub async fn load_from_file(filename: PathBuf) -> Result<(), failure::Error> {
 #[derive(Debug)]
 struct ConfigManager {
     config: Arc<Config>,
-    config_source: Source,
 }
 
 impl Drop for ConfigManager {
@@ -66,8 +62,6 @@ struct Load(Source);
 /// Different kinds of configuration sources
 #[derive(Debug)]
 enum Source {
-    /// The default value of [`Config`](Config) is used
-    Default,
     /// The configuration is loaded from the given path
     File(PathBuf),
 }
@@ -76,7 +70,6 @@ impl Default for ConfigManager {
     fn default() -> Self {
         Self {
             config: Arc::new(Default::default()),
-            config_source: Source::Default,
         }
     }
 }
@@ -146,7 +139,6 @@ impl actix::Handler<Load> for ConfigManager {
 impl ConfigManager {
     fn load_config(&mut self, source: &Source) -> Result<(), failure::Error> {
         let new_config = match source {
-            Source::Default => Config::default(),
             Source::File(filename) => Config::from_partial(&toml::from_file(filename)?),
         };
 
