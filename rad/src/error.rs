@@ -38,6 +38,12 @@ pub enum RadError {
         description
     )]
     JsonParse { description: String },
+    /// Failed to parse an object from a XML buffer
+    #[fail(
+        display = "Failed to parse an object from a XML buffer: {:?}",
+        description
+    )]
+    XmlParse { description: String },
     /// The given index is not present in a RadonArray
     #[fail(display = "Failed to get item at index `{}` from RadonArray", index)]
     ArrayIndexOutOfBounds { index: i32 },
