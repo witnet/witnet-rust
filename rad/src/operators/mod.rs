@@ -104,7 +104,7 @@ pub enum RadonOpCodes {
     StringMatch = 0x75,
     StringParseJSONArray = 0x76,
     StringParseJSONMap = 0x77,
-    //    StringParseXML = 0x78,
+    StringParseXMLMap = 0x78,
     StringToLowerCase = 0x79,
     StringToUpperCase = 0x7A,
 }
