@@ -120,9 +120,19 @@ impl Operable for RadonString {
     fn operate_in_context(
         &self,
         call: &RadonCall,
-        _context: &mut ReportContext<RadonTypes>,
+        context: &mut ReportContext<RadonTypes>,
     ) -> Result<RadonTypes, RadError> {
-        self.operate(call)
+        match (&context.active_wips, call) {
+            (Some(active_wips), (RadonOpCodes::StringParseXMLMap, None))
+                // TODO: Use a right WIP
+                if active_wips.wip0019() =>
+            {
+                string_operators::parse_xml_map(self)
+                    .map(RadonTypes::from)
+                    .map_err(Into::into)
+            }
+            _ => self.operate(call),
+        }
     }
 }
 
