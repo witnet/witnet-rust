@@ -380,12 +380,9 @@ pub struct Mempool {
 #[derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct Tapi {
-    /// Oppose WIP0017
-    pub oppose_wip0017: bool,
-    /// Oppose WIP0018
-    pub oppose_wip0018: bool,
-    /// Oppose WIP0019
-    pub oppose_wip0019: bool,
+    // TODO: Use right WIP number and properties
+    /// Oppose WIP0021
+    pub oppose_wip0021: bool,
 }
 
 fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusConstants {

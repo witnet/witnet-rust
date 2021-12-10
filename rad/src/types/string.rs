@@ -124,8 +124,7 @@ impl Operable for RadonString {
     ) -> Result<RadonTypes, RadError> {
         match (&context.active_wips, call) {
             (Some(active_wips), (RadonOpCodes::StringParseXMLMap, None))
-                // TODO: Use a right WIP
-                if active_wips.wip0019() =>
+                if active_wips.wip0021() =>
             {
                 string_operators::parse_xml_map(self)
                     .map(RadonTypes::from)

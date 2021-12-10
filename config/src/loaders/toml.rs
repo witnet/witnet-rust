@@ -234,20 +234,18 @@ enabled = false
         // Check that the tapi table does not need to explicitly set all the new "oppose_wip" fields
         // and they default to "false"
         let empty_config = super::from_str("[tapi]").unwrap();
-        let config_oppose_0017 = super::from_str(
+
+        // TODO: Use right WIP number and properties
+        let config_oppose_0020 = super::from_str(
             r"
 [tapi]
-oppose_wip0017 = true
+oppose_wip0021 = true
     ",
         )
         .unwrap();
 
         assert_eq!(empty_config.tapi, Tapi::default());
-        assert!(!empty_config.tapi.oppose_wip0017);
-        assert!(config_oppose_0017.tapi.oppose_wip0017);
-        assert!(!empty_config.tapi.oppose_wip0018);
-        assert!(!config_oppose_0017.tapi.oppose_wip0018);
-        assert!(!empty_config.tapi.oppose_wip0019);
-        assert!(!config_oppose_0017.tapi.oppose_wip0019);
+        assert!(!empty_config.tapi.oppose_wip0021);
+        assert!(config_oppose_0020.tapi.oppose_wip0021);
     }
 }
