@@ -2192,7 +2192,9 @@ impl ChainManager {
     }
 
     /// Return the value of the version field for a block in this epoch
-    fn tapi_signals_mask(&self, _epoch: Epoch) -> u32 {
+    fn tapi_signals_mask(&self, epoch: Epoch) -> u32 {
+        let Tapi { oppose_wip0021 } = &self.tapi;
+
         let mut v = 0;
         // Bit 0
         // FIXME(#2051): Assess when remove achieved bit signaling
@@ -2202,6 +2204,17 @@ impl ChainManager {
         // Bit 1
         let bit = 1;
         v |= 1 << bit;
+
+        // Bit 2
+        let bit = 2;
+        if !oppose_wip0021
+            && self
+                .chain_state
+                .tapi_engine
+                .in_voting_range(epoch, "WIP0021")
+        {
+            v |= 1 << bit;
+        }
 
         v
     }
