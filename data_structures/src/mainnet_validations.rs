@@ -72,6 +72,15 @@ pub fn current_active_wips() -> ActiveWips {
     }
 }
 
+/// Auxiliary function that returns the current active wips and the WIPs in voting process as actived
+/// It is only used for testing
+pub fn all_wips_active() -> ActiveWips {
+    let mut active_wips = current_active_wips();
+    active_wips.active_wips.insert("WIP0021".to_string(), 0);
+
+    active_wips
+}
+
 impl TapiEngine {
     pub fn update_bit_counter(
         &mut self,
@@ -119,7 +128,7 @@ impl TapiEngine {
         &mut self,
         environment: Environment,
     ) -> (Epoch, HashSet<String>) {
-        let voting_wips = vec![None; 32];
+        let mut voting_wips = vec![None; 32];
 
         match environment {
             Environment::Mainnet => {
@@ -127,6 +136,21 @@ impl TapiEngine {
                 for (k, v) in wip_info() {
                     self.wip_activation.insert(k, v);
                 }
+
+                // TODO: Use right WIP number and properties
+                // Hardcoded information about WIPs in vote processing
+                let bit = 2;
+                let wip_0020 = BitVotesCounter {
+                    votes: 0,
+                    period: 26880,
+                    wip: "WIP0021".to_string(),
+                    // Start voting at
+                    // 21 Sept 2021 @ 9:00:00 UTC
+                    init: 656640,
+                    end: u32::MAX,
+                    bit,
+                };
+                voting_wips[bit] = Some(wip_0020);
             }
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
@@ -400,6 +424,10 @@ impl ActiveWips {
     pub fn wip0019(&self) -> bool {
         self.wip_active("WIP0017-0018-0019")
     }
+
+    pub fn wip0021(&self) -> bool {
+        self.wip_active("WIP0021")
+    }
 }
 
 #[cfg(test)]
@@ -672,9 +700,10 @@ mod tests {
         let mut t = TapiEngine::default();
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // There are not a WIP in a voting process so init_epoch is in the MAX
-        let init_epoch = u32::MAX;
-        assert_eq!(epoch, init_epoch);
+        // TODO: Use right WIP number and properties
+        // The first block whose vote must be counted is the one from WIP0021
+        let init_epoch_wip0021 = 656640;
+        assert_eq!(epoch, init_epoch_wip0021);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
         // The list of active WIPs should match those defined in `wip_info`
@@ -683,6 +712,18 @@ mod tests {
             hm.insert(k, v);
         }
         assert_eq!(t.wip_activation, hm);
+
+        // TODO: Use right WIP number and properties
+        // Test initialize_wip_information with a non-empty TapiEngine
+        let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
+        // WIP0021 is already included and it won't be updated
+        let name_wip0021 = "WIP0021".to_string();
+        let mut hs = HashSet::new();
+        hs.insert(name_wip0021);
+        assert_eq!(old_wips, hs);
+
+        // There is no new WIPs to update so we obtain the max value
+        assert_eq!(epoch, u32::MAX);
     }
 
     #[test]
