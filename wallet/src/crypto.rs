@@ -29,7 +29,7 @@ pub enum Error {
     )]
     InvalidKeyPath(String),
     #[fail(display = "The AES encryption/decryption failed: {}", _0)]
-    AES(#[cause] cipher::Error),
+    Aes(#[cause] cipher::Error),
 }
 
 /// Result type for cryptographic operations that can fail.
@@ -121,10 +121,10 @@ where
 
 /// AES-CBC encryption of a given u8 slice with the provided password. Returns IV|SALT|CIPHERTEXT
 pub fn encrypt_cbc(value: &[u8], password: &[u8]) -> Result<Vec<u8>> {
-    let iv = cipher::generate_random(IV_LENGTH).map_err(Error::AES)?;
-    let salt = cipher::generate_random(SALT_LENGTH).map_err(Error::AES)?;
+    let iv = cipher::generate_random(IV_LENGTH).map_err(Error::Aes)?;
+    let salt = cipher::generate_random(SALT_LENGTH).map_err(Error::Aes)?;
     let secret = pbkdf2_sha256(password, &salt, HASH_ITER_COUNT);
-    let ciphertext = cipher::encrypt_aes_cbc(&secret, value, iv.as_ref()).map_err(Error::AES)?;
+    let ciphertext = cipher::encrypt_aes_cbc(&secret, value, iv.as_ref()).map_err(Error::Aes)?;
     let mut final_value = iv;
     final_value.extend(salt);
     final_value.extend(ciphertext);
@@ -138,7 +138,7 @@ pub fn decrypt_cbc(ciphertext: &[u8], password: &[u8]) -> Result<Vec<u8>> {
     let mut salt = iv.split_off(IV_LENGTH);
     let true_ciphertext = salt.split_off(SALT_LENGTH);
     let secret = pbkdf2_sha256(password, &salt, HASH_ITER_COUNT);
-    let plaintext = cipher::decrypt_aes_cbc(&secret, &true_ciphertext, &iv).map_err(Error::AES)?;
+    let plaintext = cipher::decrypt_aes_cbc(&secret, &true_ciphertext, &iv).map_err(Error::Aes)?;
 
     Ok(plaintext)
 }
