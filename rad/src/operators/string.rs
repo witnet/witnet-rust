@@ -14,6 +14,8 @@ use crate::{
     },
 };
 
+const MAX_DEPTH: u8 = 20;
+
 pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     match json::parse(&input.value()) {
         Ok(json_value) => {
@@ -94,7 +96,15 @@ fn magic_map_cleaning(input: BTreeMap<String, RadonTypes>) -> BTreeMap<String, R
     map
 }
 
-pub fn parse_element_map(input: &minidom::Element, use_namespace: bool) -> RadonMap {
+pub fn parse_element_map(
+    input: &minidom::Element,
+    use_namespace: bool,
+    depth: u8,
+) -> Result<RadonMap, RadError> {
+    if depth > MAX_DEPTH {
+        return Err(RadError::XmlParseOverflow);
+    }
+
     let mut map: BTreeMap<String, RadonTypes> = BTreeMap::new();
     map.insert("_label".to_string(), RadonString::from(input.name()).into());
     if use_namespace {
@@ -108,7 +118,7 @@ pub fn parse_element_map(input: &minidom::Element, use_namespace: bool) -> Radon
     for children in input.nodes() {
         match children {
             minidom::Node::Element(elem) => {
-                let radon_map = parse_element_map(elem, false);
+                let radon_map = parse_element_map(elem, false, depth + 1)?;
                 a.push(radon_map.into());
             }
             minidom::Node::Text(text) => {
@@ -123,14 +133,14 @@ pub fn parse_element_map(input: &minidom::Element, use_namespace: bool) -> Radon
     map.insert("_children".to_string(), RadonArray::from(a).into());
 
     let map = magic_map_cleaning(map);
-    RadonMap::from(map)
+    Ok(RadonMap::from(map))
 }
 
 pub fn parse_xml_map(input: &RadonString) -> Result<RadonMap, RadError> {
     let minidom_element: Result<minidom::Element, minidom::Error> = input.value().parse();
 
     match minidom_element {
-        Ok(element) => Ok(parse_element_map(&element, true)),
+        Ok(element) => parse_element_map(&element, true, 0),
         Err(minidom_error) => Err(RadError::XmlParse {
             description: minidom_error.to_string(),
         }),
@@ -395,6 +405,23 @@ mod tests {
         );
 
         assert_eq!(RadonTypes::from(output), expected_map);
+    }
+
+    #[test]
+    fn test_parse_xml_map_stack_overflow() {
+        let n = 1000;
+        let xml_map = RadonString::from(format!(
+            r#"<?xml version="1.0"?>
+            <Tests xmlns="https://witnet.io/">
+            {}{}
+            </Tests>
+        "#,
+            "<A>".repeat(n),
+            "</A>".repeat(n)
+        ));
+        let output = parse_xml_map(&xml_map).unwrap_err();
+
+        assert_eq!(output, RadError::XmlParseOverflow)
     }
 
     #[test]

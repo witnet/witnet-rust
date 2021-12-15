@@ -44,6 +44,9 @@ pub enum RadError {
         description
     )]
     XmlParse { description: String },
+    /// Failed to parse an object from a XML buffer by depth overflow
+    #[fail(display = "Failed to parse an object from a XML buffer: XML depth overflow")]
+    XmlParseOverflow,
     /// The given index is not present in a RadonArray
     #[fail(display = "Failed to get item at index `{}` from RadonArray", index)]
     ArrayIndexOutOfBounds { index: i32 },
