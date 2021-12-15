@@ -39,13 +39,12 @@ use witnet_data_structures::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
 use witnet_futures_utils::TryFutureExt2;
-use witnet_rad::{error::RadError, types::serial_iter_decode};
+use witnet_rad::{conditions::radon_report_from_error, error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
     calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
-    radon_report_from_error, tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
-    Wit,
+    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee, Wit,
 };
 
 use crate::{

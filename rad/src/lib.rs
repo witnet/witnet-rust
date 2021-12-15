@@ -5,7 +5,14 @@ use serde::Serialize;
 pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
 
+use witnet_data_structures::{
+    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
+    mainnet_validations::{current_active_wips, ActiveWips},
+    radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
+};
+
 use crate::{
+    conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
     error::RadError,
     script::{
         create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
@@ -14,12 +21,8 @@ use crate::{
     types::{array::RadonArray, bytes::RadonBytes, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
-use witnet_data_structures::{
-    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
-    mainnet_validations::{current_active_wips, ActiveWips},
-    radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
-};
 
+pub mod conditions;
 pub mod error;
 pub mod filters;
 pub mod hash_functions;
@@ -81,19 +84,40 @@ pub fn try_data_request(
                 .unwrap_or_else(|error| RadonReport::from_result(Err(error), &retrieval_context))
         })
         .collect();
-    let retrieval_values: Vec<RadonTypes> = retrieval_reports
-        .iter()
-        .map(|report| report.result.clone())
-        .collect();
 
-    let (aggregation_result, aggregation_context) = run_aggregation_report(
-        retrieval_values,
-        &request.aggregate,
-        settings,
-        current_active_wips(),
+    // Evaluate aggregation pre-condition by using the same logic than for tally pre-condition,
+    // to ensure that at least 20% of the data sources are not errors.
+    // Aggregation stage does not need to evaluate any post-condition.
+    let clause_result = evaluate_tally_precondition_clause(
+        retrieval_reports.clone(),
+        0.2,
+        1,
+        &current_active_wips(),
     );
-    let aggregation_report = aggregation_result
-        .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context));
+
+    let aggregation_report = match clause_result {
+        Ok(TallyPreconditionClauseResult::MajorityOfValues {
+            values,
+            liars: _liars,
+            errors: _errors,
+        }) => {
+            // Perform aggregation on the values that made it to the output vector after applying the
+            // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
+            // failures.
+            let (aggregation_result, aggregation_context) =
+                run_aggregation_report(values, &request.aggregate, settings, current_active_wips());
+
+            aggregation_result
+                .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context))
+        }
+        Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
+            RadonReport::from_result(
+                Ok(RadonTypes::RadonError(errors_mode)),
+                &ReportContext::default(),
+            )
+        }
+        Err(e) => RadonReport::from_result(Err(e), &ReportContext::default()),
+    };
     let aggregation_value = aggregation_report.result.clone();
 
     let (tally_result, tally_context) = run_tally_report(
