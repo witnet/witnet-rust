@@ -27,6 +27,7 @@ use witnet_data_structures::{
 };
 use witnet_protected::Protected;
 use witnet_rad::{
+    conditions::*,
     error::RadError,
     filters::RadonFilters,
     reducers::RadonReducers,

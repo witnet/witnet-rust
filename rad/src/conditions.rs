@@ -373,3 +373,33 @@ impl Counter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_counter() {
+        let mut counter = Counter::new(7);
+        counter.increment(6);
+        assert_eq!(counter.max_val, 1);
+        assert_eq!(counter.max_pos, Some(6));
+
+        counter.increment(6);
+        assert_eq!(counter.max_val, 2);
+        assert_eq!(counter.max_pos, Some(6));
+
+        counter.increment(0);
+        assert_eq!(counter.max_val, 2);
+        assert_eq!(counter.max_pos, Some(6));
+
+        counter.increment(0);
+        counter.increment(0);
+        assert_eq!(counter.max_val, 3);
+        assert_eq!(counter.max_pos, Some(0));
+
+        counter.increment(6);
+        assert_eq!(counter.max_val, 3);
+        assert_eq!(counter.max_pos, None);
+    }
+}

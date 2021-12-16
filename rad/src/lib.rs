@@ -1145,4 +1145,49 @@ mod tests {
             panic!("No RadonBytes result in a RNG request");
         }
     }
+
+    /// Ensure that `try_data_request` filters errors before calling `run_aggregation`.
+    #[test]
+    fn test_try_data_request_filters_aggregation_errors() {
+        let script = cbor_to_vec(&Value::Array(vec![Value::Integer(
+            RadonOpCodes::StringAsInteger as i128,
+        )]))
+        .unwrap();
+        let request = RADRequest {
+            time_lock: 0,
+            retrieve: vec![
+                RADRetrieve {
+                    kind: RADType::HttpGet,
+                    url: String::from(""),
+                    script: script.clone(),
+                },
+                RADRetrieve {
+                    kind: RADType::HttpGet,
+                    url: String::from(""),
+                    script: script.clone(),
+                },
+                RADRetrieve {
+                    kind: RADType::HttpGet,
+                    url: String::from(""),
+                    script,
+                },
+            ],
+            aggregate: RADAggregate {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+            tally: RADTally {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+        };
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            Some(&["1", "1", "error"]),
+        );
+        let tally_result = report.tally.into_inner();
+
+        assert_eq!(tally_result, RadonTypes::Integer(RadonInteger::from(1)));
+    }
 }

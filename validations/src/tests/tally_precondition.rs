@@ -1,16 +1,15 @@
+use std::convert::TryFrom;
+
 use witnet_data_structures::{
     mainnet_validations::current_active_wips,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext},
 };
 use witnet_rad::{
+    conditions::*,
     error::RadError,
     types::{array::RadonArray, float::RadonFloat, integer::RadonInteger, RadonTypes},
 };
-
-use std::convert::TryFrom;
-
-use crate::validations::*;
 
 #[test]
 fn test_tally_precondition_clause_3_ints_vs_1_float() {
