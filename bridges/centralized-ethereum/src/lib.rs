@@ -83,15 +83,35 @@ pub async fn check_ethereum_node_running(eth_client_url: &str) -> Result<(), Str
     // Use a sample web3 call to check http connection
     let res = web3.eth().syncing().await;
     match res {
-        Ok(_x) => {
+        Ok(syncing) => {
             log::debug!("Ethereum node is running at {}", eth_client_url);
+            match syncing {
+                web3::types::SyncState::NotSyncing => {}
+                web3::types::SyncState::Syncing(sync_info) => {
+                    log::warn!("Ethereum provider is syncing: {:?}", sync_info);
+                }
+            }
 
             Ok(())
         }
         Err(e) => {
-            log::error!("Failed to connect to ethereum node: {}", e);
+            match e {
+                web3::Error::Decoder(error_msg)
+                    if error_msg.contains("expected object or `false`, got `true`") =>
+                {
+                    // Ignore this error because it can be caused by a non-standard ethereum provider
+                    // https://github.com/witnet/witnet-rust/issues/2141
+                    log::debug!("Ethereum node is running at {}", eth_client_url);
+                    log::warn!("Ethereum provider returned `true` on eth_syncing method");
 
-            Err(e.to_string())
+                    Ok(())
+                }
+                _ => {
+                    log::error!("Failed to connect to ethereum node: {}", e);
+
+                    Err(e.to_string())
+                }
+            }
         }
     }
 }
