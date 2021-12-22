@@ -118,7 +118,7 @@ impl<T> Memoized<T> {
 }
 
 /// Transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::Transaction")]
 // FIXME(#649): Remove clippy skip error
 #[allow(clippy::large_enum_variant)]

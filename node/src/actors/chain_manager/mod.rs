@@ -187,8 +187,10 @@ pub struct ChainManager {
     candidates: HashMap<Hash, Vec<Block>>,
     /// Best candidate
     best_candidate: Option<BlockCandidate>,
-    /// Set that stores all the received candidates
+    /// Set that stores all the recently received candidates
     seen_candidates: HashSet<Block>,
+    /// Set that stores all the recently received transactions
+    seen_transactions: HashSet<Transaction>,
     /// Our public key hash, used to create the mint transaction
     own_pkh: Option<PublicKeyHash>,
     /// Our BLS public key, used to append in commit transactions
@@ -1185,10 +1187,17 @@ impl ChainManager {
             },
         };
 
+        if self.seen_transactions.contains(&msg.transaction) {
+            log::trace!(
+                "Transaction is already in the pool: {}",
+                msg.transaction.hash()
+            );
+            return Box::pin(actix::fut::ok(()));
+        }
+        self.seen_transactions.insert(msg.transaction.clone());
+
         match self.transactions_pool.contains(&msg.transaction) {
             Ok(false) => {
-                self.transactions_pool
-                    .insert_pending_transaction(&msg.transaction);
                 self.transactions_pool
                     .insert_unconfirmed_transactions(msg.transaction.hash());
             }
@@ -3006,15 +3015,19 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::test_actix_system;
+    use crate::utils::{test_actix_system, ActorFutureToNormalFuture};
     use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
     use witnet_crypto::signature::sign;
     use witnet_data_structures::{
         chain::{
-            BlockMerkleRoots, BlockTransactions, ChainInfo, Environment, KeyedSignature,
-            PartialConsensusConstants, PublicKey, SecretKey, Signature, ValueTransferOutput,
+            BlockMerkleRoots, BlockTransactions, ChainInfo, Environment, Input, KeyedSignature,
+            OutputPointer, PartialConsensusConstants, PublicKey, SecretKey, Signature,
+            ValueTransferOutput,
         },
-        transaction::{CommitTransaction, DRTransaction, MintTransaction, RevealTransaction},
+        transaction::{
+            CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, VTTransaction,
+            VTTransactionBody,
+        },
         vrf::BlockEligibilityClaim,
     };
     use witnet_protected::Protected;
@@ -3457,6 +3470,15 @@ mod tests {
         }
     }
 
+    fn pkh(mk: &[u8; 32]) -> PublicKeyHash {
+        let secp = &Secp256k1::new();
+        let secret_key = Secp256k1_SecretKey::from_slice(mk).expect("32 bytes, within curve order");
+        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+        let public_key = PublicKey::from(public_key);
+
+        public_key.pkh()
+    }
+
     fn create_valid_block(chain_manager: &mut ChainManager, priv_key: &[u8; 32]) -> Block {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let current_epoch = chain_manager.current_epoch.unwrap();
@@ -3608,6 +3630,137 @@ mod tests {
             // The best candidate should still be block_1
             let best_cand = chain_manager.best_candidate.as_ref().map(|bc| &bc.block);
             assert_eq!(best_cand, Some(&block_1));
+        });
+    }
+
+    fn create_valid_transaction(
+        _chain_manager: &mut ChainManager,
+        priv_key: &[u8; 32],
+    ) -> Transaction {
+        let my_pkh = pkh(priv_key);
+
+        let vti = Input::new(OutputPointer {
+            transaction_id: "0000000000000000000000000000000000000000000000000000000000000001"
+                .parse()
+                .unwrap(),
+            output_index: 0,
+        });
+        let vto = ValueTransferOutput {
+            time_lock: 0,
+            pkh: my_pkh,
+            value: 1000,
+        };
+
+        let inputs = vec![vti];
+        let outputs = vec![vto];
+
+        let vt_body = VTTransactionBody::new(inputs, outputs);
+        let signatures = vec![sign_tx(*priv_key, &vt_body)];
+        let vtt = VTTransaction::new(vt_body, signatures);
+
+        Transaction::ValueTransfer(vtt)
+    }
+
+    #[test]
+    fn test_add_transaction_malleability() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        test_actix_system(|| async {
+            let mut ctx = Context::new();
+            let mut chain_manager = ChainManager::default();
+
+            chain_manager.current_epoch = Some(2000000);
+            // 1 epoch = 1000 seconds, for easy testing
+            chain_manager.epoch_constants = Some(EpochConstants {
+                checkpoint_zero_timestamp: 0,
+                checkpoints_period: 1_000,
+            });
+            chain_manager.chain_state.chain_info = Some(ChainInfo {
+                environment: Environment::default(),
+                consensus_constants: consensus_constants_from_partial(
+                    &PartialConsensusConstants::default(),
+                    &Testnet,
+                ),
+                highest_block_checkpoint: CheckpointBeacon::default(),
+                highest_superblock_checkpoint: CheckpointBeacon {
+                    checkpoint: 0,
+                    hash_prev_block: Hash::SHA256([1; 32]),
+                },
+                highest_vrf_output: CheckpointVRF::default(),
+            });
+            let out_ptr = OutputPointer {
+                transaction_id: "0000000000000000000000000000000000000000000000000000000000000001"
+                    .parse()
+                    .unwrap(),
+                output_index: 0,
+            };
+            let pkh_1 = pkh(&PRIV_KEY_1);
+            let vto1 = ValueTransferOutput {
+                pkh: pkh_1,
+                value: 10000,
+                time_lock: 0,
+            };
+            chain_manager
+                .chain_state
+                .unspent_outputs_pool
+                .insert(out_ptr, vto1, 0);
+            chain_manager.chain_state.reputation_engine = Some(ReputationEngine::new(1000));
+            chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
+            chain_manager.secp = Some(Secp256k1::new());
+            chain_manager.sm_state = StateMachine::Synced;
+
+            let t1 = create_valid_transaction(&mut chain_manager, &PRIV_KEY_1);
+            let mut t1_mal = t1.clone();
+            // Malleability!
+            match &mut t1_mal {
+                Transaction::ValueTransfer(vtt) => {
+                    // Invalidate signature
+                    match &mut vtt.signatures[0].signature {
+                        Signature::Secp256k1(secp_sig) => {
+                            // Flip 1 bit
+                            secp_sig.der[10] ^= 0x01;
+                        }
+                    }
+                }
+                _ => {
+                    panic!(
+                        "Expected `create_valid_transaction` to return value transfer transaction"
+                    );
+                }
+            }
+
+            // Changing signatures field does not change transaction hash
+            assert_eq!(t1.hash(), t1_mal.hash());
+            // But the transactions are different
+            assert_ne!(t1, t1_mal);
+
+            let now = 0;
+            // Process the modified transaction first
+            let fut = chain_manager.add_transaction(
+                AddTransaction {
+                    transaction: t1_mal,
+                    broadcast_flag: false,
+                },
+                now,
+            );
+            let res = fut.into_normal_future(&mut chain_manager, &mut ctx).await;
+            // Invalid signature
+            assert!(res.is_err());
+            // Transaction is not added to the pool
+            assert_eq!(chain_manager.transactions_pool.vt_len(), 0);
+
+            // Process original transaction
+            let fut = chain_manager.add_transaction(
+                AddTransaction {
+                    transaction: t1,
+                    broadcast_flag: false,
+                },
+                now,
+            );
+            let res = fut.into_normal_future(&mut chain_manager, &mut ctx).await;
+            // Transaction is valid
+            assert!(res.is_ok(), "{:?}", res);
+            // Transaction is added to the pool
+            assert_eq!(chain_manager.transactions_pool.vt_len(), 1);
         });
     }
 }

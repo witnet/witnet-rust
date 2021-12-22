@@ -1990,9 +1990,6 @@ pub struct TransactionsPool {
     re_hash_index: HashMap<Hash, RevealTransaction>,
     // A map of `data_request_hash` to a map of `reveal_pkh` to `reveal_transaction_hash`
     re_transactions: HashMap<Hash, HashMap<PublicKeyHash, Hash>>,
-    // A hashset of recently received transactions hashes
-    // Used to avoid validating the same transaction more than once
-    pending_transactions: HashSet<Hash>,
     // Map to avoid double spending issues
     output_pointer_map: HashMap<OutputPointer, Vec<Hash>>,
     // Total size of all value transfer transactions inside the pool in weight units
@@ -2025,7 +2022,6 @@ impl Default for TransactionsPool {
             co_transactions: Default::default(),
             re_hash_index: Default::default(),
             re_transactions: Default::default(),
-            pending_transactions: Default::default(),
             output_pointer_map: Default::default(),
             total_vt_weight: 0,
             total_dr_weight: 0,
@@ -2109,7 +2105,6 @@ impl TransactionsPool {
             co_transactions,
             re_hash_index,
             re_transactions,
-            pending_transactions,
             output_pointer_map,
             total_vt_weight,
             total_dr_weight,
@@ -2127,7 +2122,6 @@ impl TransactionsPool {
         co_transactions.clear();
         re_hash_index.clear();
         re_transactions.clear();
-        pending_transactions.clear();
         output_pointer_map.clear();
         *total_vt_weight = 0;
         *total_dr_weight = 0;
@@ -2198,29 +2192,25 @@ impl TransactionsPool {
     pub fn contains(&self, transaction: &Transaction) -> Result<bool, TransactionError> {
         let tx_hash = transaction.hash();
 
-        if self.pending_transactions.contains(&tx_hash) {
-            Ok(true)
-        } else {
-            match transaction {
-                Transaction::ValueTransfer(_vt) => Ok(self.vt_contains(&tx_hash)),
-                Transaction::DataRequest(_drt) => Ok(self.dr_contains(&tx_hash)),
-                Transaction::Commit(ct) => {
-                    let dr_pointer = ct.body.dr_pointer;
-                    let pkh = ct.body.proof.proof.pkh();
+        match transaction {
+            Transaction::ValueTransfer(_vt) => Ok(self.vt_contains(&tx_hash)),
+            Transaction::DataRequest(_drt) => Ok(self.dr_contains(&tx_hash)),
+            Transaction::Commit(ct) => {
+                let dr_pointer = ct.body.dr_pointer;
+                let pkh = ct.body.proof.proof.pkh();
 
-                    self.commit_contains(&dr_pointer, &pkh, &tx_hash)
-                }
-                Transaction::Reveal(rt) => {
-                    let dr_pointer = rt.body.dr_pointer;
-                    let pkh = rt.body.pkh;
-
-                    self.reveal_contains(&dr_pointer, &pkh, &tx_hash)
-                }
-                // Tally and mint transaction only exist inside blocks, it should
-                // be impossible for nodes to broadcast these kinds of transactions.
-                Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
-                Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
+                self.commit_contains(&dr_pointer, &pkh, &tx_hash)
             }
+            Transaction::Reveal(rt) => {
+                let dr_pointer = rt.body.dr_pointer;
+                let pkh = rt.body.pkh;
+
+                self.reveal_contains(&dr_pointer, &pkh, &tx_hash)
+            }
+            // Tally and mint transaction only exist inside blocks, it should
+            // be impossible for nodes to broadcast these kinds of transactions.
+            Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
+            Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
         }
     }
 
@@ -2715,16 +2705,6 @@ impl TransactionsPool {
         }
 
         self.remove_transactions_for_size_limit()
-    }
-
-    /// Insert a pending transaction hash
-    pub fn insert_pending_transaction(&mut self, transaction: &Transaction) {
-        self.pending_transactions.insert(transaction.hash());
-    }
-
-    /// Remove a pending transaction hash
-    pub fn clear_pending_transactions(&mut self) {
-        self.pending_transactions.clear();
     }
 
     /// An iterator visiting all the value transfer transactions

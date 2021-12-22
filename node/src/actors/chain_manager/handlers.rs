@@ -101,7 +101,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         );
 
         // Clear pending transactions HashSet
-        self.transactions_pool.clear_pending_transactions();
+        self.seen_transactions.clear();
 
         // Handle case consensus not achieved
         if !self.peers_beacons_received {
