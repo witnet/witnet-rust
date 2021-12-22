@@ -3015,9 +3015,21 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{test_actix_system, ActorFutureToNormalFuture};
-    use witnet_config::{config::consensus_constants_from_partial, defaults::Testnet};
-    use witnet_crypto::signature::sign;
+    use crate::{
+        config_mngr,
+        utils::{test_actix_system, ActorFutureToNormalFuture},
+    };
+    use std::sync::Arc;
+    use witnet_config::{
+        config::{consensus_constants_from_partial, Config, StorageBackend},
+        defaults::Testnet,
+    };
+    use witnet_crypto::{
+        secp256k1::{
+            PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
+        },
+        signature::sign,
+    };
     use witnet_data_structures::{
         chain::{
             BlockMerkleRoots, BlockTransactions, ChainInfo, Environment, Input, KeyedSignature,
@@ -3032,10 +3044,6 @@ mod tests {
     };
     use witnet_protected::Protected;
     use witnet_validations::validations::block_reward;
-
-    use witnet_crypto::secp256k1::{
-        PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
-    };
 
     use super::*;
 
@@ -3150,6 +3158,14 @@ mod tests {
     #[test]
     fn get_superblock_beacon() {
         test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+
             let mut chain_manager = ChainManager::default();
             chain_manager.chain_state.chain_info = Some(ChainInfo {
                 environment: Environment::default(),
@@ -3547,6 +3563,14 @@ mod tests {
     fn test_process_candidate_malleability() {
         let _ = env_logger::builder().is_test(true).try_init();
         test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+
             let mut chain_manager = ChainManager::default();
 
             chain_manager.current_epoch = Some(2000000);
@@ -3665,6 +3689,14 @@ mod tests {
     fn test_add_transaction_malleability() {
         let _ = env_logger::builder().is_test(true).try_init();
         test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+
             let mut ctx = Context::new();
             let mut chain_manager = ChainManager::default();
 
