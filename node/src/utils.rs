@@ -1,8 +1,9 @@
-use actix::System;
+use actix::{Actor, ActorFuture, System};
 use std::{
     collections::HashMap,
     future::Future,
     hash::Hash,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -95,4 +96,30 @@ where
             Err(e) => Err(e.into()),
         }
     }
+}
+
+/// Helper trait to convert a `ResponseActFuture` into a normal future that can be `.await`ed.
+pub trait ActorFutureToNormalFuture<A: Actor>: ActorFuture<A> {
+    /// Convert an `ActorFuture` into a normal `Future` that can be `.await`ed.
+    fn into_normal_future<'a>(
+        mut self,
+        act: &'a mut A,
+        ctx: &'a mut <A as Actor>::Context,
+    ) -> Pin<Box<dyn Future<Output = Self::Output> + 'a>>
+    where
+        Self: Sized + Unpin + 'a,
+    {
+        Box::pin(futures::future::poll_fn(move |task| {
+            let pin_self = Pin::new(&mut self);
+
+            ActorFuture::poll(pin_self, act, ctx, task)
+        }))
+    }
+}
+
+impl<T, A> ActorFutureToNormalFuture<A> for T
+where
+    T: ActorFuture<A>,
+    A: Actor,
+{
 }
