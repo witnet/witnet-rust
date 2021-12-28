@@ -64,3 +64,123 @@ fn chain_state() {
     };
     t(c);
 }
+
+#[test]
+fn rad_retrieve() {
+    let a = RADRetrieve {
+        kind: RADType::HttpGet,
+        url: "http://127.0.0.1".to_string(),
+        script: vec![128],
+        body: vec![],
+        headers: vec![],
+    };
+
+    let bytes = serialize(&a).unwrap();
+
+    assert_eq!(
+        bytes,
+        vec![
+            3, 0, 0, 0, 1, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 49,
+            50, 55, 46, 48, 46, 48, 46, 49, 1, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0
+        ]
+    );
+
+    t(a)
+}
+
+#[test]
+fn rad_retrieve_vec() {
+    let a = RADRetrieve {
+        kind: RADType::HttpGet,
+        url: "http://127.0.0.1".to_string(),
+        script: vec![128],
+        body: vec![],
+        headers: vec![],
+    };
+    let b = a.clone();
+
+    let x = vec![a, b];
+
+    let bytes = serialize(&x).unwrap();
+
+    // If we had optional fields, it would be impossible to know where does the first RADRetrieve
+    // end and where does the second RADRetrieve begin
+    assert_eq!(
+        bytes,
+        vec![
+            2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 104, 116, 116,
+            112, 58, 47, 47, 49, 50, 55, 46, 48, 46, 48, 46, 49, 1, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0,
+            0, 104, 116, 116, 112, 58, 47, 47, 49, 50, 55, 46, 48, 46, 48, 46, 49, 1, 0, 0, 0, 0,
+            0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    );
+
+    t(x)
+}
+
+#[test]
+fn deserialize_rad_retrieve_old_version_unknown() {
+    let retrieve_unknown: RADRetrieve = deserialize(&[
+        0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 49, 50, 55, 46, 48,
+        46, 48, 46, 49, 1, 0, 0, 0, 0, 0, 0, 0, 128,
+    ])
+    .unwrap();
+
+    assert_eq!(
+        retrieve_unknown,
+        RADRetrieve {
+            kind: RADType::Unknown,
+            url: "http://127.0.0.1".to_string(),
+            script: vec![128],
+            body: vec![],
+            headers: vec![]
+        }
+    );
+
+    t(retrieve_unknown);
+}
+
+#[test]
+fn deserialize_rad_retrieve_old_version_http_get() {
+    let retrieve_http_get: RADRetrieve = deserialize(&[
+        1, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 49, 50, 55, 46, 48,
+        46, 48, 46, 49, 1, 0, 0, 0, 0, 0, 0, 0, 128,
+    ])
+    .unwrap();
+
+    assert_eq!(
+        retrieve_http_get,
+        RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "http://127.0.0.1".to_string(),
+            script: vec![128],
+            body: vec![],
+            headers: vec![]
+        }
+    );
+
+    t(retrieve_http_get);
+}
+
+#[test]
+fn deserialize_rad_retrieve_old_version_rng() {
+    let retrieve_rng: RADRetrieve = deserialize(&[
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 128,
+    ])
+    .unwrap();
+
+    assert_eq!(
+        retrieve_rng,
+        RADRetrieve {
+            kind: RADType::Rng,
+            url: "".to_string(),
+            script: vec![128],
+            body: vec![],
+            headers: vec![]
+        }
+    );
+
+    t(retrieve_rng);
+}
