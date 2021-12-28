@@ -1668,7 +1668,7 @@ impl RADRequest {
 }
 
 /// Retrieve script and source
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::DataRequestOutput_RADRequest_RADRetrieve",
     crate = "crate"
@@ -1677,16 +1677,12 @@ pub struct RADRetrieve {
     /// Kind of retrieval
     pub kind: RADType,
     /// URL
-    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub url: String,
     /// Serialized RADON script
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub script: Vec<u8>,
     /// Body of a HTTP-POST request
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub body: Vec<u8>,
     /// Extra headers of a HTTP-GET or HTTP-POST request
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
 }
 
