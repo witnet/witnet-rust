@@ -6,7 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::{chain::DataRequestOutput, mainnet_validations::current_active_wips};
+use witnet_data_structures::{chain::DataRequestOutput, mainnet_validations::all_wips_active};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
     script::RadonScriptExecutionSettings,
@@ -51,7 +51,7 @@ fn run_dr_locally_with_data(
     // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
     // This does not validate other data request parameters such as number of witnesses, weight, or
     // collateral, so it is still possible that this request is considered invalid by miners.
-    validate_rad_request(&dr.data_request, &current_active_wips())?;
+    validate_rad_request(&dr.data_request, &all_wips_active())?;
 
     let mut retrieval_results = vec![];
     assert_eq!(dr.data_request.retrieve.len(), data.len());
@@ -61,7 +61,7 @@ fn run_dr_locally_with_data(
             r,
             *d,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            all_wips_active(),
         )?);
     }
 
@@ -69,7 +69,7 @@ fn run_dr_locally_with_data(
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
         &dr.data_request.aggregate,
-        current_active_wips(),
+        all_wips_active(),
     )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
@@ -80,11 +80,8 @@ fn run_dr_locally_with_data(
             .map(RadonTypes::try_from)
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_tally(
-        reported_values?,
-        &dr.data_request.tally,
-        current_active_wips(),
-    )?;
+    let tally_result =
+        witnet_rad::run_tally(reported_values?, &dr.data_request.tally, all_wips_active())?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(tally_result)
@@ -185,6 +182,14 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
                 37, 243, 87, 33, 196, 171, 163, 135, 8, 21, 38, 67, 130, 180, 217, 50, 108, 156,
                 143, 166, 82, 161, 221, 100, 98, 226, 10, 230, 226, 213, 143, 190,
             ])),
+        ),
+        (
+            "xml_source.json",
+            examples::xml_source(),
+            &[
+                r#"{"image_data":"<svg xmlns='http://www.w3.org/2000/svg'><path fill='#ea2'/><path fill='#fe2'/></svg>"}"#,
+            ],
+            RadonTypes::String(RadonString::from("#ea2")),
         ),
     ];
 
@@ -459,6 +464,65 @@ mod examples {
                 },
                 witness_reward: 1000,
                 witnesses: 5,
+                commit_and_reveal_fee: 10,
+                min_consensus_percentage: 51,
+                collateral: 1_000_000_000,
+            },
+            fee: 0,
+        }
+    }
+
+    pub fn xml_source() -> BuildDrt {
+        let url_0 = "https://api-liscon21.wittycreatures.com/metadata/1";
+        let r0_script = cbor_to_vec(&Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text(String::from("image_data")),
+            ]),
+            Value::Integer(RadonOpCodes::StringParseXMLMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
+                Value::Text(String::from("svg")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetArray as i128),
+                Value::Text(String::from("path")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayGetMap as i128),
+                Value::Integer(0),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text(String::from("@fill")),
+            ]),
+        ]))
+        .unwrap();
+
+        BuildDrt {
+            dro: DataRequestOutput {
+                data_request: RADRequest {
+                    time_lock: 0,
+                    retrieve: vec![RADRetrieve {
+                        kind: RADType::HttpGet,
+                        url: url_0.to_string(),
+                        script: r0_script,
+                    }],
+                    aggregate: RADAggregate {
+                        filters: vec![],
+                        reducer: RadonReducers::Mode as u32,
+                    },
+                    tally: RADTally {
+                        filters: vec![RADFilter {
+                            op: RadonFilters::Mode as u32,
+                            args: vec![],
+                        }],
+                        reducer: RadonReducers::Mode as u32,
+                    },
+                },
+                witness_reward: 1000,
+                witnesses: 3,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
