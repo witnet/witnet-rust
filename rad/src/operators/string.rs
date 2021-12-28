@@ -38,75 +38,53 @@ pub fn parse_json_array(input: &RadonString) -> Result<RadonArray, RadError> {
     item.try_into()
 }
 
-fn magic_map_cleaning(input: BTreeMap<String, RadonTypes>) -> BTreeMap<String, RadonTypes> {
-    let mut map = input;
-    let label = match map.remove("_label") {
-        Some(RadonTypes::String(rad_string)) => rad_string.value(),
-        _ => unreachable!("XML parsing error"),
-    };
+fn magic_map_cleaning(input: BTreeMap<String, RadonTypes>) -> RadonTypes {
+    let map_length = input.len();
 
-    match map.remove("_children") {
-        Some(RadonTypes::Array(rad_array)) => {
-            let children = rad_array.value();
-            let children_len = children.len();
-            let first_child = children.first();
-
-            match (map.is_empty(), children_len, first_child) {
-                (true, 0, _) => {
-                    // <tag></tag>
-                    map.insert(label, RadonString::from("".to_string()).into());
-                }
-                (true, 1, Some(RadonTypes::String(rad_string))) => {
-                    // <tag>Hello</tag>
-                    map.insert(label, rad_string.clone().into());
-                }
-                (false, 0, _) => {
-                    // <tag attr=01></tag>
-                    map.insert("_label".to_string(), RadonString::from(label).into());
-                }
-                _ => {
-                    let mut text_counter = 0;
-                    let mut new_children = vec![];
-                    for child in children {
-                        match child {
-                            RadonTypes::String(rad_string) => {
-                                map.insert(format!("_text#{}", text_counter), rad_string.into());
-                                text_counter += 1;
-                            }
-                            RadonTypes::Map(rad_map) if rad_map.value().len() == 1 => {
-                                let (k, v) = rad_map.value().into_iter().next().unwrap();
-                                map.insert(k, v);
-                            }
-                            x => new_children.push(x),
-                        }
-                    }
-                    map.insert("_label".to_string(), RadonString::from(label).into());
-                    if !new_children.is_empty() {
-                        map.insert(
-                            "_children".to_string(),
-                            RadonArray::from(new_children).into(),
-                        );
-                    }
-                }
+    match (map_length, input.get("_text")) {
+        (0, _) => {
+            // <tag></tag>
+            RadonString::from("".to_string()).into()
+        }
+        (1, Some(RadonTypes::Array(rad_array))) => {
+            if rad_array.value().len() == 1 {
+                // <tag>Hello</tag>
+                rad_array.value().into_iter().next().unwrap()
+            } else {
+                // <tag>Hello\nWorld</tag>
+                rad_array.clone().into()
             }
         }
-        _ => unreachable!("XML parsing error"),
-    }
+        _ => {
+            let mut new_map: BTreeMap<String, RadonTypes> = BTreeMap::new();
+            for k in input.keys() {
+                match input.get(k) {
+                    Some(RadonTypes::Array(rad_array)) if rad_array.value().len() == 1 => {
+                        let value = rad_array.value().into_iter().next().unwrap();
+                        new_map.insert(k.clone(), value);
+                    }
+                    Some(value) => {
+                        new_map.insert(k.clone(), value.clone());
+                    }
+                    None => unreachable!("Invalid map"),
+                }
+            }
 
-    map
+            RadonMap::from(new_map).into()
+        }
+    }
 }
 
-pub fn parse_element_map(
+fn parse_element_map(
     input: &minidom::Element,
     use_namespace: bool,
     depth: u8,
-) -> Result<RadonMap, RadError> {
+) -> Result<RadonTypes, RadError> {
     if depth > MAX_DEPTH {
         return Err(RadError::XmlParseOverflow);
     }
 
     let mut map: BTreeMap<String, RadonTypes> = BTreeMap::new();
-    map.insert("_label".to_string(), RadonString::from(input.name()).into());
     if use_namespace {
         map.insert("_xmlns".to_string(), RadonString::from(input.ns()).into());
     }
@@ -114,33 +92,59 @@ pub fn parse_element_map(
         map.insert(format!("@{}", k), RadonString::from(v).into());
     }
 
-    let mut a = vec![];
-    for children in input.nodes() {
-        match children {
+    for child in input.nodes() {
+        let key_value = match child {
             minidom::Node::Element(elem) => {
-                let radon_map = parse_element_map(elem, false, depth + 1)?;
-                a.push(radon_map.into());
+                let key = elem.name().to_string();
+                let value = parse_element_map(elem, false, depth + 1)?;
+
+                Some((key, value))
             }
             minidom::Node::Text(text) => {
                 // This check is to avoid blank spaces in xml would be included in the RadonMap
                 let text_var = text.trim().to_string();
                 if !text_var.is_empty() {
-                    a.push(RadonString::from(text_var).into());
+                    Some(("_text".to_string(), RadonString::from(text_var).into()))
+                } else {
+                    None
+                }
+            }
+        };
+
+        match key_value {
+            None => continue,
+            Some((key, value)) => {
+                let entry = map
+                    .entry(key)
+                    .or_insert_with(|| RadonTypes::Array(RadonArray::from(vec![])));
+
+                if let RadonTypes::Array(rad_array) = entry {
+                    let mut new_array = rad_array.value();
+                    new_array.push(value);
+
+                    *rad_array = RadonArray::from(new_array);
+                } else {
+                    unreachable!("Invalid XML parsing");
                 }
             }
         }
     }
-    map.insert("_children".to_string(), RadonArray::from(a).into());
 
-    let map = magic_map_cleaning(map);
-    Ok(RadonMap::from(map))
+    Ok(magic_map_cleaning(map))
 }
 
+// Parse a XML `RadonString` to a `RadonMap` according to WIP0021 [https://github.com/witnet/WIPs/blob/master/wip-0021.md]
 pub fn parse_xml_map(input: &RadonString) -> Result<RadonMap, RadError> {
     let minidom_element: Result<minidom::Element, minidom::Error> = input.value().parse();
 
     match minidom_element {
-        Ok(element) => parse_element_map(&element, true, 0),
+        Ok(element) => {
+            let value = parse_element_map(&element, true, 0)?;
+            let mut main_map: BTreeMap<String, RadonTypes> = BTreeMap::new();
+            main_map.insert(element.name().to_string(), value);
+
+            Ok(RadonMap::from(main_map))
+        }
         Err(minidom_error) => Err(RadError::XmlParse {
             description: minidom_error.to_string(),
         }),
@@ -291,11 +295,9 @@ mod tests {
         assert_eq!(output, expected_output);
     }
 
-    fn create_radon_map(keys: Vec<String>, values: Vec<RadonTypes>) -> RadonTypes {
-        assert_eq!(keys.len(), values.len());
-
+    fn create_radon_map(input: Vec<(String, RadonTypes)>) -> RadonTypes {
         let mut map = BTreeMap::new();
-        for (k, v) in keys.iter().zip(values) {
+        for (k, v) in input {
             map.insert(k.clone(), v);
         }
 
@@ -307,102 +309,62 @@ mod tests {
         let xml_map = RadonString::from(
             r#"<?xml version="1.0"?>
             <Tag xmlns="https://witnet.io/">
-                <Tag1 attr="0001">
+                <InTag attr="0001">
                     <Name>Witnet</Name>
                     <Price currency="EUR">0.03</Price>
                     <Other><Nothing/></Other>
-                </Tag1>
-                <Tag2 attr="0002">
+                </InTag>
+                <InTag attr="0002">
                     <Name>Bitcoin</Name>
                     <Price currency="USD">49000</Price>
                     <Other value="nothing"/>
-                </Tag2>
+                </InTag>
             </Tag>
         "#,
         );
         let output = parse_xml_map(&xml_map).unwrap();
 
-        let price1_element = create_radon_map(
-            vec![
-                "_label".to_string(),
-                "@currency".to_string(),
-                "_text#0".to_string(),
-            ],
-            vec![
-                RadonString::from("Price").into(),
-                RadonString::from("EUR").into(),
-                RadonString::from("0.03").into(),
-            ],
-        );
-        let price2_element = create_radon_map(
-            vec![
-                "_label".to_string(),
-                "@currency".to_string(),
-                "_text#0".to_string(),
-            ],
-            vec![
-                RadonString::from("Price").into(),
-                RadonString::from("USD").into(),
-                RadonString::from("49000").into(),
-            ],
-        );
-        let other1_element = create_radon_map(
-            vec!["_label".to_string(), "Nothing".to_string()],
-            vec![
-                RadonString::from("Other").into(),
-                RadonString::from("").into(),
-            ],
-        );
-        let other2_element = create_radon_map(
-            vec!["_label".to_string(), "@value".to_string()],
-            vec![
-                RadonString::from("Other").into(),
-                RadonString::from("nothing").into(),
-            ],
-        );
+        let price1_element = create_radon_map(vec![
+            ("@currency".to_string(), RadonString::from("EUR").into()),
+            ("_text".to_string(), RadonString::from("0.03").into()),
+        ]);
+        let other1_element =
+            create_radon_map(vec![("Nothing".to_string(), RadonString::from("").into())]);
 
-        let tag1_element = create_radon_map(
-            vec![
-                "@attr".to_string(),
-                "_label".to_string(),
-                "Name".to_string(),
-                "_children".to_string(),
-            ],
-            vec![
-                RadonString::from("0001").into(),
-                RadonString::from("Tag1").into(),
-                RadonString::from("Witnet").into(),
-                RadonArray::from(vec![price1_element, other1_element]).into(),
-            ],
-        );
+        let price2_element = create_radon_map(vec![
+            ("@currency".to_string(), RadonString::from("USD").into()),
+            ("_text".to_string(), RadonString::from("49000").into()),
+        ]);
+        let other2_element = create_radon_map(vec![(
+            "@value".to_string(),
+            RadonString::from("nothing").into(),
+        )]);
 
-        let tag2_element = create_radon_map(
-            vec![
-                "@attr".to_string(),
-                "_label".to_string(),
-                "Name".to_string(),
-                "_children".to_string(),
-            ],
-            vec![
-                RadonString::from("0002").into(),
-                RadonString::from("Tag2").into(),
-                RadonString::from("Bitcoin").into(),
-                RadonArray::from(vec![price2_element, other2_element]).into(),
-            ],
-        );
+        let in_tag1_element = create_radon_map(vec![
+            ("@attr".to_string(), RadonString::from("0001").into()),
+            ("Name".to_string(), RadonString::from("Witnet").into()),
+            ("Price".to_string(), price1_element),
+            ("Other".to_string(), other1_element),
+        ]);
+        let in_tag2_element = create_radon_map(vec![
+            ("@attr".to_string(), RadonString::from("0002").into()),
+            ("Name".to_string(), RadonString::from("Bitcoin").into()),
+            ("Price".to_string(), price2_element),
+            ("Other".to_string(), other2_element),
+        ]);
 
-        let expected_map = create_radon_map(
-            vec![
-                "_children".to_string(),
-                "_label".to_string(),
+        let tag_element = create_radon_map(vec![
+            (
                 "_xmlns".to_string(),
-            ],
-            vec![
-                RadonArray::from(vec![tag1_element, tag2_element]).into(),
-                RadonString::from("Tag").into(),
                 RadonString::from("https://witnet.io/").into(),
-            ],
-        );
+            ),
+            (
+                "InTag".to_string(),
+                RadonArray::from(vec![in_tag1_element, in_tag2_element]).into(),
+            ),
+        ]);
+
+        let expected_map = create_radon_map(vec![("Tag".to_string(), tag_element)]);
 
         assert_eq!(RadonTypes::from(output), expected_map);
     }
