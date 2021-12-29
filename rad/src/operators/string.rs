@@ -146,9 +146,7 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
             let floating = f64::from(*value);
             // Cast the float into an integer if it has no fractional part and its value will fit
             // into the range of `i128` (38 is the biggest power of 10 that `i128` can safely hold)
-            // TODO: after Rust 1.51, use unsigned_abs instead of wrapping_abs and remove this allow
-            #[allow(clippy::cast_sign_loss)]
-            if floating.fract() == 0.0 && (exponent.wrapping_abs() as u16) < 38 {
+            if floating.fract() == 0.0 && exponent.unsigned_abs() < 38 {
                 // This cast is assumed to be safe as per the previous guard
                 Value::Integer(floating as i128)
             } else {
