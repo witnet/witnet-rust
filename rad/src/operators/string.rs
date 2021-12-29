@@ -38,39 +38,40 @@ pub fn parse_json_array(input: &RadonString) -> Result<RadonArray, RadError> {
     item.try_into()
 }
 
-fn magic_map_cleaning(input: BTreeMap<String, RadonTypes>) -> RadonTypes {
-    let map_length = input.len();
-
-    match (map_length, input.get("_text")) {
-        (0, _) => {
-            // <tag></tag>
-            RadonString::from("".to_string()).into()
-        }
-        (1, Some(RadonTypes::Array(rad_array))) => {
-            if rad_array.value().len() == 1 {
-                // <tag>Hello</tag>
-                rad_array.value().into_iter().next().unwrap()
-            } else {
-                // <tag>Hello\nWorld</tag>
-                rad_array.clone().into()
-            }
+fn add_children(
+    map: &mut BTreeMap<String, RadonTypes>,
+    text_children: Vec<RadonTypes>,
+    element_children: Vec<(String, RadonTypes)>,
+) {
+    match text_children.len() {
+        0 => {}
+        1 => {
+            let text_value = text_children.into_iter().next().unwrap();
+            map.insert("_text".to_string(), text_value);
         }
         _ => {
-            let mut new_map: BTreeMap<String, RadonTypes> = BTreeMap::new();
-            for k in input.keys() {
-                match input.get(k) {
-                    Some(RadonTypes::Array(rad_array)) if rad_array.value().len() == 1 => {
-                        let value = rad_array.value().into_iter().next().unwrap();
-                        new_map.insert(k.clone(), value);
-                    }
-                    Some(value) => {
-                        new_map.insert(k.clone(), value.clone());
-                    }
-                    None => unreachable!("Invalid map"),
-                }
-            }
+            let text_value = RadonArray::from(text_children).into();
+            map.insert("_text".to_string(), text_value);
+        }
+    }
 
-            RadonMap::from(new_map).into()
+    for (key, value) in element_children {
+        match map.get_mut(&key) {
+            Some(old_value) => match old_value {
+                RadonTypes::Array(rad_array) => {
+                    let mut new_array = rad_array.value();
+                    new_array.push(value);
+
+                    *rad_array = RadonArray::from(new_array);
+                }
+                x => {
+                    let new_array = vec![x.clone(), value];
+                    *x = RadonArray::from(new_array).into();
+                }
+            },
+            None => {
+                map.insert(key, value);
+            }
         }
     }
 }
@@ -92,45 +93,40 @@ fn parse_element_map(
         map.insert(format!("@{}", k), RadonString::from(v).into());
     }
 
+    let mut element_children = vec![];
+    let mut text_children: Vec<RadonTypes> = vec![];
     for child in input.nodes() {
-        let key_value = match child {
+        match child {
             minidom::Node::Element(elem) => {
                 let key = elem.name().to_string();
                 let value = parse_element_map(elem, false, depth + 1)?;
 
-                Some((key, value))
+                element_children.push((key, value));
             }
             minidom::Node::Text(text) => {
                 // This check is to avoid blank spaces in xml would be included in the RadonMap
                 let text_var = text.trim().to_string();
                 if !text_var.is_empty() {
-                    Some(("_text".to_string(), RadonString::from(text_var).into()))
-                } else {
-                    None
-                }
-            }
-        };
-
-        match key_value {
-            None => continue,
-            Some((key, value)) => {
-                let entry = map
-                    .entry(key)
-                    .or_insert_with(|| RadonTypes::Array(RadonArray::from(vec![])));
-
-                if let RadonTypes::Array(rad_array) = entry {
-                    let mut new_array = rad_array.value();
-                    new_array.push(value);
-
-                    *rad_array = RadonArray::from(new_array);
-                } else {
-                    unreachable!("Invalid XML parsing");
+                    text_children.push(RadonString::from(text_var).into());
                 }
             }
         }
     }
 
-    Ok(magic_map_cleaning(map))
+    let only_text_children = element_children.is_empty() && map.is_empty();
+
+    if only_text_children {
+        let text_value = match text_children.len() {
+            0 => RadonString::from("").into(),
+            1 => text_children.into_iter().next().unwrap(),
+            _ => RadonArray::from(text_children).into(),
+        };
+
+        Ok(text_value)
+    } else {
+        add_children(&mut map, text_children, element_children);
+        Ok(RadonMap::from(map).into())
+    }
 }
 
 // Parse a XML `RadonString` to a `RadonMap` according to WIP0021 [https://github.com/witnet/WIPs/blob/master/wip-0021.md]
