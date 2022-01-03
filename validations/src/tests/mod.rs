@@ -1816,6 +1816,27 @@ fn example_data_request_rng() -> RADRequest {
     }
 }
 
+fn example_data_request_http_post() -> RADRequest {
+    RADRequest {
+        time_lock: 0,
+        retrieve: vec![RADRetrieve {
+            kind: RADType::HttpPost,
+            url: "https://blockchain.info/q/latesthash".to_string(),
+            script: vec![128],
+            body: vec![],
+            headers: vec![],
+        }],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: RadonReducers::Mode as u32,
+        },
+        tally: RADTally {
+            filters: vec![],
+            reducer: RadonReducers::Mode as u32,
+        },
+    }
+}
+
 fn example_data_request_output(witnesses: u16, witness_reward: u64, fee: u64) -> DataRequestOutput {
     DataRequestOutput {
         witnesses,
@@ -2022,6 +2043,127 @@ fn data_request_no_reward() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoReward,
+    );
+}
+
+#[test]
+fn data_request_http_post_before_wip_activation() {
+    let data_request = example_data_request_http_post();
+    let dr_output = DataRequestOutput {
+        witness_reward: 1,
+        commit_and_reveal_fee: 100,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+    };
+
+    let x = {
+        let mut signatures_to_verify = vec![];
+        let vto = ValueTransferOutput {
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1000,
+            time_lock: 0,
+        };
+        let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let block_number = 0;
+        let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+        let mut active_wips = all_wips_active();
+        // Disable WIP0020
+        active_wips.active_wips.remove("WIP0020-0021");
+
+        validate_dr_transaction(
+            &dr_transaction,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            ONE_WIT,
+            u32::max_value(),
+            &active_wips,
+        )
+        .map(|_| ())
+    };
+
+    assert_eq!(
+        x.unwrap_err().downcast::<DataRequestError>().unwrap(),
+        DataRequestError::InvalidRadType,
+    );
+}
+
+#[test]
+fn data_request_http_get_with_headers_before_wip_activation() {
+    let data_request = RADRequest {
+        time_lock: 0,
+        retrieve: vec![RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://blockchain.info/q/latesthash".to_string(),
+            script: vec![128],
+            body: vec![],
+            headers: vec![("key".to_string(), "value".to_string())],
+        }],
+        aggregate: RADAggregate {
+            filters: vec![],
+            reducer: RadonReducers::Mode as u32,
+        },
+        tally: RADTally {
+            filters: vec![],
+            reducer: RadonReducers::Mode as u32,
+        },
+    };
+    let dr_output = DataRequestOutput {
+        witness_reward: 1,
+        commit_and_reveal_fee: 100,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+    };
+
+    let x = {
+        let mut signatures_to_verify = vec![];
+        let vto = ValueTransferOutput {
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1000,
+            time_lock: 0,
+        };
+        let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let block_number = 0;
+        let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+        let mut active_wips = all_wips_active();
+        // Disable WIP0020
+        active_wips.active_wips.remove("WIP0020-0021");
+
+        validate_dr_transaction(
+            &dr_transaction,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            ONE_WIT,
+            u32::max_value(),
+            &active_wips,
+        )
+        .map(|_| ())
+    };
+
+    assert_eq!(
+        x.unwrap_err().downcast::<DataRequestError>().unwrap(),
+        DataRequestError::MalformedRetrieval {
+            kind: RADType::HttpGet,
+            expected_fields: "kind, script, url".to_string(),
+            actual_fields: "headers, kind, script, url".to_string(),
+        },
     );
 }
 
