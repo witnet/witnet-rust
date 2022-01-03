@@ -1686,35 +1686,31 @@ pub struct RADRetrieve {
     pub headers: Vec<(String, String)>,
 }
 
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+enum Field {
+    Kind,
+    Url,
+    Script,
+    Body,
+    Headers,
+}
+
+impl std::fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Field::Kind => write!(f, "kind"),
+            Field::Url => write!(f, "url"),
+            Field::Script => write!(f, "script"),
+            Field::Body => write!(f, "body"),
+            Field::Headers => write!(f, "headers"),
+        }
+    }
+}
+
 impl RADRetrieve {
-    /// Check whether the fields of the `RADRetrieve` are compatible with the kind of retrieval.
-    ///
-    /// Returns an error if any of the fields that should not exist (because they cannot be used
-    /// for this retrieval kind) has a value different from the default.
-    pub fn check_fields(&self) -> Result<(), DataRequestError> {
+    fn field_checker(&self) -> impl Fn(&[Field], &[Field]) -> Result<(), DataRequestError> + '_ {
         fn is_default<T: Default + PartialEq>(x: &T) -> bool {
             x == &T::default()
-        }
-
-        #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-        enum Field {
-            Kind,
-            Url,
-            Script,
-            Body,
-            Headers,
-        }
-
-        impl std::fmt::Display for Field {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                match self {
-                    Field::Kind => write!(f, "kind"),
-                    Field::Url => write!(f, "url"),
-                    Field::Script => write!(f, "script"),
-                    Field::Body => write!(f, "body"),
-                    Field::Headers => write!(f, "headers"),
-                }
-            }
         }
 
         fn hs_to_string(hs: &HashSet<Field>) -> String {
@@ -1753,7 +1749,7 @@ impl RADRetrieve {
             present_fields.insert(Field::Headers);
         }
 
-        let check = |expected_fields: &[Field], optional_fields: &[Field]| {
+        move |expected_fields: &[Field], optional_fields: &[Field]| {
             let expected_fields: HashSet<Field> = expected_fields.iter().cloned().collect();
             let optional_fields: HashSet<Field> = optional_fields.iter().cloned().collect();
 
@@ -1772,7 +1768,14 @@ impl RADRetrieve {
                     actual_fields: hs_to_string(&diff),
                 })
             }
-        };
+        }
+    }
+    /// Check whether the fields of the `RADRetrieve` are compatible with the kind of retrieval.
+    ///
+    /// Returns an error if any of the fields that should not exist (because they cannot be used
+    /// for this retrieval kind) has a value different from the default.
+    pub fn check_fields(&self) -> Result<(), DataRequestError> {
+        let check = self.field_checker();
 
         match &self.kind {
             RADType::Unknown => {
@@ -1788,6 +1791,29 @@ impl RADRetrieve {
                     &[Field::Body, Field::Headers],
                 )
             }
+        }
+    }
+
+    /// Check whether the fields of the `RADRetrieve` are compatible with the kind of retrieval.
+    ///
+    /// Returns an error if any of the fields that should not exist (because they cannot be used
+    /// for this retrieval kind) has a value different from the default.
+    ///
+    /// This is used to ensure that new fields added in WIP0020 are considered invalid before the
+    /// WIP activation.
+    pub fn check_fields_before_wip0020(&self) -> Result<(), DataRequestError> {
+        let check = self.field_checker();
+
+        match &self.kind {
+            RADType::Unknown => {
+                // Anything is fine. This branch can only be reached before WIP0019, when validating
+                // requests from old blocks.
+                Ok(())
+            }
+            RADType::HttpGet => check(&[Field::Kind, Field::Url, Field::Script], &[]),
+            // There was a bug, and RNG requests could have an optional url field which was ignored
+            RADType::Rng => check(&[Field::Kind, Field::Script], &[Field::Url]),
+            _ => Err(DataRequestError::InvalidRadType),
         }
     }
 

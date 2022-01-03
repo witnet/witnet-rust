@@ -252,18 +252,16 @@ pub fn validate_rad_request(
             unpack_radon_script(path.script.as_slice())?;
 
             // Regarding WIP-0019 activation:
-            // Before -> Only RadType enum 0 position is valid
-            // After -> RadType::Unknown are invalid
+            // Before -> Only RADType enum 0 position is valid
+            // After -> Only RADType::HttpGet and RADType::Rng are valid
         } else if (!active_wips.wip0019() && path.kind != RADType::Unknown)
-            || (active_wips.wip0019() && path.kind == RADType::Unknown)
+            || (active_wips.wip0019()
+                && (path.kind != RADType::HttpGet && path.kind != RADType::Rng))
         {
             return Err(DataRequestError::InvalidRadType.into());
         } else {
-            let is_rng = active_wips.wip0019() && path.kind == RADType::Rng;
-            // If the sources are empty the data request is set as invalid
-            if path.url.is_empty() && !is_rng {
-                return Err(DataRequestError::NoRetrievalSources.into());
-            }
+            // This is before WIP-0020, so any fields introduced since then must be rejected
+            path.check_fields_before_wip0020()?;
             unpack_radon_script(path.script.as_slice())?;
         }
     }
