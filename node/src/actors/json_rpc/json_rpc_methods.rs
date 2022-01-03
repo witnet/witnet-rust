@@ -17,8 +17,10 @@ use serde::{Deserialize, Serialize};
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
-        Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, StateMachine, SyncStatus,
+        Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType, StateMachine,
+        SyncStatus,
     },
+    mainnet_validations::ActiveWips,
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -806,8 +808,42 @@ pub async fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> Json
                     return Err(internal_error(e));
                 }
             };
+
+            let new_transaction = match transaction {
+                Transaction::DataRequest(mut dr_txn) => {
+                    // Create Active WIPs
+                    let signaling_info = ChainManager::from_registry()
+                        .send(GetSignalingInfo {})
+                        .await;
+                    let active_wips = match signaling_info {
+                        Ok(Ok(wips)) => ActiveWips {
+                            active_wips: wips.active_upgrades,
+                            block_epoch,
+                        },
+                        Ok(Err(e)) => {
+                            let err = internal_error(e);
+                            return Err(err);
+                        }
+                        Err(e) => {
+                            let err = internal_error(e);
+                            return Err(err);
+                        }
+                    };
+
+                    if !active_wips.wip0019() {
+                        // Replace RADType::Unknown with RADType::HttpGet for all epochs before the activation of WIP0019
+                        for retrieve in &mut dr_txn.body.dr_output.data_request.retrieve {
+                            retrieve.kind = RADType::HttpGet
+                        }
+                    }
+
+                    Transaction::DataRequest(dr_txn)
+                }
+                _ => transaction,
+            };
+
             let output = GetTransactionOutput {
-                transaction,
+                transaction: new_transaction,
                 weight,
                 block_hash: block_hash.to_string(),
                 confirmed,
