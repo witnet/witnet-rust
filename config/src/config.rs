@@ -380,7 +380,8 @@ pub struct Mempool {
 #[derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct Tapi {
-    // TODO: Use right WIP number and properties
+    /// Oppose WIP0020
+    pub oppose_wip0020: bool,
     /// Oppose WIP0021
     pub oppose_wip0021: bool,
 }
