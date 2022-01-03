@@ -161,6 +161,21 @@ impl TapiEngine {
                 for (k, v) in test_wip_info() {
                     self.wip_activation.insert(k, v);
                 }
+
+                // TODO: Use right WIP number and properties
+                // Hardcoded information about WIPs in vote processing
+                let bit = 2;
+                let wip_0020 = BitVotesCounter {
+                    votes: 0,
+                    period: 50,
+                    wip: "WIP0020-0021".to_string(),
+                    // Start voting at
+                    // TODO: insert date here
+                    init: 0,
+                    end: u32::MAX,
+                    bit,
+                };
+                voting_wips[bit] = Some(wip_0020);
             }
         };
 
