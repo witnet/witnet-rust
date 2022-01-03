@@ -17,7 +17,9 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
-    mainnet_validations::{current_active_wips, ActiveWips, TapiEngine, FIRST_HARD_FORK},
+    mainnet_validations::{
+        all_wips_active, current_active_wips, ActiveWips, TapiEngine, FIRST_HARD_FORK,
+    },
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
@@ -1685,7 +1687,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         &mut signatures_to_verify,
         ONE_WIT,
         u32::max_value(),
-        &current_active_wips(),
+        &all_wips_active(),
     )
     .map(|_| ())
 }

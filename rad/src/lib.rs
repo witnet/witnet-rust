@@ -10,6 +10,8 @@ use surf::{
     RequestBuilder,
 };
 
+#[cfg(test)]
+use witnet_data_structures::mainnet_validations::all_wips_active;
 use witnet_data_structures::{
     chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
     mainnet_validations::{current_active_wips, ActiveWips},
@@ -59,6 +61,10 @@ pub fn try_data_request(
     settings: RadonScriptExecutionSettings,
     inputs_injection: Option<&[&str]>,
 ) -> RADRequestExecutionReport {
+    #[cfg(not(test))]
+    let active_wips = current_active_wips();
+    #[cfg(test)]
+    let active_wips = all_wips_active();
     let mut retrieval_context =
         ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     let retrieve_responses = if let Some(inputs) = inputs_injection {
@@ -77,7 +83,7 @@ pub fn try_data_request(
             request
                 .retrieve
                 .iter()
-                .map(|retrieve| run_retrieval_report(retrieve, settings, current_active_wips()))
+                .map(|retrieve| run_retrieval_report(retrieve, settings, active_wips.clone()))
                 .collect::<Vec<_>>(),
         ))
     };
@@ -110,7 +116,7 @@ pub fn try_data_request(
             // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
             // failures.
             let (aggregation_result, aggregation_context) =
-                run_aggregation_report(values, &request.aggregate, settings, current_active_wips());
+                run_aggregation_report(values, &request.aggregate, settings, active_wips.clone());
 
             aggregation_result
                 .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context))
@@ -131,7 +137,7 @@ pub fn try_data_request(
         None,
         None,
         settings,
-        current_active_wips(),
+        active_wips,
     );
     let tally_report =
         tally_result.unwrap_or_else(|error| RadonReport::from_result(Err(error), &tally_context));
@@ -1230,7 +1236,7 @@ mod tests {
         };
 
         let mut context = ReportContext::default();
-        context.active_wips = Some(current_active_wips());
+        context.active_wips = Some(all_wips_active());
 
         let req = surf::get(&retrieve.url);
         let req = add_http_headers(req, &retrieve, &mut context).unwrap();
@@ -1243,7 +1249,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repeated_user_agent_uses_last_value() {
+    fn test_repeated_header_uses_last_value() {
         let retrieve = RADRetrieve {
             kind: RADType::HttpGet,
             url: "https://httpbin.org/get?page=2".to_string(),
@@ -1256,7 +1262,7 @@ mod tests {
         };
 
         let mut context = ReportContext::default();
-        context.active_wips = Some(current_active_wips());
+        context.active_wips = Some(all_wips_active());
 
         let req = surf::get(&retrieve.url);
         let req = add_http_headers(req, &retrieve, &mut context).unwrap();
