@@ -59,8 +59,7 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("THIRD_HARD_FORK".to_string(), 0);
     active_wips.insert("WIP0014-0016".to_string(), 0);
     active_wips.insert("WIP0017-0018-0019".to_string(), 0);
-    //active_wips.insert("WIP0020".to_string(), 0);
-    //active_wips.insert("WIP0021".to_string(), 0);
+    //active_wips.insert("WIP0020-0021".to_string(), 0);
 
     active_wips
 }
@@ -78,8 +77,9 @@ pub fn current_active_wips() -> ActiveWips {
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
     let mut active_wips = current_active_wips();
-    active_wips.active_wips.insert("WIP0020".to_string(), 0);
-    active_wips.active_wips.insert("WIP0021".to_string(), 0);
+    active_wips
+        .active_wips
+        .insert("WIP0020-0021".to_string(), 0);
 
     active_wips
 }
@@ -146,10 +146,10 @@ impl TapiEngine {
                 let wip_0020 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
-                    wip: "WIP0021".to_string(),
+                    wip: "WIP0020-0021".to_string(),
                     // Start voting at
-                    // 21 Sept 2021 @ 9:00:00 UTC
-                    init: 656640,
+                    // TODO: insert date here
+                    init: 999999999,
                     end: u32::MAX,
                     bit,
                 };
@@ -429,11 +429,11 @@ impl ActiveWips {
     }
 
     pub fn wip0020(&self) -> bool {
-        self.wip_active("WIP0020")
+        self.wip_active("WIP0020-0021")
     }
 
     pub fn wip0021(&self) -> bool {
-        self.wip_active("WIP0021")
+        self.wip_active("WIP0020-0021")
     }
 }
 
@@ -709,7 +709,7 @@ mod tests {
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // TODO: Use right WIP number and properties
         // The first block whose vote must be counted is the one from WIP0021
-        let init_epoch_wip0021 = 656640;
+        let init_epoch_wip0021 = 999999999;
         assert_eq!(epoch, init_epoch_wip0021);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
@@ -724,7 +724,7 @@ mod tests {
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // WIP0021 is already included and it won't be updated
-        let name_wip0021 = "WIP0021".to_string();
+        let name_wip0021 = "WIP0020-0021".to_string();
         let mut hs = HashSet::new();
         hs.insert(name_wip0021);
         assert_eq!(old_wips, hs);
