@@ -47,9 +47,6 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
     active_wips.insert("WIP0014-0016".to_string(), 549141);
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
-    // TODO: this is for testing HTTP-POST requests in rad/src/lib.rs
-    // Remove before merging
-    active_wips.insert("WIP0020".to_string(), 0);
 
     active_wips
 }
@@ -62,7 +59,8 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("THIRD_HARD_FORK".to_string(), 0);
     active_wips.insert("WIP0014-0016".to_string(), 0);
     active_wips.insert("WIP0017-0018-0019".to_string(), 0);
-    active_wips.insert("WIP0020".to_string(), 0);
+    //active_wips.insert("WIP0020".to_string(), 0);
+    //active_wips.insert("WIP0021".to_string(), 0);
 
     active_wips
 }
@@ -80,6 +78,7 @@ pub fn current_active_wips() -> ActiveWips {
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
     let mut active_wips = current_active_wips();
+    active_wips.active_wips.insert("WIP0020".to_string(), 0);
     active_wips.active_wips.insert("WIP0021".to_string(), 0);
 
     active_wips
@@ -735,7 +734,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_initialize_mainnet_and_testnet() {
         let mut t_mainnet = TapiEngine::default();
         let (_epoch, _old_wips) = t_mainnet.initialize_wip_information(Environment::Mainnet);
