@@ -654,7 +654,7 @@ pub async fn get_block(params: Params) -> Result<Value, jsonrpc_core::Error> {
         .await;
 
     match res {
-        Ok(Ok(output)) => {
+        Ok(Ok(mut output)) => {
             let block_epoch = output.block_header.beacon.checkpoint;
             let block_hash = output.hash();
 
@@ -704,6 +704,38 @@ pub async fn get_block(params: Params) -> Result<Value, jsonrpc_core::Error> {
             } else {
                 None
             };
+
+            // Check if there were data request transactions included in the block which require RADType replacement
+            // It is imperative to apply this after the transaction hash calculation to conserve the correct hashes
+            if !output.txns.data_request_txns.is_empty() {
+                // Create Active WIPs
+                let signaling_info = ChainManager::from_registry()
+                    .send(GetSignalingInfo {})
+                    .await;
+                let active_wips = match signaling_info {
+                    Ok(Ok(wips)) => ActiveWips {
+                        active_wips: wips.active_upgrades,
+                        block_epoch,
+                    },
+                    Ok(Err(e)) => {
+                        let err = internal_error(e);
+                        return Err(err);
+                    }
+                    Err(e) => {
+                        let err = internal_error(e);
+                        return Err(err);
+                    }
+                };
+
+                if !active_wips.wip0019() {
+                    // Replace RADType::Unknown with RADType::HttpGet for all epochs before the activation of WIP0019
+                    for dr_txn in &mut output.txns.data_request_txns {
+                        for retrieve in &mut dr_txn.body.dr_output.data_request.retrieve {
+                            retrieve.kind = RADType::HttpGet
+                        }
+                    }
+                }
+            }
 
             let mut value = match serde_json::to_value(output) {
                 Ok(x) => x,
