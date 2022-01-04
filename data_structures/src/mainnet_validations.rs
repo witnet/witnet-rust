@@ -447,11 +447,13 @@ mod tests {
         let mut tapi_counter = BitTapiCounter::default();
         assert!(tapi_counter.is_empty());
 
-        let mut aux = BitVotesCounter::default();
-        aux.init = 0;
-        aux.end = 50;
-        aux.wip = "Wip1".to_string();
-        aux.bit = 0;
+        let aux = BitVotesCounter {
+            init: 0,
+            end: 50,
+            wip: "Wip1".to_string(),
+            bit: 0,
+            ..Default::default()
+        };
         tapi_counter.insert(aux.clone());
         assert!(!tapi_counter.is_empty());
         assert!(tapi_counter.get(0, &100).is_none());
@@ -459,11 +461,13 @@ mod tests {
         assert!(!tapi_counter.contains(1, &aux));
         assert_eq!(tapi_counter.current_length, 1);
 
-        let mut aux2 = BitVotesCounter::default();
-        aux2.init = 75;
-        aux2.end = 125;
-        aux2.wip = "Wip2".to_string();
-        aux2.bit = 0;
+        let aux2 = BitVotesCounter {
+            init: 75,
+            end: 125,
+            wip: "Wip2".to_string(),
+            bit: 0,
+            ..Default::default()
+        };
         tapi_counter.insert(aux2.clone());
         assert_eq!(tapi_counter.get(0, &100).unwrap().wip, "Wip2".to_string());
         assert!(tapi_counter.get(1, &100).is_none());
@@ -484,19 +488,23 @@ mod tests {
         let mut tapi_counter = BitTapiCounter::default();
         assert!(tapi_counter.is_empty());
 
-        let mut aux = BitVotesCounter::default();
-        aux.init = 0;
-        aux.end = 50;
-        aux.wip = "Wip1".to_string();
-        aux.bit = 32;
+        let aux = BitVotesCounter {
+            init: 0,
+            end: 50,
+            wip: "Wip1".to_string(),
+            bit: 32,
+            ..Default::default()
+        };
         tapi_counter.insert(aux);
         assert!(tapi_counter.is_empty());
 
-        let mut aux = BitVotesCounter::default();
-        aux.init = 0;
-        aux.end = 50;
-        aux.wip = "Wip1".to_string();
-        aux.bit = 0;
+        let aux = BitVotesCounter {
+            init: 0,
+            end: 50,
+            wip: "Wip1".to_string(),
+            bit: 0,
+            ..Default::default()
+        };
         tapi_counter.insert(aux);
         assert_eq!(tapi_counter.current_length, 1);
 

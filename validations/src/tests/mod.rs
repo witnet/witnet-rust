@@ -7655,11 +7655,12 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         ..BlockTransactions::default()
     };
 
-    let mut block_header = BlockHeader::default();
-    block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
-    block_header.beacon = block_beacon;
-    block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-
+    let block_header = BlockHeader {
+        merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+        beacon: block_beacon,
+        proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
+        ..Default::default()
+    };
     let block_sig = sign_tx(PRIV_KEY_1, &block_header);
     let mut b = Block::new(block_header, block_sig, txns);
 
@@ -7930,11 +7931,12 @@ fn block_difficult_proof() {
         ..BlockTransactions::default()
     };
 
-    let mut block_header = BlockHeader::default();
-    block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
-    block_header.beacon = block_beacon;
-    block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-
+    let block_header = BlockHeader {
+        merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+        beacon: block_beacon,
+        proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
+        ..Default::default()
+    };
     let block_sig = sign_tx(PRIV_KEY_1, &block_header);
     let b = Block::new(block_header, block_sig, txns);
 
@@ -8631,11 +8633,12 @@ fn test_blocks_with_limits(
             checkpoint: current_epoch,
             hash_prev_block: last_block_hash,
         };
-        let mut block_header = BlockHeader::default();
-        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
-        block_header.beacon = block_beacon;
-        block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-
+        let block_header = BlockHeader {
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            beacon: block_beacon,
+            proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
+            ..Default::default()
+        };
         let block_sig = KeyedSignature::default();
         let mut b = Block::new(block_header, block_sig, txns);
 
@@ -9410,11 +9413,12 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             ..BlockTransactions::default()
         };
 
-        let mut block_header = BlockHeader::default();
-        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
-        block_header.beacon = block_beacon;
-        block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-
+        let block_header = BlockHeader {
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            beacon: block_beacon,
+            proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
+            ..Default::default()
+        };
         let block_sig = sign_tx(PRIV_KEY_1, &block_header);
         let b = Block::new(block_header, block_sig, txns);
         let mut signatures_to_verify = vec![];
@@ -9573,11 +9577,12 @@ fn validate_commit_transactions_included_in_utxo_diff() {
 
         txns.commit_txns.push(c_tx);
 
-        let mut block_header = BlockHeader::default();
-        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
-        block_header.beacon = block_beacon;
-        block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-
+        let block_header = BlockHeader {
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            beacon: block_beacon,
+            proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
+            ..Default::default()
+        };
         let block_sig = sign_tx(PRIV_KEY_1, &block_header);
         let b = Block::new(block_header, block_sig, txns);
         let mut signatures_to_verify = vec![];

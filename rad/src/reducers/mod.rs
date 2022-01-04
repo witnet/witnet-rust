@@ -126,8 +126,10 @@ mod tests {
 
     #[test]
     fn test_reduce_average_median() {
-        let mut context = ReportContext::default();
-        context.active_wips = Some(current_active_wips());
+        let mut context = ReportContext {
+            active_wips: Some(current_active_wips()),
+            ..Default::default()
+        };
         let input = &RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -143,8 +145,10 @@ mod tests {
     #[test]
     fn test_reduce_average_median_tapi_activation() {
         let mut active_wips = current_active_wips();
-        let mut context = ReportContext::default();
-        context.active_wips = Some(active_wips.clone());
+        let mut context = ReportContext {
+            active_wips: Some(active_wips.clone()),
+            ..Default::default()
+        };
         let input = &RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),

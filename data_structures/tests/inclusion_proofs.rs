@@ -25,10 +25,11 @@ fn example_block(txns: BlockTransactions) -> Block {
         checkpoint: current_epoch,
         hash_prev_block: last_block_hash,
     };
-    let mut block_header = BlockHeader::default();
-    block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
-    block_header.beacon = block_beacon;
-
+    let block_header = BlockHeader {
+        merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+        beacon: block_beacon,
+        ..Default::default()
+    };
     let block_sig = KeyedSignature::default();
 
     Block::new(block_header, block_sig, txns)

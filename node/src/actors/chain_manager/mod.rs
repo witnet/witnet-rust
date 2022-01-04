@@ -3447,16 +3447,20 @@ mod tests {
             ..BlockTransactions::default()
         };
 
-        let mut block_header = BlockHeader::default();
-        block_header.merkle_roots = BlockMerkleRoots::from_transactions(&txns);
-        block_header.beacon = block_beacon;
-        block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
-
+        let block_header = BlockHeader {
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            beacon: block_beacon,
+            proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
+            ..Default::default()
+        };
         let block_sig = sign_tx(*priv_key, &block_header);
 
         Block::new(block_header, block_sig, txns)
     }
 
+    // TODO: cannot use struct update syntax with ChainManager because it implements the
+    // Drop trait, but clippy seems to miss that?
+    #[allow(clippy::field_reassign_with_default)]
     #[test]
     fn test_process_candidate_malleability() {
         let _ = env_logger::builder().is_test(true).try_init();
