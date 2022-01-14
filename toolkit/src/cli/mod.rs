@@ -27,7 +27,7 @@ pub(crate) fn process_command(command: commands::Command) -> i32 {
     })
     // The output of failed commands is printed to `stderr`, and a `1` exit code is returned
     .unwrap_or_else(|error| {
-        eprintln!("{}", error.to_string());
+        eprintln!("{}", error);
 
         1
     })

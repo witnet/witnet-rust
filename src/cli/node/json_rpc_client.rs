@@ -1017,7 +1017,7 @@ pub fn data_request_report(
                         .into_iter()
                         .map(|(pkh, reveal)| {
                             let honest = match dr_info.tally.as_ref() {
-                                None => format!(""),
+                                None => String::new(),
                                 Some(tally) => {
                                     if tally.out_of_consensus.contains(&pkh)
                                         && !tally.error_committers.contains(&pkh)
