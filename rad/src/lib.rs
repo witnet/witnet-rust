@@ -364,7 +364,7 @@ pub async fn run_retrieval_report(
     active_wips: ActiveWips,
 ) -> Result<RadonReport<RadonTypes>> {
     let wip_0019_active = active_wips.wip0019();
-    let wip0020_active = active_wips.wip0020();
+    let wip_0020_active = active_wips.wip0020();
 
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     context.set_active_wips(active_wips);
@@ -373,7 +373,9 @@ pub async fn run_retrieval_report(
         match retrieve.kind {
             RADType::HttpGet => http_response(retrieve, context, settings).await,
             RADType::Rng => rng_response(context, settings).await,
-            RADType::HttpPost if wip0020_active => http_response(retrieve, context, settings).await,
+            RADType::HttpPost if wip_0020_active => {
+                http_response(retrieve, context, settings).await
+            }
             _ => Err(RadError::UnknownRetrieval),
         }
     } else {

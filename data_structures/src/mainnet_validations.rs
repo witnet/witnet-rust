@@ -140,16 +140,15 @@ impl TapiEngine {
                     self.wip_activation.insert(k, v);
                 }
 
-                // TODO: Use right WIP number and properties
                 // Hardcoded information about WIPs in vote processing
                 let bit = 2;
                 let wip_0020 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0020-0021".to_string(),
-                    // Start voting at
-                    // TODO: insert date here
-                    init: 999999999,
+                    // Start signaling on
+                    // 5 April 2022 @ 9:00:00 UTC
+                    init: 1032960,
                     end: u32::MAX,
                     bit,
                 };
@@ -162,7 +161,6 @@ impl TapiEngine {
                     self.wip_activation.insert(k, v);
                 }
 
-                // TODO: Use right WIP number and properties
                 // Hardcoded information about WIPs in vote processing
                 let bit = 2;
                 let wip_0020 = BitVotesCounter {
@@ -722,10 +720,9 @@ mod tests {
         let mut t = TapiEngine::default();
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // TODO: Use right WIP number and properties
         // The first block whose vote must be counted is the one from WIP0021
-        let init_epoch_wip0021 = 999999999;
-        assert_eq!(epoch, init_epoch_wip0021);
+        let init_epoch_wip002021 = 1032960;
+        assert_eq!(epoch, init_epoch_wip002021);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
         // The list of active WIPs should match those defined in `wip_info`
@@ -735,13 +732,12 @@ mod tests {
         }
         assert_eq!(t.wip_activation, hm);
 
-        // TODO: Use right WIP number and properties
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // WIP0021 is already included and it won't be updated
-        let name_wip0021 = "WIP0020-0021".to_string();
+        let name_wip002021 = "WIP0020-0021".to_string();
         let mut hs = HashSet::new();
-        hs.insert(name_wip0021);
+        hs.insert(name_wip002021);
         assert_eq!(old_wips, hs);
 
         // There is no new WIPs to update so we obtain the max value
