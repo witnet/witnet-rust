@@ -1235,8 +1235,10 @@ mod tests {
             headers: vec![("User-Agent".to_string(), dummy_user_agent.clone())],
         };
 
-        let mut context = ReportContext::default();
-        context.active_wips = Some(all_wips_active());
+        let mut context = ReportContext {
+            active_wips: Some(all_wips_active()),
+            ..ReportContext::default()
+        };
 
         let req = surf::get(&retrieve.url);
         let req = add_http_headers(req, &retrieve, &mut context).unwrap();
@@ -1261,8 +1263,10 @@ mod tests {
             ],
         };
 
-        let mut context = ReportContext::default();
-        context.active_wips = Some(all_wips_active());
+        let mut context = ReportContext {
+            active_wips: Some(all_wips_active()),
+            ..ReportContext::default()
+        };
 
         let req = surf::get(&retrieve.url);
         let req = add_http_headers(req, &retrieve, &mut context).unwrap();
