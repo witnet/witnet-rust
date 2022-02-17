@@ -366,6 +366,37 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_xml_map_no_ns() {
+        let xml_map = RadonString::from(
+            r#"<?xml version="1.0"?>
+            <Tag>
+                <InTag attr="0001">
+                    <Name>Witnet</Name>
+                </InTag>
+            </Tag>
+        "#,
+        );
+        let output = parse_xml_map(&xml_map).unwrap();
+
+        let in_tag1_element = create_radon_map(vec![
+            ("@attr".to_string(), RadonString::from("0001").into()),
+            ("Name".to_string(), RadonString::from("Witnet").into()),
+        ]);
+
+        let tag_element = create_radon_map(vec![
+            (
+                "_xmlns".to_string(),
+                RadonString::from("no namespace").into(),
+            ),
+            ("InTag".to_string(), in_tag1_element),
+        ]);
+
+        let expected_map = create_radon_map(vec![("Tag".to_string(), tag_element)]);
+
+        assert_eq!(RadonTypes::from(output), expected_map);
+    }
+
+    #[test]
     fn test_parse_xml_map_stack_overflow() {
         let n = 1000;
         let xml_map = RadonString::from(format!(
