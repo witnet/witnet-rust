@@ -17,7 +17,7 @@ if_rust_version = "1.0.0"
 http = "0.2.1"
 json = "0.12.1"
 log = "0.4.8"
-minidom = "0.13.0"
+minidom = { git = "https://github.com/lrubiorod/xmpp-rs-fork" }
 num_enum = "0.4.2"
 ordered-float = "1.0"
 rand = "0.7.3"
