@@ -201,6 +201,30 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
             ],
             RadonTypes::String(RadonString::from("#ea2")),
         ),
+        (
+            "xml_source2.json",
+            examples::xml_source2(),
+            &[r#"<?xml version="1.0" encoding="ISO-8859-1"?>
+                    <dwml version="1.0" xmlns:xsd="https://www.w3.org/2001/XMLSchema" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://graphical.weather.gov/xml/DWMLgen/schema/DWML.xsd">
+                        <data type="forecast">
+                            <parameters applicable-location="point1">
+                                <weather time-layout="k-p12h-n13-1">
+                                    <name>Weather Type, Coverage, Intensity</name>
+                                    <weather-conditions weather-summary="Partly Sunny then Chance Rain/Snow"/>
+                                    <weather-conditions weather-summary="Snow Likely and Blustery"/>
+                                    <weather-conditions weather-summary="Snow Likely"/>
+                                </weather>
+                            </parameters>
+                        </data>
+                        <data type="current observations">
+	                        <location>
+		                        <location-key>point1</location-key>
+		                        <point latitude="39.9" longitude="-105.1"/>
+	                        </location>
+	                    </data>
+	                </dwml>">"#],
+            RadonTypes::String(RadonString::from("Snow Likely")),
+        ),
     ];
 
     a.into_iter().map(|t| (t.0, (t.1, t.2, t.3))).collect()
@@ -707,6 +731,78 @@ mod examples {
                 collateral: 1_000_000_000,
             },
             fee: 0,
+        }
+    }
+
+    pub fn xml_source2() -> BuildDrt {
+        let url_0 = "https://forecast.weather.gov/MapClick.php?lat=39.75&lon=-104.99&unit=0&lg=english&FcstType=dwml";
+        let r0_script = cbor_to_vec(&Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseXMLMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
+                Value::Text(String::from("dwml")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetArray as i128),
+                Value::Text(String::from("data")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayGetMap as i128),
+                Value::Integer(0),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
+                Value::Text(String::from("parameters")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
+                Value::Text(String::from("weather")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetArray as i128),
+                Value::Text(String::from("weather-conditions")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayGetMap as i128),
+                Value::Integer(2),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text(String::from("@weather-summary")),
+            ]),
+        ]))
+        .unwrap();
+
+        BuildDrt {
+            dro: DataRequestOutput {
+                data_request: RADRequest {
+                    time_lock: 0,
+                    retrieve: vec![RADRetrieve {
+                        kind: RADType::HttpGet,
+                        url: url_0.to_string(),
+                        script: r0_script,
+                        body: vec![],
+                        headers: vec![],
+                    }],
+                    aggregate: RADAggregate {
+                        filters: vec![],
+                        reducer: RadonReducers::Mode as u32,
+                    },
+                    tally: RADTally {
+                        filters: vec![RADFilter {
+                            op: RadonFilters::Mode as u32,
+                            args: vec![],
+                        }],
+                        reducer: RadonReducers::Mode as u32,
+                    },
+                },
+                witness_reward: 1000,
+                witnesses: 3,
+                commit_and_reveal_fee: 10,
+                min_consensus_percentage: 51,
+                collateral: 1_000_000_000,
+            },
+            fee: 1000,
         }
     }
 }
