@@ -44,18 +44,18 @@ pub enum Command {
 impl fmt::Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Command::GetPeers(_) => f.write_str(&"GET_PEERS".to_string()),
-            Command::Peers(_) => f.write_str(&"PEERS".to_string()),
-            Command::Verack(_) => f.write_str(&"VERACK".to_string()),
-            Command::Version(_) => f.write_str(&"VERSION".to_string()),
+            Command::GetPeers(_) => f.write_str("GET_PEERS"),
+            Command::Peers(_) => f.write_str("PEERS"),
+            Command::Verack(_) => f.write_str("VERACK"),
+            Command::Version(_) => f.write_str("VERSION"),
             Command::Block(block) => write!(
                 f,
                 "BLOCK: #{}: {}",
                 block.block_header.beacon.checkpoint,
                 block.hash()
             ),
-            Command::InventoryAnnouncement(_) => f.write_str(&"INVENTORY_ANNOUNCEMENT".to_string()),
-            Command::InventoryRequest(_) => f.write_str(&"INVENTORY_REQUEST".to_string()),
+            Command::InventoryAnnouncement(_) => f.write_str("INVENTORY_ANNOUNCEMENT"),
+            Command::InventoryRequest(_) => f.write_str("INVENTORY_REQUEST"),
             Command::LastBeacon(LastBeacon {
                 highest_block_checkpoint: h,
                 highest_superblock_checkpoint: s,
@@ -66,16 +66,12 @@ impl fmt::Display for Command {
             ),
             Command::Transaction(tx) => {
                 match tx {
-                    Transaction::Commit(_) => f.write_str(&"COMMIT_TRANSACTION".to_string())?,
-                    Transaction::ValueTransfer(_) => {
-                        f.write_str(&"VALUE_TRANSFER_TRANSACTION".to_string())?
-                    }
-                    Transaction::DataRequest(_) => {
-                        f.write_str(&"DATA_REQUEST_TRANSACTION".to_string())?
-                    }
-                    Transaction::Reveal(_) => f.write_str(&"REVEAL_TRANSACTION".to_string())?,
-                    Transaction::Tally(_) => f.write_str(&"TALLY_TRANSACTION".to_string())?,
-                    Transaction::Mint(_) => f.write_str(&"MINT_TRANSACTION".to_string())?,
+                    Transaction::Commit(_) => f.write_str("COMMIT_TRANSACTION")?,
+                    Transaction::ValueTransfer(_) => f.write_str("VALUE_TRANSFER_TRANSACTION")?,
+                    Transaction::DataRequest(_) => f.write_str("DATA_REQUEST_TRANSACTION")?,
+                    Transaction::Reveal(_) => f.write_str("REVEAL_TRANSACTION")?,
+                    Transaction::Tally(_) => f.write_str("TALLY_TRANSACTION")?,
+                    Transaction::Mint(_) => f.write_str("MINT_TRANSACTION")?,
                 }
                 write!(f, ": {}", tx.hash())
             }

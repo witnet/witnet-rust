@@ -256,7 +256,7 @@ impl Handler<Request> for JsonRpcClient {
             .into_actor(self)
             .timeout(timeout)
             .map(move |res, _act, _ctx| {
-                res.unwrap_or_else(|()| Err(Error::RequestTimedOut(timeout.as_millis())))
+                res.unwrap_or(Err(Error::RequestTimedOut(timeout.as_millis())))
             })
             .map(|res, act, ctx| {
                 res.map_err(|err| {
