@@ -512,7 +512,7 @@ impl RadError {
                     (Some(inner), None) => {
                         // Fix #1993 by emulating a bug from old versions of Rust (rust-lang/rust#83046)
                         if_rust_version::if_rust_version! { >= 1.53 {
-                            format!("inner: {:?}", inner).replace("'", "\\'")
+                            format!("inner: {:?}", inner).replace('\'', "\\'")
                         } else {
                             format!("inner: {:?}", inner)
                         }}

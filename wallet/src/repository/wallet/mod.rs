@@ -1483,7 +1483,7 @@ where
         }
 
         let outputs = txns
-            .map(|txn| match txn {
+            .flat_map(|txn| match txn {
                 Transaction::ValueTransfer(vt) => vt.body.outputs,
                 Transaction::DataRequest(dr) => dr.body.outputs,
                 Transaction::Commit(commit) => commit.body.outputs,
@@ -1491,7 +1491,6 @@ where
                 Transaction::Mint(mint) => mint.outputs,
                 _ => vec![],
             })
-            .flatten()
             .collect_vec();
 
         loop {
