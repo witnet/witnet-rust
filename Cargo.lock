@@ -2541,7 +2541,7 @@ dependencies = [
 [[package]]
 name = "minidom"
 version = "0.14.0"
-source = "git+https://github.com/lrubiorod/xmpp-rs-fork#c0b6a6eaf7b03fa043c5b03e5aaabef897e61ddf"
+source = "git+https://github.com/witnet/xmpp-rs?rev=c4c24aa5fbbb81758ed1768dae02a2e906699cf8#c4c24aa5fbbb81758ed1768dae02a2e906699cf8"
 dependencies = [
  "quick-xml",
 ]
