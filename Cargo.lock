@@ -2541,7 +2541,7 @@ dependencies = [
 [[package]]
 name = "minidom"
 version = "0.14.0"
-source = "git+https://github.com/witnet/xmpp-rs?rev=c4c24aa5fbbb81758ed1768dae02a2e906699cf8#c4c24aa5fbbb81758ed1768dae02a2e906699cf8"
+source = "git+https://github.com/witnet/xmpp-rs?rev=bc8a33ff5da95ee4039ad7ee3376c100d9e35c74#bc8a33ff5da95ee4039ad7ee3376c100d9e35c74"
 dependencies = [
  "quick-xml",
 ]
