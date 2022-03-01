@@ -76,19 +76,12 @@ fn add_children(
     }
 }
 
-fn parse_element_map(
-    input: &minidom::Element,
-    use_namespace: bool,
-    depth: u8,
-) -> Result<RadonTypes, RadError> {
+fn parse_element_map(input: &minidom::Element, depth: u8) -> Result<RadonTypes, RadError> {
     if depth > MAX_DEPTH {
         return Err(RadError::XmlParseOverflow);
     }
 
     let mut map: BTreeMap<String, RadonTypes> = BTreeMap::new();
-    if use_namespace {
-        map.insert("_xmlns".to_string(), RadonString::from(input.ns()).into());
-    }
     for (k, v) in input.attrs() {
         map.insert(format!("@{}", k), RadonString::from(v).into());
     }
@@ -99,7 +92,7 @@ fn parse_element_map(
         match child {
             minidom::Node::Element(elem) => {
                 let key = elem.name().to_string();
-                let value = parse_element_map(elem, false, depth + 1)?;
+                let value = parse_element_map(elem, depth + 1)?;
 
                 element_children.push((key, value));
             }
@@ -135,7 +128,7 @@ pub fn parse_xml_map(input: &RadonString) -> Result<RadonMap, RadError> {
 
     match minidom_element {
         Ok(element) => {
-            let value = parse_element_map(&element, true, 0)?;
+            let value = parse_element_map(&element, 0)?;
             let mut main_map: BTreeMap<String, RadonTypes> = BTreeMap::new();
             main_map.insert(element.name().to_string(), value);
 
@@ -351,7 +344,7 @@ mod tests {
 
         let tag_element = create_radon_map(vec![
             (
-                "_xmlns".to_string(),
+                "@xmlns".to_string(),
                 RadonString::from("https://witnet.io/").into(),
             ),
             (
@@ -383,11 +376,34 @@ mod tests {
             ("Name".to_string(), RadonString::from("Witnet").into()),
         ]);
 
+        let tag_element = create_radon_map(vec![("InTag".to_string(), in_tag1_element)]);
+
+        let expected_map = create_radon_map(vec![("Tag".to_string(), tag_element)]);
+
+        assert_eq!(RadonTypes::from(output), expected_map);
+    }
+
+    #[test]
+    fn test_parse_xml_map_with_2_ns() {
+        let xml_map = RadonString::from(
+            r#"<?xml version="1.0"?>
+            <Tag xmlns:a="ns_A" xmlns:b="ns_B">
+                <InTag attr="0001">
+                    <Name>Witnet</Name>
+                </InTag>
+            </Tag>
+        "#,
+        );
+        let output = parse_xml_map(&xml_map).unwrap();
+
+        let in_tag1_element = create_radon_map(vec![
+            ("@attr".to_string(), RadonString::from("0001").into()),
+            ("Name".to_string(), RadonString::from("Witnet").into()),
+        ]);
+
         let tag_element = create_radon_map(vec![
-            (
-                "_xmlns".to_string(),
-                RadonString::from("no namespace").into(),
-            ),
+            ("@xmlns:a".to_string(), RadonString::from("ns_A").into()),
+            ("@xmlns:b".to_string(), RadonString::from("ns_B").into()),
             ("InTag".to_string(), in_tag1_element),
         ]);
 
