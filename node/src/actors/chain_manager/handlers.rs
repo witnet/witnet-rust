@@ -37,7 +37,6 @@ use crate::{
             SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
         },
         sessions_manager::SessionsManager,
-        storage_keys,
     },
     config_mngr, signature_mngr, storage_mngr,
     utils::mode_consensus,
@@ -1372,9 +1371,11 @@ impl Handler<GetBalance> for ChainManager {
 
     fn handle(
         &mut self,
-        GetBalance { pkh, simple }: GetBalance,
+        GetBalance { pkh: _, simple: _ }: GetBalance,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
+        unimplemented!("need to reimplement this now that the UTXO set is not stored in memory");
+        /*
         if self.sm_state != StateMachine::Synced {
             return Box::pin(actix::fut::err(
                 ChainManagerError::NotSynced {
@@ -1410,6 +1411,7 @@ impl Handler<GetBalance> for ChainManager {
 
             Box::pin(res)
         }
+        */
     }
 }
 

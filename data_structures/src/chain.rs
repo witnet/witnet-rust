@@ -45,7 +45,7 @@ use crate::{
     transaction::{
         MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
     },
-    utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool},
+    utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
 
@@ -3213,8 +3213,7 @@ pub struct ChainState {
     /// Blockchain information data structure
     pub chain_info: Option<ChainInfo>,
     /// Unspent Outputs Pool
-    #[serde(skip)]
-    pub unspent_outputs_pool: UnspentOutputsPool,
+    pub unspent_outputs_pool_old_migration_db: OldUnspentOutputsPool,
     /// Collection of state structures for active data requests
     pub data_request_pool: DataRequestPool,
     /// List of consolidated blocks by epoch
@@ -3232,6 +3231,9 @@ pub struct ChainState {
     pub superblock_state: SuperBlockState,
     /// TAPI Engine
     pub tapi_engine: TapiEngine,
+    /// Unspent Outputs Pool
+    #[serde(skip)]
+    pub unspent_outputs_pool: UnspentOutputsPool,
 }
 
 impl ChainState {

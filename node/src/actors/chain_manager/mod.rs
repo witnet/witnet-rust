@@ -316,12 +316,12 @@ impl ChainManager {
         storage_mngr::put_chain_state(&storage_keys::chain_state_key(self.get_magic()), &state)
             .into_actor(self)
             .and_then(|_, _, _| {
-                log::debug!("Successfully persisted previous_chain_info into storage");
+                log::debug!("Successfully persisted previous_chain_state into storage");
                 fut::ok(())
             })
             .map_err(|err, _, _| {
                 log::error!(
-                    "Failed to persist previous_chain_info into storage: {}",
+                    "Failed to persist previous_chain_state into storage: {}",
                     err
                 )
             })

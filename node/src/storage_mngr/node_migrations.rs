@@ -60,6 +60,18 @@ fn migrate_chain_state(bytes: &[u8]) -> Result<ChainState, failure::Error> {
             }
         }
         Ok(2) => {
+            // Migrate from v2 to v3
+            // Actually v2 and v3 have the same serialization, the difference is that in v2 the
+            // UTXOs are stored inside the ChainState, while in v3 that data structure is empty
+            // and the UTXOs are stored in separate keys.
+
+            // Skip the first 4 bytes because they are used to encode db_version
+            match deserialize(&bytes[4..]) {
+                Ok(v) => Ok(v),
+                Err(e) => Err(as_failure!(e)),
+            }
+        }
+        Ok(3) => {
             // Latest version
             // Skip the first 4 bytes because they are used to encode db_version
             match deserialize(&bytes[4..]) {
@@ -160,7 +172,7 @@ pub fn put_chain_state<'a, 'b, K>(
 where
     K: serde::Serialize + 'static,
 {
-    let db_version: u32 = 2;
+    let db_version: u32 = 3;
     // The first byte of the ChainState db_version must never be 0 or 1,
     // because that can be confused with version 0.
     assert!(db_version.to_le_bytes()[0] >= 2);

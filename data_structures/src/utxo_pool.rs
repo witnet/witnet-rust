@@ -97,6 +97,9 @@ impl UnspentOutputsPool {
         v: ValueTransferOutput,
         block_number: u32,
     ) -> Option<(ValueTransferOutput, u32)> {
+        // TODO: this get before insert does not make much sense because UTXOs are immutable
+        // Maybe it can be used as a sanity check that UTXOs are only written once, but it is not
+        // very useful
         let old_vto = self.get_map(&k);
 
         let key_string = format!("UTXO-{}", k);
@@ -209,6 +212,12 @@ impl UnspentOutputsPool {
                 .position(|x| x == k)
                 .unwrap();
             self.diff.utxos_to_remove_dr.remove(pos);
+        }
+    }
+
+    pub fn migrate_old_unspent_outputs_pool_to_db(&mut self, old: &mut OldUnspentOutputsPool) {
+        for (k, (v, block_number)) in old.map.drain() {
+            self.db_insert(k, v, block_number);
         }
     }
 }
@@ -675,5 +684,24 @@ impl<'a> UtxoDiff<'a> {
                     Some(output)
                 }
             })
+    }
+}
+
+/// Old version of Unspent Outputs Pool
+/// Needed for database migrations
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OldUnspentOutputsPool {
+    /// Map of output pointer to a tuple of:
+    /// * Value transfer output
+    /// * The number of the block that included the transaction
+    ///   (how many blocks were consolidated before this one).
+    map: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
+}
+
+impl OldUnspentOutputsPool {
+    /// Returns whether there are any UTXOs in this data structure.
+    /// After the migration, this will always return true.
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
     }
 }
