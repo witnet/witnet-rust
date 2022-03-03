@@ -5792,7 +5792,7 @@ mod tests {
         p.remove(&k0);
         assert_eq!(p.included_in_block_number(&k0), None);
 
-        assert_eq!(p, UnspentOutputsPool::default());
+        assert_eq!(p.iter().count(), 0);
     }
 
     #[test]

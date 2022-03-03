@@ -29,7 +29,10 @@ pub struct UnspentOutputsPool {
 
 impl fmt::Debug for UnspentOutputsPool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("UnspentOutputsPool")
+        f.debug_struct("UnspentOutputsPool")
+            .field("diff", &self.diff)
+            .field("db", &if self.db.is_some() { Some("db") } else { None })
+            .finish()
     }
 }
 
@@ -46,12 +49,12 @@ impl UnspentOutputsPool {
     }
 
     pub fn get_map(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
-        if let Some(x) = self.diff.utxos_to_add.get(k) {
-            return Some(x.clone());
-        }
-
         if self.diff.utxos_to_remove.contains(k) || self.diff.utxos_to_remove_dr.contains(k) {
             return None;
+        }
+
+        if let Some(x) = self.diff.utxos_to_add.get(k) {
+            return Some(x.clone());
         }
 
         self.db_get(k)
@@ -74,9 +77,7 @@ impl UnspentOutputsPool {
 
     /// Remove a spent `OutputPointer`
     pub fn remove(&mut self, k: &OutputPointer) {
-        if self.diff.utxos_to_add.remove(k).is_none() {
-            self.diff.utxos_to_remove.insert(k.clone());
-        }
+        self.diff.utxos_to_remove.insert(k.clone());
     }
 
     fn db_get(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
@@ -131,28 +132,18 @@ impl UnspentOutputsPool {
     }
 
     fn db_iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+        log::debug!("UTXO SET ITER");
         self.db
             .as_ref()
             .map(|db| {
-                db.prefix_iterator(b"UTXO-")
-                    .unwrap()
-                    .map(|(k, v)| {
-                        let key_string = String::from_utf8(k).unwrap();
-                        let output_pointer_str = key_string.strip_prefix("UTXO-").unwrap();
-                        let key = OutputPointer::from_str(output_pointer_str).unwrap();
-                        let value = bincode::deserialize(&v).unwrap();
+                db.prefix_iterator(b"UTXO-").unwrap().map(|(k, v)| {
+                    let key_string = String::from_utf8(k).unwrap();
+                    let output_pointer_str = key_string.strip_prefix("UTXO-").unwrap();
+                    let key = OutputPointer::from_str(output_pointer_str).unwrap();
+                    let value = bincode::deserialize(&v).unwrap();
 
-                        (key, value)
-                    })
-                    .filter_map(move |(k, v)| {
-                        if self.diff.utxos_to_remove.contains(&k)
-                            || self.diff.utxos_to_remove_dr.contains(&k)
-                        {
-                            None
-                        } else {
-                            Some((k, v))
-                        }
-                    })
+                    (key, value)
+                })
             })
             // Transform `Option<impl Iterator>` into `impl Iterator`, with 0 elements in
             // None case
@@ -167,6 +158,15 @@ impl UnspentOutputsPool {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .chain(self.db_iter())
+            .filter_map(move |(k, v)| {
+                if self.diff.utxos_to_remove.contains(&k)
+                    || self.diff.utxos_to_remove_dr.contains(&k)
+                {
+                    None
+                } else {
+                    Some((k, v))
+                }
+            })
     }
 
     /// Returns the number of the block that included the transaction referenced

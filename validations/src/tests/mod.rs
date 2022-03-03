@@ -9893,7 +9893,12 @@ fn validate_commit_transactions_included_in_utxo_diff() {
     // In total, 2 outputs
     assert_eq!(expected_utxo_set.iter().count(), 2);
 
-    assert_eq!(utxo_set, expected_utxo_set);
+    let utxos: Vec<_> = utxo_set.iter().sorted_by(|a, b| a.0.cmp(&b.0)).collect();
+    let expected_utxos: Vec<_> = expected_utxo_set
+        .iter()
+        .sorted_by(|a, b| a.0.cmp(&b.0))
+        .collect();
+    assert_eq!(utxos, expected_utxos);
 }
 
 #[test]
