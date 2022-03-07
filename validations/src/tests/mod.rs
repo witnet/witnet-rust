@@ -2168,6 +2168,111 @@ fn data_request_http_get_with_headers_before_wip_activation() {
 }
 
 #[test]
+fn data_request_parse_xml_before_wip_activation() {
+    let mut data_request = example_data_request_with_mode_filter();
+    // [StringParseXml]
+    data_request.retrieve[0].script = vec![0x81, 0x18, 0x78];
+    data_request.retrieve[0].url = "http://127.0.0.1".to_string();
+    let dr_output = DataRequestOutput {
+        witness_reward: 1,
+        commit_and_reveal_fee: 100,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+    };
+
+    let x = {
+        let mut signatures_to_verify = vec![];
+        let vto = ValueTransferOutput {
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1000,
+            time_lock: 0,
+        };
+        let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let block_number = 0;
+        let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+        let mut active_wips = all_wips_active();
+        // Disable WIP0020
+        active_wips.active_wips.remove("WIP0020-0021");
+
+        validate_dr_transaction(
+            &dr_transaction,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            ONE_WIT,
+            u32::max_value(),
+            &active_wips,
+        )
+        .map(|_| ())
+    };
+
+    assert_eq!(
+        x.unwrap_err().downcast::<RadError>().unwrap(),
+        RadError::UnknownOperator { code: 0x78 },
+    );
+}
+
+#[test]
+fn data_request_parse_xml_after_wip_activation() {
+    let mut data_request = example_data_request_with_mode_filter();
+    // [StringParseXml]
+    data_request.retrieve[0].script = vec![0x81, 0x18, 0x78];
+    data_request.retrieve[0].url = "http://127.0.0.1".to_string();
+    let dr_output = DataRequestOutput {
+        witness_reward: 1,
+        commit_and_reveal_fee: 100,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+    };
+
+    let x = {
+        let mut signatures_to_verify = vec![];
+        let vto = ValueTransferOutput {
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: 1000,
+            time_lock: 0,
+        };
+        let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let block_number = 0;
+        let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+        let mut active_wips = all_wips_active();
+        // Enable WIP0020
+        active_wips
+            .active_wips
+            .insert("WIP0020-0021".to_string(), 0);
+
+        validate_dr_transaction(
+            &dr_transaction,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            ONE_WIT,
+            u32::max_value(),
+            &active_wips,
+        )
+        .map(|_| ())
+    };
+
+    x.unwrap();
+}
+
+#[test]
 fn dr_validation_weight_limit_exceeded() {
     let mut signatures_to_verify = vec![];
     let utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
