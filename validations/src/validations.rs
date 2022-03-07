@@ -35,12 +35,13 @@ use witnet_data_structures::{
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
-use witnet_rad::conditions::{
-    construct_report_from_clause_result, evaluate_tally_postcondition_clause,
-    evaluate_tally_precondition_clause, radon_report_from_error,
-};
 use witnet_rad::{
+    conditions::{
+        construct_report_from_clause_result, evaluate_tally_postcondition_clause,
+        evaluate_tally_precondition_clause, radon_report_from_error,
+    },
     error::RadError,
+    operators::RadonOpCodes,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
@@ -262,7 +263,17 @@ pub fn validate_rad_request(
         } else {
             // This is before WIP-0020, so any fields introduced since then must be rejected
             path.check_fields_before_wip0020()?;
-            unpack_radon_script(path.script.as_slice())?;
+            let rad_script = unpack_radon_script(path.script.as_slice())?;
+
+            // Scripts with new operators are invalid before TAPI activation
+            for rad_call in rad_script {
+                if rad_call.0 == RadonOpCodes::StringParseXMLMap {
+                    return Err(RadError::UnknownOperator {
+                        code: RadonOpCodes::StringParseXMLMap as i128,
+                    }
+                    .into());
+                }
+            }
         }
     }
 
