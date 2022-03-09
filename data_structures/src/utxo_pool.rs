@@ -167,11 +167,26 @@ impl UnspentOutputsPool {
             })
     }
 
-    /// Iterate over all the unspent outputs that have been confirmed by a superblock.
-    pub fn iter_confirmed(
-        &self,
-    ) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
-        self.db_iter()
+    /// Visit all the UTXOs using two functions: the first one will visit the confirmed UTXOs, while
+    /// the second one will visit all the UTXOs, confirmed and unconfirmed.
+    pub fn visit<F1, F2>(&self, fn_confirmed: F1, mut fn_all: F2)
+    where
+        F1: FnMut(&(OutputPointer, (ValueTransferOutput, u32))),
+        F2: FnMut(&(OutputPointer, (ValueTransferOutput, u32))),
+    {
+        self.diff
+            .utxos_to_add
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .chain(self.db_iter().inspect(fn_confirmed))
+            .filter_map(move |(k, v)| {
+                if self.diff.utxos_to_remove.contains(&k) {
+                    None
+                } else {
+                    Some((k, v))
+                }
+            })
+            .for_each(|x| fn_all(&x))
     }
 
     /// Returns the number of the block that included the transaction referenced
@@ -568,10 +583,10 @@ impl Diff {
     ///     hashmap.remove(output_pointer);
     /// });
     /// ```
-    pub fn visit<A, F1, F2>(&self, args: &mut A, fn_add: F1, fn_remove: F2)
+    pub fn visit<A, F1, F2>(&self, args: &mut A, mut fn_add: F1, mut fn_remove: F2)
     where
-        F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput),
-        F2: Fn(&mut A, &OutputPointer),
+        F1: FnMut(&mut A, &OutputPointer, &ValueTransferOutput),
+        F2: FnMut(&mut A, &OutputPointer),
     {
         for (output_pointer, (output, _)) in self.utxos_to_add.iter() {
             fn_add(args, output_pointer, output);

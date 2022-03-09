@@ -253,39 +253,32 @@ pub fn get_total_balance(
 ) -> NodeBalance {
     // FIXME: this does not scale, we need to be able to get UTXOs by PKH
     // Get the balance of the current utxo set
-    let new_balance = all_utxos
-        .iter()
-        .filter_map(|(_output_pointer, (vto, _))| {
+    let mut confirmed = 0;
+    let mut total = 0;
+    all_utxos.visit(
+        |x| {
+            let vto = &x.1 .0;
             if vto.pkh == pkh {
-                Some(vto.value)
-            } else {
-                None
+                confirmed += vto.value;
             }
-        })
-        .sum();
+        },
+        |x| {
+            let vto = &x.1 .0;
+            if vto.pkh == pkh {
+                total += vto.value;
+            }
+        },
+    );
 
     if simple {
         NodeBalance {
             confirmed: None,
-            total: new_balance,
+            total,
         }
     } else {
-        // TODO: instead of calling iter and later iter_confirmed, implement a method that
-        // calculates both the confirmed and the unconfirmed balance in one pass
-        let old_balance = all_utxos
-            .iter_confirmed()
-            .filter_map(|(_output_pointer, (vto, _))| {
-                if vto.pkh == pkh {
-                    Some(vto.value)
-                } else {
-                    None
-                }
-            })
-            .sum();
-
         NodeBalance {
-            confirmed: Some(old_balance),
-            total: new_balance,
+            confirmed: Some(confirmed),
+            total,
         }
     }
 }
