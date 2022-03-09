@@ -531,7 +531,7 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, T
 mod tests {
     use super::*;
     use crate::{
-        chain::{generate_unspent_outputs_pool, Hashable, PublicKey},
+        chain::{Hash, Hashable, PublicKey},
         error::TransactionError,
         transaction::*,
     };
@@ -548,6 +548,88 @@ mod tests {
 
     // Counter used to prevent creating two transactions with the same hash
     static TX_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn update_utxo_inputs(utxo: &mut UnspentOutputsPool, inputs: &[Input]) {
+        for input in inputs {
+            // Obtain the OutputPointer of each input and remove it from the utxo_set
+            let output_pointer = input.output_pointer();
+
+            // This does check for missing inputs, so ignore "fake inputs" with hash 000000...
+            if output_pointer.transaction_id != Hash::default() {
+                utxo.remove(output_pointer);
+            }
+        }
+    }
+
+    fn update_utxo_outputs(
+        utxo: &mut UnspentOutputsPool,
+        outputs: &[ValueTransferOutput],
+        txn_hash: Hash,
+        block_number: u32,
+    ) {
+        for (index, output) in outputs.iter().enumerate() {
+            // Add the new outputs to the utxo_set
+            let output_pointer = OutputPointer {
+                transaction_id: txn_hash,
+                output_index: u32::try_from(index).unwrap(),
+            };
+
+            utxo.insert(output_pointer, output.clone(), block_number);
+        }
+    }
+
+    /// Method to update the unspent outputs pool
+    pub fn generate_unspent_outputs_pool(
+        unspent_outputs_pool: &UnspentOutputsPool,
+        transactions: &[Transaction],
+        block_number: u32,
+    ) -> UnspentOutputsPool {
+        // Create a copy of the state "unspent_outputs_pool"
+        let mut unspent_outputs = unspent_outputs_pool.clone();
+
+        for transaction in transactions {
+            let txn_hash = transaction.hash();
+            match transaction {
+                Transaction::ValueTransfer(vt_transaction) => {
+                    update_utxo_inputs(&mut unspent_outputs, &vt_transaction.body.inputs);
+                    update_utxo_outputs(
+                        &mut unspent_outputs,
+                        &vt_transaction.body.outputs,
+                        txn_hash,
+                        block_number,
+                    );
+                }
+                Transaction::DataRequest(dr_transaction) => {
+                    update_utxo_inputs(&mut unspent_outputs, &dr_transaction.body.inputs);
+                    update_utxo_outputs(
+                        &mut unspent_outputs,
+                        &dr_transaction.body.outputs,
+                        txn_hash,
+                        block_number,
+                    );
+                }
+                Transaction::Tally(tally_transaction) => {
+                    update_utxo_outputs(
+                        &mut unspent_outputs,
+                        &tally_transaction.outputs,
+                        txn_hash,
+                        block_number,
+                    );
+                }
+                Transaction::Mint(mint_transaction) => {
+                    update_utxo_outputs(
+                        &mut unspent_outputs,
+                        &mint_transaction.outputs,
+                        txn_hash,
+                        block_number,
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        unspent_outputs
+    }
 
     fn my_pkh() -> PublicKeyHash {
         PublicKeyHash::from_public_key(&PublicKey {
