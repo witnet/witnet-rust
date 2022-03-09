@@ -1,10 +1,10 @@
-use std::convert::TryFrom;
-use witnet_data_structures::chain::{Hash, Hashable, Input};
+use std::{convert::TryFrom, sync::Arc};
 use witnet_data_structures::{
-    chain::{OutputPointer, ValueTransferOutput},
+    chain::{Hash, Hashable, Input, OutputPointer, ValueTransferOutput},
     transaction::{Transaction, VTTransaction, VTTransactionBody},
     utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool},
 };
+use witnet_storage::storage::Storage;
 
 fn update_utxo_inputs(utxo: &mut UnspentOutputsPool, inputs: &[Input]) {
     for input in inputs {
@@ -217,5 +217,60 @@ fn test_sort_own_utxos() {
     }
 }
 
-// TODO: add test that checks the case where an UTXO is inserted in one superblock and removed in
-// the next one (to simulate a previous bug)
+#[test]
+fn utxo_set_insert_and_remove_on_next_superblock() {
+    // Checks the case where an UTXO is inserted in one superblock and removed in the next one
+    // (to simulate a previous bug where this caused a panic in remove_persisted_from_memory,
+    // and the UTXO was never deleted from the database.
+
+    // Unspent outputs pool with in-memory database
+    let db = Arc::new(witnet_storage::backends::hashmap::Backend::default());
+    let mut p = UnspentOutputsPool {
+        db: Some(db.clone()),
+        ..Default::default()
+    };
+    let db_count_entries = || {
+        db.prefix_iterator(b"")
+            .expect("prefix iterator error")
+            .count()
+    };
+    let v = ValueTransferOutput::default;
+    let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
+        .parse()
+        .unwrap();
+
+    // Insert UTXO in superblock 1
+    p.insert(k0.clone(), v(), 0);
+
+    // Take snapshot
+    let mut old_p = p.clone();
+
+    // Remove UTXO in superblock 2
+    p.remove(&k0);
+
+    // Before persist, the database should be empty
+    assert_eq!(db_count_entries(), 0);
+
+    // Persist superblock 1
+    p.remove_persisted_from_memory(&old_p.diff);
+    old_p.persist();
+
+    // Now the database should have 1 entry
+    assert_eq!(db_count_entries(), 1);
+
+    // Take another snapshot
+    let mut new_p = p.clone();
+
+    // Persist superblock 2
+    new_p.remove_persisted_from_memory(&p.diff);
+    p.persist();
+
+    // Now the database should be empty
+    assert_eq!(db_count_entries(), 0);
+
+    // Persist superblock 3
+    new_p.persist();
+
+    // Now the database should still be empty
+    assert_eq!(db_count_entries(), 0);
+}
