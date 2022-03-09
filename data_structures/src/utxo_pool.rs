@@ -49,7 +49,7 @@ impl UnspentOutputsPool {
     }
 
     pub fn get_map(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
-        if self.diff.utxos_to_remove.contains(k) || self.diff.utxos_to_remove_dr.contains(k) {
+        if self.diff.utxos_to_remove.contains(k) {
             return None;
         }
 
@@ -159,9 +159,7 @@ impl UnspentOutputsPool {
             .map(|(k, v)| (k.clone(), v.clone()))
             .chain(self.db_iter())
             .filter_map(move |(k, v)| {
-                if self.diff.utxos_to_remove.contains(&k)
-                    || self.diff.utxos_to_remove_dr.contains(&k)
-                {
+                if self.diff.utxos_to_remove.contains(&k) {
                     None
                 } else {
                     Some((k, v))
@@ -192,10 +190,6 @@ impl UnspentOutputsPool {
         for k in diff.utxos_to_remove.drain() {
             self.db_remove(&k);
         }
-
-        for k in diff.utxos_to_remove_dr.drain(..) {
-            self.db_remove(&k);
-        }
     }
 
     pub fn restore(&mut self) {
@@ -209,16 +203,6 @@ impl UnspentOutputsPool {
 
         for k in &persisted.utxos_to_remove {
             assert!(self.diff.utxos_to_remove.remove(k));
-        }
-
-        for k in &persisted.utxos_to_remove_dr {
-            let pos = self
-                .diff
-                .utxos_to_remove_dr
-                .iter()
-                .position(|x| x == k)
-                .unwrap();
-            self.diff.utxos_to_remove_dr.remove(pos);
         }
     }
 
@@ -549,8 +533,6 @@ pub fn get_utxo_info(
 pub struct Diff {
     utxos_to_add: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
     utxos_to_remove: HashSet<OutputPointer>,
-    // TODO: we need utxos_to_remove_dr.contains(), change to HashSet or combine with utxos_to_remove?
-    utxos_to_remove_dr: Vec<OutputPointer>,
 }
 
 impl Diff {
@@ -558,7 +540,6 @@ impl Diff {
         Self {
             utxos_to_add: Default::default(),
             utxos_to_remove: Default::default(),
-            utxos_to_remove_dr: vec![],
         }
     }
 
@@ -568,10 +549,6 @@ impl Diff {
         }
 
         for output_pointer in self.utxos_to_remove.iter() {
-            utxo_set.remove(output_pointer);
-        }
-
-        for output_pointer in self.utxos_to_remove_dr.iter() {
             utxo_set.remove(output_pointer);
         }
     }
@@ -643,12 +620,6 @@ impl<'a> UtxoDiff<'a> {
         if self.diff.utxos_to_add.remove(&output_pointer).is_none() {
             self.diff.utxos_to_remove.insert(output_pointer);
         }
-    }
-
-    /// Record a deletion to perform on the utxo set but that it
-    /// doesn't count when getting an utxo with `get` method.
-    pub fn remove_utxo_dr(&mut self, output_pointer: OutputPointer) {
-        self.diff.utxos_to_remove_dr.push(output_pointer);
     }
 
     /// Get an utxo from the original utxo set or one that has been
