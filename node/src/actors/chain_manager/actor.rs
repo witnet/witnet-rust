@@ -227,53 +227,59 @@ impl ChainManager {
 
                 (chain_state, config)
             })
-            .and_then(move |(mut chain_state, config), act, _ctx| {
-                // TODO: if chain_state.unspent_outputs_pool.db is Some, reuse the same backend
-                // and save the call to storage_mngr?
-                storage_mngr::get_backend()
-                    .into_actor(act)
-                    .map_err(|err, _act, _ctx| {
-                        log::error!("Failed to get storage backend: {}", err);
-                    })
-                    .and_then(|backend, act, _ctx| {
-                        chain_state.unspent_outputs_pool.db = Some(backend);
+            .and_then(move |(chain_state, config), act, _ctx| {
+                // Get storage backend for unspent_outputs_pool.
+                // Avoid call to storage_mngr if the backend is already in memory.
+                let fut: Pin<Box<dyn ActorFuture<Self, Output = Result<_, ()>>>> = if let Some(x) = act.chain_state.unspent_outputs_pool.db.take() {
+                    Box::pin(actix::fut::ok(x))
+                } else {
+                    Box::pin(storage_mngr::get_backend()
+                        .into_actor(act)
+                        .map_err(|err, _act, _ctx| {
+                            log::error!("Failed to get storage backend: {}", err);
+                        }))
+                };
 
-                        let fut: Pin<Box<dyn ActorFuture<Self, Output = Result<ChainState, ()>>>> = if !chain_state.unspent_outputs_pool_old_migration_db.is_empty() {
-                            log::info!("Detected some UTXOs stored in memory, performing migration to store all UTXOs in database");
-                            chain_state
-                                .unspent_outputs_pool
-                                .migrate_old_unspent_outputs_pool_to_db(
-                                    &mut chain_state.unspent_outputs_pool_old_migration_db,
-                                );
-                            log::info!("Migration completed successfully, saving updated ChainState");
-                            // Write the chain state again right after this migration, to ensure that the
-                            // migration is only executed once
-                            let fut = storage_mngr::put_chain_state(
-                                &storage_keys::chain_state_key(act.get_magic()),
-                                &chain_state,
-                            )
-                                .into_actor(act)
-                                .and_then(|_, _, _| {
-                                    log::debug!("Successfully persisted chain_state into storage");
-                                    fut::ok(chain_state)
-                                })
-                                .map_err(|err, _, _| {
-                                    log::error!(
-                            "Failed to persist chain_state into storage: {}",
-                            err
-                        )
-                                });
+                fut.map_ok(move |backend, _act, _ctx| (chain_state, config, backend))
+            })
+            .and_then(move |(mut chain_state, config, backend), act, _ctx| {
+                chain_state.unspent_outputs_pool.db = Some(backend);
 
-                            Box::pin(fut)
-                        } else {
-                            Box::pin(actix::fut::ok(chain_state))
-                        };
+                let fut: Pin<Box<dyn ActorFuture<Self, Output = Result<ChainState, ()>>>> = if !chain_state.unspent_outputs_pool_old_migration_db.is_empty() {
+                    log::info!("Detected some UTXOs stored in memory, performing migration to store all UTXOs in database");
+                    chain_state
+                        .unspent_outputs_pool
+                        .migrate_old_unspent_outputs_pool_to_db(
+                            &mut chain_state.unspent_outputs_pool_old_migration_db,
+                        );
+                    log::info!("Migration completed successfully, saving updated ChainState");
+                    // Write the chain state again right after this migration, to ensure that the
+                    // migration is only executed once
+                    let fut = storage_mngr::put_chain_state(
+                        &storage_keys::chain_state_key(act.get_magic()),
+                        &chain_state,
+                    )
+                        .into_actor(act)
+                        .and_then(|_, _, _| {
+                            log::debug!("Successfully persisted chain_state into storage");
+                            fut::ok(chain_state)
+                        })
+                        .map_err(|err, _, _| {
+                            log::error!(
+                    "Failed to persist chain_state into storage: {}",
+                    err
+                )
+                        });
 
-                        fut
-                    })
-                    .map_ok(move |chain_state, _act, _ctx| {
-                        (chain_state, config)
-                    })
+                    Box::pin(fut)
+                } else {
+                    Box::pin(actix::fut::ok(chain_state))
+                };
+
+                fut
+                .map_ok(move |chain_state, _act, _ctx| {
+                    (chain_state, config)
+                })
             })
             .map_ok(move |(chain_state, config), act, ctx| {
                 let consensus_constants = &config.consensus_constants;
