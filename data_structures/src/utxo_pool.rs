@@ -4,21 +4,19 @@ use crate::{
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    str::FromStr,
+    sync::Arc,
+};
 use witnet_storage::storage::Storage;
 use witnet_util::timestamp::get_timestamp;
 
 /// Unspent Outputs Pool
 #[derive(Clone, Default)]
 pub struct UnspentOutputsPool {
-    // Map of output pointer to a tuple of:
-    // * Value transfer output
-    // * The number of the block that included the transaction
-    //   (how many blocks were consolidated before this one).
-    //map: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
+    /// Unconfirmed Unspent Transaction Outputs
     pub diff: Diff,
     /// Database
     // If the database is set to None, all reads will return "not found", but all writes will panic
@@ -48,7 +46,7 @@ impl UnspentOutputsPool {
         self.get_map(k).map(|(vt, _n)| vt)
     }
 
-    pub fn get_map(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+    fn get_map(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
         if self.diff.utxos_to_remove.contains(k) {
             return None;
         }
@@ -66,18 +64,17 @@ impl UnspentOutputsPool {
     }
 
     /// Insert a new unspent `OutputPointer`
-    pub fn insert(
-        &mut self,
-        k: OutputPointer,
-        v: ValueTransferOutput,
-        block_number: u32,
-    ) -> Option<(ValueTransferOutput, u32)> {
-        self.diff.utxos_to_add.insert(k, (v, block_number))
+    pub fn insert(&mut self, k: OutputPointer, v: ValueTransferOutput, block_number: u32) {
+        let old = self.diff.utxos_to_add.insert(k, (v, block_number));
+
+        assert!(old.is_none(), "UTXO did already exist");
     }
 
     /// Remove a spent `OutputPointer`
     pub fn remove(&mut self, k: &OutputPointer) {
-        self.diff.utxos_to_remove.insert(k.clone());
+        let did_exist = self.diff.utxos_to_remove.insert(k.clone());
+
+        assert!(did_exist, "tried to remove an already removed UTXO");
     }
 
     fn db_get(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
@@ -92,16 +89,13 @@ impl UnspentOutputsPool {
             })
     }
 
-    fn db_insert(
-        &mut self,
-        k: OutputPointer,
-        v: ValueTransferOutput,
-        block_number: u32,
-    ) -> Option<(ValueTransferOutput, u32)> {
-        // TODO: this get before insert does not make much sense because UTXOs are immutable
-        // Maybe it can be used as a sanity check that UTXOs are only written once, but it is not
-        // very useful
+    fn db_insert(&mut self, k: OutputPointer, v: ValueTransferOutput, block_number: u32) {
+        // Sanity check that UTXOs are only written once
         let old_vto = self.get_map(&k);
+        assert_eq!(
+            old_vto, None,
+            "Tried to consolidate an UTXO that was already consolidated"
+        );
 
         let key_string = format!("UTXO-{}", k);
         log::debug!("PUT {}", key_string);
@@ -110,15 +104,18 @@ impl UnspentOutputsPool {
             .expect("no db")
             .put(
                 key_string.into_bytes(),
-                bincode::serialize(&(v, block_number)).unwrap(),
+                bincode::serialize(&(v, block_number)).expect("bincode fail"),
             )
-            .unwrap();
-
-        old_vto
+            .expect("db fail");
     }
 
     fn db_remove(&mut self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+        // Sanity check that UTXOs are only removed once
         let old_vto = self.get_map(k);
+        assert!(
+            old_vto.is_some(),
+            "Tried to remove an UTXO that was already removed"
+        );
 
         let key_string = format!("UTXO-{}", k);
         log::debug!("REMOVE {}", key_string);
@@ -126,7 +123,7 @@ impl UnspentOutputsPool {
             .as_mut()
             .expect("no db")
             .delete(key_string.as_bytes())
-            .unwrap();
+            .expect("db fail");
 
         old_vto
     }
@@ -197,7 +194,7 @@ impl UnspentOutputsPool {
     }
 
     pub fn persist(&mut self) {
-        let mut diff = std::mem::replace(&mut self.diff, Diff::new());
+        let mut diff = std::mem::take(&mut self.diff);
         for (k, (v, block_number)) in diff.utxos_to_add.drain() {
             self.db_insert(k, v, block_number);
         }
@@ -205,10 +202,6 @@ impl UnspentOutputsPool {
         for k in diff.utxos_to_remove.drain() {
             self.db_remove(&k);
         }
-    }
-
-    pub fn restore(&mut self) {
-        self.diff = Diff::new();
     }
 
     pub fn remove_persisted_from_memory(&mut self, persisted: &Diff) {
@@ -552,10 +545,7 @@ pub struct Diff {
 
 impl Diff {
     pub fn new() -> Self {
-        Self {
-            utxos_to_add: Default::default(),
-            utxos_to_remove: Default::default(),
-        }
+        Self::default()
     }
 
     pub fn apply(mut self, utxo_set: &mut UnspentOutputsPool) {

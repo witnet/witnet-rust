@@ -130,8 +130,9 @@ fn utxo_set_coin_age() {
 }
 
 #[test]
+#[should_panic = "UTXO did already exist"]
 fn utxo_set_insert_twice() {
-    // Inserting the same input twice into the UTXO set overwrites the transaction
+    // Inserting the same input twice into the UTXO causes a panic
     let mut p = UnspentOutputsPool::default();
     let v = ValueTransferOutput::default;
 
@@ -215,3 +216,6 @@ fn test_sort_own_utxos() {
         aux = value;
     }
 }
+
+// TODO: add test that checks the case where an UTXO is inserted in one superblock and removed in
+// the next one (to simulate a previous bug)
