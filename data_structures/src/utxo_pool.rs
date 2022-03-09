@@ -169,6 +169,13 @@ impl UnspentOutputsPool {
             })
     }
 
+    /// Iterate over all the unspent outputs that have been confirmed by a superblock.
+    pub fn iter_confirmed(
+        &self,
+    ) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+        self.db_iter()
+    }
+
     /// Returns the number of the block that included the transaction referenced
     /// by this OutputPointer. The difference between that number and the
     /// current number of consolidated blocks is the "collateral age".

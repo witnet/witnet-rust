@@ -1367,51 +1367,25 @@ impl Handler<GetDataRequestInfo> for ChainManager {
 }
 
 impl Handler<GetBalance> for ChainManager {
-    type Result = ResponseActFuture<Self, Result<NodeBalance, failure::Error>>;
+    type Result = Result<NodeBalance, failure::Error>;
 
     fn handle(
         &mut self,
-        GetBalance { pkh: _, simple: _ }: GetBalance,
+        GetBalance { pkh, simple }: GetBalance,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        unimplemented!("need to reimplement this now that the UTXO set is not stored in memory");
-        /*
         if self.sm_state != StateMachine::Synced {
-            return Box::pin(actix::fut::err(
-                ChainManagerError::NotSynced {
-                    current_state: self.sm_state,
-                }
-                .into(),
-            ));
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
         }
 
-        if simple {
-            Box::pin(actix::fut::ok(transaction_factory::get_total_balance(
-                &self.chain_state.unspent_outputs_pool,
-                None,
-                pkh,
-                simple,
-            )))
-        } else {
-            let magic = self.get_magic();
-
-            let res = storage_mngr::get_chain_state(&storage_keys::chain_state_key(magic))
-                .into_actor(self)
-                .map(move |chain_state_from_storage, act, _| {
-                    chain_state_from_storage.map(|x| {
-                        transaction_factory::get_total_balance(
-                            &act.chain_state.unspent_outputs_pool,
-                            // If there is no chain state in storage, send None and set the balance to 0
-                            x.as_ref().map(|x| &x.unspent_outputs_pool),
-                            pkh,
-                            simple,
-                        )
-                    })
-                });
-
-            Box::pin(res)
-        }
-        */
+        Ok(transaction_factory::get_total_balance(
+            &self.chain_state.unspent_outputs_pool,
+            pkh,
+            simple,
+        ))
     }
 }
 

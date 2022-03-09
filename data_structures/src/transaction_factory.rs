@@ -248,7 +248,6 @@ pub fn calculate_weight(
 /// Get total balance
 pub fn get_total_balance(
     all_utxos: &UnspentOutputsPool,
-    old_all_utxos: Option<&UnspentOutputsPool>,
     pkh: PublicKeyHash,
     simple: bool,
 ) -> NodeBalance {
@@ -266,16 +265,15 @@ pub fn get_total_balance(
         .sum();
 
     if simple {
-        return NodeBalance {
+        NodeBalance {
             confirmed: None,
             total: new_balance,
-        };
-    }
-
-    // Get the balance of the confirmed utxo set from storage
-    let old_balance = match old_all_utxos {
-        Some(old_all_utxos) => old_all_utxos
-            .iter()
+        }
+    } else {
+        // TODO: instead of calling iter and later iter_confirmed, implement a method that
+        // calculates both the confirmed and the unconfirmed balance in one pass
+        let old_balance = all_utxos
+            .iter_confirmed()
             .filter_map(|(_output_pointer, (vto, _))| {
                 if vto.pkh == pkh {
                     Some(vto.value)
@@ -283,13 +281,12 @@ pub fn get_total_balance(
                     None
                 }
             })
-            .sum(),
-        None => 0,
-    };
+            .sum();
 
-    NodeBalance {
-        confirmed: Some(old_balance),
-        total: new_balance,
+        NodeBalance {
+            confirmed: Some(old_balance),
+            total: new_balance,
+        }
     }
 }
 
@@ -547,7 +544,10 @@ mod tests {
     };
     use std::{
         convert::TryFrom,
-        sync::atomic::{AtomicU32, Ordering},
+        sync::{
+            atomic::{AtomicU32, Ordering},
+            Arc,
+        },
     };
 
     const MAX_VT_WEIGHT: u32 = 20000;
@@ -678,7 +678,13 @@ mod tests {
         let (mut own_utxos, all_utxos) = own_utxos_all_utxos.into().unwrap_or_else(|| {
             (
                 OwnUnspentOutputsPool::default(),
-                UnspentOutputsPool::default(),
+                // Use utxo set with in-memory database, to allow testing confirmed/unconfirmed UTXOs
+                UnspentOutputsPool {
+                    db: Some(Arc::new(
+                        witnet_storage::backends::hashmap::Backend::default(),
+                    )),
+                    ..Default::default()
+                },
             )
         });
         let all_utxos = generate_unspent_outputs_pool(&all_utxos, &txns, block_number);
@@ -1234,10 +1240,10 @@ mod tests {
             pay_me(500),
             pay_me(334),
         ];
-        let (_own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, mut all_utxos) = build_utxo_set(outputs, None, vec![]);
         // If the utxo set from the storage is None it should set the confirmed balance to 0
         assert_eq!(
-            get_total_balance(&all_utxos, None, own_pkh, false),
+            get_total_balance(&all_utxos, own_pkh, false),
             NodeBalance {
                 confirmed: Some(0),
                 total: 1000,
@@ -1245,15 +1251,17 @@ mod tests {
         );
         // When using simple balance, both balances should be 1000
         assert_eq!(
-            get_total_balance(&all_utxos, None, own_pkh, true),
+            get_total_balance(&all_utxos, own_pkh, true),
             NodeBalance {
                 confirmed: None,
                 total: 1000,
             }
         );
+        // Confirm pending UTXOs
+        all_utxos.persist();
         // Assert the balance is 1000 when the superblock is confirmed
         assert_eq!(
-            get_total_balance(&all_utxos, Some(&all_utxos), own_pkh, false),
+            get_total_balance(&all_utxos, own_pkh, false),
             NodeBalance {
                 confirmed: Some(1000),
                 total: 1000,
@@ -1261,26 +1269,18 @@ mod tests {
         );
         // Assert the balance is 1000 when the superblock is confirmed when using simple balance
         assert_eq!(
-            get_total_balance(&all_utxos, Some(&all_utxos), own_pkh, true),
+            get_total_balance(&all_utxos, own_pkh, true),
             NodeBalance {
                 confirmed: None,
                 total: 1000,
             }
         );
 
-        let outputs2 = vec![
-            pay_me(5),
-            pay_me(10),
-            pay_me(50),
-            pay_me(1),
-            pay_me(500),
-            pay_me(334),
-            pay_bob(100),
-        ];
-        let (mut _own_utxos, all_utxos_2) = build_utxo_set(outputs2, None, vec![]);
+        let t2 = build_vtt_tx(vec![pay_bob(100)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let (own_utxos, mut all_utxos_2) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
         // Assert the balance is 900 after paying 100 to Bob
         assert_eq!(
-            get_total_balance(&all_utxos_2, Some(&all_utxos), own_pkh, false),
+            get_total_balance(&all_utxos_2, own_pkh, false),
             NodeBalance {
                 confirmed: Some(1000),
                 total: 900,
@@ -1288,7 +1288,7 @@ mod tests {
         );
         // Assert both balances are 900 after paying 100 to Bob when using simple balance
         assert_eq!(
-            get_total_balance(&all_utxos_2, Some(&all_utxos), own_pkh, true),
+            get_total_balance(&all_utxos_2, own_pkh, true),
             NodeBalance {
                 confirmed: None,
                 total: 900,
@@ -1296,7 +1296,7 @@ mod tests {
         );
         // Assert Bob's balance is 100
         assert_eq!(
-            get_total_balance(&all_utxos_2, Some(&all_utxos), bob_pkh, false),
+            get_total_balance(&all_utxos_2, bob_pkh, false),
             NodeBalance {
                 confirmed: Some(0),
                 total: 100,
@@ -1304,28 +1304,21 @@ mod tests {
         );
         // Assert both of Bob's balance are 100 when using simple balance
         assert_eq!(
-            get_total_balance(&all_utxos_2, Some(&all_utxos), bob_pkh, true),
+            get_total_balance(&all_utxos_2, bob_pkh, true),
             NodeBalance {
                 confirmed: None,
                 total: 100,
             }
         );
 
-        let outputs3 = vec![
-            pay_me(5),
-            pay_me(10),
-            pay_me(50),
-            pay_me(1),
-            pay_me(500),
-            pay_me(334),
-            pay_bob(100),
-            pay_me(600),
-        ];
-
-        let (mut _own_utxos, all_utxos_3) = build_utxo_set(outputs3, None, vec![]);
+        // Confirm pending UTXOs
+        all_utxos_2.persist();
+        let outputs3 = vec![pay_me(600)];
+        let (mut _own_utxos, all_utxos_3) =
+            build_utxo_set(outputs3, (own_utxos, all_utxos_2), vec![]);
         // Assert the balance is 1500 after receiving 600
         assert_eq!(
-            get_total_balance(&all_utxos_3, Some(&all_utxos_2), own_pkh, false),
+            get_total_balance(&all_utxos_3, own_pkh, false),
             NodeBalance {
                 confirmed: Some(900),
                 total: 1500,
@@ -1333,7 +1326,7 @@ mod tests {
         );
         // Assert both balances are 1500 after receiving 600 when using simple balance
         assert_eq!(
-            get_total_balance(&all_utxos_3, Some(&all_utxos_2), own_pkh, true),
+            get_total_balance(&all_utxos_3, own_pkh, true),
             NodeBalance {
                 confirmed: None,
                 total: 1500,
