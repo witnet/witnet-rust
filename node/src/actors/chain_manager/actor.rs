@@ -36,6 +36,8 @@ impl Actor for ChainManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("ChainManager actor has been started!");
 
+        self.check_only_one_chain_state_in_storage(ctx);
+
         self.initialize_from_storage(ctx);
 
         self.subscribe_to_epoch_manager(ctx);
@@ -361,6 +363,57 @@ impl ChainManager {
             });
 
         Box::pin(fut)
+    }
+
+    /// Ensure that there is only one ChainState in the storage. Old versions of witnet-rust used
+    /// to allow having multiple ChainStates for multiple testnets. This function will panic in that
+    /// case because multiple ChainStates are incompatible with storing UTXOs as keys in the
+    /// database.
+    pub fn check_only_one_chain_state_in_storage(&mut self, ctx: &mut Context<ChainManager>) {
+        let fut = config_mngr::get()
+            .into_actor(self)
+            .map_err(|err, _act, _ctx| {
+                log::error!("Couldn't get config: {}", err);
+            })
+            .and_then(|config, act, _ctx| {
+                storage_mngr::get_backend()
+                    .into_actor(act)
+                    .map_err(|err, _act, _ctx| {
+                        log::error!("Failed to get storage backend: {}", err);
+                    })
+                    .map_ok(move |backend, _act, _ctx| (config, backend))
+            })
+            .map_ok(|(config, backend), _act, _ctx| {
+                let magic = config.consensus_constants.get_magic();
+
+                let all_chain_states: Vec<_> = backend
+                    .prefix_iterator(b"chain-")
+                    .expect("prefix iterator error")
+                    .map(|(k, _v)| k)
+                    .collect();
+
+                match all_chain_states.len() {
+                    0 => {
+                        // No ChainState in DB, good
+                    }
+                    1 => {
+                        if all_chain_states[0] == storage_keys::chain_state_key(magic).as_bytes() {
+                            // One ChainState in DB and matches magic number, good
+                        } else {
+                            // One ChainState in DB but does not match magic number, bad.
+                            // Need to delete existing chain state and all utxos to be able to reuse
+                            // this storage.
+                            panic!("{:?}", all_chain_states);
+                        }
+                    }
+                    _ => {
+                        // More than one ChainState in DB, bad
+                        panic!("{:?}", all_chain_states);
+                    }
+                }
+            })
+            .map(|_res: Result<(), ()>, _act, _ctx| ());
+        ctx.wait(fut);
     }
 
     /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs
