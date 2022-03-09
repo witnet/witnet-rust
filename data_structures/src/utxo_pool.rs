@@ -219,6 +219,21 @@ impl UnspentOutputsPool {
             self.db_insert(k, v, block_number);
         }
     }
+
+    pub fn delete_all_from_db(&mut self) {
+        let mut to_remove = vec![];
+        for (k, _v) in self.db_iter() {
+            // TODO: would this invalidate the iterator?
+            //let removed = self.db_remove(&k);
+            //assert!(removed.is_some());
+            to_remove.push(k);
+        }
+
+        for k in to_remove {
+            let removed = self.db_remove(&k);
+            assert!(removed.is_some());
+        }
+    }
 }
 
 /// List of unspent outputs that can be spent by this node

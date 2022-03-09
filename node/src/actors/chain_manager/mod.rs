@@ -332,6 +332,9 @@ impl ChainManager {
     /// Persist an empty `ChainState` to the storage and set the node to `WaitingConsensus`.
     /// This can be used to recover from a forked chain without manually deleting the storage.
     fn delete_chain_state_and_reinitialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+        // Delete all the UTXOs from the database
+        self.chain_state.unspent_outputs_pool.delete_all_from_db();
+
         let empty_state = ChainState::default();
         let fut = storage_mngr::put_chain_state(
             &storage_keys::chain_state_key(self.get_magic()),
