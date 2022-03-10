@@ -36,7 +36,7 @@ fn check_chain_state_version(chain_state_bytes: &[u8]) -> Result<u32, ()> {
 // The input is assumed to be the serialization of a v0 ChainState
 fn migrate_chain_state_v0_to_v2(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     let db_version: u32 = 2;
-    let db_version_bytes = db_version.to_be_bytes();
+    let db_version_bytes = db_version.to_le_bytes();
 
     // Extra fields in ChainState v2:
     let tapi = TapiEngine::default();
@@ -45,49 +45,50 @@ fn migrate_chain_state_v0_to_v2(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     [&db_version_bytes, old_chain_state_bytes, &tapi_bytes].concat()
 }
 
-fn migrate_chain_state(bytes: &[u8]) -> Result<ChainState, failure::Error> {
-    match check_chain_state_version(bytes) {
-        Ok(0) => {
-            // Migrate from v0 to v2
-            let bytes = migrate_chain_state_v0_to_v2(bytes);
-            log::debug!("Successfully migrated ChainState v0 to v2");
+// This only needs to update the db_version field
+fn migrate_chain_state_v2_to_v3(chain_state_bytes: &mut [u8]) {
+    let db_version: u32 = 3;
+    let db_version_bytes = db_version.to_le_bytes();
+    chain_state_bytes[0..4].copy_from_slice(&db_version_bytes);
+}
 
-            // Latest version
-            // Skip the first 4 bytes because they are used to encode db_version
-            match deserialize(&bytes[4..]) {
-                Ok(v) => Ok(v),
-                Err(e) => Err(as_failure!(e)),
+fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {
+    loop {
+        match check_chain_state_version(&bytes) {
+            Ok(0) => {
+                // Migrate from v0 to v2
+                bytes = migrate_chain_state_v0_to_v2(&bytes);
+                log::debug!("Successfully migrated ChainState v0 to v2");
             }
-        }
-        Ok(2) => {
-            // Migrate from v2 to v3
-            // Actually v2 and v3 have the same serialization, the difference is that in v2 the
-            // UTXOs are stored inside the ChainState, while in v3 that data structure is empty
-            // and the UTXOs are stored in separate keys.
-
-            // Skip the first 4 bytes because they are used to encode db_version
-            match deserialize(&bytes[4..]) {
-                Ok(v) => Ok(v),
-                Err(e) => Err(as_failure!(e)),
+            Ok(2) => {
+                // Migrate from v2 to v3
+                // Actually v2 and v3 have the same serialization, the difference is that in v2 the
+                // UTXOs are stored inside the ChainState, while in v3 that data structure is empty
+                // and the UTXOs are stored in separate keys. But that operation is done in the
+                // ChainManager on initialization, here we just update the db_version field.
+                migrate_chain_state_v2_to_v3(&mut bytes);
+                log::debug!("Successfully migrated ChainState v2 to v3");
             }
-        }
-        Ok(3) => {
-            // Latest version
-            // Skip the first 4 bytes because they are used to encode db_version
-            match deserialize(&bytes[4..]) {
-                Ok(v) => Ok(v),
-                Err(e) => Err(as_failure!(e)),
+            Ok(3) => {
+                // Latest version
+                // Skip the first 4 bytes because they are used to encode db_version
+                return match deserialize(&bytes[4..]) {
+                    Ok(v) => Ok(v),
+                    Err(e) => Err(as_failure!(e)),
+                };
             }
-        }
-        Ok(unknown_version) => Err(failure::format_err!(
-            "Error when reading ChainState from database: version {} not supported",
-            unknown_version
-        )),
-        Err(()) => {
-            // Error reading version (end of file?)
-            Err(failure::format_err!(
-                "Error when reading ChainState version from database: unexpected end of file"
-            ))
+            Ok(unknown_version) => {
+                return Err(failure::format_err!(
+                    "Error when reading ChainState from database: version {} not supported",
+                    unknown_version
+                ));
+            }
+            Err(()) => {
+                // Error reading version (end of file?)
+                return Err(failure::format_err!(
+                    "Error when reading ChainState version from database: unexpected end of file"
+                ));
+            }
         }
     }
 }
@@ -127,7 +128,7 @@ pub fn get_chain_state<K>(
 where
     K: serde::Serialize,
 {
-    get_versioned(key, |bytes| migrate_chain_state(&bytes))
+    get_versioned(key, migrate_chain_state)
 }
 
 /// Put a value associated to the key into the storage, preceded by a 4-byte version tag
@@ -296,6 +297,16 @@ mod tests {
                 tapi: TapiEngine::default(),
             }
         );
+    }
+
+    #[test]
+    fn bincode_chainstate_migration_multiple_steps() {
+        // This test ensures that there are no accidental infinite loops in migrate_chain_state
+
+        // An empty ChainState v0 is 241 bytes
+        let chain_state_v0_bytes = vec![0; 241];
+        let migrated_chain_state = migrate_chain_state(chain_state_v0_bytes);
+        migrated_chain_state.unwrap();
     }
 
     #[test]
