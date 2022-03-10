@@ -317,6 +317,18 @@ impl OwnUnspentOutputsPool {
             .cloned()
             .collect()
     }
+
+    /// Get balance
+    pub fn get_balance(&self, all_utxos: &UnspentOutputsPool) -> u64 {
+        self.keys()
+            .map(|o| {
+                all_utxos
+                    .get(o)
+                    .expect("mismatch between OwnUnspentOutputsPool and UnspentOutputsPool")
+                    .value
+            })
+            .sum()
+    }
 }
 
 /// Struct that keeps the unspent outputs pool and the own unspent outputs pool

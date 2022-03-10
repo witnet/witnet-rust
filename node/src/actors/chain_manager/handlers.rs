@@ -1381,6 +1381,19 @@ impl Handler<GetBalance> for ChainManager {
             .into());
         }
 
+        if simple && Some(pkh) == self.own_pkh {
+            // Calculate balance using OwnUnspentOutputsPool, which is much faster but only works
+            // when using the node pkh, and does only return unconfirmed balance.
+            let total = self
+                .chain_state
+                .own_utxos
+                .get_balance(&self.chain_state.unspent_outputs_pool);
+            return Ok(NodeBalance {
+                confirmed: None,
+                total,
+            });
+        }
+
         Ok(transaction_factory::get_total_balance(
             &self.chain_state.unspent_outputs_pool,
             pkh,
