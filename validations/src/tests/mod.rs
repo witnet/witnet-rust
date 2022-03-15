@@ -2150,7 +2150,7 @@ fn data_request_http_post_before_wip_activation() {
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
-        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -2217,7 +2217,7 @@ fn data_request_http_get_with_headers_before_wip_activation() {
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
-        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -2274,7 +2274,7 @@ fn data_request_parse_xml_before_wip_activation() {
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
-        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -2327,7 +2327,7 @@ fn data_request_parse_xml_after_wip_activation() {
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
-        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+        let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
