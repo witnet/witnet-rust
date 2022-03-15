@@ -153,9 +153,11 @@ pub fn connect_routes<T, S>(
     forwarded_routes!(
         handler,
         api,
+        ("data_request_report", "dataRequestReport"),
         ("get_block", "getBlock"),
         ("get_block_chain", "getBlockChain"),
         ("get_output", "getOutput"),
+        ("get_transaction_by_hash", "getTransaction"),
         ("inventory", "inventory"),
     );
 
