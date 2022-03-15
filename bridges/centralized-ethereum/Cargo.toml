@@ -17,7 +17,7 @@ serde_json = "1.0.47"
 structopt = "0.3.9"
 tokio = "1.5.0"
 toml = "0.5.6"
-web3 = { version = "0.16.0", default-features = false, features = ["http-tls"] }
+web3 = { version = "0.18.0", default-features = false, features = ["http-tls"] }
 witnet_data_structures = { path = "../../data_structures" }
 witnet_config = { path = "../../config" }
 witnet_net = { path = "../../net" }
