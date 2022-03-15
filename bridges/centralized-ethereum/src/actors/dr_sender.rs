@@ -1,3 +1,4 @@
+use crate::actors::dr_reporter::Report;
 use crate::{
     actors::{
         dr_database::{DrDatabase, DrInfoBridge, DrState, GetAllNewDrs, SetDrInfoBridge},
@@ -74,6 +75,7 @@ impl DrSender {
             let dr_reporter_addr = DrReporter::from_registry();
 
             let new_drs = dr_database_addr.send(GetAllNewDrs).await.unwrap().unwrap();
+            let mut dr_reporter_msgs = vec![];
 
             for (dr_id, dr_bytes) in new_drs {
                 match deserialize_and_validate_dr_bytes(&dr_bytes, max_dr_value_nanowits) {
@@ -140,18 +142,22 @@ impl DrSender {
                                 .parse()
                                 .unwrap();
 
-                        dr_reporter_addr
-                            .send(DrReporterMsg {
-                                dr_id,
-                                dr_bytes,
-                                dr_tx_hash,
-                                result,
-                            })
-                            .await
-                            .unwrap();
+                        dr_reporter_msgs.push(Report {
+                            dr_id,
+                            timestamp: 0,
+                            dr_tx_hash,
+                            result,
+                        });
                     }
                 }
             }
+
+            dr_reporter_addr
+                .send(DrReporterMsg {
+                    reports: dr_reporter_msgs,
+                })
+                .await
+                .unwrap();
         };
 
         ctx.spawn(fut.into_actor(self).then(move |(), _act, ctx| {

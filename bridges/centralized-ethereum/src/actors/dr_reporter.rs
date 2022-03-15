@@ -10,6 +10,7 @@ use crate::{
 };
 use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
+use web3::contract::tokens::Tokenize;
 use web3::{
     contract::{self, Contract},
     ethabi::{ethereum_types::H256, Bytes},
@@ -17,7 +18,6 @@ use web3::{
     types::{H160, U256},
 };
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};
-use witnet_util::timestamp::get_timestamp;
 
 /// DrReporter actor sends the the Witnet Request tally results to Ethereum
 #[derive(Default)]
@@ -68,12 +68,20 @@ impl DrReporter {
     }
 }
 
-/// Report the result of this data request id to ethereum
+/// Report the result of this data requests to ethereum
 pub struct DrReporterMsg {
+    /// Reports
+    pub reports: Vec<Report>,
+}
+
+/// Report the result of this data request id to ethereum
+pub struct Report {
     /// Data request id in ethereum
     pub dr_id: DrId,
-    /// Data Request Bytes
-    pub dr_bytes: Bytes,
+    /// Timestamp of the solving commit txs in Witnet. If zero is provided, EVM-timestamp will be used instead
+    pub timestamp: u64,
+    // Data Request Bytes
+    //pub dr_bytes: Bytes,
     /// Hash of the data request in witnet
     pub dr_tx_hash: Hash,
     /// Data request result from witnet, in bytes
@@ -88,116 +96,144 @@ impl Handler<DrReporterMsg> for DrReporter {
     type Result = ();
 
     fn handle(&mut self, mut msg: DrReporterMsg, ctx: &mut Self::Context) -> Self::Result {
-        if self.pending_report_result.contains(&msg.dr_id) {
-            // Timeout not elapsed, abort
-            log::debug!(
-                "Request [{}] is already being resolved, ignoring DrReporterMsg",
-                msg.dr_id
-            );
+        // Remove all reports that have already been reported, but the transaction is pending
+        msg.reports.retain(|report| {
+            if self.pending_report_result.contains(&report.dr_id) {
+                // Timeout not elapsed, abort
+                log::debug!(
+                    "Request [{}] is already being resolved, ignoring DrReporterMsg",
+                    report.dr_id
+                );
+
+                false
+            } else {
+                true
+            }
+        });
+
+        if msg.reports.is_empty() {
+            // Nothing to report
             return;
         }
 
-        let dr_id = msg.dr_id;
+        let dr_ids: Vec<_> = msg.reports.iter().map(|report| report.dr_id).collect();
+        let dr_ids2 = dr_ids.clone();
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
         let report_result_limit = self.report_result_limit;
         let eth_confirmation_timeout = Duration::from_millis(self.eth_confirmation_timeout_ms);
-        let params_str = format!("{:?}", &(msg.dr_id, msg.dr_tx_hash, msg.result.clone()));
-        let dr_hash = H256::from_slice(msg.dr_tx_hash.as_ref());
 
-        if msg.result.len() > self.max_result_size {
-            let radon_error = RadonErrors::BridgeOversizedResult as u8;
-            msg.result = vec![0xD8, 0x27, 0x81, 0x18, radon_error]
+        for report in &mut msg.reports {
+            if report.result.len() > self.max_result_size {
+                let radon_error = RadonErrors::BridgeOversizedResult as u8;
+                report.result = vec![0xD8, 0x27, 0x81, 0x18, radon_error]
+            }
         }
 
         // New request or timeout elapsed, save dr_id
-        self.pending_report_result.insert(msg.dr_id);
+        for report in &msg.reports {
+            self.pending_report_result.insert(report.dr_id);
+        }
 
         let fut = async move {
             // Check if the request has already been resolved by some old pending transaction
             // that got confirmed after the eth_confirmation_timeout has elapsed
-            if let Some(set_dr_info_bridge_msg) =
-                read_resolved_request_from_contract(msg.dr_id, &wrb_contract, eth_account).await
-            {
-                let dr_database_addr = DrDatabase::from_registry();
-                dr_database_addr.send(set_dr_info_bridge_msg).await.ok();
-                // The request is already resolved, nothing more to do
+            let mut reports = vec![];
+            for report in msg.reports.drain(..) {
+                if let Some(set_dr_info_bridge_msg) =
+                    read_resolved_request_from_contract(report.dr_id, &wrb_contract, eth_account)
+                        .await
+                {
+                    let dr_database_addr = DrDatabase::from_registry();
+                    dr_database_addr.send(set_dr_info_bridge_msg).await.ok();
+                    // The request is already resolved, remove it from list
+                } else {
+                    reports.push(report);
+                }
+            }
+            msg.reports = reports;
+
+            if msg.reports.is_empty() {
+                // Nothing to report
                 return;
             }
 
-            // Report result
-            let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract
-                .query(
-                    "readRequestGasPrice",
-                    msg.dr_id,
-                    eth_account,
-                    contract::Options::default(),
-                    None,
-                )
-                .await;
+            let max_gas_price = get_max_gas_price(&msg, &wrb_contract, eth_account).await;
 
-            match dr_gas_price {
-                Ok(dr_gas_price) => {
-                    log::debug!("Request [{}], calling reportResult", msg.dr_id);
-                    // FIXME(#2046): ReportResult with 4 arguments (with timestamp)
-                    let receipt_fut = wrb_contract.call_with_confirmations(
-                        "reportResult",
-                        (msg.dr_id, dr_hash, msg.result),
-                        eth_account,
-                        contract::Options::with(|opt| {
-                            opt.gas = report_result_limit.map(Into::into);
-                            opt.gas_price = Some(dr_gas_price);
-                        }),
-                        1,
-                    );
-                    let receipt = tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await;
-                    match receipt {
-                        Ok(Ok(receipt)) => {
-                            log::debug!("Request [{}], reportResult: {:?}", msg.dr_id, receipt);
-                            match handle_receipt(receipt).await {
-                                Ok(()) => {
-                                    let dr_database_addr = DrDatabase::from_registry();
+            if max_gas_price == U256::from(0u8) {
+                // Error reading gas price, abort
+                return;
+            }
 
-                                    dr_database_addr
-                                        .send(SetDrInfoBridge(
-                                            msg.dr_id,
-                                            DrInfoBridge {
-                                                dr_bytes: msg.dr_bytes,
-                                                dr_state: DrState::Finished,
-                                                dr_tx_hash: Some(msg.dr_tx_hash),
-                                                dr_tx_creation_timestamp: Some(get_timestamp()),
-                                            },
-                                        ))
-                                        .await
-                                        .ok();
-                                }
-                                Err(()) => {
-                                    log::error!(
-                                        "reportResult{:?}: transaction reverted (?)",
-                                        params_str
-                                    );
-                                }
-                            }
+            log::debug!("Request [{:?}], calling reportResultBatch", dr_ids);
+            let batch_results: Vec<_> = msg
+                .reports
+                .iter()
+                .map(|report| {
+                    let dr_hash = H256::from_slice(report.dr_tx_hash.as_ref());
+
+                    // the trait `web3::contract::tokens::Tokenize` is not implemented for
+                    // `(std::vec::Vec<(web3::types::U256, web3::types::U256, web3::types::H256, std::vec::Vec<u8>)>, bool)
+                    // Need to manually call `.into_tokens()`:
+                    (
+                        report.dr_id,
+                        report.timestamp,
+                        dr_hash,
+                        report.result.clone(),
+                    )
+                        .into_tokens()
+                })
+                .collect();
+            let verbose = true;
+            let params_str = format!("{:?}", (&batch_results, verbose));
+            let receipt_fut = wrb_contract.call_with_confirmations(
+                "reportResultBatch",
+                (batch_results, verbose),
+                eth_account,
+                contract::Options::with(|opt| {
+                    opt.gas = report_result_limit.map(Into::into);
+                    opt.gas_price = Some(max_gas_price);
+                }),
+                1,
+            );
+            let receipt = tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await;
+            match receipt {
+                Ok(Ok(receipt)) => {
+                    log::debug!("Request [{:?}], reportResultBatch: {:?}", dr_ids, receipt);
+                    match handle_receipt(&receipt).await {
+                        Ok(()) => {
+                            // TODO: set successful reports as Finished using SetDrInfoBridge message
+                            // Need to detect which of the reports succeeded and which ones did not
+                            log::debug!(
+                                "reportResultBatch{:?}: success. Receipt: {:?}",
+                                params_str,
+                                receipt
+                            );
                         }
-                        Ok(Err(e)) => {
-                            // Error in call_with_confirmations
-                            log::error!("reportResult{:?}: {:?}", params_str, e);
-                        }
-                        Err(_e) => {
-                            // Timeout elapsed
-                            log::warn!("reportResult{:?}: timeout elapsed", params_str);
+                        Err(()) => {
+                            log::error!(
+                                "reportResultBatch{:?}: transaction reverted (?)",
+                                params_str
+                            );
                         }
                     }
                 }
-                Err(e) => {
-                    log::error!("ReadGasPrice {:?}", e);
+                Ok(Err(e)) => {
+                    // Error in call_with_confirmations
+                    log::error!("reportResultBatch{:?}: {:?}", params_str, e);
+                }
+                Err(_e) => {
+                    // Timeout elapsed
+                    log::warn!("reportResultBatch{:?}: timeout elapsed", params_str);
                 }
             }
         };
 
         ctx.spawn(fut.into_actor(self).map(move |(), act, _ctx| {
-            // Reset timeout
-            act.pending_report_result.remove(&dr_id);
+            // Reset timeouts
+            for dr_id in dr_ids2 {
+                act.pending_report_result.remove(&dr_id);
+            }
         }));
     }
 }
@@ -249,4 +285,37 @@ async fn read_resolved_request_from_contract(
         }
     }
     None
+}
+
+async fn get_max_gas_price(
+    msg: &DrReporterMsg,
+    wrb_contract: &Contract<Http>,
+    eth_account: H160,
+) -> U256 {
+    // The gas price of the report transaction should be the maximum gas price of any
+    // request
+    let mut max_gas_price: U256 = U256::from(0u8);
+    for report in &msg.reports {
+        // Read gas price
+        let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract
+            .query(
+                "readRequestGasPrice",
+                report.dr_id,
+                eth_account,
+                contract::Options::default(),
+                None,
+            )
+            .await;
+        match dr_gas_price {
+            Ok(dr_gas_price) => {
+                max_gas_price = std::cmp::max(max_gas_price, dr_gas_price);
+            }
+            Err(e) => {
+                log::error!("[{}] ReadGasPrice {:?}", report.dr_id, e);
+                continue;
+            }
+        }
+    }
+
+    max_gas_price
 }

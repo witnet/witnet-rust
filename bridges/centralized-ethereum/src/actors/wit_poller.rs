@@ -1,3 +1,4 @@
+use crate::actors::dr_reporter::Report;
 use crate::{
     actors::{
         dr_database::{DrDatabase, DrInfoBridge, DrState, GetAllPendingDrs, SetDrInfoBridge},
@@ -67,6 +68,7 @@ impl WitPoller {
                 .unwrap()
                 .unwrap();
             let current_timestamp = get_timestamp();
+            let mut dr_reporter_msgs = vec![];
 
             for (dr_id, dr_bytes, dr_tx_hash, dr_tx_creation_timestamp) in pending_drs {
                 let method = String::from("dataRequestReport");
@@ -130,15 +132,12 @@ impl WitPoller {
                         );
 
                         let result = tally.tally;
-                        dr_reporter_addr
-                            .send(DrReporterMsg {
-                                dr_id,
-                                dr_bytes,
-                                dr_tx_hash,
-                                result,
-                            })
-                            .await
-                            .unwrap();
+                        dr_reporter_msgs.push(Report {
+                            dr_id,
+                            timestamp: 0,
+                            dr_tx_hash,
+                            result,
+                        });
                     }
                     Ok(..) => {
                         // No problem, this means the data request has not been resolved yet
@@ -151,6 +150,13 @@ impl WitPoller {
                     }
                 };
             }
+
+            dr_reporter_addr
+                .send(DrReporterMsg {
+                    reports: dr_reporter_msgs,
+                })
+                .await
+                .unwrap();
         };
 
         ctx.spawn(fut.into_actor(self).then(move |(), _act, ctx| {
