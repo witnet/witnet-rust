@@ -10,7 +10,7 @@ use crate::{
 };
 use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
-use web3::contract::tokens::Tokenize;
+use web3::ethabi::Token;
 use web3::{
     contract::{self, Contract},
     ethabi::{ethereum_types::H256, Bytes},
@@ -174,14 +174,13 @@ impl Handler<DrReporterMsg> for DrReporter {
 
                     // the trait `web3::contract::tokens::Tokenize` is not implemented for
                     // `(std::vec::Vec<(web3::types::U256, web3::types::U256, web3::types::H256, std::vec::Vec<u8>)>, bool)
-                    // Need to manually call `.into_tokens()`:
-                    (
-                        report.dr_id,
-                        report.timestamp,
-                        dr_hash,
-                        report.result.clone(),
-                    )
-                        .into_tokens()
+                    // Need to manually convert to tuple
+                    Token::Tuple(vec![
+                        Token::Uint(report.dr_id),
+                        Token::Uint(report.timestamp.into()),
+                        Token::FixedBytes(dr_hash.to_fixed_bytes().to_vec()),
+                        Token::Bytes(report.result.clone()),
+                    ])
                 })
                 .collect();
             let verbose = true;
@@ -318,4 +317,55 @@ async fn get_max_gas_price(
     }
 
     max_gas_price
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use web3::contract::tokens::Tokenize;
+
+    #[test]
+    fn report_result_batch_type_check() {
+        let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
+        let wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
+            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
+            .unwrap();
+
+        let msg = DrReporterMsg {
+            reports: vec![Report {
+                dr_id: DrId::from(4358u32),
+                timestamp: 0,
+                dr_tx_hash: Hash::SHA256([
+                    106, 107, 78, 5, 218, 5, 159, 172, 215, 12, 141, 98, 19, 163, 167, 65, 62, 79,
+                    3, 170, 169, 162, 186, 24, 59, 135, 45, 146, 133, 85, 250, 155,
+                ]),
+                result: vec![26, 160, 41, 182, 230],
+            }],
+        };
+
+        let batch_results: Vec<_> = msg
+            .reports
+            .iter()
+            .map(|report| {
+                let dr_hash = H256::from_slice(report.dr_tx_hash.as_ref());
+
+                // the trait `web3::contract::tokens::Tokenize` is not implemented for
+                // `(std::vec::Vec<(web3::types::U256, web3::types::U256, web3::types::H256, std::vec::Vec<u8>)>, bool)
+                // Need to manually call `.into_tokens()`:
+                Token::Tuple(vec![
+                    Token::Uint(report.dr_id),
+                    Token::Uint(report.timestamp.into()),
+                    Token::FixedBytes(dr_hash.to_fixed_bytes().to_vec()),
+                    Token::Bytes(report.result.clone()),
+                ])
+            })
+            .collect();
+        let verbose = true;
+
+        let params = (batch_results, verbose);
+        wrb_contract_abi
+            .function("reportResultBatch")
+            .and_then(|function| function.encode_input(&params.into_tokens()))
+            .expect("encode args failed");
+    }
 }
