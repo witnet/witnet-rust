@@ -1,19 +1,22 @@
 [
   {
+    "anonymous": false,
     "inputs": [
       {
-        "internalType": "bool",
-        "name": "_upgradable",
-        "type": "bool"
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "queryId",
+        "type": "uint256"
       },
       {
-        "internalType": "bytes32",
-        "name": "_versionTag",
-        "type": "bytes32"
+        "indexed": false,
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
       }
     ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
+    "name": "BatchReportError",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -32,25 +35,6 @@
       }
     ],
     "name": "DeletedQuery",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "from",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      }
-    ],
-    "name": "OwnershipTransferred",
     "type": "event"
   },
   {
@@ -90,105 +74,6 @@
     ],
     "name": "PostedResult",
     "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "from",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "Received",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "reporters",
-        "type": "address[]"
-      }
-    ],
-    "name": "ReportersSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "reporters",
-        "type": "address[]"
-      }
-    ],
-    "name": "ReportersUnset",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "Transfer",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "from",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "baseAddr",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "baseCodehash",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "versionTag",
-        "type": "bytes32"
-      }
-    ],
-    "name": "Upgraded",
-    "type": "event"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "fallback"
   },
   {
     "inputs": [
@@ -335,6 +220,81 @@
         "internalType": "bytes",
         "name": "",
         "type": "bytes"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "bytes",
+                    "name": "data",
+                    "type": "bytes"
+                  },
+                  {
+                    "internalType": "uint32",
+                    "name": "cursor",
+                    "type": "uint32"
+                  }
+                ],
+                "internalType": "struct Witnet.Buffer",
+                "name": "buffer",
+                "type": "tuple"
+              },
+              {
+                "internalType": "uint8",
+                "name": "initialByte",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint8",
+                "name": "majorType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint8",
+                "name": "additionalInformation",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint64",
+                "name": "len",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "tag",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct Witnet.CBOR",
+            "name": "value",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct Witnet.Result",
+        "name": "_result",
+        "type": "tuple"
+      }
+    ],
+    "name": "asBytes32",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "pure",
@@ -1171,45 +1131,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "base",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "codehash",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "_codehash",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "currency",
-    "outputs": [
-      {
-        "internalType": "contract IERC20",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -1243,7 +1164,7 @@
           }
         ],
         "internalType": "struct Witnet.Response",
-        "name": "_response",
+        "name": "",
         "type": "tuple"
       }
     ],
@@ -1352,6 +1273,11 @@
             "internalType": "struct Witnet.Response",
             "name": "response",
             "type": "tuple"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
           }
         ],
         "internalType": "struct Witnet.Query",
@@ -1379,19 +1305,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "_initData",
-        "type": "bytes"
-      }
-    ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1547,70 +1460,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_reporter",
-        "type": "address"
-      }
-    ],
-    "name": "isReporter",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "isUpgradable",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_from",
-        "type": "address"
-      }
-    ],
-    "name": "isUpgradableFrom",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "owner",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "contract IWitnetRequest",
         "name": "_addr",
         "type": "address"
@@ -1625,19 +1474,6 @@
       }
     ],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "proxiableUUID",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -1698,7 +1534,7 @@
     "outputs": [
       {
         "internalType": "bytes",
-        "name": "_bytecode",
+        "name": "",
         "type": "bytes"
       }
     ],
@@ -1777,7 +1613,7 @@
           }
         ],
         "internalType": "struct Witnet.Response",
-        "name": "_response",
+        "name": "",
         "type": "tuple"
       }
     ],
@@ -1930,7 +1766,7 @@
       },
       {
         "internalType": "bytes",
-        "name": "_cborBytes",
+        "name": "_result",
         "type": "bytes"
       }
     ],
@@ -1958,11 +1794,51 @@
       },
       {
         "internalType": "bytes",
-        "name": "_cborBytes",
+        "name": "_result",
         "type": "bytes"
       }
     ],
     "name": "reportResult",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "queryId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "drTxHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "cborBytes",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IWitnetRequestBoardReporter.BatchResult[]",
+        "name": "_batchResults",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_verbose",
+        "type": "bool"
+      }
+    ],
+    "name": "reportResultBatch",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2164,45 +2040,6 @@
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "_reporters",
-        "type": "address[]"
-      }
-    ],
-    "name": "setReporters",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "transferOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address[]",
-        "name": "_exReporters",
-        "type": "address[]"
-      }
-    ],
-    "name": "unsetReporters",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint256",
         "name": "_queryId",
         "type": "uint256"
@@ -2214,27 +2051,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "version",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "stateMutability": "payable",
     "type": "receive"
-  },
-  {
-    "inputs": [],
-    "name": "destruct",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
   }
 ]
