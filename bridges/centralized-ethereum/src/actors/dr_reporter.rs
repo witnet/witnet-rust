@@ -185,45 +185,58 @@ impl Handler<DrReporterMsg> for DrReporter {
                 .collect();
             let verbose = true;
             let params_str = format!("{:?}", (&batch_results, verbose));
-            let receipt_fut = wrb_contract.call_with_confirmations(
-                "reportResultBatch",
-                (batch_results, verbose),
+
+            let batches = split_by_gas_limit(
+                batch_results,
+                &wrb_contract,
                 eth_account,
-                contract::Options::with(|opt| {
-                    opt.gas = report_result_limit.map(Into::into);
-                    opt.gas_price = Some(max_gas_price);
-                }),
-                1,
-            );
-            let receipt = tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await;
-            match receipt {
-                Ok(Ok(receipt)) => {
-                    log::debug!("Request [{:?}], reportResultBatch: {:?}", dr_ids, receipt);
-                    match handle_receipt(&receipt).await {
-                        Ok(()) => {
-                            // TODO: set successful reports as Finished using SetDrInfoBridge message
-                            // Need to detect which of the reports succeeded and which ones did not
-                            log::debug!(
-                                "reportResultBatch{:?}: success. Receipt: {:?}",
-                                params_str,
-                                receipt
-                            );
-                        }
-                        Err(()) => {
-                            log::error!(
-                                "reportResultBatch{:?}: transaction reverted (?)",
-                                params_str
-                            );
+                report_result_limit,
+                verbose,
+                max_gas_price,
+            )
+            .await;
+
+            for (batch_results, estimated_gas_limit) in batches {
+                let receipt_fut = wrb_contract.call_with_confirmations(
+                    "reportResultBatch",
+                    (batch_results, verbose),
+                    eth_account,
+                    contract::Options::with(|opt| {
+                        opt.gas = Some(estimated_gas_limit);
+                        opt.gas_price = Some(max_gas_price);
+                    }),
+                    1,
+                );
+                let receipt = tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await;
+                match receipt {
+                    Ok(Ok(receipt)) => {
+                        log::debug!("Request [{:?}], reportResultBatch: {:?}", dr_ids, receipt);
+                        match handle_receipt(&receipt).await {
+                            Ok(()) => {
+                                // TODO: set successful reports as Finished using SetDrInfoBridge message
+                                // Need to detect which of the reports succeeded and which ones did not
+                                log::debug!(
+                                    "reportResultBatch{:?}: success. Receipt: {:?}",
+                                    params_str,
+                                    receipt
+                                );
+                            }
+                            Err(()) => {
+                                log::error!(
+                                    "reportResultBatch{:?}: transaction reverted (?)",
+                                    params_str
+                                );
+                            }
                         }
                     }
-                }
-                Ok(Err(e)) => {
-                    // Error in call_with_confirmations
-                    log::error!("reportResultBatch{:?}: {:?}", params_str, e);
-                }
-                Err(_e) => {
-                    // Timeout elapsed
-                    log::warn!("reportResultBatch{:?}: timeout elapsed", params_str);
+                    Ok(Err(e)) => {
+                        // Error in call_with_confirmations
+                        log::error!("reportResultBatch{:?}: {:?}", params_str, e);
+                    }
+                    Err(_e) => {
+                        // Timeout elapsed
+                        log::warn!("reportResultBatch{:?}: timeout elapsed", params_str);
+                    }
                 }
             }
         };
@@ -317,6 +330,62 @@ async fn get_max_gas_price(
     }
 
     max_gas_price
+}
+
+/// Split batch_param (argument of reportResultBatch) into multiple smaller batch_param in order to
+/// fit into the gas limit.
+///
+/// Returns a list of `(batch_param, estimated_gas)` that should be used to create
+/// "reportResultBatch" transactions.
+async fn split_by_gas_limit(
+    batch_param: Vec<Token>,
+    wrb_contract: &Contract<Http>,
+    eth_account: H160,
+    report_result_limit: Option<u64>,
+    verbose: bool,
+    max_gas_price: U256,
+) -> Vec<(Vec<Token>, U256)> {
+    let mut v = vec![];
+    let mut stack = vec![batch_param];
+
+    while let Some(batch_param) = stack.pop() {
+        let params = (batch_param.clone(), verbose);
+        let estimated_gas = wrb_contract
+            .estimate_gas(
+                "reportResultBatch",
+                params,
+                eth_account,
+                contract::Options::with(|opt| {
+                    opt.gas = report_result_limit.map(Into::into);
+                    opt.gas_price = Some(max_gas_price);
+                }),
+            )
+            .await;
+        log::debug!(
+            "reportResultBatch {} estimated gas: {:?}",
+            batch_param.len(),
+            estimated_gas
+        );
+
+        match estimated_gas {
+            Ok(estimated_gas) => {
+                v.push((batch_param, estimated_gas));
+            }
+            Err(e) => {
+                if batch_param.len() <= 1 {
+                    log::error!("reportResultBatch estimate gas: {:?}", e);
+                    log::warn!("skipped dr: {:?}", batch_param);
+                } else {
+                    // Split batch_param in half
+                    let (batch_param1, batch_param2) = batch_param.split_at(batch_param.len() / 2);
+                    stack.push(batch_param1.to_vec());
+                    stack.push(batch_param2.to_vec());
+                }
+            }
+        }
+    }
+
+    v
 }
 
 #[cfg(test)]
