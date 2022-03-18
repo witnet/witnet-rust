@@ -197,17 +197,36 @@ impl Handler<DrReporterMsg> for DrReporter {
             .await;
 
             for (batch_results, estimated_gas_limit) in batches {
-                let receipt_fut = wrb_contract.call_with_confirmations(
-                    "reportResultBatch",
-                    (batch_results, verbose),
-                    eth_account,
-                    contract::Options::with(|opt| {
-                        opt.gas = Some(estimated_gas_limit);
-                        opt.gas_price = Some(max_gas_price);
-                    }),
-                    1,
-                );
-                let receipt = tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await;
+                let only_1_batch = batch_results.len() == 1;
+                let receipt = if only_1_batch {
+                    let (dr_id, ts, dr_tx_hash, report_result) =
+                        unwrap_batch(batch_results[0].clone());
+
+                    let receipt_fut = wrb_contract.call_with_confirmations(
+                        "reportResult",
+                        (dr_id, ts, dr_tx_hash, report_result),
+                        eth_account,
+                        contract::Options::with(|opt| {
+                            opt.gas = Some(estimated_gas_limit);
+                            opt.gas_price = Some(max_gas_price);
+                        }),
+                        1,
+                    );
+                    tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await
+                } else {
+                    let receipt_fut = wrb_contract.call_with_confirmations(
+                        "reportResultBatch",
+                        (batch_results, verbose),
+                        eth_account,
+                        contract::Options::with(|opt| {
+                            opt.gas = Some(estimated_gas_limit);
+                            opt.gas_price = Some(max_gas_price);
+                        }),
+                        1,
+                    );
+                    tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await
+                };
+
                 match receipt {
                     Ok(Ok(receipt)) => {
                         log::debug!("Request [{:?}], reportResultBatch: {:?}", dr_ids, receipt);
@@ -388,17 +407,33 @@ async fn split_by_gas_limit(
     v
 }
 
+fn unwrap_batch(t: Token) -> (Token, Token, Token, Token) {
+    if let Token::Tuple(token_vec) = t {
+        assert_eq!(token_vec.len(), 4);
+        (
+            token_vec[0].clone(),
+            token_vec[1].clone(),
+            token_vec[2].clone(),
+            token_vec[3].clone(),
+        )
+    } else {
+        panic!("Token:Tuple not found in unwrap_batch function");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hack_fix_functions_with_multiple_definitions;
     use web3::contract::tokens::Tokenize;
 
     #[test]
-    fn report_result_batch_type_check() {
+    fn report_result_type_check() {
         let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
-        let wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
+        let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
             .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
             .unwrap();
+        hack_fix_functions_with_multiple_definitions(&mut wrb_contract_abi);
 
         let msg = DrReporterMsg {
             reports: vec![Report {
@@ -431,10 +466,16 @@ mod tests {
             .collect();
         let verbose = true;
 
-        let params = (batch_results, verbose);
+        let params_one = unwrap_batch(batch_results[0].clone());
+        wrb_contract_abi
+            .function("reportResult")
+            .and_then(|function| function.encode_input(&params_one.into_tokens()))
+            .expect("encode args failed");
+
+        let params_batch = (batch_results, verbose);
         wrb_contract_abi
             .function("reportResultBatch")
-            .and_then(|function| function.encode_input(&params.into_tokens()))
+            .and_then(|function| function.encode_input(&params_batch.into_tokens()))
             .expect("encode args failed");
     }
 }
