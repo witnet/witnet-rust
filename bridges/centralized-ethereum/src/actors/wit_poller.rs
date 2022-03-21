@@ -9,7 +9,7 @@ use crate::{
 use actix::prelude::*;
 use serde_json::json;
 use std::{convert::TryFrom, time::Duration};
-use witnet_data_structures::chain::DataRequestInfo;
+use witnet_data_structures::chain::{Block, DataRequestInfo, Epoch, EpochConstants};
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_util::timestamp::get_timestamp;
 
@@ -123,7 +123,9 @@ impl WitPoller {
 
                 match serde_json::from_value::<Option<DataRequestInfo>>(report) {
                     Ok(Some(DataRequestInfo {
-                        tally: Some(tally), ..
+                        tally: Some(tally),
+                        block_hash_dr_tx: Some(dr_block_hash),
+                        ..
                     })) => {
                         log::info!(
                             "[{}] Found possible tally to be reported for dr_tx_hash {}",
@@ -132,9 +134,55 @@ impl WitPoller {
                         );
 
                         let result = tally.tally;
+                        // Get timestamp of first block with commits. The timestamp of the data
+                        // point is the timestamp of that block minus 45 seconds, because the commit
+                        // transactions are created one epoch earlier.
+                        // TODO: first block with commits is hard to obtain, we are simply using the
+                        // block that included the data request.
+                        let timestamp = {
+                            let method = String::from("getBlock");
+                            let params = json!([dr_block_hash]);
+                            let req = jsonrpc::Request::method(method)
+                                .timeout(Duration::from_millis(5_000))
+                                .params(params)
+                                .expect("params failed serialization");
+                            let report = witnet_client.send(req).await;
+                            let report = match report {
+                                Ok(report) => report,
+                                Err(_) => {
+                                    log::error!(
+                                        "Failed to connect to witnet client, will retry later"
+                                    );
+                                    break;
+                                }
+                            };
+                            let block = match report {
+                                Ok(value) => serde_json::from_value::<Block>(value)
+                                    .expect("failed to deserialize block"),
+                                Err(e) => {
+                                    log::error!(
+                                        "error in getBlock call ({}): {:?}",
+                                        dr_block_hash,
+                                        e
+                                    );
+                                    continue;
+                                }
+                            };
+
+                            let block_number = block.block_header.beacon.checkpoint;
+                            // TODO: get constants from somewhere instead of hardcoding them here?
+                            let epoch_constants = EpochConstants {
+                                // Wednesday, 14-Oct-2020, 09:00 UTC
+                                checkpoint_zero_timestamp: 1_602_666_000,
+                                checkpoints_period: 45,
+                            };
+
+                            convert_block_epoch_to_timestamp(epoch_constants, block_number)
+                        };
+
                         dr_reporter_msgs.push(Report {
                             dr_id,
-                            timestamp: 0,
+                            timestamp,
                             dr_tx_hash,
                             result,
                         });
@@ -170,4 +218,10 @@ impl WitPoller {
             actix::fut::ready(())
         }));
     }
+}
+
+fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> u64 {
+    // In case of error, return timestamp 0
+    u64::try_from(epoch_constants.epoch_timestamp(epoch).unwrap_or(0))
+        .expect("Epoch timestamp should return a positive value")
 }
