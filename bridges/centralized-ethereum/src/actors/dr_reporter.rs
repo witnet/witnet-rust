@@ -165,7 +165,6 @@ impl Handler<DrReporterMsg> for DrReporter {
                 return;
             }
 
-            log::debug!("Request [{:?}], calling reportResultBatch", dr_ids);
             let batch_results: Vec<_> = msg
                 .reports
                 .iter()
@@ -184,8 +183,6 @@ impl Handler<DrReporterMsg> for DrReporter {
                 })
                 .collect();
             let verbose = true;
-            let params_str = format!("{:?}", (&batch_results, verbose));
-
             let batches = split_by_gas_limit(
                 batch_results,
                 &wrb_contract,
@@ -196,11 +193,27 @@ impl Handler<DrReporterMsg> for DrReporter {
             )
             .await;
 
+            log::debug!(
+                "Requests [{:?}] will be reported in {} transactions",
+                dr_ids,
+                batches.len()
+            );
+
             for (batch_results, estimated_gas_limit) in batches {
+                if batch_results.len() > 1 {
+                    log::debug!("Executing reportResultBatch {:?}", batch_results);
+                } else {
+                    log::debug!("Executing reportResult {:?}", batch_results);
+                }
+                let params_str;
                 let only_1_batch = batch_results.len() == 1;
                 let receipt = if only_1_batch {
                     let (dr_id, ts, dr_tx_hash, report_result) =
                         unwrap_batch(batch_results[0].clone());
+                    params_str = format!(
+                        "reportResult{:?}",
+                        (&dr_id, &ts, &dr_tx_hash, &report_result)
+                    );
 
                     let receipt_fut = wrb_contract.call_with_confirmations(
                         "reportResult",
@@ -214,6 +227,8 @@ impl Handler<DrReporterMsg> for DrReporter {
                     );
                     tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await
                 } else {
+                    params_str = format!("reportResultBatch{:?}", (&batch_results, verbose));
+
                     let receipt_fut = wrb_contract.call_with_confirmations(
                         "reportResultBatch",
                         (batch_results, verbose),
@@ -229,32 +244,25 @@ impl Handler<DrReporterMsg> for DrReporter {
 
                 match receipt {
                     Ok(Ok(receipt)) => {
-                        log::debug!("Request [{:?}], reportResultBatch: {:?}", dr_ids, receipt);
+                        log::debug!("Request [{:?}], reportResult: {:?}", dr_ids, receipt);
                         match handle_receipt(&receipt).await {
                             Ok(()) => {
                                 // TODO: set successful reports as Finished using SetDrInfoBridge message
                                 // Need to detect which of the reports succeeded and which ones did not
-                                log::debug!(
-                                    "reportResultBatch{:?}: success. Receipt: {:?}",
-                                    params_str,
-                                    receipt
-                                );
+                                log::debug!("{}: success", params_str);
                             }
                             Err(()) => {
-                                log::error!(
-                                    "reportResultBatch{:?}: transaction reverted (?)",
-                                    params_str
-                                );
+                                log::error!("{}: transaction reverted (?)", params_str);
                             }
                         }
                     }
                     Ok(Err(e)) => {
                         // Error in call_with_confirmations
-                        log::error!("reportResultBatch{:?}: {:?}", params_str, e);
+                        log::error!("{}: {:?}", params_str, e);
                     }
                     Err(_e) => {
                         // Timeout elapsed
-                        log::warn!("reportResultBatch{:?}: timeout elapsed", params_str);
+                        log::warn!("{}: timeout elapsed", params_str);
                     }
                 }
             }
