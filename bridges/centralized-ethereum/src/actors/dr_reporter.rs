@@ -10,10 +10,9 @@ use crate::{
 };
 use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
-use web3::ethabi::Token;
 use web3::{
     contract::{self, Contract},
-    ethabi::{ethereum_types::H256, Bytes},
+    ethabi::{ethereum_types::H256, Bytes, Token},
     transports::Http,
     types::{H160, U256},
 };
@@ -68,7 +67,7 @@ impl DrReporter {
     }
 }
 
-/// Report the result of this data requests to ethereum
+/// Report the results of these data requests to Ethereum
 pub struct DrReporterMsg {
     /// Reports
     pub reports: Vec<Report>,
@@ -80,8 +79,6 @@ pub struct Report {
     pub dr_id: DrId,
     /// Timestamp of the solving commit txs in Witnet. If zero is provided, EVM-timestamp will be used instead
     pub timestamp: u64,
-    // Data Request Bytes
-    //pub dr_bytes: Bytes,
     /// Hash of the data request in witnet
     pub dr_tx_hash: Hash,
     /// Data request result from witnet, in bytes
@@ -96,10 +93,10 @@ impl Handler<DrReporterMsg> for DrReporter {
     type Result = ();
 
     fn handle(&mut self, mut msg: DrReporterMsg, ctx: &mut Self::Context) -> Self::Result {
-        // Remove all reports that have already been reported, but the transaction is pending
+        // Remove all reports that have already been reported, but whose reporting transaction is still pending
         msg.reports.retain(|report| {
             if self.pending_report_result.contains(&report.dr_id) {
-                // Timeout not elapsed, abort
+                // Timeout is not over yet, no action is needed
                 log::debug!(
                     "Request [{}] is already being resolved, ignoring DrReporterMsg",
                     report.dr_id
@@ -144,10 +141,11 @@ impl Handler<DrReporterMsg> for DrReporter {
                     read_resolved_request_from_contract(report.dr_id, &wrb_contract, eth_account)
                         .await
                 {
+                    // The request is already resolved, mark as resolved
                     let dr_database_addr = DrDatabase::from_registry();
                     dr_database_addr.send(set_dr_info_bridge_msg).await.ok();
-                    // The request is already resolved, remove it from list
                 } else {
+                    // Not resolved yet, insert back into the list
                     reports.push(report);
                 }
             }
@@ -261,8 +259,8 @@ impl Handler<DrReporterMsg> for DrReporter {
                         log::error!("{}: {:?}", params_str, e);
                     }
                     Err(_e) => {
-                        // Timeout elapsed
-                        log::warn!("{}: timeout elapsed", params_str);
+                        // Timeout is over
+                        log::warn!("{}: timeout is over", params_str);
                     }
                 }
             }
@@ -331,8 +329,8 @@ async fn get_max_gas_price(
     wrb_contract: &Contract<Http>,
     eth_account: H160,
 ) -> U256 {
-    // The gas price of the report transaction should be the maximum gas price of any
-    // request
+    // The gas price of the report transaction should equal the maximum gas price paid
+    // by any of the requests being solved here
     let mut max_gas_price: U256 = U256::from(0u8);
     for report in &msg.reports {
         // Read gas price

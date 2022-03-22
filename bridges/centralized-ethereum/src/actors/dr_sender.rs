@@ -1,8 +1,7 @@
-use crate::actors::dr_reporter::Report;
 use crate::{
     actors::{
         dr_database::{DrDatabase, DrInfoBridge, DrState, GetAllNewDrs, SetDrInfoBridge},
-        dr_reporter::{DrReporter, DrReporterMsg},
+        dr_reporter::{DrReporter, DrReporterMsg, Report},
     },
     config::Config,
 };
