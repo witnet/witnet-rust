@@ -8,7 +8,9 @@ use crate::{
 use actix::prelude::*;
 use serde_json::json;
 use std::{convert::TryFrom, time::Duration};
-use witnet_data_structures::chain::{Block, DataRequestInfo, Epoch, EpochConstants};
+use witnet_data_structures::chain::{
+    Block, ConsensusConstants, DataRequestInfo, Epoch, EpochConstants, Hash,
+};
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_util::timestamp::get_timestamp;
 
@@ -138,46 +140,11 @@ impl WitPoller {
                         // transactions are created one epoch earlier.
                         // TODO: first block with commits is hard to obtain, we are simply using the
                         // block that included the data request.
-                        let timestamp = {
-                            let method = String::from("getBlock");
-                            let params = json!([dr_block_hash]);
-                            let req = jsonrpc::Request::method(method)
-                                .timeout(Duration::from_millis(5_000))
-                                .params(params)
-                                .expect("params failed serialization");
-                            let report = witnet_client.send(req).await;
-                            let report = match report {
-                                Ok(report) => report,
-                                Err(_) => {
-                                    log::error!(
-                                        "Failed to connect to witnet client, will retry later"
-                                    );
-                                    break;
-                                }
+                        let timestamp =
+                            match get_block_timestamp(witnet_client.clone(), dr_block_hash).await {
+                                Ok(timestamp) => timestamp,
+                                Err(()) => continue,
                             };
-                            let block = match report {
-                                Ok(value) => serde_json::from_value::<Block>(value)
-                                    .expect("failed to deserialize block"),
-                                Err(e) => {
-                                    log::error!(
-                                        "error in getBlock call ({}): {:?}",
-                                        dr_block_hash,
-                                        e
-                                    );
-                                    continue;
-                                }
-                            };
-
-                            let block_number = block.block_header.beacon.checkpoint;
-                            // TODO: get constants from somewhere instead of hardcoding them here?
-                            let epoch_constants = EpochConstants {
-                                // Wednesday, 14-Oct-2020, 09:00 UTC
-                                checkpoint_zero_timestamp: 1_602_666_000,
-                                checkpoints_period: 45,
-                            };
-
-                            convert_block_epoch_to_timestamp(epoch_constants, block_number)
-                        };
 
                         dr_reporter_msgs.push(Report {
                             dr_id,
@@ -217,6 +184,80 @@ impl WitPoller {
             actix::fut::ready(())
         }));
     }
+}
+
+/// Return the timestamp of this block hash
+async fn get_block_timestamp(
+    witnet_client: Addr<JsonRpcClient>,
+    block_hash: Hash,
+) -> Result<u64, ()> {
+    let method = String::from("getBlock");
+    let params = json!([block_hash]);
+    let req = jsonrpc::Request::method(method)
+        .timeout(Duration::from_millis(5_000))
+        .params(params)
+        .expect("params failed serialization");
+    let report = witnet_client.send(req).await;
+    let report = match report {
+        Ok(report) => report,
+        Err(_) => {
+            log::error!("Failed to connect to witnet client, will retry later");
+            return Err(());
+        }
+    };
+    let block = match report {
+        Ok(value) => serde_json::from_value::<Block>(value).expect("failed to deserialize block"),
+        Err(e) => {
+            log::error!("error in getBlock call ({}): {:?}", block_hash, e);
+            return Err(());
+        }
+    };
+    let block_epoch = block.block_header.beacon.checkpoint;
+    let consensus_constants = match get_consensus_constants(witnet_client.clone()).await {
+        Ok(x) => x,
+        Err(()) => {
+            log::error!("Failed to get consensus constants from witnet client, will retry later");
+            return Err(());
+        }
+    };
+    let epoch_constants = EpochConstants {
+        checkpoint_zero_timestamp: consensus_constants.checkpoint_zero_timestamp,
+        checkpoints_period: consensus_constants.checkpoints_period,
+    };
+    // TODO: try to guess commit block by adding +1 to block_epoch
+    // When we actually use the hash of the commit block, this +1 must be removed
+    let timestamp = convert_block_epoch_to_timestamp(epoch_constants, block_epoch + 1);
+
+    Ok(timestamp)
+}
+
+async fn get_consensus_constants(
+    witnet_client: Addr<JsonRpcClient>,
+) -> Result<ConsensusConstants, ()> {
+    let method = String::from("getConsensusConstants");
+    let params = json!(null);
+    let req = jsonrpc::Request::method(method)
+        .timeout(Duration::from_millis(5_000))
+        .params(params)
+        .expect("params failed serialization");
+    let result = witnet_client.send(req).await;
+    let result = match result {
+        Ok(result) => result,
+        Err(_) => {
+            log::error!("Failed to connect to witnet client, will retry later");
+            return Err(());
+        }
+    };
+    let consensus_constants = match result {
+        Ok(value) => serde_json::from_value::<ConsensusConstants>(value)
+            .expect("failed to deserialize consensus constants"),
+        Err(e) => {
+            log::error!("error in getConsensusConstants call: {:?}", e);
+            return Err(());
+        }
+    };
+
+    Ok(consensus_constants)
 }
 
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> u64 {
