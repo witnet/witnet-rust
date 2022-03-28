@@ -249,6 +249,17 @@ impl ChainManager {
 
                 let fut: Pin<Box<dyn ActorFuture<Self, Output = Result<ChainState, ()>>>> = if !chain_state.unspent_outputs_pool_old_migration_db.is_empty() {
                     log::info!("Detected some UTXOs stored in memory, performing migration to store all UTXOs in database");
+                    // In case a previous attempt to perform this migration was interrupted, remove
+                    // all the existing UTXOs from database first.
+                    let removed_utxos = chain_state.unspent_outputs_pool.delete_all_from_db();
+                    if removed_utxos > 0 {
+                        log::warn!(
+                            "Found {} UTXOs already in the database. Assuming that this is \
+                            because a previous migration was interrupted, the UTXOs have \
+                            been deleted and the migration will restart from scratch.",
+                            removed_utxos
+                        );
+                    }
                     chain_state
                         .unspent_outputs_pool
                         .migrate_old_unspent_outputs_pool_to_db(

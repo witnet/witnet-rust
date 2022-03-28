@@ -220,7 +220,8 @@ impl UnspentOutputsPool {
         }
     }
 
-    pub fn delete_all_from_db(&mut self) {
+    /// Delete all the UTXOs stored in the database. Returns the number of removed UTXOs.
+    pub fn delete_all_from_db(&mut self) -> usize {
         let mut to_remove = vec![];
         for (k, _v) in self.db_iter() {
             // TODO: would this invalidate the iterator?
@@ -229,10 +230,14 @@ impl UnspentOutputsPool {
             to_remove.push(k);
         }
 
+        let total = to_remove.len();
+
         for k in to_remove {
             let removed = self.db_remove(&k);
             assert!(removed.is_some());
         }
+
+        total
     }
 }
 
