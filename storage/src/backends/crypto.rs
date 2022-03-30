@@ -2,7 +2,7 @@
 //!
 //! High-order storage backend that hashes the key and
 //! encrypts/decrypts the value when putting/getting it.
-use crate::storage::{Result, Storage, StorageIterator};
+use crate::storage::{Result, Storage, StorageIterator, WriteBatch};
 use failure::bail;
 use witnet_crypto::{cipher, hash::calculate_sha256, pbkdf2::pbkdf2_sha256};
 use witnet_protected::Protected;
@@ -73,6 +73,10 @@ impl<T: Storage> Storage for Backend<T> {
 
     fn prefix_iterator<'a, 'b: 'a>(&'a self, _prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
         bail!("Iteration is not supported when using encrypted storage")
+    }
+
+    fn write(&self, _batch: WriteBatch) -> Result<()> {
+        todo!()
     }
 }
 

@@ -5,7 +5,7 @@ use failure::Fail;
 #[cfg(test)]
 use rocksdb_mock as rocksdb;
 
-use crate::storage::{Result, Storage, StorageIterator};
+use crate::storage::{Result, Storage, StorageIterator, WriteBatch, WriteBatchItem};
 
 /// Rocksdb backend
 pub type Backend = rocksdb::DB;
@@ -41,6 +41,25 @@ impl Storage for Backend {
             .take_while(move |(k, _v)| k.starts_with(prefix))
             .map(|(k, v)| (k.into(), v.into())),
         ))
+    }
+    /// Atomically write a batch of operations
+    fn write(&self, batch: WriteBatch) -> Result<()> {
+        let mut rocksdb_batch = rocksdb::WriteBatch::default();
+
+        for item in batch.batch {
+            match item {
+                WriteBatchItem::Put(key, value) => {
+                    rocksdb_batch.put(key, value)?;
+                }
+                WriteBatchItem::Delete(key) => {
+                    rocksdb_batch.delete(key)?;
+                }
+            }
+        }
+
+        self.write(rocksdb_batch)?;
+
+        Ok(())
     }
 }
 
@@ -146,6 +165,22 @@ mod rocksdb_mock {
                 skip: 0,
             }
         }
+
+        pub fn write(&self, batch: WriteBatch) -> Result<()> {
+            // TODO: this is not atomic, but it shouldn't matter as it is not used, not even in tests
+            for item in batch.inner.batch {
+                match item {
+                    WriteBatchItem::Put(key, value) => {
+                        self.put(key, value)?;
+                    }
+                    WriteBatchItem::Delete(key) => {
+                        self.delete(&key)?;
+                    }
+                }
+            }
+
+            Ok(())
+        }
     }
 
     pub struct DBIterator<'a, 'b> {
@@ -178,6 +213,25 @@ mod rocksdb_mock {
                 .next();
             self.skip = skip;
             res
+        }
+    }
+
+    #[derive(Default)]
+    pub struct WriteBatch {
+        inner: super::WriteBatch,
+    }
+
+    impl WriteBatch {
+        pub fn put(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
+            self.inner.put(key, value);
+
+            Ok(())
+        }
+
+        pub fn delete(&mut self, key: Vec<u8>) -> Result<()> {
+            self.inner.delete(key);
+
+            Ok(())
         }
     }
 }

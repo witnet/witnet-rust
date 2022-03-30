@@ -3,7 +3,7 @@
 //! Storage backend that keeps data in a heap-allocated HashMap.
 use std::collections::HashMap;
 
-use crate::storage::{Result, Storage, StorageIterator};
+use crate::storage::{Result, Storage, StorageIterator, WriteBatch, WriteBatchItem};
 use std::sync::{RwLock, RwLockReadGuard};
 
 /// HashMap backend
@@ -30,6 +30,23 @@ impl Storage for Backend {
             prefix,
             skip: 0,
         }))
+    }
+
+    fn write(&self, batch: WriteBatch) -> Result<()> {
+        let mut map = self.write().unwrap();
+
+        for item in batch.batch {
+            match item {
+                WriteBatchItem::Put(key, value) => {
+                    map.insert(key, value);
+                }
+                WriteBatchItem::Delete(key) => {
+                    map.remove(&key);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
