@@ -240,11 +240,17 @@ impl UnspentOutputsPool {
         }
     }
 
-    pub fn migrate_old_unspent_outputs_pool_to_db(&mut self, old: &mut OldUnspentOutputsPool) {
+    pub fn migrate_old_unspent_outputs_pool_to_db<F: Fn(usize, usize)>(
+        &mut self,
+        old: &mut OldUnspentOutputsPool,
+        progress: F,
+    ) {
         let mut batch = WriteBatch::default();
+        let total = old.map.len();
 
-        for (k, (v, block_number)) in old.map.drain() {
+        for (i, (k, (v, block_number))) in old.map.drain().enumerate() {
             self.db_insert(&mut batch, k, v, block_number);
+            progress(i, total);
         }
 
         self.db

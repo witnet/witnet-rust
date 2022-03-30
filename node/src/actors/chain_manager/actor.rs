@@ -264,6 +264,15 @@ impl ChainManager {
                         .unspent_outputs_pool
                         .migrate_old_unspent_outputs_pool_to_db(
                             &mut chain_state.unspent_outputs_pool_old_migration_db,
+                            |i, total| {
+                                if i % 10000 == 0 {
+                                    log::info!(
+                                        "UTXO set migration v3: [{}/{}]",
+                                        i,
+                                        total,
+                                    );
+                                }
+                            }
                         );
                     log::info!("Migration completed successfully, saving updated ChainState");
                     // Write the chain state again right after this migration, to ensure that the
