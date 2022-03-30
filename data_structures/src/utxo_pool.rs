@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use witnet_storage::storage::{Storage, WriteBatch, WriteBatchItem};
+use witnet_storage::storage::{Storage, WriteBatch};
 use witnet_util::timestamp::get_timestamp;
 
 /// Unspent Outputs Pool
@@ -79,7 +79,7 @@ impl UnspentOutputsPool {
 
     fn db_get(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
         let key_string = format!("UTXO-{}", k);
-        log::debug!("GET {}", key_string);
+
         self.db
             .as_ref()?
             .get(key_string.as_bytes())
@@ -104,17 +104,6 @@ impl UnspentOutputsPool {
         );
 
         let key_string = format!("UTXO-{}", k);
-        // Also check that the batch does not already have a put with this key
-        // TODO: this check is not needed if the batch is created using self.utxos_to_add
-        let already_in_batch = batch.batch.iter().any(|item| match item {
-            WriteBatchItem::Put(key, _) => key == key_string.as_bytes(),
-            WriteBatchItem::Delete(_) => false,
-        });
-        assert!(
-            !already_in_batch,
-            "Tried to consolidate the same UTXO twice"
-        );
-        log::debug!("PUT {}", key_string);
         batch.put(
             key_string.into_bytes(),
             bincode::serialize(&(v, block_number)).expect("bincode fail"),
@@ -134,21 +123,12 @@ impl UnspentOutputsPool {
         );
 
         let key_string = format!("UTXO-{}", k);
-        // Also check that the batch does not already have a remove with this key
-        // TODO: this check is not needed if the batch is created using self.utxos_to_remove
-        let already_in_batch = batch.batch.iter().any(|item| match item {
-            WriteBatchItem::Put(_, _) => false,
-            WriteBatchItem::Delete(key) => key == key_string.as_bytes(),
-        });
-        assert!(!already_in_batch, "Tried to delete the same UTXO twice");
-        log::debug!("REMOVE {}", key_string);
         batch.delete(key_string.as_bytes().to_vec());
 
         old_vto
     }
 
     fn db_iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
-        log::debug!("UTXO SET ITER");
         self.db
             .as_ref()
             .map(|db| {
