@@ -22,6 +22,7 @@ use witnet_data_structures::chain::ChainState;
 use witnet_storage::{backends, storage, storage::Storage};
 
 pub use node_migrations::*;
+use witnet_storage::storage::WriteBatch;
 
 mod node_migrations;
 
@@ -267,6 +268,20 @@ impl Handler<Delete> for StorageManager {
 
     fn handle(&mut self, Delete(key): Delete, _ctx: &mut Self::Context) -> Self::Result {
         self.backend.delete(key.as_ref())
+    }
+}
+
+struct Batch(WriteBatch);
+
+impl Message for Batch {
+    type Result = Result<(), failure::Error>;
+}
+
+impl Handler<Batch> for StorageManager {
+    type Result = <Batch as Message>::Result;
+
+    fn handle(&mut self, msg: Batch, _ctx: &mut Self::Context) -> Self::Result {
+        self.backend.write(msg.0)
     }
 }
 

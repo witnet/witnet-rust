@@ -68,6 +68,7 @@ use witnet_data_structures::{
 };
 
 use witnet_rad::types::RadonTypes;
+use witnet_storage::storage::WriteBatch;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
     compare_block_candidates, validate_block, validate_block_transactions,
@@ -311,34 +312,43 @@ impl ChainManager {
         self.chain_state
             .unspent_outputs_pool
             .remove_persisted_from_memory(&state.unspent_outputs_pool.diff);
-        state.unspent_outputs_pool.persist();
+        let mut batch = WriteBatch::default();
+        state.unspent_outputs_pool.persist_add_to_batch(&mut batch);
 
-        storage_mngr::put_chain_state(&storage_keys::chain_state_key(self.get_magic()), &state)
-            .into_actor(self)
-            .and_then(|_, _, _| {
-                log::debug!("Successfully persisted previous_chain_state into storage");
-                fut::ok(())
-            })
-            .map_err(|err, _, _| {
-                log::error!(
-                    "Failed to persist previous_chain_state into storage: {}",
-                    err
-                )
-            })
-            .map(|_res: Result<(), ()>, _act, _ctx| ())
-            .wait(ctx);
+        storage_mngr::put_chain_state_in_batch(
+            &storage_keys::chain_state_key(self.get_magic()),
+            &state,
+            batch,
+        )
+        .into_actor(self)
+        .and_then(|_, _, _| {
+            log::debug!("Successfully persisted previous_chain_state into storage");
+            fut::ok(())
+        })
+        .map_err(|err, _, _| {
+            log::error!(
+                "Failed to persist previous_chain_state into storage: {}",
+                err
+            )
+        })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
+        .wait(ctx);
     }
 
     /// Persist an empty `ChainState` to the storage and set the node to `WaitingConsensus`.
     /// This can be used to recover from a forked chain without manually deleting the storage.
     fn delete_chain_state_and_reinitialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         // Delete all the UTXOs from the database
-        self.chain_state.unspent_outputs_pool.delete_all_from_db();
+        let mut batch = WriteBatch::default();
+        self.chain_state
+            .unspent_outputs_pool
+            .delete_all_from_db_batch(&mut batch);
 
         let empty_state = ChainState::default();
-        let fut = storage_mngr::put_chain_state(
+        let fut = storage_mngr::put_chain_state_in_batch(
             &storage_keys::chain_state_key(self.get_magic()),
             &empty_state,
+            batch,
         )
         .into_actor(self)
         .map_err(|err, _, _| {

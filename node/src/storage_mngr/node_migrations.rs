@@ -1,5 +1,6 @@
 use super::*;
 use witnet_data_structures::{chain::ChainState, mainnet_validations::TapiEngine};
+use witnet_storage::storage::WriteBatch;
 
 macro_rules! as_failure {
     ($e:expr) => {
@@ -132,22 +133,19 @@ where
 }
 
 /// Put a value associated to the key into the storage, preceded by a 4-byte version tag
-fn put_versioned<'a, 'b, K>(
-    key: &'a K,
-    value: &'b ChainState,
+fn put_versioned_to_batch<K>(
+    key: &K,
+    value: &ChainState,
     db_version: u32,
-) -> impl Future<Output = Result<(), failure::Error>> + 'static
+    batch: &mut WriteBatch,
+) -> Result<(), failure::Error>
 where
     K: serde::Serialize,
 {
-    let addr = StorageManagerAdapter::from_registry();
-
     let key_bytes = match serialize(key) {
         Ok(x) => x,
         Err(e) => {
-            return futures::future::Either::Left(futures::future::Either::Right(future::ready(
-                Err(e.into()),
-            )))
+            return Err(e.into());
         }
     };
 
@@ -155,20 +153,23 @@ where
     let value_bytes = match bincode::serialize_into(&mut buf, value) {
         Ok(()) => buf,
         Err(e) => {
-            return futures::future::Either::Left(futures::future::Either::Left(future::ready(
-                Err(e.into()),
-            )))
+            return Err(e.into());
         }
     };
 
-    futures::future::Either::Right(async move { addr.send(Put(key_bytes, value_bytes)).await? })
+    batch.put(key_bytes, value_bytes);
+
+    Ok(())
 }
 
-/// Put a value associated to the key into the storage
+/// Put a value associated to the key into the storage.
+/// The value will be atomically written along with the contents of the batch: either it will all
+/// succeed or it will all fail.
 // TODO: how to ensure that we don't accidentally persist the chain state using put instead of put_chain_state?
-pub fn put_chain_state<'a, 'b, K>(
+pub fn put_chain_state_in_batch<'a, 'b, K>(
     key: &'a K,
     chain_state: &'b ChainState,
+    mut batch: WriteBatch,
 ) -> impl Future<Output = Result<(), failure::Error>> + 'static
 where
     K: serde::Serialize + 'static,
@@ -177,7 +178,15 @@ where
     // The first byte of the ChainState db_version must never be 0 or 1,
     // because that can be confused with version 0.
     assert!(db_version.to_le_bytes()[0] >= 2);
-    put_versioned(key, chain_state, db_version)
+
+    let res = put_versioned_to_batch(key, chain_state, db_version, &mut batch);
+
+    let addr = StorageManagerAdapter::from_registry();
+
+    async move {
+        res?;
+        addr.send(Batch(batch)).await?
+    }
 }
 
 #[cfg(test)]

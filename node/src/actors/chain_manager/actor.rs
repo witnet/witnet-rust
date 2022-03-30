@@ -24,7 +24,7 @@ use witnet_data_structures::{
     utxo_pool::OwnUnspentOutputsPool,
     vrf::VrfCtx,
 };
-
+use witnet_storage::storage::WriteBatch;
 use witnet_util::timestamp::pretty_print;
 
 /// Implement Actor trait for `ChainManager`
@@ -277,9 +277,10 @@ impl ChainManager {
                     log::info!("Migration completed successfully, saving updated ChainState");
                     // Write the chain state again right after this migration, to ensure that the
                     // migration is only executed once
-                    let fut = storage_mngr::put_chain_state(
+                    let fut = storage_mngr::put_chain_state_in_batch(
                         &storage_keys::chain_state_key(act.get_magic()),
                         &chain_state,
+                        WriteBatch::default(),
                     )
                         .into_actor(act)
                         .and_then(|_, _, _| {

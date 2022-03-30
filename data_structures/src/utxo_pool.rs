@@ -193,8 +193,19 @@ impl UnspentOutputsPool {
     }
 
     pub fn persist(&mut self) {
-        let mut diff = std::mem::take(&mut self.diff);
         let mut batch = WriteBatch::default();
+
+        self.persist_add_to_batch(&mut batch);
+
+        self.db
+            .as_mut()
+            .expect("no db")
+            .write(batch)
+            .expect("write_batch fail");
+    }
+
+    pub fn persist_add_to_batch(&mut self, batch: &mut WriteBatch) {
+        let mut diff = std::mem::take(&mut self.diff);
         for (k, (v, block_number)) in diff.utxos_to_add.drain() {
             if diff.utxos_to_remove.remove(&k) {
                 // This UTXO would be inserted and then removed, so we can skip both operations.
@@ -205,19 +216,13 @@ impl UnspentOutputsPool {
                     "Tried to consolidate an UTXO that was already consolidated"
                 );
             } else {
-                self.db_insert(&mut batch, k, v, block_number);
+                self.db_insert(batch, k, v, block_number);
             }
         }
 
         for k in diff.utxos_to_remove.drain() {
-            self.db_remove(&mut batch, &k);
+            self.db_remove(batch, &k);
         }
-
-        self.db
-            .as_mut()
-            .expect("no db")
-            .write(batch)
-            .expect("write_batch fail");
     }
 
     pub fn remove_persisted_from_memory(&mut self, persisted: &Diff) {
@@ -254,18 +259,25 @@ impl UnspentOutputsPool {
     pub fn delete_all_from_db(&mut self) -> usize {
         let mut batch = WriteBatch::default();
 
-        let mut total = 0;
-        for (k, _v) in self.db_iter() {
-            let key_string = format!("UTXO-{}", k);
-            batch.delete(key_string.as_bytes().to_vec());
-            total += 1;
-        }
+        let total = self.delete_all_from_db_batch(&mut batch);
 
         self.db
             .as_mut()
             .expect("no db")
             .write(batch)
             .expect("write_batch fail");
+
+        total
+    }
+
+    /// Delete all the UTXOs stored in the database. Returns the number of removed UTXOs.
+    pub fn delete_all_from_db_batch(&mut self, batch: &mut WriteBatch) -> usize {
+        let mut total = 0;
+        for (k, _v) in self.db_iter() {
+            let key_string = format!("UTXO-{}", k);
+            batch.delete(key_string.as_bytes().to_vec());
+            total += 1;
+        }
 
         total
     }
