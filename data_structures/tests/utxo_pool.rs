@@ -148,6 +148,24 @@ fn utxo_set_insert_twice() {
 }
 
 #[test]
+fn utxo_set_insert_and_remove() {
+    // Inserting and removing an UTXO in the same superblock
+    let db = Arc::new(witnet_storage::backends::hashmap::Backend::default());
+    let mut p = UnspentOutputsPool {
+        db: Some(db),
+        ..Default::default()
+    };
+    let v = ValueTransferOutput::default;
+
+    let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
+        .parse()
+        .unwrap();
+    p.insert(k0.clone(), v(), 0);
+    p.remove(&k0);
+    p.persist();
+}
+
+#[test]
 fn utxo_set_insert_same_transaction_different_epoch() {
     // Inserting the same transaction twice with different indexes means a different UTXO
     // so, each UTXO keeps their own block number

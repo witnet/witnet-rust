@@ -216,7 +216,17 @@ impl UnspentOutputsPool {
         let mut diff = std::mem::take(&mut self.diff);
         let mut batch = WriteBatch::default();
         for (k, (v, block_number)) in diff.utxos_to_add.drain() {
-            self.db_insert(&mut batch, k, v, block_number);
+            if diff.utxos_to_remove.remove(&k) {
+                // This UTXO would be inserted and then removed, so we can skip both operations.
+                // But check that the insertion would have been valid, to detect errors.
+                let old_vto = self.get_map(&k);
+                assert_eq!(
+                    old_vto, None,
+                    "Tried to consolidate an UTXO that was already consolidated"
+                );
+            } else {
+                self.db_insert(&mut batch, k, v, block_number);
+            }
         }
 
         for k in diff.utxos_to_remove.drain() {
