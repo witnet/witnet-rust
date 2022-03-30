@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use witnet_storage::storage::Storage;
+use witnet_storage::storage::{Storage, WriteBatch, WriteBatchItem};
 use witnet_util::timestamp::get_timestamp;
 
 /// Unspent Outputs Pool
@@ -89,7 +89,13 @@ impl UnspentOutputsPool {
             })
     }
 
-    fn db_insert(&mut self, k: OutputPointer, v: ValueTransferOutput, block_number: u32) {
+    fn db_insert(
+        &mut self,
+        batch: &mut WriteBatch,
+        k: OutputPointer,
+        v: ValueTransferOutput,
+        block_number: u32,
+    ) {
         // Sanity check that UTXOs are only written once
         let old_vto = self.get_map(&k);
         assert_eq!(
@@ -98,18 +104,28 @@ impl UnspentOutputsPool {
         );
 
         let key_string = format!("UTXO-{}", k);
+        // Also check that the batch does not already have a put with this key
+        // TODO: this check is not needed if the batch is created using self.utxos_to_add
+        let already_in_batch = batch.batch.iter().any(|item| match item {
+            WriteBatchItem::Put(key, _) => key == key_string.as_bytes(),
+            WriteBatchItem::Delete(_) => false,
+        });
+        assert!(
+            !already_in_batch,
+            "Tried to consolidate the same UTXO twice"
+        );
         log::debug!("PUT {}", key_string);
-        self.db
-            .as_mut()
-            .expect("no db")
-            .put(
-                key_string.into_bytes(),
-                bincode::serialize(&(v, block_number)).expect("bincode fail"),
-            )
-            .expect("db fail");
+        batch.put(
+            key_string.into_bytes(),
+            bincode::serialize(&(v, block_number)).expect("bincode fail"),
+        );
     }
 
-    fn db_remove(&mut self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+    fn db_remove(
+        &mut self,
+        batch: &mut WriteBatch,
+        k: &OutputPointer,
+    ) -> Option<(ValueTransferOutput, u32)> {
         // Sanity check that UTXOs are only removed once
         let old_vto = self.get_map(k);
         assert!(
@@ -118,12 +134,15 @@ impl UnspentOutputsPool {
         );
 
         let key_string = format!("UTXO-{}", k);
+        // Also check that the batch does not already have a remove with this key
+        // TODO: this check is not needed if the batch is created using self.utxos_to_remove
+        let already_in_batch = batch.batch.iter().any(|item| match item {
+            WriteBatchItem::Put(_, _) => false,
+            WriteBatchItem::Delete(key) => key == key_string.as_bytes(),
+        });
+        assert!(!already_in_batch, "Tried to delete the same UTXO twice");
         log::debug!("REMOVE {}", key_string);
-        self.db
-            .as_mut()
-            .expect("no db")
-            .delete(key_string.as_bytes())
-            .expect("db fail");
+        batch.delete(key_string.as_bytes().to_vec());
 
         old_vto
     }
@@ -195,13 +214,20 @@ impl UnspentOutputsPool {
 
     pub fn persist(&mut self) {
         let mut diff = std::mem::take(&mut self.diff);
+        let mut batch = WriteBatch::default();
         for (k, (v, block_number)) in diff.utxos_to_add.drain() {
-            self.db_insert(k, v, block_number);
+            self.db_insert(&mut batch, k, v, block_number);
         }
 
         for k in diff.utxos_to_remove.drain() {
-            self.db_remove(&k);
+            self.db_remove(&mut batch, &k);
         }
+
+        self.db
+            .as_mut()
+            .expect("no db")
+            .write(batch)
+            .expect("write_batch fail");
     }
 
     pub fn remove_persisted_from_memory(&mut self, persisted: &Diff) {
@@ -215,27 +241,35 @@ impl UnspentOutputsPool {
     }
 
     pub fn migrate_old_unspent_outputs_pool_to_db(&mut self, old: &mut OldUnspentOutputsPool) {
+        let mut batch = WriteBatch::default();
+
         for (k, (v, block_number)) in old.map.drain() {
-            self.db_insert(k, v, block_number);
+            self.db_insert(&mut batch, k, v, block_number);
         }
+
+        self.db
+            .as_mut()
+            .expect("no db")
+            .write(batch)
+            .expect("write_batch fail");
     }
 
     /// Delete all the UTXOs stored in the database. Returns the number of removed UTXOs.
     pub fn delete_all_from_db(&mut self) -> usize {
-        let mut to_remove = vec![];
+        let mut batch = WriteBatch::default();
+
+        let mut total = 0;
         for (k, _v) in self.db_iter() {
-            // TODO: would this invalidate the iterator?
-            //let removed = self.db_remove(&k);
-            //assert!(removed.is_some());
-            to_remove.push(k);
+            let key_string = format!("UTXO-{}", k);
+            batch.delete(key_string.as_bytes().to_vec());
+            total += 1;
         }
 
-        let total = to_remove.len();
-
-        for k in to_remove {
-            let removed = self.db_remove(&k);
-            assert!(removed.is_some());
-        }
+        self.db
+            .as_mut()
+            .expect("no db")
+            .write(batch)
+            .expect("write_batch fail");
 
         total
     }
