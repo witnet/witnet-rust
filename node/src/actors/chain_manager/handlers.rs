@@ -290,333 +290,348 @@ impl Handler<GetNodeStats> for ChainManager {
 
 /// Handler for AddBlocks message
 impl Handler<AddBlocks> for ChainManager {
-    type Result = SessionUnitResult;
+    type Result = ResponseActFuture<Self, ()>;
 
-    fn handle(&mut self, msg: AddBlocks, ctx: &mut Context<Self>) {
-        log::debug!(
-            "AddBlocks received while StateMachine is in state {:?}",
-            self.sm_state
-        );
+    fn handle(&mut self, msg: AddBlocks, _ctx: &mut Context<Self>) -> ResponseActFuture<Self, ()> {
+        let fut = actix::fut::ok(()).into_actor(self).and_then(|(), act, ctx| -> ResponseActFuture<Self, Result<(), ()>> {
+            log::debug!(
+                "AddBlocks received while StateMachine is in state {:?}",
+                act.sm_state
+            );
 
-        let consensus_constants = self.consensus_constants();
-        let sender = msg.sender;
+            let consensus_constants = act.consensus_constants();
+            let sender = msg.sender;
 
-        match self.sm_state {
-            StateMachine::WaitingConsensus | StateMachine::AlmostSynced => {
-                // In WaitingConsensus state, only allow AddBlocks when the argument is
-                // the genesis block
-                if msg.blocks.len() == 1 && msg.blocks[0].hash() == consensus_constants.genesis_hash
-                {
-                    let block = msg.blocks.into_iter().next().unwrap();
-                    match self.process_requested_block(ctx, block, false) {
-                        Ok(()) => {
-                            log::debug!("Successfully consolidated genesis block");
+            match act.sm_state {
+                StateMachine::WaitingConsensus | StateMachine::AlmostSynced => {
+                    // In WaitingConsensus state, only allow AddBlocks when the argument is
+                    // the genesis block
+                    if msg.blocks.len() == 1 && msg.blocks[0].hash() == consensus_constants.genesis_hash
+                    {
+                        let block = msg.blocks.into_iter().next().unwrap();
+                        match act.process_requested_block(ctx, block, false) {
+                            Ok(()) => {
+                                log::debug!("Successfully consolidated genesis block");
 
-                            // Set last beacon because otherwise the network cannot bootstrap
-                            let sessions_manager = SessionsManager::from_registry();
-                            let last_beacon = LastBeacon {
-                                highest_block_checkpoint: self.get_chain_beacon(),
-                                highest_superblock_checkpoint: self.get_superblock_beacon(),
-                            };
-                            sessions_manager.do_send(SetLastBeacon {
-                                beacon: last_beacon,
-                            });
+                                // Set last beacon because otherwise the network cannot bootstrap
+                                let sessions_manager = SessionsManager::from_registry();
+                                let last_beacon = LastBeacon {
+                                    highest_block_checkpoint: act.get_chain_beacon(),
+                                    highest_superblock_checkpoint: act.get_superblock_beacon(),
+                                };
+                                sessions_manager.do_send(SetLastBeacon {
+                                    beacon: last_beacon,
+                                });
+                            }
+                            Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
                         }
-                        Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
+                    } else {
+                        log::debug!("Unhandled AddBlocks message");
                     }
-                } else {
+                }
+                StateMachine::Synced => {
                     log::debug!("Unhandled AddBlocks message");
                 }
-            }
-            StateMachine::Synced => {
-                log::debug!("Unhandled AddBlocks message");
-            }
-            StateMachine::Synchronizing => {
-                if self.sync_target.is_none() {
-                    log::warn!("Target Beacon is None");
-                    return;
-                }
-
-                if let Some(block) = msg.blocks.get(0) {
-                    let chain_tip = self.get_chain_beacon();
-                    if block.block_header.beacon.checkpoint > chain_tip.checkpoint
-                        && block.block_header.beacon.hash_prev_block != chain_tip.hash_prev_block
-                    {
-                        // During synchronization, if you receive a block that doesn't match with
-                        // your chain tip, you could be forked,so a good practice it is restore
-                        // from storage
-                        log::warn!("Your chain is probably forked");
-
-                        // Clean all outbounds to avoid possible forked outbounds
-                        self.drop_all_outbounds();
-
-                        self.update_state_machine(StateMachine::WaitingConsensus, ctx);
-                        self.initialize_from_storage(ctx);
-                        log::info!("Restored chain state from storage");
-
-                        return;
+                StateMachine::Synchronizing => {
+                    if act.sync_target.is_none() {
+                        log::warn!("Target Beacon is None");
+                        return Box::pin(actix::fut::err(()));
                     }
-                } else {
-                    log::debug!("Received an empty AddBlocks message");
-                    self.update_state_machine(StateMachine::WaitingConsensus, ctx);
-                    return;
-                }
 
-                let sync_target = self
-                    .sync_target
-                    .expect("The sync target should be defined for synchronizing");
+                    if let Some(block) = msg.blocks.get(0) {
+                        let chain_tip = act.get_chain_beacon();
+                        if block.block_header.beacon.checkpoint > chain_tip.checkpoint
+                            && block.block_header.beacon.hash_prev_block != chain_tip.hash_prev_block
+                        {
+                            // During synchronization, if you receive a block that doesn't match with
+                            // your chain tip, you could be forked,so a good practice it is restore
+                            // from storage
+                            log::warn!("Your chain is probably forked");
 
-                let sync_superblock =
-                    self.sync_superblock
-                        .as_ref()
-                        .and_then(|(hash, superblock)| {
-                            if hash == &sync_target.superblock.hash_prev_block {
-                                Some(superblock.clone())
-                            } else {
-                                None
-                            }
-                        });
+                            // Clean all outbounds to avoid possible forked outbounds
+                            act.drop_all_outbounds();
 
-                if sync_superblock.is_none() && sync_target.superblock.checkpoint != 0 {
-                    log::debug!("Received blocks before superblock");
-                    // Received the `AddBlocks` message before the `AddSuperBlock` message.
-                    // We cannot finish the synchronization without the sync_superblock, so in that
-                    // case, ask for the sync_superblock again, and try to handle the `AddBlocks`
-                    // message later
-                    self.request_sync_target_superblock(ctx, sync_target.superblock);
-                    ctx.notify_later(msg, Duration::from_secs(6));
-                    return;
-                }
+                            act.update_state_machine(StateMachine::WaitingConsensus, ctx);
+                            act.initialize_from_storage(ctx);
+                            log::info!("Restored chain state from storage");
 
-                let superblock_period = u32::from(consensus_constants.superblock_period);
-
-                // Split received blocks into batches according to 3 different cases:
-                // 1. TargetNotReached: superblock target not reachable with the received block batch.
-                // 2. SyncWithoutCandidate: target superblock needs to be consolidated, but no
-                // candidate superblock should be built.
-                // 3. SyncWithCandidate: target superblock needs to be consolidated, and a candidate
-                // superblock should be built.
-                let block_batches = split_blocks_batch_at_target(
-                    |b| b.block_header.beacon.checkpoint,
-                    msg.blocks,
-                    self.current_epoch.unwrap(),
-                    &sync_target,
-                    superblock_period,
-                );
-
-                match block_batches {
-                    // TargetNotReached:
-                    // 1. process blocks (not yet ready for consolidation)
-                    // 2. requests block batch -> revert to WaitingConsensus
-                    Ok(TargetNotReached(blocks)) => {
-                        let (batch_succeeded, num_processed_blocks) =
-                            self.process_first_batch(ctx, &sync_target, &blocks);
-                        if !batch_succeeded {
-                            self.drop_all_outbounds_and_ice_sender(sender);
-
-                            return;
+                            return Box::pin(actix::fut::err(()));
                         }
-
-                        // Persist blocks batch when target not reached
-                        self.persist_blocks_batch(ctx, blocks);
-                        let to_be_stored =
-                            self.chain_state.data_request_pool.finished_data_requests();
-                        self.persist_data_requests(ctx, to_be_stored);
-
-                        log::debug!("TargetNotReached: superblock target #{} not reached, requesting more blocks. ({} processed blocks)",
-                            sync_target.superblock.checkpoint, num_processed_blocks);
-                        self.request_blocks_batch(ctx);
-
-                        // Copy current chain state into previous chain state, and persist it
-                        self.persist_chain_state(None, ctx);
+                    } else {
+                        log::debug!("Received an empty AddBlocks message");
+                        act.update_state_machine(StateMachine::WaitingConsensus, ctx);
+                        return Box::pin(actix::fut::err(()));
                     }
-                    // SyncWithoutCandidate:
-                    // 1. process blocks
-                    // 2. construct consolidated superblock (if needed)
-                    // 3. handle remaining blocks
-                    Ok(SyncWithoutCandidate(consolidate_blocks, remainig_blocks)) => {
-                        let (batch_succeeded, num_processed_blocks) =
-                            self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
-                        if !batch_succeeded {
-                            self.drop_all_outbounds_and_ice_sender(sender);
 
-                            return;
-                        }
-                        log_sync_progress(
-                            &sync_target,
-                            &consolidate_blocks,
-                            num_processed_blocks,
-                            "SyncWithoutCandidate(consolidation)",
-                        );
+                    let sync_target = act
+                        .sync_target
+                        .expect("The sync target should be defined for synchronizing");
 
-                        if let Some(consolidate_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
-                            // We need to persist blocks in order to be able to construct the
-                            // superblock
-                            self.persist_blocks_batch(ctx, consolidate_blocks);
-                            let to_be_stored =
-                                self.chain_state.data_request_pool.finished_data_requests();
-                            self.persist_data_requests(ctx, to_be_stored);
-                            // Create superblocks while synchronizing but do not broadcast them
-                            // This is needed to ensure that we can validate the received superblocks later on
-                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
-                            Either::Left(
-                                self.try_consolidate_superblock(consolidate_epoch, sync_target, sync_superblock)
-                            )
-                        } else {
-                            // No need to construct a superblock again,
-                            Either::Right(actix::fut::ok(()))
-                        }
-                            .and_then(move |(), act, ctx| {
-                                act.update_state_machine(StateMachine::WaitingConsensus, ctx);
-                                // Process remaining blocks
-                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remainig_blocks);
-                                if !batch_succeeded {
-                                    act.drop_all_outbounds_and_ice_sender(sender);
-
-                                    return actix::fut::err(());
+                    let sync_superblock =
+                        act.sync_superblock
+                            .as_ref()
+                            .and_then(|(hash, superblock)| {
+                                if hash == &sync_target.superblock.hash_prev_block {
+                                    Some(superblock.clone())
+                                } else {
+                                    None
                                 }
-                                log_sync_progress(&sync_target, &remainig_blocks, num_processed_blocks, "SyncWithoutCandidate(remaining)");
+                            });
 
-                                actix::fut::ok(())
-                            })
-                            .map(|_res: Result<(), ()>, _act, _ctx| ())
-                            .wait(ctx);
+                    if sync_superblock.is_none() && sync_target.superblock.checkpoint != 0 {
+                        log::debug!("Received blocks before superblock");
+                        // Received the `AddBlocks` message before the `AddSuperBlock` message.
+                        // We cannot finish the synchronization without the sync_superblock, so in that
+                        // case, ask for the sync_superblock again, and try to handle the `AddBlocks`
+                        // message later
+                        act.request_sync_target_superblock(ctx, sync_target.superblock);
+                        ctx.notify_later(msg, Duration::from_secs(6));
+                        return Box::pin(actix::fut::err(()));
                     }
-                    // SyncWithCandidate:
-                    // 1. process blocks
-                    // 2. construct consolidated superblock (if needed)
-                    // 3. build and vote new candidate superblock
-                    // 4. process remaining blocks
-                    Ok(SyncWithCandidate(
-                        consolidate_blocks,
-                        candidate_blocks,
-                        remaining_blocks,
-                    )) => {
-                        let (batch_succeeded, num_processed_blocks) =
-                            self.process_first_batch(ctx, &sync_target, &consolidate_blocks);
-                        if !batch_succeeded {
-                            self.drop_all_outbounds_and_ice_sender(sender);
 
-                            return;
-                        }
-                        log_sync_progress(
-                            &sync_target,
-                            &consolidate_blocks,
-                            num_processed_blocks,
-                            "SyncWithCandidate(consolidation)",
-                        );
+                    let superblock_period = u32::from(consensus_constants.superblock_period);
 
-                        if let Some(consolidate_superblock_epoch) = self.superblock_consolidation_is_needed(&sync_target, superblock_period) {
-                            // We need to persist blocks in order to be able to construct the
-                            // superblock
-                            self.persist_blocks_batch(ctx, consolidate_blocks);
+                    // Split received blocks into batches according to 3 different cases:
+                    // 1. TargetNotReached: superblock target not reachable with the received block batch.
+                    // 2. SyncWithoutCandidate: target superblock needs to be consolidated, but no
+                    // candidate superblock should be built.
+                    // 3. SyncWithCandidate: target superblock needs to be consolidated, and a candidate
+                    // superblock should be built.
+                    let block_batches = split_blocks_batch_at_target(
+                        |b| b.block_header.beacon.checkpoint,
+                        msg.blocks,
+                        act.current_epoch.unwrap(),
+                        &sync_target,
+                        superblock_period,
+                    );
+
+                    match block_batches {
+                        // TargetNotReached:
+                        // 1. process blocks (not yet ready for consolidation)
+                        // 2. requests block batch -> revert to WaitingConsensus
+                        Ok(TargetNotReached(blocks)) => {
+                            let (batch_succeeded, num_processed_blocks) =
+                                act.process_first_batch(ctx, &sync_target, &blocks);
+                            if !batch_succeeded {
+                                act.drop_all_outbounds_and_ice_sender(sender);
+
+                                return Box::pin(actix::fut::err(()));
+                            }
+
+                            // Persist blocks batch when target not reached
+                            act.persist_blocks_batch(ctx, blocks);
                             let to_be_stored =
-                                self.chain_state.data_request_pool.finished_data_requests();
-                            self.persist_data_requests(ctx, to_be_stored);
-                            // Create superblocks while synchronizing but do not broadcast them
-                            // This is needed to ensure that we can validate the received superblocks later on
-                            log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
-                            Either::Left(
-                                self.try_consolidate_superblock(consolidate_superblock_epoch, sync_target, sync_superblock)
-                            )
-                        } else {
-                            // No need to construct a superblock again,
-                            Either::Right(actix::fut::ok(()))
+                                act.chain_state.data_request_pool.finished_data_requests();
+                            act.persist_data_requests(ctx, to_be_stored);
+
+                            log::debug!("TargetNotReached: superblock target #{} not reached, requesting more blocks. ({} processed blocks)",
+                            sync_target.superblock.checkpoint, num_processed_blocks);
+                            act.request_blocks_batch(ctx);
+
+                            // Copy current chain state into previous chain state, and persist it
+                            return act.persist_chain_state(None);
                         }
-                            .and_then({
-                                move |(), act, ctx| {
+                        // SyncWithoutCandidate:
+                        // 1. process blocks
+                        // 2. construct consolidated superblock (if needed)
+                        // 3. handle remaining blocks
+                        Ok(SyncWithoutCandidate(consolidate_blocks, remainig_blocks)) => {
+                            let (batch_succeeded, num_processed_blocks) =
+                                act.process_first_batch(ctx, &sync_target, &consolidate_blocks);
+                            if !batch_succeeded {
+                                act.drop_all_outbounds_and_ice_sender(sender);
+
+                                return Box::pin(actix::fut::err(()));
+                            }
+                            log_sync_progress(
+                                &sync_target,
+                                &consolidate_blocks,
+                                num_processed_blocks,
+                                "SyncWithoutCandidate(consolidation)",
+                            );
+
+                            if let Some(consolidate_epoch) = act.superblock_consolidation_is_needed(&sync_target, superblock_period) {
+                                // We need to persist blocks in order to be able to construct the
+                                // superblock
+                                act.persist_blocks_batch(ctx, consolidate_blocks);
+                                let to_be_stored =
+                                    act.chain_state.data_request_pool.finished_data_requests();
+                                act.persist_data_requests(ctx, to_be_stored);
+                                // Create superblocks while synchronizing but do not broadcast them
+                                // This is needed to ensure that we can validate the received superblocks later on
+                                log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_epoch);
+                                Either::Left(
+                                    act.try_consolidate_superblock(consolidate_epoch, sync_target, sync_superblock)
+                                )
+                            } else {
+                                // No need to construct a superblock again,
+                                Either::Right(actix::fut::ok(()))
+                            }
+                                .and_then(move |(), act, ctx| {
+                                    act.update_state_machine(StateMachine::WaitingConsensus, ctx);
                                     // Process remaining blocks
-                                    let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &candidate_blocks);
+                                    let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remainig_blocks);
                                     if !batch_succeeded {
                                         act.drop_all_outbounds_and_ice_sender(sender);
 
+                                        return actix::fut::err(());
+                                    }
+                                    log_sync_progress(&sync_target, &remainig_blocks, num_processed_blocks, "SyncWithoutCandidate(remaining)");
+
+                                    actix::fut::ok(())
+                                })
+                                .map(|_res: Result<(), ()>, _act, _ctx| ())
+                                .wait(ctx);
+                        }
+                        // SyncWithCandidate:
+                        // 1. process blocks
+                        // 2. construct consolidated superblock (if needed)
+                        // 3. build and vote new candidate superblock
+                        // 4. process remaining blocks
+                        Ok(SyncWithCandidate(
+                               consolidate_blocks,
+                               candidate_blocks,
+                               remaining_blocks,
+                           )) => {
+                            let (batch_succeeded, num_processed_blocks) =
+                                act.process_first_batch(ctx, &sync_target, &consolidate_blocks);
+                            if !batch_succeeded {
+                                act.drop_all_outbounds_and_ice_sender(sender);
+
+                                return Box::pin(actix::fut::err(()));
+                            }
+                            log_sync_progress(
+                                &sync_target,
+                                &consolidate_blocks,
+                                num_processed_blocks,
+                                "SyncWithCandidate(consolidation)",
+                            );
+
+                            if let Some(consolidate_superblock_epoch) = act.superblock_consolidation_is_needed(&sync_target, superblock_period) {
+                                // We need to persist blocks in order to be able to construct the
+                                // superblock
+                                act.persist_blocks_batch(ctx, consolidate_blocks);
+                                let to_be_stored =
+                                    act.chain_state.data_request_pool.finished_data_requests();
+                                act.persist_data_requests(ctx, to_be_stored);
+                                // Create superblocks while synchronizing but do not broadcast them
+                                // This is needed to ensure that we can validate the received superblocks later on
+                                log::debug!("Will construct superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint, consolidate_superblock_epoch);
+                                Either::Left(
+                                    act.try_consolidate_superblock(consolidate_superblock_epoch, sync_target, sync_superblock)
+                                )
+                            } else {
+                                // No need to construct a superblock again,
+                                Either::Right(actix::fut::ok(()))
+                            }
+                                .and_then({
+                                    move |(), act, ctx| {
+                                        // Process remaining blocks
+                                        let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &candidate_blocks);
+                                        if !batch_succeeded {
+                                            act.drop_all_outbounds_and_ice_sender(sender);
+
+                                            act.update_state_machine(StateMachine::WaitingConsensus, ctx);
+
+                                            return actix::fut::err(());
+                                        }
+                                        log_sync_progress(&sync_target, &candidate_blocks, num_processed_blocks, "SyncWithCandidate(candidate)");
+
+                                        // Update ARS if there were no blocks right before the epoch during
+                                        // which we should construct the target superblock
+                                        let candidate_superblock_checkpoint = act.current_epoch.unwrap() / superblock_period;
+
+                                        // We need to persist blocks in order to be able to construct the
+                                        // superblock
+                                        act.persist_blocks_batch(ctx, candidate_blocks);
+                                        let to_be_stored =
+                                            act.chain_state.data_request_pool.finished_data_requests();
+                                        act.persist_data_requests(ctx, to_be_stored);
+
+                                        log::info!("Block sync target achieved");
+                                        // Target achieved, go back to state 1
                                         act.update_state_machine(StateMachine::WaitingConsensus, ctx);
+
+                                        // We must construct the second superblock in order to be able
+                                        // to validate the votes for this superblock later
+                                        log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, candidate_superblock_checkpoint * superblock_period);
+
+                                        actix::fut::ok(candidate_superblock_checkpoint)
+                                    }
+                                })
+                                .and_then(move |candidate_superblock_checkpoint, act, _ctx| {
+                                    if let Some(candidate_superblock_epoch) = act.superblock_candidate_is_needed(candidate_superblock_checkpoint, superblock_period) {
+                                        Either::Left(act.build_and_vote_candidate_superblock(candidate_superblock_epoch).map_ok(move |_, act, _| {
+                                            let superblock_index = candidate_superblock_epoch / superblock_period;
+                                            // Copy current chain state into previous chain state, but do not persist it yet
+                                            act.move_chain_state_forward(superblock_index);
+                                        }))
+                                    }
+                                    else{
+                                        Either::Right(actix::fut::ok(()))
+                                    }
+                                })
+                                .and_then(move |_, act, ctx| {
+                                    // Process remaining blocks
+                                    let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
+                                    if !batch_succeeded {
+                                        act.drop_all_outbounds_and_ice_sender(sender);
+
+                                        log::error!("Received invalid blocks batch...");
+                                        act.update_state_machine(StateMachine::WaitingConsensus, ctx);
+                                        act.sync_waiting_for_add_blocks_since = None;
 
                                         return actix::fut::err(());
                                     }
-                                    log_sync_progress(&sync_target, &candidate_blocks, num_processed_blocks, "SyncWithCandidate(candidate)");
-
-                                    // Update ARS if there were no blocks right before the epoch during
-                                    // which we should construct the target superblock
-                                    let candidate_superblock_checkpoint = act.current_epoch.unwrap() / superblock_period;
-
-                                    // We need to persist blocks in order to be able to construct the
-                                    // superblock
-                                    act.persist_blocks_batch(ctx, candidate_blocks);
-                                    let to_be_stored =
-                                        act.chain_state.data_request_pool.finished_data_requests();
-                                    act.persist_data_requests(ctx, to_be_stored);
-
+                                    log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
                                     log::info!("Block sync target achieved");
                                     // Target achieved, go back to state 1
                                     act.update_state_machine(StateMachine::WaitingConsensus, ctx);
-
-                                    // We must construct the second superblock in order to be able
-                                    // to validate the votes for this superblock later
-                                    log::debug!("Will construct the second superblock during synchronization. Superblock index: {} Epoch {}", sync_target.superblock.checkpoint + 1, candidate_superblock_checkpoint * superblock_period);
-
-                                    actix::fut::ok(candidate_superblock_checkpoint)
-                                }
-                            })
-                            .and_then(move |candidate_superblock_checkpoint, act, _ctx| {
-                                if let Some(candidate_superblock_epoch) = act.superblock_candidate_is_needed(candidate_superblock_checkpoint, superblock_period) {
-                                    Either::Left(act.build_and_vote_candidate_superblock(candidate_superblock_epoch).map_ok(move |_, act, _| {
-                                        let superblock_index = candidate_superblock_epoch / superblock_period;
-                                        // Copy current chain state into previous chain state, but do not persist it yet
-                                        act.move_chain_state_forward(superblock_index);
-                                    }))
-                                }
-                                else{
-                                    Either::Right(actix::fut::ok(()))
-                                }
-                            })
-                            .and_then(move |_, act, ctx| {
-                                // Process remaining blocks
-                                let (batch_succeeded, num_processed_blocks) = act.process_blocks_batch(ctx, &sync_target, &remaining_blocks);
-                                if !batch_succeeded {
-                                    act.drop_all_outbounds_and_ice_sender(sender);
-
-                                    log::error!("Received invalid blocks batch...");
-                                    act.update_state_machine(StateMachine::WaitingConsensus, ctx);
-                                    act.sync_waiting_for_add_blocks_since = None;
-
-                                    return actix::fut::err(());
-                                }
-                                log_sync_progress(&sync_target, &remaining_blocks, num_processed_blocks, "SyncWithCandidate(remaining)");
-                                log::info!("Block sync target achieved");
-                                // Target achieved, go back to state 1
-                                act.update_state_machine(StateMachine::WaitingConsensus, ctx);
-                                actix::fut::ok(())
-                            })
-                            .map(|_res: Result<(), ()>, _act, _ctx| ())
-                            .wait(ctx);
-                    }
-                    Err(ChainManagerError::WrongBlocksForSuperblock {
-                        wrong_index,
-                        consolidated_superblock_index,
-                        current_superblock_index,
-                    }) => {
-                        log::warn!("Received unexpected block {} for superblock index (consolidated: {}, current {}). Delaying synchronization until next epoch.",
+                                    actix::fut::ok(())
+                                })
+                                .map(|_res: Result<(), ()>, _act, _ctx| ())
+                                .wait(ctx);
+                        }
+                        Err(ChainManagerError::WrongBlocksForSuperblock {
+                                wrong_index,
+                                consolidated_superblock_index,
+                                current_superblock_index,
+                            }) => {
+                            log::warn!("Received unexpected block {} for superblock index (consolidated: {}, current {}). Delaying synchronization until next epoch.",
                             wrong_index,
                             consolidated_superblock_index,
                             current_superblock_index,
 
                         );
-                        self.update_state_machine(StateMachine::WaitingConsensus, ctx);
-                        self.sync_waiting_for_add_blocks_since = None;
-                    }
-                    Err(e) => {
-                        log::error!("Unexpected error while splitting received blocks {:?}", e)
-                    }
-                };
-            }
-        };
+                            act.update_state_machine(StateMachine::WaitingConsensus, ctx);
+                            act.sync_waiting_for_add_blocks_since = None;
+                        }
+                        Err(e) => {
+                            log::error!("Unexpected error while splitting received blocks {:?}", e)
+                        }
+                    };
+                }
+            };
 
-        // TODO: check when `sync_waiting_for_add_blocks_since` is set
-        // If we are not synchronizing, forget about when we started synchronizing
-        if self.sm_state != StateMachine::Synchronizing {
-            self.sync_waiting_for_add_blocks_since = None;
-        }
+            // TODO: check when `sync_waiting_for_add_blocks_since` is set
+            // If we are not synchronizing, forget about when we started synchronizing
+            if act.sm_state != StateMachine::Synchronizing {
+                act.sync_waiting_for_add_blocks_since = None;
+            }
+
+            Box::pin(actix::fut::err(()))
+        }).and_then(|(), act, _ctx| {
+            // TODO: check when `sync_waiting_for_add_blocks_since` is set
+            // If we are not synchronizing, forget about when we started synchronizing
+            if act.sm_state != StateMachine::Synchronizing {
+                act.sync_waiting_for_add_blocks_since = None;
+            }
+
+            actix::fut::ok(())
+        })
+            .map(|_res: Result<(), ()>, _act, _ctx| ());
+
+        Box::pin(fut)
     }
 }
 
@@ -1729,7 +1744,10 @@ impl Handler<Rewind> for ChainManager {
                 act.resync_from_storage(old_block_chain, ctx, |act, ctx| {
                     // After the resync is done:
                     // Persist chain state to storage
-                    act.persist_chain_state(None, ctx);
+                    ctx.wait(
+                        act.persist_chain_state(None)
+                            .map(|_res: Result<(), ()>, _act, _ctx| ()),
+                    );
                     // Set outbound limit back to the old value
                     async {
                         let config = config_mngr::get().await.expect("failed to read config");

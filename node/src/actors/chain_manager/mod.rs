@@ -31,6 +31,7 @@ use std::{
     convert::{TryFrom, TryInto},
     future,
     net::SocketAddr,
+    pin::Pin,
     time::Duration,
 };
 
@@ -261,12 +262,15 @@ impl SystemService for ChainManager {}
 impl ChainManager {
     /// Persist previous chain state into storage
     /// None case: persist current chain state into storage (during synchronization)
-    fn persist_chain_state(&mut self, superblock_index: Option<u32>, ctx: &mut Context<Self>) {
+    fn persist_chain_state(
+        &mut self,
+        superblock_index: Option<u32>,
+    ) -> ResponseActFuture<Self, Result<(), ()>> {
         let previous_chain_state = if let Some(superblock_index) = superblock_index {
             let chain_state_snapshot = self.chain_state_snapshot.restore(superblock_index);
 
             if chain_state_snapshot.is_none() {
-                return;
+                return Box::pin(actix::fut::ok(()));
             }
 
             chain_state_snapshot.unwrap()
@@ -315,7 +319,7 @@ impl ChainManager {
         let mut batch = WriteBatch::default();
         state.unspent_outputs_pool.persist_add_to_batch(&mut batch);
 
-        storage_mngr::put_chain_state_in_batch(
+        let fut = storage_mngr::put_chain_state_in_batch(
             &storage_keys::chain_state_key(self.get_magic()),
             &state,
             batch,
@@ -330,9 +334,9 @@ impl ChainManager {
                 "Failed to persist previous_chain_state into storage: {}",
                 err
             )
-        })
-        .map(|_res: Result<(), ()>, _act, _ctx| ())
-        .wait(ctx);
+        });
+
+        Box::pin(fut)
     }
 
     /// Persist an empty `ChainState` to the storage and set the node to `WaitingConsensus`.
@@ -1376,9 +1380,8 @@ impl ChainManager {
 
                     // Copy current chain state into previous chain state, and persist it
                     act.move_chain_state_forward(sync_target.superblock.checkpoint);
-                    act.persist_chain_state(Some(sync_target.superblock.checkpoint), ctx);
 
-                    actix::fut::ok(())
+                    act.persist_chain_state(Some(sync_target.superblock.checkpoint))
                 } else {
                     // The superblock hash is different from what it should be.
                     log::error!(
@@ -1394,7 +1397,7 @@ impl ChainManager {
 
                     // If we are not synchronizing, forget about when we started synchronizing
                     act.sync_waiting_for_add_blocks_since = None;
-                    actix::fut::err(())
+                    Box::pin(actix::fut::err(()))
                 }
             });
 
@@ -1504,114 +1507,18 @@ impl ChainManager {
                         act.chain_state.chain_info.as_mut().unwrap().highest_superblock_checkpoint =
                             act.chain_state.superblock_state.get_beacon();
 
-                        if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
+                        let fut: Pin<Box<dyn ActorFuture<Self, Output = Result<_, ()>>>> = if act.sm_state == StateMachine::Synced || act.sm_state == StateMachine::AlmostSynced {
                             // Persist previous_chain_state with current superblock_state
-                            act.persist_chain_state(Some(voted_superblock_beacon.checkpoint), ctx);
-                            act.move_chain_state_forward(superblock_index);
-                        }
+                            Box::pin(act.persist_chain_state(Some(voted_superblock_beacon.checkpoint)).map(move |_res: Result<(), ()>, act, _ctx| {
+                                act.move_chain_state_forward(superblock_index);
 
-                        if let Some(consolidated_superblock) = act.chain_state.superblock_state.get_current_superblock() {
-                            let sb_hash = consolidated_superblock.hash();
-                            // Let JSON-RPC clients know that the blocks in the previous superblock can now
-                            // be considered consolidated
-                            act.notify_superblock_consolidation(consolidated_superblock);
+                                Ok((block_headers, last_hash))
+                            }))
+                        } else {
+                            Box::pin(actix::fut::ok((block_headers, last_hash)))
+                        };
 
-                            log::info!("Consensus reached for Superblock #{} with {} out of {} votes. Committee size: {}",
-                                       voted_superblock_beacon.checkpoint,
-                                       act.chain_state.superblock_state.votes_counter_from_superblock(&sb_hash),
-                                       act.chain_state.superblock_state.valid_votes_counter(),
-                                       act.chain_state.superblock_state.get_committee_length(),
-                            );
-                            log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
-                            log::debug!(
-                                "The last block of the consolidated superblock is {}",
-                                last_hash
-                            );
-
-                            // Update mempool after superblock consolidation
-                            act.transactions_pool.update_unconfirmed_transactions();
-                        }
-
-                        let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-                        let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
-                        let last_superblock_signed_by_bootstrap = last_superblock_signed_by_bootstrap(&chain_info.consensus_constants);
-
-                        let ars_members =
-                            // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
-                            // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
-                            // the bootstrap committee signs is at least epoch activity_period + collateral_age
-                            if let Some(ars_members) = in_emergency_period(superblock_index, get_environment()) {
-                                // Bootstrap committee
-                                ars_members
-                            } else if superblock_index >= last_superblock_signed_by_bootstrap {
-                                reputation_engine.get_rep_ordered_ars_list()
-                            } else {
-                                chain_info
-                                    .consensus_constants
-                                    .bootstrapping_committee
-                                    .iter()
-                                    .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                                    .collect()
-                            };
-
-                    // Get the list of members of the ARS with reputation greater than 0
-                    // the list itself is ordered by decreasing reputation
-                    let ars_identities = ARSIdentities::new(ars_members);
-
-                    // After the second hard fork, the superblock committee size must be at least 50
-                    let min_committee_size = if after_second_hard_fork(block_epoch, get_environment()) {
-                        50
-                    } else {
-                        // Before that hard fork, the minimum was 1 identity
-                        1
-                    };
-
-                    // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
-                    let committee_size = current_committee_size_requirement(
-                        consensus_constants.superblock_signing_committee_size,
-                        act.chain_state.superblock_state.get_committee_length(),
-                        consensus_constants.superblock_committee_decreasing_period,
-                        consensus_constants.superblock_committee_decreasing_step,
-                        chain_info.highest_superblock_checkpoint.checkpoint,
-                        superblock_index,
-                        last_superblock_signed_by_bootstrap,
-                        min_committee_size,
-                    );
-
-                    let superblock = act.chain_state.superblock_state.build_superblock(
-                        &block_headers,
-                        ars_identities,
-                        committee_size,
-                        superblock_index,
-                        last_hash,
-                        &act.chain_state.alt_keys,
-                        sync_superblock,
-                        block_epoch,
-                    );
-
-                    // Put the local superblock into chain state
-                    act.chain_state
-                        .superblock_state
-                        .set_current_superblock(superblock.clone());
-
-                    // Update last superblock consensus in ChainManager
-                    act.last_superblock_consensus = Some(voted_superblock_beacon);
-
-                    // Set last beacon in sessions manager
-                    let sessions_manager_addr = SessionsManager::from_registry();
-                    let chain_beacon = act.get_chain_beacon();
-                    sessions_manager_addr.do_send(SetLastBeacon {
-                        beacon: LastBeacon{
-                            highest_block_checkpoint: chain_beacon,
-                            highest_superblock_checkpoint: voted_superblock_beacon,
-                        },
-                    });
-
-                    // Remove superblock beacon target in order to use our own SuperBlockBeacon that
-                    // in this case is the same that the consensus one
-                    sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: None});
-
-                    actix::fut::ok(superblock)
+                        fut
                 }
                 SuperBlockConsensus::Different(target_superblock_hash) => {
                     // No consensus: move to waiting consensus and restore chain_state from storage
@@ -1641,7 +1548,7 @@ impl ChainManager {
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
-                    actix::fut::err(())
+                    Box::pin(actix::fut::err(()))
                 }
                 SuperBlockConsensus::NoConsensus => {
                     // No consensus: move to AlmostSynced and restore chain_state from storage
@@ -1670,7 +1577,7 @@ impl ChainManager {
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::AlmostSynced, ctx);
 
-                    actix::fut::err(())
+                    Box::pin(actix::fut::err(()))
                 }
                 SuperBlockConsensus::Unknown => {
                     // Consensus unknown: move to waiting consensus and restore chain_state from storage
@@ -1699,10 +1606,114 @@ impl ChainManager {
                     act.initialize_from_storage(ctx);
                     act.update_state_machine(StateMachine::WaitingConsensus, ctx);
 
-                    actix::fut::err(())
+                    Box::pin(actix::fut::err(()))
                 }
             }
-        });
+        })
+            .and_then(move |(block_headers, last_hash), act, _ctx|  {
+                if let Some(consolidated_superblock) = act.chain_state.superblock_state.get_current_superblock() {
+                    let sb_hash = consolidated_superblock.hash();
+                    // Let JSON-RPC clients know that the blocks in the previous superblock can now
+                    // be considered consolidated
+                    act.notify_superblock_consolidation(consolidated_superblock);
+
+                    log::info!("Consensus reached for Superblock #{} with {} out of {} votes. Committee size: {}",
+                                       voted_superblock_beacon.checkpoint,
+                                       act.chain_state.superblock_state.votes_counter_from_superblock(&sb_hash),
+                                       act.chain_state.superblock_state.valid_votes_counter(),
+                                       act.chain_state.superblock_state.get_committee_length(),
+                            );
+                    log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
+                    log::debug!(
+                                "The last block of the consolidated superblock is {}",
+                                last_hash
+                            );
+
+                    // Update mempool after superblock consolidation
+                    act.transactions_pool.update_unconfirmed_transactions();
+                }
+
+                let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+                let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
+                let last_superblock_signed_by_bootstrap = last_superblock_signed_by_bootstrap(&chain_info.consensus_constants);
+
+                let ars_members =
+                    // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
+                    // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
+                    // the bootstrap committee signs is at least epoch activity_period + collateral_age
+                    if let Some(ars_members) = in_emergency_period(superblock_index, get_environment()) {
+                        // Bootstrap committee
+                        ars_members
+                    } else if superblock_index >= last_superblock_signed_by_bootstrap {
+                        reputation_engine.get_rep_ordered_ars_list()
+                    } else {
+                        chain_info
+                            .consensus_constants
+                            .bootstrapping_committee
+                            .iter()
+                            .map(|add| add.parse().expect("Malformed bootstrapping committee"))
+                            .collect()
+                    };
+
+                // Get the list of members of the ARS with reputation greater than 0
+                // the list itself is ordered by decreasing reputation
+                let ars_identities = ARSIdentities::new(ars_members);
+
+                // After the second hard fork, the superblock committee size must be at least 50
+                let min_committee_size = if after_second_hard_fork(block_epoch, get_environment()) {
+                    50
+                } else {
+                    // Before that hard fork, the minimum was 1 identity
+                    1
+                };
+
+                // Committee size should decrease if sufficient epochs have elapsed since last confirmed superblock
+                let committee_size = current_committee_size_requirement(
+                    consensus_constants.superblock_signing_committee_size,
+                    act.chain_state.superblock_state.get_committee_length(),
+                    consensus_constants.superblock_committee_decreasing_period,
+                    consensus_constants.superblock_committee_decreasing_step,
+                    chain_info.highest_superblock_checkpoint.checkpoint,
+                    superblock_index,
+                    last_superblock_signed_by_bootstrap,
+                    min_committee_size,
+                );
+
+                let superblock = act.chain_state.superblock_state.build_superblock(
+                    &block_headers,
+                    ars_identities,
+                    committee_size,
+                    superblock_index,
+                    last_hash,
+                    &act.chain_state.alt_keys,
+                    sync_superblock,
+                    block_epoch,
+                );
+
+                // Put the local superblock into chain state
+                act.chain_state
+                    .superblock_state
+                    .set_current_superblock(superblock.clone());
+
+                // Update last superblock consensus in ChainManager
+                act.last_superblock_consensus = Some(voted_superblock_beacon);
+
+                // Set last beacon in sessions manager
+                let sessions_manager_addr = SessionsManager::from_registry();
+                let chain_beacon = act.get_chain_beacon();
+                sessions_manager_addr.do_send(SetLastBeacon {
+                    beacon: LastBeacon{
+                        highest_block_checkpoint: chain_beacon,
+                        highest_superblock_checkpoint: voted_superblock_beacon,
+                    },
+                });
+
+                // Remove superblock beacon target in order to use our own SuperBlockBeacon that
+                // in this case is the same that the consensus one
+                sessions_manager_addr.do_send(SetSuperBlockTargetBeacon {beacon: None});
+
+                actix::fut::ok(superblock)
+            });
 
         Box::pin(fut)
     }
