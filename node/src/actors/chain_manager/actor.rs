@@ -36,7 +36,7 @@ impl Actor for ChainManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("ChainManager actor has been started!");
 
-        self.check_only_one_chain_state_in_storage(ctx);
+        ctx.wait(Self::check_only_one_chain_state_in_storage().into_actor(self));
 
         self.initialize_from_storage(ctx);
 
@@ -390,51 +390,91 @@ impl ChainManager {
     /// to allow having multiple ChainStates for multiple testnets. This function will panic in that
     /// case because multiple ChainStates are incompatible with storing UTXOs as keys in the
     /// database.
-    pub fn check_only_one_chain_state_in_storage(&mut self, ctx: &mut Context<ChainManager>) {
-        let fut = config_mngr::get()
-            .into_actor(self)
-            .map_err(|err, _act, _ctx| {
-                log::error!("Couldn't get config: {}", err);
-            })
-            .and_then(|config, act, _ctx| {
-                storage_mngr::get_backend()
-                    .into_actor(act)
-                    .map_err(|err, _act, _ctx| {
-                        log::error!("Failed to get storage backend: {}", err);
-                    })
-                    .map_ok(move |backend, _act, _ctx| (config, backend))
-            })
-            .map_ok(|(config, backend), _act, _ctx| {
-                let magic = config.consensus_constants.get_magic();
+    pub async fn check_only_one_chain_state_in_storage() {
+        let config = config_mngr::get().await.unwrap_or_else(|err| {
+            panic!("Couldn't get config: {}", err);
+        });
 
-                let all_chain_states: Vec<_> = backend
-                    .prefix_iterator(b"chain-")
+        let backend = storage_mngr::get_backend().await.unwrap_or_else(|err| {
+            panic!("Failed to get storage backend: {}", err);
+        });
+
+        let magic = config.consensus_constants.get_magic();
+
+        // The key prefix depends on the length of the number when converted to string, so we need
+        // to check all the possible lengths for numbers between 0 and 65535.
+        // Luckily there are only 5 possible prefixes:
+        let magic_templates = vec![1, 11, 111, 1111, 11111];
+        let all_chain_states: Vec<Vec<u8>> = magic_templates
+            .into_iter()
+            .map(storage_keys::chain_state_key)
+            .map(|key| bincode::serialize(&key).expect("bincode error"))
+            .map(|mut key_bytes| {
+                // Truncate key to 14 bytes. If the key is:
+                // [8 bytes prefix]chain-11111-key
+                // This will truncate right before the "11111":
+                // [8 bytes prefix]chain-
+                // To allow checking all the possible magic numbers
+                key_bytes.truncate(14);
+                key_bytes
+            })
+            .flat_map(|prefix| {
+                backend
+                    .prefix_iterator(&prefix)
                     .expect("prefix iterator error")
                     .map(|(k, _v)| k)
-                    .collect();
-
-                match all_chain_states.len() {
-                    0 => {
-                        // No ChainState in DB, good
-                    }
-                    1 => {
-                        if all_chain_states[0] == storage_keys::chain_state_key(magic).as_bytes() {
-                            // One ChainState in DB and matches magic number, good
-                        } else {
-                            // One ChainState in DB but does not match magic number, bad.
-                            // Need to delete existing chain state and all utxos to be able to reuse
-                            // this storage.
-                            panic!("{:?}", all_chain_states);
-                        }
-                    }
-                    _ => {
-                        // More than one ChainState in DB, bad
-                        panic!("{:?}", all_chain_states);
-                    }
-                }
+                    .collect::<Vec<_>>()
             })
-            .map(|_res: Result<(), ()>, _act, _ctx| ());
-        ctx.wait(fut);
+            .collect();
+
+        match all_chain_states.len() {
+            0 => {
+                // No ChainState in DB, good
+            }
+            1 => {
+                let expected_magic = storage_keys::chain_state_key(magic);
+                let expected_key = bincode::serialize(&expected_magic).expect("bincode error");
+                let key = &all_chain_states[0];
+                if key == &expected_key {
+                    // One ChainState in DB and matches magic number, good
+                } else {
+                    // One ChainState in DB but does not match magic number, bad.
+                    // We would need to delete existing chain state and all utxos to be able to
+                    // reuse this storage, so ask the user to delete the storage.
+                    let key_str: String =
+                        bincode::deserialize(key).unwrap_or_else(|_e| format!("{:?}", key));
+                    panic!(
+                        "Storage already contains a chain state with different magic number.\n\
+                        Expected magic: {:?}, found in storage: {:?}.\n\
+                        Please backup the master key if needed, delete the storage and try again.\n\
+                        To backup the master key, you need to go back to the previous environment \
+                        (testnet or mainnet) and use the exportMasterKey command.\n\
+                        Help: make sure that the storage folder is not used in multiple environments \
+                        (testnet and mainnet).",
+                        expected_magic, key_str
+                    );
+                }
+            }
+            _ => {
+                // More than one ChainState in DB, bad.
+                // This could lead to UTXOs from one environment being spent on a different
+                // environment, so ask the user to delete the storage.
+                let expected_magic = storage_keys::chain_state_key(magic);
+                let key_strs: Vec<String> = all_chain_states
+                    .iter()
+                    .map(|key| bincode::deserialize(key).unwrap_or_else(|_e| format!("{:?}", key)))
+                    .collect();
+                panic!(
+                    "Storage contains more than one chain state with different magic numbers.\n\
+                    Expected magic: {:?}, found in storage: {:?}.\n\
+                    Please backup the master key if needed, delete the storage and try again.\n\
+                    To backup the master key, downgrade to witnet 1.4.3 and use the exportMasterKey command.\n\
+                    Help: make sure that the storage folder is not used in multiple environments \
+                    (testnet and mainnet).",
+                    expected_magic, key_strs
+                );
+            }
+        }
     }
 
     /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs
@@ -548,4 +588,118 @@ impl ChainManager {
     }
     #[cfg(not(feature = "telemetry"))]
     fn configure_telemetry_scope(&mut self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{actors::storage_keys::chain_state_key, utils::test_actix_system};
+    use std::sync::Arc;
+    use witnet_config::config::{Config, StorageBackend};
+
+    #[test]
+    fn test_check_only_one_chain_state_in_storage_empty_storage() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+
+            ChainManager::check_only_one_chain_state_in_storage().await;
+        });
+    }
+
+    #[test]
+    fn test_check_only_one_chain_state_in_storage_one_ok() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            let magic = config.consensus_constants.get_magic();
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+
+            let chain_manager = ChainManager::default();
+            storage_mngr::put_chain_state_in_batch(
+                &storage_keys::chain_state_key(magic),
+                &chain_manager.chain_state,
+                WriteBatch::default(),
+            )
+            .await
+            .expect("failed to store chain state");
+
+            ChainManager::check_only_one_chain_state_in_storage().await;
+        });
+    }
+
+    #[test]
+    #[should_panic = "Storage already contains a chain state with different magic number"]
+    fn test_check_only_one_chain_state_in_storage_one_different() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            let magic = config.consensus_constants.get_magic();
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+
+            let chain_manager = ChainManager::default();
+            // Change one bit of the magic number to trigger the error
+            let magic = magic ^ 0x01;
+            storage_mngr::put_chain_state_in_batch(
+                &storage_keys::chain_state_key(magic),
+                &chain_manager.chain_state,
+                WriteBatch::default(),
+            )
+            .await
+            .expect("failed to store chain state");
+
+            ChainManager::check_only_one_chain_state_in_storage().await;
+        });
+    }
+
+    #[test]
+    #[should_panic = "Storage contains more than one chain state with different magic numbers"]
+    fn test_check_only_one_chain_state_in_storage_two_chain_states() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        test_actix_system(|| async {
+            // Setup testing: use in-memory database instead of rocksdb
+            let mut config = Config::default();
+            config.storage.backend = StorageBackend::HashMap;
+            let config = Arc::new(config);
+            // Start relevant actors
+            config_mngr::start(config);
+            storage_mngr::start();
+
+            let chain_manager = ChainManager::default();
+            let magic1 = 1;
+            let magic2 = 2;
+            storage_mngr::put_chain_state_in_batch(
+                &chain_state_key(magic1),
+                &chain_manager.chain_state,
+                WriteBatch::default(),
+            )
+            .await
+            .expect("failed to store chain state");
+            storage_mngr::put_chain_state_in_batch(
+                &chain_state_key(magic2),
+                &chain_manager.chain_state,
+                WriteBatch::default(),
+            )
+            .await
+            .expect("failed to store chain state");
+
+            ChainManager::check_only_one_chain_state_in_storage().await;
+        });
+    }
 }
