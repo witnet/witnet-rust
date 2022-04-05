@@ -19,10 +19,12 @@ use crate::{
 };
 use witnet_config::{config, config::Config};
 use witnet_data_structures::chain::ChainState;
-use witnet_storage::{backends, storage, storage::Storage};
+use witnet_storage::{
+    backends,
+    storage::{self, Storage, WriteBatch},
+};
 
 pub use node_migrations::*;
-use witnet_storage::storage::WriteBatch;
 
 mod node_migrations;
 

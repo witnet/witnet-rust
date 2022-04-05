@@ -1,10 +1,12 @@
 //! # HashMap storage backend
 //!
 //! Storage backend that keeps data in a heap-allocated HashMap.
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{RwLock, RwLockReadGuard},
+};
 
 use crate::storage::{Result, Storage, StorageIterator, WriteBatch, WriteBatchItem};
-use std::sync::{RwLock, RwLockReadGuard};
 
 /// HashMap backend
 pub type Backend = RwLock<HashMap<Vec<u8>, Vec<u8>>>;
