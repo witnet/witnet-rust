@@ -5783,8 +5783,6 @@ version = "0.3.2"
 dependencies = [
  "failure",
  "rocksdb",
- "witnet_crypto",
- "witnet_protected",
 ]
 
 [[package]]

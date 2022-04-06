@@ -10,9 +10,5 @@ description = "Witnet storage module that conveniently abstracts a key/value API
 failure = "0.1.8"
 rocksdb = { version = "0.13.0", optional = true }
 
-witnet_crypto = { path = "../crypto", optional = true }
-witnet_protected = { path = "../protected", optional = true }
-
 [features]
 rocksdb-backend = ["rocksdb"]
-crypto-backend = ["witnet_crypto", "witnet_protected"]

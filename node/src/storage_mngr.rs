@@ -205,9 +205,6 @@ impl Handler<Configure> for StorageManager {
             "Configured {:#?} as the storage backend",
             storage_conf.backend
         );
-        if storage_conf.password.is_some() {
-            log::info!("Storage backend is using encryption");
-        }
 
         Ok(())
     }
@@ -301,33 +298,17 @@ impl Handler<GetBackend> for StorageManager {
     }
 }
 
-macro_rules! encrypted_backend {
-    ($backend:expr, $password_opt:expr) => {
-        if let Some(password) = $password_opt {
-            Arc::new(backends::crypto::Backend::new(password, $backend))
-                as Arc<dyn storage::Storage + Send + Sync>
-        } else {
-            Arc::new($backend) as Arc<dyn storage::Storage + Send + Sync>
-        }
-    };
-}
-
 /// Create storage backend according to provided config
 pub fn create_appropriate_backend(
     conf: &config::Storage,
 ) -> Result<Arc<dyn storage::Storage + Send + Sync>, failure::Error> {
-    let passwd = conf.password.clone();
-
     match conf.backend {
-        config::StorageBackend::HashMap => Ok(encrypted_backend!(
-            backends::hashmap::Backend::default(),
-            passwd
-        )),
+        config::StorageBackend::HashMap => Ok(Arc::new(backends::hashmap::Backend::default())),
         config::StorageBackend::RocksDB => {
             let path = conf.db_path.as_path();
 
             backends::rocksdb::Backend::open_default(path)
-                .map(|backend| encrypted_backend!(backend, passwd))
+                .map(|backend| -> Arc<dyn storage::Storage + Send + Sync> { Arc::new(backend) })
                 .map_err(|e| as_failure!(e))
         }
     }
