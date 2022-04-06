@@ -33,6 +33,13 @@ impl Storage for Backend {
     }
 
     fn prefix_iterator<'a, 'b: 'a>(&'a self, prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
+        self.prefix_iterator_forward(prefix)
+    }
+
+    fn prefix_iterator_forward<'a, 'b: 'a>(
+        &'a self,
+        prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>> {
         Ok(Box::new(
             Backend::iterator(
                 self,
@@ -42,24 +49,45 @@ impl Storage for Backend {
             .map(|(k, v)| (k.into(), v.into())),
         ))
     }
+
+    fn prefix_iterator_reverse<'a, 'b: 'a>(
+        &'a self,
+        prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>> {
+        Ok(Box::new(
+            Backend::iterator(
+                self,
+                rocksdb::IteratorMode::From(prefix, rocksdb::Direction::Reverse),
+            )
+            .take_while(move |(k, _v)| k.starts_with(prefix))
+            .map(|(k, v)| (k.into(), v.into())),
+        ))
+    }
+
     /// Atomically write a batch of operations
     fn write(&self, batch: WriteBatch) -> Result<()> {
+        self.write(batch.into())?;
+
+        Ok(())
+    }
+}
+
+impl From<WriteBatch> for rocksdb::WriteBatch {
+    fn from(batch: WriteBatch) -> Self {
         let mut rocksdb_batch = rocksdb::WriteBatch::default();
 
         for item in batch.batch {
             match item {
                 WriteBatchItem::Put(key, value) => {
-                    rocksdb_batch.put(key, value)?;
+                    rocksdb_batch.put(key, value).unwrap();
                 }
                 WriteBatchItem::Delete(key) => {
-                    rocksdb_batch.delete(key)?;
+                    rocksdb_batch.delete(key).unwrap();
                 }
             }
         }
 
-        self.write(rocksdb_batch)?;
-
-        Ok(())
+        rocksdb_batch
     }
 }
 
@@ -68,7 +96,7 @@ mod tests {
     use super::*;
 
     fn backend() -> Box<dyn Storage> {
-        Box::new(Backend::new())
+        Box::new(Backend::open_default("test_rocksdb_path").unwrap())
     }
 
     #[test]
@@ -86,7 +114,7 @@ mod tests {
 #[cfg(test)]
 mod rocksdb_mock {
     use super::*;
-    use std::sync::{RwLock, RwLockReadGuard};
+    use std::path::Path;
 
     pub type Error = failure::Error;
 
@@ -101,118 +129,50 @@ mod rocksdb_mock {
         Reverse,
     }
 
-    #[derive(Default)]
     pub struct DB {
-        data: RwLock<Vec<(Vec<u8>, Vec<u8>)>>,
+        backend: crate::backends::hashmap::Backend,
     }
 
     impl DB {
-        pub fn new() -> Self {
-            DB::default()
-        }
-
-        fn search<K: AsRef<[u8]>>(&self, key: &K) -> Option<usize> {
-            for (i, (k, _)) in self.data.read().unwrap().iter().enumerate() {
-                if key.as_ref() == k.as_slice() {
-                    return Some(i);
-                }
-            }
-            None
+        /// `path` is not used by this mock because the database will be in memory
+        pub fn open_default<P: AsRef<Path>>(_path: P) -> Result<Self> {
+            Ok(DB {
+                backend: Default::default(),
+            })
         }
 
         pub fn get<K: AsRef<[u8]>>(&self, key: &K) -> Result<Option<Vec<u8>>> {
-            Ok(self
-                .search(key)
-                .map(|idx| self.data.read().unwrap()[idx].1.clone()))
+            self.backend.get(key.as_ref())
         }
 
         pub fn put<K: AsRef<[u8]>, V: AsRef<[u8]>>(&self, key: K, value: V) -> Result<()> {
-            match self.search(&key) {
-                Some(idx) => self.data.write().unwrap()[idx].1 = value.as_ref().to_vec(),
-                None => self
-                    .data
-                    .write()
-                    .unwrap()
-                    .push((key.as_ref().to_vec(), value.as_ref().to_vec())),
-            }
-            Ok(())
+            self.backend
+                .put(key.as_ref().to_vec(), value.as_ref().to_vec())
         }
 
         pub fn delete<K: AsRef<[u8]>>(&self, key: &K) -> Result<()> {
-            self.search(key)
-                .map(|idx| self.data.write().unwrap().remove(idx));
-            Ok(())
+            self.backend.delete(key.as_ref())
         }
 
         pub fn iterator<'a, 'b: 'a>(
             &'a self,
             iterator_mode: IteratorMode<'b>,
-        ) -> DBIterator<'a, 'b> {
+        ) -> impl Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a {
             match iterator_mode {
                 IteratorMode::Start => unimplemented!(),
                 IteratorMode::End => unimplemented!(),
-                IteratorMode::From(prefix, _direction) => self.prefix_iterator(prefix),
+                IteratorMode::From(prefix, Direction::Forward) => {
+                    self.backend.prefix_iterator_forward(prefix).unwrap()
+                }
+                IteratorMode::From(prefix, Direction::Reverse) => {
+                    self.backend.prefix_iterator_reverse(prefix).unwrap()
+                }
             }
-        }
-
-        pub fn prefix_iterator<'a, 'b: 'a, P: AsRef<[u8]> + ?Sized>(
-            &'a self,
-            prefix: &'b P,
-        ) -> DBIterator<'a, 'b> {
-            DBIterator {
-                data: self.data.read().unwrap(),
-                prefix: prefix.as_ref(),
-                skip: 0,
-            }
+            .map(|(k, v)| (k.into(), v.into()))
         }
 
         pub fn write(&self, batch: WriteBatch) -> Result<()> {
-            // TODO: this is not atomic, but it shouldn't matter as it is not used, not even in tests
-            for item in batch.inner.batch {
-                match item {
-                    WriteBatchItem::Put(key, value) => {
-                        self.put(key, value)?;
-                    }
-                    WriteBatchItem::Delete(key) => {
-                        self.delete(&key)?;
-                    }
-                }
-            }
-
-            Ok(())
-        }
-    }
-
-    pub struct DBIterator<'a, 'b> {
-        data: RwLockReadGuard<'a, Vec<(Vec<u8>, Vec<u8>)>>,
-        prefix: &'b [u8],
-        skip: usize,
-    }
-
-    impl<'a, 'b> Iterator for DBIterator<'a, 'b> {
-        type Item = (Box<[u8]>, Box<[u8]>);
-
-        fn next(&mut self) -> Option<Self::Item> {
-            // TODO: is this even used somewhere?
-            let mut skip = self.skip;
-            let res = self
-                .data
-                .iter()
-                .skip(skip)
-                .map(|x| {
-                    skip += 1;
-                    x
-                })
-                .filter_map(|(k, v)| {
-                    if k.starts_with(self.prefix.as_ref()) {
-                        Some((k.clone().into_boxed_slice(), v.clone().into_boxed_slice()))
-                    } else {
-                        None
-                    }
-                })
-                .next();
-            self.skip = skip;
-            res
+            Storage::write(&self.backend, batch.into())
         }
     }
 
@@ -232,6 +192,12 @@ mod rocksdb_mock {
             self.inner.delete(key);
 
             Ok(())
+        }
+    }
+
+    impl From<crate::backends::rocksdb::rocksdb_mock::WriteBatch> for crate::storage::WriteBatch {
+        fn from(x: WriteBatch) -> Self {
+            x.inner
         }
     }
 }

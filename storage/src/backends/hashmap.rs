@@ -2,14 +2,14 @@
 //!
 //! Storage backend that keeps data in a heap-allocated HashMap.
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     sync::{RwLock, RwLockReadGuard},
 };
 
 use crate::storage::{Result, Storage, StorageIterator, WriteBatch, WriteBatchItem};
 
 /// HashMap backend
-pub type Backend = RwLock<HashMap<Vec<u8>, Vec<u8>>>;
+pub type Backend = RwLock<BTreeMap<Vec<u8>, Vec<u8>>>;
 
 impl Storage for Backend {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -27,10 +27,30 @@ impl Storage for Backend {
     }
 
     fn prefix_iterator<'a, 'b: 'a>(&'a self, prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
-        Ok(Box::new(DBIterator {
+        self.prefix_iterator_forward(prefix)
+    }
+
+    fn prefix_iterator_forward<'a, 'b: 'a>(
+        &'a self,
+        prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>> {
+        Ok(Box::new(DBIteratorSorted {
             data: self.read().unwrap(),
             prefix,
             skip: 0,
+            reverse: false,
+        }))
+    }
+
+    fn prefix_iterator_reverse<'a, 'b: 'a>(
+        &'a self,
+        prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>> {
+        Ok(Box::new(DBIteratorSorted {
+            data: self.read().unwrap(),
+            prefix,
+            skip: 0,
+            reverse: true,
         }))
     }
 
@@ -52,35 +72,54 @@ impl Storage for Backend {
     }
 }
 
-struct DBIterator<'a, 'b> {
-    data: RwLockReadGuard<'a, HashMap<Vec<u8>, Vec<u8>>>,
+struct DBIteratorSorted<'a, 'b> {
+    data: RwLockReadGuard<'a, BTreeMap<Vec<u8>, Vec<u8>>>,
     prefix: &'b [u8],
     skip: usize,
+    reverse: bool,
 }
 
-impl<'a, 'b> Iterator for DBIterator<'a, 'b> {
+impl<'a, 'b> Iterator for DBIteratorSorted<'a, 'b> {
     type Item = (Vec<u8>, Vec<u8>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO: is this correct? Add tests
         let mut skip = self.skip;
-        let res = self
-            .data
-            .iter()
-            .skip(skip)
-            .map(|x| {
-                skip += 1;
-                x
-            })
-            .filter_map(|(k, v)| {
-                if k.starts_with(self.prefix.as_ref()) {
-                    Some((k.clone(), v.clone()))
-                } else {
-                    None
-                }
-            })
-            .next();
+        let res = if !self.reverse {
+            self.data
+                .iter()
+                .skip(skip)
+                .map(|x| {
+                    skip += 1;
+                    x
+                })
+                .filter_map(|(k, v)| {
+                    if k.starts_with(self.prefix.as_ref()) {
+                        Some((k.clone(), v.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .next()
+        } else {
+            self.data
+                .iter()
+                .rev()
+                .skip(skip)
+                .map(|x| {
+                    skip += 1;
+                    x
+                })
+                .filter_map(|(k, v)| {
+                    if k.starts_with(self.prefix.as_ref()) {
+                        Some((k.clone(), v.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .next()
+        };
         self.skip = skip;
+
         res
     }
 }
@@ -102,5 +141,53 @@ mod tests {
         assert_eq!(Some("john".into()), storage.get(b"name").unwrap());
         storage.delete(b"name").unwrap();
         assert_eq!(None, storage.get(b"name").unwrap());
+    }
+
+    #[test]
+    fn test_iterator_forward() {
+        let storage = backend();
+
+        storage
+            .put(b"prefix-a".to_vec(), b"alice".to_vec())
+            .unwrap();
+        storage.put(b"prefix-b".to_vec(), b"bob".to_vec()).unwrap();
+        storage.put(b"noprefix".to_vec(), b"eve".to_vec()).unwrap();
+
+        let iter: Vec<_> = storage
+            .prefix_iterator_forward(b"prefix-")
+            .unwrap()
+            .collect();
+
+        assert_eq!(
+            iter,
+            vec![
+                (b"prefix-a".to_vec(), b"alice".to_vec()),
+                (b"prefix-b".to_vec(), b"bob".to_vec())
+            ]
+        );
+    }
+
+    #[test]
+    fn test_iterator_reverse() {
+        let storage = backend();
+
+        storage
+            .put(b"prefix-a".to_vec(), b"alice".to_vec())
+            .unwrap();
+        storage.put(b"prefix-b".to_vec(), b"bob".to_vec()).unwrap();
+        storage.put(b"noprefix".to_vec(), b"eve".to_vec()).unwrap();
+
+        let iter: Vec<_> = storage
+            .prefix_iterator_reverse(b"prefix-")
+            .unwrap()
+            .collect();
+
+        assert_eq!(
+            iter,
+            vec![
+                (b"prefix-b".to_vec(), b"bob".to_vec()),
+                (b"prefix-a".to_vec(), b"alice".to_vec())
+            ]
+        );
     }
 }

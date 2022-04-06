@@ -21,8 +21,22 @@ pub trait Storage {
     /// Delete a value from the storage
     fn delete(&self, key: &[u8]) -> Result<()>;
 
-    /// Create an iterator over all the keys that start with the given prefix
+    /// Create an iterator over all the keys that start with the given prefix, in undefined order
     fn prefix_iterator<'a, 'b: 'a>(&'a self, prefix: &'b [u8]) -> Result<StorageIterator<'a>>;
+
+    /// Create an iterator over all the keys that start with the given prefix, in order, starting
+    /// from the first key.
+    fn prefix_iterator_forward<'a, 'b: 'a>(
+        &'a self,
+        prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>>;
+
+    /// Create an iterator over all the keys that start with the given prefix, in reverse, starting
+    /// from the last key.
+    fn prefix_iterator_reverse<'a, 'b: 'a>(
+        &'a self,
+        prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>>;
 
     /// Atomically write a batch of operations
     fn write(&self, batch: WriteBatch) -> Result<()>;

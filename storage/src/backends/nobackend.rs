@@ -28,6 +28,20 @@ impl Storage for Backend {
         bail!("This is a no backend storage")
     }
 
+    fn prefix_iterator_forward<'a, 'b: 'a>(
+        &'a self,
+        _prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>> {
+        bail!("This is a no backend storage")
+    }
+
+    fn prefix_iterator_reverse<'a, 'b: 'a>(
+        &'a self,
+        _prefix: &'b [u8],
+    ) -> Result<StorageIterator<'a>> {
+        bail!("This is a no backend storage")
+    }
+
     fn write(&self, _batch: WriteBatch) -> Result<()> {
         bail!("This is a no backend storage")
     }
