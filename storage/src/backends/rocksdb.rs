@@ -130,7 +130,7 @@ mod rocksdb_mock {
     }
 
     pub struct DB {
-        backend: crate::backends::hashmap::Backend,
+        backend: crate::backends::btreemap::Backend,
     }
 
     impl DB {

@@ -4,7 +4,7 @@
 //! containing state for specific storage solutions (databases,
 //! volatile memory, flat files, etc.).
 
-pub mod hashmap;
+pub mod btreemap;
 pub mod nobackend;
 #[cfg(feature = "rocksdb-backend")]
 pub mod rocksdb;

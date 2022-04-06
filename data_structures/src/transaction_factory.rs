@@ -756,7 +756,7 @@ mod tests {
                 // Use utxo set with in-memory database, to allow testing confirmed/unconfirmed UTXOs
                 UnspentOutputsPool {
                     db: Some(Arc::new(
-                        witnet_storage::backends::hashmap::Backend::default(),
+                        witnet_storage::backends::btreemap::Backend::default(),
                     )),
                     ..Default::default()
                 },

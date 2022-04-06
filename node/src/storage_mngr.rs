@@ -303,7 +303,7 @@ pub fn create_appropriate_backend(
     conf: &config::Storage,
 ) -> Result<Arc<dyn storage::Storage + Send + Sync>, failure::Error> {
     match conf.backend {
-        config::StorageBackend::HashMap => Ok(Arc::new(backends::hashmap::Backend::default())),
+        config::StorageBackend::HashMap => Ok(Arc::new(backends::btreemap::Backend::default())),
         config::StorageBackend::RocksDB => {
             let path = conf.db_path.as_path();
 

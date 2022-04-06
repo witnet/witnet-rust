@@ -1,6 +1,6 @@
-//! # HashMap storage backend
+//! # BTreeMap storage backend
 //!
-//! Storage backend that keeps data in a heap-allocated HashMap.
+//! Storage backend that keeps data in a heap-allocated BTreeMap.
 use std::{
     collections::BTreeMap,
     sync::{RwLock, RwLockReadGuard},
@@ -8,7 +8,7 @@ use std::{
 
 use crate::storage::{Result, Storage, StorageIterator, WriteBatch, WriteBatchItem};
 
-/// HashMap backend
+/// BTreeMap backend
 pub type Backend = RwLock<BTreeMap<Vec<u8>, Vec<u8>>>;
 
 impl Storage for Backend {
@@ -133,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hashmap() {
+    fn test_btreemap() {
         let storage = backend();
 
         assert_eq!(None, storage.get(b"name").unwrap());

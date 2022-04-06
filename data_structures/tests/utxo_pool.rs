@@ -150,7 +150,7 @@ fn utxo_set_insert_twice() {
 #[test]
 fn utxo_set_insert_and_remove() {
     // Inserting and removing an UTXO in the same superblock
-    let db = Arc::new(witnet_storage::backends::hashmap::Backend::default());
+    let db = Arc::new(witnet_storage::backends::btreemap::Backend::default());
     let mut p = UnspentOutputsPool {
         db: Some(db),
         ..Default::default()
@@ -242,7 +242,7 @@ fn utxo_set_insert_and_remove_on_next_superblock() {
     // and the UTXO was never deleted from the database.
 
     // Unspent outputs pool with in-memory database
-    let db = Arc::new(witnet_storage::backends::hashmap::Backend::default());
+    let db = Arc::new(witnet_storage::backends::btreemap::Backend::default());
     let mut p = UnspentOutputsPool {
         db: Some(db.clone()),
         ..Default::default()
