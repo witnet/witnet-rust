@@ -66,7 +66,7 @@ Witnet-rust is published under the [GNU General Public License v3.0][license].
 [how to run a node]: https://medium.com/witnet/how-to-run-a-full-node-on-the-witnet-testnet-911986b8add3
 [docs]: https://docs.witnet.io
 [install]: https://docs.witnet.io/try/run-a-node/
-[Contributing]: https://docs.witnet.io/developer/contributing/
+[Contributing]: https://github.com/witnet/witnet-rust/blob/master/CONTRIBUTING.md
 [RADON]: https://docs.witnet.io/protocol/data-requests/overview/#the-rad-engine
 [Discord]: https://discord.gg/FDPPv7H
 [license]: https://github.com/witnet/witnet-rust/blob/master/LICENSE
