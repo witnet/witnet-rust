@@ -14,9 +14,9 @@ function migrate_storage {
   find "$OLD_FOLDER" -maxdepth 1 -type f -exec mv -n {} "$WITNET_STORAGE_FOLDER" \;
 }
 
-function run_20211008_recovery {
+function run_20220408_peers_injection {
   DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-  sh -c "$DIR/20211008-recovery.sh witnet $WITNET_CONFIG_FOLDER/witnet.toml" &
+  sh -c "$DIR/20220408-peers.sh witnet $WITNET_CONFIG_FOLDER/witnet.toml" &
 }
 
 function migrate {
@@ -31,7 +31,7 @@ function migrate {
   chmod -R 777 "$WITNET_FOLDER/config" &&
   log "Copying old storage (if any) into new storage path" &&
   migrate_storage
-  run_20211008_recovery
+  run_20220408_peers_injection
 }
 
 log "Using configuration from '$CONFIG_FILE'"
