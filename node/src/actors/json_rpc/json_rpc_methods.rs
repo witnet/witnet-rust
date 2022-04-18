@@ -538,9 +538,7 @@ pub async fn get_block_chain(
     }
 
     fn convert_negative_to_positive_with_negative_flag(x: i64) -> Result<(u32, bool), String> {
-        // TODO: after Rust 1.51, use unsigned_abs instead of wrapping_abs and remove this allow
-        #[allow(clippy::cast_sign_loss)]
-        let positive_x = u32::try_from(x.wrapping_abs() as u64).map_err(|_e| {
+        let positive_x = u32::try_from(x.unsigned_abs()).map_err(|_e| {
             format!(
                 "out of bounds: {} must be between -{} and {} inclusive",
                 x,
