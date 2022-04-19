@@ -109,6 +109,9 @@ impl Operable for RadonString {
             (RadonOpCodes::StringToUpperCase, None) => {
                 Ok(RadonTypes::from(string_operators::to_uppercase(self)))
             }
+            (RadonOpCodes::StringParseXMLMap, None) => string_operators::parse_xml_map(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_STRING_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
@@ -120,18 +123,9 @@ impl Operable for RadonString {
     fn operate_in_context(
         &self,
         call: &RadonCall,
-        context: &mut ReportContext<RadonTypes>,
+        _context: &mut ReportContext<RadonTypes>,
     ) -> Result<RadonTypes, RadError> {
-        match (&context.active_wips, call) {
-            (Some(active_wips), (RadonOpCodes::StringParseXMLMap, None))
-                if active_wips.wip0021() =>
-            {
-                string_operators::parse_xml_map(self)
-                    .map(RadonTypes::from)
-                    .map_err(Into::into)
-            }
-            _ => self.operate(call),
-        }
+        self.operate(call)
     }
 }
 

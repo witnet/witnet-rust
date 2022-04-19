@@ -180,20 +180,13 @@ pub fn run_retrieval_with_data_report(
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    match &context.active_wips {
-        Some(active_wips) if active_wips.wip0019() => match retrieve.kind {
-            RADType::HttpGet => {
-                string_response_with_data_report(retrieve, response, context, settings)
-            }
-            RADType::Rng => rng_response_with_data_report(response, context),
-            RADType::HttpPost
-                if context.active_wips.as_ref().map(|w| w.wip0020()) == Some(true) =>
-            {
-                string_response_with_data_report(retrieve, response, context, settings)
-            }
-            _ => Err(RadError::UnknownRetrieval),
-        },
-        _ => string_response_with_data_report(retrieve, response, context, settings),
+    match retrieve.kind {
+        RADType::HttpGet => string_response_with_data_report(retrieve, response, context, settings),
+        RADType::Rng => rng_response_with_data_report(response, context),
+        RADType::HttpPost => {
+            string_response_with_data_report(retrieve, response, context, settings)
+        }
+        _ => Err(RadError::UnknownRetrieval),
     }
 }
 
@@ -305,15 +298,10 @@ async fn rng_response(
 fn add_http_headers(
     mut request: RequestBuilder,
     retrieve: &RADRetrieve,
-    context: &mut ReportContext<RadonTypes>,
+    _context: &mut ReportContext<RadonTypes>,
 ) -> Result<RequestBuilder> {
     // Add random user agent
     request = request.header("User-Agent", UserAgent::random());
-
-    // Only set extra headers if wip-http-post is active
-    if context.active_wips.as_ref().map(|w| w.wip0020()) != Some(true) {
-        return Ok(request);
-    }
 
     // Add extra_headers from retrieve.headers
     for (name, value) in &retrieve.headers {
@@ -363,23 +351,14 @@ pub async fn run_retrieval_report(
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
 ) -> Result<RadonReport<RadonTypes>> {
-    let wip_0019_active = active_wips.wip0019();
-    let wip_0020_active = active_wips.wip0020();
-
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     context.set_active_wips(active_wips);
 
-    if wip_0019_active {
-        match retrieve.kind {
-            RADType::HttpGet => http_response(retrieve, context, settings).await,
-            RADType::Rng => rng_response(context, settings).await,
-            RADType::HttpPost if wip_0020_active => {
-                http_response(retrieve, context, settings).await
-            }
-            _ => Err(RadError::UnknownRetrieval),
-        }
-    } else {
-        http_response(retrieve, context, settings).await
+    match retrieve.kind {
+        RADType::HttpGet => http_response(retrieve, context, settings).await,
+        RADType::Rng => rng_response(context, settings).await,
+        RADType::HttpPost => http_response(retrieve, context, settings).await,
+        _ => Err(RadError::UnknownRetrieval),
     }
 }
 
