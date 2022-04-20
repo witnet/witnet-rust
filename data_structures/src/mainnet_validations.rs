@@ -47,6 +47,7 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("THIRD_HARD_FORK".to_string(), THIRD_HARD_FORK);
     active_wips.insert("WIP0014-0016".to_string(), 549141);
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
+    active_wips.insert("WIP0020-0021".to_string(), 1059861);
 
     active_wips
 }
@@ -59,7 +60,7 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("THIRD_HARD_FORK".to_string(), 0);
     active_wips.insert("WIP0014-0016".to_string(), 0);
     active_wips.insert("WIP0017-0018-0019".to_string(), 0);
-    //active_wips.insert("WIP0020-0021".to_string(), 0);
+    active_wips.insert("WIP0020-0021".to_string(), 0);
 
     active_wips
 }
@@ -76,12 +77,7 @@ pub fn current_active_wips() -> ActiveWips {
 /// Auxiliary function that returns the current active wips and the WIPs in voting process as actived
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
-    let mut active_wips = current_active_wips();
-    active_wips
-        .active_wips
-        .insert("WIP0020-0021".to_string(), 0);
-
-    active_wips
+    current_active_wips()
 }
 
 impl TapiEngine {
