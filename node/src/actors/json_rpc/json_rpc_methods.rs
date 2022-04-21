@@ -802,6 +802,9 @@ pub struct GetTransactionOutput {
     /// Hash of the block that contains this transaction in hex format,
     /// or "pending" if the transaction has not been included in any block yet
     pub block_hash: String,
+    /// Epoch of the block that contains this transaction, or None if the transaction has not been
+    /// included in any block yet
+    pub block_epoch: Option<Epoch>,
     /// True if the block that includes this transaction has been confirmed by a superblock
     pub confirmed: bool,
 }
@@ -876,6 +879,7 @@ pub async fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> Json
                 transaction: new_transaction,
                 weight,
                 block_hash: block_hash.to_string(),
+                block_epoch: Some(block_epoch),
                 confirmed,
             };
             let value = match serde_json::to_value(output) {
@@ -900,6 +904,7 @@ pub async fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> Json
                         transaction,
                         weight,
                         block_hash: "pending".to_string(),
+                        block_epoch: None,
                         confirmed: false,
                     };
                     let value = match serde_json::to_value(output) {
