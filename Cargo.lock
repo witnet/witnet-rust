@@ -5492,7 +5492,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "ansi_term",
  "bytecount",
@@ -5787,7 +5787,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "1.4.3"
+version = "1.5.2"
 dependencies = [
  "failure",
  "hex",
