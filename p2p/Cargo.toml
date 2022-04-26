@@ -4,7 +4,7 @@ version = "0.3.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "p2p component"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 failure = "0.1.8"

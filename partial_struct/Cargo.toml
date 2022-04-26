@@ -1,7 +1,7 @@
 [package]
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "Macro that will generate from a struct another one with only Option<T> fields"
-edition = "2018"
+edition = "2021"
 name = "partial_struct"
 version = "0.3.2"
 workspace = ".."

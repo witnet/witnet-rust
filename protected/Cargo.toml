@@ -4,7 +4,7 @@ version = "0.3.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "Protected bytes struct that will be zeroed when dropped"
-edition = "2018"
+edition = "2021"
 
 [features]
 with-serde = ["serde"]

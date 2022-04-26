@@ -1,6 +1,6 @@
 [package]
 authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2018"
+edition = "2021"
 name = "witnet_futures_utils"
 version = "0.1.0"
 workspace = ".."

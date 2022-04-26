@@ -3,7 +3,7 @@ name = "witnet_storage"
 version = "0.3.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
-edition = "2018"
+edition = "2021"
 description = "Witnet storage module that conveniently abstracts a key/value API away from specific storage backends"
 
 [dependencies]

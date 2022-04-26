@@ -1,7 +1,7 @@
 [package]
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "validations component"
-edition = "2018"
+edition = "2021"
 name = "witnet_validations"
 version = "0.3.2"
 workspace = ".."

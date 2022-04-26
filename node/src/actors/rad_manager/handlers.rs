@@ -29,7 +29,7 @@ impl Handler<ResolveRA> for RadManager {
     fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
         // The result of the RAD aggregation is computed asynchronously, because the async block
         // returns a future
-        let fut = async {
+        let fut = async move {
             let sources = msg.rad_request.retrieve;
             let aggregator = msg.rad_request.aggregate;
             let active_wips = msg.active_wips.clone();
@@ -107,7 +107,7 @@ impl Handler<RunTally> for RadManager {
     type Result = ResponseFuture<RadonReport<RadonTypes>>;
 
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
-        let fut = async {
+        let fut = async move {
             run_tally(
                 msg.reports,
                 &msg.script,

@@ -148,7 +148,7 @@ impl InventoryManager {
 
         let fut = storage_mngr::get::<_, PointerToBlock>(&key)
             .into_actor(self)
-            .then(|res, act, _ctx| match res {
+            .then(move |res, act, _ctx| match res {
                 Ok(Some(pointer_to_block)) => {
                     // Recursion
                     let fut = act

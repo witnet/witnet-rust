@@ -1,7 +1,7 @@
 [package]
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "config component"
-edition = "2018"
+edition = "2021"
 name = "witnet_config"
 version = "0.3.2"
 workspace = ".."
