@@ -63,14 +63,17 @@ impl ChainManager {
     /// (initialize to Default values if empty)
     pub fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
         let fut = self
-            .initialize_from_storage_fut()
+            .initialize_from_storage_fut(false)
             .map(|_res, _act, _ctx| ());
         ctx.wait(fut);
     }
 
     /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
     /// (initialize to Default values if empty)
-    pub fn initialize_from_storage_fut(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
+    pub fn initialize_from_storage_fut(
+        &mut self,
+        resync: bool,
+    ) -> ResponseActFuture<Self, Result<(), ()>> {
         let fut = config_mngr::get()
             .into_actor(self)
             .map_err(|err, _act, _ctx| {
@@ -313,11 +316,10 @@ impl ChainManager {
                     chain_info.highest_block_checkpoint.hash_prev_block
                 );
 
-                // If hash_prev_block is the bootstrap hash, create and consolidate genesis block
-                if chain_info.highest_block_checkpoint.hash_prev_block == consensus_constants.bootstrap_hash {
-                    // Create genesis block
-                    // TODO: consolidating the genesis block is not needed if the chain state has
-                    // been reset because of a rewind
+                // If hash_prev_block is the bootstrap hash, create and consolidate genesis block.
+                // Consolidating the genesis block is not needed if the chain state has been reset
+                // because of a rewind: the genesis block will be processed with the other blocks.
+                if !resync && chain_info.highest_block_checkpoint.hash_prev_block == consensus_constants.bootstrap_hash {
                     let info_genesis =
                         GenesisBlockInfo::from_path(&config.mining.genesis_path, consensus_constants.bootstrap_hash, consensus_constants.genesis_hash)
                             .map_err(|e| {

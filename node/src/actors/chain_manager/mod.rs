@@ -361,7 +361,8 @@ impl ChainManager {
         .and_then(|(), act, ctx| {
             log::info!("Successfully persisted empty chain state into storage");
             act.update_state_machine(StateMachine::WaitingConsensus, ctx);
-            act.initialize_from_storage_fut()
+
+            act.initialize_from_storage_fut(true)
         });
 
         Box::pin(fut)
