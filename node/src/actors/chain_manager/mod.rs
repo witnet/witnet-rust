@@ -404,6 +404,13 @@ impl ChainManager {
                         );
                         act.process_requested_block(ctx, block, true)
                             .expect("resync from storage fail");
+                        // We need to persist the chain state periodically, otherwise the entire
+                        // UTXO set will be in memory, consuming a huge amount of memory.
+                        if block_list.len() % 1000 == 0 {
+                            act.persist_chain_state(None)
+                                .map(|_res: Result<(), ()>, _act, _ctx| ())
+                                .wait(ctx);
+                        }
                         // Recursion
                         act.resync_from_storage(block_list, ctx, done);
                     }
