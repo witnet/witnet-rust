@@ -1426,6 +1426,10 @@ where
             Transaction::Reveal(_) => None,
             Transaction::Tally(_) => None,
             Transaction::Mint(_) => None,
+            // TODO: Handle inputs from a ScriptTransaction
+            Transaction::Script(_) => {
+                unimplemented!("TODO: Handle inputs from a ScriptTransaction")
+            }
         };
 
         let empty_hashset = HashSet::default();

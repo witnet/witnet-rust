@@ -1309,6 +1309,21 @@ impl Input {
     }
 }
 
+/// ScriptInput data structure
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::ScriptInput")]
+pub struct ScriptInput {
+    pub output_pointer: OutputPointer,
+    pub redeem_script: Vec<u8>,
+}
+
+impl ScriptInput {
+    /// Return the [`OutputPointer`](OutputPointer) of an input.
+    pub fn output_pointer(&self) -> &OutputPointer {
+        &self.output_pointer
+    }
+}
+
 /// Value transfer output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::ValueTransferOutput")]
@@ -1321,6 +1336,49 @@ pub struct ValueTransferOutput {
     /// timestamp. That is, they cannot be used as an input in any transaction of a
     /// subsequent block proposed for an epoch whose opening timestamp predates the time lock.
     pub time_lock: u64,
+}
+
+/// Enum to handling the different outputs
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::MixedOutput")]
+pub enum MixedOutput {
+    /// Value transfer output
+    VTO(ValueTransferOutput),
+    /// Script output
+    Script(ScriptOutput),
+}
+
+impl MixedOutput {
+    pub fn value(&self) -> u64 {
+        match self {
+            MixedOutput::VTO(vto) => vto.value,
+            MixedOutput::Script(sho) => sho.value,
+        }
+    }
+}
+
+impl From<ValueTransferOutput> for MixedOutput {
+    fn from(vto: ValueTransferOutput) -> Self {
+        MixedOutput::VTO(vto)
+    }
+}
+
+impl From<ScriptOutput> for MixedOutput {
+    fn from(sho: ScriptOutput) -> Self {
+        MixedOutput::Script(sho)
+    }
+}
+
+pub type ScriptHash = PublicKeyHash;
+
+/// Script output transaction data structure
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
+#[protobuf_convert(pb = "witnet::ScriptOutput")]
+pub struct ScriptOutput {
+    /// 20 bytes hash of the redeem script
+    pub redeem_script_hash: ScriptHash,
+    /// Transferred value in nanowits
+    pub value: u64,
 }
 
 /// Data request output transaction data structure
@@ -2195,6 +2253,7 @@ impl TransactionsPool {
 
                     self.reveal_contains(&dr_pointer, &pkh, &tx_hash)
                 }
+                Transaction::Script(_) => unimplemented!(),
                 // Tally and mint transaction only exist inside blocks, it should
                 // be impossible for nodes to broadcast these kinds of transactions.
                 Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),

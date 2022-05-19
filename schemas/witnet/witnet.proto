@@ -114,6 +114,19 @@ message ValueTransferOutput {
     uint64 time_lock = 3;
 }
 
+message ScriptOutput {
+    // TODO: change to ScriptHash
+    PublicKeyHash redeem_script_hash = 1;
+    uint64 value = 2;
+}
+
+message MixedOutput {
+    oneof kind {
+        ValueTransferOutput VTO = 1;
+        ScriptOutput Script = 2;
+    }
+}
+
 message DataRequestOutput {
     message RADRequest {
         enum RADType {
@@ -168,6 +181,11 @@ message Input {
     OutputPointer output_pointer = 1;
 }
 
+message ScriptInput {
+    OutputPointer output_pointer = 1;
+    bytes redeem_script = 2;
+}
+
 // Transaction types
 message VTTransactionBody {
     repeated Input inputs = 1;
@@ -177,6 +195,16 @@ message VTTransactionBody {
 message VTTransaction {
     VTTransactionBody body = 1;
     repeated KeyedSignature signatures = 2;
+}
+
+message ScriptTransactionBody {
+    repeated ScriptInput inputs = 1;
+    repeated MixedOutput outputs = 2;
+}
+
+message ScriptTransaction {
+    ScriptTransactionBody body = 1;
+    repeated bytes witness = 2;
 }
 
 message DRTransactionBody {
@@ -237,6 +265,7 @@ message Transaction {
         RevealTransaction Reveal = 4;
         TallyTransaction Tally = 5;
         MintTransaction Mint = 6;
+        ScriptTransaction Script = 7;
     }
 }
 

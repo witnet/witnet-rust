@@ -319,6 +319,10 @@ impl From<Transaction> for TransactionHelper {
             Transaction::Reveal(revealtransaction) => TransactionHelper::Reveal(revealtransaction),
             Transaction::Tally(tallytransaction) => TransactionHelper::Tally(tallytransaction),
             Transaction::Mint(minttransaction) => TransactionHelper::Mint(minttransaction),
+            // TODO: Handle a ScriptTransaction in TransactionHelper
+            Transaction::Script(_) => {
+                unimplemented!("TODO: Handle a ScriptTransaction in TransactionHelper")
+            }
         }
     }
 }

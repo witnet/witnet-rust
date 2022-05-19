@@ -3,14 +3,16 @@ use serde::{Deserialize, Serialize};
 use crate::{
     chain::{
         Block, Bn256PublicKey, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature,
-        PublicKeyHash, ValueTransferOutput,
+        MixedOutput, PublicKeyHash, ScriptInput, ValueTransferOutput,
     },
     proto::{schema::witnet, ProtobufConvert},
     vrf::DataRequestEligibilityClaim,
 };
 use protobuf::Message;
-use std::convert::TryFrom;
-use std::sync::{Arc, RwLock};
+use std::{
+    convert::TryFrom,
+    sync::{Arc, RwLock},
+};
 use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 // These constants were calculated in:
@@ -129,6 +131,7 @@ pub enum Transaction {
     Reveal(RevealTransaction),
     Tally(TallyTransaction),
     Mint(MintTransaction),
+    Script(ScriptTransaction),
 }
 
 impl From<VTTransaction> for Transaction {
@@ -167,6 +170,12 @@ impl From<MintTransaction> for Transaction {
     }
 }
 
+impl From<ScriptTransaction> for Transaction {
+    fn from(transaction: ScriptTransaction) -> Self {
+        Self::Script(transaction)
+    }
+}
+
 impl AsRef<Transaction> for Transaction {
     fn as_ref(&self) -> &Self {
         self
@@ -184,7 +193,11 @@ impl Transaction {
         match self {
             Transaction::ValueTransfer(vt_txn) => vt_txn.weight(),
             Transaction::DataRequest(dr_txn) => dr_txn.weight(),
-            _ => 0,
+            Transaction::Script(sh_txn) => sh_txn.weight(),
+            Transaction::Commit(_)
+            | Transaction::Reveal(_)
+            | Transaction::Tally(_)
+            | Transaction::Mint(_) => 0,
         }
     }
 }
@@ -263,6 +276,59 @@ impl VTTransactionBody {
             .saturating_mul(GAMMA);
 
         inputs_weight.saturating_add(outputs_weight)
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::ScriptTransaction")]
+pub struct ScriptTransaction {
+    pub body: ScriptTransactionBody,
+    pub witness: Vec<Vec<u8>>,
+}
+
+impl ScriptTransaction {
+    /// Creates a new script transaction.
+    pub fn new(body: ScriptTransactionBody, witness: Vec<Vec<u8>>) -> Self {
+        ScriptTransaction { body, witness }
+    }
+
+    /// Returns the weight of a script transaction.
+    /// This is the weight that will be used to calculate
+    /// how many transactions can fit inside one block
+    pub fn weight(&self) -> u32 {
+        self.body.weight()
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::ScriptTransactionBody")]
+pub struct ScriptTransactionBody {
+    pub inputs: Vec<ScriptInput>,
+    pub outputs: Vec<MixedOutput>,
+
+    #[protobuf_convert(skip)]
+    #[serde(skip)]
+    hash: MemoHash,
+}
+
+impl ScriptTransactionBody {
+    /// Creates a new script transaction body.
+    pub fn new(inputs: Vec<ScriptInput>, outputs: Vec<MixedOutput>) -> Self {
+        ScriptTransactionBody {
+            inputs,
+            outputs,
+            hash: MemoHash::new(),
+        }
+    }
+
+    /// Script transaction weight. It is calculated as:
+    ///
+    /// ```text
+    /// ST_weight = N*INPUT_SIZE + M*OUTPUT_SIZE*gamma
+    /// ```
+    pub fn weight(&self) -> u32 {
+        //TODO: Implement weight method for Script transaction
+        100
     }
 }
 
@@ -691,6 +757,15 @@ impl MemoizedHashable for VTTransactionBody {
         &self.hash
     }
 }
+impl MemoizedHashable for ScriptTransactionBody {
+    fn hashable_bytes(&self) -> Vec<u8> {
+        self.to_pb_bytes().unwrap()
+    }
+
+    fn memoized_hash(&self) -> &MemoHash {
+        &self.hash
+    }
+}
 impl MemoizedHashable for DRTransactionBody {
     fn hashable_bytes(&self) -> Vec<u8> {
         let Hash::SHA256(data_bytes) = self.data_poi_hash();
@@ -748,6 +823,11 @@ impl Hashable for VTTransaction {
         self.body.hash()
     }
 }
+impl Hashable for ScriptTransaction {
+    fn hash(&self) -> Hash {
+        self.body.hash()
+    }
+}
 impl Hashable for DRTransaction {
     fn hash(&self) -> Hash {
         self.body.hash()
@@ -773,6 +853,7 @@ impl Hashable for Transaction {
             Transaction::Reveal(tx) => tx.hash(),
             Transaction::Tally(tx) => tx.hash(),
             Transaction::Mint(tx) => tx.hash(),
+            Transaction::Script(tx) => tx.hash(),
         }
     }
 }
