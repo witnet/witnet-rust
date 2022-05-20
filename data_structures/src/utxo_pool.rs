@@ -1,3 +1,4 @@
+use crate::chain::{MixedOutput, ScriptOutput};
 use crate::{
     chain::{Epoch, Input, OutputPointer, PublicKeyHash, ValueTransferOutput},
     transaction_factory::OutputsCollection,
@@ -43,10 +44,26 @@ impl PartialEq for UnspentOutputsPool {
 impl UnspentOutputsPool {
     /// Get the value transfer output referred to by the provided `OutputPointer`
     pub fn get(&self, k: &OutputPointer) -> Option<ValueTransferOutput> {
+        self.get_map(k).and_then(|(vt, _n)| match vt {
+            MixedOutput::VTO(vto) => Some(vto),
+            MixedOutput::Script(_) => None,
+        })
+    }
+
+    /// Get the script output referred to by the provided `OutputPointer`
+    pub fn get_script(&self, k: &OutputPointer) -> Option<ScriptOutput> {
+        self.get_map(k).and_then(|(sh, _n)| match sh {
+            MixedOutput::VTO(_) => None,
+            MixedOutput::Script(sho) => Some(sho),
+        })
+    }
+
+    /// Get the value transfer or script output referred to by the provided `OutputPointer`
+    pub fn get_mixed(&self, k: &OutputPointer) -> Option<MixedOutput> {
         self.get_map(k).map(|(vt, _n)| vt)
     }
 
-    fn get_map(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+    fn get_map(&self, k: &OutputPointer) -> Option<(MixedOutput, u32)> {
         if self.diff.utxos_to_remove.contains(k) {
             return None;
         }
@@ -64,8 +81,11 @@ impl UnspentOutputsPool {
     }
 
     /// Insert a new unspent `OutputPointer`
-    pub fn insert(&mut self, k: OutputPointer, v: ValueTransferOutput, block_number: u32) {
-        let old = self.diff.utxos_to_add.insert(k, (v, block_number));
+    pub fn insert<VTO>(&mut self, k: OutputPointer, v: VTO, block_number: u32)
+    where
+        VTO: Into<MixedOutput>,
+    {
+        let old = self.diff.utxos_to_add.insert(k, (v.into(), block_number));
 
         assert!(old.is_none(), "UTXO did already exist");
     }
@@ -77,23 +97,21 @@ impl UnspentOutputsPool {
         assert!(did_exist, "tried to remove an already removed UTXO");
     }
 
-    fn db_get(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
+    fn db_get(&self, k: &OutputPointer) -> Option<(MixedOutput, u32)> {
         let key_string = format!("UTXO-{}", k);
 
         self.db
             .as_ref()?
             .get(key_string.as_bytes())
             .expect("db fail")
-            .map(|bytes| {
-                bincode::deserialize::<(ValueTransferOutput, u32)>(&bytes).expect("bincode fail")
-            })
+            .map(|bytes| bincode::deserialize::<(MixedOutput, u32)>(&bytes).expect("bincode fail"))
     }
 
     fn db_insert(
         &mut self,
         batch: &mut WriteBatch,
         k: OutputPointer,
-        v: ValueTransferOutput,
+        v: MixedOutput,
         block_number: u32,
     ) {
         // Sanity check that UTXOs are only written once
@@ -114,7 +132,7 @@ impl UnspentOutputsPool {
         &mut self,
         batch: &mut WriteBatch,
         k: &OutputPointer,
-    ) -> Option<(ValueTransferOutput, u32)> {
+    ) -> Option<(MixedOutput, u32)> {
         // Sanity check that UTXOs are only removed once
         let old_vto = self.get_map(k);
         assert!(
@@ -128,7 +146,7 @@ impl UnspentOutputsPool {
         old_vto
     }
 
-    fn db_iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+    fn db_iter(&self) -> impl Iterator<Item = (OutputPointer, (MixedOutput, u32))> + '_ {
         self.db
             .as_ref()
             .map(|db| {
@@ -148,7 +166,7 @@ impl UnspentOutputsPool {
     }
 
     /// Iterate over all the unspent outputs
-    pub fn iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (OutputPointer, (MixedOutput, u32))> + '_ {
         self.diff
             .utxos_to_add
             .iter()
@@ -167,8 +185,8 @@ impl UnspentOutputsPool {
     /// the second one will visit all the UTXOs, confirmed and unconfirmed.
     pub fn visit<F1, F2>(&self, fn_confirmed: F1, mut fn_all: F2)
     where
-        F1: FnMut(&(OutputPointer, (ValueTransferOutput, u32))),
-        F2: FnMut(&(OutputPointer, (ValueTransferOutput, u32))),
+        F1: FnMut(&(OutputPointer, (MixedOutput, u32))),
+        F2: FnMut(&(OutputPointer, (MixedOutput, u32))),
     {
         self.diff
             .utxos_to_add
@@ -244,7 +262,7 @@ impl UnspentOutputsPool {
         let total = old.map.len();
 
         for (i, (k, (v, block_number))) in old.map.drain().enumerate() {
-            self.db_insert(&mut batch, k, v, block_number);
+            self.db_insert(&mut batch, k, MixedOutput::VTO(v), block_number);
             progress(i, total);
         }
 
@@ -474,8 +492,9 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
 
     fn set_used_output_pointer(&mut self, inputs: &[Input], ts: u64) {
         for input in inputs {
-            let current_ts = self.own_utxos.get_mut(input.output_pointer()).unwrap();
-            *current_ts = ts;
+            if let Some(current_ts) = self.own_utxos.get_mut(input.output_pointer()) {
+                *current_ts = ts;
+            }
         }
     }
 }
@@ -544,22 +563,27 @@ pub struct UtxoInfo {
 
 #[allow(clippy::cast_sign_loss)]
 fn create_utxo_metadata(
-    vto: &ValueTransferOutput,
+    vto: &MixedOutput,
     o: &OutputPointer,
     all_utxos: &UnspentOutputsPool,
     block_number_limit: u32,
 ) -> UtxoMetadata {
-    let now = get_timestamp() as u64;
-    let timelock = if vto.time_lock >= now {
-        vto.time_lock
-    } else {
-        0
+    let timelock = match vto {
+        MixedOutput::VTO(vto) => {
+            let now = get_timestamp() as u64;
+            if vto.time_lock >= now {
+                vto.time_lock
+            } else {
+                0
+            }
+        }
+        MixedOutput::Script(_) => 0,
     };
     let utxo_mature: bool = all_utxos.included_in_block_number(o).unwrap() <= block_number_limit;
 
     UtxoMetadata {
         output_pointer: o.clone(),
-        value: vto.value,
+        value: vto.value(),
         timelock,
         utxo_mature,
     }
@@ -577,16 +601,30 @@ pub fn get_utxo_info(
     let utxos = if let Some(pkh) = pkh {
         all_utxos
             .iter()
-            .filter_map(|(o, (vto, _))| {
-                if vto.pkh == pkh {
-                    Some(create_utxo_metadata(
-                        &vto,
-                        &o,
-                        all_utxos,
-                        block_number_limit,
-                    ))
-                } else {
-                    None
+            .filter_map(|(o, (output, _))| match output {
+                MixedOutput::VTO(vto) => {
+                    if vto.pkh == pkh {
+                        Some(create_utxo_metadata(
+                            &MixedOutput::VTO(vto),
+                            &o,
+                            all_utxos,
+                            block_number_limit,
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                MixedOutput::Script(sho) => {
+                    if sho.redeem_script_hash == pkh {
+                        Some(create_utxo_metadata(
+                            &MixedOutput::Script(sho),
+                            &o,
+                            all_utxos,
+                            block_number_limit,
+                        ))
+                    } else {
+                        None
+                    }
                 }
             })
             .collect()
@@ -595,10 +633,14 @@ pub fn get_utxo_info(
         own_utxos
             .iter()
             .filter_map(|(o, _)| {
-                all_utxos
-                    .get(o)
-                    .as_ref()
-                    .map(|vto| create_utxo_metadata(vto, o, all_utxos, block_number_limit))
+                all_utxos.get(o).as_ref().map(|vto| {
+                    create_utxo_metadata(
+                        &MixedOutput::VTO(vto.clone()),
+                        o,
+                        all_utxos,
+                        block_number_limit,
+                    )
+                })
             })
             .collect()
     };
@@ -613,7 +655,7 @@ pub fn get_utxo_info(
 /// reference to the original utxo set.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Diff {
-    utxos_to_add: HashMap<OutputPointer, (ValueTransferOutput, u32)>,
+    utxos_to_add: HashMap<OutputPointer, (MixedOutput, u32)>,
     utxos_to_remove: HashSet<OutputPointer>,
 }
 
@@ -649,7 +691,7 @@ impl Diff {
     /// ```
     pub fn visit<A, F1, F2>(&self, args: &mut A, mut fn_add: F1, mut fn_remove: F2)
     where
-        F1: FnMut(&mut A, &OutputPointer, &ValueTransferOutput),
+        F1: FnMut(&mut A, &OutputPointer, &MixedOutput),
         F2: FnMut(&mut A, &OutputPointer),
     {
         for (output_pointer, (output, _)) in self.utxos_to_add.iter() {
@@ -682,15 +724,17 @@ impl<'a> UtxoDiff<'a> {
     }
 
     /// Record an insertion to perform on the utxo set
-    pub fn insert_utxo(
+    pub fn insert_utxo<VTO>(
         &mut self,
         output_pointer: OutputPointer,
-        output: ValueTransferOutput,
+        output: VTO,
         block_number: Option<u32>,
-    ) {
+    ) where
+        VTO: Into<MixedOutput>,
+    {
         self.diff.utxos_to_add.insert(
             output_pointer,
-            (output, block_number.unwrap_or(self.block_number)),
+            (output.into(), block_number.unwrap_or(self.block_number)),
         );
     }
 
@@ -704,9 +748,9 @@ impl<'a> UtxoDiff<'a> {
     /// Get an utxo from the original utxo set or one that has been
     /// recorded as inserted later. If the same utxo has been recorded
     /// as removed, None will be returned.
-    pub fn get(&self, output_pointer: &OutputPointer) -> Option<ValueTransferOutput> {
+    pub fn get(&self, output_pointer: &OutputPointer) -> Option<MixedOutput> {
         self.utxo_set
-            .get(output_pointer)
+            .get_mixed(output_pointer)
             .or_else(|| {
                 self.diff
                     .utxos_to_add

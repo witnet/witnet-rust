@@ -385,7 +385,7 @@ mod tests {
         transaction_pool.insert(transaction_1, 1);
         transaction_pool.insert(transaction_2, 10);
         transaction_pool.insert(transaction_3, 10);
-        assert_eq!(transaction_pool.vt_len(), 3);
+        assert_eq!(transaction_pool.vt_and_sh_len(), 3);
 
         let mut unspent_outputs_pool = UnspentOutputsPool::default();
         let output1 = ValueTransferOutput {

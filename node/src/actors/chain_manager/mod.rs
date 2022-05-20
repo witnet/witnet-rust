@@ -46,6 +46,7 @@ use itertools::Itertools;
 use rand::Rng;
 use witnet_config::config::Tapi;
 use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
+use witnet_data_structures::chain::MixedOutput;
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
@@ -2541,6 +2542,10 @@ fn update_pools(
         transactions_pool.vt_remove(vt_tx);
     }
 
+    for sh_tx in &block.txns.script_txns {
+        transactions_pool.sh_remove(sh_tx);
+    }
+
     for dr_tx in &block.txns.data_request_txns {
         if let Err(e) = data_request_pool.process_data_request(
             dr_tx,
@@ -2581,9 +2586,14 @@ fn update_pools(
     utxo_diff.visit(
         own_utxos,
         |own_utxos, output_pointer, output| {
-            // Insert new outputs
-            if output.pkh == own_pkh {
-                own_utxos.insert(output_pointer.clone(), 0);
+            match output {
+                MixedOutput::VTO(vto) => {
+                    // Insert new outputs
+                    if vto.pkh == own_pkh {
+                        own_utxos.insert(output_pointer.clone(), 0);
+                    }
+                }
+                MixedOutput::Script(_) => {}
             }
         },
         |own_utxos, output_pointer| {

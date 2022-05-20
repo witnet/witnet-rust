@@ -39,11 +39,10 @@ use crate::{
     proto::{schema::witnet, ProtobufConvert},
     superblock::SuperBlockState,
     transaction::{
-        CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
-        RevealTransaction, TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
-    },
-    transaction::{
-        MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
+        CommitTransaction, DRTransaction, DRTransactionBody, MemoHash, Memoized, MemoizedHashable,
+        MintTransaction, RevealTransaction, ScriptTransaction, TallyTransaction, Transaction,
+        TxInclusionProof, VTTransaction, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT,
+        TALLY_WEIGHT,
     },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
@@ -61,7 +60,7 @@ pub struct ChainInfo {
     /// Blockchain valid environment
     pub environment: Environment,
 
-    /// Blockchain Protocol constants
+    /// Blockchain Protocol constantsq
     pub consensus_constants: ConsensusConstants,
 
     /// Checkpoint of the last block in the blockchain
@@ -420,6 +419,8 @@ pub struct BlockTransactions {
     pub reveal_txns: Vec<RevealTransaction>,
     /// A list of signed tally transactions
     pub tally_txns: Vec<TallyTransaction>,
+    /// A list of signed script transactions
+    pub script_txns: Vec<ScriptTransaction>,
 }
 
 impl Block {
@@ -448,6 +449,7 @@ impl Block {
             commit_txns: vec![],
             reveal_txns: vec![],
             tally_txns: vec![],
+            script_txns: vec![],
         };
 
         /// Function to calculate a merkle tree from a transaction vector
@@ -472,6 +474,7 @@ impl Block {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+            script_hash_merkle_root: merkle_tree_root(&txns.script_txns),
         };
 
         Block::new(
@@ -501,6 +504,7 @@ impl BlockTransactions {
             + self.commit_txns.len()
             + self.reveal_txns.len()
             + self.tally_txns.len()
+            + self.script_txns.len()
     }
 
     /// Returns true if this block contains no transactions
@@ -512,6 +516,7 @@ impl BlockTransactions {
             && self.commit_txns.is_empty()
             && self.reveal_txns.is_empty()
             && self.tally_txns.is_empty()
+            && self.script_txns.is_empty()
     }
 
     /// Get a transaction given the `TransactionPointer`
@@ -543,6 +548,11 @@ impl BlockTransactions {
                 .get(i as usize)
                 .cloned()
                 .map(Transaction::Tally),
+            TransactionPointer::Script(i) => self
+                .script_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::Script),
         }
     }
 
@@ -583,6 +593,11 @@ impl BlockTransactions {
         for (i, tx) in self.tally_txns.iter().enumerate() {
             pointer_to_block.transaction_index =
                 TransactionPointer::Tally(u32::try_from(i).unwrap());
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+        for (i, tx) in self.script_txns.iter().enumerate() {
+            pointer_to_block.transaction_index =
+                TransactionPointer::Script(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
 
@@ -666,6 +681,8 @@ pub struct BlockMerkleRoots {
     pub reveal_hash_merkle_root: Hash,
     /// A 256-bit hash based on all of the tally transactions committed to this block
     pub tally_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the script transactions committed to this block
+    pub script_hash_merkle_root: Hash,
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -694,6 +711,7 @@ impl BlockMerkleRoots {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+            script_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
         }
     }
 }
@@ -1321,6 +1339,13 @@ impl ScriptInput {
     /// Return the [`OutputPointer`](OutputPointer) of an input.
     pub fn output_pointer(&self) -> &OutputPointer {
         &self.output_pointer
+    }
+
+    /// Return an Input from a ScriptInput
+    pub fn to_input(&self) -> Input {
+        Input {
+            output_pointer: self.output_pointer.clone(),
+        }
     }
 }
 
@@ -1975,8 +2000,7 @@ impl RADTally {
 }
 
 type PrioritizedHash = (OrderedFloat<f64>, Hash);
-type PrioritizedVTTransaction = (OrderedFloat<f64>, VTTransaction);
-type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction);
+type PrioritizedTransaction = (OrderedFloat<f64>, Transaction);
 
 #[derive(Debug, Clone, Default)]
 struct UnconfirmedTransactions {
@@ -2015,9 +2039,9 @@ impl UnconfirmedTransactions {
 /// transactions with smaller fees.
 #[derive(Debug, Clone)]
 pub struct TransactionsPool {
-    vt_transactions: HashMap<Hash, PrioritizedVTTransaction>,
-    sorted_vt_index: BTreeSet<PrioritizedHash>,
-    dr_transactions: HashMap<Hash, PrioritizedDRTransaction>,
+    vt_and_sh_transactions: HashMap<Hash, PrioritizedTransaction>,
+    sorted_vt_and_sh_index: BTreeSet<PrioritizedHash>,
+    dr_transactions: HashMap<Hash, PrioritizedTransaction>,
     sorted_dr_index: BTreeSet<PrioritizedHash>,
     // Index commits by transaction hash
     co_hash_index: HashMap<Hash, CommitTransaction>,
@@ -2033,7 +2057,7 @@ pub struct TransactionsPool {
     // Map to avoid double spending issues
     output_pointer_map: HashMap<OutputPointer, Vec<Hash>>,
     // Total size of all value transfer transactions inside the pool in weight units
-    total_vt_weight: u64,
+    total_vt_and_sh_weight: u64,
     // Total size of all data request transactions inside the pool in weight units
     total_dr_weight: u64,
     // TransactionsPool size limit in weight units
@@ -2054,8 +2078,8 @@ pub struct TransactionsPool {
 impl Default for TransactionsPool {
     fn default() -> Self {
         Self {
-            vt_transactions: Default::default(),
-            sorted_vt_index: Default::default(),
+            vt_and_sh_transactions: Default::default(),
+            sorted_vt_and_sh_index: Default::default(),
             dr_transactions: Default::default(),
             sorted_dr_index: Default::default(),
             co_hash_index: Default::default(),
@@ -2064,7 +2088,7 @@ impl Default for TransactionsPool {
             re_transactions: Default::default(),
             pending_transactions: Default::default(),
             output_pointer_map: Default::default(),
-            total_vt_weight: 0,
+            total_vt_and_sh_weight: 0,
             total_dr_weight: 0,
             // Unlimited by default
             weight_limit: u64::MAX,
@@ -2129,7 +2153,7 @@ impl TransactionsPool {
     /// assert!(pool.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
-        self.vt_transactions.is_empty()
+        self.vt_and_sh_transactions.is_empty()
             && self.dr_transactions.is_empty()
             && self.co_transactions.is_empty()
             && self.re_transactions.is_empty()
@@ -2138,8 +2162,8 @@ impl TransactionsPool {
     /// Remove all the transactions but keep the allocated memory for reuse.
     pub fn clear(&mut self) {
         let TransactionsPool {
-            vt_transactions,
-            sorted_vt_index,
+            vt_and_sh_transactions,
+            sorted_vt_and_sh_index,
             dr_transactions,
             sorted_dr_index,
             co_hash_index,
@@ -2148,7 +2172,7 @@ impl TransactionsPool {
             re_transactions,
             pending_transactions,
             output_pointer_map,
-            total_vt_weight,
+            total_vt_and_sh_weight,
             total_dr_weight,
             weight_limit: _,
             vt_to_dr_factor: _,
@@ -2156,8 +2180,8 @@ impl TransactionsPool {
             unconfirmed_transactions,
         } = self;
 
-        vt_transactions.clear();
-        sorted_vt_index.clear();
+        vt_and_sh_transactions.clear();
+        sorted_vt_and_sh_index.clear();
         dr_transactions.clear();
         sorted_dr_index.clear();
         co_hash_index.clear();
@@ -2166,12 +2190,12 @@ impl TransactionsPool {
         re_transactions.clear();
         pending_transactions.clear();
         output_pointer_map.clear();
-        *total_vt_weight = 0;
+        *total_vt_and_sh_weight = 0;
         *total_dr_weight = 0;
         unconfirmed_transactions.clear();
     }
 
-    /// Returns the number of value transfer transactions in the pool.
+    /// Returns the number of value transfer and script transactions in the pool.
     ///
     /// # Examples:
     ///
@@ -2182,14 +2206,14 @@ impl TransactionsPool {
     ///
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
-    /// assert_eq!(pool.vt_len(), 0);
+    /// assert_eq!(pool.vt_and_sh_len(), 0);
     ///
     /// pool.insert(transaction, 0);
     ///
-    /// assert_eq!(pool.vt_len(), 1);
+    /// assert_eq!(pool.vt_and_sh_len(), 1);
     /// ```
-    pub fn vt_len(&self) -> usize {
-        self.vt_transactions.len()
+    pub fn vt_and_sh_len(&self) -> usize {
+        self.vt_and_sh_transactions.len()
     }
 
     /// Returns the number of data request transactions in the pool.
@@ -2239,7 +2263,9 @@ impl TransactionsPool {
             Ok(true)
         } else {
             match transaction {
-                Transaction::ValueTransfer(_vt) => Ok(self.vt_contains(&tx_hash)),
+                Transaction::ValueTransfer(_) | Transaction::Script(_) => {
+                    Ok(self.vt_and_sh_contains(&tx_hash))
+                }
                 Transaction::DataRequest(_drt) => Ok(self.dr_contains(&tx_hash)),
                 Transaction::Commit(ct) => {
                     let dr_pointer = ct.body.dr_pointer;
@@ -2253,7 +2279,6 @@ impl TransactionsPool {
 
                     self.reveal_contains(&dr_pointer, &pkh, &tx_hash)
                 }
-                Transaction::Script(_) => unimplemented!(),
                 // Tally and mint transaction only exist inside blocks, it should
                 // be impossible for nodes to broadcast these kinds of transactions.
                 Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
@@ -2262,7 +2287,7 @@ impl TransactionsPool {
         }
     }
 
-    /// Returns `true` if the pool contains a value transfer
+    /// Returns `true` if the pool contains a value transfer or script
     /// transaction for the specified hash.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
@@ -2276,14 +2301,14 @@ impl TransactionsPool {
     ///
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     /// let hash = transaction.hash();
-    /// assert!(!pool.vt_contains(&hash));
+    /// assert!(!pool.vt_and_sh_contains(&hash));
     ///
     /// pool.insert(transaction, 0);
     ///
-    /// assert!(pool.vt_contains(&hash));
+    /// assert!(pool.vt_and_sh_contains(&hash));
     /// ```
-    pub fn vt_contains(&self, key: &Hash) -> bool {
-        self.vt_transactions.contains_key(key)
+    pub fn vt_and_sh_contains(&self, key: &Hash) -> bool {
+        self.vt_and_sh_transactions.contains_key(key)
     }
 
     /// Returns `true` if the pool contains a data request
@@ -2351,7 +2376,7 @@ impl TransactionsPool {
             .unwrap_or(Ok(false))
     }
 
-    /// Remove a value transfer transaction from the pool and make sure that other transactions
+    /// Remove a value transfer or script transaction from the pool and make sure that other transactions
     /// that may try to spend the same UTXOs are also removed.
     /// This should be used to remove transactions that got included in a consolidated block.
     ///
@@ -2369,7 +2394,7 @@ impl TransactionsPool {
     /// let transaction = Transaction::ValueTransfer(vt_transaction.clone());
     /// pool.insert(transaction.clone(),0);
     ///
-    /// assert!(pool.vt_contains(&transaction.hash()));
+    /// assert!(pool.vt_and_sh_contains(&transaction.hash()));
     ///
     /// let op_transaction_removed = pool.vt_remove(&vt_transaction);
     ///
@@ -2378,11 +2403,14 @@ impl TransactionsPool {
     /// ```
     pub fn vt_remove(&mut self, tx: &VTTransaction) -> Option<VTTransaction> {
         let key = tx.hash();
-        let transaction = self.vt_remove_inner(&key, true);
+        let transaction = self.vt_and_sh_remove_inner(&key, true);
 
         self.remove_inputs(&tx.body.inputs);
 
-        transaction
+        match transaction {
+            Some(Transaction::ValueTransfer(vt_tx)) => Some(vt_tx),
+            _ => None,
+        }
     }
 
     /// After removing a transaction, remove the transaction hash from the output_pointer_map.
@@ -2413,14 +2441,30 @@ impl TransactionsPool {
     /// This should be used to remove transactions that did not get included in a consolidated
     /// block.
     /// If the transaction did get included in a consolidated block, use `vt_remove` instead.
-    fn vt_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<VTTransaction> {
-        self.vt_transactions
+    fn vt_and_sh_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<Transaction> {
+        self.vt_and_sh_transactions
             .remove(key)
             .map(|(weight, transaction)| {
-                self.sorted_vt_index.remove(&(weight, *key));
-                self.total_vt_weight -= u64::from(transaction.weight());
+                self.sorted_vt_and_sh_index.remove(&(weight, *key));
+                self.total_vt_and_sh_weight -= u64::from(transaction.weight());
                 if !consolidated {
-                    self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
+                    match transaction {
+                        Transaction::ValueTransfer(ref vt) => {
+                            self.remove_tx_from_output_pointer_map(key, &vt.body.inputs);
+                        }
+                        Transaction::Script(ref sh) => {
+                            let inputs: Vec<Input> = sh
+                                .body
+                                .inputs
+                                .iter()
+                                .map(|sh_input| sh_input.to_input())
+                                .collect();
+                            self.remove_tx_from_output_pointer_map(key, &inputs);
+                        }
+                        _ => unreachable!(
+                            "Invalid transaction found. Only VT and Script transactions allowed"
+                        ),
+                    }
                 }
                 transaction
             })
@@ -2457,22 +2501,32 @@ impl TransactionsPool {
 
         self.remove_inputs(&tx.body.inputs);
 
-        transaction
+        match transaction {
+            Some(Transaction::DataRequest(dr_tx)) => Some(dr_tx),
+            _ => None,
+        }
     }
 
     /// Remove a data request transaction from the pool but do not remove other transactions that
     /// may try to spend the same UTXOs.
     /// This should be used to remove transactions that did not get included in a consolidated
     /// block.
-    /// If the transaction did get included in a consolidated block, use `dr_remove` instead.
-    fn dr_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<DRTransaction> {
+    /// If the transaction did get included in a consolidated block, use `dr_rTemove` instead.
+    fn dr_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<Transaction> {
         self.dr_transactions
             .remove(key)
             .map(|(weight, transaction)| {
                 self.sorted_dr_index.remove(&(weight, *key));
                 self.total_dr_weight -= u64::from(transaction.weight());
                 if !consolidated {
-                    self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
+                    match transaction {
+                        Transaction::DataRequest(ref dr) => {
+                            self.remove_tx_from_output_pointer_map(key, &dr.body.inputs)
+                        }
+                        _ => unreachable!(
+                            "Invalid transaction found. Only VT and Script transactions allowed"
+                        ),
+                    }
                 }
                 transaction
             })
@@ -2483,10 +2537,31 @@ impl TransactionsPool {
         for input in inputs.iter() {
             if let Some(hashes) = self.output_pointer_map.remove(&input.output_pointer) {
                 for hash in hashes.iter() {
-                    self.vt_remove_inner(hash, false);
+                    self.vt_and_sh_remove_inner(hash, false);
                     self.dr_remove_inner(hash, false);
                 }
             }
+        }
+    }
+
+    /// Remove a script transaction from the pool and make sure that other transactions
+    /// that may try to spend the same UTXOs are also removed.
+    /// This should be used to remove transactions that got included in a consolidated block.
+    pub fn sh_remove(&mut self, tx: &ScriptTransaction) -> Option<ScriptTransaction> {
+        let key = tx.hash();
+        let transaction = self.vt_and_sh_remove_inner(&key, true);
+
+        let inputs: Vec<Input> = tx
+            .body
+            .inputs
+            .iter()
+            .map(|sh_input| sh_input.to_input())
+            .collect();
+        self.remove_inputs(&inputs);
+
+        match transaction {
+            Some(Transaction::Script(sh_tx)) => Some(sh_tx),
+            _ => None,
         }
     }
 
@@ -2627,24 +2702,24 @@ impl TransactionsPool {
     fn remove_transactions_for_size_limit(&mut self) -> Vec<Transaction> {
         let mut removed_transactions = vec![];
 
-        while self.total_vt_weight + self.total_dr_weight > self.weight_limit {
+        while self.total_vt_and_sh_weight + self.total_dr_weight > self.weight_limit {
             // Try to split the memory between value transfer and data requests using the same
             // ratio as the one used in blocks
             // The ratio of vt to dr in blocks is currently 4:1
             #[allow(clippy::cast_precision_loss)]
-            let more_vtts_than_drs =
-                self.total_vt_weight as f64 >= self.total_dr_weight as f64 * self.vt_to_dr_factor;
+            let more_vtts_than_drs = self.total_vt_and_sh_weight as f64
+                >= self.total_dr_weight as f64 * self.vt_to_dr_factor;
             if more_vtts_than_drs {
                 // Remove the value transfer transaction with the lowest fee/weight
                 let tx_hash = self
-                    .sorted_vt_index
+                    .sorted_vt_and_sh_index
                     .iter()
                     .map(|(_fee_weight, tx_hash)| *tx_hash)
                     .next()
                     // There must be at least one transaction because the total weight is not zero
                     .unwrap();
-                let tx = self.vt_remove_inner(&tx_hash, false).unwrap();
-                removed_transactions.push(Transaction::ValueTransfer(tx));
+                let tx = self.vt_and_sh_remove_inner(&tx_hash, false).unwrap();
+                removed_transactions.push(tx);
             } else {
                 // Remove the data request transaction with the lowest fee/weight
                 let tx_hash = self
@@ -2655,7 +2730,7 @@ impl TransactionsPool {
                     // There must be at least one transaction because the total weight is not zero
                     .unwrap();
                 let tx = self.dr_remove_inner(&tx_hash, false).unwrap();
-                removed_transactions.push(Transaction::DataRequest(tx));
+                removed_transactions.push(tx);
             }
         }
 
@@ -2693,7 +2768,7 @@ impl TransactionsPool {
                 if fee < self.minimum_vtt_fee {
                     return vec![Transaction::ValueTransfer(vt_tx)];
                 } else {
-                    self.total_vt_weight += u64::from(vt_tx.weight());
+                    self.total_vt_and_sh_weight += u64::from(vt_tx.weight());
 
                     for input in &vt_tx.body.inputs {
                         self.output_pointer_map
@@ -2702,8 +2777,30 @@ impl TransactionsPool {
                             .push(vt_tx.hash());
                     }
 
-                    self.vt_transactions.insert(key, (priority, vt_tx));
-                    self.sorted_vt_index.insert((priority, key));
+                    self.vt_and_sh_transactions
+                        .insert(key, (priority, Transaction::ValueTransfer(vt_tx)));
+                    self.sorted_vt_and_sh_index.insert((priority, key));
+                }
+            }
+            Transaction::Script(sh_tx) => {
+                let weight = f64::from(sh_tx.weight());
+                let priority = OrderedFloat(fee as f64 / weight);
+
+                if fee < self.minimum_vtt_fee {
+                    return vec![Transaction::Script(sh_tx)];
+                } else {
+                    self.total_vt_and_sh_weight += u64::from(sh_tx.weight());
+
+                    for input in &sh_tx.body.inputs {
+                        self.output_pointer_map
+                            .entry(input.output_pointer.clone())
+                            .or_insert_with(Vec::new)
+                            .push(sh_tx.hash());
+                    }
+
+                    self.vt_and_sh_transactions
+                        .insert(key, (priority, Transaction::Script(sh_tx)));
+                    self.sorted_vt_and_sh_index.insert((priority, key));
                 }
             }
             Transaction::DataRequest(dr_tx) => {
@@ -2719,7 +2816,8 @@ impl TransactionsPool {
                         .push(dr_tx.hash());
                 }
 
-                self.dr_transactions.insert(key, (priority, dr_tx));
+                self.dr_transactions
+                    .insert(key, (priority, Transaction::DataRequest(dr_tx)));
                 self.sorted_dr_index.insert((priority, key));
             }
             Transaction::Commit(co_tx) => {
@@ -2765,7 +2863,7 @@ impl TransactionsPool {
         self.pending_transactions.clear();
     }
 
-    /// An iterator visiting all the value transfer transactions
+    /// An iterator visiting all the value transfer and script transactions
     /// in the pool in descending-fee order, that is, transactions
     /// with bigger fees come first.
     ///
@@ -2781,21 +2879,21 @@ impl TransactionsPool {
     /// pool.insert(transaction.clone(),0);
     /// pool.insert(transaction, 0);
     ///
-    /// let mut iter = pool.vt_iter();
+    /// let mut iter = pool.vt_and_sh_iter();
     /// let tx1 = iter.next();
     /// let tx2 = iter.next();
     ///
     /// ```
-    pub fn vt_iter(&self) -> impl Iterator<Item = &VTTransaction> {
-        self.sorted_vt_index
+    pub fn vt_and_sh_iter(&self) -> impl Iterator<Item = &Transaction> {
+        self.sorted_vt_and_sh_index
             .iter()
             .rev()
-            .filter_map(move |(_, h)| self.vt_transactions.get(h).map(|(_, t)| t))
+            .filter_map(move |(_, h)| self.vt_and_sh_transactions.get(h).map(|(_, t)| t))
     }
 
     /// An iterator visiting all the data request transactions
     /// in the pool
-    pub fn dr_iter(&self) -> impl Iterator<Item = &DRTransaction> {
+    pub fn dr_iter(&self) -> impl Iterator<Item = &Transaction> {
         self.sorted_dr_index
             .iter()
             .rev()
@@ -2814,14 +2912,14 @@ impl TransactionsPool {
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     /// let hash = transaction.hash();
     ///
-    /// assert!(pool.vt_get(&hash).is_none());
+    /// assert!(pool.vt_and_sh_get(&hash).is_none());
     ///
     /// pool.insert(transaction, 0);
     ///
-    /// assert!(pool.vt_get(&hash).is_some());
+    /// assert!(pool.vt_and_sh_get(&hash).is_some());
     /// ```
-    pub fn vt_get(&self, key: &Hash) -> Option<&VTTransaction> {
-        self.vt_transactions
+    pub fn vt_and_sh_get(&self, key: &Hash) -> Option<&Transaction> {
+        self.vt_and_sh_transactions
             .get(key)
             .map(|(_, transaction)| transaction)
     }
@@ -2849,25 +2947,25 @@ impl TransactionsPool {
     ///
     /// pool.insert(transaction1,0);
     /// pool.insert(transaction2,0);
-    /// assert_eq!(pool.vt_len(), 2);
-    /// pool.vt_retain(|tx| tx.body.outputs.len()>0);
-    /// assert_eq!(pool.vt_len(), 1);
+    /// assert_eq!(pool.vt_and_sh_len(), 2);
+    /// pool.vt_and_sh_retain(|tx| tx.body.outputs.len()>0);
+    /// assert_eq!(pool.vt_and_sh_len(), 1);
     /// ```
-    pub fn vt_retain<F>(&mut self, mut f: F)
+    pub fn vt_and_sh_retain<F>(&mut self, mut f: F)
     where
-        F: FnMut(&VTTransaction) -> bool,
+        F: FnMut(&Transaction) -> bool,
     {
         let TransactionsPool {
-            ref mut vt_transactions,
-            sorted_vt_index: ref mut sorted_index,
-            ref mut total_vt_weight,
+            ref mut vt_and_sh_transactions,
+            sorted_vt_and_sh_index: ref mut sorted_index,
+            ref mut total_vt_and_sh_weight,
             ..
         } = *self;
 
-        vt_transactions.retain(|hash, (weight, vt_transaction)| {
-            let retain = f(vt_transaction);
+        vt_and_sh_transactions.retain(|hash, (weight, transaction)| {
+            let retain = f(transaction);
             if !retain {
-                *total_vt_weight -= 1;
+                *total_vt_and_sh_weight -= 1;
                 sorted_index.remove(&(*weight, *hash));
             }
 
@@ -2877,14 +2975,10 @@ impl TransactionsPool {
 
     /// Get transaction by hash
     pub fn get(&self, hash: &Hash) -> Option<Transaction> {
-        self.vt_transactions
+        self.vt_and_sh_transactions
             .get(hash)
-            .map(|(_, vtt)| Transaction::ValueTransfer(vtt.clone()))
-            .or_else(|| {
-                self.dr_transactions
-                    .get(hash)
-                    .map(|(_, drt)| Transaction::DataRequest(drt.clone()))
-            })
+            .map(|(_, vt_or_sh)| vt_or_sh.clone())
+            .or_else(|| self.dr_transactions.get(hash).map(|(_, drt)| drt.clone()))
             .or_else(|| {
                 self.co_hash_index
                     .get(hash)
@@ -2913,8 +3007,8 @@ impl TransactionsPool {
         for hash in unconfirmed_hashes {
             if let Some(transaction) = self.get(&hash) {
                 match transaction {
-                    Transaction::ValueTransfer(_) => {
-                        let _x = self.vt_remove_inner(&hash, false);
+                    Transaction::ValueTransfer(_) | Transaction::Script(_) => {
+                        let _x = self.vt_and_sh_remove_inner(&hash, false);
                     }
                     Transaction::DataRequest(_) => {
                         let _x = self.dr_remove_inner(&hash, false);
@@ -3025,6 +3119,8 @@ pub enum TransactionPointer {
     Tally(u32),
     /// Mint
     Mint,
+    /// Script
+    Script(u32),
 }
 
 /// This is how transactions are stored in the database: hash of the containing block, plus index
@@ -4771,7 +4867,7 @@ mod tests {
         assert_eq!(Transaction::ValueTransfer(t), vt1);
         assert!(!transactions_pool.contains(&vt1).unwrap());
         assert!(!transactions_pool.contains(&vt2).unwrap());
-        assert!(transactions_pool.sorted_vt_index.is_empty());
+        assert!(transactions_pool.sorted_vt_and_sh_index.is_empty());
         assert!(transactions_pool.output_pointer_map.is_empty());
     }
 
@@ -4952,7 +5048,7 @@ mod tests {
         let vt_to_dr_factor = 1000.0;
         let removed = transactions_pool.set_total_weight_limit(weight_limit, vt_to_dr_factor);
         assert!(
-            (transactions_pool.total_vt_weight as f64)
+            (transactions_pool.total_vt_and_sh_weight as f64)
                 >= (transactions_pool.total_dr_weight as f64 * vt_to_dr_factor)
         );
         let mut removed_dr_count = 0;
@@ -4977,7 +5073,7 @@ mod tests {
         let vt_to_dr_factor = 1.0 / 1000.0;
         let removed = transactions_pool.set_total_weight_limit(weight_limit, vt_to_dr_factor);
         assert!(
-            (transactions_pool.total_vt_weight as f64)
+            (transactions_pool.total_vt_and_sh_weight as f64)
                 >= (transactions_pool.total_dr_weight as f64 * vt_to_dr_factor)
         );
         let mut removed_vt_count = 0;

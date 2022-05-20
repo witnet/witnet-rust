@@ -1,3 +1,4 @@
+use crate::chain::MixedOutput;
 use crate::{
     chain::{
         DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
@@ -256,16 +257,28 @@ pub fn get_total_balance(
     let mut confirmed = 0;
     let mut total = 0;
     all_utxos.visit(
-        |x| {
-            let vto = &x.1 .0;
-            if vto.pkh == pkh {
-                confirmed += vto.value;
+        |x| match &x.1 .0 {
+            MixedOutput::VTO(vto) => {
+                if vto.pkh == pkh {
+                    confirmed += vto.value;
+                }
+            }
+            MixedOutput::Script(sho) => {
+                if sho.redeem_script_hash == pkh {
+                    confirmed += sho.value;
+                }
             }
         },
-        |x| {
-            let vto = &x.1 .0;
-            if vto.pkh == pkh {
-                total += vto.value;
+        |x| match &x.1 .0 {
+            MixedOutput::VTO(vto) => {
+                if vto.pkh == pkh {
+                    total += vto.value;
+                }
+            }
+            MixedOutput::Script(sho) => {
+                if sho.redeem_script_hash == pkh {
+                    total += sho.value;
+                }
             }
         },
     );
@@ -489,26 +502,42 @@ pub fn transaction_inputs_sum(
             }
         })?;
 
-        // Verify that commits are only accepted after the time lock expired
-        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
-        let vt_time_lock = i64::try_from(vt_output.time_lock)?;
-        if vt_time_lock > epoch_timestamp {
-            return Err(TransactionError::TimeLock {
-                expected: vt_time_lock,
-                current: epoch_timestamp,
-            }
-            .into());
-        } else {
-            if !seen_output_pointers.insert(input.output_pointer()) {
-                // If the set already contained this output pointer
-                return Err(TransactionError::OutputNotFound {
-                    output: input.output_pointer().clone(),
+        match &vt_output {
+            MixedOutput::VTO(vto) => {
+                // Verify that commits are only accepted after the time lock expired
+                let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+                let vt_time_lock = i64::try_from(vto.time_lock)?;
+                if vt_time_lock > epoch_timestamp {
+                    return Err(TransactionError::TimeLock {
+                        expected: vt_time_lock,
+                        current: epoch_timestamp,
+                    }
+                    .into());
+                } else {
+                    if !seen_output_pointers.insert(input.output_pointer()) {
+                        // If the set already contained this output pointer
+                        return Err(TransactionError::OutputNotFound {
+                            output: input.output_pointer().clone(),
+                        }
+                        .into());
+                    }
+                    total_value = total_value
+                        .checked_add(vt_output.value())
+                        .ok_or(TransactionError::InputValueOverflow)?;
                 }
-                .into());
             }
-            total_value = total_value
-                .checked_add(vt_output.value)
-                .ok_or(TransactionError::InputValueOverflow)?;
+            MixedOutput::Script(sho) => {
+                if !seen_output_pointers.insert(input.output_pointer()) {
+                    // If the set already contained this output pointer
+                    return Err(TransactionError::OutputNotFound {
+                        output: input.output_pointer().clone(),
+                    }
+                    .into());
+                }
+                total_value = total_value
+                    .checked_add(sho.value)
+                    .ok_or(TransactionError::InputValueOverflow)?;
+            }
         }
     }
 
@@ -521,6 +550,18 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, T
     for vt_output in outputs {
         total_value = total_value
             .checked_add(vt_output.value)
+            .ok_or(TransactionError::OutputValueOverflow)?
+    }
+
+    Ok(total_value)
+}
+
+/// Calculate the sum of the values of the outputs of a transaction.
+pub fn transaction_outputs_sum_script(outputs: &[MixedOutput]) -> Result<u64, TransactionError> {
+    let mut total_value: u64 = 0;
+    for vt_output in outputs {
+        total_value = total_value
+            .checked_add(vt_output.value())
             .ok_or(TransactionError::OutputValueOverflow)?
     }
 

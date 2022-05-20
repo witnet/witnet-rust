@@ -16,6 +16,7 @@ use actix::{
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
 
+use witnet_data_structures::transaction::Transaction;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
@@ -43,8 +44,8 @@ use witnet_rad::{conditions::radon_report_from_error, error::RadError, types::se
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
-    calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
-    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee, Wit,
+    calculate_randpoe_threshold, calculate_reppoe_threshold, merkle_tree_root,
+    tally_bytes_on_encode_error, transaction_fee, update_utxo_diff, update_utxo_diff_script, Wit,
 };
 
 use crate::{
@@ -806,34 +807,50 @@ pub fn build_block(
     let mut value_transfer_txns = Vec::new();
     let mut data_request_txns = Vec::new();
     let mut tally_txns = Vec::new();
+    let mut script_txns = Vec::new();
 
     let min_vt_weight =
         VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()])
             .weight();
     // Currently only value transfer transactions weight is taking into account
 
-    for vt_tx in transactions_pool.vt_iter() {
-        let transaction_weight = vt_tx.weight();
-        let transaction_fee = match vt_transaction_fee(vt_tx, &utxo_diff, epoch, epoch_constants) {
-            Ok(x) => x,
-            Err(e) => {
-                log::warn!(
-                    "Error when calculating transaction fee for transaction: {}",
-                    e
-                );
-                continue;
-            }
-        };
+    for vt_and_sh_tx in transactions_pool.vt_and_sh_iter() {
+        let transaction_weight = vt_and_sh_tx.weight();
+        let transaction_fee =
+            match transaction_fee(vt_and_sh_tx, &utxo_diff, epoch, epoch_constants) {
+                Ok(x) => x,
+                Err(e) => {
+                    log::warn!(
+                        "Error when calculating transaction fee for transaction: {}",
+                        e
+                    );
+                    continue;
+                }
+            };
 
         let new_vt_weight = vt_weight.saturating_add(transaction_weight);
         if new_vt_weight <= max_vt_weight {
-            update_utxo_diff(
-                &mut utxo_diff,
-                vt_tx.body.inputs.iter().collect(),
-                vt_tx.body.outputs.iter().collect(),
-                vt_tx.hash(),
-            );
-            value_transfer_txns.push(vt_tx.clone());
+            match vt_and_sh_tx {
+                Transaction::ValueTransfer(vt) => {
+                    update_utxo_diff(
+                        &mut utxo_diff,
+                        vt.body.inputs.iter().collect(),
+                        vt.body.outputs.iter().collect(),
+                        vt.hash(),
+                    );
+                    value_transfer_txns.push(vt.clone());
+                }
+                Transaction::Script(sh) => {
+                    update_utxo_diff_script(
+                        &mut utxo_diff,
+                        sh.body.inputs.iter().collect(),
+                        sh.body.outputs.iter().collect(),
+                        sh.hash(),
+                    );
+                    script_txns.push(sh.clone());
+                }
+                _ => unreachable!("Only VT and script transactions allowed"),
+            }
             transaction_fees = transaction_fees.saturating_add(transaction_fee);
             vt_weight = new_vt_weight;
         }
@@ -918,7 +935,7 @@ pub fn build_block(
     let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
     for dr_tx in transactions_pool.dr_iter() {
         let transaction_weight = dr_tx.weight();
-        let transaction_fee = match dr_transaction_fee(dr_tx, &utxo_diff, epoch, epoch_constants) {
+        let transaction_fee = match transaction_fee(dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
                 log::warn!(
@@ -931,14 +948,19 @@ pub fn build_block(
 
         let new_dr_weight = dr_weight.saturating_add(transaction_weight);
         if new_dr_weight <= max_dr_weight {
-            update_utxo_diff(
-                &mut utxo_diff,
-                dr_tx.body.inputs.iter().collect(),
-                dr_tx.body.outputs.iter().collect(),
-                dr_tx.hash(),
-            );
+            match dr_tx {
+                Transaction::DataRequest(dr) => {
+                    update_utxo_diff(
+                        &mut utxo_diff,
+                        dr.body.inputs.iter().collect(),
+                        dr.body.outputs.iter().collect(),
+                        dr.hash(),
+                    );
 
-            data_request_txns.push(dr_tx.clone());
+                    data_request_txns.push(dr.clone());
+                }
+                _ => unreachable!("Only DR transactions allowed"),
+            }
             transaction_fees = transaction_fees.saturating_add(transaction_fee);
             dr_weight = new_dr_weight;
         }
@@ -966,6 +988,7 @@ pub fn build_block(
     let commit_hash_merkle_root = merkle_tree_root(&commit_txns);
     let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
     let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
+    let script_hash_merkle_root = merkle_tree_root(&script_txns);
     let merkle_roots = BlockMerkleRoots {
         mint_hash: mint.hash(),
         vt_hash_merkle_root,
@@ -973,6 +996,7 @@ pub fn build_block(
         commit_hash_merkle_root,
         reveal_hash_merkle_root,
         tally_hash_merkle_root,
+        script_hash_merkle_root,
     };
 
     let block_header = BlockHeader {
@@ -990,6 +1014,7 @@ pub fn build_block(
         commit_txns,
         reveal_txns,
         tally_txns,
+        script_txns,
     };
 
     (block_header, txns)
@@ -1211,7 +1236,7 @@ mod tests {
         transaction_pool.insert(transaction_1, 1);
         transaction_pool.insert(transaction_2, 10);
         transaction_pool.insert(transaction_3, 10);
-        assert_eq!(transaction_pool.vt_len(), 3);
+        assert_eq!(transaction_pool.vt_and_sh_len(), 3);
 
         let mut unspent_outputs_pool = UnspentOutputsPool::default();
         let output1 = ValueTransferOutput {
@@ -1306,7 +1331,7 @@ mod tests {
         transaction_pool.insert(transaction_1, 1);
         transaction_pool.insert(transaction_2, 25);
         transaction_pool.insert(transaction_3, 10);
-        assert_eq!(transaction_pool.vt_len(), 3);
+        assert_eq!(transaction_pool.vt_and_sh_len(), 3);
 
         let mut unspent_outputs_pool = UnspentOutputsPool::default();
         let output1 = ValueTransferOutput {

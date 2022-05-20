@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use witnet_data_structures::chain::MixedOutput;
 use witnet_data_structures::{
     chain::{
         Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, NodeStats,
@@ -209,7 +210,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                         log::debug!(
                             "Transactions pool size: {} value transfer, {} data request",
-                            self.transactions_pool.vt_len(),
+                            self.transactions_pool.vt_and_sh_len(),
                             self.transactions_pool.dr_len()
                         );
                     }
@@ -1438,12 +1439,20 @@ impl Handler<GetSupplyInfo> for ChainManager {
 
         let mut current_unlocked_supply = 0;
         let mut current_locked_supply = 0;
-        for (_output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter()
+        for (_output_pointer, (mixed_output, _block_number)) in
+            self.chain_state.unspent_outputs_pool.iter()
         {
-            if value_transfer_output.0.time_lock <= current_time {
-                current_unlocked_supply += value_transfer_output.0.value;
-            } else {
-                current_locked_supply += value_transfer_output.0.value;
+            match mixed_output {
+                MixedOutput::VTO(value_transfer_output) => {
+                    if value_transfer_output.time_lock <= current_time {
+                        current_unlocked_supply += value_transfer_output.value;
+                    } else {
+                        current_locked_supply += value_transfer_output.value;
+                    }
+                }
+                MixedOutput::Script(script_output) => {
+                    current_unlocked_supply += script_output.value;
+                }
             }
         }
 
@@ -1650,7 +1659,11 @@ impl Handler<GetMempool> for ChainManager {
 
     fn handle(&mut self, _msg: GetMempool, _ctx: &mut Self::Context) -> Self::Result {
         let res = GetMempoolResult {
-            value_transfer: self.transactions_pool.vt_iter().map(|t| t.hash()).collect(),
+            value_transfer: self
+                .transactions_pool
+                .vt_and_sh_iter()
+                .map(|t| t.hash())
+                .collect(),
             data_request: self.transactions_pool.dr_iter().map(|t| t.hash()).collect(),
         };
 

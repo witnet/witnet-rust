@@ -17,8 +17,9 @@ use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
         DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
-        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
-        RADType, Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
+        Hashable, Input, KeyedSignature, MixedOutput, OutputPointer, PublicKeyHash, RADRequest,
+        RADTally, RADType, Reputation, ReputationEngine, ScriptInput, SignaturesToVerify,
+        ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward,
@@ -28,10 +29,12 @@ use witnet_data_structures::{
     mainnet_validations::ActiveWips,
     radon_report::{RadonReport, ReportContext},
     transaction::{
-        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
-        Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, ScriptTransaction,
+        TallyTransaction, Transaction, VTTransaction,
     },
-    transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
+    transaction_factory::{
+        transaction_inputs_sum, transaction_outputs_sum, transaction_outputs_sum_script,
+    },
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
@@ -46,44 +49,49 @@ use witnet_rad::{
     types::{serial_iter_decode, RadonTypes},
 };
 
-/// Returns the fee of a value transfer transaction.
+/// Returns the fee of a transaction.
 ///
 /// The fee is the difference between the outputs and the inputs
 /// of the transaction. The pool parameter is used to find the
 /// outputs pointed by the inputs and that contain the actual
 /// their value.
-pub fn vt_transaction_fee(
-    vt_tx: &VTTransaction,
+pub fn transaction_fee(
+    tx: &Transaction,
     utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
-    let in_value = transaction_inputs_sum(&vt_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value = transaction_outputs_sum(&vt_tx.body.outputs)?;
+    let (in_value, out_value) = match tx {
+        Transaction::ValueTransfer(vt_tx) => {
+            let in_value =
+                transaction_inputs_sum(&vt_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
+            let out_value = transaction_outputs_sum(&vt_tx.body.outputs)?;
 
-    if out_value > in_value {
-        Err(TransactionError::NegativeFee.into())
-    } else {
-        Ok(in_value - out_value)
-    }
-}
+            (in_value, out_value)
+        }
+        Transaction::Script(sh_tx) => {
+            let inputs: Vec<Input> = sh_tx
+                .body
+                .inputs
+                .iter()
+                .map(|sh_input| sh_input.to_input())
+                .collect();
+            let in_value = transaction_inputs_sum(&inputs, utxo_diff, epoch, epoch_constants)?;
+            let out_value = transaction_outputs_sum_script(&sh_tx.body.outputs)?;
 
-/// Returns the fee of a data request transaction.
-///
-/// The fee is the difference between the outputs (with the data request value)
-/// and the inputs of the transaction. The pool parameter is used to find the
-/// outputs pointed by the inputs and that contain the actual
-/// their value.
-pub fn dr_transaction_fee(
-    dr_tx: &DRTransaction,
-    utxo_diff: &UtxoDiff<'_>,
-    epoch: Epoch,
-    epoch_constants: EpochConstants,
-) -> Result<u64, failure::Error> {
-    let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value = transaction_outputs_sum(&dr_tx.body.outputs)?
-        .checked_add(dr_tx.body.dr_output.checked_total_value()?)
-        .ok_or(TransactionError::OutputValueOverflow)?;
+            (in_value, out_value)
+        }
+        Transaction::DataRequest(dr_tx) => {
+            let in_value =
+                transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
+            let out_value = transaction_outputs_sum(&dr_tx.body.outputs)?
+                .checked_add(dr_tx.body.dr_output.checked_total_value()?)
+                .ok_or(TransactionError::OutputValueOverflow)?;
+
+            (in_value, out_value)
+        }
+        _ => unreachable!("Only VT, DR and script transactions allowed"),
+    };
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
@@ -113,11 +121,19 @@ pub fn validate_commit_collateral(
     let mut seen_output_pointers = HashSet::with_capacity(co_tx.body.collateral.len());
 
     for input in &co_tx.body.collateral {
-        let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
+        let mixed_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
             TransactionError::OutputNotFound {
                 output: input.output_pointer().clone(),
             }
         })?;
+
+        let vt_output = match mixed_output {
+            MixedOutput::VTO(vto) => vto,
+            MixedOutput::Script(_) => {
+                log::error!("Commit transaction cannot use ScriptOutput as collateral");
+                return Err(TransactionError::NotValidTransaction.into());
+            }
+        };
 
         // The inputs used as collateral do not need any additional signatures
         // as long as the commit transaction is signed by the same public key
@@ -334,13 +350,76 @@ pub fn validate_vt_transaction<'a>(
         }
     }
 
-    let fee = vt_transaction_fee(vt_tx, utxo_diff, epoch, epoch_constants)?;
+    let fee = transaction_fee(
+        &Transaction::ValueTransfer(vt_tx.clone()),
+        utxo_diff,
+        epoch,
+        epoch_constants,
+    )?;
 
     // FIXME(#514): Implement value transfer transaction validation
 
     Ok((
         vt_tx.body.inputs.iter().collect(),
         vt_tx.body.outputs.iter().collect(),
+        fee,
+    ))
+}
+
+/// Function to validate a value transfer transaction
+pub fn validate_sh_transaction<'a>(
+    sh_tx: &'a ScriptTransaction,
+    utxo_diff: &UtxoDiff<'_>,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    max_vt_weight: u32,
+) -> Result<(Vec<&'a ScriptInput>, Vec<&'a MixedOutput>, u64), failure::Error> {
+    if sh_tx.weight() > max_vt_weight {
+        return Err(TransactionError::ValueTransferWeightLimitExceeded {
+            weight: sh_tx.weight(),
+            max_weight: max_vt_weight,
+        }
+        .into());
+    }
+
+    validate_script_transaction_witness(
+        &sh_tx.witness,
+        &sh_tx.body.inputs,
+        sh_tx.hash(),
+        utxo_diff,
+        signatures_to_verify,
+    )?;
+
+    // A value transfer transaction must have at least one input
+    if sh_tx.body.inputs.is_empty() {
+        return Err(TransactionError::NoInputs {
+            tx_hash: sh_tx.hash(),
+        }
+        .into());
+    }
+
+    // A script output cannot have zero value
+    for (idx, output) in sh_tx.body.outputs.iter().enumerate() {
+        if output.value() == 0 {
+            return Err(TransactionError::ZeroValueOutput {
+                tx_hash: sh_tx.hash(),
+                output_id: idx,
+            }
+            .into());
+        }
+    }
+
+    let fee = transaction_fee(
+        &Transaction::Script(sh_tx.clone()),
+        utxo_diff,
+        epoch,
+        epoch_constants,
+    )?;
+
+    Ok((
+        sh_tx.body.inputs.iter().collect(),
+        sh_tx.body.outputs.iter().collect(),
         fee,
     ))
 }
@@ -427,7 +506,12 @@ pub fn validate_dr_transaction<'a>(
         return Err(TransactionError::ZeroAmount.into());
     }
 
-    let fee = dr_transaction_fee(dr_tx, utxo_diff, epoch, epoch_constants)?;
+    let fee = transaction_fee(
+        &Transaction::DataRequest(dr_tx.clone()),
+        utxo_diff,
+        epoch,
+        epoch_constants,
+    )?;
 
     if let Some(dr_output) = dr_tx.body.outputs.get(0) {
         // A value transfer output cannot have zero value
@@ -443,14 +527,23 @@ pub fn validate_dr_transaction<'a>(
         let first_input = utxo_diff
             .get(dr_tx.body.inputs[0].output_pointer())
             .unwrap();
-        let expected_pkh = first_input.pkh;
 
-        if dr_output.pkh != expected_pkh {
-            return Err(TransactionError::PublicKeyHashMismatch {
-                expected_pkh,
-                signature_pkh: dr_output.pkh,
+        match first_input {
+            MixedOutput::VTO(first_input) => {
+                let expected_pkh = first_input.pkh;
+
+                if dr_output.pkh != expected_pkh {
+                    return Err(TransactionError::PublicKeyHashMismatch {
+                        expected_pkh,
+                        signature_pkh: dr_output.pkh,
+                    }
+                    .into());
+                }
             }
-            .into());
+            MixedOutput::Script(_) => {
+                log::error!("Data Request transaction cannot use ScriptOutput as collateral");
+                return Err(TransactionError::NotValidTransaction.into());
+            }
         }
     } else {
         // 0 outputs: nothing to validate
@@ -1082,7 +1175,7 @@ pub fn validate_pkh_signature(
     utxo_diff: &UtxoDiff<'_>,
 ) -> Result<(), failure::Error> {
     let output = utxo_diff.get(input.output_pointer());
-    if let Some(x) = output {
+    if let Some(MixedOutput::VTO(x)) = output {
         let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
         let expected_pkh = x.pkh;
         if signature_pkh != expected_pkh {
@@ -1092,7 +1185,22 @@ pub fn validate_pkh_signature(
             }
             .into());
         }
+    } else {
+        log::error!("Normal Input can not spent a ScriptOutput");
+        return Err(TransactionError::NotValidTransaction.into());
     }
+    Ok(())
+}
+
+/// Function to validate a script signature
+pub fn validate_script_signature(
+    _input: &ScriptInput,
+    _witness: &[u8],
+    _utxo_diff: &UtxoDiff<'_>,
+    _signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    _tx_hash_bytes: &[u8],
+) -> Result<(), failure::Error> {
+    // TODO: Implement script validation
     Ok(())
 }
 
@@ -1245,6 +1353,52 @@ pub fn validate_transaction_signature(
     Ok(())
 }
 
+/// Function to validate a transaction signature
+pub fn validate_script_transaction_witness(
+    signatures: &[Vec<u8>],
+    inputs: &[ScriptInput],
+    tx_hash: Hash,
+    utxo_set: &UtxoDiff<'_>,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+) -> Result<(), failure::Error> {
+    if signatures.len() != inputs.len() {
+        return Err(TransactionError::MismatchingSignaturesNumber {
+            signatures_n: u8::try_from(signatures.len())?,
+            inputs_n: u8::try_from(inputs.len())?,
+        }
+        .into());
+    }
+
+    let tx_hash_bytes = match tx_hash {
+        Hash::SHA256(x) => x.to_vec(),
+    };
+
+    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
+        // Helper function to map errors to include transaction hash and input
+        // index, as well as the error message.
+        let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+            hash: tx_hash,
+            msg: e.to_string(),
+        };
+        // All of the following map_err can be removed if we refactor this to
+        // use a try block, however that's still unstable. See tracking issue:
+        // https://github.com/rust-lang/rust/issues/31436
+
+        // Validate that public key hash of the pointed output matches public
+        // key in the provided signature
+        validate_script_signature(
+            input,
+            keyed_signature,
+            utxo_set,
+            signatures_to_verify,
+            &tx_hash_bytes,
+        )
+        .map_err(fte)?;
+    }
+
+    Ok(())
+}
+
 /// HashMap to count commit transactions need for a Data Request
 struct WitnessesCount {
     current: u32,
@@ -1276,7 +1430,11 @@ pub fn update_utxo_diff(
 ) {
     let mut input_pkh = inputs
         .first()
-        .and_then(|first| utxo_diff.get(first.output_pointer()).map(|vt| vt.pkh));
+        .and_then(|first| utxo_diff.get(first.output_pointer()))
+        .and_then(|vt| match vt {
+            MixedOutput::VTO(vto) => Some(vto.pkh),
+            MixedOutput::Script(_) => None,
+        });
 
     let mut block_number_input = 0;
     for input in inputs {
@@ -1284,7 +1442,12 @@ pub fn update_utxo_diff(
         let output_pointer = input.output_pointer();
 
         // Returns the input PKH in case that all PKHs are the same
-        if input_pkh != utxo_diff.get(output_pointer).map(|vt| vt.pkh) {
+        if input_pkh
+            != utxo_diff.get(output_pointer).and_then(|vt| match vt {
+                MixedOutput::VTO(vto) => Some(vto.pkh),
+                MixedOutput::Script(_) => None,
+            })
+        {
             input_pkh = None;
         }
 
@@ -1310,6 +1473,77 @@ pub fn update_utxo_diff(
         };
 
         utxo_diff.insert_utxo(output_pointer, output.clone(), block_number);
+    }
+}
+
+/// Update UTXO diff with the provided inputs and outputs
+pub fn update_utxo_diff_script(
+    utxo_diff: &mut UtxoDiff<'_>,
+    inputs: Vec<&ScriptInput>,
+    outputs: Vec<&MixedOutput>,
+    tx_hash: Hash,
+) {
+    // A ScriptInput may have pkh if the input is a normal VTO
+    let mut input_pkh = inputs
+        .first()
+        .and_then(|first| utxo_diff.get(first.output_pointer()))
+        .and_then(|vt| match vt {
+            MixedOutput::VTO(vto) => Some(vto.pkh),
+            MixedOutput::Script(_) => None,
+        });
+
+    let mut block_number_input = 0;
+    for input in inputs {
+        // Obtain the OuputPointer of each input and remove it from the utxo_diff
+        let output_pointer = input.output_pointer();
+
+        // Returns the input PKH in case that all PKHs are the same
+        if input_pkh
+            != utxo_diff.get(output_pointer).and_then(|vt| match vt {
+                MixedOutput::VTO(vto) => Some(vto.pkh),
+                MixedOutput::Script(_) => None,
+            })
+        {
+            input_pkh = None;
+        }
+
+        let block_number = utxo_diff
+            .included_in_block_number(output_pointer)
+            .unwrap_or(0);
+        block_number_input = std::cmp::max(block_number, block_number_input);
+
+        utxo_diff.remove_utxo(output_pointer.clone());
+    }
+
+    for (index, output) in outputs.into_iter().enumerate() {
+        // Add the new outputs to the utxo_diff
+        let output_pointer = OutputPointer {
+            transaction_id: tx_hash,
+            output_index: u32::try_from(index).unwrap(),
+        };
+
+        let block_number = match output {
+            MixedOutput::VTO(vt_output) => {
+                if input_pkh == Some(vt_output.pkh) {
+                    Some(block_number_input)
+                } else {
+                    None
+                }
+            }
+            MixedOutput::Script(_) => {
+                // Scripts reset the block number
+                None
+            }
+        };
+
+        match output {
+            MixedOutput::VTO(vt_output) => {
+                utxo_diff.insert_utxo(output_pointer, vt_output.clone(), block_number);
+            }
+            MixedOutput::Script(sh_output) => {
+                utxo_diff.insert_utxo(output_pointer, sh_output.clone(), block_number);
+            }
+        }
     }
 }
 
@@ -1391,6 +1625,43 @@ pub fn validate_block_transactions(
         vt_mt.push(Sha256(sha));
     }
     let vt_hash_merkle_root = vt_mt.root();
+
+    // Validate value transfer transactions in a block
+    let mut sh_mt = ProgressiveMerkleTree::sha256();
+    for transaction in &block.txns.script_txns {
+        let (inputs, outputs, fee, weight) = {
+            let (inputs, outputs, fee) = validate_sh_transaction(
+                transaction,
+                &utxo_diff,
+                epoch,
+                epoch_constants,
+                signatures_to_verify,
+                consensus_constants.max_vt_weight,
+            )?;
+
+            (inputs, outputs, fee, transaction.weight())
+        };
+        total_fee += fee;
+
+        // Update vt weight
+        let acc_weight = vt_weight.saturating_add(weight);
+        if acc_weight > consensus_constants.max_vt_weight {
+            return Err(BlockError::TotalValueTransferWeightLimitExceeded {
+                weight: acc_weight,
+                max_weight: consensus_constants.max_vt_weight,
+            }
+            .into());
+        }
+        vt_weight = acc_weight;
+
+        update_utxo_diff_script(&mut utxo_diff, inputs, outputs, transaction.hash());
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        sh_mt.push(Sha256(sha));
+    }
+    let sh_hash_merkle_root = sh_mt.root();
 
     // Validate commit transactions in a block
     let mut co_mt = ProgressiveMerkleTree::sha256();
@@ -1604,6 +1875,7 @@ pub fn validate_block_transactions(
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
         reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
         tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
+        script_hash_merkle_root: Hash::from(sh_hash_merkle_root),
     };
 
     if merkle_roots != block.block_header.merkle_roots {
@@ -2040,6 +2312,7 @@ pub fn validate_merkle_tree(block: &Block) -> bool {
         commit_hash_merkle_root: merkle_tree_root(&block.txns.commit_txns),
         reveal_hash_merkle_root: merkle_tree_root(&block.txns.reveal_txns),
         tally_hash_merkle_root: merkle_tree_root(&block.txns.tally_txns),
+        script_hash_merkle_root: merkle_tree_root(&block.txns.script_txns),
     };
 
     merkle_roots == block.block_header.merkle_roots
