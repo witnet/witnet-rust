@@ -8,15 +8,15 @@ use std::{
     time::Duration,
 };
 
-use witnet_data_structures::chain::MixedOutput;
 use witnet_data_structures::{
     chain::{
-        Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, NodeStats,
-        SuperBlockVote, SupplyInfo,
+        Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, MixedOutput,
+        NodeStats, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     mainnet_validations::ActiveWips,
-    transaction::{DRTransaction, Transaction, VTTransaction},
+    proto::ProtobufConvert,
+    transaction::{DRTransaction, ScriptTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
@@ -30,12 +30,13 @@ use crate::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
-            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
+            AddTransaction, Broadcast, BuildDrt, BuildScriptTransaction, BuildVtt,
+            EpochNotification, GetBalance, GetBlocksEpochRange, GetDataRequestInfo,
+            GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool, GetMempoolResult,
+            GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo, GetState,
+            GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
+            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
+            SetPeersLimits, SignalingInfo, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1258,6 +1259,92 @@ impl Handler<BuildVtt> for ChainManager {
                                     get_timestamp(),
                                 )
                                 .map_ok(move |_, _, _| tx_hash),
+                            )
+                        }
+                        Err(e) => {
+                            log::error!("Failed to sign value transfer transaction: {}", e);
+                            Either::Right(actix::fut::result(Err(e)))
+                        }
+                    });
+
+                Box::pin(fut)
+            }
+        }
+    }
+}
+
+impl Handler<BuildScriptTransaction> for ChainManager {
+    type Result = ResponseActFuture<Self, Result<Hash, failure::Error>>;
+
+    fn handle(&mut self, msg: BuildScriptTransaction, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Box::pin(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
+        }
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+        let max_vt_weight = self.consensus_constants().max_vt_weight;
+        match transaction_factory::build_script_transaction(
+            msg.vto,
+            msg.fee,
+            &mut self.chain_state.own_utxos,
+            self.own_pkh.unwrap(),
+            &self.chain_state.unspent_outputs_pool,
+            timestamp,
+            self.tx_pending_timeout,
+            &msg.utxo_strategy,
+            max_vt_weight,
+            msg.script_inputs,
+            msg.script_witnesses.clone(),
+        ) {
+            Err(e) => {
+                log::error!("Error when building value transfer transaction: {}", e);
+                Box::pin(actix::fut::err(e.into()))
+            }
+            Ok(vtt) => {
+                let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
+                    .into_actor(self)
+                    .then(move |s, act, _ctx| match s {
+                        Ok(signatures) => {
+                            let mut witness = vec![];
+                            let mut num_scripts = 0;
+                            for (input, signature) in vtt.inputs.iter().zip(signatures) {
+                                // TODO: is_empty may not be the correct check, the redeem_script should
+                                // be an Option<_>, the None case representing "Not a script"
+                                // TODO: or change this logic to allow users to create a transaction
+                                // and manually set the signature/witness for every input from the
+                                // JSON-RPC interface
+                                if input.redeem_script.is_empty() {
+                                    // This is a VTO, so use the signature as witness
+                                    witness.push(signature.to_pb_bytes().unwrap());
+                                } else {
+                                    // This is a Script, so use the provided witness
+                                    match msg.script_witnesses.get(num_scripts) {
+                                        Some(wm) => {
+                                            witness.push(wm.clone());
+                                            num_scripts += 1;
+                                        }
+                                        None => {
+                                            return Either::Right(actix::fut::result(Err(failure::format_err!("Missing script_witness for script input at index {}: {:?}", num_scripts, input))));
+                                        }
+                                    }
+                                }
+                            }
+                            let transaction =
+                                Transaction::Script(ScriptTransaction::new(vtt, witness));
+                            let tx_hash = transaction.hash();
+                            Either::Left(
+                                act.add_transaction(
+                                    AddTransaction {
+                                        transaction,
+                                        broadcast_flag: true,
+                                    },
+                                    get_timestamp(),
+                                )
+                                    .map_ok(move |_, _, _| tx_hash),
                             )
                         }
                         Err(e) => {

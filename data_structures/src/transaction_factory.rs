@@ -1,11 +1,10 @@
-use crate::chain::MixedOutput;
 use crate::{
     chain::{
-        DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
-        ValueTransferOutput,
+        DataRequestOutput, Epoch, EpochConstants, Input, MixedOutput, OutputPointer, PublicKeyHash,
+        ScriptInput, ValueTransferOutput,
     },
     error::TransactionError,
-    transaction::{DRTransactionBody, VTTransactionBody, INPUT_SIZE},
+    transaction::{DRTransactionBody, ScriptTransactionBody, VTTransactionBody, INPUT_SIZE},
     utxo_pool::{
         NodeUtxos, NodeUtxosRef, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff,
         UtxoSelectionStrategy,
@@ -18,6 +17,15 @@ use std::{collections::HashSet, convert::TryFrom};
 pub struct TransactionInfo {
     pub inputs: Vec<Input>,
     pub outputs: Vec<ValueTransferOutput>,
+    pub input_value: u64,
+    pub output_value: u64,
+    pub fee: u64,
+}
+
+/// Structure that resumes the information needed to create a Transaction
+pub struct TransactionInfoScript {
+    pub inputs: Vec<ScriptInput>,
+    pub outputs: Vec<MixedOutput>,
     pub input_value: u64,
     pub output_value: u64,
     pub fee: u64,
@@ -206,6 +214,109 @@ pub trait OutputsCollection {
             }
         }
     }
+
+    /// Generic inputs/outputs builder: can be used to build
+    /// value transfer transactions and data request transactions.
+    #[allow(clippy::too_many_arguments)]
+    fn build_inputs_outputs_script(
+        &mut self,
+        outputs: Vec<MixedOutput>,
+        dr_output: Option<&DataRequestOutput>,
+        fee: u64,
+        fee_type: FeeType,
+        timestamp: u64,
+        // The block number must be lower than this limit
+        block_number_limit: Option<u32>,
+        utxo_strategy: &UtxoSelectionStrategy,
+        max_weight: u32,
+        script_inputs: Vec<ScriptInput>,
+        _script_witnesses: Vec<Vec<u8>>,
+    ) -> Result<TransactionInfoScript, TransactionError> {
+        // On error just assume the value is u64::max_value(), hoping that it is
+        // impossible to pay for this transaction
+        let output_value: u64 = transaction_outputs_sum_script(&outputs)
+            .unwrap_or(u64::max_value())
+            .checked_add(
+                dr_output
+                    .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
+                    .unwrap_or_default(),
+            )
+            .ok_or(TransactionError::OutputValueOverflow)?;
+
+        // For the first estimation: 1 input and 1 output more for the change address
+        let mut current_weight = calculate_weight(1, outputs.len() + 1, dr_output, max_weight)?;
+
+        match fee_type {
+            FeeType::Absolute => {
+                // TODO: subtract script input amount from this amount
+                let amount = output_value
+                    .checked_add(fee)
+                    .ok_or(TransactionError::FeeOverflow)?;
+
+                let (output_pointers, input_value) =
+                    self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
+                let mut inputs: Vec<ScriptInput> = output_pointers
+                    .into_iter()
+                    .map(|output_pointer| ScriptInput {
+                        output_pointer,
+                        redeem_script: vec![],
+                    })
+                    .collect();
+
+                inputs.extend(script_inputs.iter().cloned());
+
+                Ok(TransactionInfoScript {
+                    inputs,
+                    outputs,
+                    input_value,
+                    output_value,
+                    fee,
+                })
+            }
+            FeeType::Weighted => {
+                let max_iterations = 1 + ((max_weight - current_weight) / INPUT_SIZE);
+                for _i in 0..max_iterations {
+                    let weighted_fee = fee
+                        .checked_mul(u64::from(current_weight))
+                        .ok_or(TransactionError::FeeOverflow)?;
+
+                    let amount = output_value
+                        .checked_add(weighted_fee)
+                        .ok_or(TransactionError::FeeOverflow)?;
+
+                    let (output_pointers, input_value) = self.take_enough_utxos(
+                        amount,
+                        timestamp,
+                        block_number_limit,
+                        utxo_strategy,
+                    )?;
+                    let inputs: Vec<ScriptInput> = output_pointers
+                        .into_iter()
+                        .map(|output_pointer| ScriptInput {
+                            output_pointer,
+                            redeem_script: vec![],
+                        })
+                        .collect();
+
+                    let new_weight =
+                        calculate_weight(inputs.len(), outputs.len() + 1, dr_output, max_weight)?;
+                    if new_weight == current_weight {
+                        return Ok(TransactionInfoScript {
+                            inputs,
+                            outputs,
+                            input_value,
+                            output_value,
+                            fee: weighted_fee,
+                        });
+                    } else {
+                        current_weight = new_weight;
+                    }
+                }
+
+                unreachable!("Unexpected exit in build_inputs_outputs method");
+            }
+        }
+    }
 }
 
 /// Calculate weight from inputs and outputs information
@@ -312,6 +423,22 @@ pub fn insert_change_output(
     }
 }
 
+/// If the change_amount is greater than 0, insert a change output using the supplied `pkh`.
+pub fn insert_change_output_script(
+    outputs: &mut Vec<MixedOutput>,
+    own_pkh: PublicKeyHash,
+    change_amount: u64,
+) {
+    if change_amount > 0 {
+        // Create change output
+        outputs.push(MixedOutput::VTO(ValueTransferOutput {
+            pkh: own_pkh,
+            value: change_amount,
+            time_lock: 0,
+        }));
+    }
+}
+
 /// Build value transfer transaction with the given outputs and fee.
 #[allow(clippy::too_many_arguments)]
 pub fn build_vtt(
@@ -358,6 +485,63 @@ pub fn build_vtt(
     );
 
     Ok(VTTransactionBody::new(tx_info.inputs, outputs))
+}
+
+/// Build value transfer transaction with the given outputs and fee.
+#[allow(clippy::too_many_arguments)]
+pub fn build_script_transaction(
+    outputs: Vec<MixedOutput>,
+    fee: u64,
+    own_utxos: &mut OwnUnspentOutputsPool,
+    own_pkh: PublicKeyHash,
+    all_utxos: &UnspentOutputsPool,
+    timestamp: u64,
+    tx_pending_timeout: u64,
+    utxo_strategy: &UtxoSelectionStrategy,
+    max_weight: u32,
+    script_inputs: Vec<ScriptInput>,
+    script_witnesses: Vec<Vec<u8>>,
+) -> Result<ScriptTransactionBody, TransactionError> {
+    let mut utxos = NodeUtxos {
+        all_utxos,
+        own_utxos,
+        pkh: own_pkh,
+    };
+
+    // FIXME(#1722): Apply FeeTypes in the node methods
+    let fee_type = FeeType::Absolute;
+
+    let tx_info = utxos.build_inputs_outputs_script(
+        outputs,
+        None,
+        fee,
+        fee_type,
+        timestamp,
+        None,
+        utxo_strategy,
+        max_weight,
+        script_inputs,
+        script_witnesses,
+    )?;
+
+    // Mark UTXOs as used so we don't double spend
+    // Save the timestamp after which the transaction will be considered timed out
+    // and the output will become available for spending it again
+    let vto_inputs: Vec<Input> = tx_info
+        .inputs
+        .iter()
+        .map(|script_input| script_input.to_input())
+        .collect();
+    utxos.set_used_output_pointer(&vto_inputs, timestamp + tx_pending_timeout);
+
+    let mut outputs = tx_info.outputs;
+    insert_change_output_script(
+        &mut outputs,
+        own_pkh,
+        tx_info.input_value - tx_info.output_value - tx_info.fee,
+    );
+
+    Ok(ScriptTransactionBody::new(tx_info.inputs, outputs))
 }
 
 /// Build data request transaction with the given outputs and fee.

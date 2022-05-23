@@ -47,7 +47,7 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
-use crate::actors::messages::GetSupplyInfo;
+use crate::actors::messages::{BuildScriptTransaction, GetSupplyInfo};
 use futures::FutureExt;
 use futures_util::compat::Compat;
 use std::future::Future;
@@ -159,6 +159,14 @@ pub fn jsonrpc_io_handler(
             "sendValue",
             params,
             |params| send_value(params.parse()),
+        )))
+    });
+    io.add_method("sendScript", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "sendScript",
+            params,
+            |params| send_script(params.parse()),
         )))
     });
     io.add_method("getPublicKey", move |params| {
@@ -1026,6 +1034,39 @@ pub async fn try_request(params: Result<DataRequestOutput, jsonrpc_core::Error>)
 /// Build value transfer transaction
 pub async fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResult {
     log::debug!("Creating value transfer from JSON-RPC.");
+
+    match params {
+        Ok(msg) => {
+            ChainManager::from_registry()
+                .send(msg)
+                .map(|res| match res {
+                    Ok(Ok(hash)) => match serde_json::to_value(hash) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Ok(Err(e)) => {
+                        let err = internal_error_s(e);
+                        Err(err)
+                    }
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        Err(err)
+                    }
+                })
+                .await
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Build script transaction
+pub async fn send_script(
+    params: Result<BuildScriptTransaction, jsonrpc_core::Error>,
+) -> JsonRpcResult {
+    log::debug!("Creating script from JSON-RPC.");
 
     match params {
         Ok(msg) => {

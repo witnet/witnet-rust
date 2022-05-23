@@ -18,9 +18,9 @@ use tokio::net::TcpStream;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
-        ValueTransferOutput,
+        InventoryEntry, InventoryItem, MixedOutput, NodeStats, PointerToBlock, PublicKeyHash,
+        RADRequest, RADTally, Reputation, ScriptInput, StateMachine, SuperBlock, SuperBlockVote,
+        SupplyInfo, ValueTransferOutput,
     },
     mainnet_validations::{ActiveWips, BitVotesCounter},
     radon_report::RadonReport,
@@ -205,6 +205,26 @@ pub struct BuildVtt {
 }
 
 impl Message for BuildVtt {
+    type Result = Result<Hash, failure::Error>;
+}
+
+/// Builds a `ScriptTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildScriptTransaction {
+    /// List of `MixedOutput`s
+    pub vto: Vec<MixedOutput>,
+    /// Fee
+    pub fee: u64,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Extra script inputs
+    pub script_inputs: Vec<ScriptInput>,
+    /// List of bytes that will allow spending each script input
+    pub script_witnesses: Vec<Vec<u8>>,
+}
+
+impl Message for BuildScriptTransaction {
     type Result = Result<Hash, failure::Error>;
 }
 
