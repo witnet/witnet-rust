@@ -5,6 +5,10 @@ use scriptful::{
 use serde::{Deserialize, Serialize};
 
 use witnet_crypto::hash::{calculate_sha256, Sha256};
+use witnet_data_structures::{
+    chain::{KeyedSignature, PublicKeyHash},
+    proto::ProtobufConvert,
+};
 
 pub use scriptful::prelude::Item;
 
@@ -53,8 +57,85 @@ fn hash_160_operator(stack: &mut Stack<MyValue>) {
     }
 }
 
-fn check_multisig_operator(_stack: &mut Stack<MyValue>) {
-    // TODO: implement it
+fn check_multisig_operator(stack: &mut Stack<MyValue>) {
+    let m = stack.pop();
+    match m {
+        MyValue::Integer(m) => {
+            let mut pkhs = vec![];
+            for _ in 0..m {
+                pkhs.push(stack.pop());
+            }
+
+            let n = stack.pop();
+            match n {
+                MyValue::Integer(n) => {
+                    let mut keyed_signatures = vec![];
+                    for _ in 0..n {
+                        keyed_signatures.push(stack.pop());
+                    }
+
+                    let res = check_multi_sig(pkhs, keyed_signatures);
+                    stack.push(MyValue::Boolean(res));
+                }
+                _ => {
+                    // TODO change panic by error
+                    unreachable!("CheckMultisig should pick an integer as a ~second~ value");
+                }
+            }
+        }
+        _ => {
+            // TODO change panic by error
+            unreachable!("CheckMultisig should pick an integer as a first value");
+        }
+    }
+}
+
+fn check_multi_sig(bytes_pkhs: Vec<MyValue>, bytes_keyed_signatures: Vec<MyValue>) -> bool {
+    let mut signed_pkhs = vec![];
+    for signature in bytes_keyed_signatures {
+        match signature {
+            MyValue::Bytes(bytes) => {
+                // TODO Handle unwrap
+                let ks: KeyedSignature = KeyedSignature::from_pb_bytes(&bytes).unwrap();
+                let signed_pkh = ks.public_key.pkh();
+                signed_pkhs.push(signed_pkh);
+            }
+            _ => {
+                // TODO change panic by error
+                unreachable!("check_multi_sig should pick only bytes");
+            }
+        }
+    }
+
+    let mut pkhs = vec![];
+    for bytes_pkh in bytes_pkhs {
+        match bytes_pkh {
+            MyValue::Bytes(bytes) => {
+                // TODO Handle unwrap
+                let pkh: PublicKeyHash = PublicKeyHash::from_bytes(&bytes).unwrap();
+                pkhs.push(pkh);
+            }
+            _ => {
+                // TODO change panic by error
+                unreachable!("check_multi_sig should pick only bytes");
+            }
+        }
+    }
+
+    for sign_pkh in signed_pkhs {
+        let pos = pkhs.iter().position(|&x| x == sign_pkh);
+
+        match pos {
+            Some(i) => {
+                pkhs.remove(i);
+            }
+            None => {
+                return false;
+            }
+        }
+    }
+
+    true
 }
 
 // An operator system decides what to do with the stack when each operator is applied on it.
@@ -165,6 +246,7 @@ pub fn execute_complete_script(
 mod tests {
     use super::*;
     use crate::execute_script;
+    use witnet_data_structures::chain::PublicKey;
     const EQUAL_OPERATOR_HASH: [u8; 20] = [
         52, 128, 191, 80, 253, 28, 169, 253, 237, 29, 0, 51, 201, 0, 31, 203, 157, 99, 218, 210,
     ];
@@ -262,6 +344,76 @@ mod tests {
             &encode(witness),
             &encode(redeem_script),
             &locking_script,
+        ));
+    }
+
+    fn ks_from_pk(pk: PublicKey) -> KeyedSignature {
+        KeyedSignature {
+            signature: Default::default(),
+            public_key: pk,
+        }
+    }
+    #[test]
+    fn test_check_multisig() {
+        let pk_1 = PublicKey::from_bytes([1; 33]);
+        let pk_2 = PublicKey::from_bytes([2; 33]);
+        let pk_3 = PublicKey::from_bytes([3; 33]);
+
+        let ks_1 = ks_from_pk(pk_1.clone());
+        let ks_2 = ks_from_pk(pk_2.clone());
+        let ks_3 = ks_from_pk(pk_3.clone());
+
+        let witness = vec![
+            Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+        ];
+        let redeem_script = vec![
+            Item::Value(MyValue::Integer(2)),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Bytes(pk_3.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Integer(3)),
+            Item::Operator(MyOperator::CheckMultiSig),
+        ];
+        assert!(execute_redeem_script(
+            &encode(witness),
+            &encode(redeem_script)
+        ));
+
+        let other_valid_witness = vec![
+            Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Bytes(ks_3.to_pb_bytes().unwrap())),
+        ];
+        let redeem_script = vec![
+            Item::Value(MyValue::Integer(2)),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Bytes(pk_3.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Integer(3)),
+            Item::Operator(MyOperator::CheckMultiSig),
+        ];
+        assert!(execute_redeem_script(
+            &encode(other_valid_witness),
+            &encode(redeem_script)
+        ));
+
+        let pk_4 = PublicKey::from_bytes([4; 33]);
+        let ks_4 = ks_from_pk(pk_4);
+        let invalid_witness = vec![
+            Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Bytes(ks_4.to_pb_bytes().unwrap())),
+        ];
+        let redeem_script = vec![
+            Item::Value(MyValue::Integer(2)),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Bytes(pk_3.pkh().bytes().to_vec())),
+            Item::Value(MyValue::Integer(3)),
+            Item::Operator(MyOperator::CheckMultiSig),
+        ];
+        assert!(!execute_redeem_script(
+            &encode(invalid_witness),
+            &encode(redeem_script)
         ));
     }
 }
