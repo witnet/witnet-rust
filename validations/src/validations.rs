@@ -27,6 +27,7 @@ use witnet_data_structures::{
     },
     error::{BlockError, DataRequestError, TransactionError},
     mainnet_validations::ActiveWips,
+    proto::ProtobufConvert,
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, ScriptTransaction,
@@ -48,6 +49,7 @@ use witnet_rad::{
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
+use witnet_stack::{execute_complete_script, Item, MyValue};
 
 /// Returns the fee of a transaction.
 ///
@@ -1194,13 +1196,72 @@ pub fn validate_pkh_signature(
 
 /// Function to validate a script signature
 pub fn validate_script_signature(
-    _input: &ScriptInput,
-    _witness: &[u8],
-    _utxo_diff: &UtxoDiff<'_>,
-    _signatures_to_verify: &mut Vec<SignaturesToVerify>,
-    _tx_hash_bytes: &[u8],
+    input: &ScriptInput,
+    witness: &[u8],
+    utxo_diff: &UtxoDiff<'_>,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    tx_hash_bytes: &[u8],
 ) -> Result<(), failure::Error> {
-    // TODO: Implement script validation
+    let output = utxo_diff.get(input.output_pointer());
+    match output {
+        Some(MixedOutput::Script(sho)) => {
+            // Script execution assumes that all the signatures are valid, the signatures will be
+            // validated later.
+            let res = execute_complete_script(
+                witness,
+                &input.redeem_script,
+                sho.redeem_script_hash.bytes(),
+            );
+
+            if !res {
+                return Err(TransactionError::ScriptExecutionFailed {
+                    locking_script: sho.redeem_script_hash,
+                    unlocking_script: input.redeem_script.clone(),
+                    witness: witness.to_vec(),
+                }
+                .into());
+            }
+
+            let witness_script = witnet_stack::decode(witness);
+            for item in witness_script {
+                match item {
+                    Item::Value(MyValue::Bytes(bytes)) => {
+                        let keyed_signature = KeyedSignature::from_pb_bytes(&bytes).unwrap();
+
+                        // Validate the actual signature
+                        let public_key = keyed_signature.public_key.clone().try_into()?;
+                        let signature = keyed_signature.signature.clone().try_into()?;
+                        add_secp_tx_signature_to_verify(
+                            signatures_to_verify,
+                            &public_key,
+                            tx_hash_bytes,
+                            &signature,
+                        );
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
+            }
+            // TODO: Handle case when there is no signatures in the witness field
+        }
+        Some(MixedOutput::VTO(x)) => {
+            let keyed_signature = KeyedSignature::from_pb_bytes(witness).unwrap();
+            let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
+            let expected_pkh = x.pkh;
+            if signature_pkh != expected_pkh {
+                return Err(TransactionError::PublicKeyHashMismatch {
+                    expected_pkh,
+                    signature_pkh,
+                }
+                .into());
+            }
+        }
+        None => {
+            // TODO: nothing to validate? or missing validation
+            //panic!("validate_script_signature called with output {:?}", output);
+        }
+    }
     Ok(())
 }
 
@@ -2040,6 +2101,15 @@ pub fn validate_new_transaction(
         Transaction::Reveal(tx) => {
             validate_reveal_transaction(tx, data_request_pool, signatures_to_verify)
         }
+        Transaction::Script(tx) => validate_sh_transaction(
+            tx,
+            &utxo_diff,
+            current_epoch,
+            epoch_constants,
+            signatures_to_verify,
+            max_vt_weight,
+        )
+        .map(|(_, _, fee)| fee),
         _ => Err(TransactionError::NotValidTransaction.into()),
     }
 }

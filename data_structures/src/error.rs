@@ -5,6 +5,7 @@ use std::num::ParseIntError;
 
 use crate::chain::{
     DataRequestOutput, Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash, RADType,
+    ScriptHash,
 };
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
@@ -277,6 +278,16 @@ pub enum TransactionError {
         weight: u32,
         max_weight: u32,
         dr_output: DataRequestOutput,
+    },
+    /// Script execution failed
+    #[fail(
+        display = "Script execution failed: locking_script: {:?}, unlocking_script: {:?}, witness: {:?}",
+        locking_script, unlocking_script, witness
+    )]
+    ScriptExecutionFailed {
+        locking_script: ScriptHash,
+        unlocking_script: Vec<u8>,
+        witness: Vec<u8>,
     },
 }
 
