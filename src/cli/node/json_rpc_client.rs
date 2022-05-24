@@ -24,11 +24,12 @@ use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, MixedOutput, NodeStats, OutputPointer, PublicKey, PublicKeyHash,
-        ScriptHash, ScriptOutput, StateMachine, SupplyInfo, SyncStatus, ValueTransferOutput,
+        ScriptHash, ScriptInput, ScriptOutput, StateMachine, SupplyInfo, SyncStatus,
+        ValueTransferOutput,
     },
     mainnet_validations::{current_active_wips, ActiveWips},
     proto::ProtobufConvert,
-    transaction::Transaction,
+    transaction::{ScriptTransaction, ScriptTransactionBody, Transaction},
     transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
@@ -771,6 +772,64 @@ pub fn send_locked_multisig(
         let response = send_request(&mut stream, &request)?;
         println!("{}", response);
     }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_opened_multisig(
+    output_pointer: OutputPointer,
+    value: u64,
+    _fee: u64,
+    n: u8,
+    m: u8,
+    pkhs: Vec<PublicKeyHash>,
+    address: PublicKeyHash,
+) -> Result<(), failure::Error> {
+    let mut redeem_script = vec![Item::Value(MyValue::Integer(i128::from(m)))];
+    if pkhs.len() != usize::from(n) {
+        bail!(
+            "Expected {} addresses because of n-sig argument, but found {}",
+            n,
+            pkhs.len()
+        );
+    }
+    let mut pkhs_str = vec![];
+    for pkh in pkhs {
+        pkhs_str.push(pkh.to_string());
+        redeem_script.push(Item::Value(MyValue::Bytes(pkh.bytes().to_vec())));
+    }
+
+    redeem_script.extend(vec![
+        Item::Value(MyValue::Integer(i128::from(n))),
+        Item::Operator(MyOperator::CheckMultiSig),
+    ]);
+
+    let redeem_script_bytes = witnet_stack::encode(redeem_script);
+    let vt_outputs = vec![
+        MixedOutput::VTO(ValueTransferOutput {
+            pkh: address,
+            value,
+            time_lock: 0,
+        }),
+        // TODO: we must create change output here
+        //MixedOutput::Script(script_output),
+    ];
+
+    let multi_sig_witness = witnet_stack::encode(vec![]);
+    let script_transaction = Transaction::Script(ScriptTransaction::new(
+        ScriptTransactionBody::new(
+            vec![ScriptInput {
+                output_pointer,
+                redeem_script: redeem_script_bytes,
+            }],
+            vt_outputs,
+        ),
+        vec![multi_sig_witness],
+    ));
+
+    let script_transaction_hex = hex::encode(script_transaction.to_pb_bytes().unwrap());
+
+    println!("Script bytes: {}", script_transaction_hex);
     Ok(())
 }
 

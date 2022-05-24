@@ -8,7 +8,7 @@ use std::{
 use structopt::StructOpt;
 
 use witnet_config::config::Config;
-use witnet_data_structures::chain::Epoch;
+use witnet_data_structures::chain::{Epoch, OutputPointer};
 use witnet_node as node;
 
 use super::json_rpc_client as rpc;
@@ -180,6 +180,26 @@ pub fn exec_cmd(
                 .map(|address| address.parse())
                 .collect::<Result<Vec<_>, _>>()?,
             dry_run,
+        ),
+
+        Command::CreateOpenedMultiSig {
+            utxo,
+            value,
+            fee,
+            n,
+            m,
+            pkhs,
+            address,
+        } => rpc::create_opened_multisig(
+            utxo,
+            value,
+            fee,
+            n,
+            m,
+            pkhs.into_iter()
+                .map(|address| address.parse())
+                .collect::<Result<Vec<_>, _>>()?,
+            address.parse()?,
         ),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
@@ -605,6 +625,33 @@ pub enum Command {
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+    },
+    #[structopt(
+        name = "createOpenedMultiSig",
+        about = "Create a ScriptTransaction that could spend funds from a multi signature UTXO"
+    )]
+    CreateOpenedMultiSig {
+        /// Unspent Transaction Output Pointer
+        #[structopt(long = "utxo")]
+        utxo: OutputPointer,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
+        /// m out of n signatures
+        #[structopt(long = "n-sig")]
+        n: u8,
+        /// m out of n signatures
+        #[structopt(short = "m", long = "m-sig")]
+        m: u8,
+        /// List of pkhs
+        #[structopt(long = "pkhs")]
+        pkhs: Vec<String>,
+        /// Address of the destination
+        #[structopt(long = "address", alias = "pkh")]
+        address: String,
     },
     #[structopt(
         name = "config",
