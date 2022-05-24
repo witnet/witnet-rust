@@ -4,6 +4,8 @@ use scriptful::{
 };
 use serde::{Deserialize, Serialize};
 
+use witnet_crypto::hash::{calculate_sha256, Sha256};
+
 pub use scriptful::prelude::Item;
 
 // You can define your own operators.
@@ -35,8 +37,20 @@ fn equal_operator(stack: &mut Stack<MyValue>) {
     stack.push(MyValue::Boolean(a == b));
 }
 
-fn hash_160_operator(_stack: &mut Stack<MyValue>) {
-    // TODO: implement it
+fn hash_160_operator(stack: &mut Stack<MyValue>) {
+    let a = stack.pop();
+    match a {
+        MyValue::Boolean(_) => {}
+        MyValue::Float(_) => {}
+        MyValue::Integer(_) => {}
+        MyValue::String(_) => {}
+        MyValue::Bytes(bytes) => {
+            let mut pkh = [0; 20];
+            let Sha256(h) = calculate_sha256(&bytes);
+            pkh.copy_from_slice(&h[..20]);
+            stack.push(MyValue::Bytes(pkh.as_ref().to_vec()));
+        }
+    }
 }
 
 fn check_multisig_operator(_stack: &mut Stack<MyValue>) {
