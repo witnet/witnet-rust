@@ -162,6 +162,25 @@ pub fn exec_cmd(
             fee,
             dry_run,
         ),
+        Command::SendLockedMultiSig {
+            node,
+            value,
+            fee,
+            n,
+            m,
+            pkhs,
+            dry_run,
+        } => rpc::send_locked_multisig(
+            node.unwrap_or(config.jsonrpc.server_address),
+            value,
+            fee,
+            n,
+            m,
+            pkhs.into_iter()
+                .map(|address| address.parse())
+                .collect::<Result<Vec<_>, _>>()?,
+            dry_run,
+        ),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
@@ -556,6 +575,34 @@ pub enum Command {
         fee: u64,
         /// Run the data request locally to ensure correctness of RADON scripts
         /// It will returns a RadonTypes with the Tally result
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+
+    #[structopt(
+        name = "sendLockedMultisig",
+        about = "Send a transaction to a multi signature address"
+    )]
+    SendLockedMultiSig {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
+        /// m out of n signatures
+        #[structopt(long = "n-sig")]
+        n: u8,
+        /// m out of n signatures
+        #[structopt(short = "m", long = "m-sig")]
+        m: u8,
+        /// List of pkhs
+        #[structopt(long = "pkhs")]
+        pkhs: Vec<String>,
+        /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },

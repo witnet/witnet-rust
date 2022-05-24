@@ -23,8 +23,8 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
-        Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
-        SupplyInfo, SyncStatus, ValueTransferOutput,
+        Hashable, KeyedSignature, MixedOutput, NodeStats, OutputPointer, PublicKey, PublicKeyHash,
+        ScriptHash, ScriptOutput, StateMachine, SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     mainnet_validations::{current_active_wips, ActiveWips},
     proto::ProtobufConvert,
@@ -37,9 +37,10 @@ use witnet_node::actors::{
     json_rpc::json_rpc_methods::{
         AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
-    messages::{BuildVtt, GetReputationResult, SignalingInfo},
+    messages::{BuildScriptTransaction, BuildVtt, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
+use witnet_stack::{Item, MyOperator, MyValue};
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
 use witnet_validations::validations::{
     run_tally_panic_safe, validate_data_request_output, validate_rad_request, Wit,
@@ -705,6 +706,71 @@ pub fn master_key_export(
         }
     }
 
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn send_locked_multisig(
+    addr: SocketAddr,
+    value: u64,
+    fee: u64,
+    n: u8,
+    m: u8,
+    pkhs: Vec<PublicKeyHash>,
+    dry_run: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let mut redeem_script = vec![Item::Value(MyValue::Integer(i128::from(m)))];
+    if pkhs.len() != usize::from(n) {
+        bail!(
+            "Expected {} addresses because of n-sig argument, but found {}",
+            n,
+            pkhs.len()
+        );
+    }
+    let mut pkhs_str = vec![];
+    for pkh in pkhs {
+        pkhs_str.push(pkh.to_string());
+        redeem_script.push(Item::Value(MyValue::Bytes(pkh.bytes().to_vec())));
+    }
+
+    redeem_script.extend(vec![
+        Item::Value(MyValue::Integer(i128::from(n))),
+        Item::Operator(MyOperator::CheckMultiSig),
+    ]);
+
+    let locking_script_hash = ScriptHash::from_script_bytes(&witnet_stack::encode(redeem_script));
+    let script_output = ScriptOutput {
+        redeem_script_hash: locking_script_hash,
+        value,
+    };
+    let vt_outputs = vec![MixedOutput::Script(script_output)];
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
+
+    let params = BuildScriptTransaction {
+        vto: vt_outputs,
+        fee,
+        utxo_strategy,
+        script_inputs: vec![],
+        script_witnesses: vec![],
+    };
+
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sendScript", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params)?
+    );
+
+    println!(
+        "Sending to {}-of-{} multisig address {} composed of {:?}",
+        m, n, locking_script_hash, pkhs_str
+    );
+
+    if dry_run {
+        println!("{}", request);
+    } else {
+        let response = send_request(&mut stream, &request)?;
+        println!("{}", response);
+    }
     Ok(())
 }
 
