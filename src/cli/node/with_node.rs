@@ -201,6 +201,12 @@ pub fn exec_cmd(
                 .collect::<Result<Vec<_>, _>>()?,
             address.parse()?,
         ),
+        Command::Broadcast { node, hex, dry_run } => {
+            rpc::broadcast_tx(node.unwrap_or(config.jsonrpc.server_address), hex, dry_run)
+        }
+        Command::SignTransaction { node, hex, dry_run } => {
+            rpc::sign_tx(node.unwrap_or(config.jsonrpc.server_address), hex, dry_run)
+        }
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
@@ -652,6 +658,33 @@ pub enum Command {
         /// Address of the destination
         #[structopt(long = "address", alias = "pkh")]
         address: String,
+    },
+    #[structopt(name = "broadcast", about = "Broadcast a serialized transaction")]
+    Broadcast {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Transaction bytes in hex
+        #[structopt(long = "hex")]
+        hex: String,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+    #[structopt(
+        name = "sign_tx",
+        about = "Include you signature in a serialized transaction"
+    )]
+    SignTransaction {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Transaction bytes in hex
+        #[structopt(long = "hex")]
+        hex: String,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
     },
     #[structopt(
         name = "config",
