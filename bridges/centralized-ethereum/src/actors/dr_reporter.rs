@@ -257,9 +257,29 @@ impl Handler<DrReporterMsg> for DrReporter {
                         log::debug!("Request [{:?}], reportResult: {:?}", dr_ids, receipt);
                         match handle_receipt(&receipt).await {
                             Ok(()) => {
-                                // TODO: set successful reports as Finished using SetDrInfoBridge message
-                                // Need to detect which of the reports succeeded and which ones did not
                                 log::debug!("{}: success", params_str);
+                                // Set successful reports as Finished using SetDrInfoBridge message
+                                for log in receipt.logs {
+                                    if let Some(finished_dr_id) =
+                                        parse_posted_result_event(wrb_contract.abi(), log)
+                                    {
+                                        if let Some(set_dr_info_bridge_msg) =
+                                            read_resolved_request_from_contract(
+                                                finished_dr_id,
+                                                &wrb_contract,
+                                                eth_account,
+                                            )
+                                            .await
+                                        {
+                                            // The request is already resolved, mark as resolved
+                                            let dr_database_addr = DrDatabase::from_registry();
+                                            dr_database_addr
+                                                .send(set_dr_info_bridge_msg)
+                                                .await
+                                                .ok();
+                                        }
+                                    }
+                                }
                             }
                             Err(()) => {
                                 log::error!("{}: transaction reverted (?)", params_str);
@@ -439,6 +459,32 @@ fn unwrap_batch(t: Token) -> (Token, Token, Token, Token) {
     }
 }
 
+/// Get the queryId of a PostedResult event, or return None if this is a different kind of event
+fn parse_posted_result_event(
+    wrb_contract_abi: &web3::ethabi::Contract,
+    log: web3::types::Log,
+) -> Option<DrId> {
+    let posted_result_event = wrb_contract_abi.events_by_name("PostedResult").unwrap();
+    // There should be exactly one PostedResult event
+    assert_eq!(posted_result_event.len(), 1);
+    let posted_result_event = &posted_result_event[0];
+    // Parse log, ignoring it if the topic does not match "PostedResult"
+    let posted_result_log = posted_result_event
+        .parse_log(web3::ethabi::RawLog {
+            topics: log.topics,
+            data: log.data.0,
+        })
+        .ok()?;
+    let posted_result_log_params = posted_result_log.params;
+    let query_id = &posted_result_log_params[0];
+    assert_eq!(query_id.name, "queryId");
+
+    match &query_id.value {
+        Token::Uint(value) => Some(*value),
+        x => panic!("Invalid queryId type: {:?} (expected Uint)", x),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,5 +541,43 @@ mod tests {
             .function("reportResultBatch")
             .and_then(|function| function.encode_input(&params_batch.into_tokens()))
             .expect("encode args failed");
+    }
+
+    #[test]
+    fn parse_logs_report_result_batch() {
+        let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
+        let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
+            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
+            .unwrap();
+        hack_fix_functions_with_multiple_definitions(&mut wrb_contract_abi);
+
+        let log_posted_result = web3::types::Log {
+            address: "0x8ab653b73a0e0552dddce8c76f97c6aa826efbd4"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0x00e9413c6321ec446a267b7ebf5bb108663f2ef58b35c4f6e18905ac8f205cb2"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: web3::types::Bytes(vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 248, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 232, 36, 130, 44, 106, 92,
+                40, 222, 53, 104, 223, 153, 96, 77, 104, 233, 253, 156, 140,
+            ]),
+            block_hash: None,
+            block_number: None,
+            transaction_hash: None,
+            transaction_index: None,
+            log_index: None,
+            transaction_log_index: None,
+            log_type: None,
+            removed: None,
+        };
+
+        assert_eq!(
+            parse_posted_result_event(&wrb_contract_abi, log_posted_result),
+            Some(U256::from(63605)),
+        );
     }
 }
