@@ -4281,7 +4281,7 @@ mod tests {
     #[test]
     fn test_block_hashable_trait() {
         let block = block_example();
-        let expected = "70e15ac70bb00f49c7a593b2423f722dca187bbae53dc2f22647063b17608c01";
+        let expected = "c568f6939291be1b32dac3e44e75bf5573cda50a7358906c13b986df3e45c7e3";
         assert_eq!(block.hash().to_string(), expected);
     }
 
