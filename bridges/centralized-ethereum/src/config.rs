@@ -42,6 +42,13 @@ pub struct Config {
     pub max_result_size: usize,
     /// Max time to wait for an ethereum transaction to be confirmed before returning an error
     pub eth_confirmation_timeout_ms: u64,
+    /// Number of block confirmations needed to assume finality when sending transactions to ethereum
+    #[serde(default = "one")]
+    pub num_confirmations: usize,
+}
+
+fn one() -> usize {
+    1
 }
 
 /// Gas limits for some methods. If missing, let the client estimate

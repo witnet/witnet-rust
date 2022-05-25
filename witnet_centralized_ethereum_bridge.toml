@@ -39,6 +39,9 @@ max_dr_value_nanowits = 100_000_000_000
 # Running in the witnet testnet?
 witnet_testnet = false
 
+# Number of block confirmations needed to assume finality when sending transactions to ethereum
+num_confirmations = 1
+
 # Gas limits for some methods.
 # To let the client estimate, comment out the fields
 [gas_limits]

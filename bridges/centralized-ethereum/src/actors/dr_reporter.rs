@@ -35,6 +35,8 @@ pub struct DrReporter {
     pub pending_report_result: HashSet<DrId>,
     /// Max time to wait for an ethereum transaction to be confirmed before returning an error
     pub eth_confirmation_timeout_ms: u64,
+    /// Number of block confirmations needed to assume finality when sending transactions to ethereum
+    pub num_confirmations: usize,
 }
 
 impl Drop for DrReporter {
@@ -71,6 +73,7 @@ impl DrReporter {
             max_result_size: config.max_result_size,
             pending_report_result: Default::default(),
             eth_confirmation_timeout_ms: config.eth_confirmation_timeout_ms,
+            num_confirmations: config.num_confirmations,
         }
     }
 }
@@ -126,6 +129,7 @@ impl Handler<DrReporterMsg> for DrReporter {
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let eth_account = self.eth_account;
         let report_result_limit = self.report_result_limit;
+        let num_confirmations = self.num_confirmations;
         let eth_confirmation_timeout = Duration::from_millis(self.eth_confirmation_timeout_ms);
 
         for report in &mut msg.reports {
@@ -229,7 +233,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                             opt.gas = Some(estimated_gas_limit);
                             opt.gas_price = Some(max_gas_price);
                         }),
-                        1,
+                        num_confirmations,
                     );
                     tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await
                 } else {
@@ -243,7 +247,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                             opt.gas = Some(estimated_gas_limit);
                             opt.gas_price = Some(max_gas_price);
                         }),
-                        1,
+                        num_confirmations,
                     );
                     tokio::time::timeout(eth_confirmation_timeout, receipt_fut).await
                 };
