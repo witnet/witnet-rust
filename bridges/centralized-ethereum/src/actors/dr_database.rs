@@ -1,11 +1,9 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{cmp, collections::HashMap, fmt};
-use web3::ethabi::Bytes;
-use web3::types::U256;
+use std::{cmp, collections::hash_map::Entry, collections::HashMap, fmt, future::Future};
+use web3::{ethabi::Bytes, types::U256};
 use witnet_data_structures::chain::Hash;
-use witnet_node::storage_mngr;
-use witnet_node::utils::stop_system_if_panicking;
+use witnet_node::{storage_mngr, utils::stop_system_if_panicking};
 
 /// Database key that stores the Data Request information
 const BRIDGE_DB_KEY: &[u8] = b"bridge_db_key";
@@ -21,6 +19,20 @@ impl Drop for DrDatabase {
     fn drop(&mut self) {
         log::trace!("Dropping DrDatabase");
         stop_system_if_panicking("DrDatabase");
+    }
+}
+
+impl DrDatabase {
+    // Persist Data Request Database
+    fn persist(&mut self) -> impl Future<Output = ()> {
+        let f = storage_mngr::put(&BRIDGE_DB_KEY, self);
+
+        async move {
+            match f.await {
+                Ok(_) => log::debug!("Bridge database successfully persisted"),
+                Err(e) => log::error!("Bridge database error during persistence: {}", e),
+            }
+        }
     }
 }
 
@@ -157,6 +169,16 @@ impl Message for GetLastDrId {
     type Result = Result<DrId, ()>;
 }
 
+/// Set data request id as "finished"
+pub struct SetFinished {
+    /// Data Request Id
+    pub dr_id: DrId,
+}
+
+impl Message for SetFinished {
+    type Result = Result<(), ()>;
+}
+
 impl Handler<SetDrInfoBridge> for DrDatabase {
     type Result = ();
 
@@ -169,15 +191,7 @@ impl Handler<SetDrInfoBridge> for DrDatabase {
         log::debug!("Data request #{} inserted with state {}", dr_id, dr_state);
 
         // Persist Data Request Database
-        let f = storage_mngr::put(&BRIDGE_DB_KEY, self);
-        let fut = async move {
-            let res = f.await;
-            match res {
-                Ok(_) => log::debug!("Bridge database successfully persisted"),
-                Err(e) => log::error!("Bridge database error during persistence: {}", e),
-            }
-        };
-        ctx.spawn(fut.into_actor(self));
+        ctx.spawn(self.persist().into_actor(self));
     }
 }
 
@@ -227,6 +241,44 @@ impl Handler<GetLastDrId> for DrDatabase {
 
     fn handle(&mut self, _msg: GetLastDrId, _ctx: &mut Self::Context) -> Self::Result {
         Ok(self.max_dr_id)
+    }
+}
+
+impl Handler<SetFinished> for DrDatabase {
+    type Result = Result<(), ()>;
+
+    fn handle(&mut self, msg: SetFinished, ctx: &mut Self::Context) -> Self::Result {
+        let SetFinished { dr_id } = msg;
+        match self.dr.entry(dr_id) {
+            Entry::Occupied(entry) => {
+                entry.into_mut().dr_state = DrState::Finished;
+                log::debug!(
+                    "Data request #{} updated to state {}",
+                    dr_id,
+                    DrState::Finished
+                );
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(DrInfoBridge {
+                    dr_bytes: vec![],
+                    dr_state: DrState::Finished,
+                    dr_tx_hash: None,
+                    dr_tx_creation_timestamp: None,
+                });
+                log::debug!(
+                    "Data request #{} inserted with state {}",
+                    dr_id,
+                    DrState::Finished
+                );
+            }
+        }
+
+        self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
+
+        // Persist Data Request Database
+        ctx.spawn(self.persist().into_actor(self));
+
+        Ok(())
     }
 }
 

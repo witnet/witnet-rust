@@ -12,9 +12,7 @@ use web3::{
     transports::Http,
     types::{H160, U256},
 };
-use witnet_data_structures::chain::Hash;
 use witnet_node::utils::stop_system_if_panicking;
-use witnet_util::timestamp::get_timestamp;
 
 /// EthPoller actor reads periodically new requests from the WRB Contract and includes them
 /// in the DrDatabase
@@ -199,61 +197,6 @@ async fn process_posted_request(
             },
         )),
         Err(err) => {
-            log::error!("Fail to read dr bytes from contract: {}", err.to_string());
-
-            None
-        }
-    }
-}
-
-/// Auxiliary function that process the information of an already reported request
-pub async fn process_reported_request(
-    query_id: U256,
-    wrb_contract: &Contract<web3::transports::Http>,
-    eth_account: H160,
-) -> Option<SetDrInfoBridge> {
-    let dr_tx_hash: Result<Bytes, web3::contract::Error> = wrb_contract
-        .query(
-            "readResponseDrTxHash",
-            (query_id,),
-            eth_account,
-            contract::Options::default(),
-            None,
-        )
-        .await;
-
-    let dr_bytes: Result<Bytes, web3::contract::Error> = wrb_contract
-        .query(
-            "readRequestBytecode",
-            (query_id,),
-            eth_account,
-            contract::Options::default(),
-            None,
-        )
-        .await;
-
-    match (dr_bytes, dr_tx_hash) {
-        (Ok(dr_bytes), Ok(dr_tx_hash)) => {
-            let mut x = [0; 32];
-            x.copy_from_slice(&dr_tx_hash[..32]);
-
-            Some(SetDrInfoBridge(
-                query_id,
-                DrInfoBridge {
-                    dr_bytes,
-                    dr_state: DrState::Finished,
-                    dr_tx_hash: Some(Hash::SHA256(x)),
-                    dr_tx_creation_timestamp: Some(get_timestamp()),
-                },
-            ))
-        }
-        (Err(err), _) => {
-            log::error!("Fail to read dr bytes from contract: {}", err.to_string());
-
-            None
-        }
-
-        (_, Err(err)) => {
             log::error!("Fail to read dr bytes from contract: {}", err.to_string());
 
             None

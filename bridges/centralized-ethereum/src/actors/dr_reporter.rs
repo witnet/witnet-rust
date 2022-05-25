@@ -1,10 +1,5 @@
 use crate::{
-    actors::{
-        dr_database::{
-            DrDatabase, DrId, DrInfoBridge, DrState, SetDrInfoBridge, WitnetQueryStatus,
-        },
-        eth_poller::process_reported_request,
-    },
+    actors::dr_database::{DrDatabase, DrId, SetFinished, WitnetQueryStatus},
     config::Config,
     handle_receipt,
 };
@@ -12,7 +7,7 @@ use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use web3::{
     contract::{self, Contract},
-    ethabi::{ethereum_types::H256, Bytes, Token},
+    ethabi::{ethereum_types::H256, Token},
     transports::Http,
     types::{H160, U256},
 };
@@ -149,13 +144,13 @@ impl Handler<DrReporterMsg> for DrReporter {
             // that got confirmed after the eth_confirmation_timeout has elapsed
             let mut reports = vec![];
             for report in msg.reports.drain(..) {
-                if let Some(set_dr_info_bridge_msg) =
+                if let Some(set_finished_msg) =
                     read_resolved_request_from_contract(report.dr_id, &wrb_contract, eth_account)
                         .await
                 {
-                    // The request is already resolved, mark as resolved
+                    // The request is already resolved, mark as finished in the database
                     let dr_database_addr = DrDatabase::from_registry();
-                    dr_database_addr.send(set_dr_info_bridge_msg).await.ok();
+                    dr_database_addr.send(set_finished_msg).await.ok();
                 } else {
                     // Not resolved yet, insert back into the list
                     reports.push(report);
@@ -258,26 +253,22 @@ impl Handler<DrReporterMsg> for DrReporter {
                         match handle_receipt(&receipt).await {
                             Ok(()) => {
                                 log::debug!("{}: success", params_str);
-                                // Set successful reports as Finished using SetDrInfoBridge message
+                                // Set successful reports as Finished in the database using
+                                // SetFinished message
                                 for log in receipt.logs {
                                     if let Some(finished_dr_id) =
                                         parse_posted_result_event(wrb_contract.abi(), log)
                                     {
-                                        if let Some(set_dr_info_bridge_msg) =
-                                            read_resolved_request_from_contract(
-                                                finished_dr_id,
-                                                &wrb_contract,
-                                                eth_account,
-                                            )
+                                        // We assume that the PostedResult event implies that the
+                                        // data request state in the contract is "Reported" or
+                                        // "Deleted"
+                                        let dr_database_addr = DrDatabase::from_registry();
+                                        dr_database_addr
+                                            .send(SetFinished {
+                                                dr_id: finished_dr_id,
+                                            })
                                             .await
-                                        {
-                                            // The request is already resolved, mark as resolved
-                                            let dr_database_addr = DrDatabase::from_registry();
-                                            dr_database_addr
-                                                .send(set_dr_info_bridge_msg)
-                                                .await
-                                                .ok();
-                                        }
+                                            .ok();
                                     }
                                 }
                             }
@@ -312,7 +303,7 @@ async fn read_resolved_request_from_contract(
     dr_id: U256,
     wrb_contract: &Contract<Http>,
     eth_account: H160,
-) -> Option<SetDrInfoBridge> {
+) -> Option<SetFinished> {
     let query_status: Result<u8, web3::contract::Error> = wrb_contract
         .query(
             "getQueryStatus",
@@ -331,19 +322,11 @@ async fn read_resolved_request_from_contract(
             }
             WitnetQueryStatus::Reported => {
                 log::debug!("[{}] already reported", dr_id);
-                return process_reported_request(dr_id, wrb_contract, eth_account).await;
+                return Some(SetFinished { dr_id });
             }
             WitnetQueryStatus::Deleted => {
                 log::debug!("[{}] already reported and deleted", dr_id);
-                return Some(SetDrInfoBridge(
-                    dr_id,
-                    DrInfoBridge {
-                        dr_bytes: Bytes::default(),
-                        dr_state: DrState::Finished,
-                        dr_tx_hash: None,
-                        dr_tx_creation_timestamp: None,
-                    },
-                ));
+                return Some(SetFinished { dr_id });
             }
         },
         Err(err) => {
@@ -353,6 +336,7 @@ async fn read_resolved_request_from_contract(
             );
         }
     }
+
     None
 }
 
