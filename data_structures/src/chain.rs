@@ -60,7 +60,7 @@ pub struct ChainInfo {
     /// Blockchain valid environment
     pub environment: Environment,
 
-    /// Blockchain Protocol constantsq
+    /// Blockchain Protocol constants
     pub consensus_constants: ConsensusConstants,
 
     /// Checkpoint of the last block in the blockchain

@@ -606,7 +606,7 @@ pub enum Command {
     },
 
     #[structopt(
-        name = "sendLockedMultisig",
+        name = "sendLockedMultiSig",
         about = "Send a transaction to a multi signature address"
     )]
     SendLockedMultiSig {
