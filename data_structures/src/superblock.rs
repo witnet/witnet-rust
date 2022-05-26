@@ -2090,23 +2090,23 @@ mod tests {
         // Receive four superblock votes for index 1
         // Since the signing_committee_size is 2, two of the votes will not be valid
         let mut v1 = SuperBlockVote::new_unsigned(sb2_hash, 1);
-        v1.secp256k1_signature.public_key = p1;
+        v1.secp256k1_signature.public_key = p2;
         assert_eq!(
             sbs.add_vote(&v1, 1),
             AddSuperBlockVote::NotInSigningCommittee
         );
         let mut v2 = SuperBlockVote::new_unsigned(sb2_hash, 1);
-        v2.secp256k1_signature.public_key = p3;
+        v2.secp256k1_signature.public_key = p4;
         assert_eq!(
             sbs.add_vote(&v2, 1),
             AddSuperBlockVote::NotInSigningCommittee
         );
         let mut v3 = SuperBlockVote::new_unsigned(sb2_hash, 1);
-        v3.secp256k1_signature.public_key = p2;
+        v3.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v3, 1), AddSuperBlockVote::ValidWithSameHash);
         // If we change the index of the vote to x+1 it should be set as MaybeValid
         let mut v4 = SuperBlockVote::new_unsigned(sb2_hash, 2);
-        v4.secp256k1_signature.public_key = p4;
+        v4.secp256k1_signature.public_key = p3;
         assert_eq!(sbs.add_vote(&v4, 1), AddSuperBlockVote::MaybeValid);
 
         // The function get_current_<<superblock_votes should return only the vote v3
@@ -2318,8 +2318,8 @@ mod tests {
             1,
         );
 
-        // The members of the signing_committee should be p1, p3
-        assert_eq!(subset, vec![p1.pkh(), p3.pkh()].into_iter().collect());
+        // The members of the signing_committee should be p2, p3
+        assert_eq!(subset, vec![p2.pkh(), p3.pkh()].into_iter().collect());
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
 
         sbs.ars_previous_identities = ars_identities;
@@ -2332,8 +2332,8 @@ mod tests {
             1,
         );
 
-        // The members of the signing_committee should be p1, p2
-        assert_eq!(subset_2, vec![p1.pkh(), p2.pkh()].into_iter().collect());
+        // The members of the signing_committee should be p1, p3
+        assert_eq!(subset_2, vec![p1.pkh(), p3.pkh()].into_iter().collect());
         assert_eq!(usize::try_from(committee_size).unwrap(), subset_2.len());
     }
 
