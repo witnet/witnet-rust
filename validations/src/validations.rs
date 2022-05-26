@@ -92,7 +92,7 @@ pub fn transaction_fee(
 
             (in_value, out_value)
         }
-        _ => unreachable!("Only VT, DR and script transactions allowed"),
+        _ => panic!("Only VT, DR and script transactions allowed"),
     };
 
     if out_value > in_value {
@@ -543,7 +543,7 @@ pub fn validate_dr_transaction<'a>(
                 }
             }
             MixedOutput::Script(_) => {
-                log::error!("Data Request transaction cannot use ScriptOutput as collateral");
+                log::error!("Data Request transaction can not be created using ScriptOutput");
                 return Err(TransactionError::NotValidTransaction.into());
             }
         }
@@ -1177,19 +1177,23 @@ pub fn validate_pkh_signature(
     utxo_diff: &UtxoDiff<'_>,
 ) -> Result<(), failure::Error> {
     let output = utxo_diff.get(input.output_pointer());
-    if let Some(MixedOutput::VTO(x)) = output {
-        let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
-        let expected_pkh = x.pkh;
-        if signature_pkh != expected_pkh {
-            return Err(TransactionError::PublicKeyHashMismatch {
-                expected_pkh,
-                signature_pkh,
+    match output {
+        Some(MixedOutput::VTO(x)) => {
+            let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
+            let expected_pkh = x.pkh;
+            if signature_pkh != expected_pkh {
+                return Err(TransactionError::PublicKeyHashMismatch {
+                    expected_pkh,
+                    signature_pkh,
+                }
+                .into());
             }
-            .into());
         }
-    } else {
-        log::error!("Normal Input can not spent a ScriptOutput");
-        return Err(TransactionError::NotValidTransaction.into());
+        Some(MixedOutput::Script(_)) => {
+            log::error!("Normal Input can not spent a ScriptOutput");
+            return Err(TransactionError::NotValidTransaction.into());
+        }
+        None => {}
     }
     Ok(())
 }

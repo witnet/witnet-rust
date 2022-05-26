@@ -2526,7 +2526,7 @@ impl TransactionsPool {
     /// may try to spend the same UTXOs.
     /// This should be used to remove transactions that did not get included in a consolidated
     /// block.
-    /// If the transaction did get included in a consolidated block, use `dr_rTemove` instead.
+    /// If the transaction did get included in a consolidated block, use `dr_remove` instead.
     fn dr_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<Transaction> {
         self.dr_transactions
             .remove(key)
