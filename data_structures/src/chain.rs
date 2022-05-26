@@ -2414,7 +2414,7 @@ impl TransactionsPool {
     /// let op_transaction_removed = pool.vt_remove(&vt_transaction);
     ///
     /// assert_eq!(Some(vt_transaction), op_transaction_removed);
-    /// assert!(!pool.vt_contains(&transaction.hash()));
+    /// assert!(!pool.vt_and_sh_contains(&transaction.hash()));
     /// ```
     pub fn vt_remove(&mut self, tx: &VTTransaction) -> Option<VTTransaction> {
         let key = tx.hash();
@@ -2963,7 +2963,13 @@ impl TransactionsPool {
     /// pool.insert(transaction1,0);
     /// pool.insert(transaction2,0);
     /// assert_eq!(pool.vt_and_sh_len(), 2);
-    /// pool.vt_and_sh_retain(|tx| tx.body.outputs.len()>0);
+    /// pool.vt_and_sh_retain(|tx| {
+    ///     if let Transaction::ValueTransfer(vt) = tx {
+    ///         vt.body.outputs.len()>0
+    ///     } else {
+    ///         false
+    ///     }
+    /// });
     /// assert_eq!(pool.vt_and_sh_len(), 1);
     /// ```
     pub fn vt_and_sh_retain<F>(&mut self, mut f: F)

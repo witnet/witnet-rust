@@ -10096,7 +10096,7 @@ fn validate_vt_weight_valid() {
 
 #[test]
 fn validate_vt_weight_genesis_valid() {
-    let new_genesis = "116e271cbda2c625ccc189a4b93b6d0e96063dd9b75258dc47acaac86cd19ceb";
+    let new_genesis = "7962f8d83b615a1b020afec3d77058d10331eae7745f9db867d39901aa75c69c";
     let t0 = {
         let vto0 = ValueTransferOutput {
             time_lock: 0,
