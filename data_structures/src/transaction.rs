@@ -296,7 +296,18 @@ impl ScriptTransaction {
     /// This is the weight that will be used to calculate
     /// how many transactions can fit inside one block
     pub fn weight(&self) -> u32 {
-        self.body.weight()
+        // TODO: should witness field affect weight?
+        // INPUT_SIZE does already take into account the weight of a keyed signature, so
+        // we only need to count the witnesses that are bigger than that?
+        // Add 1 weight unit for each byte in witness field
+        // This ignores any potential serialization overhead
+        let mut witness_weight: u32 = 0;
+        for w in &self.witness {
+            witness_weight =
+                witness_weight.saturating_add(u32::try_from(w.len()).unwrap_or(u32::MAX));
+        }
+
+        self.body.weight().saturating_add(witness_weight)
     }
 }
 
@@ -324,11 +335,28 @@ impl ScriptTransactionBody {
     /// Script transaction weight. It is calculated as:
     ///
     /// ```text
-    /// ST_weight = N*INPUT_SIZE + M*OUTPUT_SIZE*gamma
+    /// ST_weight = N*INPUT_SIZE + M*OUTPUT_SIZE*gamma + REDEEM_SCRIPTS_SIZE
     /// ```
     pub fn weight(&self) -> u32 {
-        //TODO: Implement weight method for Script transaction
-        100
+        let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
+        let outputs_len = u32::try_from(self.outputs.len()).unwrap_or(u32::MAX);
+
+        let inputs_weight = inputs_len.saturating_mul(INPUT_SIZE);
+        let outputs_weight = outputs_len
+            .saturating_mul(OUTPUT_SIZE)
+            .saturating_mul(GAMMA);
+
+        // Add 1 weight unit for each byte in input script field
+        // This ignores any potential serialization overhead
+        let mut redeem_scripts_weight: u32 = 0;
+        for input in &self.inputs {
+            redeem_scripts_weight = redeem_scripts_weight
+                .saturating_add(u32::try_from(input.redeem_script.len()).unwrap_or(u32::MAX));
+        }
+
+        inputs_weight
+            .saturating_add(outputs_weight)
+            .saturating_add(redeem_scripts_weight)
     }
 }
 
