@@ -1070,16 +1070,30 @@ pub async fn send_script(
 
     match params {
         Ok(msg) => {
+            let send_flag = msg.send_flag;
             ChainManager::from_registry()
                 .send(msg)
                 .map(|res| match res {
-                    Ok(Ok(hash)) => match serde_json::to_value(hash) {
-                        Ok(x) => Ok(x),
-                        Err(e) => {
-                            let err = internal_error_s(e);
-                            Err(err)
+                    Ok(Ok(script_transaction)) => {
+                        if send_flag {
+                            let hash = script_transaction.hash();
+                            match serde_json::to_value(hash) {
+                                Ok(x) => Ok(x),
+                                Err(e) => {
+                                    let err = internal_error_s(e);
+                                    Err(err)
+                                }
+                            }
+                        } else {
+                            match serde_json::to_value(script_transaction) {
+                                Ok(x) => Ok(x),
+                                Err(e) => {
+                                    let err = internal_error_s(e);
+                                    Err(err)
+                                }
+                            }
                         }
-                    },
+                    }
                     Ok(Err(e)) => {
                         let err = internal_error_s(e);
                         Err(err)

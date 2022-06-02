@@ -183,6 +183,7 @@ pub fn exec_cmd(
         ),
 
         Command::CreateOpenedMultiSig {
+            node,
             utxo,
             value,
             fee,
@@ -190,7 +191,9 @@ pub fn exec_cmd(
             m,
             pkhs,
             address,
+            dry_run,
         } => rpc::create_opened_multisig(
+            node.unwrap_or(config.jsonrpc.server_address),
             utxo,
             value,
             fee,
@@ -200,6 +203,7 @@ pub fn exec_cmd(
                 .map(|address| address.parse())
                 .collect::<Result<Vec<_>, _>>()?,
             address.parse()?,
+            dry_run,
         ),
         Command::Broadcast { node, hex, dry_run } => {
             rpc::broadcast_tx(node.unwrap_or(config.jsonrpc.server_address), hex, dry_run)
@@ -637,6 +641,9 @@ pub enum Command {
         about = "Create a ScriptTransaction that could spend funds from a multi signature UTXO"
     )]
     CreateOpenedMultiSig {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
         /// Unspent Transaction Output Pointer
         #[structopt(long = "utxo")]
         utxo: OutputPointer,
@@ -658,6 +665,9 @@ pub enum Command {
         /// Address of the destination
         #[structopt(long = "address", alias = "pkh")]
         address: String,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
     },
     #[structopt(name = "broadcast", about = "Broadcast a serialized transaction")]
     Broadcast {

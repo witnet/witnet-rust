@@ -1274,7 +1274,7 @@ impl Handler<BuildVtt> for ChainManager {
 }
 
 impl Handler<BuildScriptTransaction> for ChainManager {
-    type Result = ResponseActFuture<Self, Result<Hash, failure::Error>>;
+    type Result = ResponseActFuture<Self, Result<Transaction, failure::Error>>;
 
     fn handle(&mut self, msg: BuildScriptTransaction, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -1298,20 +1298,18 @@ impl Handler<BuildScriptTransaction> for ChainManager {
             &msg.utxo_strategy,
             max_vt_weight,
             msg.script_inputs,
-            msg.script_witnesses.clone(),
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
                 Box::pin(actix::fut::err(e.into()))
             }
-            Ok(vtt) => {
-                let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
+            Ok(sh_tx) => {
+                let fut = signature_mngr::sign_transaction(&sh_tx, sh_tx.inputs.len())
                     .into_actor(self)
                     .then(move |s, act, _ctx| match s {
                         Ok(signatures) => {
                             let mut witness = vec![];
-                            let mut num_scripts = 0;
-                            for (input, signature) in vtt.inputs.iter().zip(signatures) {
+                            for (input, signature) in sh_tx.inputs.iter().zip(signatures) {
                                 // TODO: is_empty may not be the correct check, the redeem_script should
                                 // be an Option<_>, the None case representing "Not a script"
                                 // TODO: or change this logic to allow users to create a transaction
@@ -1320,32 +1318,30 @@ impl Handler<BuildScriptTransaction> for ChainManager {
                                 if input.redeem_script.is_empty() {
                                     // This is a VTO, so use the signature as witness
                                     witness.push(signature.to_pb_bytes().unwrap());
-                                } else {
-                                    // This is a Script, so use the provided witness
-                                    match msg.script_witnesses.get(num_scripts) {
-                                        Some(wm) => {
-                                            witness.push(wm.clone());
-                                            num_scripts += 1;
-                                        }
-                                        None => {
-                                            return Either::Right(actix::fut::result(Err(failure::format_err!("Missing script_witness for script input at index {}: {:?}", num_scripts, input))));
-                                        }
-                                    }
                                 }
                             }
+                            // TODO: Review the better option to include an empty vec for witness field
+                            if witness.is_empty() {
+                                let multi_sig_witness = witnet_stack::encode(vec![]);
+                                witness = vec![multi_sig_witness]
+                            }
                             let transaction =
-                                Transaction::Script(ScriptTransaction::new(vtt, witness));
-                            let tx_hash = transaction.hash();
-                            Either::Left(
-                                act.add_transaction(
-                                    AddTransaction {
-                                        transaction,
-                                        broadcast_flag: true,
-                                    },
-                                    get_timestamp(),
+                                Transaction::Script(ScriptTransaction::new(sh_tx, witness));
+
+                            if msg.send_flag {
+                                Either::Left(
+                                    act.add_transaction(
+                                        AddTransaction {
+                                            transaction: transaction.clone(),
+                                            broadcast_flag: true,
+                                        },
+                                        get_timestamp(),
+                                    )
+                                    .map_ok(move |_, _, _| transaction),
                                 )
-                                    .map_ok(move |_, _, _| tx_hash),
-                            )
+                            } else {
+                                Either::Right(actix::fut::result(Ok(transaction)))
+                            }
                         }
                         Err(e) => {
                             log::error!("Failed to sign value transfer transaction: {}", e);

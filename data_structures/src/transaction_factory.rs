@@ -230,7 +230,6 @@ pub trait OutputsCollection {
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
         script_inputs: Vec<ScriptInput>,
-        _script_witnesses: Vec<Vec<u8>>,
     ) -> Result<TransactionInfoScript, TransactionError> {
         // On error just assume the value is u64::max_value(), hoping that it is
         // impossible to pay for this transaction
@@ -244,31 +243,50 @@ pub trait OutputsCollection {
             .ok_or(TransactionError::OutputValueOverflow)?;
 
         // For the first estimation: 1 input and 1 output more for the change address
-        let mut current_weight = calculate_weight(1, outputs.len() + 1, dr_output, max_weight)?;
+        let mut current_weight = calculate_weight(
+            std::cmp::max(1, script_inputs.len()),
+            outputs.len() + 1,
+            dr_output,
+            max_weight,
+        )?;
+
+        // Calculate input value from script inputs
+        let mut script_input_value = 0;
+        for sh_input in script_inputs.iter() {
+            let o = sh_input.output_pointer();
+            script_input_value += self.get_value(o).unwrap_or(0);
+        }
+        let mut inputs: Vec<ScriptInput> = script_inputs;
 
         match fee_type {
             FeeType::Absolute => {
-                // TODO: subtract script input amount from this amount
                 let amount = output_value
                     .checked_add(fee)
                     .ok_or(TransactionError::FeeOverflow)?;
 
-                let (output_pointers, input_value) =
-                    self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
-                let mut inputs: Vec<ScriptInput> = output_pointers
-                    .into_iter()
-                    .map(|output_pointer| ScriptInput {
-                        output_pointer,
-                        redeem_script: vec![],
-                    })
-                    .collect();
+                if amount > script_input_value {
+                    let (output_pointers, input_value) = self.take_enough_utxos(
+                        amount,
+                        timestamp,
+                        block_number_limit,
+                        utxo_strategy,
+                    )?;
+                    let more_inputs: Vec<ScriptInput> = output_pointers
+                        .into_iter()
+                        .map(|output_pointer| ScriptInput {
+                            output_pointer,
+                            redeem_script: vec![],
+                        })
+                        .collect();
 
-                inputs.extend(script_inputs.iter().cloned());
+                    inputs.extend(more_inputs);
+                    script_input_value += input_value;
+                }
 
                 Ok(TransactionInfoScript {
                     inputs,
                     outputs,
-                    input_value,
+                    input_value: script_input_value,
                     output_value,
                     fee,
                 })
@@ -284,32 +302,48 @@ pub trait OutputsCollection {
                         .checked_add(weighted_fee)
                         .ok_or(TransactionError::FeeOverflow)?;
 
-                    let (output_pointers, input_value) = self.take_enough_utxos(
-                        amount,
-                        timestamp,
-                        block_number_limit,
-                        utxo_strategy,
-                    )?;
-                    let inputs: Vec<ScriptInput> = output_pointers
-                        .into_iter()
-                        .map(|output_pointer| ScriptInput {
-                            output_pointer,
-                            redeem_script: vec![],
-                        })
-                        .collect();
+                    let mut achieved = false;
+                    if amount > script_input_value {
+                        let (output_pointers, input_value) = self.take_enough_utxos(
+                            amount,
+                            timestamp,
+                            block_number_limit,
+                            utxo_strategy,
+                        )?;
+                        let more_inputs: Vec<ScriptInput> = output_pointers
+                            .into_iter()
+                            .map(|output_pointer| ScriptInput {
+                                output_pointer,
+                                redeem_script: vec![],
+                            })
+                            .collect();
 
-                    let new_weight =
-                        calculate_weight(inputs.len(), outputs.len() + 1, dr_output, max_weight)?;
-                    if new_weight == current_weight {
+                        let new_weight = calculate_weight(
+                            more_inputs.len(),
+                            outputs.len() + 1,
+                            dr_output,
+                            max_weight,
+                        )?;
+
+                        if new_weight == current_weight {
+                            inputs.extend(more_inputs);
+                            script_input_value += input_value;
+                            achieved = true;
+                        } else {
+                            current_weight = new_weight;
+                        }
+                    } else {
+                        achieved = true;
+                    }
+
+                    if achieved {
                         return Ok(TransactionInfoScript {
                             inputs,
                             outputs,
-                            input_value,
+                            input_value: script_input_value,
                             output_value,
                             fee: weighted_fee,
                         });
-                    } else {
-                        current_weight = new_weight;
                     }
                 }
 
@@ -500,7 +534,6 @@ pub fn build_script_transaction(
     utxo_strategy: &UtxoSelectionStrategy,
     max_weight: u32,
     script_inputs: Vec<ScriptInput>,
-    script_witnesses: Vec<Vec<u8>>,
 ) -> Result<ScriptTransactionBody, TransactionError> {
     let mut utxos = NodeUtxos {
         all_utxos,
@@ -521,7 +554,6 @@ pub fn build_script_transaction(
         utxo_strategy,
         max_weight,
         script_inputs,
-        script_witnesses,
     )?;
 
     // Mark UTXOs as used so we don't double spend

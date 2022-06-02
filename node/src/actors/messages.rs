@@ -220,12 +220,12 @@ pub struct BuildScriptTransaction {
     pub utxo_strategy: UtxoSelectionStrategy,
     /// Extra script inputs
     pub script_inputs: Vec<ScriptInput>,
-    /// List of bytes that will allow spending each script input
-    pub script_witnesses: Vec<Vec<u8>>,
+    /// Flag to send transaction
+    pub send_flag: bool,
 }
 
 impl Message for BuildScriptTransaction {
-    type Result = Result<Hash, failure::Error>;
+    type Result = Result<Transaction, failure::Error>;
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`

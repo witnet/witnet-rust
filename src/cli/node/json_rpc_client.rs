@@ -29,7 +29,7 @@ use witnet_data_structures::{
     },
     mainnet_validations::{current_active_wips, ActiveWips},
     proto::ProtobufConvert,
-    transaction::{ScriptTransaction, ScriptTransactionBody, Transaction},
+    transaction::Transaction,
     transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
@@ -753,7 +753,7 @@ pub fn send_locked_multisig(
         fee,
         utxo_strategy,
         script_inputs: vec![],
-        script_witnesses: vec![],
+        send_flag: true,
     };
 
     let request = format!(
@@ -777,14 +777,17 @@ pub fn send_locked_multisig(
 
 #[allow(clippy::too_many_arguments)]
 pub fn create_opened_multisig(
+    addr: SocketAddr,
     output_pointer: OutputPointer,
     value: u64,
-    _fee: u64,
+    fee: u64,
     n: u8,
     m: u8,
     pkhs: Vec<PublicKeyHash>,
     address: PublicKeyHash,
+    dry_run: bool,
 ) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
     let mut redeem_script = vec![Item::Value(MyValue::Integer(i128::from(m)))];
     if pkhs.len() != usize::from(n) {
         bail!(
@@ -805,31 +808,43 @@ pub fn create_opened_multisig(
     ]);
 
     let redeem_script_bytes = witnet_stack::encode(redeem_script);
-    let vt_outputs = vec![
-        MixedOutput::VTO(ValueTransferOutput {
-            pkh: address,
-            value,
-            time_lock: 0,
-        }),
-        // TODO: we must create change output here
-        //MixedOutput::Script(script_output),
-    ];
+    let vt_outputs = vec![MixedOutput::VTO(ValueTransferOutput {
+        pkh: address,
+        value,
+        time_lock: 0,
+    })];
 
-    let multi_sig_witness = witnet_stack::encode(vec![]);
-    let script_transaction = Transaction::Script(ScriptTransaction::new(
-        ScriptTransactionBody::new(
-            vec![ScriptInput {
-                output_pointer,
-                redeem_script: redeem_script_bytes,
-            }],
-            vt_outputs,
-        ),
-        vec![multi_sig_witness],
-    ));
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
+    let script_inputs = vec![ScriptInput {
+        output_pointer,
+        redeem_script: redeem_script_bytes,
+    }];
 
-    let script_transaction_hex = hex::encode(script_transaction.to_pb_bytes().unwrap());
+    let params = BuildScriptTransaction {
+        vto: vt_outputs,
+        fee,
+        utxo_strategy,
+        script_inputs,
+        send_flag: false,
+    };
 
-    println!("Script bytes: {}", script_transaction_hex);
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sendScript", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params)?
+    );
+
+    if dry_run {
+        println!("{}", request);
+    } else {
+        let response = send_request(&mut stream, &request)?;
+
+        let script_tx = parse_response::<Transaction>(&response)?;
+        println!("Created transaction:\n{:?}", script_tx);
+
+        let script_transaction_hex = hex::encode(script_tx.to_pb_bytes().unwrap());
+
+        println!("Script bytes: {}", script_transaction_hex);
+    }
     Ok(())
 }
 pub fn broadcast_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failure::Error> {
