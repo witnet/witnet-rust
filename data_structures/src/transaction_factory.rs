@@ -157,6 +157,10 @@ pub trait OutputsCollection {
                 input_value += self.get_value(o).unwrap_or(0);
             }
 
+            if input_value < output_value + fee {
+                return Err(TransactionError::NegativeFee);
+            }
+
             return Ok(TransactionInfo {
                 inputs: additional_inputs,
                 outputs,

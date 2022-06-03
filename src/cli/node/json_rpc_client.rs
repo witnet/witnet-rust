@@ -20,6 +20,7 @@ use witnet_crypto::{
     hash::calculate_sha256,
     key::{CryptoEngine, ExtendedPK, ExtendedSK},
 };
+use witnet_data_structures::chain::Input;
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch, Hash,
@@ -32,6 +33,7 @@ use witnet_data_structures::{
     transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
+use witnet_node::actors::messages::BuildScriptTransaction;
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::json_rpc_methods::{
@@ -604,7 +606,6 @@ pub fn send_vtt(
         vto: vt_outputs,
         fee,
         utxo_strategy,
-        script_inputs: vec![],
     };
 
     let request = format!(
@@ -746,17 +747,19 @@ pub fn create_multisig_address(
     Ok(())
 }
 
-/*
 #[allow(clippy::too_many_arguments)]
 pub fn create_opened_multisig(
+    addr: SocketAddr,
     output_pointer: OutputPointer,
     value: u64,
-    _fee: u64,
+    fee: u64,
     n: u8,
     m: u8,
     pkhs: Vec<PublicKeyHash>,
     address: PublicKeyHash,
+    dry_run: bool,
 ) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
     let mut redeem_script = vec![Item::Value(MyValue::Integer(i128::from(m)))];
     if pkhs.len() != usize::from(n) {
         bail!(
@@ -770,40 +773,43 @@ pub fn create_opened_multisig(
         pkhs_str.push(pkh.to_string());
         redeem_script.push(Item::Value(MyValue::Bytes(pkh.bytes().to_vec())));
     }
-
     redeem_script.extend(vec![
         Item::Value(MyValue::Integer(i128::from(n))),
         Item::Operator(MyOperator::CheckMultiSig),
     ]);
-
     let redeem_script_bytes = witnet_stack::encode(redeem_script);
-    let vt_outputs = vec![
-        MixedOutput::VTO(ValueTransferOutput {
-            pkh: address,
-            value,
-            time_lock: 0,
-        }),
-        // TODO: we must create change output here
-        //MixedOutput::Script(script_output),
-    ];
-
-    let multi_sig_witness = witnet_stack::encode(vec![]);
-    let script_transaction = Transaction::Script(ScriptTransaction::new(
-        ScriptTransactionBody::new(
-            vec![ScriptInput {
-                output_pointer,
-                redeem_script: redeem_script_bytes,
-            }],
-            vt_outputs,
-        ),
-        vec![multi_sig_witness],
-    ));
-
-    let script_transaction_hex = hex::encode(script_transaction.to_pb_bytes().unwrap());
-
-    println!("Script bytes: {}", script_transaction_hex);
+    let vt_outputs = vec![ValueTransferOutput {
+        pkh: address,
+        value,
+        time_lock: 0,
+    }];
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
+    let script_inputs = vec![Input {
+        output_pointer,
+        redeem_script: redeem_script_bytes,
+    }];
+    let params = BuildScriptTransaction {
+        vto: vt_outputs,
+        fee,
+        utxo_strategy,
+        script_inputs,
+    };
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sendScript", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params)?
+    );
+    if dry_run {
+        println!("{}", request);
+    } else {
+        let response = send_request(&mut stream, &request)?;
+        let script_tx = parse_response::<Transaction>(&response)?;
+        println!("Created transaction:\n{:?}", script_tx);
+        let script_transaction_hex = hex::encode(script_tx.to_pb_bytes().unwrap());
+        println!("Script bytes: {}", script_transaction_hex);
+    }
     Ok(())
 }
+
 pub fn broadcast_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
@@ -844,9 +850,9 @@ pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failu
         let signature: KeyedSignature = parse_response(&response)?;
 
         match tx {
-            Transaction::Script(ref mut sh_tx) => {
+            Transaction::ValueTransfer(ref mut vtt) => {
                 let signature_bytes = signature.to_pb_bytes()?;
-                let mut script = witnet_stack::decode(&sh_tx.witness[0]);
+                let mut script = witnet_stack::decode(&vtt.witness[0]);
 
                 println!("Previous script:\n{:?}", script);
                 script.push(Item::Value(MyValue::Bytes(signature_bytes)));
@@ -854,7 +860,7 @@ pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failu
                 println!("Post script:\n{:?}", script);
                 let encoded_script = witnet_stack::encode(script);
 
-                sh_tx.witness[0] = encoded_script;
+                vtt.witness[0] = encoded_script;
 
                 let script_transaction_hex = hex::encode(tx.to_pb_bytes().unwrap());
                 println!("Signed Transaction:\n{:?}", tx);
@@ -866,8 +872,6 @@ pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failu
 
     Ok(())
 }
-
- */
 
 #[derive(Debug, Serialize)]
 struct DataRequestTransactionInfo {

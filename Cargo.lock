@@ -5724,6 +5724,7 @@ dependencies = [
  "witnet_p2p",
  "witnet_protected",
  "witnet_rad",
+ "witnet_stack",
  "witnet_storage",
  "witnet_util",
  "witnet_validations",

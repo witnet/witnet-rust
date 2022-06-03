@@ -203,12 +203,28 @@ pub struct BuildVtt {
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
-    /// Extra script inputs
-    pub script_inputs: Vec<Input>,
 }
 
 impl Message for BuildVtt {
     type Result = Result<Hash, failure::Error>;
+}
+
+/// Builds a `ValueTransferTransaction` from a list of `ValueTransferOutput`s and scripts
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildScriptTransaction {
+    /// List of `ValueTransferOutput`s
+    pub vto: Vec<ValueTransferOutput>,
+    /// Fee
+    pub fee: u64,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Extra script inputs
+    pub script_inputs: Vec<Input>,
+}
+
+impl Message for BuildScriptTransaction {
+    type Result = Result<Transaction, failure::Error>;
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`
