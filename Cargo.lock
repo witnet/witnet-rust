@@ -3814,6 +3814,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
+name = "scriptful"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29ec64415916dafaa464786b60488cd6080ac662682a4918f7333ca8373906e2"
+
+[[package]]
 name = "secp256k1"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4000,9 +4006,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.79"
+version = "1.0.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e8d9fa5c3b304765ce1fd9c4c8a3de2c8db365a5b91be52f186efc675681d95"
+checksum = "9b7ce2b32a1aed03c558dc61a5cd328f15aff2dbc17daad8fb8af04d2100e15c"
 dependencies = [
  "itoa 1.0.1",
  "ryu",
@@ -5549,6 +5555,7 @@ dependencies = [
  "witnet_data_structures",
  "witnet_node",
  "witnet_rad",
+ "witnet_stack",
  "witnet_util",
  "witnet_validations",
  "witnet_wallet",
@@ -5807,6 +5814,17 @@ dependencies = [
  "bencher",
  "failure",
  "serde",
+]
+
+[[package]]
+name = "witnet_stack"
+version = "0.1.0"
+dependencies = [
+ "scriptful",
+ "serde",
+ "serde_json",
+ "witnet_crypto",
+ "witnet_data_structures",
 ]
 
 [[package]]

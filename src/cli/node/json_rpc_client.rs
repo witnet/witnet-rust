@@ -603,6 +603,7 @@ pub fn send_vtt(
         vto: vt_outputs,
         fee,
         utxo_strategy,
+        script_inputs: vec![],
     };
 
     let request = format!(

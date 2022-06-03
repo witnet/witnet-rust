@@ -1232,6 +1232,7 @@ impl Handler<BuildVtt> for ChainManager {
             self.tx_pending_timeout,
             &msg.utxo_strategy,
             max_vt_weight,
+            msg.script_inputs,
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);

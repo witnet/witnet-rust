@@ -1260,6 +1260,7 @@ where
             block_number_limit,
             utxo_strategy,
             max_weight,
+            vec![],
         )?;
 
         let change_pkh =
