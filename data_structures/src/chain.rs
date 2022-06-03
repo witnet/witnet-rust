@@ -1254,6 +1254,15 @@ impl PublicKeyHash {
         Self { hash: pkh }
     }
 
+    /// Calculate the hash of the provided script
+    pub fn from_script_bytes(bytes: &[u8]) -> Self {
+        let mut pkh = [0; 20];
+        let Sha256(h) = calculate_sha256(bytes);
+        pkh.copy_from_slice(&h[..20]);
+
+        Self { hash: pkh }
+    }
+
     /// Create from existing bytes representing the PKH.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PublicKeyHashParseError> {
         let len = bytes.len();

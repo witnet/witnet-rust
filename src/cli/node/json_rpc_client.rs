@@ -22,9 +22,9 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
-        Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
-        SupplyInfo, SyncStatus, ValueTransferOutput,
+        Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch, Hash,
+        Hashable, InventoryItem, KeyedSignature, NodeStats, OutputPointer, PublicKey,
+        PublicKeyHash, StateMachine, SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     mainnet_validations::{current_active_wips, ActiveWips},
     proto::ProtobufConvert,
@@ -40,6 +40,7 @@ use witnet_node::actors::{
     messages::{BuildVtt, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
+use witnet_stack::{Item, MyOperator, MyValue};
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
 use witnet_validations::validations::{
     run_tally_panic_safe, validate_data_request_output, validate_rad_request, Wit,
@@ -708,6 +709,165 @@ pub fn master_key_export(
 
     Ok(())
 }
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_multisig_address(
+    n: u8,
+    m: u8,
+    pkhs: Vec<PublicKeyHash>,
+) -> Result<(), failure::Error> {
+    let mut redeem_script = vec![Item::Value(MyValue::Integer(i128::from(m)))];
+    if pkhs.len() != usize::from(n) {
+        bail!(
+            "Expected {} addresses because of n-sig argument, but found {}",
+            n,
+            pkhs.len()
+        );
+    }
+    let mut pkhs_str = vec![];
+    for pkh in pkhs {
+        pkhs_str.push(pkh.to_string());
+        redeem_script.push(Item::Value(MyValue::Bytes(pkh.bytes().to_vec())));
+    }
+
+    redeem_script.extend(vec![
+        Item::Value(MyValue::Integer(i128::from(n))),
+        Item::Operator(MyOperator::CheckMultiSig),
+    ]);
+
+    let locking_script_hash =
+        PublicKeyHash::from_script_bytes(&witnet_stack::encode(redeem_script));
+
+    println!(
+        "Sending to {}-of-{} multisig address {} composed of {:?}",
+        m, n, locking_script_hash, pkhs_str
+    );
+
+    Ok(())
+}
+
+/*
+#[allow(clippy::too_many_arguments)]
+pub fn create_opened_multisig(
+    output_pointer: OutputPointer,
+    value: u64,
+    _fee: u64,
+    n: u8,
+    m: u8,
+    pkhs: Vec<PublicKeyHash>,
+    address: PublicKeyHash,
+) -> Result<(), failure::Error> {
+    let mut redeem_script = vec![Item::Value(MyValue::Integer(i128::from(m)))];
+    if pkhs.len() != usize::from(n) {
+        bail!(
+            "Expected {} addresses because of n-sig argument, but found {}",
+            n,
+            pkhs.len()
+        );
+    }
+    let mut pkhs_str = vec![];
+    for pkh in pkhs {
+        pkhs_str.push(pkh.to_string());
+        redeem_script.push(Item::Value(MyValue::Bytes(pkh.bytes().to_vec())));
+    }
+
+    redeem_script.extend(vec![
+        Item::Value(MyValue::Integer(i128::from(n))),
+        Item::Operator(MyOperator::CheckMultiSig),
+    ]);
+
+    let redeem_script_bytes = witnet_stack::encode(redeem_script);
+    let vt_outputs = vec![
+        MixedOutput::VTO(ValueTransferOutput {
+            pkh: address,
+            value,
+            time_lock: 0,
+        }),
+        // TODO: we must create change output here
+        //MixedOutput::Script(script_output),
+    ];
+
+    let multi_sig_witness = witnet_stack::encode(vec![]);
+    let script_transaction = Transaction::Script(ScriptTransaction::new(
+        ScriptTransactionBody::new(
+            vec![ScriptInput {
+                output_pointer,
+                redeem_script: redeem_script_bytes,
+            }],
+            vt_outputs,
+        ),
+        vec![multi_sig_witness],
+    ));
+
+    let script_transaction_hex = hex::encode(script_transaction.to_pb_bytes().unwrap());
+
+    println!("Script bytes: {}", script_transaction_hex);
+    Ok(())
+}
+pub fn broadcast_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let tx: Transaction = Transaction::from_pb_bytes(&hex::decode(hex)?)?;
+    let params = InventoryItem::Transaction(tx);
+
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "inventory", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params)?
+    );
+    if dry_run {
+        println!("{}", request);
+    } else {
+        let response = send_request(&mut stream, &request)?;
+        println!("{}", response);
+    }
+
+    Ok(())
+}
+
+pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let mut tx: Transaction = Transaction::from_pb_bytes(&hex::decode(hex)?)?;
+
+    println!("Transaction to sign is:\n{:?}", tx);
+
+    let Hash::SHA256(data_hash) = tx.hash();
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sign", "params": {:?}, "id": "1"}}"#,
+        data_hash,
+    );
+    if dry_run {
+        println!("{}", request);
+    } else {
+        let response = send_request(&mut stream, &request)?;
+        println!("{}", response);
+        let signature: KeyedSignature = parse_response(&response)?;
+
+        match tx {
+            Transaction::Script(ref mut sh_tx) => {
+                let signature_bytes = signature.to_pb_bytes()?;
+                let mut script = witnet_stack::decode(&sh_tx.witness[0]);
+
+                println!("Previous script:\n{:?}", script);
+                script.push(Item::Value(MyValue::Bytes(signature_bytes)));
+
+                println!("Post script:\n{:?}", script);
+                let encoded_script = witnet_stack::encode(script);
+
+                sh_tx.witness[0] = encoded_script;
+
+                let script_transaction_hex = hex::encode(tx.to_pb_bytes().unwrap());
+                println!("Signed Transaction:\n{:?}", tx);
+                println!("Script bytes: {}", script_transaction_hex);
+            }
+            _ => unimplemented!("We only can sign ScriptTransactions"),
+        }
+    }
+
+    Ok(())
+}
+
+ */
 
 #[derive(Debug, Serialize)]
 struct DataRequestTransactionInfo {
