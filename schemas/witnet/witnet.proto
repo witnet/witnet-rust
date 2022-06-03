@@ -166,6 +166,7 @@ message StringPair {
 
 message Input {
     OutputPointer output_pointer = 1;
+    bytes redeem_script = 2;
 }
 
 // Transaction types
