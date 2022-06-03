@@ -24,18 +24,18 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
-use crate::actors::messages::BuildScriptTransaction;
 use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
-            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
+            AddTransaction, Broadcast, BuildDrt, BuildScriptTransaction, BuildVtt,
+            EpochNotification, GetBalance, GetBlocksEpochRange, GetDataRequestInfo,
+            GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool, GetMempoolResult,
+            GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo, GetState,
+            GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
+            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
+            SetPeersLimits, SignalingInfo, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },

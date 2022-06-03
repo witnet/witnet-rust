@@ -9,8 +9,10 @@ use crate::{
     vrf::DataRequestEligibilityClaim,
 };
 use protobuf::Message;
-use std::convert::TryFrom;
-use std::sync::{Arc, RwLock};
+use std::{
+    convert::TryFrom,
+    sync::{Arc, RwLock},
+};
 use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 // These constants were calculated in:

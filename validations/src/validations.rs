@@ -13,8 +13,6 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
-use witnet_data_structures::proto::ProtobufConvert;
-use witnet_data_structures::transaction::{vtt_signature_to_witness, vtt_witness_to_signature};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
@@ -28,10 +26,11 @@ use witnet_data_structures::{
     },
     error::{BlockError, DataRequestError, TransactionError},
     mainnet_validations::ActiveWips,
+    proto::ProtobufConvert,
     radon_report::{RadonReport, ReportContext},
     transaction::{
-        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
-        Transaction, VTTransaction,
+        vtt_signature_to_witness, vtt_witness_to_signature, CommitTransaction, DRTransaction,
+        MintTransaction, RevealTransaction, TallyTransaction, Transaction, VTTransaction,
     },
     transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
