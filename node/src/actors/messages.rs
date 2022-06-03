@@ -15,6 +15,7 @@ use actix::{
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
+use witnet_data_structures::chain::Input;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
@@ -202,6 +203,8 @@ pub struct BuildVtt {
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
+    /// Extra script inputs
+    pub script_inputs: Vec<Input>,
 }
 
 impl Message for BuildVtt {
