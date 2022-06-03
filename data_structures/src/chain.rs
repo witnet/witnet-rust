@@ -1307,6 +1307,8 @@ impl PublicKeyHash {
 #[protobuf_convert(pb = "witnet::Input")]
 pub struct Input {
     pub output_pointer: OutputPointer,
+    // TODO: ensure that only VT transactions can use this field
+    #[serde(default)]
     pub redeem_script: Vec<u8>,
 }
 
@@ -5211,6 +5213,7 @@ mod tests {
                 transaction_id: Default::default(),
                 output_index: 2,
             },
+            redeem_script: vec![],
         }];
         let c2 = CommitTransaction {
             body: cb2,
