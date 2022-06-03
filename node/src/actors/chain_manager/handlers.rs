@@ -24,6 +24,7 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
+use crate::actors::messages::BuildScriptTransaction;
 use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
@@ -1232,7 +1233,7 @@ impl Handler<BuildVtt> for ChainManager {
             self.tx_pending_timeout,
             &msg.utxo_strategy,
             max_vt_weight,
-            msg.script_inputs,
+            vec![],
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
@@ -1260,6 +1261,61 @@ impl Handler<BuildVtt> for ChainManager {
                         Err(e) => {
                             log::error!("Failed to sign value transfer transaction: {}", e);
                             Either::Right(actix::fut::result(Err(e)))
+                        }
+                    });
+
+                Box::pin(fut)
+            }
+        }
+    }
+}
+
+impl Handler<BuildScriptTransaction> for ChainManager {
+    type Result = ResponseActFuture<Self, Result<Transaction, failure::Error>>;
+
+    fn handle(&mut self, msg: BuildScriptTransaction, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Box::pin(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
+        }
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+        let max_vt_weight = self.consensus_constants().max_vt_weight;
+        match transaction_factory::build_vtt(
+            msg.vto,
+            msg.fee,
+            &mut self.chain_state.own_utxos,
+            self.own_pkh.unwrap(),
+            &self.chain_state.unspent_outputs_pool,
+            timestamp,
+            self.tx_pending_timeout,
+            &msg.utxo_strategy,
+            max_vt_weight,
+            msg.script_inputs,
+        ) {
+            Err(e) => {
+                log::error!("Error when building value transfer transaction: {}", e);
+                Box::pin(actix::fut::err(e.into()))
+            }
+            Ok(vtt) => {
+                let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
+                    .into_actor(self)
+                    .then(|s, _act, _ctx| match s {
+                        Ok(_signatures) => {
+                            let multi_sig_witness = witnet_stack::encode(vec![]);
+                            let num_inputs = vtt.inputs.len();
+                            let transaction = Transaction::ValueTransfer(VTTransaction {
+                                body: vtt,
+                                witness: vec![multi_sig_witness; num_inputs],
+                            });
+                            actix::fut::result(Ok(transaction))
+                        }
+                        Err(e) => {
+                            log::error!("Failed to sign value transfer transaction: {}", e);
+                            actix::fut::result(Err(e))
                         }
                     });
 

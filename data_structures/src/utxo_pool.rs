@@ -474,8 +474,9 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
 
     fn set_used_output_pointer(&mut self, inputs: &[Input], ts: u64) {
         for input in inputs {
-            let current_ts = self.own_utxos.get_mut(input.output_pointer()).unwrap();
-            *current_ts = ts;
+            if let Some(current_ts) = self.own_utxos.get_mut(input.output_pointer()) {
+                *current_ts = ts;
+            }
         }
     }
 }
