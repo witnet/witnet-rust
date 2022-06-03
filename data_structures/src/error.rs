@@ -288,6 +288,9 @@ pub enum TransactionError {
         unlocking_script: Vec<u8>,
         witness: Vec<u8>,
     },
+    /// Found operator in witness field
+    #[fail(display = "Witness must only contains Values, not Operators")]
+    OperatorInWitness,
 }
 
 /// The error type for operations on a [`Block`](Block)

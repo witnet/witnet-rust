@@ -197,6 +197,8 @@ pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {
 }
 
 pub fn vtt_signature_to_witness(ks: &KeyedSignature) -> Vec<u8> {
+    // TODO: it would be nice to encode KeyedSignature as a script
+    // This way vtt.witness is always a valid script
     ks.to_pb_bytes().unwrap()
 }
 
