@@ -1291,13 +1291,17 @@ impl PublicKeyHash {
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::Input")]
 pub struct Input {
-    output_pointer: OutputPointer,
+    pub output_pointer: OutputPointer,
+    pub redeem_script: Vec<u8>,
 }
 
 impl Input {
     /// Create a new Input from an OutputPointer
     pub fn new(output_pointer: OutputPointer) -> Self {
-        Self { output_pointer }
+        Self {
+            output_pointer,
+            redeem_script: vec![],
+        }
     }
     /// Return the [`OutputPointer`](OutputPointer) of an input.
     pub fn output_pointer(&self) -> &OutputPointer {
