@@ -13,6 +13,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
+use witnet_data_structures::proto::ProtobufConvert;
 use witnet_data_structures::transaction::{vtt_signature_to_witness, vtt_witness_to_signature};
 use witnet_data_structures::{
     chain::{
@@ -46,6 +47,7 @@ use witnet_rad::{
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
+use witnet_stack::{execute_complete_script, Item, MyValue};
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -1250,7 +1252,50 @@ pub fn validate_transaction_signatures(
                 &signature,
             );
         } else {
-            todo!()
+            let output_pointer = input.output_pointer();
+            let output =
+                utxo_set
+                    .get(output_pointer)
+                    .ok_or_else(|| TransactionError::OutputNotFound {
+                        output: output_pointer.clone(),
+                    })?;
+            let redeem_script_hash = output.pkh;
+            // Script execution assumes that all the signatures are valid, the signatures will be
+            // validated later.
+            let res =
+                execute_complete_script(witness, &input.redeem_script, redeem_script_hash.bytes());
+
+            if !res {
+                return Err(TransactionError::ScriptExecutionFailed {
+                    locking_script: redeem_script_hash,
+                    unlocking_script: input.redeem_script.clone(),
+                    witness: witness.to_vec(),
+                }
+                .into());
+            }
+
+            let witness_script = witnet_stack::decode(witness);
+            for item in witness_script {
+                match item {
+                    Item::Value(MyValue::Bytes(bytes)) => {
+                        let keyed_signature = KeyedSignature::from_pb_bytes(&bytes).unwrap();
+
+                        // Validate the actual signature
+                        let public_key = keyed_signature.public_key.clone().try_into()?;
+                        let signature = keyed_signature.signature.clone().try_into()?;
+                        add_secp_tx_signature_to_verify(
+                            signatures_to_verify,
+                            &public_key,
+                            &tx_hash_bytes,
+                            &signature,
+                        );
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
+            }
+            // TODO: Handle case when there is no signatures in the witness field
         }
     }
 

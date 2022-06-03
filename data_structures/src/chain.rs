@@ -1158,6 +1158,12 @@ pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],
 }
 
+impl PublicKeyHash {
+    pub fn bytes(&self) -> &[u8; 20] {
+        &self.hash
+    }
+}
+
 impl AsRef<[u8]> for PublicKeyHash {
     fn as_ref(&self) -> &[u8] {
         self.hash.as_ref()
