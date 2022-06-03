@@ -93,6 +93,7 @@ pub fn exec_cmd(
         Command::Send {
             node,
             address,
+            change_address,
             value,
             fee,
             time_lock,
@@ -100,6 +101,7 @@ pub fn exec_cmd(
         } => rpc::send_vtt(
             node.unwrap_or(config.jsonrpc.server_address),
             Some(address.parse()?),
+            change_address.map(|address| address.parse()).transpose()?,
             value,
             None,
             fee,
@@ -110,6 +112,7 @@ pub fn exec_cmd(
         Command::Split {
             node,
             address,
+            change_address,
             value,
             size,
             fee,
@@ -121,6 +124,7 @@ pub fn exec_cmd(
             rpc::send_vtt(
                 node.unwrap_or(config.jsonrpc.server_address),
                 address,
+                change_address.map(|address| address.parse()).transpose()?,
                 value,
                 size,
                 fee,
@@ -132,6 +136,7 @@ pub fn exec_cmd(
         Command::Join {
             node,
             address,
+            change_address,
             value,
             size,
             fee,
@@ -143,6 +148,7 @@ pub fn exec_cmd(
             rpc::send_vtt(
                 node.unwrap_or(config.jsonrpc.server_address),
                 address,
+                change_address.map(|address| address.parse()).transpose()?,
                 value,
                 size,
                 fee,
@@ -177,6 +183,7 @@ pub fn exec_cmd(
             n,
             m,
             pkhs,
+            change_address,
             address,
             dry_run,
         } => rpc::create_opened_multisig(
@@ -189,6 +196,7 @@ pub fn exec_cmd(
             pkhs.into_iter()
                 .map(|address| address.parse())
                 .collect::<Result<Vec<_>, _>>()?,
+            change_address.map(|address| address.parse()).transpose()?,
             address.parse()?,
             dry_run,
         ),
@@ -510,6 +518,9 @@ pub enum Command {
         /// Address of the destination
         #[structopt(long = "address", alias = "pkh")]
         address: String,
+        /// Change address
+        #[structopt(long = "change-address")]
+        change_address: Option<String>,
         /// Value
         #[structopt(long = "value")]
         value: u64,
@@ -534,6 +545,9 @@ pub enum Command {
         /// Public key hash of the destination. If omitted, defaults to the node pkh
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
+        /// Change address
+        #[structopt(long = "change-address")]
+        change_address: Option<String>,
         /// Value
         #[structopt(long = "value")]
         value: u64,
@@ -561,6 +575,9 @@ pub enum Command {
         /// Public key hash of the destination. If omitted, defaults to the node pkh
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
+        /// Change address
+        #[structopt(long = "change-address")]
+        change_address: Option<String>,
         /// Value
         #[structopt(long = "value")]
         value: u64,
@@ -636,6 +653,9 @@ pub enum Command {
         /// List of pkhs
         #[structopt(long = "pkhs")]
         pkhs: Vec<String>,
+        /// Change address
+        #[structopt(long = "change-address")]
+        change_address: Option<String>,
         /// Address of the destination
         #[structopt(long = "address", alias = "pkh")]
         address: String,

@@ -1237,6 +1237,7 @@ impl Handler<BuildVtt> for ChainManager {
             &msg.utxo_strategy,
             max_vt_weight,
             vec![],
+            msg.change_address,
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
@@ -1298,6 +1299,7 @@ impl Handler<BuildScriptTransaction> for ChainManager {
             &msg.utxo_strategy,
             max_vt_weight,
             msg.script_inputs,
+            msg.change_address,
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
