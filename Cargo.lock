@@ -5875,6 +5875,7 @@ dependencies = [
  "witnet_data_structures",
  "witnet_protected",
  "witnet_rad",
+ "witnet_stack",
 ]
 
 [[package]]
