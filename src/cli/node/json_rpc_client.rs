@@ -20,11 +20,10 @@ use witnet_crypto::{
     hash::calculate_sha256,
     key::{ExtendedPK, ExtendedSK},
 };
-use witnet_data_structures::chain::Input;
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch, Hash,
-        Hashable, InventoryItem, KeyedSignature, NodeStats, OutputPointer, PublicKey,
+        Hashable, Input, InventoryItem, KeyedSignature, NodeStats, OutputPointer, PublicKey,
         PublicKeyHash, StateMachine, SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     mainnet_validations::{current_active_wips, ActiveWips},
@@ -33,13 +32,12 @@ use witnet_data_structures::{
     transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
-use witnet_node::actors::messages::BuildScriptTransaction;
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::json_rpc_methods::{
         AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
-    messages::{BuildVtt, GetReputationResult, SignalingInfo},
+    messages::{BuildScriptTransaction, BuildVtt, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_stack::{Item, MyOperator, MyValue};

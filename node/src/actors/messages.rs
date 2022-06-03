@@ -15,11 +15,10 @@ use actix::{
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
-use witnet_data_structures::chain::Input;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
+        Input, InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
         RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
         ValueTransferOutput,
     },

@@ -40,11 +40,9 @@ use crate::{
     proto::{schema::witnet, ProtobufConvert},
     superblock::SuperBlockState,
     transaction::{
-        CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
-        RevealTransaction, TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
-    },
-    transaction::{
-        MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
+        CommitTransaction, DRTransaction, DRTransactionBody, MemoHash, Memoized, MemoizedHashable,
+        MintTransaction, RevealTransaction, TallyTransaction, Transaction, TxInclusionProof,
+        VTTransaction, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
     },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
