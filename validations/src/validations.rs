@@ -12,6 +12,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
+use witnet_data_structures::transaction::{vtt_signature_to_witness, vtt_witness_to_signature};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
@@ -306,8 +307,8 @@ pub fn validate_vt_transaction<'a>(
         .into());
     }
 
-    validate_transaction_signature(
-        &vt_tx.signatures,
+    validate_transaction_signatures(
+        &vt_tx.witness,
         &vt_tx.body.inputs,
         vt_tx.hash(),
         utxo_diff,
@@ -356,9 +357,9 @@ pub fn validate_genesis_vt_transaction(
         });
     }
     // Genesis VTTs should have 0 signatures
-    if !vt_tx.signatures.is_empty() {
+    if !vt_tx.witness.is_empty() {
         return Err(TransactionError::MismatchingSignaturesNumber {
-            signatures_n: u8::try_from(vt_tx.signatures.len()).unwrap(),
+            signatures_n: u8::try_from(vt_tx.witness.len()).unwrap(),
             inputs_n: 0,
         });
     }
@@ -403,8 +404,14 @@ pub fn validate_dr_transaction<'a>(
         .into());
     }
 
-    validate_transaction_signature(
-        &dr_tx.signatures,
+    let dr_tx_signatures_vec_u8: Vec<_> = dr_tx
+        .signatures
+        .iter()
+        .map(vtt_signature_to_witness)
+        .collect();
+
+    validate_transaction_signatures(
+        &dr_tx_signatures_vec_u8,
         &dr_tx.body.inputs,
         dr_tx.hash(),
         utxo_diff,
@@ -1196,8 +1203,8 @@ pub fn validate_commit_reveal_signature<'a>(
 }
 
 /// Function to validate a transaction signature
-pub fn validate_transaction_signature(
-    signatures: &[KeyedSignature],
+pub fn validate_transaction_signatures(
+    signatures: &[Vec<u8>],
     inputs: &[Input],
     tx_hash: Hash,
     utxo_set: &UtxoDiff<'_>,
@@ -1215,7 +1222,7 @@ pub fn validate_transaction_signature(
         Hash::SHA256(x) => x.to_vec(),
     };
 
-    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
+    for (input, witness) in inputs.iter().zip(signatures.iter()) {
         // Helper function to map errors to include transaction hash and input
         // index, as well as the error message.
         let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
@@ -1226,19 +1233,24 @@ pub fn validate_transaction_signature(
         // use a try block, however that's still unstable. See tracking issue:
         // https://github.com/rust-lang/rust/issues/31436
 
-        // Validate that public key hash of the pointed output matches public
-        // key in the provided signature
-        validate_pkh_signature(input, keyed_signature, utxo_set).map_err(fte)?;
+        if input.redeem_script.is_empty() {
+            // Validate that public key hash of the pointed output matches public
+            // key in the provided signature
+            let keyed_signature = vtt_witness_to_signature(witness);
+            validate_pkh_signature(input, &keyed_signature, utxo_set).map_err(fte)?;
 
-        // Validate the actual signature
-        let public_key = keyed_signature.public_key.clone().try_into().map_err(fte)?;
-        let signature = keyed_signature.signature.clone().try_into().map_err(fte)?;
-        add_secp_tx_signature_to_verify(
-            signatures_to_verify,
-            &public_key,
-            &tx_hash_bytes,
-            &signature,
-        );
+            // Validate the actual signature
+            let public_key = keyed_signature.public_key.clone().try_into().map_err(fte)?;
+            let signature = keyed_signature.signature.clone().try_into().map_err(fte)?;
+            add_secp_tx_signature_to_verify(
+                signatures_to_verify,
+                &public_key,
+                &tx_hash_bytes,
+                &signature,
+            );
+        } else {
+            todo!()
+        }
     }
 
     Ok(())

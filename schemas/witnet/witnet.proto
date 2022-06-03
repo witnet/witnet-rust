@@ -177,7 +177,7 @@ message VTTransactionBody {
 
 message VTTransaction {
     VTTransactionBody body = 1;
-    repeated KeyedSignature signatures = 2;
+    repeated bytes witness = 2;
 }
 
 message DRTransactionBody {
