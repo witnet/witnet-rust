@@ -855,7 +855,7 @@ pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failu
                 let mut script = witnet_stack::decode(&vtt.witness[0]);
 
                 println!("Previous script:\n{:?}", script);
-                script.push(Item::Value(MyValue::Bytes(signature_bytes)));
+                script.push(Item::Value(MyValue::Signature(signature_bytes)));
 
                 println!("Post script:\n{:?}", script);
                 let encoded_script = witnet_stack::encode(script);
