@@ -226,6 +226,7 @@ impl VTTransaction {
     /// This is the weight that will be used to calculate
     /// how many transactions can fit inside one block
     pub fn weight(&self) -> u32 {
+        // TODO: witness length does not affect weight
         self.body.weight()
     }
 
@@ -275,7 +276,17 @@ impl VTTransactionBody {
             .saturating_mul(OUTPUT_SIZE)
             .saturating_mul(GAMMA);
 
-        inputs_weight.saturating_add(outputs_weight)
+        // Add 1 weight unit for each byte in input script field
+        // This ignores any potential serialization overhead
+        let mut redeem_scripts_weight: u32 = 0;
+        for input in &self.inputs {
+            redeem_scripts_weight = redeem_scripts_weight
+                .saturating_add(u32::try_from(input.redeem_script.len()).unwrap_or(u32::MAX));
+        }
+
+        inputs_weight
+            .saturating_add(outputs_weight)
+            .saturating_add(redeem_scripts_weight)
     }
 }
 
