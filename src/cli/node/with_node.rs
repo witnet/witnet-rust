@@ -8,7 +8,7 @@ use std::{
 use structopt::StructOpt;
 
 use witnet_config::config::Config;
-use witnet_data_structures::chain::Epoch;
+use witnet_data_structures::chain::{Epoch, OutputPointer};
 use witnet_node as node;
 
 use super::json_rpc_client as rpc;
@@ -162,6 +162,42 @@ pub fn exec_cmd(
             fee,
             dry_run,
         ),
+        Command::CreateMultiSigAddress { n, m, pkhs } => rpc::create_multisig_address(
+            n,
+            m,
+            pkhs.into_iter()
+                .map(|address| address.parse())
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+
+        /*
+        Command::CreateOpenedMultiSig {
+            utxo,
+            value,
+            fee,
+            n,
+            m,
+            pkhs,
+            address,
+        } => rpc::create_opened_multisig(
+            utxo,
+            value,
+            fee,
+            n,
+            m,
+            pkhs.into_iter()
+                .map(|address| address.parse())
+                .collect::<Result<Vec<_>, _>>()?,
+            address.parse()?,
+        ),
+        Command::Broadcast { node, hex, dry_run } => {
+            rpc::broadcast_tx(node.unwrap_or(config.jsonrpc.server_address), hex, dry_run)
+        }
+        Command::SignTransaction { node, hex, dry_run } => {
+            rpc::sign_tx(node.unwrap_or(config.jsonrpc.server_address), hex, dry_run)
+        }
+
+         */
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
@@ -559,6 +595,77 @@ pub enum Command {
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
+    #[structopt(
+        name = "createMultiSigAddress",
+        about = "Create a multi signature address"
+    )]
+    CreateMultiSigAddress {
+        /// m out of n signatures
+        #[structopt(long = "n-sig")]
+        n: u8,
+        /// m out of n signatures
+        #[structopt(short = "m", long = "m-sig")]
+        m: u8,
+        /// List of pkhs
+        #[structopt(long = "pkhs")]
+        pkhs: Vec<String>,
+    },
+    /*
+    #[structopt(
+        name = "createOpenedMultiSig",
+        about = "Create a ScriptTransaction that could spend funds from a multi signature UTXO"
+    )]
+    CreateOpenedMultiSig {
+        /// Unspent Transaction Output Pointer
+        #[structopt(long = "utxo")]
+        utxo: OutputPointer,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
+        /// m out of n signatures
+        #[structopt(long = "n-sig")]
+        n: u8,
+        /// m out of n signatures
+        #[structopt(short = "m", long = "m-sig")]
+        m: u8,
+        /// List of pkhs
+        #[structopt(long = "pkhs")]
+        pkhs: Vec<String>,
+        /// Address of the destination
+        #[structopt(long = "address", alias = "pkh")]
+        address: String,
+    },
+    #[structopt(name = "broadcast", about = "Broadcast a serialized transaction")]
+    Broadcast {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Transaction bytes in hex
+        #[structopt(long = "hex")]
+        hex: String,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+    #[structopt(
+        name = "sign_tx",
+        about = "Include you signature in a serialized transaction"
+    )]
+    SignTransaction {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Transaction bytes in hex
+        #[structopt(long = "hex")]
+        hex: String,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+     */
     #[structopt(
         name = "config",
         alias = "show-config",
