@@ -1279,8 +1279,7 @@ pub fn validate_transaction_signatures(
             // The witness field must have at least one signature
             for item in witness_script {
                 match item {
-                    // TODO: use MyValue::Signature
-                    Item::Value(MyValue::Bytes(bytes)) => {
+                    Item::Value(MyValue::Signature(bytes)) => {
                         let keyed_signature = KeyedSignature::from_pb_bytes(&bytes).unwrap();
 
                         // Validate the actual signature

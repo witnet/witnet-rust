@@ -33,6 +33,8 @@ pub enum MyValue {
     String(String),
     /// Bytes.
     Bytes(Vec<u8>),
+    /// Signature.
+    Signature(Vec<u8>),
 }
 
 fn equal_operator(stack: &mut Stack<MyValue>) {
@@ -43,17 +45,13 @@ fn equal_operator(stack: &mut Stack<MyValue>) {
 
 fn hash_160_operator(stack: &mut Stack<MyValue>) {
     let a = stack.pop();
-    match a {
-        MyValue::Boolean(_) => {}
-        MyValue::Float(_) => {}
-        MyValue::Integer(_) => {}
-        MyValue::String(_) => {}
-        MyValue::Bytes(bytes) => {
-            let mut pkh = [0; 20];
-            let Sha256(h) = calculate_sha256(&bytes);
-            pkh.copy_from_slice(&h[..20]);
-            stack.push(MyValue::Bytes(pkh.as_ref().to_vec()));
-        }
+    if let MyValue::Bytes(bytes) = a {
+        let mut pkh = [0; 20];
+        let Sha256(h) = calculate_sha256(&bytes);
+        pkh.copy_from_slice(&h[..20]);
+        stack.push(MyValue::Bytes(pkh.as_ref().to_vec()));
+    } else {
+        // TODO: hash other types?
     }
 }
 
@@ -94,7 +92,7 @@ fn check_multi_sig(bytes_pkhs: Vec<MyValue>, bytes_keyed_signatures: Vec<MyValue
     let mut signed_pkhs = vec![];
     for signature in bytes_keyed_signatures {
         match signature {
-            MyValue::Bytes(bytes) => {
+            MyValue::Signature(bytes) => {
                 // TODO Handle unwrap
                 let ks: KeyedSignature = KeyedSignature::from_pb_bytes(&bytes).unwrap();
                 let signed_pkh = ks.public_key.pkh();
@@ -364,8 +362,8 @@ mod tests {
         let ks_3 = ks_from_pk(pk_3.clone());
 
         let witness = vec![
-            Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
-            Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Signature(ks_1.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Signature(ks_2.to_pb_bytes().unwrap())),
         ];
         let redeem_script = vec![
             Item::Value(MyValue::Integer(2)),
@@ -381,8 +379,8 @@ mod tests {
         ));
 
         let other_valid_witness = vec![
-            Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
-            Item::Value(MyValue::Bytes(ks_3.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Signature(ks_1.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Signature(ks_3.to_pb_bytes().unwrap())),
         ];
         let redeem_script = vec![
             Item::Value(MyValue::Integer(2)),
@@ -400,8 +398,8 @@ mod tests {
         let pk_4 = PublicKey::from_bytes([4; 33]);
         let ks_4 = ks_from_pk(pk_4);
         let invalid_witness = vec![
-            Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
-            Item::Value(MyValue::Bytes(ks_4.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Signature(ks_1.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Signature(ks_4.to_pb_bytes().unwrap())),
         ];
         let redeem_script = vec![
             Item::Value(MyValue::Integer(2)),
