@@ -705,6 +705,8 @@ mod tests {
             tx_pending_timeout,
             &UtxoSelectionStrategy::Random { from: None },
             MAX_VT_WEIGHT,
+            vec![],
+            None,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -732,6 +734,8 @@ mod tests {
             tx_pending_timeout,
             &UtxoSelectionStrategy::Random { from: None },
             MAX_VT_WEIGHT,
+            vec![],
+            None,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
