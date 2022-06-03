@@ -552,6 +552,7 @@ pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), failure::Erro
 pub fn send_vtt(
     addr: SocketAddr,
     pkh: Option<PublicKeyHash>,
+    change_address: Option<PublicKeyHash>,
     value: u64,
     size: Option<u64>,
     fee: u64,
@@ -606,6 +607,7 @@ pub fn send_vtt(
         vto: vt_outputs,
         fee,
         utxo_strategy,
+        change_address,
     };
 
     let request = format!(
@@ -756,6 +758,7 @@ pub fn create_opened_multisig(
     n: u8,
     m: u8,
     pkhs: Vec<PublicKeyHash>,
+    change_address: Option<PublicKeyHash>,
     address: PublicKeyHash,
     dry_run: bool,
 ) -> Result<(), failure::Error> {
@@ -793,6 +796,7 @@ pub fn create_opened_multisig(
         fee,
         utxo_strategy,
         script_inputs,
+        change_address,
     };
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "sendScript", "params": {}, "id": "1"}}"#,

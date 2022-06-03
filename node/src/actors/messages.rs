@@ -203,6 +203,8 @@ pub struct BuildVtt {
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
+    /// Change address
+    pub change_address: Option<PublicKeyHash>,
 }
 
 impl Message for BuildVtt {
@@ -221,6 +223,8 @@ pub struct BuildScriptTransaction {
     pub utxo_strategy: UtxoSelectionStrategy,
     /// Extra script inputs
     pub script_inputs: Vec<Input>,
+    /// Change address
+    pub change_address: Option<PublicKeyHash>,
 }
 
 impl Message for BuildScriptTransaction {

@@ -347,6 +347,7 @@ pub fn build_vtt(
     utxo_strategy: &UtxoSelectionStrategy,
     max_weight: u32,
     additional_inputs: Vec<Input>,
+    change_address: Option<PublicKeyHash>,
 ) -> Result<VTTransactionBody, TransactionError> {
     let mut utxos = NodeUtxos {
         all_utxos,
@@ -377,7 +378,7 @@ pub fn build_vtt(
     let mut outputs = tx_info.outputs;
     insert_change_output(
         &mut outputs,
-        own_pkh,
+        change_address.unwrap_or(own_pkh),
         tx_info.input_value - tx_info.output_value - tx_info.fee,
     );
 
