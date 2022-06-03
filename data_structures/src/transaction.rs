@@ -196,17 +196,28 @@ pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {
     }
 }
 
+pub fn vtt_signature_to_witness(ks: &KeyedSignature) -> Vec<u8> {
+    ks.to_pb_bytes().unwrap()
+}
+
+pub fn vtt_witness_to_signature(witness: &[u8]) -> KeyedSignature {
+    KeyedSignature::from_pb_bytes(witness).unwrap()
+}
+
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::VTTransaction")]
 pub struct VTTransaction {
     pub body: VTTransactionBody,
-    pub signatures: Vec<KeyedSignature>,
+    pub witness: Vec<Vec<u8>>,
 }
 
 impl VTTransaction {
     /// Creates a new value transfer transaction.
     pub fn new(body: VTTransactionBody, signatures: Vec<KeyedSignature>) -> Self {
-        VTTransaction { body, signatures }
+        VTTransaction {
+            body,
+            witness: signatures.iter().map(vtt_signature_to_witness).collect(),
+        }
     }
 
     /// Returns the weight of a value transfer transaction.

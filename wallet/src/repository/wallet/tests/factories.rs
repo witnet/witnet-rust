@@ -133,7 +133,7 @@ pub fn vtt_from_body(body: VTTransactionBody) -> model::ExtendedTransaction {
     model::ExtendedTransaction {
         transaction: Transaction::ValueTransfer(VTTransaction {
             body,
-            signatures: vec![],
+            witness: vec![],
         }),
         metadata: None,
     }

@@ -468,14 +468,14 @@ pub struct VTTransactionHelper {
         deserialize_with = "from_generic_type::<_, VTTransactionBodyHelper, _>"
     )]
     pub body: VTTransactionBody,
-    pub signatures: Vec<KeyedSignature>,
+    pub signatures: Vec<Vec<u8>>,
 }
 
 impl From<VTTransaction> for VTTransactionHelper {
     fn from(x: VTTransaction) -> Self {
         VTTransactionHelper {
             body: x.body,
-            signatures: x.signatures,
+            signatures: x.witness,
         }
     }
 }
@@ -484,7 +484,7 @@ impl From<VTTransactionHelper> for VTTransaction {
     fn from(x: VTTransactionHelper) -> Self {
         VTTransaction {
             body: x.body,
-            signatures: x.signatures,
+            witness: x.signatures,
         }
     }
 }

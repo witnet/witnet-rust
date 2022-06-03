@@ -95,7 +95,7 @@ fn random_transaction() -> (Transaction, u64) {
     let t = if rng.gen() {
         Transaction::ValueTransfer(VTTransaction {
             body: VTTransactionBody::new(inputs, outputs),
-            signatures: vec![signature; num_inputs],
+            witness: vec![signature; num_inputs],
         })
     } else {
         let dr_output = random_dr_output();
