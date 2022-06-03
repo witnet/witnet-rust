@@ -1275,8 +1275,11 @@ pub fn validate_transaction_signatures(
             }
 
             let witness_script = witnet_stack::decode(witness);
+            let mut num_signatures = 0;
+            // The witness field must have at least one signature
             for item in witness_script {
                 match item {
+                    // TODO: use MyValue::Signature
                     Item::Value(MyValue::Bytes(bytes)) => {
                         let keyed_signature = KeyedSignature::from_pb_bytes(&bytes).unwrap();
 
@@ -1289,13 +1292,22 @@ pub fn validate_transaction_signatures(
                             &tx_hash_bytes,
                             &signature,
                         );
+                        num_signatures += 1;
                     }
-                    _ => {
+                    Item::Value(_) => {
+                        // Other values are ignored
                         continue;
+                    }
+                    Item::Operator(_) => {
+                        // Operators are not allowed in witness script
+                        return Err(TransactionError::OperatorInWitness.into());
                     }
                 }
             }
-            // TODO: Handle case when there is no signatures in the witness field
+
+            if num_signatures == 0 {
+                return Err(TransactionError::SignatureNotFound.into());
+            }
         }
     }
 
