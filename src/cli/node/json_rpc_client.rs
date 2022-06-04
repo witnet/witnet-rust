@@ -1212,13 +1212,17 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
      - Proposed blocks: {}\n\
      - Blocks included in the block chain: {}\n\
     Data Request mining stats:\n\
+     - Times with insuffiencent collateral to mine a data request: {}\n\
      - Times with eligibility to mine a data request: {}\n\
+     - Times with no available collateral to mine a data request: {}\n\
      - Proposed commits: {}\n\
      - Accepted commits: {}\n\
      - Slashed commits: {}",
         node_stats.block_proposed_count,
         node_stats.block_mined_count,
+        node_stats.dr_insufficient_collateral_count,
         node_stats.dr_eligibility_count,
+        node_stats.dr_all_collateral_locked_count,
         node_stats.commits_proposed_count,
         node_stats.commits_count,
         node_stats.slashed_count

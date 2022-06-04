@@ -3195,8 +3195,12 @@ pub struct NodeStats {
     pub block_proposed_count: u32,
     /// Number of blocks included in the block chain
     pub block_mined_count: u32,
+    /// Number of times we could not solve a data request because the collateral requirement was too high
+    pub dr_insufficient_collateral_count: u32,
     /// Number of times we were eligible to participate in a Data Request
     pub dr_eligibility_count: u32,
+    /// Number of times we were eligible to participate in a Data Request but all our collateral was locked
+    pub dr_all_collateral_locked_count: u32,
     /// Number of proposed commits
     pub commits_proposed_count: u32,
     /// Number of commits included in a data request
