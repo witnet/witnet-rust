@@ -22,7 +22,7 @@ hmac = "0.7.1"
 memzero = "0.1.0"
 rand = "0.7.3"
 ring = "0.16.11"
-secp256k1 = "0.22.1"
+secp256k1 = { version = "0.22.1", features = ["global-context"] }
 serde = { version = "1.0.104", optional = true }
 sha2 = "0.8.1"
 tiny-bip39 = "0.7.0"

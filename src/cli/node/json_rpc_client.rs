@@ -18,7 +18,7 @@ use std::{
 
 use witnet_crypto::{
     hash::calculate_sha256,
-    key::{CryptoEngine, ExtendedPK, ExtendedSK},
+    key::{ExtendedPK, ExtendedSK},
 };
 use witnet_data_structures::{
     chain::{
@@ -685,7 +685,7 @@ pub fn master_key_export(
         Ok(private_key_slip32) => {
             let private_key_slip32: String = private_key_slip32;
             let private_key = ExtendedSK::from_slip32(&private_key_slip32).unwrap().0;
-            let public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &private_key);
+            let public_key = ExtendedPK::from_secret_key(&private_key);
             let pkh = PublicKey::from(public_key.key).pkh();
             if let Some(base_path) = write_to_path {
                 let path = base_path.join(format!("private_key_{}.txt", pkh));
@@ -1650,9 +1650,8 @@ mod tests {
 
     #[test]
     fn verify_claim_output() {
-        use witnet_crypto::{
-            secp256k1::Secp256k1,
-            signature::{verify, PublicKey as SecpPublicKey, Signature as SecpSignature},
+        use witnet_crypto::signature::{
+            verify, PublicKey as SecpPublicKey, Signature as SecpSignature,
         };
 
         let json_output = r#"
@@ -1677,7 +1676,6 @@ mod tests {
         assert_eq!(address, signature_with_data.address);
 
         // Required fields for Secpk1 signature verification
-        let secp = Secp256k1::new();
         let signed_data = calculate_sha256(signature_with_data.identifier.as_bytes());
         let public_key =
             SecpPublicKey::from_slice(&hex::decode(signature_with_data.public_key).unwrap())
@@ -1686,6 +1684,6 @@ mod tests {
             SecpSignature::from_compact(&hex::decode(signature_with_data.signature).unwrap())
                 .unwrap();
 
-        assert!(verify(&secp, &public_key, signed_data.as_ref(), &signature).is_ok());
+        assert!(verify(&public_key, signed_data.as_ref(), &signature).is_ok());
     }
 }

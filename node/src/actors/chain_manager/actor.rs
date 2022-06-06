@@ -11,7 +11,6 @@ use crate::{
     },
     config_mngr, signature_mngr, storage_mngr,
 };
-use witnet_crypto::key::CryptoEngine;
 use witnet_data_structures::{
     chain::{
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo, PublicKeyHash,
@@ -53,8 +52,6 @@ impl Actor for ChainManager {
                 ctx.stop();
             })
             .ok();
-
-        self.secp = Some(CryptoEngine::new());
     }
 }
 

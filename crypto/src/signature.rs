@@ -1,6 +1,5 @@
 //! Signature module
 
-use crate::key::CryptoEngine;
 use secp256k1::{Error, Message, SecretKey};
 
 /// Signature
@@ -12,38 +11,34 @@ pub type PublicKey = secp256k1::PublicKey;
 /// Sign `data` with provided secret key. `data` must be the 32-byte output of a cryptographically
 /// secure hash function, otherwise this function is not secure.
 /// - Returns an Error if data is not a 32-byte array
-pub fn sign(secp: &CryptoEngine, secret_key: SecretKey, data: &[u8]) -> Result<Signature, Error> {
+pub fn sign(secret_key: SecretKey, data: &[u8]) -> Result<Signature, Error> {
     let msg = Message::from_slice(data)?;
 
-    Ok(secp.sign_ecdsa(&msg, &secret_key))
+    Ok(secret_key.sign_ecdsa(msg))
 }
 /// Verify signature with a provided public key.
 /// - Returns an Error if data is not a 32-byte array
-pub fn verify(
-    secp: &CryptoEngine,
-    public_key: &PublicKey,
-    data: &[u8],
-    sig: &Signature,
-) -> Result<(), Error> {
+pub fn verify(public_key: &PublicKey, data: &[u8], sig: &Signature) -> Result<(), Error> {
     let msg = Message::from_slice(data)?;
 
-    secp.verify_ecdsa(&msg, sig, public_key)
+    sig.verify(&msg, public_key)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::hash::{calculate_sha256, Sha256};
-    use crate::signature::{sign, verify};
-    use secp256k1::{ecdsa::Signature, PublicKey, Secp256k1, SecretKey};
+    use crate::{
+        hash::{calculate_sha256, Sha256},
+        signature::{sign, verify},
+    };
+    use secp256k1::{ecdsa::Signature, PublicKey, SecretKey};
 
     #[test]
     fn test_sign_and_verify() {
         let data = [0xab; 32];
-        let secp = &Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = PublicKey::from_secret_key(secp, &secret_key);
+        let public_key = PublicKey::from_secret_key_global(&secret_key);
 
-        let signature = sign(secp, secret_key, &data).unwrap();
+        let signature = sign(secret_key, &data).unwrap();
         let signature_expected = "3044\
                                   0220\
                                   3dc4fa74655c21b7ffc0740e29bfd88647e8dfe2b68c507cf96264e4e7439c1f\
@@ -51,7 +46,7 @@ mod tests {
                                   7aa61261b18eebdfdb704ca7bab4c7bcf7961ae0ade5309f6f1398e21aec0f9f";
         assert_eq!(signature_expected.to_string(), signature.to_string());
 
-        assert!(verify(secp, &public_key, &data, &signature).is_ok());
+        assert!(verify(&public_key, &data, &signature).is_ok());
     }
 
     #[test]
@@ -100,7 +95,6 @@ mod tests {
 
     #[test]
     fn test_sign_and_verify_before_hash() {
-        let secp = &Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
         let i = 9;
@@ -111,7 +105,7 @@ mod tests {
 
         let Sha256(hashed_data) = calculate_sha256(message.as_bytes());
 
-        let signature = sign(secp, secret_key, &hashed_data).unwrap();
+        let signature = sign(secret_key, &hashed_data).unwrap();
 
         let r_s = signature.serialize_compact();
         let (r, s) = r_s.split_at(32);

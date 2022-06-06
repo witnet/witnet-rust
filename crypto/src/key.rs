@@ -19,7 +19,7 @@ use bech32::{FromBase32, ToBase32 as _};
 use byteorder::{BigEndian, ReadBytesExt as _};
 use failure::Fail;
 use hmac::{Hmac, Mac};
-use secp256k1::{PublicKey, Secp256k1, SecretKey, SignOnly, Signing, VerifyOnly};
+use secp256k1::{PublicKey, SecretKey};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -160,22 +160,6 @@ pub type SK = SecretKey;
 /// Public Key
 pub type PK = PublicKey;
 
-/// The secp256k1 engine, used to execute all signature operations.
-///
-/// `Engine::new()`: all capabilities
-/// `Engine::signing_only()`: only be used for signing
-/// `Engine::verification_only()`: only be used for verification
-pub type Engine<C> = Secp256k1<C>;
-
-/// Secp256k1 engine that can only be used for signing.
-pub type SignEngine = Secp256k1<SignOnly>;
-
-/// Secp256k1 engine that can only be used for verifying.
-pub type VerifyEngine = Secp256k1<VerifyOnly>;
-
-/// Secp256k1 engine that can be used for signing and for verifying.
-pub type CryptoEngine = Secp256k1<secp256k1::All>;
-
 /// Extended Key is just a Key with a Chain Code
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -292,25 +276,17 @@ impl ExtendedSK {
     }
 
     /// Try to derive an extended private key from a given path
-    pub fn derive<C: Signing>(
-        &self,
-        engine: &Engine<C>,
-        path: &KeyPath,
-    ) -> Result<ExtendedSK, KeyDerivationError> {
+    pub fn derive(&self, path: &KeyPath) -> Result<ExtendedSK, KeyDerivationError> {
         let mut extended_sk = self.clone();
         for index in path.iter() {
-            extended_sk = extended_sk.child(engine, index)?
+            extended_sk = extended_sk.child(index)?
         }
 
         Ok(extended_sk)
     }
 
     /// Try to get a private child key from parent
-    pub fn child<C: Signing>(
-        &self,
-        engine: &Engine<C>,
-        index: &KeyPathIndex,
-    ) -> Result<ExtendedSK, KeyDerivationError> {
+    pub fn child(&self, index: &KeyPathIndex) -> Result<ExtendedSK, KeyDerivationError> {
         let mut hmac512: Hmac<sha2::Sha512> =
             Hmac::new_varkey(&self.chain_code).map_err(|_| KeyDerivationError::InvalidKeyLength)?;
         let index_bytes = index.as_ref().to_be_bytes();
@@ -319,7 +295,7 @@ impl ExtendedSK {
             hmac512.input(&[0]); // BIP-32 padding that makes key 33 bytes long
             hmac512.input(&self.secret_key[..]);
         } else {
-            hmac512.input(&PublicKey::from_secret_key(engine, &self.secret_key).serialize());
+            hmac512.input(&PublicKey::from_secret_key_global(&self.secret_key).serialize());
         }
 
         let (chain_code, mut secret_key) = get_chain_code_and_secret(&index_bytes, hmac512)?;
@@ -355,12 +331,12 @@ pub struct ExtendedPK {
 
 impl ExtendedPK {
     /// Derive the public key from a private key.
-    pub fn from_secret_key<C: Signing>(engine: &Engine<C>, key: &ExtendedSK) -> Self {
+    pub fn from_secret_key(key: &ExtendedSK) -> Self {
         let ExtendedSK {
             secret_key,
             chain_code,
         } = key;
-        let key = PublicKey::from_secret_key(engine, secret_key);
+        let key = PublicKey::from_secret_key_global(secret_key);
         Self {
             key,
             chain_code: chain_code.clone(),
@@ -577,8 +553,7 @@ mod tests {
             .hardened(0) // account: hardened 0
             .index(0) // change: 0
             .index(0); // address: 0
-        let engine = SignEngine::signing_only();
-        let account = extended_sk.derive(&engine, &path).unwrap();
+        let account = extended_sk.derive(&path).unwrap();
 
         let expected_account = [
             137, 174, 230, 121, 4, 190, 53, 238, 47, 181, 52, 226, 109, 68, 153, 170, 112, 150, 84,
@@ -598,10 +573,9 @@ mod tests {
         let mnemonic = bip39::Mnemonic::from_phrase(phrase.into()).unwrap();
         let seed = mnemonic.seed(&"".into());
         let master_key = MasterKeyGen::new(&seed).generate().unwrap();
-        let engine = Secp256k1::signing_only();
 
         for (expected, keypath) in slip32_vectors() {
-            let key = master_key.derive(&engine, &keypath).unwrap();
+            let key = master_key.derive(&keypath).unwrap();
             let xprv = key.to_slip32(&keypath).unwrap();
 
             assert_eq!(expected, xprv);
