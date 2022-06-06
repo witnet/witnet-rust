@@ -147,10 +147,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         reputation_engine: Some(_),
                         ..
                     } => {
-                        if self.epoch_constants.is_none()
-                            || self.vrf_ctx.is_none()
-                            || self.secp.is_none()
-                        {
+                        if self.epoch_constants.is_none() || self.vrf_ctx.is_none() {
                             log::error!("{}", ChainManagerError::ChainNotReady);
                             return;
                         }

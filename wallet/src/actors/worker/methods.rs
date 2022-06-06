@@ -9,10 +9,7 @@ use crate::{
     model, params,
     types::{ChainEntry, DynamicSink, GetBlockChainParams},
 };
-use witnet_crypto::{
-    key::{CryptoEngine, ExtendedSK},
-    mnemonic,
-};
+use witnet_crypto::{key::ExtendedSK, mnemonic};
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, Hashable, OutputPointer, RADRequest,
@@ -41,7 +38,6 @@ impl Worker {
         node: params::NodeParams,
         params: params::Params,
     ) -> Addr<Self> {
-        let engine = CryptoEngine::new();
         let wallets = Arc::new(repository::Wallets::new(db::PlainDb::new(db.clone())));
 
         SyncArbiter::start(concurrency, move || Self {
@@ -50,7 +46,6 @@ impl Worker {
             node: node.clone(),
             params: params.clone(),
             rng: rand::rngs::OsRng,
-            engine: engine.clone(),
         })
     }
 
@@ -138,8 +133,7 @@ impl Worker {
                     self.params.id_hash_iterations,
                 );
                 let default_account_index = 0;
-                let default_account =
-                    account::gen_account(&self.engine, default_account_index, &master_key)?;
+                let default_account = account::gen_account(default_account_index, &master_key)?;
                 (id, default_account, Some(master_key))
             }
         };
@@ -338,7 +332,6 @@ impl Worker {
             session_id.clone(),
             wallet_db,
             self.params.clone(),
-            self.engine.clone(),
         )?);
         let data = wallet.public_data()?;
 

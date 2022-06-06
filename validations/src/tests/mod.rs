@@ -7,8 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use witnet_crypto::{
-    key::CryptoEngine,
-    secp256k1::{PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey},
+    secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
     signature::sign,
 };
 use witnet_data_structures::{
@@ -68,21 +67,19 @@ fn active_wips_from_mainnet(block_epoch: Epoch) -> ActiveWips {
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
 ) -> Result<(), failure::Error> {
-    let secp = &CryptoEngine::new();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
-    verify_signatures(signatures_to_verify, vrf, secp).map(|_| ())
+    verify_signatures(signatures_to_verify, vrf).map(|_| ())
 }
 
 fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
     let Hash::SHA256(data) = tx.hash();
 
-    let secp = &Secp256k1::new();
     let secret_key = Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
-    let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+    let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);
     let public_key = PublicKey::from(public_key);
 
-    let signature = sign(secp, secret_key, &data).unwrap();
+    let signature = sign(secret_key, &data).unwrap();
 
     KeyedSignature {
         signature: Signature::from(signature),

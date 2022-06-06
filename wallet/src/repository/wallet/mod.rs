@@ -12,7 +12,7 @@ use bech32::ToBase32;
 use state::State;
 use witnet_crypto::{
     hash::calculate_sha256,
-    key::{CryptoEngine, ExtendedPK, ExtendedSK, KeyPath, PK},
+    key::{ExtendedPK, ExtendedSK, KeyPath, PK},
     signature,
 };
 use witnet_data_structures::{
@@ -171,7 +171,6 @@ pub struct Wallet<T> {
     pub session_id: types::SessionId,
     db: T,
     params: Params,
-    engine: CryptoEngine,
     state: RwLock<State>,
 }
 
@@ -279,13 +278,7 @@ where
         Ok(())
     }
 
-    pub fn unlock(
-        id: &str,
-        session_id: types::SessionId,
-        db: T,
-        params: Params,
-        engine: CryptoEngine,
-    ) -> Result<Self> {
+    pub fn unlock(id: &str, session_id: types::SessionId, db: T, params: Params) -> Result<Self> {
         let id = id.to_owned();
         let name = db.get_opt(&keys::wallet_name())?;
         let description = db.get_opt(&keys::wallet_description())?;
@@ -388,7 +381,6 @@ where
             session_id,
             db,
             params,
-            engine,
             state,
         })
     }
@@ -425,8 +417,8 @@ where
         index: u32,
         persist_db: bool,
     ) -> Result<(Arc<model::Address>, u32)> {
-        let extended_sk = parent_key.derive(&self.engine, &KeyPath::default().index(index))?;
-        let ExtendedPK { key, .. } = ExtendedPK::from_secret_key(&self.engine, &extended_sk);
+        let extended_sk = parent_key.derive(&KeyPath::default().index(index))?;
+        let ExtendedPK { key, .. } = ExtendedPK::from_secret_key(&extended_sk);
 
         let pkh = witnet_data_structures::chain::PublicKey::from(key).pkh();
         let address = pkh.bech32(get_environment());
@@ -1146,14 +1138,12 @@ where
                 .get(keychain as usize)
                 .expect("could not get keychain");
 
-            let extended_sign_key =
-                parent_key.derive(&self.engine, &KeyPath::default().index(index))?;
+            let extended_sign_key = parent_key.derive(&KeyPath::default().index(index))?;
 
             let sign_key = extended_sign_key.into();
 
-            let public_key = From::from(PK::from_secret_key(&self.engine, &sign_key));
-            let signature =
-                From::from(signature::sign(&self.engine, sign_key, sign_data.as_ref())?);
+            let public_key = From::from(PK::from_secret_key_global(&sign_key));
+            let signature = From::from(signature::sign(sign_key, sign_data.as_ref())?);
 
             keyed_signatures.push(KeyedSignature {
                 signature,
@@ -1727,13 +1717,10 @@ where
         } else {
             "".to_string()
         };
-        let public_key = ExtendedPK::from_secret_key(&self.engine, parent_key)
-            .key
-            .to_string();
+        let public_key = ExtendedPK::from_secret_key(parent_key).key.to_string();
 
         let hashed_data = calculate_sha256(data.as_bytes());
-        let signature =
-            signature::sign(&self.engine, parent_key.secret_key, hashed_data.as_ref())?.to_string();
+        let signature = signature::sign(parent_key.secret_key, hashed_data.as_ref())?.to_string();
 
         Ok(model::ExtendedKeyedSignature {
             signature,

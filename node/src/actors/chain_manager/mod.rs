@@ -45,7 +45,7 @@ use futures::future::{try_join_all, FutureExt};
 use itertools::Itertools;
 use rand::Rng;
 use witnet_config::config::Tapi;
-use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
+use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
         penalize_factor,
@@ -199,8 +199,6 @@ pub struct ChainManager {
     bn256_public_key: Option<Bn256PublicKey>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
-    /// Sign and verify context
-    secp: Option<CryptoEngine>,
     /// Peers beacons boolean
     peers_beacons_received: bool,
     /// Consensus parameter (in %)
@@ -505,18 +503,11 @@ impl ChainManager {
         block: Block,
         resynchronizing: bool,
     ) -> Result<(), failure::Error> {
-        if let (
-            Some(epoch_constants),
-            Some(chain_info),
-            Some(rep_engine),
-            Some(vrf_ctx),
-            Some(secp_ctx),
-        ) = (
+        if let (Some(epoch_constants), Some(chain_info), Some(rep_engine), Some(vrf_ctx)) = (
             self.epoch_constants,
             self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_ref(),
             self.vrf_ctx.as_mut(),
-            self.secp.as_ref(),
         ) {
             if self.current_epoch.is_none() {
                 log::trace!("Called process_requested_block when current_epoch is None");
@@ -544,7 +535,6 @@ impl ChainManager {
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
                 vrf_ctx,
-                secp_ctx,
                 block_number,
                 &chain_info.consensus_constants,
                 resynchronizing,
@@ -685,9 +675,6 @@ impl ChainManager {
                     // The unwrap is safe because if there is no VRF context,
                     // the actor should have stopped execution
                     self.vrf_ctx.as_mut().expect("No initialized VRF context"),
-                    self.secp
-                        .as_ref()
-                        .expect("No initialized SECP256K1 context"),
                     self.chain_state.block_number(),
                     &chain_info.consensus_constants,
                     false,
@@ -2449,7 +2436,6 @@ pub fn process_validations(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
     vrf_ctx: &mut VrfCtx,
-    secp_ctx: &CryptoEngine,
     block_number: u32,
     consensus_constants: &ConsensusConstants,
     resynchronizing: bool,
@@ -2468,7 +2454,7 @@ pub fn process_validations(
             consensus_constants,
             active_wips,
         )?;
-        verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+        verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
 
     let mut signatures_to_verify = vec![];
@@ -2487,7 +2473,7 @@ pub fn process_validations(
     )?;
 
     if !resynchronizing {
-        verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+        verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
 
     Ok(utxo_dif)
@@ -3503,13 +3489,12 @@ mod tests {
     fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
         let Hash::SHA256(data) = tx.hash();
 
-        let secp = &Secp256k1::new();
         let secret_key =
             Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
-        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+        let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);
         let public_key = PublicKey::from(public_key);
 
-        let signature = sign(secp, secret_key, &data).unwrap();
+        let signature = sign(secret_key, &data).unwrap();
 
         KeyedSignature {
             signature: Signature::from(signature),
@@ -3625,7 +3610,6 @@ mod tests {
             });
             chain_manager.chain_state.reputation_engine = Some(ReputationEngine::new(1000));
             chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
-            chain_manager.secp = Some(Secp256k1::new());
             chain_manager.sm_state = StateMachine::Synced;
 
             let block_1 = create_valid_block(&mut chain_manager, &PRIV_KEY_2);
@@ -3768,7 +3752,6 @@ mod tests {
                 .insert(out_ptr, vto1, 0);
             chain_manager.chain_state.reputation_engine = Some(ReputationEngine::new(1000));
             chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
-            chain_manager.secp = Some(Secp256k1::new());
             chain_manager.sm_state = StateMachine::Synced;
 
             let t1 = create_valid_transaction(&mut chain_manager, &PRIV_KEY_1);

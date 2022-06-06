@@ -1013,7 +1013,7 @@ mod tests {
     use std::convert::TryInto;
 
     use witnet_crypto::secp256k1::{
-        PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
+        PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
     };
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
@@ -1142,11 +1142,10 @@ mod tests {
 
         // Create a KeyedSignature
         let Hash::SHA256(data) = block_header.hash();
-        let secp = &Secp256k1::new();
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
-        let signature = sign(secp, secret_key, &data).unwrap();
+        let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);
+        let signature = sign(secret_key, &data).unwrap();
         let witnet_pk = PublicKey::from(public_key);
         let witnet_signature = Signature::from(signature);
 
@@ -1160,7 +1159,7 @@ mod tests {
         );
 
         // Check Signature
-        assert!(verify(secp, &public_key, &data, &signature).is_ok());
+        assert!(verify(&public_key, &data, &signature).is_ok());
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.mint.len(), 1);
@@ -1173,7 +1172,7 @@ mod tests {
         // Validate block signature
         let mut signatures_to_verify = vec![];
         assert!(validate_block_signature(&block, &mut signatures_to_verify).is_ok());
-        assert!(verify_signatures(signatures_to_verify, vrf, secp).is_ok());
+        assert!(verify_signatures(signatures_to_verify, vrf).is_ok());
     }
 
     static MILLION_TX_OUTPUT: &str =
@@ -1580,8 +1579,7 @@ mod tests {
         };
         let sk: Secp256k1_SecretKey = secret_key.into();
 
-        let secp = &Secp256k1::new();
-        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &sk);
+        let public_key = Secp256k1_PublicKey::from_secret_key_global(&sk);
 
         let data = [
             0xca, 0x18, 0xf5, 0xad, 0xc2, 0x18, 0x45, 0x25, 0x0e, 0x88, 0x14, 0x18, 0x1f, 0xf7,
@@ -1589,8 +1587,8 @@ mod tests {
             0x84, 0x9e, 0xc6, 0xb9,
         ];
 
-        let signature = sign(secp, sk, &data).unwrap();
-        assert!(verify(secp, &public_key, &data, &signature).is_ok());
+        let signature = sign(sk, &data).unwrap();
+        assert!(verify(&public_key, &data, &signature).is_ok());
 
         // Conversion step
         let witnet_signature = Signature::from(signature);
@@ -1602,6 +1600,6 @@ mod tests {
         assert_eq!(signature, signature2);
         assert_eq!(public_key, public_key2);
 
-        assert!(verify(secp, &public_key2, &data, &signature2).is_ok());
+        assert!(verify(&public_key2, &data, &signature2).is_ok());
     }
 }

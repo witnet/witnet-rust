@@ -8,7 +8,6 @@ use std::{
 use itertools::Itertools;
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
-    key::CryptoEngine,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
@@ -2147,7 +2146,6 @@ pub fn compare_block_candidates(
 pub fn verify_signatures(
     signatures_to_verify: Vec<SignaturesToVerify>,
     vrf: &mut VrfCtx,
-    secp: &CryptoEngine,
 ) -> Result<Vec<Hash>, failure::Error> {
     let mut vrf_hashes = vec![];
     for x in signatures_to_verify {
@@ -2190,7 +2188,7 @@ pub fn verify_signatures(
                 public_key,
                 data,
                 signature,
-            } => verify(secp, &public_key, &data, &signature).map_err(|e| {
+            } => verify(&public_key, &data, &signature).map_err(|e| {
                 TransactionError::VerifyTransactionSignatureFail {
                     hash: {
                         let mut sha256 = [0; 32];
@@ -2204,7 +2202,7 @@ pub fn verify_signatures(
                 public_key,
                 data,
                 signature,
-            } => verify(secp, &public_key, &data, &signature).map_err(|_e| {
+            } => verify(&public_key, &data, &signature).map_err(|_e| {
                 BlockError::VerifySignatureFail {
                     hash: {
                         let mut sha256 = [0; 32];
@@ -2218,7 +2216,6 @@ pub fn verify_signatures(
                 let secp_message = superblock_vote.secp256k1_signature_message();
                 let secp_message_hash = calculate_sha256(&secp_message);
                 verify(
-                    secp,
                     &superblock_vote
                         .secp256k1_signature
                         .public_key

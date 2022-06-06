@@ -4013,9 +4013,7 @@ pub fn block_example() -> Block {
 mod tests {
     use witnet_crypto::{
         merkle::{merkle_tree_root, InclusionProof},
-        secp256k1::{
-            PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
-        },
+        secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
         signature::sign,
     };
 
@@ -6460,13 +6458,12 @@ mod tests {
     fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
         let Hash::SHA256(data) = tx.hash();
 
-        let secp = &Secp256k1::new();
         let secret_key =
             Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
-        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+        let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);
         let public_key = PublicKey::from(public_key);
 
-        let signature = sign(secp, secret_key, &data).unwrap();
+        let signature = sign(secret_key, &data).unwrap();
 
         KeyedSignature {
             signature: Signature::from(signature),

@@ -11,7 +11,6 @@ pub mod methods;
 
 pub use error::*;
 pub use handlers::*;
-use witnet_crypto::key::CryptoEngine;
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -20,7 +19,6 @@ pub struct Worker {
     wallets: Arc<repository::Wallets<db::PlainDb>>,
     node: params::NodeParams,
     params: params::Params,
-    engine: CryptoEngine,
     rng: rand::rngs::OsRng,
 }
 
