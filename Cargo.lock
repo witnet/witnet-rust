@@ -2850,6 +2850,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordered-float"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dacdec97876ef3ede8c50efc429220641a0b11ba0048b4b0c357bccbc47c5204"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "owning_ref"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5643,7 +5652,7 @@ dependencies = [
  "lazy_static",
  "log 0.4.14",
  "num_enum",
- "ordered-float",
+ "ordered-float 2.0.1",
  "partial_struct",
  "protobuf",
  "protobuf-convert",
@@ -5757,7 +5766,7 @@ dependencies = [
  "log 0.4.14",
  "minidom",
  "num_enum",
- "ordered-float",
+ "ordered-float 1.1.1",
  "rand 0.7.3",
  "serde",
  "serde_cbor",
