@@ -26,8 +26,8 @@ use witnet_crypto::{
     key::ExtendedSK,
     merkle::merkle_tree_root as crypto_merkle_tree_root,
     secp256k1::{
-        PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
-        Signature as Secp256k1_Signature,
+        ecdsa::Signature as Secp256k1_Signature, PublicKey as Secp256k1_PublicKey,
+        SecretKey as Secp256k1_SecretKey,
     },
 };
 use witnet_protected::Protected;
@@ -4397,8 +4397,8 @@ mod tests {
     fn secp256k1_from_into_secpk256k1_signatures() {
         use crate::chain::Secp256k1Signature;
         use witnet_crypto::secp256k1::{
-            Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
-            Signature as Secp256k1_Signature,
+            ecdsa::Signature as Secp256k1_Signature, Message as Secp256k1_Message, Secp256k1,
+            SecretKey as Secp256k1_SecretKey,
         };
 
         let data = [0xab; 32];
@@ -4406,7 +4406,7 @@ mod tests {
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let msg = Secp256k1_Message::from_slice(&data).unwrap();
-        let signature = secp.sign(&msg, &secret_key);
+        let signature = secp.sign_ecdsa(&msg, &secret_key);
 
         let witnet_signature = Secp256k1Signature::from(signature);
         let signature_into: Secp256k1_Signature = witnet_signature.try_into().unwrap();
@@ -4418,8 +4418,8 @@ mod tests {
     fn secp256k1_from_into_signatures() {
         use crate::chain::Signature;
         use witnet_crypto::secp256k1::{
-            Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
-            Signature as Secp256k1_Signature,
+            ecdsa::Signature as Secp256k1_Signature, Message as Secp256k1_Message, Secp256k1,
+            SecretKey as Secp256k1_SecretKey,
         };
 
         let data = [0xab; 32];
@@ -4427,7 +4427,7 @@ mod tests {
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let msg = Secp256k1_Message::from_slice(&data).unwrap();
-        let signature = secp.sign(&msg, &secret_key);
+        let signature = secp.sign_ecdsa(&msg, &secret_key);
 
         let witnet_signature = Signature::from(signature);
         let signature_into: Secp256k1_Signature = witnet_signature.try_into().unwrap();

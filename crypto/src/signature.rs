@@ -4,7 +4,7 @@ use crate::key::CryptoEngine;
 use secp256k1::{Error, Message, SecretKey};
 
 /// Signature
-pub type Signature = secp256k1::Signature;
+pub type Signature = secp256k1::ecdsa::Signature;
 
 /// PublicKey
 pub type PublicKey = secp256k1::PublicKey;
@@ -15,7 +15,7 @@ pub type PublicKey = secp256k1::PublicKey;
 pub fn sign(secp: &CryptoEngine, secret_key: SecretKey, data: &[u8]) -> Result<Signature, Error> {
     let msg = Message::from_slice(data)?;
 
-    Ok(secp.sign(&msg, &secret_key))
+    Ok(secp.sign_ecdsa(&msg, &secret_key))
 }
 /// Verify signature with a provided public key.
 /// - Returns an Error if data is not a 32-byte array
@@ -27,14 +27,14 @@ pub fn verify(
 ) -> Result<(), Error> {
     let msg = Message::from_slice(data)?;
 
-    secp.verify(&msg, sig, public_key)
+    secp.verify_ecdsa(&msg, sig, public_key)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::hash::{calculate_sha256, Sha256};
     use crate::signature::{sign, verify};
-    use secp256k1::{PublicKey, Secp256k1, SecretKey, Signature};
+    use secp256k1::{ecdsa::Signature, PublicKey, Secp256k1, SecretKey};
 
     #[test]
     fn test_sign_and_verify() {
