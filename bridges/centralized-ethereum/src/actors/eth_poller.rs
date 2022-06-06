@@ -10,7 +10,7 @@ use web3::{
     contract::{self, Contract},
     ethabi::Bytes,
     transports::Http,
-    types::{H160, U256},
+    types::U256,
 };
 use witnet_node::utils::stop_system_if_panicking;
 
@@ -22,8 +22,6 @@ pub struct EthPoller {
     pub wrb_contract: Option<Arc<Contract<web3::transports::Http>>>,
     /// Period to check for new requests in the WRB
     pub eth_new_dr_polling_rate_ms: u64,
-    /// eth_account
-    pub eth_account: H160,
 }
 
 impl Drop for EthPoller {
@@ -61,7 +59,6 @@ impl EthPoller {
         Self {
             wrb_contract: Some(wrb_contract),
             eth_new_dr_polling_rate_ms: config.eth_new_dr_polling_rate_ms,
-            eth_account: config.eth_account,
         }
     }
 
@@ -69,14 +66,13 @@ impl EthPoller {
         log::debug!("Checking new DRs from Ethereum contract...");
 
         let wrb_contract = self.wrb_contract.clone().unwrap();
-        let eth_account = self.eth_account;
         // Check requests
         let fut = async move {
             let total_requests_count: Result<U256, web3::contract::Error> = wrb_contract
                 .query(
                     "getNextQueryId",
                     (),
-                    eth_account,
+                    None,
                     contract::Options::default(),
                     None,
                 )
@@ -107,7 +103,7 @@ impl EthPoller {
                             .query(
                                 "getQueryStatus",
                                 (U256::from(i),),
-                                eth_account,
+                                None,
                                 contract::Options::default(),
                                 None,
                             )
@@ -121,8 +117,7 @@ impl EthPoller {
                                 WitnetQueryStatus::Posted => {
                                     log::info!("[{}] new dr in wrb", i);
                                     if let Some(set_dr_info_bridge) =
-                                        process_posted_request(i.into(), &wrb_contract, eth_account)
-                                            .await
+                                        process_posted_request(i.into(), &wrb_contract).await
                                     {
                                         dr_database_addr.do_send(set_dr_info_bridge);
                                     } else {
@@ -132,8 +127,7 @@ impl EthPoller {
                                 WitnetQueryStatus::Reported => {
                                     log::debug!("[{}] already reported", i);
                                     if let Some(set_dr_info_bridge) =
-                                        process_posted_request(i.into(), &wrb_contract, eth_account)
-                                            .await
+                                        process_posted_request(i.into(), &wrb_contract).await
                                     {
                                         dr_database_addr.do_send(set_dr_info_bridge);
                                     } else {
@@ -174,13 +168,12 @@ impl EthPoller {
 async fn process_posted_request(
     query_id: U256,
     wrb_contract: &Contract<web3::transports::Http>,
-    eth_account: H160,
 ) -> Option<SetDrInfoBridge> {
     let dr_bytes: Result<Bytes, web3::contract::Error> = wrb_contract
         .query(
             "readRequestBytecode",
             (query_id,),
-            eth_account,
+            None,
             contract::Options::default(),
             None,
         )

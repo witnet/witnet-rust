@@ -145,8 +145,7 @@ impl Handler<DrReporterMsg> for DrReporter {
             let mut reports = vec![];
             for report in msg.reports.drain(..) {
                 if let Some(set_finished_msg) =
-                    read_resolved_request_from_contract(report.dr_id, &wrb_contract, eth_account)
-                        .await
+                    read_resolved_request_from_contract(report.dr_id, &wrb_contract).await
                 {
                     // The request is already resolved, mark as finished in the database
                     let dr_database_addr = DrDatabase::from_registry();
@@ -163,7 +162,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                 return;
             }
 
-            let max_gas_price = get_max_gas_price(&msg, &wrb_contract, eth_account).await;
+            let max_gas_price = get_max_gas_price(&msg, &wrb_contract).await;
 
             if max_gas_price == U256::from(0u8) {
                 // Error reading gas price, abort
@@ -302,13 +301,12 @@ impl Handler<DrReporterMsg> for DrReporter {
 async fn read_resolved_request_from_contract(
     dr_id: U256,
     wrb_contract: &Contract<Http>,
-    eth_account: H160,
 ) -> Option<SetFinished> {
     let query_status: Result<u8, web3::contract::Error> = wrb_contract
         .query(
             "getQueryStatus",
             (dr_id,),
-            eth_account,
+            None,
             contract::Options::default(),
             None,
         )
@@ -340,11 +338,7 @@ async fn read_resolved_request_from_contract(
     None
 }
 
-async fn get_max_gas_price(
-    msg: &DrReporterMsg,
-    wrb_contract: &Contract<Http>,
-    eth_account: H160,
-) -> U256 {
+async fn get_max_gas_price(msg: &DrReporterMsg, wrb_contract: &Contract<Http>) -> U256 {
     // The gas price of the report transaction should equal the maximum gas price paid
     // by any of the requests being solved here
     let mut max_gas_price: U256 = U256::from(0u8);
@@ -354,7 +348,7 @@ async fn get_max_gas_price(
             .query(
                 "readRequestGasPrice",
                 report.dr_id,
-                eth_account,
+                None,
                 contract::Options::default(),
                 None,
             )
