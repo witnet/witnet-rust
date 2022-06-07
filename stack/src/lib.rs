@@ -1,6 +1,6 @@
 use scriptful::{
-    core::Script,
-    prelude::{Machine, Stack},
+    core::{Script, ScriptRef},
+    prelude::Stack,
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +19,12 @@ pub enum MyOperator {
     Equal,
     Hash160,
     CheckMultiSig,
+    /// Stop script execution if top-most element of stack is not "true"
+    Verify,
+    // Control flow
+    If,
+    Else,
+    EndIf,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -137,11 +143,158 @@ fn check_multi_sig(bytes_pkhs: Vec<MyValue>, bytes_keyed_signatures: Vec<MyValue
 }
 
 // An operator system decides what to do with the stack when each operator is applied on it.
-fn my_operator_system(stack: &mut Stack<MyValue>, operator: &MyOperator) {
+fn my_operator_system(
+    stack: &mut Stack<MyValue>,
+    operator: &MyOperator,
+    if_stack: &mut ConditionStack,
+) -> MyControlFlow {
+    if !if_stack.all_true() {
+        match operator {
+            MyOperator::If => {
+                if_stack.push_back(false);
+            }
+            MyOperator::Else => {
+                if if_stack.toggle_top().is_none() {
+                    stack.push(MyValue::Boolean(false));
+                    return MyControlFlow::Break;
+                }
+            }
+            MyOperator::EndIf => {
+                if if_stack.pop_back().is_none() {
+                    stack.push(MyValue::Boolean(false));
+                    return MyControlFlow::Break;
+                }
+            }
+            _ => {}
+        }
+
+        return MyControlFlow::Continue;
+    }
+
     match operator {
         MyOperator::Equal => equal_operator(stack),
         MyOperator::Hash160 => hash_160_operator(stack),
         MyOperator::CheckMultiSig => check_multisig_operator(stack),
+        MyOperator::Verify => {
+            let top = stack.pop();
+            if top != MyValue::Boolean(true) {
+                // Push the element back because there is a check in execute_script that needs a
+                // false value to mark the script execution as failed, otherwise it may be marked as
+                // success
+                stack.push(top);
+                return MyControlFlow::Break;
+            }
+        }
+        MyOperator::If => {
+            let top = stack.pop();
+            if let MyValue::Boolean(b) = top {
+                if_stack.push_back(b);
+            } else {
+                stack.push(MyValue::Boolean(false));
+                return MyControlFlow::Break;
+            }
+        }
+        MyOperator::Else => {
+            if if_stack.toggle_top().is_none() {
+                stack.push(MyValue::Boolean(false));
+                return MyControlFlow::Break;
+            }
+        }
+        MyOperator::EndIf => {
+            if if_stack.pop_back().is_none() {
+                stack.push(MyValue::Boolean(false));
+                return MyControlFlow::Break;
+            }
+        }
+    }
+
+    MyControlFlow::Continue
+}
+
+// ConditionStack implementation from bitcoin-core
+// https://github.com/bitcoin/bitcoin/blob/505ba3966562b10d6dd4162f3216a120c73a4edb/src/script/interpreter.cpp#L272
+// https://bitslog.com/2017/04/17/new-quadratic-delays-in-bitcoin-scripts/
+/** A data type to abstract out the condition stack during script execution.
+*
+* Conceptually it acts like a vector of booleans, one for each level of nested
+* IF/THEN/ELSE, indicating whether we're in the active or inactive branch of
+* each.
+*
+* The elements on the stack cannot be observed individually; we only need to
+* expose whether the stack is empty and whether or not any false values are
+* present at all. To implement OP_ELSE, a toggle_top modifier is added, which
+* flips the last value without returning it.
+*
+* This uses an optimized implementation that does not materialize the
+* actual stack. Instead, it just stores the size of the would-be stack,
+* and the position of the first false value in it.
+ */
+pub struct ConditionStack {
+    stack_size: u32,
+    first_false_pos: u32,
+}
+
+impl Default for ConditionStack {
+    fn default() -> Self {
+        Self {
+            stack_size: 0,
+            first_false_pos: Self::NO_FALSE,
+        }
+    }
+}
+
+impl ConditionStack {
+    const NO_FALSE: u32 = u32::MAX;
+
+    pub fn is_empty(&self) -> bool {
+        self.stack_size == 0
+    }
+
+    pub fn all_true(&self) -> bool {
+        self.first_false_pos == Self::NO_FALSE
+    }
+
+    pub fn push_back(&mut self, b: bool) {
+        if (self.first_false_pos == Self::NO_FALSE) && !b {
+            // The stack consists of all true values, and a false is added.
+            // The first false value will appear at the current size.
+            self.first_false_pos = self.stack_size;
+        }
+
+        self.stack_size += 1;
+    }
+
+    pub fn pop_back(&mut self) -> Option<()> {
+        if self.stack_size == 0 {
+            return None;
+        }
+
+        self.stack_size -= 1;
+        if self.first_false_pos == self.stack_size {
+            // When popping off the first false value, everything becomes true.
+            self.first_false_pos = Self::NO_FALSE;
+        }
+
+        Some(())
+    }
+
+    pub fn toggle_top(&mut self) -> Option<()> {
+        if self.stack_size == 0 {
+            return None;
+        }
+
+        if self.first_false_pos == Self::NO_FALSE {
+            // The current stack is all true values; the first false will be the top.
+            self.first_false_pos = self.stack_size - 1;
+        } else if self.first_false_pos == self.stack_size - 1 {
+            // The top is the first false value; toggling it will make everything true.
+            self.first_false_pos = Self::NO_FALSE;
+        } else {
+            // There is a false value, but not on top. No action is needed as toggling
+            // anything but the first false value is unobservable.
+        }
+
+        Some(())
     }
 }
 
@@ -194,10 +347,10 @@ pub fn encode(a: Script<MyOperator, MyValue>) -> Vec<u8> {
 
 fn execute_script(script: Script<MyOperator, MyValue>) -> bool {
     // Instantiate the machine with a reference to your operator system.
-    let mut machine = Machine::new(&my_operator_system);
+    let mut machine = Machine2::new(&my_operator_system);
     let result = machine.run_script(&script);
 
-    result == Some(&MyValue::Boolean(true))
+    result == None || result == Some(&MyValue::Boolean(true))
 }
 
 fn execute_locking_script(redeem_bytes: &[u8], locking_bytes: &[u8; 20]) -> bool {
@@ -238,6 +391,67 @@ pub fn execute_complete_script(
 
     // Execute witness script concatenated with redeem script
     execute_redeem_script(witness_bytes, redeem_bytes)
+}
+
+// TODO: use control flow enum from scriptful library when ready
+pub enum MyControlFlow {
+    Continue,
+    Break,
+}
+
+pub struct Machine2<'a, Op, Val>
+where
+    Val: core::fmt::Debug + core::cmp::PartialEq,
+{
+    op_sys: &'a dyn Fn(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
+    stack: Stack<Val>,
+    if_stack: ConditionStack,
+}
+
+impl<'a, Op, Val> Machine2<'a, Op, Val>
+where
+    Op: core::fmt::Debug + core::cmp::Eq,
+    Val: core::fmt::Debug + core::cmp::PartialEq + core::clone::Clone,
+{
+    pub fn new(
+        op_sys: &'a dyn Fn(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
+    ) -> Self {
+        Self {
+            op_sys,
+            stack: Stack::<Val>::default(),
+            if_stack: ConditionStack::default(),
+        }
+    }
+
+    pub fn operate(&mut self, item: &Item<Op, Val>) -> MyControlFlow {
+        match item {
+            Item::Operator(operator) => {
+                (self.op_sys)(&mut self.stack, operator, &mut self.if_stack)
+            }
+            Item::Value(value) => {
+                if self.if_stack.all_true() {
+                    self.stack.push((*value).clone());
+                }
+
+                MyControlFlow::Continue
+            }
+        }
+    }
+
+    pub fn run_script(&mut self, script: ScriptRef<Op, Val>) -> Option<&Val> {
+        for item in script {
+            match self.operate(item) {
+                MyControlFlow::Continue => {
+                    continue;
+                }
+                MyControlFlow::Break => {
+                    break;
+                }
+            }
+        }
+
+        self.stack.topmost()
+    }
 }
 
 #[cfg(test)]
@@ -413,5 +627,92 @@ mod tests {
             &encode(invalid_witness),
             &encode(redeem_script)
         ));
+    }
+
+    #[test]
+    fn test_execute_script_op_verify() {
+        let s = vec![
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(execute_script(s));
+
+        let s = vec![
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Value(MyValue::String("potato".to_string())),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(!execute_script(s));
+    }
+
+    #[test]
+    fn test_execute_script_op_if() {
+        let s = vec![
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Value(MyValue::Boolean(true)),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Operator(MyOperator::Else),
+            Item::Value(MyValue::String("potato".to_string())),
+            Item::Operator(MyOperator::EndIf),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(execute_script(s));
+
+        let s = vec![
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Value(MyValue::Boolean(false)),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Operator(MyOperator::Else),
+            Item::Value(MyValue::String("potato".to_string())),
+            Item::Operator(MyOperator::EndIf),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(!execute_script(s));
+    }
+
+    #[test]
+    fn test_execute_script_op_if_nested() {
+        let s = vec![
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Value(MyValue::Boolean(true)),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Operator(MyOperator::Else),
+            Item::Value(MyValue::Boolean(false)),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Operator(MyOperator::Else),
+            Item::Value(MyValue::String("potato".to_string())),
+            Item::Operator(MyOperator::EndIf),
+            Item::Operator(MyOperator::EndIf),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(execute_script(s));
+
+        let s = vec![
+            Item::Value(MyValue::String("potato".to_string())),
+            Item::Value(MyValue::Boolean(false)),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Operator(MyOperator::Else),
+            Item::Value(MyValue::Boolean(false)),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::String("patata".to_string())),
+            Item::Operator(MyOperator::Else),
+            Item::Value(MyValue::String("potato".to_string())),
+            Item::Operator(MyOperator::EndIf),
+            Item::Operator(MyOperator::EndIf),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(execute_script(s));
     }
 }
