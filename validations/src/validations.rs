@@ -1273,7 +1273,7 @@ pub fn validate_transaction_signatures(
                 &input.redeem_script,
                 redeem_script_hash.bytes(),
                 &script_context,
-            );
+            )?;
 
             if !res {
                 return Err(TransactionError::ScriptExecutionFailed {
@@ -1284,7 +1284,7 @@ pub fn validate_transaction_signatures(
                 .into());
             }
 
-            let witness_script = witnet_stack::decode(witness);
+            let witness_script = witnet_stack::decode(witness)?;
             let mut num_signatures = 0;
             // The witness field must have at least one signature
             for item in witness_script {

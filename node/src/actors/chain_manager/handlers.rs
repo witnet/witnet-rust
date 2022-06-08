@@ -1307,7 +1307,7 @@ impl Handler<BuildScriptTransaction> for ChainManager {
                     .into_actor(self)
                     .then(|s, _act, _ctx| match s {
                         Ok(_signatures) => {
-                            let multi_sig_witness = witnet_stack::encode(vec![]);
+                            let multi_sig_witness = witnet_stack::encode(vec![]).unwrap();
                             let num_inputs = vtt.inputs.len();
                             let transaction = Transaction::ValueTransfer(VTTransaction {
                                 body: vtt,

@@ -3,6 +3,7 @@ use scriptful::{
     prelude::Stack,
 };
 use serde::{Deserialize, Serialize};
+use std::fmt::Formatter;
 use std::marker::PhantomData;
 
 use witnet_crypto::hash::{calculate_sha256, Sha256};
@@ -364,21 +365,40 @@ where
     }
 }
 
-pub fn decode(a: &[u8]) -> Script<MyOperator, MyValue> {
-    let x: Vec<Item2<MyOperator, MyValue>> = serde_json::from_slice(a).unwrap();
+pub fn decode(a: &[u8]) -> Result<Script<MyOperator, MyValue>, ScriptError> {
+    let x: Vec<Item2<MyOperator, MyValue>> =
+        serde_json::from_slice(a).map_err(ScriptError::Decode)?;
 
-    x.into_iter().map(Into::into).collect()
+    Ok(x.into_iter().map(Into::into).collect())
 }
 
-pub fn encode(a: Script<MyOperator, MyValue>) -> Vec<u8> {
+pub fn encode(a: Script<MyOperator, MyValue>) -> Result<Vec<u8>, ScriptError> {
     let x: Vec<Item2<MyOperator, MyValue>> = a.into_iter().map(Into::into).collect();
-    serde_json::to_vec(&x).unwrap()
+
+    serde_json::to_vec(&x).map_err(ScriptError::Encode)
 }
 
 #[derive(Default)]
 pub struct ScriptContext {
     pub block_timestamp: i64,
 }
+
+#[derive(Debug)]
+pub enum ScriptError {
+    Decode(serde_json::Error),
+    Encode(serde_json::Error),
+}
+
+impl std::fmt::Display for ScriptError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScriptError::Decode(e) => write!(f, "Decode script failed: {}", e),
+            ScriptError::Encode(e) => write!(f, "Encode script failed: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for ScriptError {}
 
 fn execute_script(script: Script<MyOperator, MyValue>, context: &ScriptContext) -> bool {
     // Instantiate the machine with a reference to your operator system.
@@ -411,14 +431,14 @@ fn execute_redeem_script(
     witness_bytes: &[u8],
     redeem_bytes: &[u8],
     context: &ScriptContext,
-) -> bool {
+) -> Result<bool, ScriptError> {
     // Execute witness script concatenated with redeem script
-    let mut witness_script = decode(witness_bytes);
-    let redeem_script = decode(redeem_bytes);
+    let mut witness_script = decode(witness_bytes)?;
+    let redeem_script = decode(redeem_bytes)?;
     witness_script.extend(redeem_script);
 
     // Execute the script
-    execute_script(witness_script, context)
+    Ok(execute_script(witness_script, context))
 }
 
 pub fn execute_complete_script(
@@ -426,11 +446,11 @@ pub fn execute_complete_script(
     redeem_bytes: &[u8],
     locking_bytes: &[u8; 20],
     context: &ScriptContext,
-) -> bool {
+) -> Result<bool, ScriptError> {
     // Execute locking script
     let result = execute_locking_script(redeem_bytes, locking_bytes, context);
     if !result {
-        return false;
+        return Ok(false);
     }
 
     // Execute witness script concatenated with redeem script
@@ -531,7 +551,7 @@ mod tests {
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         let locking_script = EQUAL_OPERATOR_HASH;
         assert!(execute_locking_script(
-            &encode(redeem_script),
+            &encode(redeem_script).unwrap(),
             &locking_script,
             &ScriptContext::default(),
         ));
@@ -539,7 +559,7 @@ mod tests {
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         let locking_script = [1; 20];
         assert!(!execute_locking_script(
-            &encode(redeem_script),
+            &encode(redeem_script).unwrap(),
             &locking_script,
             &ScriptContext::default(),
         ));
@@ -553,10 +573,11 @@ mod tests {
         ];
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         assert!(execute_redeem_script(
-            &encode(witness),
-            &encode(redeem_script),
+            &encode(witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
 
         let witness = vec![
             Item::Value(MyValue::String("patata".to_string())),
@@ -564,10 +585,11 @@ mod tests {
         ];
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         assert!(!execute_redeem_script(
-            &encode(witness),
-            &encode(redeem_script),
+            &encode(witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
     }
 
     #[test]
@@ -579,11 +601,12 @@ mod tests {
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         let locking_script = EQUAL_OPERATOR_HASH;
         assert!(execute_complete_script(
-            &encode(witness),
-            &encode(redeem_script),
+            &encode(witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &locking_script,
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
 
         let witness = vec![
             Item::Value(MyValue::String("patata".to_string())),
@@ -592,11 +615,12 @@ mod tests {
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         let locking_script = EQUAL_OPERATOR_HASH;
         assert!(!execute_complete_script(
-            &encode(witness),
-            &encode(redeem_script),
+            &encode(witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &locking_script,
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
 
         let witness = vec![
             Item::Value(MyValue::String("patata".to_string())),
@@ -605,11 +629,12 @@ mod tests {
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         let locking_script: [u8; 20] = [1; 20];
         assert!(!execute_complete_script(
-            &encode(witness),
-            &encode(redeem_script),
+            &encode(witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &locking_script,
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
     }
 
     fn ks_from_pk(pk: PublicKey) -> KeyedSignature {
@@ -641,10 +666,11 @@ mod tests {
             Item::Operator(MyOperator::CheckMultiSig),
         ];
         assert!(execute_redeem_script(
-            &encode(witness),
-            &encode(redeem_script),
+            &encode(witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
 
         let other_valid_witness = vec![
             Item::Value(MyValue::Signature(ks_1.to_pb_bytes().unwrap())),
@@ -659,10 +685,11 @@ mod tests {
             Item::Operator(MyOperator::CheckMultiSig),
         ];
         assert!(execute_redeem_script(
-            &encode(other_valid_witness),
-            &encode(redeem_script),
+            &encode(other_valid_witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
 
         let pk_4 = PublicKey::from_bytes([4; 33]);
         let ks_4 = ks_from_pk(pk_4);
@@ -679,10 +706,11 @@ mod tests {
             Item::Operator(MyOperator::CheckMultiSig),
         ];
         assert!(!execute_redeem_script(
-            &encode(invalid_witness),
-            &encode(redeem_script),
+            &encode(invalid_witness).unwrap(),
+            &encode(redeem_script).unwrap(),
             &ScriptContext::default(),
-        ));
+        )
+        .unwrap());
     }
 
     #[test]
