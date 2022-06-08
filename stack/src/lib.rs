@@ -3,6 +3,7 @@ use scriptful::{
     prelude::Stack,
 };
 use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_data_structures::{
@@ -347,7 +348,7 @@ pub fn encode(a: Script<MyOperator, MyValue>) -> Vec<u8> {
 
 fn execute_script(script: Script<MyOperator, MyValue>) -> bool {
     // Instantiate the machine with a reference to your operator system.
-    let mut machine = Machine2::new(&my_operator_system);
+    let mut machine = Machine2::new(my_operator_system);
     let result = machine.run_script(&script);
 
     result == None || result == Some(&MyValue::Boolean(true))
@@ -399,27 +400,29 @@ pub enum MyControlFlow {
     Break,
 }
 
-pub struct Machine2<'a, Op, Val>
+pub struct Machine2<Op, Val, F>
 where
     Val: core::fmt::Debug + core::cmp::PartialEq,
+    F: FnMut(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
 {
-    op_sys: &'a dyn Fn(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
+    op_sys: F,
     stack: Stack<Val>,
     if_stack: ConditionStack,
+    phantom_op: PhantomData<fn(&Op)>,
 }
 
-impl<'a, Op, Val> Machine2<'a, Op, Val>
+impl<Op, Val, F> Machine2<Op, Val, F>
 where
     Op: core::fmt::Debug + core::cmp::Eq,
     Val: core::fmt::Debug + core::cmp::PartialEq + core::clone::Clone,
+    F: FnMut(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
 {
-    pub fn new(
-        op_sys: &'a dyn Fn(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
-    ) -> Self {
+    pub fn new(op_sys: F) -> Self {
         Self {
             op_sys,
             stack: Stack::<Val>::default(),
             if_stack: ConditionStack::default(),
+            phantom_op: PhantomData,
         }
     }
 
@@ -714,5 +717,18 @@ mod tests {
             Item::Operator(MyOperator::Verify),
         ];
         assert!(execute_script(s));
+    }
+
+    #[test]
+    fn machine_with_context() {
+        let mut v = vec![0u32];
+        let mut m = Machine2::new(|_stack: &mut Stack<()>, operator, _if_stack| {
+            v.push(*operator);
+
+            MyControlFlow::Continue
+        });
+        m.run_script(&[Item::Operator(1), Item::Operator(3), Item::Operator(2)]);
+
+        assert_eq!(v, vec![0, 1, 3, 2]);
     }
 }
