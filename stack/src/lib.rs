@@ -19,6 +19,7 @@ pub use scriptful::prelude::Item;
 pub enum MyOperator {
     Equal,
     Hash160,
+    Sha256,
     CheckMultiSig,
     CheckTimeLock,
     /// Stop script execution if top-most element of stack is not "true"
@@ -58,6 +59,16 @@ fn hash_160_operator(stack: &mut Stack<MyValue>) {
         let Sha256(h) = calculate_sha256(&bytes);
         pkh.copy_from_slice(&h[..20]);
         stack.push(MyValue::Bytes(pkh.as_ref().to_vec()));
+    } else {
+        // TODO: hash other types?
+    }
+}
+
+fn sha_256_operator(stack: &mut Stack<MyValue>) {
+    let a = stack.pop();
+    if let MyValue::Bytes(bytes) = a {
+        let Sha256(h) = calculate_sha256(&bytes);
+        stack.push(MyValue::Bytes(h.to_vec()));
     } else {
         // TODO: hash other types?
     }
@@ -191,6 +202,7 @@ fn my_operator_system(
     match operator {
         MyOperator::Equal => equal_operator(stack),
         MyOperator::Hash160 => hash_160_operator(stack),
+        MyOperator::Sha256 => sha_256_operator(stack),
         MyOperator::CheckMultiSig => check_multisig_operator(stack),
         MyOperator::CheckTimeLock => check_timelock_operator(stack, context.block_timestamp),
         MyOperator::Verify => {
