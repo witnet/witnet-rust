@@ -20,6 +20,7 @@ pub enum MyOperator {
     Equal,
     Hash160,
     CheckMultiSig,
+    CheckTimeLock,
     /// Stop script execution if top-most element of stack is not "true"
     Verify,
     // Control flow
@@ -143,11 +144,26 @@ fn check_multi_sig(bytes_pkhs: Vec<MyValue>, bytes_keyed_signatures: Vec<MyValue
     true
 }
 
+fn check_timelock_operator(stack: &mut Stack<MyValue>, block_timestamp: i64) {
+    let timelock = stack.pop();
+    match timelock {
+        MyValue::Integer(timelock) => {
+            let timelock_ok = i128::from(block_timestamp) >= timelock;
+            stack.push(MyValue::Boolean(timelock_ok));
+        }
+        _ => {
+            // TODO change panic by error
+            unreachable!("CheckTimelock should pick an integer as a first value");
+        }
+    }
+}
+
 // An operator system decides what to do with the stack when each operator is applied on it.
 fn my_operator_system(
     stack: &mut Stack<MyValue>,
     operator: &MyOperator,
     if_stack: &mut ConditionStack,
+    context: &ScriptContext,
 ) -> MyControlFlow {
     if !if_stack.all_true() {
         match operator {
@@ -176,6 +192,7 @@ fn my_operator_system(
         MyOperator::Equal => equal_operator(stack),
         MyOperator::Hash160 => hash_160_operator(stack),
         MyOperator::CheckMultiSig => check_multisig_operator(stack),
+        MyOperator::CheckTimeLock => check_timelock_operator(stack, context.block_timestamp),
         MyOperator::Verify => {
             let top = stack.pop();
             if top != MyValue::Boolean(true) {
@@ -346,15 +363,24 @@ pub fn encode(a: Script<MyOperator, MyValue>) -> Vec<u8> {
     serde_json::to_vec(&x).unwrap()
 }
 
-fn execute_script(script: Script<MyOperator, MyValue>) -> bool {
+#[derive(Default)]
+pub struct ScriptContext {
+    pub block_timestamp: i64,
+}
+
+fn execute_script(script: Script<MyOperator, MyValue>, context: &ScriptContext) -> bool {
     // Instantiate the machine with a reference to your operator system.
-    let mut machine = Machine2::new(my_operator_system);
+    let mut machine = Machine2::new(|a, b, c| my_operator_system(a, b, c, context));
     let result = machine.run_script(&script);
 
     result == None || result == Some(&MyValue::Boolean(true))
 }
 
-fn execute_locking_script(redeem_bytes: &[u8], locking_bytes: &[u8; 20]) -> bool {
+fn execute_locking_script(
+    redeem_bytes: &[u8],
+    locking_bytes: &[u8; 20],
+    context: &ScriptContext,
+) -> bool {
     // Check locking script
     let mut locking_script = vec![
         Item::Operator(MyOperator::Hash160),
@@ -366,32 +392,37 @@ fn execute_locking_script(redeem_bytes: &[u8], locking_bytes: &[u8; 20]) -> bool
     locking_script.insert(0, Item::Value(MyValue::Bytes(redeem_bytes.to_vec())));
 
     // Execute the script
-    execute_script(locking_script)
+    execute_script(locking_script, context)
 }
 
-fn execute_redeem_script(witness_bytes: &[u8], redeem_bytes: &[u8]) -> bool {
+fn execute_redeem_script(
+    witness_bytes: &[u8],
+    redeem_bytes: &[u8],
+    context: &ScriptContext,
+) -> bool {
     // Execute witness script concatenated with redeem script
     let mut witness_script = decode(witness_bytes);
     let redeem_script = decode(redeem_bytes);
     witness_script.extend(redeem_script);
 
     // Execute the script
-    execute_script(witness_script)
+    execute_script(witness_script, context)
 }
 
 pub fn execute_complete_script(
     witness_bytes: &[u8],
     redeem_bytes: &[u8],
     locking_bytes: &[u8; 20],
+    context: &ScriptContext,
 ) -> bool {
     // Execute locking script
-    let result = execute_locking_script(redeem_bytes, locking_bytes);
+    let result = execute_locking_script(redeem_bytes, locking_bytes, context);
     if !result {
         return false;
     }
 
     // Execute witness script concatenated with redeem script
-    execute_redeem_script(witness_bytes, redeem_bytes)
+    execute_redeem_script(witness_bytes, redeem_bytes, context)
 }
 
 // TODO: use control flow enum from scriptful library when ready
@@ -473,14 +504,14 @@ mod tests {
             Item::Value(MyValue::String("patata".to_string())),
             Item::Operator(MyOperator::Equal),
         ];
-        assert!(execute_script(s));
+        assert!(execute_script(s, &ScriptContext::default()));
 
         let s = vec![
             Item::Value(MyValue::String("patata".to_string())),
             Item::Value(MyValue::String("potato".to_string())),
             Item::Operator(MyOperator::Equal),
         ];
-        assert!(!execute_script(s));
+        assert!(!execute_script(s, &ScriptContext::default()));
     }
 
     #[test]
@@ -489,14 +520,16 @@ mod tests {
         let locking_script = EQUAL_OPERATOR_HASH;
         assert!(execute_locking_script(
             &encode(redeem_script),
-            &locking_script
+            &locking_script,
+            &ScriptContext::default(),
         ));
 
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         let locking_script = [1; 20];
         assert!(!execute_locking_script(
             &encode(redeem_script),
-            &locking_script
+            &locking_script,
+            &ScriptContext::default(),
         ));
     }
 
@@ -509,7 +542,8 @@ mod tests {
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         assert!(execute_redeem_script(
             &encode(witness),
-            &encode(redeem_script)
+            &encode(redeem_script),
+            &ScriptContext::default(),
         ));
 
         let witness = vec![
@@ -519,7 +553,8 @@ mod tests {
         let redeem_script = vec![Item::Operator(MyOperator::Equal)];
         assert!(!execute_redeem_script(
             &encode(witness),
-            &encode(redeem_script)
+            &encode(redeem_script),
+            &ScriptContext::default(),
         ));
     }
 
@@ -535,6 +570,7 @@ mod tests {
             &encode(witness),
             &encode(redeem_script),
             &locking_script,
+            &ScriptContext::default(),
         ));
 
         let witness = vec![
@@ -547,6 +583,7 @@ mod tests {
             &encode(witness),
             &encode(redeem_script),
             &locking_script,
+            &ScriptContext::default(),
         ));
 
         let witness = vec![
@@ -559,6 +596,7 @@ mod tests {
             &encode(witness),
             &encode(redeem_script),
             &locking_script,
+            &ScriptContext::default(),
         ));
     }
 
@@ -592,7 +630,8 @@ mod tests {
         ];
         assert!(execute_redeem_script(
             &encode(witness),
-            &encode(redeem_script)
+            &encode(redeem_script),
+            &ScriptContext::default(),
         ));
 
         let other_valid_witness = vec![
@@ -609,7 +648,8 @@ mod tests {
         ];
         assert!(execute_redeem_script(
             &encode(other_valid_witness),
-            &encode(redeem_script)
+            &encode(redeem_script),
+            &ScriptContext::default(),
         ));
 
         let pk_4 = PublicKey::from_bytes([4; 33]);
@@ -628,7 +668,8 @@ mod tests {
         ];
         assert!(!execute_redeem_script(
             &encode(invalid_witness),
-            &encode(redeem_script)
+            &encode(redeem_script),
+            &ScriptContext::default(),
         ));
     }
 
@@ -640,7 +681,7 @@ mod tests {
             Item::Operator(MyOperator::Equal),
             Item::Operator(MyOperator::Verify),
         ];
-        assert!(execute_script(s));
+        assert!(execute_script(s, &ScriptContext::default()));
 
         let s = vec![
             Item::Value(MyValue::String("patata".to_string())),
@@ -648,7 +689,7 @@ mod tests {
             Item::Operator(MyOperator::Equal),
             Item::Operator(MyOperator::Verify),
         ];
-        assert!(!execute_script(s));
+        assert!(!execute_script(s, &ScriptContext::default()));
     }
 
     #[test]
@@ -664,7 +705,7 @@ mod tests {
             Item::Operator(MyOperator::Equal),
             Item::Operator(MyOperator::Verify),
         ];
-        assert!(execute_script(s));
+        assert!(execute_script(s, &ScriptContext::default()));
 
         let s = vec![
             Item::Value(MyValue::String("patata".to_string())),
@@ -677,7 +718,7 @@ mod tests {
             Item::Operator(MyOperator::Equal),
             Item::Operator(MyOperator::Verify),
         ];
-        assert!(!execute_script(s));
+        assert!(!execute_script(s, &ScriptContext::default()));
     }
 
     #[test]
@@ -698,7 +739,7 @@ mod tests {
             Item::Operator(MyOperator::Equal),
             Item::Operator(MyOperator::Verify),
         ];
-        assert!(execute_script(s));
+        assert!(execute_script(s, &ScriptContext::default()));
 
         let s = vec![
             Item::Value(MyValue::String("potato".to_string())),
@@ -716,7 +757,7 @@ mod tests {
             Item::Operator(MyOperator::Equal),
             Item::Operator(MyOperator::Verify),
         ];
-        assert!(execute_script(s));
+        assert!(execute_script(s, &ScriptContext::default()));
     }
 
     #[test]
@@ -730,5 +771,27 @@ mod tests {
         m.run_script(&[Item::Operator(1), Item::Operator(3), Item::Operator(2)]);
 
         assert_eq!(v, vec![0, 1, 3, 2]);
+    }
+
+    #[test]
+    fn test_execute_script_op_check_timelock() {
+        let s = vec![
+            Item::Value(MyValue::Integer(10_000)),
+            Item::Operator(MyOperator::CheckTimeLock),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(!execute_script(s, &ScriptContext { block_timestamp: 0 }));
+
+        let s = vec![
+            Item::Value(MyValue::Integer(10_000)),
+            Item::Operator(MyOperator::CheckTimeLock),
+            Item::Operator(MyOperator::Verify),
+        ];
+        assert!(execute_script(
+            s,
+            &ScriptContext {
+                block_timestamp: 20_000,
+            }
+        ));
     }
 }

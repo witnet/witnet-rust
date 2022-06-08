@@ -46,7 +46,7 @@ use witnet_rad::{
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
-use witnet_stack::{execute_complete_script, Item, MyValue};
+use witnet_stack::{execute_complete_script, Item, MyValue, ScriptContext};
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -309,12 +309,15 @@ pub fn validate_vt_transaction<'a>(
         .into());
     }
 
+    let block_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+
     validate_transaction_signatures(
         &vt_tx.witness,
         &vt_tx.body.inputs,
         vt_tx.hash(),
         utxo_diff,
         signatures_to_verify,
+        block_timestamp,
     )?;
 
     // A value transfer transaction must have at least one input
@@ -412,12 +415,15 @@ pub fn validate_dr_transaction<'a>(
         .map(vtt_signature_to_witness)
         .collect();
 
+    let block_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+
     validate_transaction_signatures(
         &dr_tx_signatures_vec_u8,
         &dr_tx.body.inputs,
         dr_tx.hash(),
         utxo_diff,
         signatures_to_verify,
+        block_timestamp,
     )?;
 
     // A data request can only have 0 or 1 outputs
@@ -1211,6 +1217,7 @@ pub fn validate_transaction_signatures(
     tx_hash: Hash,
     utxo_set: &UtxoDiff<'_>,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    block_timestamp: i64,
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
         return Err(TransactionError::MismatchingSignaturesNumber {
@@ -1259,10 +1266,15 @@ pub fn validate_transaction_signatures(
                         output: output_pointer.clone(),
                     })?;
             let redeem_script_hash = output.pkh;
+            let script_context = ScriptContext { block_timestamp };
             // Script execution assumes that all the signatures are valid, the signatures will be
             // validated later.
-            let res =
-                execute_complete_script(witness, &input.redeem_script, redeem_script_hash.bytes());
+            let res = execute_complete_script(
+                witness,
+                &input.redeem_script,
+                redeem_script_hash.bytes(),
+                &script_context,
+            );
 
             if !res {
                 return Err(TransactionError::ScriptExecutionFailed {
