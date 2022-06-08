@@ -737,7 +737,7 @@ pub fn create_multisig_address(
     ]);
 
     let locking_script_hash =
-        PublicKeyHash::from_script_bytes(&witnet_stack::encode(redeem_script));
+        PublicKeyHash::from_script_bytes(&witnet_stack::encode(redeem_script)?);
 
     println!(
         "Sending to {}-of-{} multisig address {} composed of {:?}",
@@ -778,7 +778,7 @@ pub fn create_opened_multisig(
         Item::Value(MyValue::Integer(i128::from(n))),
         Item::Operator(MyOperator::CheckMultiSig),
     ]);
-    let redeem_script_bytes = witnet_stack::encode(redeem_script);
+    let redeem_script_bytes = witnet_stack::encode(redeem_script)?;
     let vt_outputs = vec![ValueTransferOutput {
         pkh: address,
         value,
@@ -854,13 +854,13 @@ pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failu
         match tx {
             Transaction::ValueTransfer(ref mut vtt) => {
                 let signature_bytes = signature.to_pb_bytes()?;
-                let mut script = witnet_stack::decode(&vtt.witness[0]);
+                let mut script = witnet_stack::decode(&vtt.witness[0])?;
 
                 println!("Previous script:\n{:?}", script);
                 script.push(Item::Value(MyValue::Signature(signature_bytes)));
 
                 println!("Post script:\n{:?}", script);
-                let encoded_script = witnet_stack::encode(script);
+                let encoded_script = witnet_stack::encode(script)?;
 
                 vtt.witness[0] = encoded_script;
 
