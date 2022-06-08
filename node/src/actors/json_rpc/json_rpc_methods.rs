@@ -656,6 +656,30 @@ pub async fn get_block(params: Params) -> Result<Value, jsonrpc_core::Error> {
             let block_epoch = output.block_header.beacon.checkpoint;
             let block_hash = output.hash();
 
+            let dr_weight = match serde_json::to_value(output.dr_weight()) {
+                Ok(x) => x,
+                Err(e) => {
+                    let err = internal_error(e);
+                    return Err(err);
+                }
+            };
+
+            let vt_weight = match serde_json::to_value(output.vt_weight()) {
+                Ok(x) => x,
+                Err(e) => {
+                    let err = internal_error(e);
+                    return Err(err);
+                }
+            };
+
+            let block_weight = match serde_json::to_value(output.weight()) {
+                Ok(x) => x,
+                Err(e) => {
+                    let err = internal_error(e);
+                    return Err(err);
+                }
+            };
+
             // Only include the `txns_hashes` field if explicitly requested, as hash
             // operations are quite expensive, and transactions read from storage cannot
             // benefit from hash memoization
@@ -750,6 +774,21 @@ pub async fn get_block(params: Params) -> Result<Value, jsonrpc_core::Error> {
                     .expect("The result of getBlock should be an object")
                     .insert("txns_hashes".to_string(), txns_hashes);
             }
+
+            value
+                .as_object_mut()
+                .expect("The result of getBlock should be an object")
+                .insert("dr_weight".to_string(), dr_weight);
+
+            value
+                .as_object_mut()
+                .expect("The result of getBlock should be an object")
+                .insert("vt_weight".to_string(), vt_weight);
+
+            value
+                .as_object_mut()
+                .expect("The result of getBlock should be an object")
+                .insert("block_weight".to_string(), block_weight);
 
             // Check if this block is confirmed by a majority of superblock votes
             let chain_manager = ChainManager::from_registry();

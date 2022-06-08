@@ -489,6 +489,26 @@ impl Block {
             txns,
         )
     }
+
+    pub fn dr_weight(&self) -> u32 {
+        let mut dr_weight = 0;
+        for dr_txn in self.txns.data_request_txns.iter() {
+            dr_weight += dr_txn.weight();
+        }
+        dr_weight
+    }
+
+    pub fn vt_weight(&self) -> u32 {
+        let mut vt_weight = 0;
+        for vt_txn in self.txns.value_transfer_txns.iter() {
+            vt_weight += vt_txn.weight();
+        }
+        vt_weight
+    }
+
+    pub fn weight(&self) -> u32 {
+        self.dr_weight() + self.vt_weight()
+    }
 }
 
 impl BlockTransactions {
