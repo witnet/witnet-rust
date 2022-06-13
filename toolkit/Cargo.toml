@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 failure = "0.1.8"
 hex = "0.4.3"
-regex = "1.5.4"
+regex = "1.5.5"
 serde_json = "1.0.66"
 structopt = "0.3.22"
 witnet_data_structures = { path = "../data_structures" }
