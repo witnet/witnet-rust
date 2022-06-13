@@ -1306,25 +1306,17 @@ impl Handler<BuildScriptTransaction> for ChainManager {
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(vtt) => {
-                let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
-                    .into_actor(self)
-                    .then(|s, _act, _ctx| match s {
-                        Ok(_signatures) => {
-                            let multi_sig_witness = witnet_stack::encode(vec![]).unwrap();
-                            let num_inputs = vtt.inputs.len();
-                            let transaction = Transaction::ValueTransfer(VTTransaction {
-                                body: vtt,
-                                witness: vec![multi_sig_witness; num_inputs],
-                            });
-                            actix::fut::result(Ok(transaction))
-                        }
-                        Err(e) => {
-                            log::error!("Failed to sign value transfer transaction: {}", e);
-                            actix::fut::result(Err(e))
-                        }
-                    });
+                // Script transactions are not signed by this method because the witness may need
+                // something more aside from a single signature, so script transactions need to be
+                // manually signed using other methods.
+                let empty_witness = witnet_stack::encode(vec![]).unwrap();
+                let num_inputs = vtt.inputs.len();
+                let transaction = Transaction::ValueTransfer(VTTransaction {
+                    body: vtt,
+                    witness: vec![empty_witness; num_inputs],
+                });
 
-                Box::pin(fut)
+                Box::pin(actix::fut::result(Ok(transaction)))
             }
         }
     }
