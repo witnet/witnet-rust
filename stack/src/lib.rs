@@ -176,7 +176,7 @@ fn my_operator_system(
     operator: &MyOperator,
     if_stack: &mut ConditionStack,
     context: &ScriptContext,
-) -> MyControlFlow {
+) -> Result<(), ()> {
     if !if_stack.all_true() {
         match operator {
             MyOperator::If => {
@@ -184,20 +184,18 @@ fn my_operator_system(
             }
             MyOperator::Else => {
                 if if_stack.toggle_top().is_none() {
-                    stack.push(MyValue::Boolean(false));
-                    return MyControlFlow::Break;
+                    return Err(());
                 }
             }
             MyOperator::EndIf => {
                 if if_stack.pop_back().is_none() {
-                    stack.push(MyValue::Boolean(false));
-                    return MyControlFlow::Break;
+                    return Err(());
                 }
             }
             _ => {}
         }
 
-        return MyControlFlow::Continue;
+        return Ok(());
     }
 
     match operator {
@@ -209,11 +207,7 @@ fn my_operator_system(
         MyOperator::Verify => {
             let top = stack.pop();
             if top != MyValue::Boolean(true) {
-                // Push the element back because there is a check in execute_script that needs a
-                // false value to mark the script execution as failed, otherwise it may be marked as
-                // success
-                stack.push(top);
-                return MyControlFlow::Break;
+                return Err(());
             }
         }
         MyOperator::If => {
@@ -221,25 +215,22 @@ fn my_operator_system(
             if let MyValue::Boolean(b) = top {
                 if_stack.push_back(b);
             } else {
-                stack.push(MyValue::Boolean(false));
-                return MyControlFlow::Break;
+                return Err(());
             }
         }
         MyOperator::Else => {
             if if_stack.toggle_top().is_none() {
-                stack.push(MyValue::Boolean(false));
-                return MyControlFlow::Break;
+                return Err(());
             }
         }
         MyOperator::EndIf => {
             if if_stack.pop_back().is_none() {
-                stack.push(MyValue::Boolean(false));
-                return MyControlFlow::Break;
+                return Err(());
             }
         }
     }
 
-    MyControlFlow::Continue
+    Ok(())
 }
 
 // ConditionStack implementation from bitcoin-core
@@ -405,7 +396,17 @@ fn execute_script(script: Script<MyOperator, MyValue>, context: &ScriptContext) 
     let mut machine = Machine2::new(|a, b, c| my_operator_system(a, b, c, context));
     let result = machine.run_script(&script);
 
-    result == None || result == Some(&MyValue::Boolean(true))
+    match result {
+        Ok(res) => {
+            // Script execution is considered successful if the stack is empty or if the top-most
+            // element of the stack is "true".
+            res == None || res == Some(&MyValue::Boolean(true))
+        }
+        Err(_e) => {
+            // TODO: return cause of script execution failure
+            false
+        }
+    }
 }
 
 fn execute_locking_script(
@@ -457,16 +458,10 @@ pub fn execute_complete_script(
     execute_redeem_script(witness_bytes, redeem_bytes, context)
 }
 
-// TODO: use control flow enum from scriptful library when ready
-pub enum MyControlFlow {
-    Continue,
-    Break,
-}
-
-pub struct Machine2<Op, Val, F>
+pub struct Machine2<Op, Val, F, E>
 where
     Val: core::fmt::Debug + core::cmp::PartialEq,
-    F: FnMut(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
+    F: FnMut(&mut Stack<Val>, &Op, &mut ConditionStack) -> Result<(), E>,
 {
     op_sys: F,
     stack: Stack<Val>,
@@ -474,11 +469,11 @@ where
     phantom_op: PhantomData<fn(&Op)>,
 }
 
-impl<Op, Val, F> Machine2<Op, Val, F>
+impl<Op, Val, F, E> Machine2<Op, Val, F, E>
 where
     Op: core::fmt::Debug + core::cmp::Eq,
     Val: core::fmt::Debug + core::cmp::PartialEq + core::clone::Clone,
-    F: FnMut(&mut Stack<Val>, &Op, &mut ConditionStack) -> MyControlFlow,
+    F: FnMut(&mut Stack<Val>, &Op, &mut ConditionStack) -> Result<(), E>,
 {
     pub fn new(op_sys: F) -> Self {
         Self {
@@ -489,7 +484,7 @@ where
         }
     }
 
-    pub fn operate(&mut self, item: &Item<Op, Val>) -> MyControlFlow {
+    pub fn operate(&mut self, item: &Item<Op, Val>) -> Result<Option<&Val>, E> {
         match item {
             Item::Operator(operator) => {
                 (self.op_sys)(&mut self.stack, operator, &mut self.if_stack)
@@ -499,24 +494,18 @@ where
                     self.stack.push((*value).clone());
                 }
 
-                MyControlFlow::Continue
+                Ok(())
             }
         }
+        .map(|()| self.stack.topmost())
     }
 
-    pub fn run_script(&mut self, script: ScriptRef<Op, Val>) -> Option<&Val> {
+    pub fn run_script(&mut self, script: ScriptRef<Op, Val>) -> Result<Option<&Val>, E> {
         for item in script {
-            match self.operate(item) {
-                MyControlFlow::Continue => {
-                    continue;
-                }
-                MyControlFlow::Break => {
-                    break;
-                }
-            }
+            self.operate(item)?;
         }
 
-        self.stack.topmost()
+        Ok(self.stack.topmost())
     }
 }
 
@@ -806,9 +795,14 @@ mod tests {
         let mut m = Machine2::new(|_stack: &mut Stack<()>, operator, _if_stack| {
             v.push(*operator);
 
-            MyControlFlow::Continue
+            if *operator == 0 {
+                return Err(());
+            }
+
+            Ok(())
         });
-        m.run_script(&[Item::Operator(1), Item::Operator(3), Item::Operator(2)]);
+        m.run_script(&[Item::Operator(1), Item::Operator(3), Item::Operator(2)])
+            .unwrap();
 
         assert_eq!(v, vec![0, 1, 3, 2]);
     }
