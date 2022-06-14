@@ -21,6 +21,7 @@ pub enum MyOperator {
     Equal,
     Hash160,
     Sha256,
+    CheckSig,
     CheckMultiSig,
     CheckTimeLock,
     /// Stop script execution if top-most element of stack is not "true"
@@ -73,6 +74,14 @@ fn sha_256_operator(stack: &mut Stack<MyValue>) {
     } else {
         // TODO: hash other types?
     }
+}
+
+fn check_sig_operator(stack: &mut Stack<MyValue>) {
+    let pkh = stack.pop();
+    let keyed_signature = stack.pop();
+    // CheckSig operator is validated as a 1-of-1 multisig
+    let res = check_multi_sig(vec![pkh], vec![keyed_signature]);
+    stack.push(MyValue::Boolean(res));
 }
 
 fn check_multisig_operator(stack: &mut Stack<MyValue>) {
@@ -202,6 +211,7 @@ fn my_operator_system(
         MyOperator::Equal => equal_operator(stack),
         MyOperator::Hash160 => hash_160_operator(stack),
         MyOperator::Sha256 => sha_256_operator(stack),
+        MyOperator::CheckSig => check_sig_operator(stack),
         MyOperator::CheckMultiSig => check_multisig_operator(stack),
         MyOperator::CheckTimeLock => check_timelock_operator(stack, context.block_timestamp),
         MyOperator::Verify => {
@@ -632,6 +642,40 @@ mod tests {
             public_key: pk,
         }
     }
+
+    #[test]
+    fn test_check_sig() {
+        let pk_1 = PublicKey::from_bytes([1; 33]);
+        let pk_2 = PublicKey::from_bytes([2; 33]);
+
+        let ks_1 = ks_from_pk(pk_1.clone());
+        let ks_2 = ks_from_pk(pk_2);
+
+        let witness = vec![Item::Value(MyValue::Signature(ks_1.to_pb_bytes().unwrap()))];
+        let redeem_script = vec![
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+        ];
+        assert!(execute_redeem_script(
+            &encode(witness).unwrap(),
+            &encode(redeem_script).unwrap(),
+            &ScriptContext::default(),
+        )
+        .unwrap());
+
+        let invalid_witness = vec![Item::Value(MyValue::Signature(ks_2.to_pb_bytes().unwrap()))];
+        let redeem_script = vec![
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+        ];
+        assert!(!execute_redeem_script(
+            &encode(invalid_witness).unwrap(),
+            &encode(redeem_script).unwrap(),
+            &ScriptContext::default(),
+        )
+        .unwrap());
+    }
+
     #[test]
     fn test_check_multisig() {
         let pk_1 = PublicKey::from_bytes([1; 33]);
