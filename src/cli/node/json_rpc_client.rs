@@ -1,5 +1,5 @@
 use ansi_term::Color::{Purple, Red, White, Yellow};
-use failure::{bail, Fail};
+use failure::{bail, format_err, Fail};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use prettytable::{cell, row, Table};
@@ -711,7 +711,6 @@ pub fn master_key_export(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn create_multisig_address(
     n: u8,
     m: u8,
@@ -736,12 +735,11 @@ pub fn create_multisig_address(
         Item::Operator(MyOperator::CheckMultiSig),
     ]);
 
-    let locking_script_hash =
-        PublicKeyHash::from_script_bytes(&witnet_stack::encode(redeem_script)?);
+    let script_address = PublicKeyHash::from_script_bytes(&witnet_stack::encode(&redeem_script)?);
 
     println!(
-        "Sending to {}-of-{} multisig address {} composed of {:?}",
-        m, n, locking_script_hash, pkhs_str
+        "Created {}-of-{} multisig address {} composed of {:?}",
+        m, n, script_address, pkhs_str
     );
 
     Ok(())
@@ -778,7 +776,7 @@ pub fn create_opened_multisig(
         Item::Value(MyValue::Integer(i128::from(n))),
         Item::Operator(MyOperator::CheckMultiSig),
     ]);
-    let redeem_script_bytes = witnet_stack::encode(redeem_script)?;
+    let redeem_script_bytes = witnet_stack::encode(&redeem_script)?;
     let vt_outputs = vec![ValueTransferOutput {
         pkh: address,
         value,
@@ -807,7 +805,53 @@ pub fn create_opened_multisig(
         let script_tx = parse_response::<Transaction>(&response)?;
         println!("Created transaction:\n{:?}", script_tx);
         let script_transaction_hex = hex::encode(script_tx.to_pb_bytes().unwrap());
-        println!("Script bytes: {}", script_transaction_hex);
+        println!("Transaction bytes: {}", script_transaction_hex);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn spend_script_utxo(
+    addr: SocketAddr,
+    output_pointer: OutputPointer,
+    value: u64,
+    fee: u64,
+    hex: String,
+    change_address: Option<PublicKeyHash>,
+    address: PublicKeyHash,
+    dry_run: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let redeem_script_bytes = hex::decode(hex)?;
+    let vt_outputs = vec![ValueTransferOutput {
+        pkh: address,
+        value,
+        time_lock: 0,
+    }];
+    let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
+    let script_inputs = vec![Input {
+        output_pointer,
+        redeem_script: redeem_script_bytes,
+    }];
+    let params = BuildScriptTransaction {
+        vto: vt_outputs,
+        fee,
+        utxo_strategy,
+        script_inputs,
+        change_address,
+    };
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sendScript", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params)?
+    );
+    if dry_run {
+        println!("{}", request);
+    } else {
+        let response = send_request(&mut stream, &request)?;
+        let script_tx = parse_response::<Transaction>(&response)?;
+        println!("Created transaction:\n{:?}", script_tx);
+        let script_transaction_hex = hex::encode(script_tx.to_pb_bytes().unwrap());
+        println!("Transaction bytes: {}", script_transaction_hex);
     }
     Ok(())
 }
@@ -832,7 +876,13 @@ pub fn broadcast_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), 
     Ok(())
 }
 
-pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failure::Error> {
+pub fn sign_tx(
+    addr: SocketAddr,
+    hex: String,
+    input_index: usize,
+    signature_position_in_witness: usize,
+    dry_run: bool,
+) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
     let mut tx: Transaction = Transaction::from_pb_bytes(&hex::decode(hex)?)?;
@@ -854,21 +904,122 @@ pub fn sign_tx(addr: SocketAddr, hex: String, dry_run: bool) -> Result<(), failu
         match tx {
             Transaction::ValueTransfer(ref mut vtt) => {
                 let signature_bytes = signature.to_pb_bytes()?;
-                let mut script = witnet_stack::decode(&vtt.witness[0])?;
+                // TODO: this only works if the witness field represents a script
+                // It could also represent a signature in the case of normal value transfer
+                // transactions. It would be nice to also support signing normal transactions here
+                let mut script = witnet_stack::decode(&vtt.witness[input_index])?;
 
-                println!("Previous script:\n{:?}", script);
-                script.push(Item::Value(MyValue::Signature(signature_bytes)));
+                println!(
+                    "-----------------------\nPrevious witness:\n-----------------------\n{}",
+                    witnet_stack::parser::script_to_string(&script)
+                );
 
-                println!("Post script:\n{:?}", script);
-                let encoded_script = witnet_stack::encode(script)?;
+                script.insert(
+                    signature_position_in_witness,
+                    Item::Value(MyValue::Bytes(signature_bytes)),
+                );
 
-                vtt.witness[0] = encoded_script;
+                println!(
+                    "-----------------------\nNew witness:\n-----------------------\n{}",
+                    witnet_stack::parser::script_to_string(&script)
+                );
+                let encoded_script = witnet_stack::encode(&script)?;
+
+                vtt.witness[input_index] = encoded_script;
 
                 let script_transaction_hex = hex::encode(tx.to_pb_bytes().unwrap());
                 println!("Signed Transaction:\n{:?}", tx);
-                println!("Script bytes: {}", script_transaction_hex);
+                println!("Signed Transaction hex bytes: {}", script_transaction_hex);
             }
-            _ => unimplemented!("We only can sign ScriptTransactions"),
+            _ => unimplemented!("We only can sign ValueTransfer transactions"),
+        }
+    }
+
+    Ok(())
+}
+
+pub fn add_tx_witness(
+    _addr: SocketAddr,
+    hex: String,
+    witness: String,
+    input_index: usize,
+) -> Result<(), failure::Error> {
+    let mut tx: Transaction = Transaction::from_pb_bytes(&hex::decode(hex)?)?;
+
+    println!("Transaction to sign is:\n{:?}", tx);
+
+    match tx {
+        Transaction::ValueTransfer(ref mut vtt) => {
+            let encoded_script = hex::decode(witness)?;
+            vtt.witness[input_index] = encoded_script;
+
+            let script_transaction_hex = hex::encode(tx.to_pb_bytes().unwrap());
+            println!("Signed Transaction:\n{:?}", tx);
+            println!("Signed Transaction hex bytes: {}", script_transaction_hex);
+        }
+        _ => unimplemented!("We only can sign ValueTransfer transactions"),
+    }
+
+    Ok(())
+}
+
+pub fn script_address(hex: String) -> Result<(), failure::Error> {
+    let script_bytes = hex::decode(hex)?;
+    let script_pkh = PublicKeyHash::from_script_bytes(&script_bytes);
+    println!(
+        "Script address (mainnet): {}",
+        script_pkh.bech32(Environment::Mainnet)
+    );
+    println!(
+        "Script address (testnet): {}",
+        script_pkh.bech32(Environment::Testnet)
+    );
+
+    Ok(())
+}
+
+pub fn address_to_bytes(address: PublicKeyHash) -> Result<(), failure::Error> {
+    let hex_address = hex::encode(address.as_ref());
+    println!("{}", hex_address);
+
+    Ok(())
+}
+
+/// Convert script text file into hex bytes
+pub fn encode_script(script_file: &Path) -> Result<(), failure::Error> {
+    let script_str = std::fs::read_to_string(script_file)?;
+    let script = witnet_stack::parser::parse_script(&script_str)
+        .map_err(|e| format_err!("Failed to parse script: {:?}", e))?;
+    let script_bytes = witnet_stack::encode(&script)?;
+    let script_hex = hex::encode(&script_bytes);
+    let script_pkh = PublicKeyHash::from_script_bytes(&script_bytes);
+    println!("Script address: {}", script_pkh);
+
+    println!("{}", script_hex);
+
+    Ok(())
+}
+
+/// Convert hex bytes into script text, and optionally write to file
+pub fn decode_script(hex: String, script_file: Option<&Path>) -> Result<(), failure::Error> {
+    let script_bytes = hex::decode(hex)?;
+    let script_pkh = PublicKeyHash::from_script_bytes(&script_bytes);
+    println!("Script address: {}", script_pkh);
+
+    let script = witnet_stack::decode(&script_bytes)?;
+
+    let script_str = witnet_stack::parser::script_to_string(&script);
+
+    match script_file {
+        Some(script_file) => {
+            std::fs::write(script_file, script_str)?;
+            println!(
+                "Script written to {}",
+                script_file.canonicalize()?.as_path().display()
+            );
+        }
+        None => {
+            println!("{}", script_str);
         }
     }
 

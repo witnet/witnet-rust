@@ -200,12 +200,58 @@ pub fn exec_cmd(
             address.parse()?,
             dry_run,
         ),
+        Command::SpendScriptUtxo {
+            node,
+            utxo,
+            value,
+            fee,
+            hex,
+            change_address,
+            address,
+            dry_run,
+        } => rpc::spend_script_utxo(
+            node.unwrap_or(config.jsonrpc.server_address),
+            utxo,
+            value,
+            fee,
+            hex,
+            change_address.map(|address| address.parse()).transpose()?,
+            address.parse()?,
+            dry_run,
+        ),
         Command::Broadcast { node, hex, dry_run } => {
             rpc::broadcast_tx(node.unwrap_or(config.jsonrpc.server_address), hex, dry_run)
         }
-        Command::SignTransaction { node, hex, dry_run } => {
-            rpc::sign_tx(node.unwrap_or(config.jsonrpc.server_address), hex, dry_run)
+        Command::SignTransaction {
+            node,
+            hex,
+            input_index,
+            signature_position_in_witness,
+            dry_run,
+        } => rpc::sign_tx(
+            node.unwrap_or(config.jsonrpc.server_address),
+            hex,
+            input_index,
+            signature_position_in_witness,
+            dry_run,
+        ),
+        Command::AddTransactionWitness {
+            node,
+            hex,
+            witness,
+            input_index,
+        } => rpc::add_tx_witness(
+            node.unwrap_or(config.jsonrpc.server_address),
+            hex,
+            witness,
+            input_index,
+        ),
+        Command::DecodeScript { hex, script_file } => {
+            rpc::decode_script(hex, script_file.as_deref())
         }
+        Command::EncodeScript { script_file } => rpc::encode_script(&script_file),
+        Command::ScriptAddress { hex } => rpc::script_address(hex),
+        Command::AddressToBytes { address } => rpc::address_to_bytes(address.parse()?),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
@@ -664,6 +710,37 @@ pub enum Command {
         #[structopt(long = "dry-run")]
         dry_run: bool,
     },
+    #[structopt(
+        name = "spendScriptUtxo",
+        about = "Create a ScriptTransaction that could spend funds from a UTXO"
+    )]
+    SpendScriptUtxo {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Unspent Transaction Output Pointer
+        #[structopt(long = "utxo")]
+        utxo: OutputPointer,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
+        /// Script bytes
+        #[structopt(long = "hex")]
+        hex: String,
+        /// Change address
+        #[structopt(long = "change-address")]
+        change_address: Option<String>,
+        /// Address of the destination
+        #[structopt(long = "address", alias = "pkh")]
+        address: String,
+        /// Run the data request locally to ensure correctness of RADON scripts
+        /// It will returns a RadonTypes with the Tally result
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
     #[structopt(name = "broadcast", about = "Broadcast a serialized transaction")]
     Broadcast {
         /// Socket address of the Witnet node to query
@@ -677,8 +754,8 @@ pub enum Command {
         dry_run: bool,
     },
     #[structopt(
-        name = "sign_tx",
-        about = "Include you signature in a serialized transaction"
+        name = "signTx",
+        about = "Append your signature to a serialized transaction"
     )]
     SignTransaction {
         /// Socket address of the Witnet node to query
@@ -687,9 +764,69 @@ pub enum Command {
         /// Transaction bytes in hex
         #[structopt(long = "hex")]
         hex: String,
+        /// If there is more than one input, choose which one to sign
+        #[structopt(long = "input-index", default_value = "0")]
+        input_index: usize,
+        /// If the witness script is complex, choose where to insert the signature.
+        #[structopt(long = "signature-position-in-witness", default_value = "0")]
+        signature_position_in_witness: usize,
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+    },
+    #[structopt(
+        name = "addTxWitness",
+        about = "Add a witness to a serialized transaction"
+    )]
+    AddTransactionWitness {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Transaction bytes in hex
+        #[structopt(long = "hex")]
+        hex: String,
+        /// Witness bytes in hex
+        #[structopt(long = "witness")]
+        witness: String,
+        /// If there is more than one input, choose which one to sign
+        #[structopt(long = "input-index", default_value = "0")]
+        input_index: usize,
+    },
+    #[structopt(name = "scriptAddress", about = "Show address of script")]
+    ScriptAddress {
+        /// Script bytes in hex
+        #[structopt(long = "hex")]
+        hex: String,
+    },
+    #[structopt(
+        name = "config",
+        alias = "show-config",
+        alias = "showConfig",
+        about = "Dump the loaded config in Toml format to stdout"
+    )]
+    #[structopt(name = "decodeScript", about = "Decode script hex bytes")]
+    DecodeScript {
+        /// Script bytes in hex
+        #[structopt(long = "hex")]
+        hex: String,
+        /// Write script to this file instead of to stdout
+        #[structopt(long = "script-file")]
+        script_file: Option<PathBuf>,
+    },
+    #[structopt(name = "encodeScript", about = "Encode script to hex bytes")]
+    EncodeScript {
+        /// Write script to this file instead of to stdout
+        #[structopt(long = "script-file")]
+        script_file: PathBuf,
+    },
+    #[structopt(
+        name = "addressToBytes",
+        about = "Convert address to hexadecimal format"
+    )]
+    AddressToBytes {
+        /// Address
+        #[structopt(long = "address")]
+        address: String,
     },
     #[structopt(
         name = "config",

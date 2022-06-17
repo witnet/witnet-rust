@@ -1306,7 +1306,7 @@ impl Handler<BuildScriptTransaction> for ChainManager {
                 // Script transactions are not signed by this method because the witness may need
                 // something more aside from a single signature, so script transactions need to be
                 // manually signed using other methods.
-                let empty_witness = witnet_stack::encode(vec![]).unwrap();
+                let empty_witness = witnet_stack::encode(&[]).unwrap();
                 let num_inputs = vtt.inputs.len();
                 let transaction = Transaction::ValueTransfer(VTTransaction {
                     body: vtt,

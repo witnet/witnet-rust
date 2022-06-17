@@ -3721,7 +3721,6 @@ mod tests {
                 .insert(out_ptr, vto1, 0);
             chain_manager.chain_state.reputation_engine = Some(ReputationEngine::new(1000));
             chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
-            chain_manager.secp = Some(Secp256k1::new());
             chain_manager.sm_state = StateMachine::Synced;
 
             let t1 = create_valid_transaction(&mut chain_manager, &PRIV_KEY_1);
@@ -3729,13 +3728,8 @@ mod tests {
             // Malleability!
             match &mut t1_mal {
                 Transaction::ValueTransfer(vtt) => {
-                    // Invalidate signature
-                    match &mut vtt.signatures[0].signature {
-                        Signature::Secp256k1(secp_sig) => {
-                            // Flip 1 bit
-                            secp_sig.der[10] ^= 0x01;
-                        }
-                    }
+                    // Invalidate signature by flipping 1 bit
+                    vtt.witness[0][10] ^= 0x01;
                 }
                 _ => {
                     panic!(

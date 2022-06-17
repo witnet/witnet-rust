@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-scriptful = "0.3.1"
+hex = "0.4.3"
+scriptful = { version = "0.4", features = ["use_serde"] }
 serde = { version = "1.0.104", features = ["derive"] }
 serde_json = "1.0.81"
 witnet_crypto = { path = "../crypto" }

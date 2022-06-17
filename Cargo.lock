@@ -3815,9 +3815,12 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "scriptful"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29ec64415916dafaa464786b60488cd6080ac662682a4918f7333ca8373906e2"
+checksum = "17a12890a80b39eaeb902ebadb73a4e61942aefebfc48c1ffaf226e926679731"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "secp256k1"
@@ -5821,6 +5824,7 @@ dependencies = [
 name = "witnet_stack"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "scriptful",
  "serde",
  "serde_json",
