@@ -129,7 +129,8 @@ fn check_multi_sig(bytes_pkhs: Vec<MyValue>, bytes_keyed_signatures: Vec<MyValue
             }
             _ => {
                 // TODO change panic by error
-                unreachable!("check_multi_sig should pick only bytes");
+                //unreachable!("check_multi_sig should pick only bytes");
+                return false;
             }
         }
     }
@@ -989,5 +990,144 @@ mod tests {
             Item::Operator(MyOperator::EndIf),
         ];
         assert!(!execute_script(s, &ScriptContext { block_timestamp: 0 }));
+    }
+
+    #[test]
+    fn test_execute_script_atomic_swap_2() {
+        let secret = vec![1, 2, 3, 4];
+        let hash_secret = calculate_sha256(&secret);
+        let pk_1 = PublicKey::from_bytes([1; 33]);
+        let pk_2 = PublicKey::from_bytes([2; 33]);
+
+        let ks_1 = ks_from_pk(pk_1.clone());
+        let ks_2 = ks_from_pk(pk_2.clone());
+
+        // 1 can spend after timelock
+        let s = vec![
+            // Witness script
+            Item::Value(MyValue::Signature(ks_1.to_pb_bytes().unwrap())),
+            // Redeem script
+            Item::Value(MyValue::Integer(10_000)),
+            Item::Operator(MyOperator::CheckTimeLock),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::Else),
+            Item::Operator(MyOperator::Sha256),
+            Item::Value(MyValue::Bytes(hash_secret.as_ref().to_vec())),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::EndIf),
+        ];
+        assert!(execute_script(
+            s,
+            &ScriptContext {
+                block_timestamp: 20_000
+            }
+        ));
+
+        // 1 cannot spend before timelock
+        let s = vec![
+            // Witness script
+            Item::Value(MyValue::Signature(ks_1.to_pb_bytes().unwrap())),
+            // Redeem script
+            Item::Value(MyValue::Integer(10_000)),
+            Item::Operator(MyOperator::CheckTimeLock),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::Else),
+            Item::Operator(MyOperator::Sha256),
+            Item::Value(MyValue::Bytes(hash_secret.as_ref().to_vec())),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::EndIf),
+        ];
+        assert!(!execute_script(s, &ScriptContext { block_timestamp: 0 }));
+
+        // 2 can spend with secret
+        let s = vec![
+            // Witness script
+            Item::Value(MyValue::Signature(ks_2.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Bytes(secret.clone())),
+            // Redeem script
+            Item::Value(MyValue::Integer(10_000)),
+            Item::Operator(MyOperator::CheckTimeLock),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::Else),
+            Item::Operator(MyOperator::Sha256),
+            Item::Value(MyValue::Bytes(hash_secret.as_ref().to_vec())),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::EndIf),
+        ];
+        assert!(execute_script(s, &ScriptContext { block_timestamp: 0 }));
+
+        // 2 cannot spend with a wrong secret
+        let s = vec![
+            // Witness script
+            Item::Value(MyValue::Signature(ks_2.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Bytes(vec![0, 0, 0, 0])),
+            // Redeem script
+            Item::Value(MyValue::Integer(10_000)),
+            Item::Operator(MyOperator::CheckTimeLock),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::Else),
+            Item::Operator(MyOperator::Sha256),
+            Item::Value(MyValue::Bytes(hash_secret.as_ref().to_vec())),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::EndIf),
+        ];
+        assert!(!execute_script(s, &ScriptContext { block_timestamp: 0 }));
+
+        // 2 cannot spend after timelock
+        let s = vec![
+            // Witness script
+            Item::Value(MyValue::Signature(ks_2.to_pb_bytes().unwrap())),
+            Item::Value(MyValue::Bytes(secret)),
+            // Redeem script
+            Item::Value(MyValue::Integer(10_000)),
+            Item::Operator(MyOperator::CheckTimeLock),
+            Item::Operator(MyOperator::If),
+            Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::Else),
+            Item::Operator(MyOperator::Sha256),
+            Item::Value(MyValue::Bytes(hash_secret.as_ref().to_vec())),
+            Item::Operator(MyOperator::Equal),
+            Item::Operator(MyOperator::Verify),
+            Item::Value(MyValue::Bytes(pk_2.pkh().bytes().to_vec())),
+            Item::Operator(MyOperator::CheckSig),
+            Item::Operator(MyOperator::Verify),
+            Item::Operator(MyOperator::EndIf),
+        ];
+        assert!(!execute_script(
+            s,
+            &ScriptContext {
+                block_timestamp: 20_000
+            }
+        ));
     }
 }
