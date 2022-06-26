@@ -618,14 +618,21 @@ pub fn send_vtt(
     Ok(())
 }
 
-fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutput, failure::Error> {
+fn deserialize_and_validate_hex_dr(
+    hex_bytes: String,
+    required_reward_collateral_ratio: u64,
+) -> Result<DataRequestOutput, failure::Error> {
     let dr_bytes = hex::decode(hex_bytes)?;
 
     let dr: DataRequestOutput = ProtobufConvert::from_pb_bytes(&dr_bytes)?;
 
     log::debug!("{}", serde_json::to_string(&dr)?);
 
-    validate_data_request_output(&dr)?;
+    validate_data_request_output(
+        &dr,
+        required_reward_collateral_ratio,
+        &current_active_wips(),
+    )?;
     validate_rad_request(&dr.data_request, &current_active_wips())?;
 
     // Is the data request serialized correctly?
@@ -653,7 +660,16 @@ pub fn send_dr(
     fee: u64,
     dry_run: bool,
 ) -> Result<(), failure::Error> {
-    let dr_output = deserialize_and_validate_hex_dr(hex_bytes)?;
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "getConsensusConstants", "id": "1"}"#;
+    let response = send_request(&mut stream, request)?;
+    let consensus_constants: ConsensusConstants = parse_response(&response)?;
+
+    let dr_output = deserialize_and_validate_hex_dr(
+        hex_bytes,
+        consensus_constants.required_reward_collateral_ratio,
+    )?;
+
     if dry_run {
         let tally_result = run_dr_locally(&dr_output)?;
 
@@ -664,7 +680,6 @@ pub fn send_dr(
             r#"{{"jsonrpc": "2.0","method": "sendRequest", "params": {}, "id": "1"}}"#,
             serde_json::to_string(&bdr_params)?
         );
-        let mut stream = start_client(addr)?;
         let response = send_request(&mut stream, &request)?;
 
         println!("{}", response);

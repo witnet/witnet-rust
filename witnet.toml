@@ -96,6 +96,8 @@ genesis_path = ".witnet/config/genesis_block.json"
 #mint_external_percentage = 50
 # Set a minimum fee you require before your node includes a value transfer transaction into a block
 minimum_vtt_fee_nanowits = 1
+# Set a minimum data request reward collateral ratio you expect before your node includes a data request into a block
+minimum_reward_collateral_ratio = 125
 
 [witnessing]
 # Tells how strict or lenient to be with inconsistent data sources. Paranoid level is defined as percentage of

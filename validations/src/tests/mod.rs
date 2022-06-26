@@ -47,6 +47,7 @@ mod witnessing;
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
+const REQUIRED_REWARD_COLLATERAL_RATIO: u64 = u64::MAX;
 const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
 const HALVING_PERIOD: u32 = 3_500_000;
 const LAST_EPOCH_WITH_WIP_ACTIVATED: u32 = 683_541;
@@ -1414,6 +1415,7 @@ fn data_request_no_inputs() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -1450,6 +1452,7 @@ fn data_request_no_inputs_but_one_signature() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -1495,6 +1498,7 @@ fn data_request_one_input_but_no_signature() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -1541,6 +1545,7 @@ fn data_request_one_input_signatures() {
             &mut signatures_to_verify,
             ONE_WIT,
             MAX_DR_WEIGHT,
+            REQUIRED_REWARD_COLLATERAL_RATIO,
             &current_active_wips(),
         )?;
         verify_signatures_test(signatures_to_verify)?;
@@ -1583,6 +1588,7 @@ fn data_request_input_double_spend() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -1622,6 +1628,7 @@ fn data_request_input_not_in_utxo() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -1666,6 +1673,7 @@ fn data_request_input_not_enough_value() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -1734,6 +1742,7 @@ fn data_request_output_value_overflow() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -1770,6 +1779,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         &mut signatures_to_verify,
         ONE_WIT,
         u32::max_value(),
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &all_wips_active(),
     )
     .map(|_| ())
@@ -2168,6 +2178,7 @@ fn data_request_http_post_before_wip_activation() {
             &mut signatures_to_verify,
             ONE_WIT,
             u32::max_value(),
+            REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
         )
         .map(|_| ())
@@ -2235,6 +2246,7 @@ fn data_request_http_get_with_headers_before_wip_activation() {
             &mut signatures_to_verify,
             ONE_WIT,
             u32::max_value(),
+            REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
         )
         .map(|_| ())
@@ -2292,6 +2304,7 @@ fn data_request_parse_xml_before_wip_activation() {
             &mut signatures_to_verify,
             ONE_WIT,
             u32::max_value(),
+            REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
         )
         .map(|_| ())
@@ -2347,6 +2360,7 @@ fn data_request_parse_xml_after_wip_activation() {
             &mut signatures_to_verify,
             ONE_WIT,
             u32::max_value(),
+            REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
         )
         .map(|_| ())
@@ -2379,6 +2393,7 @@ fn dr_validation_weight_limit_exceeded() {
         &mut signatures_to_verify,
         ONE_WIT,
         1625 - 1,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
 
@@ -2466,6 +2481,7 @@ fn data_request_miner_fee() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     )
     .map(|(_, _, fee)| fee)
@@ -2513,6 +2529,7 @@ fn data_request_miner_fee_with_change() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     )
     .map(|(_, _, fee)| fee)
@@ -2561,6 +2578,7 @@ fn data_request_change_to_different_pkh() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
 
@@ -2621,6 +2639,7 @@ fn data_request_two_change_outputs() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
 
@@ -2673,6 +2692,7 @@ fn data_request_miner_fee_with_too_much_change() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -2721,6 +2741,7 @@ fn data_request_zero_value_output() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
+        REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
     );
     assert_eq!(
@@ -7955,6 +7976,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
+        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
     // TODO: In this test the active wips depend on the current epoch
     // Ideally this should use all_wips_active() so that when adding new WIPs the existing tests
@@ -8233,6 +8255,7 @@ fn block_difficult_proof() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
+        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
 
     // Insert output to utxo
@@ -8936,6 +8959,7 @@ fn test_blocks_with_limits(
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
+        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
 
     // Insert output to utxo
@@ -9502,6 +9526,7 @@ fn genesis_block_after_not_bootstrap_hash() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
+        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
     let mut signatures_to_verify = vec![];
 
@@ -9581,6 +9606,7 @@ fn genesis_block_value_overflow() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
+        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
     let vrf_input = CheckpointVRF::default();
     let mut signatures_to_verify = vec![];
@@ -9667,6 +9693,7 @@ fn genesis_block_full_validate() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
+        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
 
     // Validate block
@@ -9733,6 +9760,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             superblock_committee_decreasing_step: 5,
             initial_block_reward: INITIAL_BLOCK_REWARD,
             halving_period: HALVING_PERIOD,
+            required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
         };
         let dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -9914,6 +9942,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             superblock_committee_decreasing_step: 5,
             initial_block_reward: INITIAL_BLOCK_REWARD,
             halving_period: HALVING_PERIOD,
+            required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
         };
 
         let (inputs, outputs) = (vec![vti], vec![change_vto.clone()]);
