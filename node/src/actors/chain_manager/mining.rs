@@ -1436,6 +1436,7 @@ mod tests {
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
+        transaction_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transaction_pool.insert(transaction_1, 2);
         transaction_pool.insert(transaction_2, 25);
         transaction_pool.insert(transaction_3, 10);
@@ -1528,6 +1529,7 @@ mod tests {
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
+        transaction_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transaction_pool.insert(transaction_1, 2);
         transaction_pool.insert(transaction_2, 25);
         transaction_pool.insert(transaction_3, 10);
