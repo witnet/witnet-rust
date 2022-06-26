@@ -393,6 +393,7 @@ pub fn validate_dr_transaction<'a>(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     collateral_minimum: u64,
     max_dr_weight: u32,
+    required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     if dr_tx.weight() > max_dr_weight {
@@ -456,7 +457,11 @@ pub fn validate_dr_transaction<'a>(
         // 0 outputs: nothing to validate
     }
 
-    validate_data_request_output(&dr_tx.body.dr_output)?;
+    validate_data_request_output(
+        &dr_tx.body.dr_output,
+        required_reward_collateral_ratio,
+        active_wips,
+    )?;
 
     // Collateral value validation
     // If collateral is equal to 0 means that is equal to collateral_minimum value
@@ -485,7 +490,11 @@ pub fn validate_dr_transaction<'a>(
 /// - The number of witnesses is at least 1
 /// - The witness reward is at least 1
 /// - The min_consensus_percentage is >50 and <100
-pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), TransactionError> {
+pub fn validate_data_request_output(
+    request: &DataRequestOutput,
+    required_reward_collateral_ratio: u64,
+    active_wips: &ActiveWips,
+) -> Result<(), TransactionError> {
     if request.witnesses < 1 {
         return Err(TransactionError::InsufficientWitnesses);
     }
@@ -498,6 +507,16 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
         return Err(TransactionError::InvalidMinConsensus {
             value: request.min_consensus_percentage,
         });
+    }
+
+    if active_wips.wip0022() {
+        let reward_collateral_ratio = request.collateral / request.witness_reward;
+        if reward_collateral_ratio > required_reward_collateral_ratio {
+            return Err(TransactionError::RewardTooLow {
+                reward_collateral_ratio,
+                required_reward_collateral_ratio,
+            });
+        }
     }
 
     // Data request fees are checked in validate_dr_transaction
@@ -1569,6 +1588,7 @@ pub fn validate_block_transactions(
             signatures_to_verify,
             consensus_constants.collateral_minimum,
             consensus_constants.max_dr_weight,
+            consensus_constants.required_reward_collateral_ratio,
             active_wips,
         )?;
         total_fee += fee;
@@ -1746,6 +1766,7 @@ pub fn validate_new_transaction(
     max_vt_weight: u32,
     max_dr_weight: u32,
     minimum_reppoe_difficulty: u32,
+    required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
@@ -1769,6 +1790,7 @@ pub fn validate_new_transaction(
             signatures_to_verify,
             collateral_minimum,
             max_dr_weight,
+            required_reward_collateral_ratio,
             active_wips,
         )
         .map(|(_, _, fee)| fee),

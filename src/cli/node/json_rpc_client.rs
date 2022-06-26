@@ -696,14 +696,21 @@ pub fn send_vtt(
     Ok(())
 }
 
-fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutput, failure::Error> {
+fn deserialize_and_validate_hex_dr(
+    hex_bytes: String,
+    required_reward_collateral_ratio: u64,
+) -> Result<DataRequestOutput, failure::Error> {
     let dr_bytes = hex::decode(hex_bytes)?;
 
     let dr: DataRequestOutput = ProtobufConvert::from_pb_bytes(&dr_bytes)?;
 
     log::debug!("{}", serde_json::to_string(&dr)?);
 
-    validate_data_request_output(&dr)?;
+    validate_data_request_output(
+        &dr,
+        required_reward_collateral_ratio,
+        &current_active_wips(),
+    )?;
     validate_rad_request(&dr.data_request, &current_active_wips())?;
 
     // Is the data request serialized correctly?
@@ -731,8 +738,15 @@ pub fn send_dr(
     fee: Option<Fee>,
     dry_run: bool,
 ) -> Result<(), failure::Error> {
-    let dro = deserialize_and_validate_hex_dr(hex_bytes)?;
     let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "getConsensusConstants", "id": "1"}"#;
+    let response = send_request(&mut stream, request)?;
+    let consensus_constants: ConsensusConstants = parse_response(&response)?;
+
+    let dro = deserialize_and_validate_hex_dr(
+        hex_bytes,
+        consensus_constants.required_reward_collateral_ratio,
+    )?;
     let mut id = SequentialId::initialize(1u8);
 
     if dry_run {

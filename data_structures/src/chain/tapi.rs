@@ -60,6 +60,7 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0014-0016".to_string(), 549141);
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
     active_wips.insert("WIP0020-0021".to_string(), 1059861);
+    // active_wips.insert("WIP0022".to_string(), 1441920 + 26880 + 21);
 
     active_wips
 }
@@ -73,6 +74,7 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0014-0016".to_string(), 0);
     active_wips.insert("WIP0017-0018-0019".to_string(), 0);
     active_wips.insert("WIP0020-0021".to_string(), 0);
+    // active_wips.insert("WIP0022".to_string(), 0);
 
     active_wips
 }
@@ -149,18 +151,18 @@ impl TapiEngine {
                 }
 
                 // Hardcoded information about WIPs in vote processing
-                let bit = 2;
-                let wip_0020 = BitVotesCounter {
+                let bit = 3;
+                let wip_0022 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
-                    wip: "WIP0020-0021".to_string(),
+                    wip: "WIP0022".to_string(),
                     // Start signaling on
-                    // 5 April 2022 @ 9:00:00 UTC
-                    init: 1032960,
+                    // 14 October 2022 @ 9:00:00 UTC
+                    init: 1441920,
                     end: u32::MAX,
                     bit,
                 };
-                voting_wips[bit] = Some(wip_0020);
+                voting_wips[bit] = Some(wip_0022);
             }
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
@@ -170,18 +172,18 @@ impl TapiEngine {
                 }
 
                 // Hardcoded information about WIPs in vote processing
-                let bit = 2;
-                let wip_0020 = BitVotesCounter {
+                let bit = 3;
+                let wip_0022 = BitVotesCounter {
                     votes: 0,
                     period: 50,
-                    wip: "WIP0020-0021".to_string(),
+                    wip: "WIP0022".to_string(),
                     // Start voting at
                     // TODO: insert date here
                     init: 0,
                     end: u32::MAX,
                     bit,
                 };
-                voting_wips[bit] = Some(wip_0020);
+                voting_wips[bit] = Some(wip_0022);
             }
         };
 
@@ -766,8 +768,8 @@ mod tests {
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // The first block whose vote must be counted is the one from WIP0021
-        let init_epoch_wip002021 = 1032960;
-        assert_eq!(epoch, init_epoch_wip002021);
+        let init_epoch_wip0022 = 1441920;
+        assert_eq!(epoch, init_epoch_wip0022);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
         // The list of active WIPs should match those defined in `wip_info`
@@ -779,10 +781,10 @@ mod tests {
 
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // WIP0021 is already included and it won't be updated
-        let name_wip002021 = "WIP0020-0021".to_string();
+        // WIP0022 is already included and it won't be updated
+        let name_wip0022 = "WIP0022".to_string();
         let mut hs = HashSet::new();
-        hs.insert(name_wip002021);
+        hs.insert(name_wip0022);
         assert_eq!(old_wips, hs);
 
         // There is no new WIPs to update so we obtain the max value

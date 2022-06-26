@@ -278,6 +278,14 @@ pub enum TransactionError {
         max_weight: u32,
         dr_output: Box<DataRequestOutput>,
     },
+    #[fail(
+        display = "Data request reward to collateral percentage is {}, but must be greater than {}",
+        reward_collateral_ratio, required_reward_collateral_ratio
+    )]
+    RewardTooLow {
+        reward_collateral_ratio: u64,
+        required_reward_collateral_ratio: u64,
+    },
 }
 
 /// The error type for operations on a [`Block`](Block)

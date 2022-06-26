@@ -253,6 +253,17 @@ pub trait Defaults {
         0
     }
 
+    /// Allow setting a reward to collateral percentage for a data request to be included in a block
+    /// The absolute minimum accepted by the network is defined as a consensus constant
+    fn mining_minimum_reward_collateral_ratio(&self) -> u64 {
+        self.consensus_constants_required_reward_collateral_ratio()
+    }
+
+    /// Define the minimally accepted percentage of reward to collateral
+    fn consensus_constants_required_reward_collateral_ratio(&self) -> u64 {
+        1
+    }
+
     fn consensus_constants_max_vt_weight(&self) -> u32 {
         20_000
     }
