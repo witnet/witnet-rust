@@ -266,8 +266,14 @@ fn deserialize_and_validate_dr_bytes(
     match DataRequestOutput::from_pb_bytes(dr_bytes) {
         Err(e) => Err(DrSenderError::Deserialization { msg: e.to_string() }),
         Ok(dr_output) => {
-            validate_data_request_output(&dr_output)
-                .map_err(|e| DrSenderError::Validation { msg: e.to_string() })?;
+            // TODO: read from consensus_constants
+            let required_reward_collateral_ratio = 1;
+            validate_data_request_output(
+                &dr_output,
+                required_reward_collateral_ratio,
+                &current_active_wips(),
+            )
+            .map_err(|e| DrSenderError::Validation { msg: e.to_string() })?;
 
             // TODO: read collateral minimum from consensus constants
             let collateral_minimum = 1_000_000_000;

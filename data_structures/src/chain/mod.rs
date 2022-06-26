@@ -34,6 +34,7 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
+    chain::tapi::current_active_wips,
     chain::{tapi::TapiEngine, Signature::Secp256k1},
     data_request::DataRequestPool,
     error::{
@@ -247,6 +248,9 @@ pub struct ConsensusConstants {
 
     /// Halving period
     pub halving_period: u32,
+
+    /// Required reward to collateral percentage
+    pub required_reward_collateral_ratio: u64,
 }
 
 impl ConsensusConstants {
@@ -256,6 +260,7 @@ impl ConsensusConstants {
     /// This magic number is used in the handshake protocol to prevent nodes with different
     /// consensus constants from peering with each other.
     pub fn get_magic(&self) -> u16 {
+        // TODO: before wip0022 activation, remove required_reward_collateral_ratio from the magic calculation
         let magic = calculate_sha256(&self.to_pb_bytes().unwrap());
         u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]))
     }
@@ -2028,6 +2033,16 @@ pub struct TransactionsPool {
     // Minimum fee required to include a VTT into a block. We check for this fee in the
     // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
     minimum_vtt_fee: u64,
+    // The required reward to collateral percentage for a data request to be accepted by the network.
+    // If a data request is sent into the network with a lower percentage, a miner should simply
+    // refuse to add the data request in its transaction pool. If the miner adds the data request
+    // into a block, other miners will consider the block to be invalid.
+    required_reward_collateral_ratio: u64,
+    // A miner can specify a minimum reward to collateral percentage. If the reward is lower,
+    // the miner will refuse to insert the data request in his transaction pool and thus not attempt
+    // to solve it either (if eligible). This can be different from the required minimum as defined
+    // by the consensus constants.
+    minimum_reward_collateral_ratio: u64,
     // Map for unconfirmed transactions
     unconfirmed_transactions: UnconfirmedTransactions,
 }
@@ -2052,6 +2067,11 @@ impl Default for TransactionsPool {
             vt_to_dr_factor: 1.0,
             // Default is to include all transactions into the pool and blocks
             minimum_vtt_fee: 0,
+            // Required minimum reward to collateral percentage is defined as a consensus constant
+            required_reward_collateral_ratio: 0,
+            // A miner can specify a minimum reward to collateral percentage different from the
+            // required minimum as defined by the consensus constants
+            minimum_reward_collateral_ratio: 0,
             unconfirmed_transactions: Default::default(),
         }
     }
@@ -2098,6 +2118,25 @@ impl TransactionsPool {
         self.minimum_vtt_fee = minimum_vtt_fee;
     }
 
+    /// Set the required reward to collateral percentage (consensus constant) to include a data request
+    /// into the `TransactionsPool` and blocks.
+    pub fn set_required_reward_collateral_ratio(&mut self, required_reward_collateral_ratio: u64) {
+        self.required_reward_collateral_ratio = required_reward_collateral_ratio;
+    }
+
+    /// As a miner, require a minimum reward to collateral ratio to include a data request into the
+    /// `TransactionsPool` and blocks. If this function tries to set a minimum lower than what is
+    /// defined in the consensus constants, the node should panic.
+    pub fn set_minimum_reward_collateral_ratio(&mut self, minimum_reward_collateral_ratio: u64) {
+        if minimum_reward_collateral_ratio < self.required_reward_collateral_ratio {
+            panic!(
+                "Cannot set minimum reward collateral ratio bigger than {}",
+                self.required_reward_collateral_ratio
+            );
+        }
+        self.minimum_reward_collateral_ratio = minimum_reward_collateral_ratio;
+    }
+
     /// Returns `true` if the pool contains no transactions.
     ///
     /// # Examples:
@@ -2132,6 +2171,8 @@ impl TransactionsPool {
             weight_limit: _,
             vt_to_dr_factor: _,
             minimum_vtt_fee: _,
+            required_reward_collateral_ratio: _,
+            minimum_reward_collateral_ratio: _,
             unconfirmed_transactions,
         } = self;
 
@@ -2178,6 +2219,7 @@ impl TransactionsPool {
     /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
     /// # use witnet_data_structures::transaction::{Transaction, DRTransaction};
     /// let mut pool = TransactionsPool::new();
+    /// pool.set_minimum_reward_collateral_ratio(u64::MAX);
     ///
     /// let transaction = Transaction::DataRequest(DRTransaction::default());
     ///
@@ -2413,6 +2455,7 @@ impl TransactionsPool {
     /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
     /// # use witnet_data_structures::transaction::{Transaction, DRTransaction};
     /// let mut pool = TransactionsPool::new();
+    /// pool.set_minimum_reward_collateral_ratio(u64::MAX);
     /// let dr_transaction = DRTransaction::default();
     /// let transaction = Transaction::DataRequest(dr_transaction.clone());
     /// pool.insert(transaction.clone(),0);
@@ -2680,20 +2723,32 @@ impl TransactionsPool {
                 }
             }
             Transaction::DataRequest(dr_tx) => {
-                let weight = f64::from(dr_tx.weight());
-                let priority = OrderedFloat(fee as f64 / weight);
+                let reward = dr_tx.body.dr_output.witness_reward;
+                let dr_tx_reward_collateral_ratio = if reward > 0 {
+                    dr_tx.body.dr_output.collateral / reward
+                } else {
+                    u64::MAX
+                };
+                if current_active_wips().wip0022()
+                    && dr_tx_reward_collateral_ratio > self.minimum_reward_collateral_ratio
+                {
+                    return vec![Transaction::DataRequest(dr_tx)];
+                } else {
+                    let weight = f64::from(dr_tx.weight());
+                    let priority = OrderedFloat(fee as f64 / weight);
 
-                self.total_dr_weight += u64::from(dr_tx.weight());
+                    self.total_dr_weight += u64::from(dr_tx.weight());
 
-                for input in &dr_tx.body.inputs {
-                    self.output_pointer_map
-                        .entry(input.output_pointer)
-                        .or_insert_with(Vec::new)
-                        .push(dr_tx.hash());
+                    for input in &dr_tx.body.inputs {
+                        self.output_pointer_map
+                            .entry(input.output_pointer)
+                            .or_insert_with(Vec::new)
+                            .push(dr_tx.hash());
+                    }
+
+                    self.dr_transactions.insert(key, (priority, dr_tx));
+                    self.sorted_dr_index.insert((priority, key));
                 }
-
-                self.dr_transactions.insert(key, (priority, dr_tx));
-                self.sorted_dr_index.insert((priority, key));
             }
             Transaction::Commit(co_tx) => {
                 let dr_pointer = co_tx.body.dr_pointer;
@@ -4596,6 +4651,7 @@ mod tests {
         assert!(!transactions_pool.contains(&vt2).unwrap());
 
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transactions_pool.insert(vt1.clone(), 1);
         transactions_pool.insert(dr2.clone(), 1);
         let t = transactions_pool.vt_remove(&vt_1).unwrap();
@@ -4604,6 +4660,7 @@ mod tests {
         assert!(!transactions_pool.contains(&dr2).unwrap());
 
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transactions_pool.insert(dr1.clone(), 1);
         transactions_pool.insert(dr2.clone(), 1);
         let t = transactions_pool.dr_remove(&dr_1).unwrap();
@@ -4612,6 +4669,7 @@ mod tests {
         assert!(!transactions_pool.contains(&dr2).unwrap());
 
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transactions_pool.insert(dr1.clone(), 1);
         transactions_pool.insert(vt2.clone(), 1);
         let t = transactions_pool.dr_remove(&dr_1).unwrap();
@@ -4673,6 +4731,7 @@ mod tests {
         assert!(transactions_pool.contains(&vt2).unwrap());
 
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transactions_pool.insert(vt1.clone(), 1);
         transactions_pool.insert(dr2.clone(), 1);
         let t = transactions_pool.vt_remove(&vt_1).unwrap();
@@ -4681,6 +4740,7 @@ mod tests {
         assert!(transactions_pool.contains(&dr2).unwrap());
 
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transactions_pool.insert(dr1.clone(), 1);
         transactions_pool.insert(dr2.clone(), 1);
         let t = transactions_pool.dr_remove(&dr_1).unwrap();
@@ -4689,6 +4749,7 @@ mod tests {
         assert!(transactions_pool.contains(&dr2).unwrap());
 
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transactions_pool.insert(dr1.clone(), 1);
         transactions_pool.insert(vt2.clone(), 1);
         let t = transactions_pool.dr_remove(&dr_1).unwrap();
@@ -4758,6 +4819,7 @@ mod tests {
         assert_ne!(dr1.hash(), dr2.hash());
 
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         transactions_pool.insert(dr1.clone(), 1);
         transactions_pool.insert(dr2.clone(), 1);
         // Removing dr1 should mark the inputs of dr1 as spent, so dr2 is now invalid and should be
@@ -4886,6 +4948,7 @@ mod tests {
         let weight_limit = (one_vt_size + one_dr_size) * 100;
         let vt_to_dr_factor = one_vt_size as f64 / one_dr_size as f64;
         let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(u64::MAX);
         let _removed = transactions_pool.set_total_weight_limit(weight_limit, vt_to_dr_factor);
 
         // Insert 10 transactions of each kind
@@ -4972,6 +5035,83 @@ mod tests {
         let removed = transactions_pool.insert(vt1.clone(), 1);
         assert_eq!(removed, vec![]);
         assert!(transactions_pool.contains(&vt1).unwrap());
+    }
+
+    #[test]
+    fn transactions_pool_minimum_reward_collateral_ratio() {
+        let input = Input::default();
+
+        let dr1 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(
+                vec![input],
+                vec![ValueTransferOutput::default()],
+                DataRequestOutput {
+                    collateral: 1_000_000_000,
+                    ..Default::default()
+                },
+            ),
+            vec![],
+        ));
+
+        let dr2 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(
+                vec![input],
+                vec![ValueTransferOutput::default()],
+                DataRequestOutput {
+                    witness_reward: 8_000_000,
+                    collateral: 1_000_000_000,
+                    ..Default::default()
+                },
+            ),
+            vec![],
+        ));
+
+        let dr3 = Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(
+                vec![input],
+                vec![ValueTransferOutput::default()],
+                DataRequestOutput {
+                    witness_reward: 30_000_000,
+                    collateral: 1_000_000_000,
+                    ..Default::default()
+                },
+            ),
+            vec![],
+        ));
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.set_minimum_reward_collateral_ratio(125);
+
+        // Inserting a transaction with a `witness_reward` lower than 1% of the collateral should fail
+        let removed = transactions_pool.insert(dr1.clone(), 0);
+        if current_active_wips().wip0022() {
+            assert_eq!(removed, vec![dr1.clone()]);
+            assert!(!transactions_pool.contains(&dr1).unwrap());
+        } else {
+            assert_eq!(removed, vec![]);
+            assert!(transactions_pool.contains(&dr1).unwrap());
+        }
+        // Inserting a transaction with a `witness_reward` higher or equal than 1 / 125 of the collateral should succeed
+        let removed = transactions_pool.insert(dr2.clone(), 0);
+        assert_eq!(removed, vec![]);
+        assert!(transactions_pool.contains(&dr2).unwrap());
+
+        transactions_pool.clear();
+        transactions_pool.set_minimum_reward_collateral_ratio(50);
+
+        // Inserting a transaction with a `witness_reward` lower than 1 / 50 of the collateral should fail
+        let removed = transactions_pool.insert(dr2.clone(), 0);
+        if current_active_wips().wip0022() {
+            assert_eq!(removed, vec![dr2.clone()]);
+            assert!(!transactions_pool.contains(&dr2).unwrap());
+        } else {
+            assert_eq!(removed, vec![]);
+            assert!(transactions_pool.contains(&dr2).unwrap());
+        }
+        // Inserting a transaction with a `witness_reward` higher or equal than 1 / 50 of the collateral should succeed
+        let removed = transactions_pool.insert(dr3.clone(), 0);
+        assert_eq!(removed, vec![]);
+        assert!(transactions_pool.contains(&dr3).unwrap());
     }
 
     #[test]
