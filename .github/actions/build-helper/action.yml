@@ -1,0 +1,20 @@
+name: Build Helpers
+description: "Builds & Parallelize Helper images for the compilation then archives them for next stage"
+
+Inputs:
+  imagename:
+    description: name of the image to tag & upload
+    required: true
+  
+
+runs:
+  using: "composite"
+  steps:
+      - name: Setup Docker Images
+        shell: bash
+        run: docker build -t witnet-rust/${{ inputs.imagename }}:latest -f ./docker/cross-compilation/${{ inputs.imagename }}/Dockerfile ./docker/cross-compilation/
+
+      - name: Upload image
+        uses: ishworkh/docker-image-artifact-upload@v1
+        with:
+          image: "witnet-rust/${{ inputs.imagename }}:latest"

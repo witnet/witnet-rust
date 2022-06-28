@@ -1,0 +1,31 @@
+name: Build Binaries
+description: "Builds Linux Binaries"
+
+Inputs:
+  target:
+    description: Build target architecture
+    required: true
+  
+
+runs:
+  using: "composite"
+  steps:
+      # Download Helper Image built in the previous jobs
+      - name: Downloading helper Image
+        uses: ishworkh/docker-image-artifact-download@v1
+        with:
+          image: "witnet-rust/${{ inputs.target }}:latest"
+
+      # Export Vars
+      - shell: bash
+        run: |
+          echo PWD=`pwd` >> $GITHUB_ENV
+          echo TARGET=${{ inputs.target }} >> $GITHUB_ENV
+
+      # Run Binary Build
+      - shell: bash
+        run: docker run -v `pwd`:/project:ro -v `pwd`/target:/target -v ~/.cargo:/root/.cargo -w /project -i witnet-rust/$TARGET bash -c "cargo build --release --target=$TARGET --target-dir=/target -p witnet -p witnet_toolkit"
+
+      # Show Directory listing
+      - shell: bash
+        run: ls -lsa ./target/${{ inputs.target }}/release

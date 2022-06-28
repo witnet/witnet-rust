@@ -7,7 +7,7 @@ function log {
 }
 
 if [[ "$VERSION" == "latest" ]]; then
-    VERSION=$(curl https://github.com/witnet/witnet-rust/releases/latest --cacert /etc/ssl/certs/ca-certificates.crt 2>/dev/null | egrep -o "[0-9|\.]{5}(-\w+)?")
+    VERSION=$(curl https://api.github.com/repos/witnet/witnet-rust/releases/latest -s | jq .tag_name | cut -d '"' -f 2)
 fi
 
 TRIPLET=$(bash --version | head -1 | sed -En 's/^.*\ \((.+)-(.+)-(.+)\)$/\1-\2-\3/p')
@@ -34,4 +34,4 @@ cp ./executer.sh /usr/local/bin/witnet &&
 # Delete release bundle
 rm -f "/tmp/$FILENAME" &&
 witnet --version ||
-log "Error downloading and installing witnet-rust on version $VERSION for $TRIPLET"
+(log "Error downloading and installing witnet-rust on version $VERSION for $TRIPLET" && exit 1)
