@@ -4,7 +4,8 @@ FROM --platform=$TARGETPLATFORM ubuntu:focal
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    netcat
+    netcat \
+    jq
 
 # Clean up apt packages so the docker image is as compact as possible
 RUN apt-get clean && apt-get autoremove
