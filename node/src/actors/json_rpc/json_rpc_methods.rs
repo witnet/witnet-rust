@@ -1733,8 +1733,8 @@ pub async fn get_superblock(
 
 /// Get the blocks that pertain to the superblock index
 pub async fn signaling_info(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResult {
-    let _params = match params {
-        Ok(x) => x,
+    match params {
+        Ok(()) => (),
         Err(e) => return Err(e),
     };
 

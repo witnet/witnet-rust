@@ -4,6 +4,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     fmt,
+    fmt::Write as _,
     ops::{AddAssign, SubAssign},
     str::FromStr,
 };
@@ -1739,7 +1740,7 @@ impl RADRetrieve {
             field_names.sort();
 
             for field in field_names {
-                s.push_str(&format!("{}, ", field));
+                write!(s, "{}, ", field).unwrap();
             }
 
             // Remove last ", "

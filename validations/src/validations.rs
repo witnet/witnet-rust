@@ -2258,8 +2258,7 @@ pub fn verify_signatures(
                         .signature
                         .try_into()
                         .unwrap(),
-                )
-                .map_err(|e| e)?;
+                )?;
             }
         }
     }

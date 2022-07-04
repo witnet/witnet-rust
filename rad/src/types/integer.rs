@@ -70,7 +70,7 @@ impl TryInto<Value> for RadonInteger {
     }
 }
 
-impl<'a> From<i128> for RadonInteger {
+impl From<i128> for RadonInteger {
     fn from(value: i128) -> Self {
         RadonInteger { value }
     }
@@ -84,7 +84,7 @@ impl TryFrom<&str> for RadonInteger {
     }
 }
 
-impl<'a> Operable for RadonInteger {
+impl Operable for RadonInteger {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
