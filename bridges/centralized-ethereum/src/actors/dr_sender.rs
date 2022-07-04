@@ -182,6 +182,7 @@ impl DrSender {
 
 /// Possible reasons for why the data request has not been relayed to witnet and is resolved with
 /// an error
+#[derive(Debug)]
 enum DrSenderError {
     /// The data request bytes are not a valid DataRequestOutput
     Deserialization { msg: String },
@@ -240,11 +241,11 @@ impl DrSenderError {
             DrSenderError::Deserialization { .. }
             | DrSenderError::Validation { .. }
             | DrSenderError::RadonValidation { .. }
+            | DrSenderError::InvalidCollateral { .. }
             | DrSenderError::InvalidValue { .. } => RadonErrors::BridgeMalformedRequest,
             // Errors for data requests that the bridge node chooses not to relay, but other bridge
             // nodes may relay
-            DrSenderError::InvalidCollateral { .. }
-            | DrSenderError::ValueGreaterThanAllowed { .. } => RadonErrors::BridgePoorIncentives,
+            DrSenderError::ValueGreaterThanAllowed { .. } => RadonErrors::BridgePoorIncentives,
         };
 
         let error_code = radon_error as u8;
@@ -265,7 +266,7 @@ fn deserialize_and_validate_dr_bytes(
                 .map_err(|e| DrSenderError::Validation { msg: e.to_string() })?;
 
             // TODO: read collateral minimum from consensus constants
-            let collateral_minimum = 1;
+            let collateral_minimum = 1_000_000_000;
             // Collateral value validation
             // If collateral is equal to 0 means that is equal to collateral_minimum value
             if (dr_output.collateral != 0) && (dr_output.collateral < collateral_minimum) {
