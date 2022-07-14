@@ -283,6 +283,8 @@ pub struct Storage {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub master_key_import_path: Option<PathBuf>,
+    /// Keep a map of "address" to "list of UTXOs" in memory, to speed up getBalance and getUtxoInfo methods
+    pub utxos_in_memory: bool,
 }
 
 /// JsonRPC API configuration
@@ -703,6 +705,10 @@ impl Storage {
                 .to_owned()
                 .unwrap_or_else(|| defaults.storage_db_path()),
             master_key_import_path: config.master_key_import_path.clone(),
+            utxos_in_memory: config
+                .utxos_in_memory
+                .to_owned()
+                .unwrap_or_else(|| defaults.storage_utxos_in_memory()),
         }
     }
 
@@ -711,6 +717,7 @@ impl Storage {
             backend: self.backend.clone(),
             db_path: Some(self.db_path.clone()),
             master_key_import_path: self.master_key_import_path.clone(),
+            utxos_in_memory: Some(self.utxos_in_memory),
         }
     }
 }
@@ -1171,6 +1178,7 @@ mod tests {
             backend: StorageBackend::RocksDB,
             db_path: Some(PathBuf::from("other")),
             master_key_import_path: None,
+            utxos_in_memory: None,
         };
         let config = Storage::from_partial(&partial_config, &Testnet);
 

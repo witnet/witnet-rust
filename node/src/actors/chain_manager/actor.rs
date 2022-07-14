@@ -21,10 +21,9 @@ use witnet_data_structures::{
     get_environment,
     superblock::SuperBlockState,
     types::LastBeacon,
-    utxo_pool::OwnUnspentOutputsPool,
+    utxo_pool::{OwnUnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
 };
-use witnet_storage::storage::WriteBatch;
 use witnet_util::timestamp::pretty_print;
 
 /// Implement Actor trait for `ChainManager`
@@ -240,6 +239,9 @@ impl ChainManager {
                 } else {
                     Box::pin(storage_mngr::get_backend()
                         .into_actor(act)
+                        .map_ok(|res, _act, _ctx| {
+                            res.as_arc_dyn_utxo_db()
+                        })
                         .map_err(|err, _act, _ctx| {
                             log::error!("Failed to get storage backend: {}", err);
                         }))
@@ -283,7 +285,7 @@ impl ChainManager {
                     let fut = storage_mngr::put_chain_state_in_batch(
                         &storage_keys::chain_state_key(act.get_magic()),
                         &chain_state,
-                        WriteBatch::default(),
+                        UtxoWriteBatch::default(),
                     )
                         .into_actor(act)
                         .and_then(|_, _, _| {
@@ -397,9 +399,12 @@ impl ChainManager {
             panic!("Couldn't get config: {}", err);
         });
 
-        let backend = storage_mngr::get_backend().await.unwrap_or_else(|err| {
-            panic!("Failed to get storage backend: {}", err);
-        });
+        let backend = storage_mngr::get_backend()
+            .await
+            .unwrap_or_else(|err| {
+                panic!("Failed to get storage backend: {}", err);
+            })
+            .as_arc_dyn_storage();
 
         let magic = config.consensus_constants.get_magic();
 
@@ -632,7 +637,7 @@ mod tests {
             storage_mngr::put_chain_state_in_batch(
                 &storage_keys::chain_state_key(magic),
                 &chain_manager.chain_state,
-                WriteBatch::default(),
+                UtxoWriteBatch::default(),
             )
             .await
             .expect("failed to store chain state");
@@ -661,7 +666,7 @@ mod tests {
             storage_mngr::put_chain_state_in_batch(
                 &storage_keys::chain_state_key(magic),
                 &chain_manager.chain_state,
-                WriteBatch::default(),
+                UtxoWriteBatch::default(),
             )
             .await
             .expect("failed to store chain state");
@@ -689,14 +694,14 @@ mod tests {
             storage_mngr::put_chain_state_in_batch(
                 &chain_state_key(magic1),
                 &chain_manager.chain_state,
-                WriteBatch::default(),
+                UtxoWriteBatch::default(),
             )
             .await
             .expect("failed to store chain state");
             storage_mngr::put_chain_state_in_batch(
                 &chain_state_key(magic2),
                 &chain_manager.chain_state,
-                WriteBatch::default(),
+                UtxoWriteBatch::default(),
             )
             .await
             .expect("failed to store chain state");

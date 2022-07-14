@@ -18,11 +18,11 @@ use crate::{
     utils::{stop_system_if_panicking, FlattenResult},
 };
 use witnet_config::{config, config::Config};
-use witnet_data_structures::chain::ChainState;
-use witnet_storage::{
-    backends,
-    storage::{self, Storage, WriteBatch},
+use witnet_data_structures::{
+    chain::ChainState,
+    utxo_pool::{CacheUtxosByPkh, UtxoDb, UtxoDbWrapStorage, UtxoWriteBatch},
 };
+use witnet_storage::{backends, storage::Storage};
 
 pub use node_migrations::*;
 
@@ -153,15 +153,15 @@ where
 }
 
 /// Get an atomic reference to the storage backend
-pub fn get_backend() -> impl Future<Output = Result<Arc<dyn Storage + Send + Sync>, failure::Error>>
-{
+pub fn get_backend(
+) -> impl Future<Output = Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error>> {
     let addr = StorageManagerAdapter::from_registry();
 
     async move { addr.send(GetBackend).await? }
 }
 
 struct StorageManager {
-    backend: Arc<dyn Storage + Send + Sync>,
+    backend: Arc<dyn NodeStorage + Send + Sync>,
 }
 
 impl Drop for StorageManager {
@@ -178,7 +178,7 @@ impl Drop for StorageManager {
 impl Default for StorageManager {
     fn default() -> Self {
         StorageManager {
-            backend: Arc::new(backends::nobackend::Backend),
+            backend: Arc::new(UtxoDbWrapStorage(backends::nobackend::Backend)),
         }
     }
 }
@@ -220,7 +220,7 @@ impl Handler<Put> for StorageManager {
     type Result = <Put as Message>::Result;
 
     fn handle(&mut self, Put(key, value): Put, _ctx: &mut Self::Context) -> Self::Result {
-        self.backend.put(key, value)
+        self.backend.clone().as_arc_dyn_storage().put(key, value)
     }
 }
 
@@ -235,7 +235,7 @@ impl Handler<PutBatch> for StorageManager {
 
     fn handle(&mut self, PutBatch(kvs): PutBatch, _ctx: &mut Self::Context) -> Self::Result {
         for (key, value) in kvs {
-            self.backend.put(key, value)?;
+            self.backend.clone().as_arc_dyn_storage().put(key, value)?;
         }
 
         Ok(())
@@ -252,7 +252,7 @@ impl Handler<Get> for StorageManager {
     type Result = <Get as Message>::Result;
 
     fn handle(&mut self, Get(key): Get, _ctx: &mut Self::Context) -> Self::Result {
-        self.backend.get(key.as_ref())
+        self.backend.clone().as_arc_dyn_storage().get(key.as_ref())
     }
 }
 
@@ -266,11 +266,14 @@ impl Handler<Delete> for StorageManager {
     type Result = <Delete as Message>::Result;
 
     fn handle(&mut self, Delete(key): Delete, _ctx: &mut Self::Context) -> Self::Result {
-        self.backend.delete(key.as_ref())
+        self.backend
+            .clone()
+            .as_arc_dyn_storage()
+            .delete(key.as_ref())
     }
 }
 
-struct Batch(WriteBatch);
+struct Batch(UtxoWriteBatch);
 
 impl Message for Batch {
     type Result = Result<(), failure::Error>;
@@ -280,14 +283,14 @@ impl Handler<Batch> for StorageManager {
     type Result = <Batch as Message>::Result;
 
     fn handle(&mut self, msg: Batch, _ctx: &mut Self::Context) -> Self::Result {
-        self.backend.write(msg.0)
+        self.backend.clone().as_arc_dyn_utxo_db().write(msg.0)
     }
 }
 
 struct GetBackend;
 
 impl Message for GetBackend {
-    type Result = Result<Arc<dyn Storage + Send + Sync>, failure::Error>;
+    type Result = Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error>;
 }
 
 impl Handler<GetBackend> for StorageManager {
@@ -298,18 +301,75 @@ impl Handler<GetBackend> for StorageManager {
     }
 }
 
+/// Helper trait to allow casting `Arc<dyn NodeStorage>` to `Arc<dyn Storage>` and `Arc<dyn UtxoDb>`.
+#[allow(missing_docs)]
+pub trait NodeStorage {
+    fn as_arc_dyn_storage(self: Arc<Self>) -> Arc<dyn Storage + Send + Sync>;
+    fn as_arc_dyn_utxo_db(self: Arc<Self>) -> Arc<dyn UtxoDb + Send + Sync>;
+    fn as_arc_dyn_nodestorage(self: Arc<Self>) -> Arc<dyn NodeStorage + Send + Sync>;
+}
+
+impl<T> NodeStorage for T
+where
+    T: Storage + UtxoDb + Send + Sync + 'static,
+{
+    fn as_arc_dyn_storage(self: Arc<Self>) -> Arc<dyn Storage + Send + Sync> {
+        self
+    }
+    fn as_arc_dyn_utxo_db(self: Arc<Self>) -> Arc<dyn UtxoDb + Send + Sync> {
+        self
+    }
+    fn as_arc_dyn_nodestorage(self: Arc<Self>) -> Arc<dyn NodeStorage + Send + Sync> {
+        self
+    }
+}
+
+/// Create storage backend according to provided config. Wraps a `Storage` implementation to make it
+/// implement `NodeStorage`.
+fn wrap_storage_as_nodestorage<S: Storage + Send + Sync + 'static>(
+    db: S,
+    conf: &config::Storage,
+) -> Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error> {
+    // Log progress of the initialization performed in `CacheUtxosByPkh::new`. Unfortunately we don't
+    // know the total number of UTXOs so it is not possible to display a percentage.
+    let mut total_utxos = 0;
+    let log_progress_cache_utxos_by_pkh = |i: usize| {
+        if i > 0 && i % 100_000 == 0 {
+            log::debug!("Initializing UTXO cache: {} UTXOs processed", i);
+        }
+
+        total_utxos = i;
+    };
+
+    if conf.utxos_in_memory {
+        log::debug!("Initializing UTXO cache. This may take a few seconds");
+        let cache_db = CacheUtxosByPkh::new_with_progress(
+            UtxoDbWrapStorage(db),
+            log_progress_cache_utxos_by_pkh,
+        )?;
+        log::info!("Initialized UTXO cache.  {} UTXOs processed", total_utxos);
+        Ok(Arc::new(cache_db))
+    } else {
+        Ok(Arc::new(UtxoDbWrapStorage(db)))
+    }
+}
+
 /// Create storage backend according to provided config
 pub fn create_appropriate_backend(
     conf: &config::Storage,
-) -> Result<Arc<dyn storage::Storage + Send + Sync>, failure::Error> {
+) -> Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error> {
     match conf.backend {
-        config::StorageBackend::HashMap => Ok(Arc::new(backends::hashmap::Backend::default())),
+        config::StorageBackend::HashMap => {
+            let db = backends::hashmap::Backend::default();
+
+            wrap_storage_as_nodestorage(db, conf)
+        }
         config::StorageBackend::RocksDB => {
             let path = conf.db_path.as_path();
 
-            backends::rocksdb::Backend::open_default(path)
-                .map(|backend| -> Arc<dyn storage::Storage + Send + Sync> { Arc::new(backend) })
-                .map_err(|e| as_failure!(e))
+            let db = backends::rocksdb::Backend::open_default(path).map_err(|e| as_failure!(e))?;
+
+            wrap_storage_as_nodestorage(db, conf)
         }
     }
 }
