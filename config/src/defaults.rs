@@ -45,6 +45,11 @@ pub trait Defaults {
     /// Default path for the database
     fn storage_db_path(&self) -> PathBuf;
 
+    /// Do not keep utxos in memory by default
+    fn storage_utxos_in_memory(&self) -> bool {
+        false
+    }
+
     /// Default period for bootstrap peers
     fn connections_bootstrap_peers_period(&self) -> Duration {
         Duration::from_secs(5)

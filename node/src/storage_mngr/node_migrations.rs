@@ -1,6 +1,7 @@
 use super::*;
-use witnet_data_structures::{chain::ChainState, mainnet_validations::TapiEngine};
-use witnet_storage::storage::WriteBatch;
+use witnet_data_structures::{
+    chain::ChainState, mainnet_validations::TapiEngine, utxo_pool::UtxoWriteBatch,
+};
 
 macro_rules! as_failure {
     ($e:expr) => {
@@ -137,7 +138,7 @@ fn put_versioned_to_batch<K>(
     key: &K,
     value: &ChainState,
     db_version: u32,
-    batch: &mut WriteBatch,
+    batch: &mut UtxoWriteBatch,
 ) -> Result<(), failure::Error>
 where
     K: serde::Serialize,
@@ -157,7 +158,7 @@ where
         }
     };
 
-    batch.put(key_bytes, value_bytes);
+    batch.put_raw(key_bytes, value_bytes);
 
     Ok(())
 }
@@ -169,7 +170,7 @@ where
 pub fn put_chain_state_in_batch<'a, 'b, K>(
     key: &'a K,
     chain_state: &'b ChainState,
-    mut batch: WriteBatch,
+    mut batch: UtxoWriteBatch,
 ) -> impl Future<Output = Result<(), failure::Error>> + 'static
 where
     K: serde::Serialize + 'static,

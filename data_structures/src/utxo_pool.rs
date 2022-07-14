@@ -7,11 +7,14 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    str::FromStr,
     sync::Arc,
 };
-use witnet_storage::storage::{Storage, WriteBatch};
 use witnet_util::timestamp::get_timestamp;
+
+pub use crate::utxo_pool::utxo_db::{CacheUtxosByPkh, UtxoDb, UtxoDbWrapStorage, UtxoWriteBatch};
+
+/// Traits that provide a generic UTXO database
+pub mod utxo_db;
 
 /// Unspent Outputs Pool
 #[derive(Clone, Default)]
@@ -22,7 +25,7 @@ pub struct UnspentOutputsPool {
     // If the database is set to None, all reads will return "not found", but all writes will panic
     // This ensures that we can use an UnspentOutputsPool with no database in tests, and it will
     // work fine as long as we don't try to persist it
-    pub db: Option<Arc<dyn Storage + Send + Sync>>,
+    pub db: Option<Arc<dyn UtxoDb + Send + Sync>>,
 }
 
 impl fmt::Debug for UnspentOutputsPool {
@@ -78,20 +81,12 @@ impl UnspentOutputsPool {
     }
 
     fn db_get(&self, k: &OutputPointer) -> Option<(ValueTransferOutput, u32)> {
-        let key_string = format!("UTXO-{}", k);
-
-        self.db
-            .as_ref()?
-            .get(key_string.as_bytes())
-            .expect("db fail")
-            .map(|bytes| {
-                bincode::deserialize::<(ValueTransferOutput, u32)>(&bytes).expect("bincode fail")
-            })
+        self.db.as_ref()?.get_utxo(k).expect("db fail")
     }
 
     fn db_insert(
         &mut self,
-        batch: &mut WriteBatch,
+        batch: &mut UtxoWriteBatch,
         k: OutputPointer,
         v: ValueTransferOutput,
         block_number: u32,
@@ -103,27 +98,22 @@ impl UnspentOutputsPool {
             "Tried to consolidate an UTXO that was already consolidated"
         );
 
-        let key_string = format!("UTXO-{}", k);
-        batch.put(
-            key_string.into_bytes(),
-            bincode::serialize(&(v, block_number)).expect("bincode fail"),
-        );
+        batch.put(k, (v, block_number));
     }
 
     fn db_remove(
         &mut self,
-        batch: &mut WriteBatch,
-        k: &OutputPointer,
+        batch: &mut UtxoWriteBatch,
+        k: OutputPointer,
     ) -> Option<(ValueTransferOutput, u32)> {
         // Sanity check that UTXOs are only removed once
-        let old_vto = self.get_map(k);
+        let old_vto = self.get_map(&k);
         assert!(
             old_vto.is_some(),
             "Tried to remove an UTXO that was already removed"
         );
 
-        let key_string = format!("UTXO-{}", k);
-        batch.delete(key_string.as_bytes().to_vec());
+        batch.delete(k);
 
         old_vto
     }
@@ -131,16 +121,7 @@ impl UnspentOutputsPool {
     fn db_iter(&self) -> impl Iterator<Item = (OutputPointer, (ValueTransferOutput, u32))> + '_ {
         self.db
             .as_ref()
-            .map(|db| {
-                db.prefix_iterator(b"UTXO-").unwrap().map(|(k, v)| {
-                    let key_string = String::from_utf8(k).unwrap();
-                    let output_pointer_str = key_string.strip_prefix("UTXO-").unwrap();
-                    let key = OutputPointer::from_str(output_pointer_str).unwrap();
-                    let value = bincode::deserialize(&v).unwrap();
-
-                    (key, value)
-                })
-            })
+            .map(|db| db.utxo_iterator().unwrap())
             // Transform `Option<impl Iterator>` into `impl Iterator`, with 0 elements in
             // None case
             .into_iter()
@@ -185,6 +166,40 @@ impl UnspentOutputsPool {
             .for_each(|x| fn_all(&x))
     }
 
+    /// Visit all the UTXOs with this pkh using two functions: the first one will visit the confirmed UTXOs, while
+    /// the second one will visit all the UTXOs, confirmed and unconfirmed.
+    pub fn visit_with_pkh<F1, F2>(&self, pkh: PublicKeyHash, fn_confirmed: F1, mut fn_all: F2)
+    where
+        F1: FnMut(&(OutputPointer, (ValueTransferOutput, u32))),
+        F2: FnMut(&(OutputPointer, (ValueTransferOutput, u32))),
+    {
+        self.diff
+            .utxos_to_add
+            .iter()
+            .filter_map(|(k, v)| {
+                if v.0.pkh == pkh {
+                    Some((k.clone(), v.clone()))
+                } else {
+                    None
+                }
+            })
+            .chain(
+                self.db
+                    .as_ref()
+                    .map(|db| db.utxo_iterator_by_pkh(pkh).unwrap().inspect(fn_confirmed))
+                    .into_iter()
+                    .flatten(),
+            )
+            .filter_map(move |(k, v)| {
+                if self.diff.utxos_to_remove.contains(&k) {
+                    None
+                } else {
+                    Some((k, v))
+                }
+            })
+            .for_each(|x| fn_all(&x))
+    }
+
     /// Returns the number of the block that included the transaction referenced
     /// by this OutputPointer. The difference between that number and the
     /// current number of consolidated blocks is the "collateral age".
@@ -193,7 +208,7 @@ impl UnspentOutputsPool {
     }
 
     pub fn persist(&mut self) {
-        let mut batch = WriteBatch::default();
+        let mut batch = UtxoWriteBatch::default();
 
         self.persist_add_to_batch(&mut batch);
 
@@ -204,7 +219,7 @@ impl UnspentOutputsPool {
             .expect("write_batch fail");
     }
 
-    pub fn persist_add_to_batch(&mut self, batch: &mut WriteBatch) {
+    pub fn persist_add_to_batch(&mut self, batch: &mut UtxoWriteBatch) {
         let mut diff = std::mem::take(&mut self.diff);
         for (k, (v, block_number)) in diff.utxos_to_add.drain() {
             if diff.utxos_to_remove.remove(&k) {
@@ -221,7 +236,7 @@ impl UnspentOutputsPool {
         }
 
         for k in diff.utxos_to_remove.drain() {
-            self.db_remove(batch, &k);
+            self.db_remove(batch, k).expect("db_remove failed");
         }
     }
 
@@ -240,7 +255,7 @@ impl UnspentOutputsPool {
         old: &mut OldUnspentOutputsPool,
         progress: F,
     ) {
-        let mut batch = WriteBatch::default();
+        let mut batch = UtxoWriteBatch::default();
         let total = old.map.len();
 
         for (i, (k, (v, block_number))) in old.map.drain().enumerate() {
@@ -257,7 +272,7 @@ impl UnspentOutputsPool {
 
     /// Delete all the UTXOs stored in the database. Returns the number of removed UTXOs.
     pub fn delete_all_from_db(&mut self) -> usize {
-        let mut batch = WriteBatch::default();
+        let mut batch = UtxoWriteBatch::default();
 
         let total = self.delete_all_from_db_batch(&mut batch);
 
@@ -271,11 +286,10 @@ impl UnspentOutputsPool {
     }
 
     /// Delete all the UTXOs stored in the database. Returns the number of removed UTXOs.
-    pub fn delete_all_from_db_batch(&mut self, batch: &mut WriteBatch) -> usize {
+    pub fn delete_all_from_db_batch(&mut self, batch: &mut UtxoWriteBatch) -> usize {
         let mut total = 0;
         for (k, _v) in self.db_iter() {
-            let key_string = format!("UTXO-{}", k);
-            batch.delete(key_string.as_bytes().to_vec());
+            batch.delete(k);
             total += 1;
         }
 
@@ -575,21 +589,18 @@ pub fn get_utxo_info(
     block_number_limit: u32,
 ) -> UtxoInfo {
     let utxos = if let Some(pkh) = pkh {
-        all_utxos
-            .iter()
-            .filter_map(|(o, (vto, _))| {
-                if vto.pkh == pkh {
-                    Some(create_utxo_metadata(
-                        &vto,
-                        &o,
-                        all_utxos,
-                        block_number_limit,
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect()
+        let mut v = vec![];
+        all_utxos.visit_with_pkh(
+            pkh,
+            |_| {
+                // This closure handles confirmed utxos and the next one handles all utxos.
+                // We do not need to do anything here because this method returns all utxos.
+            },
+            |(o, (vto, _block_number))| {
+                v.push(create_utxo_metadata(vto, o, all_utxos, block_number_limit));
+            },
+        );
+        v
     } else {
         // Read your own UtxoInfo is cheaper than from other pkhs
         own_utxos

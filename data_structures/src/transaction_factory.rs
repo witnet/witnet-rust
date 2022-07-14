@@ -255,18 +255,15 @@ pub fn get_total_balance(
     // Get the balance of the current utxo set
     let mut confirmed = 0;
     let mut total = 0;
-    all_utxos.visit(
+    all_utxos.visit_with_pkh(
+        pkh,
         |x| {
             let vto = &x.1 .0;
-            if vto.pkh == pkh {
-                confirmed += vto.value;
-            }
+            confirmed += vto.value;
         },
         |x| {
             let vto = &x.1 .0;
-            if vto.pkh == pkh {
-                total += vto.value;
-            }
+            total += vto.value;
         },
     );
 
@@ -534,6 +531,7 @@ mod tests {
         chain::{Hash, Hashable, PublicKey},
         error::TransactionError,
         transaction::*,
+        utxo_pool::UtxoDbWrapStorage,
     };
     use std::{
         convert::TryFrom,
@@ -754,11 +752,13 @@ mod tests {
             (
                 OwnUnspentOutputsPool::default(),
                 // Use utxo set with in-memory database, to allow testing confirmed/unconfirmed UTXOs
-                UnspentOutputsPool {
-                    db: Some(Arc::new(
-                        witnet_storage::backends::hashmap::Backend::default(),
-                    )),
-                    ..Default::default()
+                {
+                    UnspentOutputsPool {
+                        db: Some(Arc::new(UtxoDbWrapStorage(
+                            witnet_storage::backends::hashmap::Backend::default(),
+                        ))),
+                        ..Default::default()
+                    }
                 },
             )
         });

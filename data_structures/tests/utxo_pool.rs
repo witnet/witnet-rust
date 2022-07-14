@@ -1,8 +1,11 @@
 use std::{convert::TryFrom, sync::Arc};
 use witnet_data_structures::{
-    chain::{Hash, Hashable, Input, OutputPointer, ValueTransferOutput},
+    chain::{Hash, Hashable, Input, OutputPointer, PublicKeyHash, ValueTransferOutput},
     transaction::{Transaction, VTTransaction, VTTransactionBody},
-    utxo_pool::{OwnUnspentOutputsPool, UnspentOutputsPool},
+    utxo_pool::{
+        CacheUtxosByPkh, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDb, UtxoDbWrapStorage,
+        UtxoWriteBatch,
+    },
 };
 use witnet_storage::storage::Storage;
 
@@ -132,7 +135,7 @@ fn utxo_set_coin_age() {
 #[test]
 #[should_panic = "UTXO did already exist"]
 fn utxo_set_insert_twice() {
-    // Inserting the same input twice into the UTXO causes a panic
+    // Inserting the same input twice into the UTXO set causes a panic
     let mut p = UnspentOutputsPool::default();
     let v = ValueTransferOutput::default;
 
@@ -150,7 +153,9 @@ fn utxo_set_insert_twice() {
 #[test]
 fn utxo_set_insert_and_remove() {
     // Inserting and removing an UTXO in the same superblock
-    let db = Arc::new(witnet_storage::backends::hashmap::Backend::default());
+    let db = Arc::new(UtxoDbWrapStorage(
+        witnet_storage::backends::hashmap::Backend::default(),
+    ));
     let mut p = UnspentOutputsPool {
         db: Some(db),
         ..Default::default()
@@ -239,10 +244,12 @@ fn test_sort_own_utxos() {
 fn utxo_set_insert_and_remove_on_next_superblock() {
     // Checks the case where an UTXO is inserted in one superblock and removed in the next one
     // (to simulate a previous bug where this caused a panic in remove_persisted_from_memory,
-    // and the UTXO was never deleted from the database.
+    // and the UTXO was never deleted from the database).
 
     // Unspent outputs pool with in-memory database
-    let db = Arc::new(witnet_storage::backends::hashmap::Backend::default());
+    let db = Arc::new(UtxoDbWrapStorage(
+        witnet_storage::backends::hashmap::Backend::default(),
+    ));
     let mut p = UnspentOutputsPool {
         db: Some(db.clone()),
         ..Default::default()
@@ -291,4 +298,156 @@ fn utxo_set_insert_and_remove_on_next_superblock() {
 
     // Now the database should still be empty
     assert_eq!(db_count_entries(), 0);
+}
+
+fn count_utxos_with_pkh(p: &UnspentOutputsPool, pkh: PublicKeyHash) -> (usize, usize) {
+    // Iterate again
+    let mut count_confirmed = 0;
+    let mut count_all = 0;
+    p.visit_with_pkh(
+        pkh,
+        |_confirmed| {
+            count_confirmed += 1;
+        },
+        |_all| {
+            count_all += 1;
+        },
+    );
+
+    (count_confirmed, count_all)
+}
+
+fn utxo_set_visit_with_pkh_db<S: UtxoDb + Send + Sync + 'static>(db: Arc<S>) {
+    let mut p = UnspentOutputsPool {
+        db: Some(db),
+        ..Default::default()
+    };
+    let v = ValueTransferOutput::default;
+    let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
+        .parse()
+        .unwrap();
+    let k1: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:1"
+        .parse()
+        .unwrap();
+    let k2: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:2"
+        .parse()
+        .unwrap();
+
+    // Insert UTXO
+    p.insert(k0.clone(), v(), 0);
+    p.insert(k1.clone(), v(), 0);
+    let mut v2 = v();
+    v2.pkh = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
+    p.insert(k2, v2, 0);
+
+    // Iterate over UTXOs by PKH
+    let (count_confirmed, count_all) = count_utxos_with_pkh(&p, PublicKeyHash::default());
+    assert_eq!(count_confirmed, 0);
+    assert_eq!(count_all, 2);
+
+    // Take snapshot
+    let mut old_p = p.clone();
+    p.remove_persisted_from_memory(&old_p.diff);
+    old_p.persist();
+
+    // Iterate again
+    let (count_confirmed, count_all) = count_utxos_with_pkh(&p, PublicKeyHash::default());
+    assert_eq!(count_confirmed, 2);
+    assert_eq!(count_all, 2);
+
+    // Remove one UTXO
+    p.remove(&k1);
+
+    // Iterate again
+    let (count_confirmed, count_all) = count_utxos_with_pkh(&p, PublicKeyHash::default());
+    assert_eq!(count_confirmed, 2);
+    assert_eq!(count_all, 1);
+
+    // Take snapshot
+    let mut old_p = p.clone();
+    p.remove_persisted_from_memory(&old_p.diff);
+    old_p.persist();
+
+    // Iterate again
+    let (count_confirmed, count_all) = count_utxos_with_pkh(&p, PublicKeyHash::default());
+    assert_eq!(count_confirmed, 1);
+    assert_eq!(count_all, 1);
+
+    // Remove another UTXO
+    p.remove(&k0);
+
+    // Iterate again
+    let (count_confirmed, count_all) = count_utxos_with_pkh(&p, PublicKeyHash::default());
+    assert_eq!(count_confirmed, 1);
+    assert_eq!(count_all, 0);
+
+    // Take snapshot
+    let mut old_p = p.clone();
+    p.remove_persisted_from_memory(&old_p.diff);
+    old_p.persist();
+
+    // Iterate again
+    let (count_confirmed, count_all) = count_utxos_with_pkh(&p, PublicKeyHash::default());
+    assert_eq!(count_confirmed, 0);
+    assert_eq!(count_all, 0);
+}
+
+#[test]
+fn utxo_set_visit_with_pkh() {
+    // Unspent outputs pool with in-memory database
+    let db = Arc::new(UtxoDbWrapStorage(
+        witnet_storage::backends::hashmap::Backend::default(),
+    ));
+
+    utxo_set_visit_with_pkh_db(db);
+}
+
+#[test]
+fn utxo_set_visit_with_pkh_cached() {
+    // Unspent outputs pool with in-memory database, with a cache of UTXOs by PKH
+    let db = Arc::new(
+        CacheUtxosByPkh::new(UtxoDbWrapStorage(
+            witnet_storage::backends::hashmap::Backend::default(),
+        ))
+        .unwrap(),
+    );
+
+    utxo_set_visit_with_pkh_db(db);
+}
+
+#[test]
+fn utxo_set_initialize_cache_utxos_by_pkh() {
+    // In-memory database with a few UTXOs already there
+    let db = UtxoDbWrapStorage(witnet_storage::backends::hashmap::Backend::default());
+
+    let v = ValueTransferOutput::default;
+    let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
+        .parse()
+        .unwrap();
+    let k1: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:1"
+        .parse()
+        .unwrap();
+    let k2: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:2"
+        .parse()
+        .unwrap();
+    let mut v2 = v();
+    v2.pkh = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
+
+    // Write some UTXOs directly to the UtxoDb
+    let mut batch = UtxoWriteBatch::default();
+    batch.put(k0, (v(), 0));
+    batch.put(k1, (v(), 0));
+    batch.put(k2, (v2, 0));
+    UtxoDb::write(&db, batch).unwrap();
+
+    let db = Arc::new(CacheUtxosByPkh::new(db).unwrap());
+    let p = UnspentOutputsPool {
+        db: Some(db),
+        ..Default::default()
+    };
+
+    // Iterate over UTXOs by PKH
+    let (count_confirmed, count_all) = count_utxos_with_pkh(&p, PublicKeyHash::default());
+    assert_eq!(count_confirmed, 2);
+    assert_eq!(count_all, 2);
 }

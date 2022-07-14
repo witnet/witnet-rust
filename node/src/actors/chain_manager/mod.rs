@@ -64,12 +64,11 @@ use witnet_data_structures::{
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
     types::LastBeacon,
-    utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool},
+    utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
 };
 
 use witnet_rad::types::RadonTypes;
-use witnet_storage::storage::WriteBatch;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
     compare_block_candidates, validate_block, validate_block_transactions,
@@ -318,7 +317,7 @@ impl ChainManager {
         self.chain_state
             .unspent_outputs_pool
             .remove_persisted_from_memory(&state.unspent_outputs_pool.diff);
-        let mut batch = WriteBatch::default();
+        let mut batch = UtxoWriteBatch::default();
         state.unspent_outputs_pool.persist_add_to_batch(&mut batch);
 
         let fut = storage_mngr::put_chain_state_in_batch(
@@ -345,7 +344,7 @@ impl ChainManager {
     /// This can be used to recover from a forked chain without manually deleting the storage.
     fn delete_chain_state_and_reinitialize(&mut self) -> ResponseActFuture<Self, Result<(), ()>> {
         // Delete all the UTXOs from the database
-        let mut batch = WriteBatch::default();
+        let mut batch = UtxoWriteBatch::default();
         self.chain_state
             .unspent_outputs_pool
             .delete_all_from_db_batch(&mut batch);
