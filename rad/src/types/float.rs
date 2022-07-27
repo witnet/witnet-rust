@@ -56,11 +56,16 @@ impl TryFrom<RadonTypes> for RadonFloat {
     type Error = RadError;
 
     fn try_from(item: RadonTypes) -> Result<Self, Self::Error> {
+        let original_type = item.radon_type_name();
         if let RadonTypes::Float(rad_float) = item {
             Ok(rad_float)
         } else {
-            let value = Value::try_from(item)?;
-            value.try_into()
+            Value::try_from(item)?
+                .try_into()
+                .map_err(|_| Self::Error::Decode {
+                    from: original_type,
+                    to: RadonFloat::radon_type_name(),
+                })
         }
     }
 }

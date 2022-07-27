@@ -13,10 +13,7 @@ use crate::{
     operators::{string, RadonOpCodes},
     reducers::{self, RadonReducers},
     script::{execute_radon_script, unpack_subscript, RadonCall, RadonScriptExecutionSettings},
-    types::{
-        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
-    },
+    types::{array::RadonArray, integer::RadonInteger, string::RadonString, RadonType, RadonTypes},
 };
 
 pub fn count(input: &RadonArray) -> RadonInteger {
@@ -45,7 +42,7 @@ pub fn reduce(
     reducers::reduce(input, reducer_code, context)
 }
 
-pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+fn inner_get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonArray::radon_type_name(),
         operator: "Get".to_string(),
@@ -71,34 +68,34 @@ pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
         .ok_or_else(|| not_found(index))
 }
 
-pub fn get_array(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> {
-    let item = get(input, args)?;
-    item.try_into()
-}
-pub fn get_boolean(input: &RadonArray, args: &[Value]) -> Result<RadonBoolean, RadError> {
-    let item = get(input, args)?;
-    item.try_into()
-}
-pub fn get_bytes(input: &RadonArray, args: &[Value]) -> Result<RadonBytes, RadError> {
-    let item = get(input, args)?;
-    item.try_into()
+/// Try to get any kind of `RadonType` from an entry in the input `RadonArray`, as specified
+/// by the first argument, which is used as the index.
+pub fn get<O: RadonType<T>, T>(input: &RadonArray, args: &[Value]) -> Result<O, RadError>
+where
+    T: std::fmt::Debug,
+{
+    let item = inner_get(input, args)?;
+    let original_type = item.radon_type_name();
+
+    item.try_into().map_err(|_| RadError::Decode {
+        from: original_type,
+        to: O::radon_type_name(),
+    })
 }
 
-/// Try to get a `RadonFloat` from a position in the input `RadonArray`, as specified by the first
-/// argument, which is used as the positional index.
-pub fn get_float(input: &RadonArray, args: &[Value]) -> Result<RadonFloat, RadError> {
-    get_numeric_string(input, args)?.try_into()
-}
+/// Try to get a `RadonFloat` or  `RadonInteger` from an entry in the input `RadonArray`, as
+/// specified by the first argument, which is used as the index. Internally does some pre-processing
+/// to normalize decimal and thousands separators.
+pub fn get_number<O>(input: &RadonArray, args: &[Value]) -> Result<O, RadError>
+where
+    O: TryFrom<RadonTypes, Error = RadError>,
+{
+    let original_type = inner_get(input, &args[..1])?.radon_type_name();
 
-/// Try to get a `RadonInteger` from a position in the input `RadonArray`, as specified by the first
-/// argument, which is used as the positional index.
-pub fn get_integer(input: &RadonArray, args: &[Value]) -> Result<RadonInteger, RadError> {
-    get_numeric_string(input, args)?.try_into()
-}
-
-pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError> {
-    let item = get(input, args)?;
-    item.try_into()
+    get_numeric_string(input, args)
+        .map(RadonTypes::from)
+        .and_then(O::try_from)
+        .map_err(|err| err.replace_decode_from(original_type))
 }
 
 /// Try to get a `RadonTypes` from a position in the input `RadonArray`, as specified by the first
@@ -106,16 +103,15 @@ pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError>
 ///
 /// This simply assumes that the element in that position is a number (i.e., `RadonFloat` or
 /// `RadonInteger`). If it is not, it will fail with a `RadError` because of `replace_separators`.
-fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
-    let item = get(input, &args[..1])?;
+fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonString, RadError> {
+    let item = get::<RadonString, _>(input, &args[..1])?.value();
     let (thousands_separator, decimal_separator) = string::read_separators_from_args(&args[1..]);
 
-    string::replace_separators(item, thousands_separator, decimal_separator)
-}
-
-pub fn get_string(input: &RadonArray, args: &[Value]) -> Result<RadonString, RadError> {
-    let item = get(input, args)?;
-    item.try_into()
+    Ok(RadonString::from(string::replace_separators(
+        item,
+        thousands_separator,
+        decimal_separator,
+    )))
 }
 
 pub fn map(
@@ -390,12 +386,13 @@ mod tests {
         operators::{
             Operable,
             RadonOpCodes::{
-                IntegerGreaterThan, IntegerMultiply, MapGetFloat, MapGetInteger, MapGetString,
+                IntegerGreaterThan, IntegerMultiply, MapGetBoolean, MapGetFloat, MapGetInteger,
+                MapGetString,
             },
         },
         types::{
-            boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, map::RadonMap,
-            RadonTypes,
+            boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
+            map::RadonMap, RadonTypes,
         },
     };
 
@@ -1053,7 +1050,7 @@ mod tests {
 
         let input = RadonArray::from(vec![RadonMap::from(map1).into()]);
         let script = vec![Value::Array(vec![Value::Array(vec![
-            Value::Integer(MapGetString as i128),
+            Value::Integer(MapGetBoolean as i128),
             Value::Text("key2".to_string()),
         ])])];
         let output = sort(&input, &script, &mut ReportContext::default()).unwrap_err();
@@ -1061,7 +1058,7 @@ mod tests {
         if let RadError::UnhandledIntercept { inner, .. } = output {
             assert_eq!(
                 inner.unwrap().to_string(),
-                "Failed to decode RadonString from serde_cbor::value::Value"
+                "Failed to decode RadonBoolean from RadonInteger"
             )
         } else {
             panic!();
@@ -1262,9 +1259,9 @@ mod tests {
     }
 
     fn radon_array_of_floats() -> (RadonArray, i128, RadonFloat) {
-        let item0 = RadonFloat::from(1f64);
-        let item1 = RadonFloat::from(11f64);
-        let item2 = RadonFloat::from(21f64);
+        let item0 = RadonFloat::from(1.1f64);
+        let item1 = RadonFloat::from(11.2f64);
+        let item2 = RadonFloat::from(21.3f64);
 
         let output = RadonArray::from(vec![
             RadonTypes::from(item0),
@@ -1335,16 +1332,16 @@ mod tests {
     #[test]
     fn test_get_array() {
         let (input, index, item) = radon_array_of_arrays();
-        let output = get_array(&input, &[Value::Integer(index)]).unwrap();
+        let output = get::<RadonArray, _>(&input, &[Value::Integer(index)]).unwrap();
         assert_eq!(output, item);
     }
 
     #[test]
     fn test_get_array_fail() {
         let (input, index, _item) = radon_array_of_floats();
-        let output = get_array(&input, &[Value::Integer(index)]).unwrap_err();
+        let output = get::<RadonArray, _>(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value",
+            from: RadonFloat::radon_type_name(),
             to: RadonArray::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1353,16 +1350,16 @@ mod tests {
     #[test]
     fn test_get_boolean() {
         let (input, index, item) = radon_array_of_booleans();
-        let output = get_boolean(&input, &[Value::Integer(index)]).unwrap();
+        let output = get::<RadonBoolean, _>(&input, &[Value::Integer(index)]).unwrap();
         assert_eq!(output, item);
     }
 
     #[test]
     fn test_get_boolean_fail() {
         let (input, index, _item) = radon_array_of_floats();
-        let output = get_boolean(&input, &[Value::Integer(index)]).unwrap_err();
+        let output = get::<RadonBoolean, _>(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value",
+            from: RadonFloat::radon_type_name(),
             to: RadonBoolean::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1371,16 +1368,16 @@ mod tests {
     #[test]
     fn test_get_bytes() {
         let (input, index, item) = radon_array_of_bytes();
-        let output = get_bytes(&input, &[Value::Integer(index)]).unwrap();
+        let output = get::<RadonBytes, _>(&input, &[Value::Integer(index)]).unwrap();
         assert_eq!(output, item);
     }
 
     #[test]
     fn test_get_bytes_fail() {
         let (input, index, _item) = radon_array_of_floats();
-        let output = get_bytes(&input, &[Value::Integer(index)]).unwrap_err();
+        let output = get::<RadonBytes, _>(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value",
+            from: RadonFloat::radon_type_name(),
             to: RadonBytes::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1389,16 +1386,16 @@ mod tests {
     #[test]
     fn test_get_integer() {
         let (input, index, item) = radon_array_of_integers();
-        let output = get_integer(&input, &[Value::Integer(index)]).unwrap();
+        let output = get_number::<RadonInteger>(&input, &[Value::Integer(index)]).unwrap();
         assert_eq!(output, item);
     }
 
     #[test]
     fn test_get_integer_fail() {
         let (input, index, _item) = radon_array_of_floats();
-        let output = get_integer(&input, &[Value::Integer(index)]).unwrap_err();
+        let output = get_number::<RadonInteger>(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value",
+            from: RadonFloat::radon_type_name(),
             to: RadonInteger::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1407,17 +1404,17 @@ mod tests {
     #[test]
     fn test_get_float() {
         let (input, index, item) = radon_array_of_floats();
-        let output = get_float(&input, &[Value::Integer(index)]).unwrap();
+        let output = get_number::<RadonFloat>(&input, &[Value::Integer(index)]).unwrap();
         assert_eq!(output, item);
     }
 
     #[test]
     fn test_get_float_fail() {
         let (input, index, _item) = radon_array_of_arrays();
-        let output = get_float(&input, &[Value::Integer(index)]).unwrap_err();
+        let output = get_number::<RadonFloat>(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value",
-            to: RadonFloat::radon_type_name(),
+            from: RadonArray::radon_type_name(),
+            to: RadonString::radon_type_name(),
         };
         assert_eq!(output, expected_err);
     }
@@ -1425,16 +1422,16 @@ mod tests {
     #[test]
     fn test_get_map() {
         let (input, index, item) = radon_array_of_maps();
-        let output = get_map(&input, &[Value::Integer(index)]).unwrap();
+        let output = get::<RadonMap, _>(&input, &[Value::Integer(index)]).unwrap();
         assert_eq!(output, item);
     }
 
     #[test]
     fn test_get_map_fail() {
         let (input, index, _item) = radon_array_of_floats();
-        let output = get_map(&input, &[Value::Integer(index)]).unwrap_err();
+        let output = get::<RadonMap, _>(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "cbor::value::Value",
+            from: RadonFloat::radon_type_name(),
             to: RadonMap::radon_type_name(),
         };
         assert_eq!(output, expected_err);
@@ -1443,19 +1440,35 @@ mod tests {
     #[test]
     fn test_get_string() {
         let (input, index, item) = radon_array_of_strings();
-        let output = get_string(&input, &[Value::Integer(index)]).unwrap();
+        let output = get::<RadonString, _>(&input, &[Value::Integer(index)]).unwrap();
         assert_eq!(output, item);
     }
 
     #[test]
     fn test_get_string_fail() {
-        let (input, index, _item) = radon_array_of_floats();
-        let output = get_string(&input, &[Value::Integer(index)]).unwrap_err();
+        let (input, index, _item) = radon_array_of_arrays();
+        let output = get::<RadonString, _>(&input, &[Value::Integer(index)]).unwrap_err();
         let expected_err = RadError::Decode {
-            from: "serde_cbor::value::Value",
+            from: "RadonArray",
             to: RadonString::radon_type_name(),
         };
         assert_eq!(output, expected_err);
+    }
+
+    #[test]
+    fn test_get_string_from_integer_wont_fail() {
+        let (input, index, _item) = radon_array_of_integers();
+        let output = get::<RadonString, _>(&input, &[Value::Integer(index)]).unwrap();
+        let expected = RadonString::from("11");
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_get_string_from_float_wont_fail() {
+        let (input, index, _item) = radon_array_of_floats();
+        let output = get::<RadonString, _>(&input, &[Value::Integer(index)]).unwrap();
+        let expected = RadonString::from("11.2");
+        assert_eq!(output, expected);
     }
 
     #[test]

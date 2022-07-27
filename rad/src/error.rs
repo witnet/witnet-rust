@@ -609,6 +609,14 @@ impl RadError {
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }
+
+    /// Replaces the `from` field in instances of `RadError::Decode`
+    pub fn replace_decode_from(self, from: &'static str) -> Self {
+        match self {
+            Self::Decode { to, .. } => Self::Decode { from, to },
+            other => other,
+        }
+    }
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and

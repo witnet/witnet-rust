@@ -189,7 +189,7 @@ pub fn as_numeric_string(input: &RadonString, args: &[Value]) -> String {
     let str_value = radon_trim(input);
     let (thousands_separator, decimal_separator) = read_separators_from_args(args);
 
-    replace_separators_inner(str_value, thousands_separator, decimal_separator)
+    replace_separators(str_value, thousands_separator, decimal_separator)
 }
 
 pub fn length(input: &RadonString) -> RadonInteger {
@@ -287,28 +287,8 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
     }
 }
 
-/// Replace thousands and decimals separators in a `RadonTypes` that is assumed to be a
-/// `RadonString`.
-///
-/// If the input value is not a `RadonString`, returns `RadError` because of `try_into`.
-pub fn replace_separators(
-    value: RadonTypes,
-    thousands_separator: String,
-    decimal_separator: String,
-) -> Result<RadonTypes, RadError> {
-    let rad_str_value: RadonString = value.try_into()?;
-
-    Ok(RadonTypes::from(RadonString::from(
-        replace_separators_inner(
-            rad_str_value.value(),
-            thousands_separator,
-            decimal_separator,
-        ),
-    )))
-}
-
 /// Replace thousands and decimals separators in a `String`.
-fn replace_separators_inner(
+pub fn replace_separators(
     value: String,
     thousands_separator: String,
     decimal_separator: String,
@@ -1145,34 +1125,31 @@ mod tests {
         // English style numbers, i.e. commas for thousands and dots for decimals.
         assert_eq!(
             replace_separators(
-                RadonTypes::String(RadonString::from("1,234.567")),
+                String::from("1,234.567"),
                 String::from(","),
                 String::from(".")
-            )
-            .unwrap(),
-            RadonTypes::String(RadonString::from("1234.567"))
+            ),
+            String::from("1234.567")
         );
 
         // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
         assert_eq!(
             replace_separators(
-                RadonTypes::String(RadonString::from("1.234,567")),
+                String::from("1.234,567"),
                 String::from("."),
                 String::from(",")
-            )
-            .unwrap(),
-            RadonTypes::String(RadonString::from("1234.567"))
+            ),
+            String::from("1234.567")
         );
 
         // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
         assert_eq!(
             replace_separators(
-                RadonTypes::String(RadonString::from("1 234,567")),
+                String::from("1 234,567"),
                 String::from(" "),
                 String::from(",")
-            )
-            .unwrap(),
-            RadonTypes::String(RadonString::from("1234.567"))
+            ),
+            String::from("1234.567")
         );
     }
 }
