@@ -1,16 +1,19 @@
-use serde_cbor::value::{from_value, Value};
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
 };
 
+use serde_cbor::value::{from_value, Value};
 use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
     operators::{array as array_operators, identity, Operable, RadonOpCodes},
     script::RadonCall,
-    types::{RadonType, RadonTypes},
+    types::{
+        boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
+        map::RadonMap, string::RadonString, RadonType, RadonTypes,
+    },
 };
 
 const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
@@ -122,25 +125,25 @@ impl Operable for RadonArray {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::ArrayCount, None) => Ok(array_operators::count(self).into()),
             (RadonOpCodes::ArrayGetArray, Some(args)) => {
-                array_operators::get_array(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::get::<RadonArray, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetBoolean, Some(args)) => {
-                array_operators::get_boolean(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::get::<RadonBoolean, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetBytes, Some(args)) => {
-                array_operators::get_bytes(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::get::<RadonBytes, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetInteger, Some(args)) => {
-                array_operators::get_integer(self, args).map(RadonTypes::from)
+                array_operators::get_number::<RadonInteger>(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetFloat, Some(args)) => {
-                array_operators::get_float(self, args).map(RadonTypes::from)
+                array_operators::get_number::<RadonFloat>(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetMap, Some(args)) => {
-                array_operators::get_map(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::get::<RadonMap, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayGetString, Some(args)) => {
-                array_operators::get_string(self, args.as_slice()).map(RadonTypes::from)
+                array_operators::get::<RadonString, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayFilter, Some(args)) => {
                 array_operators::filter(self, args.as_slice(), &mut ReportContext::default())
@@ -188,7 +191,10 @@ impl Operable for RadonArray {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::BTreeMap;
+
+    use witnet_data_structures::radon_report::TypeLike;
+
     use crate::{
         current_active_wips,
         reducers::RadonReducers,
@@ -197,8 +203,8 @@ mod tests {
             map::RadonMap, string::RadonString,
         },
     };
-    use std::collections::BTreeMap;
-    use witnet_data_structures::radon_report::TypeLike;
+
+    use super::*;
 
     #[test]
     fn test_operate_identity() {

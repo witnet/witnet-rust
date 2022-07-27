@@ -5,14 +5,16 @@ use std::{
 };
 
 use serde_cbor::value::{from_value, to_value, Value};
-
 use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
     operators::{identity, map as map_operators, Operable, RadonOpCodes},
     script::RadonCall,
-    types::{RadonType, RadonTypes},
+    types::{
+        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
+        integer::RadonInteger, string::RadonString, RadonType, RadonTypes,
+    },
 };
 
 const RADON_MAP_TYPE_NAME: &str = "RadonMap";
@@ -117,25 +119,25 @@ impl Operable for RadonMap {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::MapGetArray, Some(args)) => {
-                map_operators::get_array(self, args.as_slice()).map(RadonTypes::from)
+                map_operators::get::<RadonArray, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetBoolean, Some(args)) => {
-                map_operators::get_boolean(self, args.as_slice()).map(RadonTypes::from)
+                map_operators::get::<RadonBoolean, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetBytes, Some(args)) => {
-                map_operators::get_bytes(self, args.as_slice()).map(RadonTypes::from)
+                map_operators::get::<RadonBytes, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetInteger, Some(args)) => {
-                map_operators::get_integer(self, args).map(RadonTypes::from)
+                map_operators::get_number::<RadonInteger>(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetFloat, Some(args)) => {
-                map_operators::get_float(self, args).map(RadonTypes::from)
+                map_operators::get_number::<RadonFloat>(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetMap, Some(args)) => {
-                map_operators::get_map(self, args.as_slice()).map(RadonTypes::from)
+                map_operators::get::<RadonMap, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::MapGetString, Some(args)) => {
-                map_operators::get_string(self, args.as_slice()).map(RadonTypes::from)
+                map_operators::get::<RadonString, _>(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::MapKeys, None) => Ok(RadonTypes::from(map_operators::keys(self))),
             (RadonOpCodes::MapValues, None) => Ok(RadonTypes::from(map_operators::values(self))),

@@ -49,11 +49,21 @@ impl TryFrom<RadonTypes> for RadonString {
     type Error = RadError;
 
     fn try_from(item: RadonTypes) -> Result<Self, Self::Error> {
-        if let RadonTypes::String(rad_string) = item {
-            Ok(rad_string)
-        } else {
-            let value = Value::try_from(item)?;
-            value.try_into()
+        let original_type = item.radon_type_name();
+
+        match item {
+            RadonTypes::Boolean(rad_bool) => Ok(RadonString::from(rad_bool.value().to_string())),
+            RadonTypes::Float(rad_float) => Ok(RadonString::from(rad_float.value().to_string())),
+            RadonTypes::Integer(rad_integer) => {
+                Ok(RadonString::from(rad_integer.value().to_string()))
+            }
+            RadonTypes::String(rad_string) => Ok(rad_string),
+            item => Value::try_from(item)?
+                .try_into()
+                .map_err(|_| Self::Error::Decode {
+                    from: original_type,
+                    to: RadonString::radon_type_name(),
+                }),
         }
     }
 }
