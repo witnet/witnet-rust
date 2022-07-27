@@ -1458,4 +1458,112 @@ mod tests {
         };
         assert_eq!(output, expected_err);
     }
+
+    #[test]
+    fn test_get_float_with_separators() {
+        let expected = RadonTypes::from(RadonFloat::from(1234.567));
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1234.567"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetFloat,
+                Some(vec![serde_cbor::Value::from(0)]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1,234.567"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetFloat,
+                Some(vec![serde_cbor::Value::from(0)]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1234,567"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetFloat,
+                Some(vec![
+                    serde_cbor::Value::from(0),
+                    serde_cbor::Value::from(String::from(".")),
+                    serde_cbor::Value::from(String::from(",")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1.234,567"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetFloat,
+                Some(vec![
+                    serde_cbor::Value::from(0),
+                    serde_cbor::Value::from(String::from(".")),
+                    serde_cbor::Value::from(String::from(",")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1 234,567"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetFloat,
+                Some(vec![
+                    serde_cbor::Value::from(0),
+                    serde_cbor::Value::from(String::from(" ")),
+                    serde_cbor::Value::from(String::from(",")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_get_integer_with_separators() {
+        let expected = RadonTypes::from(RadonInteger::from(1234));
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1,234"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetInteger,
+                Some(vec![serde_cbor::Value::from(0)]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1.234"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetInteger,
+                Some(vec![
+                    serde_cbor::Value::from(0),
+                    serde_cbor::Value::from(String::from(".")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
+        let array = RadonArray::from(vec![RadonTypes::from(RadonString::from("1 234"))]);
+        let output = array
+            .operate(&(
+                RadonOpCodes::ArrayGetInteger,
+                Some(vec![
+                    serde_cbor::Value::from(0),
+                    serde_cbor::Value::from(String::from(" ")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+    }
 }
