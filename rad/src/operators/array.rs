@@ -108,8 +108,7 @@ pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError>
 /// `RadonInteger`). If it is not, it will fail with a `RadError` because of `replace_separators`.
 fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let item = get(input, &args[..1])?;
-
-    let (thousands_separator, decimal_separator) = string::read_separators_from_args(args, 1);
+    let (thousands_separator, decimal_separator) = string::read_separators_from_args(&args[1..]);
 
     string::replace_separators(item, thousands_separator, decimal_separator)
 }

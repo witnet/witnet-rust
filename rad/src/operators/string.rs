@@ -16,6 +16,8 @@ use crate::{
 };
 
 const MAX_DEPTH: u8 = 20;
+const DEFAULT_THOUSANDS_SEPARATOR: &str = ",";
+const DEFAULT_DECIMAL_SEPARATOR: &str = ".";
 
 pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     match json::parse(&input.value()) {
@@ -159,9 +161,12 @@ pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
 /// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
 /// a valid floating point number.
 pub fn as_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
-    f64::from_str(&as_numeric_string(input, &args.clone().unwrap_or_default()))
-        .map(RadonFloat::from)
-        .map_err(Into::into)
+    f64::from_str(&as_numeric_string(
+        input,
+        args.as_deref().unwrap_or_default(),
+    ))
+    .map(RadonFloat::from)
+    .map_err(Into::into)
 }
 
 /// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
@@ -170,19 +175,21 @@ pub fn as_integer(
     input: &RadonString,
     args: &Option<Vec<Value>>,
 ) -> Result<RadonInteger, RadError> {
-    i128::from_str(&as_numeric_string(input, &args.clone().unwrap_or_default()))
-        .map(RadonInteger::from)
-        .map_err(Into::into)
+    i128::from_str(&as_numeric_string(
+        input,
+        args.as_deref().unwrap_or_default(),
+    ))
+    .map(RadonInteger::from)
+    .map_err(Into::into)
 }
 
 /// Converts a `RadonString` into a `String` containing a numeric value, provided that the input
 /// string actually represents a valid number.
 pub fn as_numeric_string(input: &RadonString, args: &[Value]) -> String {
     let str_value = radon_trim(input);
+    let (thousands_separator, decimal_separator) = read_separators_from_args(args);
 
-    let (thousands_separator, decimal_separator) = read_separators_from_args(args, 0);
-
-    _replace_separators(str_value, thousands_separator, decimal_separator)
+    replace_separators_inner(str_value, thousands_separator, decimal_separator)
 }
 
 pub fn length(input: &RadonString) -> RadonInteger {
@@ -286,46 +293,55 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 /// If the input value is not a `RadonString`, returns `RadError` because of `try_into`.
 pub fn replace_separators(
     value: RadonTypes,
-    thousands_separator: serde_cbor::Value,
-    decimal_separator: serde_cbor::Value,
+    thousands_separator: String,
+    decimal_separator: String,
 ) -> Result<RadonTypes, RadError> {
     let rad_str_value: RadonString = value.try_into()?;
 
-    Ok(RadonTypes::from(RadonString::from(_replace_separators(
-        rad_str_value.value(),
-        thousands_separator,
-        decimal_separator,
-    ))))
+    Ok(RadonTypes::from(RadonString::from(
+        replace_separators_inner(
+            rad_str_value.value(),
+            thousands_separator,
+            decimal_separator,
+        ),
+    )))
 }
 
 /// Replace thousands and decimals separators in a `String`.
-pub fn _replace_separators(
+fn replace_separators_inner(
     value: String,
-    thousands_separator: serde_cbor::Value,
-    decimal_separator: serde_cbor::Value,
+    thousands_separator: String,
+    decimal_separator: String,
 ) -> String {
-    let thousands = from_value::<String>(thousands_separator).unwrap_or_else(|_| ",".to_string());
-    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
-
-    value.replace(&thousands, "").replace(&decimal, ".")
+    value
+        .replace(&thousands_separator, "")
+        .replace(&decimal_separator, DEFAULT_DECIMAL_SEPARATOR)
 }
 
 /// Read separators from RAD call arguments, and fall back to the default ones if not provided.
-pub fn read_separators_from_args(
-    args: &[serde_cbor::Value],
-    skip: usize,
-) -> (serde_cbor::Value, serde_cbor::Value) {
-    match args.len() - skip {
-        2 => (args[skip].clone(), args[skip + 1].clone()),
+pub fn read_separators_from_args(args: &[serde_cbor::Value]) -> (String, String) {
+    match args.len() {
+        2 => (
+            from_value::<String>(args[0].clone()).unwrap_or_else(default_thousands_separator),
+            from_value::<String>(args[1].clone()).unwrap_or_else(default_decimal_separator),
+        ),
         1 => (
-            args[skip].clone(),
-            serde_cbor::Value::from(String::from(".")),
+            from_value::<String>(args[0].clone()).unwrap_or_else(default_thousands_separator),
+            default_decimal_separator(()),
         ),
         _ => (
-            serde_cbor::Value::from(String::from(",")),
-            serde_cbor::Value::from(String::from(".")),
+            default_thousands_separator(()),
+            default_decimal_separator(()),
         ),
     }
+}
+
+fn default_thousands_separator<T>(_: T) -> String {
+    String::from(DEFAULT_THOUSANDS_SEPARATOR)
+}
+
+fn default_decimal_separator<T>(_: T) -> String {
+    String::from(DEFAULT_DECIMAL_SEPARATOR)
 }
 
 #[cfg(test)]
@@ -1130,8 +1146,8 @@ mod tests {
         assert_eq!(
             replace_separators(
                 RadonTypes::String(RadonString::from("1,234.567")),
-                Value::from(String::from(",")),
-                Value::from(String::from("."))
+                String::from(","),
+                String::from(".")
             )
             .unwrap(),
             RadonTypes::String(RadonString::from("1234.567"))
@@ -1141,8 +1157,8 @@ mod tests {
         assert_eq!(
             replace_separators(
                 RadonTypes::String(RadonString::from("1.234,567")),
-                Value::from(String::from(".")),
-                Value::from(String::from(","))
+                String::from("."),
+                String::from(",")
             )
             .unwrap(),
             RadonTypes::String(RadonString::from("1234.567"))
@@ -1152,8 +1168,8 @@ mod tests {
         assert_eq!(
             replace_separators(
                 RadonTypes::String(RadonString::from("1 234,567")),
-                Value::from(String::from(" ")),
-                Value::from(String::from(","))
+                String::from(" "),
+                String::from(",")
             )
             .unwrap(),
             RadonTypes::String(RadonString::from("1234.567"))
