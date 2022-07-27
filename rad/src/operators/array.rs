@@ -5,13 +5,12 @@ use std::{
 };
 
 use serde_cbor::value::{from_value, Value};
-
 use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage};
 
 use crate::{
     error::RadError,
     filters::{self, RadonFilters},
-    operators::{map::replace_separators, RadonOpCodes},
+    operators::{string, RadonOpCodes},
     reducers::{self, RadonReducers},
     script::{execute_radon_script, unpack_subscript, RadonCall, RadonScriptExecutionSettings},
     types::{
@@ -108,13 +107,11 @@ pub fn get_map(input: &RadonArray, args: &[Value]) -> Result<RadonMap, RadError>
 /// This simply assumes that the element in that position is a number (i.e., `RadonFloat` or
 /// `RadonInteger`). If it is not, it will fail with a `RadError` because of `replace_separators`.
 fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
-    let item = get(input, args)?;
+    let item = get(input, &args[..1])?;
 
-    if args.len() == 3 {
-        replace_separators(item, args[1].clone(), args[2].clone())
-    } else {
-        Ok(item)
-    }
+    let (thousands_separator, decimal_separator) = string::read_separators_from_args(args, 1);
+
+    string::replace_separators(item, thousands_separator, decimal_separator)
 }
 
 pub fn get_string(input: &RadonArray, args: &[Value]) -> Result<RadonString, RadError> {
@@ -389,10 +386,13 @@ mod tests {
 
     use witnet_data_structures::radon_report::RetrievalMetadata;
 
-    use crate::error::RadError;
     use crate::{
-        operators::RadonOpCodes::{
-            IntegerGreaterThan, IntegerMultiply, MapGetFloat, MapGetInteger, MapGetString,
+        error::RadError,
+        operators::{
+            Operable,
+            RadonOpCodes::{
+                IntegerGreaterThan, IntegerMultiply, MapGetFloat, MapGetInteger, MapGetString,
+            },
         },
         types::{
             boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, map::RadonMap,
