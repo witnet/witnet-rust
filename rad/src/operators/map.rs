@@ -1,8 +1,10 @@
-use serde_cbor::value::{from_value, Value};
 use std::convert::TryInto;
+
+use serde_cbor::value::{from_value, Value};
 
 use crate::{
     error::RadError,
+    operators::string,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
@@ -62,13 +64,11 @@ pub fn get_map(input: &RadonMap, args: &[Value]) -> Result<RadonMap, RadError> {
 /// This simply assumes that the element in that position is a number (i.e., `RadonFloat` or
 /// `RadonInteger`). If it is not, it will fail with a `RadError` because of `replace_separators`.
 fn get_numeric_string(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
-    let item = get(input, args)?;
+    let item = get(input, &args[..1])?;
 
-    if args.len() == 3 {
-        replace_separators(item, args[1].clone(), args[2].clone())
-    } else {
-        Ok(item)
-    }
+    let (decimal_separator, thousands_separator) = string::read_separators_from_args(args, 1);
+
+    string::replace_separators(item, decimal_separator, thousands_separator)
 }
 
 pub fn get_string(input: &RadonMap, args: &[Value]) -> Result<RadonString, RadError> {
@@ -85,36 +85,6 @@ pub fn keys(input: &RadonMap) -> RadonArray {
     RadonArray::from(v)
 }
 
-/// Replace thousands and decimals separators in a `String`.
-pub fn _replace_separators(
-    value: String,
-    thousand_separator: serde_cbor::Value,
-    decimal_separator: serde_cbor::Value,
-) -> String {
-    let thousand = from_value::<String>(thousand_separator).unwrap_or_else(|_| "".to_string());
-    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
-
-    value.replace(&thousand, "").replace(&decimal, ".")
-}
-
-/// Replace thousands and decimals separators in a `RadonTypes` that is assumed to be a
-/// `RadonString`.
-///
-/// If the input value is not a `RadonString`, returns `RadError` because of `try_into`.
-pub fn replace_separators(
-    value: RadonTypes,
-    thousand_separator: serde_cbor::Value,
-    decimal_separator: serde_cbor::Value,
-) -> Result<RadonTypes, RadError> {
-    let rad_str_value: RadonString = value.try_into()?;
-
-    Ok(RadonTypes::from(RadonString::from(_replace_separators(
-        rad_str_value.value(),
-        thousand_separator,
-        decimal_separator,
-    ))))
-}
-
 pub fn values(input: &RadonMap) -> RadonArray {
     let v: Vec<RadonTypes> = input.value().values().cloned().collect();
     RadonArray::from(v)
@@ -122,9 +92,14 @@ pub fn values(input: &RadonMap) -> RadonArray {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::types::integer::RadonInteger;
     use std::{collections::BTreeMap, convert::TryFrom};
+
+    use crate::{
+        operators::{Operable, RadonOpCodes},
+        types::integer::RadonInteger,
+    };
+
+    use super::*;
 
     #[test]
     fn test_map_get() {
