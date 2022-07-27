@@ -4,7 +4,6 @@ use serde_cbor::{
     self as cbor,
     value::{from_value, Value},
 };
-
 use witnet_data_structures::{
     chain::{tapi::ActiveWips, RADFilter},
     radon_report::{RadonReport, ReportContext, Stage},
@@ -283,9 +282,11 @@ pub fn create_radon_script_from_filters_and_reducer(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::current_active_wips;
     use std::collections::BTreeMap;
+
+    use crate::current_active_wips;
+
+    use super::*;
 
     #[test]
     fn test_execute_radon_script() {
@@ -529,7 +530,9 @@ mod tests {
 
     #[test]
     fn test_floats_as_integers() {
-        use crate::types::{integer::RadonInteger, string::RadonString};
+        use crate::types::{
+            float::RadonFloat, integer::RadonInteger, string::RadonString, RadonType,
+        };
 
         let good_input = RadonTypes::from(RadonString::from(r#"{"data": 4.0}"#));
         let bad_input = RadonTypes::from(RadonString::from(r#"{"data": 4.1}"#));
@@ -548,8 +551,8 @@ mod tests {
         assert_eq!(
             bad_output,
             RadError::Decode {
-                from: "cbor::value::Value",
-                to: "RadonInteger"
+                from: RadonFloat::radon_type_name(),
+                to: RadonInteger::radon_type_name()
             }
         );
     }
