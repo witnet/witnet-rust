@@ -611,11 +611,101 @@ mod tests {
     }
 
     #[test]
+    fn test_string_to_integer_with_separators() {
+        let rad_integer = RadonInteger::from(1234);
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let rad_string: RadonString = RadonString::from("1234");
+        assert_eq!(as_integer(&rad_string, &None).unwrap(), rad_integer);
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let rad_string: RadonString = RadonString::from("1,234");
+        assert_eq!(as_integer(&rad_string, &None).unwrap(), rad_integer);
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let rad_string: RadonString = RadonString::from("1.234");
+        assert_eq!(
+            as_integer(
+                &rad_string,
+                &Some(vec![serde_cbor::Value::from(String::from(".")),])
+            )
+            .unwrap(),
+            rad_integer
+        );
+
+        // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
+        let rad_string: RadonString = RadonString::from("1 234");
+        assert_eq!(
+            as_integer(
+                &rad_string,
+                &Some(vec![serde_cbor::Value::from(String::from(" ")),])
+            )
+            .unwrap(),
+            rad_integer
+        );
+    }
+
+    #[test]
     fn test_string_to_float() {
         let rad_float = RadonFloat::from(10.2);
         let rad_string: RadonString = RadonString::from("10.2");
 
         assert_eq!(as_float(&rad_string, &None).unwrap(), rad_float);
+    }
+
+    #[test]
+    fn test_string_to_float_with_separators() {
+        let rad_float = RadonFloat::from(1234.567);
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let rad_string: RadonString = RadonString::from("1234.567");
+        assert_eq!(as_float(&rad_string, &None).unwrap(), rad_float);
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let rad_string: RadonString = RadonString::from("1,234.567");
+        assert_eq!(as_float(&rad_string, &None).unwrap(), rad_float);
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let rad_string: RadonString = RadonString::from("1234,567");
+        assert_eq!(
+            as_float(
+                &rad_string,
+                &Some(vec![
+                    serde_cbor::Value::from(String::from(".")),
+                    serde_cbor::Value::from(String::from(","))
+                ])
+            )
+            .unwrap(),
+            rad_float
+        );
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let rad_string: RadonString = RadonString::from("1.234,567");
+        assert_eq!(
+            as_float(
+                &rad_string,
+                &Some(vec![
+                    serde_cbor::Value::from(String::from(".")),
+                    serde_cbor::Value::from(String::from(","))
+                ])
+            )
+            .unwrap(),
+            rad_float
+        );
+
+        // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
+        let rad_string: RadonString = RadonString::from("1 234,567");
+        assert_eq!(
+            as_float(
+                &rad_string,
+                &Some(vec![
+                    serde_cbor::Value::from(String::from(" ")),
+                    serde_cbor::Value::from(String::from(","))
+                ])
+            )
+            .unwrap(),
+            rad_float
+        );
     }
 
     #[test]
@@ -1032,5 +1122,41 @@ mod tests {
         let resulting_cbor = json_to_cbor(&json);
         let expected_cbor = serde_cbor::Value::Bool(true);
         assert_eq!(resulting_cbor, expected_cbor);
+    }
+
+    #[test]
+    fn test_replace_separators() {
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        assert_eq!(
+            replace_separators(
+                RadonTypes::String(RadonString::from("1,234.567")),
+                Value::from(String::from(",")),
+                Value::from(String::from("."))
+            )
+            .unwrap(),
+            RadonTypes::String(RadonString::from("1234.567"))
+        );
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        assert_eq!(
+            replace_separators(
+                RadonTypes::String(RadonString::from("1.234,567")),
+                Value::from(String::from(".")),
+                Value::from(String::from(","))
+            )
+            .unwrap(),
+            RadonTypes::String(RadonString::from("1234.567"))
+        );
+
+        // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
+        assert_eq!(
+            replace_separators(
+                RadonTypes::String(RadonString::from("1 234,567")),
+                Value::from(String::from(" ")),
+                Value::from(String::from(","))
+            )
+            .unwrap(),
+            RadonTypes::String(RadonString::from("1234.567"))
+        );
     }
 }

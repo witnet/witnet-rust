@@ -485,38 +485,134 @@ mod tests {
     }
 
     #[test]
-    fn test_replace_separators() {
+    fn test_get_float_with_separators() {
+        let expected = RadonTypes::from(RadonFloat::from(1234.567));
+
         // English style numbers, i.e. commas for thousands and dots for decimals.
-        assert_eq!(
-            replace_separators(
-                RadonTypes::String(RadonString::from("1,234.567")),
-                Value::from(String::from(",")),
-                Value::from(String::from("."))
-            )
-            .unwrap(),
-            RadonTypes::String(RadonString::from("1234.567"))
-        );
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1234.567")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetFloat,
+                Some(vec![serde_cbor::Value::from(String::from("foo"))]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1,234.567")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetFloat,
+                Some(vec![serde_cbor::Value::from(String::from("foo"))]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
 
         // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
-        assert_eq!(
-            replace_separators(
-                RadonTypes::String(RadonString::from("1.234,567")),
-                Value::from(String::from(".")),
-                Value::from(String::from(","))
-            )
-            .unwrap(),
-            RadonTypes::String(RadonString::from("1234.567"))
-        );
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1234,567")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetFloat,
+                Some(vec![
+                    serde_cbor::Value::from(String::from("foo")),
+                    serde_cbor::Value::from(String::from(".")),
+                    serde_cbor::Value::from(String::from(",")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1.234,567")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetFloat,
+                Some(vec![
+                    serde_cbor::Value::from(String::from("foo")),
+                    serde_cbor::Value::from(String::from(".")),
+                    serde_cbor::Value::from(String::from(",")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
 
         // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
-        assert_eq!(
-            replace_separators(
-                RadonTypes::String(RadonString::from("1 234,567")),
-                Value::from(String::from(" ")),
-                Value::from(String::from(","))
-            )
-            .unwrap(),
-            RadonTypes::String(RadonString::from("1234.567"))
-        );
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1 234,567")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetFloat,
+                Some(vec![
+                    serde_cbor::Value::from(String::from("foo")),
+                    serde_cbor::Value::from(String::from(" ")),
+                    serde_cbor::Value::from(String::from(",")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_get_integer_with_separators() {
+        let expected = RadonTypes::from(RadonInteger::from(1234));
+
+        // English style numbers, i.e. commas for thousands and dots for decimals.
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1234")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetInteger,
+                Some(vec![serde_cbor::Value::from(String::from("foo"))]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Spanish/Italian/German/Norwegian style, i.e. dots for thousands, commas for decimals
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1.234")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetInteger,
+                Some(vec![
+                    serde_cbor::Value::from(String::from("foo")),
+                    serde_cbor::Value::from(String::from(".")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
+
+        // Danish/Finnish/French/Canadian/Swedish style, i.e. spaces for thousands, commas for decimals
+        let map = RadonMap::from(BTreeMap::from([(
+            String::from("foo"),
+            RadonTypes::from(RadonString::from("1 234")),
+        )]));
+        let output = map
+            .operate(&(
+                RadonOpCodes::MapGetInteger,
+                Some(vec![
+                    serde_cbor::Value::from(String::from("foo")),
+                    serde_cbor::Value::from(String::from(" ")),
+                ]),
+            ))
+            .unwrap();
+        assert_eq!(output, expected);
     }
 }
