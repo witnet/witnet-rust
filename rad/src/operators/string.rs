@@ -9,7 +9,6 @@ use serde_cbor::value::{from_value, Value};
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
-    operators::map::_replace_separators,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
@@ -160,7 +159,7 @@ pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
 /// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
 /// a valid floating point number.
 pub fn as_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
-    f64::from_str(&as_numeric_string(input, args))
+    f64::from_str(&as_numeric_string(input, &args.clone().unwrap_or_default()))
         .map(RadonFloat::from)
         .map_err(Into::into)
 }
@@ -171,22 +170,19 @@ pub fn as_integer(
     input: &RadonString,
     args: &Option<Vec<Value>>,
 ) -> Result<RadonInteger, RadError> {
-    i128::from_str(&as_numeric_string(input, args))
+    i128::from_str(&as_numeric_string(input, &args.clone().unwrap_or_default()))
         .map(RadonInteger::from)
         .map_err(Into::into)
 }
 
 /// Converts a `RadonString` into a `String` containing a numeric value, provided that the input
 /// string actually represents a valid number.
-pub fn as_numeric_string(input: &RadonString, args: &Option<Vec<Value>>) -> String {
+pub fn as_numeric_string(input: &RadonString, args: &[Value]) -> String {
     let str_value = radon_trim(input);
 
-    match args {
-        Some(args) if args.len() == 3 => {
-            _replace_separators(str_value, args[1].clone(), args[2].clone())
-        }
-        _ => str_value,
-    }
+    let (thousands_separator, decimal_separator) = read_separators_from_args(args, 0);
+
+    _replace_separators(str_value, thousands_separator, decimal_separator)
 }
 
 pub fn length(input: &RadonString) -> RadonInteger {
@@ -281,6 +277,54 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
         json::JsonValue::String(value) => Value::Text(String::from(value.as_str())),
         json::JsonValue::Boolean(b) => Value::Bool(*b),
         json::JsonValue::Null => Value::Null,
+    }
+}
+
+/// Replace thousands and decimals separators in a `RadonTypes` that is assumed to be a
+/// `RadonString`.
+///
+/// If the input value is not a `RadonString`, returns `RadError` because of `try_into`.
+pub fn replace_separators(
+    value: RadonTypes,
+    thousands_separator: serde_cbor::Value,
+    decimal_separator: serde_cbor::Value,
+) -> Result<RadonTypes, RadError> {
+    let rad_str_value: RadonString = value.try_into()?;
+
+    Ok(RadonTypes::from(RadonString::from(_replace_separators(
+        rad_str_value.value(),
+        thousands_separator,
+        decimal_separator,
+    ))))
+}
+
+/// Replace thousands and decimals separators in a `String`.
+pub fn _replace_separators(
+    value: String,
+    thousands_separator: serde_cbor::Value,
+    decimal_separator: serde_cbor::Value,
+) -> String {
+    let thousands = from_value::<String>(thousands_separator).unwrap_or_else(|_| ",".to_string());
+    let decimal = from_value::<String>(decimal_separator).unwrap_or_else(|_| ".".to_string());
+
+    value.replace(&thousands, "").replace(&decimal, ".")
+}
+
+/// Read separators from RAD call arguments, and fall back to the default ones if not provided.
+pub fn read_separators_from_args(
+    args: &[serde_cbor::Value],
+    skip: usize,
+) -> (serde_cbor::Value, serde_cbor::Value) {
+    match args.len() - skip {
+        2 => (args[skip].clone(), args[skip + 1].clone()),
+        1 => (
+            args[skip].clone(),
+            serde_cbor::Value::from(String::from(".")),
+        ),
+        _ => (
+            serde_cbor::Value::from(String::from(",")),
+            serde_cbor::Value::from(String::from(".")),
+        ),
     }
 }
 
