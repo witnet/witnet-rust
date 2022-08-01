@@ -63,12 +63,12 @@ where
 /// `RadonInteger`). If it is not, it will fail with a `RadError` because of `replace_separators`.
 fn get_numeric_string(input: &RadonMap, args: &[Value]) -> Result<RadonString, RadError> {
     let item = get::<RadonString, _>(input, &args[..1])?.value();
-    let (decimal_separator, thousands_separator) = string::read_separators_from_args(&args[1..]);
+    let (thousands_separator, decimal_separator) = string::read_separators_from_args(&args[1..]);
 
     Ok(RadonString::from(string::replace_separators(
         item,
-        decimal_separator,
         thousands_separator,
+        decimal_separator,
     )))
 }
 
