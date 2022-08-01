@@ -2978,9 +2978,8 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
     // TODO: remove blocking calls, this code is no longer part of the CLI
     // Block on data request retrieval because the CLI application blocks everywhere anyway
-    let run_retrieval_blocking = |retrieve| {
-        futures::executor::block_on(witnet_rad::run_retrieval(retrieve, &active_wips))
-    };
+    let run_retrieval_blocking =
+        |retrieve| futures::executor::block_on(witnet_rad::run_retrieval(retrieve, &active_wips));
 
     let mut retrieval_results = vec![];
     for r in &dr.data_request.retrieve {
@@ -2989,11 +2988,8 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);
-    let aggregation_result = witnet_rad::run_aggregation(
-        retrieval_results,
-        &dr.data_request.aggregate,
-        &active_wips,
-    )?;
+    let aggregation_result =
+        witnet_rad::run_aggregation(retrieval_results, &dr.data_request.aggregate, &active_wips)?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
     // Assume that all the required witnesses will report the same value
@@ -3003,11 +2999,8 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
             .map(RadonTypes::try_from)
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_tally(
-        reported_values?,
-        &dr.data_request.tally,
-        &active_wips,
-    )?;
+    let tally_result =
+        witnet_rad::run_tally(reported_values?, &dr.data_request.tally, &active_wips)?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(tally_result)

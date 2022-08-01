@@ -4,16 +4,17 @@ use std::{
     future,
     future::Future,
     sync::{
-        Arc,
         atomic::{self, AtomicU16},
+        Arc,
     },
 };
 
 use actix::{
     ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner, SystemService,
-    WrapFuture};
+    WrapFuture,
+};
 use ansi_term::Color::{White, Yellow};
-use futures::future::{FutureExt, try_join_all};
+use futures::future::{try_join_all, FutureExt};
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
@@ -26,7 +27,7 @@ use witnet_data_structures::{
     },
     error::TransactionError,
     get_environment,
-    mainnet_validations::{ActiveWips, after_second_hard_fork},
+    mainnet_validations::{after_second_hard_fork, ActiveWips},
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
@@ -40,7 +41,7 @@ use witnet_futures_utils::TryFutureExt2;
 use witnet_rad::{
     conditions::radon_report_from_error,
     error::RadError,
-    types::{RadonTypes, serial_iter_decode},
+    types::{serial_iter_decode, RadonTypes},
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{

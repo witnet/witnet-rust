@@ -21,13 +21,13 @@ pub enum WitnetHttpError {
     )]
     ClientBuildError {
         /// An error message.
-        msg: String
+        msg: String,
     },
     /// HTTP eequest error.
     #[fail(display = "HTTP request error. Underlying error: {}", msg)]
     HttpRequestError {
         /// An error message.
-        msg: String
+        msg: String,
     },
     /// The provided proxy URI is invalid.
     #[fail(
@@ -38,7 +38,7 @@ pub enum WitnetHttpError {
         /// The provided invalid address.
         address: String,
         /// An error message.
-        msg: String
+        msg: String,
     },
     /// Found an unknown HTTP status code.
     #[fail(
@@ -49,13 +49,13 @@ pub enum WitnetHttpError {
         /// The unknown status code.
         code: u16,
         /// An error message.
-        msg: String
+        msg: String,
     },
     /// Found an unknown HTTP version.
     #[fail(display = "Unknown HTTP version ({})", version)]
     UnknownVersion {
         /// The unknown HTTP version.
-        version: String
+        version: String,
     },
     /// Tried to process an HTTP request with an unsupported HTTP method.
     #[fail(
@@ -64,7 +64,7 @@ pub enum WitnetHttpError {
     )]
     UnsupportedMethod {
         /// The unsupported HTTP method.
-        method: String
+        method: String,
     },
 }
 
@@ -124,7 +124,9 @@ impl TryFrom<&mut surf::http::Request> for WitnetHttpRequest {
 
     fn try_from(req: &mut surf::http::Request) -> Result<Self, Self::Error> {
         let method = isahc::http::Method::from(WitnetHttpMethod::try_from(req.method())?);
-        let version = isahc::http::version::Version::from(WitnetHttpVersion::try_from(req.version().unwrap_or(surf::http::Version::Http3_0))?);
+        let version = isahc::http::version::Version::from(WitnetHttpVersion::try_from(
+            req.version().unwrap_or(surf::http::Version::Http3_0),
+        )?);
         let uri = req.url().to_string();
         let body = isahc::AsyncBody::from_reader(req.take_body().into_reader());
         let headers: Vec<(String, String)> = req
@@ -140,7 +142,10 @@ impl TryFrom<&mut surf::http::Request> for WitnetHttpRequest {
             .collect();
 
         // Start to build an isahc request with the basic parts
-        let mut req = isahc::http::Request::builder().method(method).version(version).uri(uri);
+        let mut req = isahc::http::Request::builder()
+            .method(method)
+            .version(version)
+            .uri(uri);
 
         // Attach the headers to the builder
         for (key, value) in headers {
@@ -178,7 +183,16 @@ impl TryFrom<WitnetHttpResponse> for surf::http::Response {
         let (parts, body) = res.res.into_parts();
         let status = WitnetHttpStatusCode::from(parts.status);
         let version = WitnetHttpVersion::from(parts.version);
-        let headers: Vec<(String, String)> = parts.headers.iter().map(|(key, value)| (key.to_string(), value.to_str().unwrap_or_default().to_string())).collect();
+        let headers: Vec<(String, String)> = parts
+            .headers
+            .iter()
+            .map(|(key, value)| {
+                (
+                    key.to_string(),
+                    value.to_str().unwrap_or_default().to_string(),
+                )
+            })
+            .collect();
         let body_reader = futures::io::BufReader::new(body);
 
         // Create a surf response and set all the relevant parts
@@ -274,7 +288,9 @@ impl TryFrom<surf::http::Version> for WitnetHttpVersion {
             surf::http::Version::Http1_1 => isahc::http::version::Version::HTTP_11,
             surf::http::Version::Http2_0 => isahc::http::version::Version::HTTP_2,
             surf::http::Version::Http3_0 => isahc::http::version::Version::HTTP_3,
-            other => Err(Self::Error::UnknownVersion { version: other.to_string() })?,
+            other => Err(Self::Error::UnknownVersion {
+                version: other.to_string(),
+            })?,
         };
 
         Ok(Self::from(version))
@@ -291,7 +307,9 @@ impl TryFrom<WitnetHttpVersion> for surf::http::Version {
             isahc::http::version::Version::HTTP_11 => surf::http::Version::Http1_1,
             isahc::http::version::Version::HTTP_2 => surf::http::Version::Http2_0,
             isahc::http::version::Version::HTTP_3 => surf::http::Version::Http3_0,
-            other => Err(Self::Error::UnknownVersion { version: format!("{:?}", other) })?,
+            other => Err(Self::Error::UnknownVersion {
+                version: format!("{:?}", other),
+            })?,
         };
 
         Ok(version)

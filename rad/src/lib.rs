@@ -12,24 +12,24 @@ use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
-use witnet_data_structures::{
-    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
-    mainnet_validations::{ActiveWips, current_active_wips},
-    radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
-};
 #[cfg(test)]
 use witnet_data_structures::mainnet_validations::all_wips_active;
 use witnet_data_structures::radon_error::RadonError;
+use witnet_data_structures::{
+    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
+    mainnet_validations::{current_active_wips, ActiveWips},
+    radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
+};
 use witnet_net::client::http::WitnetHttpClient;
 
 use crate::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
     error::RadError,
     script::{
-        create_radon_script_from_filters_and_reducer, execute_radon_script, RadonScriptExecutionSettings,
-        unpack_radon_script,
+        create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
+        RadonScriptExecutionSettings,
     },
-    types::{array::RadonArray, bytes::RadonBytes, RadonTypes, string::RadonString},
+    types::{array::RadonArray, bytes::RadonBytes, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
 
@@ -400,12 +400,18 @@ pub async fn run_paranoid_retrieval(
     let futures: Result<Vec<_>> = transports
         .iter()
         .map(|transport| {
-            WitnetHttpClient::new(transport).map_err(|err| RadError::HttpOther { message: err.to_string() }).map(|client| run_retrieval_report(
-                retrieve,
-                RadonScriptExecutionSettings::disable_all(),
-                active_wips,
-                Some(client),
-            ))
+            WitnetHttpClient::new(transport)
+                .map_err(|err| RadError::HttpOther {
+                    message: err.to_string(),
+                })
+                .map(|client| {
+                    run_retrieval_report(
+                        retrieve,
+                        RadonScriptExecutionSettings::disable_all(),
+                        active_wips,
+                        Some(client),
+                    )
+                })
         })
         .collect();
 

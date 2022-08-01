@@ -51,20 +51,23 @@ impl Handler<ResolveRA> for RadManager {
 
             let settings = RadonScriptExecutionSettings::disable_all();
 
-            let retrieve_responses_fut = sources.iter().map(|retrieve| {
-                witnet_rad::run_paranoid_retrieval(
-                    retrieve,
-                    &tally,
-                    settings,
-                    &active_wips,
-                    transports.as_slice(),
-                )
-            }).map(|fut| {
-                tokio::time::timeout(timeout, fut).map(|response| {
-                    // In case of timeout, set response to "RetrieveTimeout" error
-                    response.unwrap_or(Err(RadError::RetrieveTimeout))
+            let retrieve_responses_fut = sources
+                .iter()
+                .map(|retrieve| {
+                    witnet_rad::run_paranoid_retrieval(
+                        retrieve,
+                        &tally,
+                        settings,
+                        &active_wips,
+                        transports.as_slice(),
+                    )
                 })
-            });
+                .map(|fut| {
+                    tokio::time::timeout(timeout, fut).map(|response| {
+                        // In case of timeout, set response to "RetrieveTimeout" error
+                        response.unwrap_or(Err(RadError::RetrieveTimeout))
+                    })
+                });
 
             // Perform retrievals in parallel for the sake of synchronization between sources
             //  (increasing the likeliness of multiple sources returning results that are closer to each
