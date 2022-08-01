@@ -69,7 +69,7 @@ fn run_dr_locally_with_data(
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
         &dr.data_request.aggregate,
-        all_wips_active(),
+        &all_wips_active(),
     )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
@@ -81,7 +81,7 @@ fn run_dr_locally_with_data(
             .collect();
     log::info!("Running tally with values {:?}", reported_values);
     let tally_result =
-        witnet_rad::run_tally(reported_values?, &dr.data_request.tally, all_wips_active())?;
+        witnet_rad::run_tally(reported_values?, &dr.data_request.tally, &all_wips_active())?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(tally_result)

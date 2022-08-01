@@ -662,7 +662,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::AverageMean as u32,
             },
-            current_active_wips(),
+            &current_active_wips(),
         )
         .unwrap();
         let output_tally = run_tally(
@@ -671,7 +671,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::AverageMean as u32,
             },
-            current_active_wips(),
+            &current_active_wips(),
         )
         .unwrap();
 
@@ -711,8 +711,8 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -748,8 +748,8 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -801,8 +801,8 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -845,8 +845,8 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, current_active_wips()).unwrap();
-        let tallied = run_tally(vec![aggregated], &tally, current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+        let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
     }
@@ -907,7 +907,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let consensus = res.unwrap();
 
@@ -940,7 +940,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let consensus = res.unwrap();
 
@@ -974,7 +974,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let consensus = res.unwrap();
 
@@ -1009,7 +1009,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let report = res.unwrap();
 
@@ -1056,7 +1056,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let report = res.unwrap();
 
@@ -1092,7 +1092,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let report = res.unwrap();
 
@@ -1134,7 +1134,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let error = res.unwrap_err();
 
@@ -1177,7 +1177,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let error = res.unwrap_err();
 
@@ -1220,7 +1220,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let error = res.unwrap_err();
 
@@ -1246,7 +1246,7 @@ mod tests {
             None,
             None,
             RadonScriptExecutionSettings::disable_all(),
-            current_active_wips(),
+            &current_active_wips(),
         );
         let report = res.unwrap().into_inner();
         let expected = RadonTypes::from(RadonError::try_from(RadError::NoReveals).unwrap());
