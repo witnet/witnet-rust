@@ -358,11 +358,7 @@ impl StreamHandler<Result<NotifySubscriptionId, Error>> for JsonRpcClient {
                         subscriptions.get(&subscription_id)
                     {
                         let topic = subscription_topic_from_request(request);
-                        if let Err(err) =
-                            recipient.do_send(NotifySubscriptionTopic { topic, value })
-                        {
-                            log::error!("Client couldn't notify subscriber: {}", err);
-                        }
+                        recipient.do_send(NotifySubscriptionTopic { topic, value });
                     }
                 }
             }

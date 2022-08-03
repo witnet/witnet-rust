@@ -7,7 +7,7 @@ description = "node component"
 edition = "2021"
 
 [dependencies]
-actix = { version = "0.12.0", default-features = false }
+actix = { version = "0.13.0", default-features = false }
 ansi_term = "0.12.1"
 async-stream = "0.3"
 bincode = "1.2.1"
@@ -26,7 +26,7 @@ sentry = { version = "0.23", features = ["log"], optional = true }
 serde = { version = "1.0.104", features = ["derive"] }
 serde_json = "1.0.47"
 tokio = { version = "1.0.1", features = ["io-util", "net", "time", "sync"] }
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 trust-dns-resolver = { version = "0.20.0" , default-features = false, features = ["tokio-runtime", "system-config"] }
 
 witnet_config = { path = "../config" }

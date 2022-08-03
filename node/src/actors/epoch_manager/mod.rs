@@ -327,11 +327,7 @@ impl<T: Send> SendableNotification for SingleEpochSubscription<T> {
             };
 
             // Send EpochNotification message back to the subscriber
-            // TODO: ignore failure?
-            match self.recipient.do_send(msg) {
-                Ok(()) => {}
-                Err(_e) => {}
-            };
+            self.recipient.do_send(msg);
         } else {
             log::error!(
                 "No payload to be sent back to the subscribed actor for epoch {:?}",
@@ -367,10 +363,6 @@ impl<T: Clone + Send> SendableNotification for AllEpochSubscription<T> {
         };
 
         // Send EpochNotification message back to the subscriber
-        // TODO: ignore failure?
-        match self.recipient.do_send(msg) {
-            Ok(()) => {}
-            Err(_e) => {}
-        };
+        self.recipient.do_send(msg);
     }
 }
