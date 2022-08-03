@@ -25,6 +25,9 @@ struct App {
     /// Post data request and exit
     #[structopt(long = "post-dr")]
     post_dr: bool,
+    /// Read config from environment
+    #[structopt(long = "env", conflicts_with = "config")]
+    env: bool,
 }
 
 fn init_logger() {
@@ -82,12 +85,18 @@ fn main() {
 /// Function to run the main system
 fn run(callback: fn()) -> Result<(), String> {
     let app = App::from_args();
-    let config = config::from_file(
-        app.config
-            .unwrap_or_else(|| "witnet_centralized_ethereum_bridge.toml".into()),
-    )
-    .map(Arc::new)
-    .map_err(|e| format!("Error reading configuration file: {}", e))?;
+    let config = if app.env {
+        config::from_env()
+            .map(Arc::new)
+            .map_err(|e| format!("Error reading configuration from environment: {}", e))?
+    } else {
+        config::from_file(
+            app.config
+                .unwrap_or_else(|| "witnet_centralized_ethereum_bridge.toml".into()),
+        )
+        .map(Arc::new)
+        .map_err(|e| format!("Error reading configuration file: {}", e))?
+    };
 
     // Init system
     let system = System::new();

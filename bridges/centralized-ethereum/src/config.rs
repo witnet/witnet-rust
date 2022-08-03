@@ -92,3 +92,8 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::
 
     Ok(c)
 }
+
+/// Load configuration from environment variables
+pub fn from_env() -> Result<Config, envy::Error> {
+    envy::prefixed("WITNET_CENTRALIZED_ETHEREUM_BRIDGE_").from_env()
+}
