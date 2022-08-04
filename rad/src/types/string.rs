@@ -4,8 +4,7 @@ use std::{
 };
 
 use serde_cbor::value::{from_value, Value};
-
-use witnet_data_structures::radon_report::ReportContext;
+use witnet_data_structures::{mainnet_validations::ActiveWips, radon_report::ReportContext};
 
 use crate::{
     error::RadError,
@@ -90,14 +89,36 @@ impl<'a> From<&'a str> for RadonString {
 
 impl Operable for RadonString {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+        self.operate_in_context(call, &mut ReportContext::default())
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        context: &mut ReportContext<RadonTypes>,
+    ) -> Result<RadonTypes, RadError> {
+        let wip0022 = context
+            .active_wips
+            .as_ref()
+            .map(ActiveWips::wip0022)
+            .unwrap_or(true);
+
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::StringAsFloat, args) => string_operators::as_float(self, args)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
-            (RadonOpCodes::StringAsInteger, args) => string_operators::as_integer(self, args)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::StringAsFloat, args) => if wip0022 {
+                string_operators::as_float(self, args)
+            } else {
+                string_operators::legacy::as_float_before_wip0022(self)
+            }
+            .map(RadonTypes::from)
+            .map_err(Into::into),
+            (RadonOpCodes::StringAsInteger, args) => if wip0022 {
+                string_operators::as_integer(self, args)
+            } else {
+                string_operators::legacy::as_integer_before_wip0022(self)
+            }
+            .map(RadonTypes::from)
+            .map_err(Into::into),
             (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
@@ -128,14 +149,6 @@ impl Operable for RadonString {
                 args: args.to_owned(),
             }),
         }
-    }
-
-    fn operate_in_context(
-        &self,
-        call: &RadonCall,
-        _context: &mut ReportContext<RadonTypes>,
-    ) -> Result<RadonTypes, RadError> {
-        self.operate(call)
     }
 }
 

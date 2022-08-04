@@ -288,6 +288,7 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 }
 
 /// Replace thousands and decimals separators in a `String`.
+#[inline]
 pub fn replace_separators(
     value: String,
     thousands_separator: String,
@@ -316,12 +317,39 @@ pub fn read_separators_from_args(args: &[serde_cbor::Value]) -> (String, String)
     }
 }
 
+#[inline]
 fn default_thousands_separator<T>(_: T) -> String {
     String::from(DEFAULT_THOUSANDS_SEPARATOR)
 }
 
+#[inline]
 fn default_decimal_separator<T>(_: T) -> String {
     String::from(DEFAULT_DECIMAL_SEPARATOR)
+}
+
+/// This module was introduced for encapsulating the interim legacy logic before WIP-0022 is
+/// introduced, for the sake of maintainability.
+///
+/// Because RADON scripts are never evaluated for old blocks (e.g. during synchronization), this
+/// module can theoretically be removed altogether once WIP-0022 is activated.
+pub mod legacy {
+    use super::*;
+
+    /// Legacy (pre-WIP0022) version of `as_float`.
+    pub fn as_float_before_wip0022(input: &RadonString) -> Result<RadonFloat, RadError> {
+        let str_value = radon_trim(input);
+        f64::from_str(&str_value)
+            .map(RadonFloat::from)
+            .map_err(Into::into)
+    }
+
+    /// Legacy (pre-WIP0022) version of `as_integer`.
+    pub fn as_integer_before_wip0022(input: &RadonString) -> Result<RadonInteger, RadError> {
+        let str_value = radon_trim(input);
+        i128::from_str(&str_value)
+            .map(RadonInteger::from)
+            .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]
@@ -1151,5 +1179,26 @@ mod tests {
             ),
             String::from("1234.567")
         );
+    }
+
+    #[test]
+    fn test_read_separators_from_args() {
+        let args = vec![];
+        let separators = read_separators_from_args(&args);
+        let expected = (String::from(","), String::from("."));
+        assert_eq!(separators, expected);
+
+        let args = vec![Value::from(String::from("x"))];
+        let separators = read_separators_from_args(&args);
+        let expected = (String::from("x"), String::from("."));
+        assert_eq!(separators, expected);
+
+        let args = vec![
+            Value::from(String::from("x")),
+            Value::from(String::from("y")),
+        ];
+        let separators = read_separators_from_args(&args);
+        let expected = (String::from("x"), String::from("y"));
+        assert_eq!(separators, expected);
     }
 }

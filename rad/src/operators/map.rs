@@ -46,14 +46,9 @@ where
 /// to normalize decimal and thousands separators.
 pub fn get_number<O>(input: &RadonMap, args: &[Value]) -> Result<O, RadError>
 where
-    O: TryFrom<RadonTypes, Error = RadError>,
+    O: TryFrom<RadonString, Error = RadError>,
 {
-    let original_type = inner_get(input, &args[..1])?.radon_type_name();
-
-    get_numeric_string(input, args)
-        .map(RadonTypes::from)
-        .and_then(O::try_from)
-        .map_err(|err| err.replace_decode_from(original_type))
+    get_numeric_string(input, args).and_then(O::try_from)
 }
 
 /// Try to get a `RadonTypes` from an entry in the input `RadonMap`, as specified by the first
@@ -84,6 +79,39 @@ pub fn keys(input: &RadonMap) -> RadonArray {
 pub fn values(input: &RadonMap) -> RadonArray {
     let v: Vec<RadonTypes> = input.value().values().cloned().collect();
     RadonArray::from(v)
+}
+
+/// This module was introduced for encapsulating the interim legacy logic before WIP-0022 is
+/// introduced, for the sake of maintainability.
+///
+/// Because RADON scripts are never evaluated for old blocks (e.g. during synchronization), this
+/// module can theoretically be removed altogether once WIP-0022 is activated.
+pub mod legacy {
+    use crate::types::{float::RadonFloat, integer::RadonInteger};
+
+    use super::*;
+
+    /// Legacy (pre-WIP0022) version of `get::<RadonFloat, _>`.
+    pub fn get_float_before_wip0022(
+        input: &RadonMap,
+        args: &[Value],
+    ) -> Result<RadonFloat, RadError> {
+        let item = inner_get(input, args)?;
+        item.try_into().map_err(|_| RadError::ParseFloat {
+            message: "invalid float literal".to_string(),
+        })
+    }
+
+    /// Legacy (pre-WIP0022) version of `get::<RadonInteger, _>`.
+    pub fn get_integer_before_wip0022(
+        input: &RadonMap,
+        args: &[Value],
+    ) -> Result<RadonInteger, RadError> {
+        let item = inner_get(input, args)?;
+        item.try_into().map_err(|_| RadError::ParseInt {
+            message: "invalid digit found in string".to_string(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -421,9 +449,8 @@ mod tests {
     fn test_map_get_integer_fail() {
         let (input, index, _item) = radon_map_of_booleans();
         let output = get_number::<RadonInteger>(&input, &[Value::Text(index)]).unwrap_err();
-        let expected_err = RadError::Decode {
-            from: RadonBoolean::radon_type_name(),
-            to: RadonInteger::radon_type_name(),
+        let expected_err = RadError::ParseInt {
+            message: "invalid digit found in string".to_string(),
         };
         assert_eq!(output, expected_err);
     }
@@ -439,9 +466,8 @@ mod tests {
     fn test_map_get_float_fail() {
         let (input, index, _item) = radon_map_of_booleans();
         let output = get_number::<RadonFloat>(&input, &[Value::Text(index)]).unwrap_err();
-        let expected_err = RadError::Decode {
-            from: RadonBoolean::radon_type_name(),
-            to: RadonFloat::radon_type_name(),
+        let expected_err = RadError::ParseFloat {
+            message: "invalid float literal".to_string(),
         };
         assert_eq!(output, expected_err);
     }

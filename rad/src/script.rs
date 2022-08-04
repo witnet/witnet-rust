@@ -530,9 +530,7 @@ mod tests {
 
     #[test]
     fn test_floats_as_integers() {
-        use crate::types::{
-            float::RadonFloat, integer::RadonInteger, string::RadonString, RadonType,
-        };
+        use crate::types::{integer::RadonInteger, string::RadonString};
 
         let good_input = RadonTypes::from(RadonString::from(r#"{"data": 4.0}"#));
         let bad_input = RadonTypes::from(RadonString::from(r#"{"data": 4.1}"#));
@@ -550,9 +548,8 @@ mod tests {
         assert_eq!(good_output, RadonTypes::from(RadonInteger::from(4)));
         assert_eq!(
             bad_output,
-            RadError::Decode {
-                from: RadonFloat::radon_type_name(),
-                to: RadonInteger::radon_type_name()
+            RadError::ParseInt {
+                message: "invalid digit found in string".to_string()
             }
         );
     }

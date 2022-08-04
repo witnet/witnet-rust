@@ -10,7 +10,7 @@ use crate::{
     error::RadError,
     operators::{identity, integer as integer_operators, Operable, RadonOpCodes},
     script::RadonCall,
-    types::{RadonType, RadonTypes},
+    types::{string::RadonString, RadonType, RadonTypes},
 };
 use witnet_data_structures::radon_report::ReportContext;
 
@@ -64,6 +64,14 @@ impl TryFrom<RadonTypes> for RadonInteger {
                     to: RadonInteger::radon_type_name(),
                 })
         }
+    }
+}
+
+impl TryFrom<RadonString> for RadonInteger {
+    type Error = RadError;
+
+    fn try_from(value: RadonString) -> Result<Self, Self::Error> {
+        Self::try_from(value.value().as_str())
     }
 }
 
