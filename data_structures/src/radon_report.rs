@@ -191,6 +191,14 @@ where
     pub fn set_active_wips(&mut self, active_wips: ActiveWips) {
         self.active_wips = Some(active_wips);
     }
+
+    /// Create a new `ReportContext` from an `ActiveWips`
+    pub fn from_active_wips(active_wips: ActiveWips) -> Self {
+        Self {
+            active_wips: Some(active_wips),
+            ..Default::default()
+        }
+    }
 }
 
 /// Tell different stage-specific metadata structures from each other.
