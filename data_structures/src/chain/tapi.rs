@@ -407,7 +407,7 @@ pub fn after_third_hard_fork(epoch: Epoch, environment: Environment) -> bool {
 }
 
 /// Allows to check the active Witnet Improvement Proposals
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct ActiveWips {
     pub active_wips: HashMap<String, Epoch>,
     pub block_epoch: Epoch,
@@ -468,12 +468,26 @@ impl ActiveWips {
         false
     }
 
+    pub fn wip0022(&self) -> bool {
+        self.wip_active("WIP0022")
+    }
+
     pub fn wip0026(&self) -> bool {
         self.wip_active("WIP0026")
     }
 
     pub fn wip0027(&self) -> bool {
         self.wip_active("WIP0027")
+    }
+
+    /// Convenience method for inserting WIPs.
+    pub fn insert_wip(&mut self, wip: &str, activation_epoch: Epoch) {
+        self.active_wips.insert(String::from(wip), activation_epoch);
+    }
+
+    /// Convenience method for setting the current epoch.
+    pub fn set_epoch(&mut self, epoch: Epoch) {
+        self.block_epoch = epoch;
     }
 }
 

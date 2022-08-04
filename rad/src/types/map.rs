@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde_cbor::value::{from_value, to_value, Value};
-use witnet_data_structures::radon_report::ReportContext;
+use witnet_data_structures::{mainnet_validations::ActiveWips, radon_report::ReportContext};
 
 use crate::{
     error::RadError,
@@ -116,6 +116,20 @@ impl fmt::Display for RadonMap {
 
 impl Operable for RadonMap {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+        self.operate_in_context(call, &mut ReportContext::default())
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        context: &mut ReportContext<RadonTypes>,
+    ) -> Result<RadonTypes, RadError> {
+        let wip0022 = context
+            .active_wips
+            .as_ref()
+            .map(ActiveWips::wip0022)
+            .unwrap_or(true);
+
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::MapGetArray, Some(args)) => {
@@ -127,12 +141,18 @@ impl Operable for RadonMap {
             (RadonOpCodes::MapGetBytes, Some(args)) => {
                 map_operators::get::<RadonBytes, _>(self, args.as_slice()).map(RadonTypes::from)
             }
-            (RadonOpCodes::MapGetInteger, Some(args)) => {
-                map_operators::get_number::<RadonInteger>(self, args).map(RadonTypes::from)
+            (RadonOpCodes::MapGetInteger, Some(args)) => if wip0022 {
+                map_operators::get_number::<RadonInteger>(self, args)
+            } else {
+                map_operators::legacy::get_integer_before_wip0022(self, args)
             }
-            (RadonOpCodes::MapGetFloat, Some(args)) => {
-                map_operators::get_number::<RadonFloat>(self, args).map(RadonTypes::from)
+            .map(RadonTypes::from),
+            (RadonOpCodes::MapGetFloat, Some(args)) => if wip0022 {
+                map_operators::get_number::<RadonFloat>(self, args)
+            } else {
+                map_operators::legacy::get_float_before_wip0022(self, args)
             }
+            .map(RadonTypes::from),
             (RadonOpCodes::MapGetMap, Some(args)) => {
                 map_operators::get::<RadonMap, _>(self, args.as_slice()).map(RadonTypes::from)
             }
@@ -147,14 +167,6 @@ impl Operable for RadonMap {
                 args: args.to_owned(),
             }),
         }
-    }
-
-    fn operate_in_context(
-        &self,
-        call: &RadonCall,
-        _context: &mut ReportContext<RadonTypes>,
-    ) -> Result<RadonTypes, RadError> {
-        self.operate(call)
     }
 }
 

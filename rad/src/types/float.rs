@@ -5,14 +5,14 @@ use std::{
 };
 
 use serde_cbor::value::Value;
+use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
     operators::{float as float_operators, identity, Operable, RadonOpCodes},
     script::RadonCall,
-    types::{RadonType, RadonTypes},
+    types::{string::RadonString, RadonType, RadonTypes},
 };
-use witnet_data_structures::radon_report::ReportContext;
 
 const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";
 
@@ -67,6 +67,14 @@ impl TryFrom<RadonTypes> for RadonFloat {
                     to: RadonFloat::radon_type_name(),
                 })
         }
+    }
+}
+
+impl TryFrom<RadonString> for RadonFloat {
+    type Error = RadError;
+
+    fn try_from(value: RadonString) -> Result<Self, Self::Error> {
+        Self::try_from(value.value().as_str())
     }
 }
 
