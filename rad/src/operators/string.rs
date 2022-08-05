@@ -241,15 +241,43 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
 
     map_value
         .get(&input.value())
-        .map(|res| match default {
-            RadonTypes::Array(_) => Ok(RadonTypes::from(RadonArray::try_from(res.clone())?)),
-            RadonTypes::Boolean(_) => Ok(RadonTypes::from(RadonBoolean::try_from(res.clone())?)),
-            RadonTypes::Bytes(_) => Ok(RadonTypes::from(RadonBytes::try_from(res.clone())?)),
-            RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.clone())?)),
-            RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.clone())?)),
-            RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.clone())?)),
-            RadonTypes::RadonError(_) => unreachable!(),
-            RadonTypes::String(_) => Ok(RadonTypes::from(RadonString::try_from(res.clone())?)),
+        .map(|res| {
+            // Workaround fix for test test_string_match_mismatched_types_default_string:
+            // only allow the result to be RadonString if it is actually a RadonString, implicit
+            // conversions like RadonInteger to RadonString are disabled.
+            match (&res, &default) {
+                (RadonTypes::String(_), RadonTypes::String(_)) => {
+                    return Ok(RadonTypes::from(RadonString::try_from(res.clone())?));
+                }
+                (RadonTypes::Bytes(_), RadonTypes::String(_)) => {
+                    return Ok(RadonTypes::from(RadonString::try_from(res.clone())?));
+                }
+                (_, RadonTypes::String(_)) => {
+                    return Err(RadError::Decode {
+                        from: "serde_cbor::value::Value",
+                        to: "RadonString",
+                    });
+                }
+                _ => {}
+            }
+
+            match default {
+                RadonTypes::Array(_) => Ok(RadonTypes::from(RadonArray::try_from(res.clone())?)),
+                RadonTypes::Boolean(_) => {
+                    Ok(RadonTypes::from(RadonBoolean::try_from(res.clone())?))
+                }
+                RadonTypes::Bytes(_) => Ok(RadonTypes::from(RadonBytes::try_from(res.clone())?)),
+                RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.clone())?)),
+                RadonTypes::Integer(_) => {
+                    Ok(RadonTypes::from(RadonInteger::try_from(res.clone())?))
+                }
+                RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.clone())?)),
+                RadonTypes::RadonError(_) => unreachable!(),
+                RadonTypes::String(_) => {
+                    // Handled above
+                    unreachable!();
+                }
+            }
         })
         .unwrap_or(Ok(temp_def))
 }
@@ -902,6 +930,83 @@ mod tests {
         assert_eq!(
             result.unwrap(),
             RadonTypes::Bytes(RadonBytes::from(vec![0]))
+        );
+    }
+
+    #[test]
+    fn test_string_match_mismatched_types_default_string() {
+        // Check if the StringMatch operator performs implicit conversions to string
+        let mut map: BTreeMap<Value, Value> = BTreeMap::new();
+        map.insert(Value::Text("key_array".to_string()), Value::Array(vec![]));
+        map.insert(Value::Text("key_bool".to_string()), Value::Bool(true));
+        map.insert(Value::Text("key_bytes".to_string()), Value::Bytes(vec![]));
+        map.insert(Value::Text("key_float".to_string()), Value::Float(1.0));
+        map.insert(Value::Text("key_int".to_string()), Value::Integer(1));
+        map.insert(
+            Value::Text("key_map".to_string()),
+            Value::Map(BTreeMap::from([])),
+        );
+        map.insert(Value::Text("key_null".to_string()), Value::Null);
+        map.insert(
+            Value::Text("key_string".to_string()),
+            Value::Text("".to_string()),
+        );
+        let args = vec![Value::Map(map), Value::Text("default_value".to_string())];
+
+        let input_key = RadonString::from("key_array");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to decode RadonString from serde_cbor::value::Value"
+        );
+
+        let input_key = RadonString::from("key_bool");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to decode RadonString from serde_cbor::value::Value"
+        );
+
+        let input_key = RadonString::from("key_int");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to decode RadonString from serde_cbor::value::Value"
+        );
+
+        let input_key = RadonString::from("key_float");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to decode RadonString from serde_cbor::value::Value"
+        );
+
+        let input_key = RadonString::from("key_map");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to decode RadonString from serde_cbor::value::Value"
+        );
+
+        let input_key = RadonString::from("key_null");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap(),
+            RadonTypes::String(RadonString::from("default_value".to_string())),
+        );
+
+        let input_key = RadonString::from("key_bytes");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap(),
+            RadonTypes::String(RadonString::from("".to_string())),
+        );
+
+        let input_key = RadonString::from("key_string");
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap(),
+            RadonTypes::String(RadonString::from("".to_string())),
         );
     }
 
