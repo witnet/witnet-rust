@@ -159,10 +159,11 @@ mod legacy {
 
         use crate::{
             error::RadError,
+            fromx::FromX,
             operators::RadonOpCodes,
             types::{
                 array::RadonArray, float::RadonFloat, integer::RadonInteger, map::RadonMap,
-                string::RadonString, FromFrom, RadonTypes,
+                string::RadonString, RadonTypes,
             },
         };
 
@@ -170,236 +171,218 @@ mod legacy {
         fn test_wip0022_transition() {
             let checks: Vec<(RadonTypes, RadonOpCodes, Vec<Value>)> = vec![
                 (
-                    RadonTypes::from_from::<RadonString>("1234.567"),
+                    RadonTypes::from2::<RadonString>("1234.567"),
                     RadonOpCodes::StringAsFloat,
                     vec![],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("1,234.567"),
+                    RadonTypes::from2::<RadonString>("1,234.567"),
                     RadonOpCodes::StringAsFloat,
                     vec![],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("1.234,567"),
+                    RadonTypes::from2::<RadonString>("1.234,567"),
                     RadonOpCodes::StringAsFloat,
-                    vec![
-                        Value::from_from::<String>("."),
-                        Value::from_from::<String>(","),
-                    ],
+                    vec![Value::from2::<String>("."), Value::from2::<String>(",")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("1 234,567"),
+                    RadonTypes::from2::<RadonString>("1 234,567"),
                     RadonOpCodes::StringAsFloat,
-                    vec![
-                        Value::from_from::<String>(" "),
-                        Value::from_from::<String>(","),
-                    ],
+                    vec![Value::from2::<String>(" "), Value::from2::<String>(",")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("x"),
+                    RadonTypes::from2::<RadonString>("x"),
                     RadonOpCodes::StringAsFloat,
                     vec![],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("1234"),
+                    RadonTypes::from2::<RadonString>("1234"),
                     RadonOpCodes::StringAsInteger,
                     vec![],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("1,234"),
+                    RadonTypes::from2::<RadonString>("1,234"),
                     RadonOpCodes::StringAsInteger,
                     vec![],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("1.234"),
+                    RadonTypes::from2::<RadonString>("1.234"),
                     RadonOpCodes::StringAsInteger,
-                    vec![Value::from_from::<String>(".")],
+                    vec![Value::from2::<String>(".")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("1 234"),
+                    RadonTypes::from2::<RadonString>("1 234"),
                     RadonOpCodes::StringAsInteger,
-                    vec![Value::from_from::<String>(" ")],
+                    vec![Value::from2::<String>(" ")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonString>("x"),
+                    RadonTypes::from2::<RadonString>("x"),
                     RadonOpCodes::StringAsInteger,
                     vec![],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1234.567"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>(
+                        "1234.567",
+                    )]),
                     RadonOpCodes::ArrayGetFloat,
                     vec![Value::from(0)],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1,234.567"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>(
+                        "1,234.567",
+                    )]),
                     RadonOpCodes::ArrayGetFloat,
                     vec![Value::from(0)],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1.234,567"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>(
+                        "1.234,567",
+                    )]),
                     RadonOpCodes::ArrayGetFloat,
                     vec![
                         Value::from(0),
-                        Value::from_from::<String>("."),
-                        Value::from_from::<String>(","),
+                        Value::from2::<String>("."),
+                        Value::from2::<String>(","),
                     ],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1 234,567"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>(
+                        "1 234,567",
+                    )]),
                     RadonOpCodes::ArrayGetFloat,
                     vec![
                         Value::from(0),
-                        Value::from_from::<String>(" "),
-                        Value::from_from::<String>(","),
+                        Value::from2::<String>(" "),
+                        Value::from2::<String>(","),
                     ],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("x"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>("x")]),
                     RadonOpCodes::ArrayGetFloat,
                     vec![Value::from(0)],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1234"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>("1234")]),
                     RadonOpCodes::ArrayGetInteger,
                     vec![Value::from(0)],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1,234"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>(
+                        "1,234",
+                    )]),
                     RadonOpCodes::ArrayGetInteger,
                     vec![Value::from(0)],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1.234"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>(
+                        "1.234",
+                    )]),
                     RadonOpCodes::ArrayGetInteger,
-                    vec![Value::from(0), Value::from_from::<String>(".")],
+                    vec![Value::from(0), Value::from2::<String>(".")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("1 234"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>(
+                        "1 234",
+                    )]),
                     RadonOpCodes::ArrayGetInteger,
-                    vec![Value::from(0), Value::from_from::<String>(" ")],
+                    vec![Value::from(0), Value::from2::<String>(" ")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonArray>(vec![
-                        RadonTypes::from_from::<RadonString>("x"),
-                    ]),
+                    RadonTypes::from2::<RadonArray>(vec![RadonTypes::from2::<RadonString>("x")]),
                     RadonOpCodes::ArrayGetInteger,
                     vec![Value::from(0)],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1234.567"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1234.567"),
+                    )]),
                     RadonOpCodes::MapGetFloat,
-                    vec![Value::from_from::<String>("key")],
+                    vec![Value::from2::<String>("key")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1,234.567"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1,234.567"),
+                    )]),
                     RadonOpCodes::MapGetFloat,
-                    vec![Value::from_from::<String>("key")],
+                    vec![Value::from2::<String>("key")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1.234,567"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1.234,567"),
+                    )]),
                     RadonOpCodes::MapGetFloat,
                     vec![
-                        Value::from_from::<String>("key"),
-                        Value::from_from::<String>("."),
-                        Value::from_from::<String>(","),
+                        Value::from2::<String>("key"),
+                        Value::from2::<String>("."),
+                        Value::from2::<String>(","),
                     ],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1 234,567"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1 234,567"),
+                    )]),
                     RadonOpCodes::MapGetFloat,
                     vec![
-                        Value::from_from::<String>("key"),
-                        Value::from_from::<String>(" "),
-                        Value::from_from::<String>(","),
+                        Value::from2::<String>("key"),
+                        Value::from2::<String>(" "),
+                        Value::from2::<String>(","),
                     ],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("x"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("x"),
+                    )]),
                     RadonOpCodes::MapGetFloat,
-                    vec![Value::from_from::<String>("key")],
+                    vec![Value::from2::<String>("key")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1234"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1234"),
+                    )]),
                     RadonOpCodes::MapGetInteger,
-                    vec![Value::from_from::<String>("key")],
+                    vec![Value::from2::<String>("key")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1,234"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1,234"),
+                    )]),
                     RadonOpCodes::MapGetInteger,
-                    vec![Value::from_from::<String>("key")],
+                    vec![Value::from2::<String>("key")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1.234"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1.234"),
+                    )]),
                     RadonOpCodes::MapGetInteger,
-                    vec![
-                        Value::from_from::<String>("key"),
-                        Value::from_from::<String>("."),
-                    ],
+                    vec![Value::from2::<String>("key"), Value::from2::<String>(".")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("1 234"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("1 234"),
+                    )]),
                     RadonOpCodes::MapGetInteger,
-                    vec![
-                        Value::from_from::<String>("key"),
-                        Value::from_from::<String>(" "),
-                    ],
+                    vec![Value::from2::<String>("key"), Value::from2::<String>(" ")],
                 ),
                 (
-                    RadonTypes::from_from::<RadonMap>(BTreeMap::from([(
+                    RadonTypes::from3::<RadonMap, BTreeMap<_, _>>([(
                         "key".into(),
-                        RadonTypes::from_from::<RadonString>("x"),
-                    )])),
+                        RadonTypes::from2::<RadonString>("x"),
+                    )]),
                     RadonOpCodes::MapGetInteger,
-                    vec![Value::from_from::<String>("key")],
+                    vec![Value::from2::<String>("key")],
                 ),
             ];
             let expected_before: Vec<Result<RadonTypes, RadError>> = vec![
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
@@ -412,7 +395,7 @@ mod legacy {
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
@@ -425,7 +408,7 @@ mod legacy {
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
@@ -438,7 +421,7 @@ mod legacy {
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
@@ -451,7 +434,7 @@ mod legacy {
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
@@ -464,7 +447,7 @@ mod legacy {
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
@@ -479,45 +462,45 @@ mod legacy {
                 }),
             ];
             let expected_after: Vec<Result<RadonTypes, RadError>> = vec![
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
-                Ok(RadonTypes::from_from::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
+                Ok(RadonTypes::from2::<RadonFloat>(1234.567)),
                 Err(RadError::ParseFloat {
                     message: "invalid float literal".to_string(),
                 }),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
-                Ok(RadonTypes::from_from::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
+                Ok(RadonTypes::from2::<RadonInteger>(1234)),
                 Err(RadError::ParseInt {
                     message: "invalid digit found in string".to_string(),
                 }),
@@ -559,14 +542,14 @@ mod legacy {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::string::RadonString;
+    use crate::{fromx::FromX, types::string::RadonString};
 
     use super::*;
 
     #[test]
     pub fn test_identity() {
-        let input = RadonString::from("Hello world!").into();
-        let expected = RadonString::from("Hello world!").into();
+        let input = RadonTypes::from3::<RadonString, String>("Hello world!");
+        let expected = RadonTypes::from3::<RadonString, String>("Hello world!");
         let output = identity(input).unwrap();
 
         assert_eq!(output, expected);
@@ -574,8 +557,8 @@ mod tests {
 
     #[test]
     pub fn test_operate() {
-        let input = RadonString::from("Hello world!").into();
-        let expected = RadonString::from("Hello world!").into();
+        let input = RadonTypes::from3::<RadonString, String>("Hello world!");
+        let expected = RadonTypes::from3::<RadonString, String>("Hello world!");
         let call = (RadonOpCodes::Identity, None);
         let output = operate(input, &call).unwrap();
 

@@ -133,23 +133,6 @@ impl RadonTypes {
     }
 }
 
-pub trait FromFrom<A> {
-    fn from_from<B>(_: A) -> Self
-    where
-        Self: From<B>,
-        B: From<A>;
-}
-
-impl<A, T> FromFrom<A> for T {
-    fn from_from<B>(item: A) -> Self
-    where
-        Self: From<B>,
-        B: From<A>,
-    {
-        Self::from(B::from(item))
-    }
-}
-
 /// Satisfy the `TypeLike` trait that ensures generic compatibility of `witnet_rad` and
 /// `witnet_data_structures`.
 impl TypeLike for RadonTypes {
