@@ -36,6 +36,7 @@ use crate::{
     types::{array::RadonArray, bytes::RadonBytes, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
+use core::convert::From;
 
 pub mod conditions;
 pub mod error;
@@ -661,6 +662,159 @@ pub fn run_tally(
     );
 
     res.map(RadonReport::into_inner)
+}
+
+/// Provides the `FromFrom` trait and implementations.
+pub mod fromx {
+    /// A `From<T>`-like trait that enables easy type routing, i.e. `A` → `B` →`Self`, `A` → `B` →
+    /// `C` → `Self` and `A` → `B` → `C` → `D` → `Self`.
+    ///
+    /// As an example, this is how you build an instance of `RadonTypes` from a `&'static str`:
+    /// ```rust
+    /// use witnet_rad::{fromx::*, types::{RadonTypes, string::RadonString}};
+    ///
+    /// let a = RadonTypes::from3::<RadonString, String>("Hello, World!");
+    /// let b: RadonTypes = "Hello, World!".into3::<String, RadonString>();
+    /// let c = RadonTypes::from(RadonString::from(String::from("Hello, World!")));
+    /// assert_eq!(a, b);
+    /// assert_eq!(b, c);
+    /// ```
+    pub trait FromX<A> {
+        fn from2<B>(_: A) -> Self
+        where
+            Self: From<B>,
+            B: From<A>;
+
+        fn from3<C, B>(_: A) -> Self
+        where
+            Self: From<C>,
+            C: From<B>,
+            B: From<A>;
+
+        fn from4<D, C, B>(_: A) -> Self
+        where
+            Self: From<D>,
+            D: From<C>,
+            C: From<B>,
+            B: From<A>;
+    }
+
+    impl<A, T> FromX<A> for T {
+        /// Blanket implementation of `FromX<A>::from2<B> -> A` for for all `T` provided that the
+        /// following requirements are met:
+        /// - `T` implements `From<B>`
+        /// - `B` implements `From<A>`
+        fn from2<B>(item: A) -> Self
+        where
+            Self: From<B>,
+            B: From<A>,
+        {
+            Self::from(B::from(item))
+        }
+
+        /// Blanket implementation of `FromX<A>::from3<C, B> -> A` for for all `T` provided that the
+        /// following requirements are met:
+        /// - `T` implements `From<C>`
+        /// - `C` implements `From<B>`
+        /// - `B` implements `From<A>`
+        fn from3<C, B>(item: A) -> Self
+        where
+            Self: From<C>,
+            C: From<B>,
+            B: From<A>,
+        {
+            Self::from2::<C>(B::from(item))
+        }
+
+        /// Blanket implementation of `FromX<A>::from4<D, C, B> -> A` for for all `T` provided that
+        /// the following requirements are met:
+        /// - `T` implements `From<D>`
+        /// - `D` implements `From<C>`
+        /// - `C` implements `From<B>`
+        /// - `B` implements `From<A>`
+        fn from4<D, C, B>(item: A) -> Self
+        where
+            Self: From<D>,
+            D: From<C>,
+            C: From<B>,
+            B: From<A>,
+        {
+            Self::from3::<D, C>(B::from(item))
+        }
+    }
+
+    pub trait IntoX<A> {
+        fn into2<B>(self) -> A
+        where
+            A: From<B>,
+            B: From<Self>,
+            Self: Sized;
+
+        fn into3<C, B>(self) -> A
+        where
+            A: From<B>,
+            B: From<C>,
+            C: From<Self>,
+            Self: Sized;
+
+        fn into4<D, C, B>(self) -> A
+        where
+            A: From<B>,
+            B: From<C>,
+            C: From<D>,
+            D: From<Self>,
+            Self: Sized;
+    }
+
+    impl<A, T> IntoX<A> for T
+    where
+        T: FromX<A>,
+    {
+        /// Blanket implementation of `IntoX<T>::into2<B> -> A` for for all `T` provided that the
+        /// following requirements are met:
+        /// - `A` implements `From<B>`
+        /// - `B` implements `From<T>`
+        fn into2<B>(self) -> A
+        where
+            A: From<B>,
+            B: From<Self>,
+            Self: Sized,
+        {
+            A::from2::<B>(self)
+        }
+
+        /// Blanket implementation of `IntoX<T>::into3<C, B> -> A` for for all `T` provided that the
+        /// following requirements are met:
+        /// - `A` implements `From<B>`
+        /// - `B` implements `From<C>`
+        /// - `C` implements `From<T>`
+        fn into3<C, B>(self) -> A
+        where
+            A: From<B>,
+            B: From<C>,
+            C: From<Self>,
+            Self: Sized,
+        {
+            A::from3::<B, C>(self)
+        }
+
+        /// Blanket implementation of `IntoX<T>::into4<D, C, B> -> A` for for all `T` provided that
+        /// the following requirements are met:
+        /// - `A` implements `From<B>`
+        /// - `B` implements `From<C>`
+        /// - `C` implements `From<D>`
+        /// - `D` implements `From<T>`
+        fn into4<D, C, B>(self) -> A
+        where
+            A: From<B>,
+            B: From<C>,
+            C: From<D>,
+            D: From<Self>,
+            Self: Sized,
+        {
+            A::from4::<B, C, D>(self)
+        }
+    }
 }
 
 #[cfg(test)]
