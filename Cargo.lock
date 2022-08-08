@@ -4359,7 +4359,6 @@ dependencies = [
  "async-std",
  "async-trait",
  "cfg-if 1.0.0",
- "encoding_rs",
  "futures-util",
  "getrandom 0.2.5",
  "http-client",
@@ -4370,7 +4369,6 @@ dependencies = [
  "pin-project-lite",
  "serde",
  "serde_json",
- "web-sys",
 ]
 
 [[package]]
@@ -5838,7 +5836,6 @@ dependencies = [
  "rand 0.7.3",
  "serde",
  "serde_cbor",
- "surf",
  "url 2.2.2",
  "witnet_crypto",
  "witnet_data_structures",

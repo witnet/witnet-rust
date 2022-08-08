@@ -23,9 +23,8 @@ ordered-float = "3.0"
 rand = "0.7.3"
 serde = "1.0.111"
 serde_cbor = "0.11.1"
-surf = { version = "2.3.2", default-features = false, features = ["curl-client"] }
 # the url crate is used to perform additional validations before passing arguments to the surf http client
-# the version of url must be kept in sync with the version used by surf
+# the version of url must be kept in sync with the version used by surf in the `witnet_net` crate
 url = "2.1.1"
 
 witnet_crypto = { path = "../crypto" }

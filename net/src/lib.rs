@@ -7,5 +7,7 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
+pub use surf;
+
 pub mod client;
 pub mod server;

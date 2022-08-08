@@ -1,26 +1,25 @@
 //! # RAD Engine
 
-extern crate surf;
-extern crate witnet_data_structures;
-
 use std::str::FromStr;
-
-use surf::http::headers::{HeaderName, HeaderValues, ToHeaderValues};
-use surf::RequestBuilder;
 
 use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
-pub use serde_cbor::to_vec as cbor_to_vec;
-pub use serde_cbor::Value as CborValue;
+pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
 #[cfg(test)]
 use witnet_data_structures::mainnet_validations::all_wips_active;
-use witnet_data_structures::radon_error::RadonError;
 use witnet_data_structures::{
     chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
     mainnet_validations::{current_active_wips, ActiveWips},
+    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
 };
-use witnet_net::client::http::WitnetHttpClient;
+use witnet_net::{
+    client::http::WitnetHttpClient,
+    surf::{
+        http::headers::{HeaderName, HeaderValues, ToHeaderValues},
+        RequestBuilder,
+    },
+};
 
 use crate::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
@@ -1279,7 +1278,7 @@ mod tests {
     #[test]
     fn test_header_correctly_set() {
         let test_header = UserAgent::random();
-        let req = surf::get("https://httpbin.org/get?page=2")
+        let req = witnet_net::surf::get("https://httpbin.org/get?page=2")
             .header("User-Agent", test_header)
             .build();
         assert_eq!(
@@ -1306,7 +1305,7 @@ mod tests {
             ..ReportContext::default()
         };
 
-        let req = surf::get(&retrieve.url);
+        let req = witnet_net::surf::get(&retrieve.url);
         let req = add_http_headers(req, &retrieve, &mut context).unwrap();
         let req = req.build();
         assert_eq!(
@@ -1334,7 +1333,7 @@ mod tests {
             ..ReportContext::default()
         };
 
-        let req = surf::get(&retrieve.url);
+        let req = witnet_net::surf::get(&retrieve.url);
         let req = add_http_headers(req, &retrieve, &mut context).unwrap();
         let req = req.build();
         assert_eq!(
