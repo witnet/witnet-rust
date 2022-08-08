@@ -251,6 +251,11 @@ pub struct Connections {
     /// requests that may be potentially ill-intended.
     pub retrieval_proxies: Vec<String>,
 
+    /// Allows disabling the default unproxied HTTP transport so as to protect the "clearnet" IP
+    /// address of a witnessing node. This feature can only be active if the address of at least one
+    /// retrieval proxy is provided.
+    pub unproxied_retrieval: bool,
+
     /// Limit to reject (tarpit) inbound connections. If the limit is set to 18, the addresses having
     /// the same first 18 bits in the IP will collide, so as to prevent sybil peers from monopolizing our inbound capacity.
     pub reject_sybil_inbounds_range_limit: u8,
@@ -678,6 +683,10 @@ impl Connections {
                 .retrieval_proxies
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_retrieval_proxies()),
+            unproxied_retrieval: config
+                .unproxied_retrieval
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_unproxied_retrieval()),
         }
     }
 
@@ -703,6 +712,7 @@ impl Connections {
             reject_sybil_inbounds_range_limit: Some(self.reject_sybil_inbounds_range_limit),
             requested_blocks_batch_limit: Some(self.requested_blocks_batch_limit),
             retrieval_proxies: Some(self.retrieval_proxies.clone()),
+            unproxied_retrieval: Some(self.unproxied_retrieval),
         }
     }
 }
@@ -1256,6 +1266,7 @@ mod tests {
             reject_sybil_inbounds_range_limit: Some(14),
             requested_blocks_batch_limit: Some(99),
             retrieval_proxies: Some(vec![]),
+            unproxied_retrieval: Some(true),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
 

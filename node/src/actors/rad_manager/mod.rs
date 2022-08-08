@@ -8,15 +8,16 @@
 
 use crate::utils::stop_system_if_panicking;
 
-use core::iter;
 use itertools::Itertools;
 
 mod actor;
 mod handlers;
 
 /// RadManager actor
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct RadManager {
+    /// Signals whether to enable or disable the default unproxied HTTP transport.
+    unproxied: bool,
     /// Addresses of proxies to be used as extra transports when performing data retrieval.
     proxies: Vec<String>,
 }
@@ -35,16 +36,28 @@ impl RadManager {
     /// This internally injects a `None` at the beginning, standing for the base "clearnet"
     /// transport (no proxy).
     pub fn get_http_transports(&self) -> Vec<Option<String>> {
-        iter::once(None)
+        let first = if self.unproxied { vec![None] } else { vec![] };
+
+        first
+            .into_iter()
             .chain(self.proxies.iter().cloned().map(Some))
             .collect_vec()
     }
 
     /// Construct a `RadManager` with some initial proxy addresses.
-    pub fn with_proxies(proxies: Vec<String>) -> Self {
-        log::debug!("Configuring retrieval proxies: {:?}", proxies);
+    pub fn with_proxies(unproxied: bool, proxies: Vec<String>) -> Self {
+        log::info!(
+            "The default unproxied HTTP transport for retrieval is {}.",
+            unproxied.then(|| "enabled").unwrap_or("disabled")
+        );
 
-        Self { proxies }
+        if !proxies.is_empty() {
+            log::info!("Configuring retrieval proxies: {:?}", proxies);
+        } else if !unproxied {
+            panic!("Unproxied retrieval is disabled through configuration, but no proxy addresses have been configured. At least one HTTP transport needs to be enabled. Please either set the `connections.unproxied_retrieval` setting to `true` or add the address of at least one proxy in `connections.retrieval_proxies`.")
+        }
+
+        Self { unproxied, proxies }
     }
 }
 

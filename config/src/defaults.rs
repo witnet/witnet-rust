@@ -121,6 +121,11 @@ pub trait Defaults {
         vec![]
     }
 
+    /// Let the default unproxied HTTP transport be enabled by default
+    fn connections_unproxied_retrieval(&self) -> bool {
+        true
+    }
+
     /// Timestamp at the start of epoch 0
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64;
 
