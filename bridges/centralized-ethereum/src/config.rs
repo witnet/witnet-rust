@@ -1,7 +1,8 @@
 //! Configuration
 
-use serde::{Deserialize, Serialize};
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
 use std::{
+    cell::Cell,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
@@ -35,8 +36,10 @@ pub struct Config {
     /// Running in the witnet testnet?
     pub witnet_testnet: bool,
     /// Gas limits for some methods. If missing, let the client estimate
+    #[serde(deserialize_with = "nested_toml_if_using_envy")]
     pub gas_limits: Gas,
     /// Storage
+    #[serde(deserialize_with = "nested_toml_if_using_envy")]
     pub storage: Storage,
     /// Maximum data request result size (in bytes)
     pub max_result_size: usize,
@@ -52,7 +55,7 @@ fn one() -> usize {
 }
 
 /// Gas limits for some methods. If missing, let the client estimate
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Gas {
     /// postDataRequest gas limit
@@ -62,7 +65,7 @@ pub struct Gas {
 }
 
 /// Storage
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Storage {
     /// Path to the directory that will contain the database. Used
@@ -95,5 +98,99 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::
 
 /// Load configuration from environment variables
 pub fn from_env() -> Result<Config, envy::Error> {
-    envy::prefixed("WITNET_CENTRALIZED_ETHEREUM_BRIDGE_").from_env()
+    USING_ENVY.with(|x| x.set(true));
+    let res = envy::prefixed("WITNET_CENTRALIZED_ETHEREUM_BRIDGE_").from_env();
+    USING_ENVY.with(|x| x.set(false));
+
+    res
+}
+
+thread_local! {
+    /// Thread-local flag to indicate the `nested_toml_if_using_envy` function that we are indeed
+    /// using envy.
+    static USING_ENVY: Cell<bool> = Cell::new(false);
+}
+
+/// If using the `envy` crate to deserialize this value, try to deserialize it as a TOML string.
+/// If using any other deserializer, deserialize the value as usual.
+///
+/// The thread-local variable `USING_ENVY` is used to detect which deserializer is currently being
+/// used.
+fn nested_toml_if_using_envy<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    if USING_ENVY.with(|x| x.get()) {
+        // Trying to deserialize a `&'de str` here fails with error:
+        //   invalid type: string \"\", expected a borrowed string
+        // because the envy crate only supports deserializing strings.
+        // So instead we deserialize into a `String` and leak that string to get a `&'static str`.
+        // TODO: find a better way to get a &'de str
+        // Maybe just use static storage to store the 2 strings, like a [Option<String>; 2], but
+        // that is basically the same as leaking the strings.
+        let string_toml = String::deserialize(deserializer)?;
+        let s = Box::leak(string_toml.into_boxed_str());
+
+        toml::from_str(s).map_err(D::Error::custom)
+    } else {
+        T::deserialize(deserializer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn envy_deserialize_nested_toml() {
+        // The envy crate does not support deserializing nested structs, such as the `Gas` struct
+        // inside `Config`. As a workaround, we add the attribute
+        // #[serde(deserialize_with = "nested_toml_if_using_envy")]
+        // which will treat the string as toml, and allow a successful deserialization.
+
+        // Copy of `Config` that only has the fields that are interesting for this test
+        #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct SmallConfig {
+            /// Gas limits for some methods. If missing, let the client estimate
+            #[serde(deserialize_with = "nested_toml_if_using_envy")]
+            pub gas_limits: Gas,
+            /// Storage
+            #[serde(deserialize_with = "nested_toml_if_using_envy")]
+            pub storage: Storage,
+        }
+
+        // kev-value list of environment variables
+        let kv = vec![
+            (
+                "WITNET_CENTRALIZED_ETHEREUM_BRIDGE_GAS_LIMITS".to_string(),
+                "post_data_request = 10_000\nreport_result = 20_000".to_string(),
+            ),
+            (
+                "WITNET_CENTRALIZED_ETHEREUM_BRIDGE_STORAGE".to_string(),
+                "db_path = \".witnet\"".to_string(),
+            ),
+        ];
+
+        let expected = SmallConfig {
+            gas_limits: Gas {
+                post_data_request: Some(10_000),
+                report_result: Some(20_000),
+            },
+            storage: Storage {
+                db_path: PathBuf::from(".witnet"),
+            },
+        };
+
+        // Need to manually set the "USING_ENVY" flag, this is handled automatically inside the
+        // from_env function which is the public one that users can use.
+        USING_ENVY.with(|x| x.set(true));
+        let small_config: SmallConfig = envy::prefixed("WITNET_CENTRALIZED_ETHEREUM_BRIDGE_")
+            .from_iter(kv)
+            .unwrap();
+        USING_ENVY.with(|x| x.set(false));
+
+        assert_eq!(small_config, expected);
+    }
 }
