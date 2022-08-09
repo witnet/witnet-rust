@@ -89,7 +89,7 @@ pub fn try_data_request(
             request
                 .retrieve
                 .iter()
-                .map(|retrieve| run_retrieval_report(retrieve, settings, &active_wips, None))
+                .map(|retrieve| run_retrieval_report(retrieve, settings, active_wips.clone(), None))
                 .collect::<Vec<_>>(),
         ))
     };
@@ -359,11 +359,11 @@ fn add_http_headers(
 pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
-    active_wips: &ActiveWips,
+    active_wips: ActiveWips,
     client: Option<WitnetHttpClient>,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
-    context.set_active_wips(active_wips.clone());
+    context.set_active_wips(active_wips);
 
     match retrieve.kind {
         RADType::HttpGet => http_response(retrieve, context, settings, client).await,
@@ -374,7 +374,7 @@ pub async fn run_retrieval_report(
 }
 
 /// Run retrieval stage of a data request, return `Result<RadonTypes>`.
-pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: &ActiveWips) -> Result<RadonTypes> {
+pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: ActiveWips) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     run_retrieval_report(
         retrieve,
@@ -396,7 +396,7 @@ pub async fn run_paranoid_retrieval(
     retrieve: &RADRetrieve,
     aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
-    active_wips: &ActiveWips,
+    active_wips: ActiveWips,
     transports: &[Option<String>],
     paranoid: f32,
 ) -> Result<RadonTypes> {
@@ -411,7 +411,7 @@ pub async fn run_paranoid_retrieval(
                     run_retrieval_report(
                         retrieve,
                         RadonScriptExecutionSettings::disable_all(),
-                        active_wips,
+                        active_wips.clone(),
                         Some(client),
                     )
                 })

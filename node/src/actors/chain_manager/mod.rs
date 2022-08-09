@@ -2978,8 +2978,9 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
     // TODO: remove blocking calls, this code is no longer part of the CLI
     // Block on data request retrieval because the CLI application blocks everywhere anyway
-    let run_retrieval_blocking =
-        |retrieve| futures::executor::block_on(witnet_rad::run_retrieval(retrieve, &active_wips));
+    let run_retrieval_blocking = |retrieve| {
+        futures::executor::block_on(witnet_rad::run_retrieval(retrieve, active_wips.clone()))
+    };
 
     let mut retrieval_results = vec![];
     for r in &dr.data_request.retrieve {

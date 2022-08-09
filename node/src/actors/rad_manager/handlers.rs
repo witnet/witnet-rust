@@ -56,7 +56,7 @@ impl Handler<ResolveRA> for RadManager {
                         retrieve,
                         aggregate.clone(),
                         settings,
-                        &active_wips,
+                        active_wips.clone(),
                         transports.as_slice(),
                         paranoid,
                     )
