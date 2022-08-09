@@ -1,21 +1,22 @@
 use witnet_node::actors::rad_manager::RadManager;
 
 fn with_proxies_test_success_helper(
-    unproxied: bool,
+    allow_unproxied: bool,
     proxies: Vec<String>,
     expected_transports: Vec<Option<String>>,
 ) {
-    let manager = RadManager::with_proxies(unproxied, proxies);
+    let manager = RadManager::with_proxies(allow_unproxied, 51, proxies);
     let actual_transports = manager.get_http_transports();
     assert_eq!(actual_transports, expected_transports);
 }
 
 fn with_proxies_test_error_helper(
-    unproxied: bool,
+    allow_unproxied: bool,
     proxies: Vec<String>,
     expected_panic_message: &str,
 ) {
-    let manager = std::panic::catch_unwind(|| RadManager::with_proxies(unproxied, proxies));
+    let manager =
+        std::panic::catch_unwind(|| RadManager::with_proxies(allow_unproxied, 51, proxies));
     let panic_message = *manager.unwrap_err().downcast::<&str>().unwrap();
     assert_eq!(panic_message, expected_panic_message);
 }

@@ -56,10 +56,19 @@ bootstrap_peers_period_seconds = 1
 # Reject (tarpit) inbound connections coming from addresses that are alike (i.e. by default having the first 18 bits equal),
 # so as to prevent sybil peers from monopolizing our inbound capacity.
 reject_sybil_inbounds = true
-# Add addresses here to be used as proxies when performing data retrieval. This allows retrieving data sources through
+# Tells how strict or lenient to be with inconsistent data sources. Paranoid level is defined as percentage of
+# successful retrievals over total number of retrieval transports. That is, if we have 3 proxies in addition to the
+# default unproxied transport (4), and we set the paranoid percentage to 51 (51%), the node will only from commit to
+# requests in which "half plus one" of the data sources are in consensus (3 out of 4). For the typical setup in which
+# only 1 proxy is used (e.g. the SOCKS5 endpoint from a local Tor client node), 51 (51%) results in a "fully paranoid"
+# behavior, i.e. the node will only commit if all data sources are consistent.
+witnessing_paranoid_percentage = 51
+# Add URLs here to be used as proxies when performing data retrieval. This allows retrieving data sources through
 # different transports so as to ensure that the data sources are consistent and we are taking as small of a risk as
 # possible when committing to specially crafted data requests that may be potentially ill-intended.
-retrieval_proxies = []
+# The currently supported proxy protocols are HTTP, HTTPS, SOCKS4 (with and without authentication) and SOCKS5 (with and
+# without authentication)
+witnessing_proxies = []
 
 [storage]
 # Path of the folder where RocksDB storage files will be written to.

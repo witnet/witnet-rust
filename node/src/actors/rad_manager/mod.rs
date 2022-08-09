@@ -17,7 +17,9 @@ mod handlers;
 #[derive(Debug, Default)]
 pub struct RadManager {
     /// Signals whether to enable or disable the default unproxied HTTP transport.
-    unproxied: bool,
+    allow_unproxied: bool,
+    /// How strict or lenient to be with inconsistent data sources.
+    paranoid: f32,
     /// Addresses of proxies to be used as extra transports when performing data retrieval.
     proxies: Vec<String>,
 }
@@ -36,7 +38,11 @@ impl RadManager {
     /// This internally injects a `None` at the beginning, standing for the base "clearnet"
     /// transport (no proxy).
     pub fn get_http_transports(&self) -> Vec<Option<String>> {
-        let first = if self.unproxied { vec![None] } else { vec![] };
+        let first = if self.allow_unproxied {
+            vec![None]
+        } else {
+            vec![]
+        };
 
         first
             .into_iter()
@@ -45,19 +51,26 @@ impl RadManager {
     }
 
     /// Construct a `RadManager` with some initial proxy addresses.
-    pub fn with_proxies(unproxied: bool, proxies: Vec<String>) -> Self {
+    pub fn with_proxies(allow_unproxied: bool, paranoid: u8, proxies: Vec<String>) -> Self {
         log::info!(
             "The default unproxied HTTP transport for retrieval is {}.",
-            unproxied.then(|| "enabled").unwrap_or("disabled")
+            allow_unproxied.then(|| "enabled").unwrap_or("disabled")
         );
 
         if !proxies.is_empty() {
             log::info!("Configuring retrieval proxies: {:?}", proxies);
-        } else if !unproxied {
+            log::info!("Paranoid retrieval percentage is set to {}%", paranoid)
+        } else if !allow_unproxied {
             panic!("Unproxied retrieval is disabled through configuration, but no proxy addresses have been configured. At least one HTTP transport needs to be enabled. Please either set the `connections.unproxied_retrieval` setting to `true` or add the address of at least one proxy in `connections.retrieval_proxies`.")
         }
 
-        Self { unproxied, proxies }
+        let paranoid = f32::from(paranoid) / 100.0;
+
+        Self {
+            paranoid,
+            proxies,
+            allow_unproxied,
+        }
     }
 }
 

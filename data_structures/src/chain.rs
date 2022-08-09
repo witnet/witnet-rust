@@ -1937,6 +1937,15 @@ impl RADTally {
     }
 }
 
+impl From<RADAggregate> for RADTally {
+    fn from(aggregate: RADAggregate) -> Self {
+        Self {
+            filters: aggregate.filters,
+            reducer: aggregate.reducer,
+        }
+    }
+}
+
 type PrioritizedHash = (OrderedFloat<f64>, Hash);
 type PrioritizedVTTransaction = (OrderedFloat<f64>, VTTransaction);
 type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction);

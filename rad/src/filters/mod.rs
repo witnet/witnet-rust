@@ -1,16 +1,18 @@
 use std::fmt;
 
-use num_enum::TryFromPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_cbor::Value;
-
-use crate::error::RadError;
-use crate::types::{array::RadonArray, RadonType, RadonTypes};
 use witnet_data_structures::radon_report::ReportContext;
+
+use crate::{
+    error::RadError,
+    types::{array::RadonArray, RadonType, RadonTypes},
+};
 
 pub mod deviation;
 pub mod mode;
 
-#[derive(Debug, PartialEq, Eq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum RadonFilters {
     // Implemented

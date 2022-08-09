@@ -56,8 +56,9 @@ pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
 
         // Start RadManager actor
         let rad_manager_addr = RadManager::with_proxies(
-            config.connections.unproxied_retrieval,
-            config.connections.retrieval_proxies.clone(),
+            config.connections.witnessing_allow_unproxied,
+            config.connections.witnessing_paranoid_percentage,
+            config.connections.witnessing_proxies.clone(),
         )
         .start();
         SystemRegistry::set(rad_manager_addr);

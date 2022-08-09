@@ -26,14 +26,15 @@ impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<Result<RadonReport<RadonTypes>, RadError>>;
 
     fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
-        // Fetching the HTTP transports this early makes lifetimes easier for the fut block below
+        // Fetching these values this early makes lifetimes easier for the fut block below
         let transports = self.get_http_transports();
+        let paranoid = self.paranoid;
 
         // The result of the RAD aggregation is computed asynchronously, because the async block
         // returns a future
         let fut = async move {
             let sources = msg.rad_request.retrieve;
-            let aggregator = msg.rad_request.aggregate;
+            let aggregate = msg.rad_request.aggregate;
             let active_wips = msg.active_wips.clone();
             // Add a timeout to each source retrieval
             // TODO: this timeout only works if there are no blocking operations.
@@ -47,19 +48,17 @@ impl Handler<ResolveRA> for RadManager {
                     std::cmp::min(timeout_from_config, MAX_RETRIEVAL_TIMEOUT)
                 }
             };
-            let tally = msg.rad_request.tally;
-
             let settings = RadonScriptExecutionSettings::disable_all();
-
             let retrieve_responses_fut = sources
                 .iter()
                 .map(|retrieve| {
                     witnet_rad::run_paranoid_retrieval(
                         retrieve,
-                        &tally,
+                        &aggregate,
                         settings,
                         &active_wips,
                         transports.as_slice(),
+                        paranoid,
                     )
                 })
                 .map(|fut| {
@@ -106,7 +105,7 @@ impl Handler<ResolveRA> for RadManager {
                     // failures.
                     let (res, _) = witnet_rad::run_aggregation_report(
                         values,
-                        &aggregator,
+                        &aggregate,
                         RadonScriptExecutionSettings::all_but_partial_results(),
                         &msg.active_wips,
                     );

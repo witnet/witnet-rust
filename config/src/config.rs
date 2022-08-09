@@ -245,16 +245,23 @@ pub struct Connections {
     /// to prevent sybil peers from monopolizing our inbound capacity.
     pub reject_sybil_inbounds: bool,
 
+    /// Allows disabling the default unproxied HTTP transport so as to protect the "clearnet" IP
+    /// address of a witnessing node. This feature can only be active if the address of at least one
+    /// retrieval proxy is provided.
+    pub witnessing_allow_unproxied: bool,
+
+    /// Tells how strict or lenient to be with inconsistent data sources. Paranoid level is defined
+    /// as percentage of successful retrievals over total number of retrieval transports. That is,
+    /// if we have 3 proxies in addition to the default unproxied transport (4), and we set the
+    /// paranoid percentage to 51 (51%), the node will only from commit to requests in which "half
+    /// plus one" of the data sources are in consensus (3 out of 4).
+    pub witnessing_paranoid_percentage: u8,
+
     /// Addresses to be used as proxies when performing data retrieval. This allows retrieving data
     /// sources through different transports so as to ensure that the data sources are consistent
     /// and we are taking as small of a risk as possible when committing to specially crafted data
     /// requests that may be potentially ill-intended.
-    pub retrieval_proxies: Vec<String>,
-
-    /// Allows disabling the default unproxied HTTP transport so as to protect the "clearnet" IP
-    /// address of a witnessing node. This feature can only be active if the address of at least one
-    /// retrieval proxy is provided.
-    pub unproxied_retrieval: bool,
+    pub witnessing_proxies: Vec<String>,
 
     /// Limit to reject (tarpit) inbound connections. If the limit is set to 18, the addresses having
     /// the same first 18 bits in the IP will collide, so as to prevent sybil peers from monopolizing our inbound capacity.
@@ -679,14 +686,18 @@ impl Connections {
                 .requested_blocks_batch_limit
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_requested_blocks_batch_limit()),
-            retrieval_proxies: config
-                .retrieval_proxies
+            witnessing_allow_unproxied: config
+                .witnessing_allow_unproxied
                 .to_owned()
-                .unwrap_or_else(|| defaults.connections_retrieval_proxies()),
-            unproxied_retrieval: config
-                .unproxied_retrieval
+                .unwrap_or_else(|| defaults.connections_witnessing_allow_unproxied()),
+            witnessing_paranoid_percentage: config
+                .witnessing_paranoid_percentage
                 .to_owned()
-                .unwrap_or_else(|| defaults.connections_unproxied_retrieval()),
+                .unwrap_or_else(|| defaults.connections_witnessing_paranoid_percentage()),
+            witnessing_proxies: config
+                .witnessing_proxies
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_witnessing_proxies()),
         }
     }
 
@@ -711,8 +722,9 @@ impl Connections {
             reject_sybil_inbounds: Some(self.reject_sybil_inbounds),
             reject_sybil_inbounds_range_limit: Some(self.reject_sybil_inbounds_range_limit),
             requested_blocks_batch_limit: Some(self.requested_blocks_batch_limit),
-            retrieval_proxies: Some(self.retrieval_proxies.clone()),
-            unproxied_retrieval: Some(self.unproxied_retrieval),
+            witnessing_allow_unproxied: Some(self.witnessing_allow_unproxied),
+            witnessing_paranoid_percentage: Some(self.witnessing_paranoid_percentage),
+            witnessing_proxies: Some(self.witnessing_proxies.clone()),
         }
     }
 }
@@ -1265,8 +1277,9 @@ mod tests {
             reject_sybil_inbounds: Some(true),
             reject_sybil_inbounds_range_limit: Some(14),
             requested_blocks_batch_limit: Some(99),
-            retrieval_proxies: Some(vec![]),
-            unproxied_retrieval: Some(true),
+            witnessing_allow_unproxied: Some(true),
+            witnessing_paranoid_percentage: Some(51),
+            witnessing_proxies: Some(vec![]),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
 
