@@ -124,9 +124,14 @@ impl TryFrom<&mut surf::http::Request> for WitnetHttpRequest {
 
     fn try_from(req: &mut surf::http::Request) -> Result<Self, Self::Error> {
         let method = isahc::http::Method::from(WitnetHttpMethod::try_from(req.method())?);
-        let version = isahc::http::version::Version::from(WitnetHttpVersion::try_from(
-            req.version().unwrap_or(surf::http::Version::Http3_0),
-        )?);
+        let version = req
+            .version()
+            .ok_or(WitnetHttpError::UnknownVersion {
+                version: String::from("None"),
+            })
+            .and_then(WitnetHttpVersion::try_from)
+            .map(isahc::http::Version::from)
+            .unwrap_or_default();
         let uri = req.url().to_string();
         let body = isahc::AsyncBody::from_reader(req.take_body().into_reader());
         let headers: Vec<(String, String)> = req
