@@ -54,7 +54,7 @@ impl Handler<ResolveRA> for RadManager {
                 .map(|retrieve| {
                     witnet_rad::run_paranoid_retrieval(
                         retrieve,
-                        &aggregate,
+                        aggregate.clone(),
                         settings,
                         &active_wips,
                         transports.as_slice(),
@@ -105,7 +105,7 @@ impl Handler<ResolveRA> for RadManager {
                     // failures.
                     let (res, _) = witnet_rad::run_aggregation_report(
                         values,
-                        &aggregate,
+                        aggregate,
                         RadonScriptExecutionSettings::all_but_partial_results(),
                         &msg.active_wips,
                     );

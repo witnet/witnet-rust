@@ -68,7 +68,7 @@ fn run_dr_locally_with_data(
     log::info!("Running aggregation with values {:?}", retrieval_results);
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
-        &dr.data_request.aggregate,
+        dr.data_request.aggregate.clone(),
         &all_wips_active(),
     )?;
     log::info!("Aggregation result: {:?}", aggregation_result);

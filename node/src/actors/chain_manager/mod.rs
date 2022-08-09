@@ -2988,8 +2988,11 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);
-    let aggregation_result =
-        witnet_rad::run_aggregation(retrieval_results, &dr.data_request.aggregate, &active_wips)?;
+    let aggregation_result = witnet_rad::run_aggregation(
+        retrieval_results,
+        dr.data_request.aggregate.clone(),
+        &active_wips,
+    )?;
     log::info!("Aggregation result: {:?}", aggregation_result);
 
     // Assume that all the required witnesses will report the same value

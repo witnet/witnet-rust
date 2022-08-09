@@ -122,7 +122,7 @@ pub fn try_data_request(
             // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
             // failures.
             let (aggregation_result, aggregation_context) =
-                run_aggregation_report(values, &request.aggregate, settings, &active_wips);
+                run_aggregation_report(values, request.aggregate.clone(), settings, &active_wips);
 
             aggregation_result
                 .unwrap_or_else(|error| RadonReport::from_result(Err(error), &aggregation_context))
@@ -394,7 +394,7 @@ pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: &ActiveWips) -> 
 /// HTTP transports at once.
 pub async fn run_paranoid_retrieval(
     retrieve: &RADRetrieve,
-    aggregate: &RADAggregate,
+    aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
     active_wips: &ActiveWips,
     transports: &[Option<String>],
@@ -427,7 +427,7 @@ pub async fn run_paranoid_retrieval(
 /// are consistent, i.e. enough of them pass the filters from the aggregation stage.
 fn evaluate_paranoid_retrieval(
     data: Vec<Result<RadonReport<RadonTypes>>>,
-    aggregate: &RADAggregate,
+    aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
     paranoid: f32,
 ) -> Result<RadonTypes> {
@@ -450,7 +450,7 @@ fn evaluate_paranoid_retrieval(
         // debugging data sources through `witnet_toolkit`), we can refactor `AggregateMetaData` and
         // avoid these tricks here.
         let mut context = ReportContext::from_stage(Stage::Tally(TallyMetaData::default()));
-        let consensus = RADTally::from(aggregate.clone());
+        let consensus = RADTally::from(aggregate);
         let tally =
             run_tally_with_context_report(values.clone(), &consensus, &mut context, settings);
 
@@ -480,7 +480,7 @@ fn evaluate_paranoid_retrieval(
 /// Run aggregate stage of a data request, return a tuple of `Result<RadonReport>` and `ReportContext`
 pub fn run_aggregation_report(
     radon_types_vec: Vec<RadonTypes>,
-    aggregate: &RADAggregate,
+    aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
     active_wips: &ActiveWips,
 ) -> (Result<RadonReport<RadonTypes>>, ReportContext<RadonTypes>) {
@@ -496,7 +496,7 @@ pub fn run_aggregation_report(
 /// Run aggregate stage of a data request on a custom context, return `Result<RadonReport>`.
 pub fn run_aggregation_with_context_report(
     radon_types_vec: Vec<RadonTypes>,
-    aggregate: &RADAggregate,
+    aggregate: RADAggregate,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
@@ -520,7 +520,7 @@ pub fn run_aggregation_with_context_report(
 /// Run aggregate stage of a data request, return `Result<RadonTypes>`.
 pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
-    aggregate: &RADAggregate,
+    aggregate: RADAggregate,
     active_wips: &ActiveWips,
 ) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
@@ -682,7 +682,7 @@ mod tests {
 
         let output_aggregate = run_aggregation(
             radon_types_vec.clone(),
-            &RADAggregate {
+            RADAggregate {
                 filters: vec![],
                 reducer: RadonReducers::AverageMean as u32,
             },
@@ -735,7 +735,7 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], aggregate, &current_active_wips()).unwrap();
         let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
@@ -772,7 +772,7 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], aggregate, &current_active_wips()).unwrap();
         let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
@@ -825,7 +825,7 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], aggregate, &current_active_wips()).unwrap();
         let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
@@ -869,7 +869,7 @@ mod tests {
         )
         .unwrap();
         let aggregated =
-            run_aggregation(vec![retrieved], &aggregate, &current_active_wips()).unwrap();
+            run_aggregation(vec![retrieved], aggregate, &current_active_wips()).unwrap();
         let tallied = run_tally(vec![aggregated], &tally, &current_active_wips()).unwrap();
 
         assert_eq!(tallied, expected);
@@ -1663,7 +1663,7 @@ mod tests {
             RadonTypes::from(RadonFloat::from(100)),
             RadonTypes::from(RadonFloat::from(105)),
         ]);
-        let aggregate = &aggregate_deviation_standard_and_average_mean(1.1);
+        let aggregate = aggregate_deviation_standard_and_average_mean(1.1);
 
         let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.7).unwrap();
         let expected_result = RadonTypes::from(RadonFloat::from(102.5));
@@ -1679,7 +1679,7 @@ mod tests {
             RadonTypes::from(RadonFloat::from(105)),
             RadonTypes::from(RadonFloat::from(300)),
         ]);
-        let aggregate = &aggregate_deviation_standard_and_average_mean(1.1);
+        let aggregate = aggregate_deviation_standard_and_average_mean(1.1);
 
         let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.66).unwrap();
         let expected_result = RadonTypes::from(RadonFloat::from(102.5));
@@ -1695,7 +1695,7 @@ mod tests {
             RadonTypes::from(RadonFloat::from(105)),
             RadonTypes::from(RadonFloat::from(300)),
         ]);
-        let aggregate = &aggregate_deviation_standard_and_average_mean(1.1);
+        let aggregate = aggregate_deviation_standard_and_average_mean(1.1);
 
         let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.67).unwrap();
         let expected_result = RadonTypes::from(RadonError::new(RadError::InconsistentSource));
