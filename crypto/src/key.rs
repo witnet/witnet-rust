@@ -19,7 +19,7 @@ use bech32::{FromBase32, ToBase32 as _};
 use byteorder::{BigEndian, ReadBytesExt as _};
 use failure::Fail;
 use hmac::{Hmac, Mac};
-use secp256k1::{PublicKey, SecretKey};
+use secp256k1::{PublicKey, Scalar, SecretKey};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -300,8 +300,8 @@ impl ExtendedSK {
 
         let (chain_code, mut secret_key) = get_chain_code_and_secret(&index_bytes, hmac512)?;
 
-        secret_key
-            .add_assign(&self.secret_key[..])
+        secret_key = secret_key
+            .add_tweak(&Scalar::from(self.secret_key))
             .map_err(KeyDerivationError::Secp256k1Error)?;
 
         Ok(ExtendedSK {
