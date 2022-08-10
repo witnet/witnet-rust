@@ -1,7 +1,5 @@
 //! # RAD Engine
 
-extern crate witnet_data_structures;
-
 use std::str::FromStr;
 
 use futures::{executor::block_on, future::join_all};
@@ -416,12 +414,7 @@ pub async fn run_paranoid_retrieval(
                     message: err.to_string(),
                 })
                 .map(|client| {
-                    run_retrieval_report(
-                        retrieve,
-                        settings,
-                        active_wips.clone(),
-                        Some(client),
-                    )
+                    run_retrieval_report(retrieve, settings, active_wips.clone(), Some(client))
                 })
         })
         .collect();

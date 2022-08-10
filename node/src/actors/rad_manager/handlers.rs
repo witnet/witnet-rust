@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use actix::{Handler, ResponseFuture};
-use futures::FutureExt;
+use futures::{FutureExt, TryFutureExt};
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 use witnet_rad::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
@@ -58,6 +58,20 @@ impl Handler<ResolveRA> for RadManager {
                         active_wips.clone(),
                         witnessing.clone(),
                     )
+                    .map_err(
+                        // The `InconsistentSource` error is mapped here for the sake of backwards
+                        // compatibility. Namely, to enable paranoid retrieval without having to
+                        // immediately introduce a breaking change that may jeopardize oracle
+                        // queries. The point of making the mapping here is to only affect actual
+                        // witnessing and committing, but not the `try_data_request` function, which
+                        // can rather use the `InconsistentSource` error for clarity.
+                        // TODO: pursue a WIP that introduces `InconsistentSource` as a proper
+                        //  RadonError at the protocol level.
+                        |err| match err {
+                            RadError::InconsistentSource => RadError::Unknown,
+                            other => other,
+                        },
+                    )
                 })
                 .map(|fut| {
                     tokio::time::timeout(timeout, fut).map(|response| {
@@ -73,18 +87,6 @@ impl Handler<ResolveRA> for RadManager {
                 .await
                 .into_iter()
                 .collect::<Result<Vec<RadonReport<RadonTypes>>, RadError>>()?;
-
-            // Short-circuit if any of the sources is apparently inconsistent
-            let inconsistent = retrieve_responses.iter().find(|report| {
-                if let RadonTypes::RadonError(error) = &report.result {
-                    error.inner() == &RadError::InconsistentSource
-                } else {
-                    false
-                }
-            });
-            if let Some(report) = inconsistent {
-                return Ok(report.clone());
-            }
 
             // Evaluate tally precondition to ensure that at least 20% of the data sources are not errors.
             // This stage does not need to evaluate the postcondition.
