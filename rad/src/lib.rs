@@ -418,7 +418,7 @@ pub async fn run_paranoid_retrieval(
                 .map(|client| {
                     run_retrieval_report(
                         retrieve,
-                        RadonScriptExecutionSettings::disable_all(),
+                        settings,
                         active_wips.clone(),
                         Some(client),
                     )
