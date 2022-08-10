@@ -2,6 +2,7 @@ use witnet_data_structures::chain::{ConsensusConstants, Hash};
 
 use super::*;
 use crate::db::HashMapDb;
+use witnet_config::config::WitnessingConfig;
 use witnet_crypto::{hash::HashFunction, mnemonic};
 
 pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
@@ -65,6 +66,7 @@ fn wallet_inner(
         },
         use_unconfirmed_utxos: true,
         pending_transactions_timeout_seconds: 10 * 45,
+        witnessing: WitnessingConfig::default(),
     };
     let mnemonic = mnemonic::MnemonicGen::new()
         .with_len(mnemonic::Length::Words12)

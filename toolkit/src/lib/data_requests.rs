@@ -27,7 +27,7 @@ pub fn decode_from_pb_bytes(pb_bytes: &[u8]) -> Result<DataRequestOutput, Error>
 /// By default, a full trace is provided, i.e.: all execution details including the partial results
 /// after each operator.
 ///
-/// Full trace mode can be disabled by setting `full_trace` to `false`.  
+/// Full trace mode can be disabled by setting `full_trace` to `false`.
 pub fn try_data_request(
     request: &RADRequest,
     full_trace: bool,
@@ -37,7 +37,7 @@ pub fn try_data_request(
     } else {
         RadonScriptExecutionSettings::disable_all()
     };
-    let report = witnet_rad::try_data_request(request, settings, None);
+    let report = witnet_rad::try_data_request(request, settings, None, None);
 
     Ok(report)
 }

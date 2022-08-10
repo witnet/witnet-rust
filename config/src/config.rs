@@ -119,6 +119,11 @@ pub struct Config {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub tapi: Tapi,
+
+    /// Witnessing-related configuration
+    #[partial_struct(ty = "PartialWitnessing")]
+    #[partial_struct(serde(default))]
+    pub witnessing: Witnessing,
 }
 
 /// Log-specific configuration.
@@ -245,30 +250,35 @@ pub struct Connections {
     /// to prevent sybil peers from monopolizing our inbound capacity.
     pub reject_sybil_inbounds: bool,
 
-    /// Allows disabling the default unproxied HTTP transport so as to protect the "clearnet" IP
-    /// address of a witnessing node. This feature can only be active if the address of at least one
-    /// retrieval proxy is provided.
-    pub witnessing_allow_unproxied: bool,
-
-    /// Tells how strict or lenient to be with inconsistent data sources. Paranoid level is defined
-    /// as percentage of successful retrievals over total number of retrieval transports. That is,
-    /// if we have 3 proxies in addition to the default unproxied transport (4), and we set the
-    /// paranoid percentage to 51 (51%), the node will only from commit to requests in which "half
-    /// plus one" of the data sources are in consensus (3 out of 4).
-    pub witnessing_paranoid_percentage: u8,
-
-    /// Addresses to be used as proxies when performing data retrieval. This allows retrieving data
-    /// sources through different transports so as to ensure that the data sources are consistent
-    /// and we are taking as small of a risk as possible when committing to specially crafted data
-    /// requests that may be potentially ill-intended.
-    pub witnessing_proxies: Vec<String>,
-
     /// Limit to reject (tarpit) inbound connections. If the limit is set to 18, the addresses having
     /// the same first 18 bits in the IP will collide, so as to prevent sybil peers from monopolizing our inbound capacity.
     pub reject_sybil_inbounds_range_limit: u8,
 
     /// Limit the number of requested blocks that will be processed as one batch
     pub requested_blocks_batch_limit: u32,
+}
+
+/// Witnessing-specific configuration.
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+pub struct Witnessing {
+    /// Allows disabling the default unproxied HTTP transport so as to protect the "clearnet" IP
+    /// address of a witnessing node. This feature can only be active if the address of at least one
+    /// retrieval proxy is provided.
+    pub allow_unproxied: bool,
+
+    /// Tells how strict or lenient to be with inconsistent data sources. Paranoid level is defined
+    /// as percentage of successful retrievals over total number of retrieval transports. That is,
+    /// if we have 3 proxies in addition to the default unproxied transport (4), and we set the
+    /// paranoid percentage to 51 (51%), the node will only from commit to requests in which "half
+    /// plus one" of the data sources are in consensus (3 out of 4).
+    pub paranoid_percentage: u8,
+
+    /// Addresses to be used as proxies when performing data retrieval. This allows retrieving data
+    /// sources through different transports so as to ensure that the data sources are consistent
+    /// and we are taking as small of a risk as possible when committing to specially crafted data
+    /// requests that may be potentially ill-intended.
+    pub proxies: Vec<String>,
 }
 
 /// Available storage backends
@@ -454,6 +464,7 @@ impl Config {
             ntp: Ntp::from_partial(&config.ntp, defaults),
             mempool: Mempool::from_partial(&config.mempool, defaults),
             tapi: config.tapi.clone(),
+            witnessing: Witnessing::from_partial(&config.witnessing, defaults),
         }
     }
 
@@ -471,6 +482,7 @@ impl Config {
             ntp: self.ntp.to_partial(),
             mempool: self.mempool.to_partial(),
             tapi: self.tapi.clone(),
+            witnessing: self.witnessing.to_partial(),
         }
     }
 }
@@ -686,18 +698,6 @@ impl Connections {
                 .requested_blocks_batch_limit
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_requested_blocks_batch_limit()),
-            witnessing_allow_unproxied: config
-                .witnessing_allow_unproxied
-                .to_owned()
-                .unwrap_or_else(|| defaults.connections_witnessing_allow_unproxied()),
-            witnessing_paranoid_percentage: config
-                .witnessing_paranoid_percentage
-                .to_owned()
-                .unwrap_or_else(|| defaults.connections_witnessing_paranoid_percentage()),
-            witnessing_proxies: config
-                .witnessing_proxies
-                .to_owned()
-                .unwrap_or_else(|| defaults.connections_witnessing_proxies()),
         }
     }
 
@@ -722,9 +722,6 @@ impl Connections {
             reject_sybil_inbounds: Some(self.reject_sybil_inbounds),
             reject_sybil_inbounds_range_limit: Some(self.reject_sybil_inbounds_range_limit),
             requested_blocks_batch_limit: Some(self.requested_blocks_batch_limit),
-            witnessing_allow_unproxied: Some(self.witnessing_allow_unproxied),
-            witnessing_paranoid_percentage: Some(self.witnessing_paranoid_percentage),
-            witnessing_proxies: Some(self.witnessing_proxies.clone()),
         }
     }
 }
@@ -1083,6 +1080,87 @@ impl Rocksdb {
     }
 }
 
+/// Holds witnessing configuration after it has been validated.
+///
+/// This is ready to use with `witnet_node::actors::RadManager::from_config` or in
+/// `witnet_wallet::Params`.
+#[derive(Clone, Debug)]
+pub struct WitnessingConfig {
+    pub transports: Vec<Option<String>>,
+    pub paranoid_threshold: f32,
+}
+
+impl Witnessing {
+    pub fn from_partial(config: &PartialWitnessing, defaults: &dyn Defaults) -> Self {
+        Witnessing {
+            allow_unproxied: config
+                .allow_unproxied
+                .unwrap_or_else(|| defaults.witnessing_allow_unproxied()),
+            paranoid_percentage: config
+                .paranoid_percentage
+                .unwrap_or_else(|| defaults.witnessing_paranoid_percentage()),
+            proxies: config
+                .proxies
+                .clone()
+                .unwrap_or_else(|| defaults.witnessing_proxies()),
+        }
+    }
+
+    pub fn to_partial(&self) -> PartialWitnessing {
+        PartialWitnessing {
+            allow_unproxied: Some(self.allow_unproxied),
+            paranoid_percentage: Some(self.paranoid_percentage),
+            proxies: Some(self.proxies.clone()),
+        }
+    }
+
+    pub fn validate(&self) -> WitnessingConfig {
+        log::info!(
+            "The default unproxied HTTP transport for retrieval is {}.",
+            self.allow_unproxied
+                .then(|| "enabled")
+                .unwrap_or("disabled")
+        );
+
+        if !self.proxies.is_empty() {
+            log::info!("Configuring retrieval proxies: {:?}", self.proxies);
+            log::info!(
+                "Paranoid retrieval percentage is set to {}%",
+                self.paranoid_percentage
+            )
+        } else if !self.allow_unproxied {
+            panic!("Unproxied retrieval is disabled through configuration, but no proxy addresses have been configured. At least one HTTP transport needs to be enabled. Please either set the `connections.unproxied_retrieval` setting to `true` or add the address of at least one proxy in `connections.retrieval_proxies`.")
+        }
+
+        // If unproxied retrievals is enabled, inject a `None` at the beginning, standing for the
+        // base "clearnet" transport (no proxy).
+        let transports = if self.allow_unproxied {
+            vec![None]
+        } else {
+            vec![]
+        }
+        .into_iter()
+        .chain(self.proxies.iter().cloned().map(Some))
+        .collect();
+
+        let paranoid = f32::from(self.paranoid_percentage) / 100.0;
+
+        WitnessingConfig {
+            paranoid_threshold: paranoid,
+            transports,
+        }
+    }
+}
+
+impl Default for WitnessingConfig {
+    fn default() -> Self {
+        Self {
+            transports: vec![None],
+            paranoid_threshold: 0.51,
+        }
+    }
+}
+
 // Serialization helpers
 
 fn as_log_filter_string<S>(
@@ -1277,9 +1355,6 @@ mod tests {
             reject_sybil_inbounds: Some(true),
             reject_sybil_inbounds_range_limit: Some(14),
             requested_blocks_batch_limit: Some(99),
-            witnessing_allow_unproxied: Some(true),
-            witnessing_paranoid_percentage: Some(51),
-            witnessing_proxies: Some(vec![]),
         };
         let config = Connections::from_partial(&partial_config, &Testnet);
 
@@ -1302,6 +1377,20 @@ mod tests {
         assert!(config.reject_sybil_inbounds);
         assert_eq!(config.reject_sybil_inbounds_range_limit, 14);
         assert_eq!(config.requested_blocks_batch_limit, 99);
+    }
+
+    #[test]
+    fn test_witnessing_from_partial() {
+        let partial = PartialWitnessing {
+            allow_unproxied: Some(true),
+            paranoid_percentage: Some(51),
+            proxies: Some(Vec::<String>::new()),
+        };
+        let config = Witnessing::from_partial(&partial, &Testnet);
+
+        assert!(config.allow_unproxied);
+        assert_eq!(config.paranoid_percentage, 51);
+        assert_eq!(config.proxies, Vec::<String>::new());
     }
 
     #[test]

@@ -1,19 +1,16 @@
 //! # RAD Engine
 
-extern crate serde;
-extern crate witnet_data_structures;
-
 use std::str::FromStr;
 
 use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
+pub use witnet_config::config::WitnessingConfig;
 #[cfg(test)]
 use witnet_data_structures::mainnet_validations::all_wips_active;
 use witnet_data_structures::{
     chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
     mainnet_validations::{current_active_wips, ActiveWips},
-    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
 };
 use witnet_net::{
@@ -66,6 +63,7 @@ pub fn try_data_request(
     request: &RADRequest,
     settings: RadonScriptExecutionSettings,
     inputs_injection: Option<&[&str]>,
+    witnessing: Option<WitnessingConfig>,
 ) -> RADRequestExecutionReport {
     #[cfg(not(test))]
     let active_wips = current_active_wips();
@@ -89,7 +87,15 @@ pub fn try_data_request(
             request
                 .retrieve
                 .iter()
-                .map(|retrieve| run_retrieval_report(retrieve, settings, active_wips.clone(), None))
+                .map(|retrieve| {
+                    run_paranoid_retrieval(
+                        retrieve,
+                        request.aggregate.clone(),
+                        settings,
+                        active_wips.clone(),
+                        witnessing.clone().unwrap_or_default(),
+                    )
+                })
                 .collect::<Vec<_>>(),
         ))
     };
@@ -397,10 +403,10 @@ pub async fn run_paranoid_retrieval(
     aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
-    transports: &[Option<String>],
-    paranoid: f32,
-) -> Result<RadonTypes> {
-    let futures: Result<Vec<_>> = transports
+    witnessing: WitnessingConfig,
+) -> Result<RadonReport<RadonTypes>> {
+    let futures: Result<Vec<_>> = witnessing
+        .transports
         .iter()
         .map(|transport| {
             WitnetHttpClient::new(transport)
@@ -420,7 +426,7 @@ pub async fn run_paranoid_retrieval(
 
     let values = join_all(futures?).await;
 
-    evaluate_paranoid_retrieval(values, aggregate, settings, paranoid)
+    evaluate_paranoid_retrieval(values, aggregate, settings, witnessing.paranoid_threshold)
 }
 
 /// Evaluate whether the values obtained when retrieving a data source through multiple transports
@@ -430,19 +436,19 @@ fn evaluate_paranoid_retrieval(
     aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
     paranoid: f32,
-) -> Result<RadonTypes> {
-    let mut values = vec![];
-
-    // Turn the reports into values, short-circuiting if any retrieval inevitably failed.
-    for each in data {
-        let report = each?;
-        let result = report.into_inner();
-        values.push(result);
-    }
-
+) -> Result<RadonReport<RadonTypes>> {
     // If there was only one retrieved value, there's no actual need to run the tally, as this means
     // that only one transport was used and therefore the node is not in paranoid mode.
-    if values.len() > 1 {
+    if data.len() > 1 {
+        let mut values = vec![];
+
+        // Turn the reports into values, short-circuiting if any retrieval inevitably failed.
+        for each in data {
+            let report = each?;
+            let result = report.into_inner();
+            values.push(result);
+        }
+
         // This block is using a Tally context because Aggregate contexts currently do not keep
         // track of outliers.
         // Additionally, the `RADAggregate` struct is converted into `RADTally` for the same reason.
@@ -458,23 +464,22 @@ fn evaluate_paranoid_retrieval(
         // to resolve to the `InconsistentSource` error.
         if let Stage::Tally(TallyMetaData { consensus, .. }) = context.stage {
             if consensus < paranoid {
-                return Ok(RadonTypes::RadonError(RadonError::<RadError>::new(
-                    RadError::InconsistentSource,
-                )));
+                return Ok(RadonReport::from_result(
+                    Err(RadError::InconsistentSource),
+                    &context,
+                ));
             }
         }
 
         // If all the values pass the filters, return the output of the aggregation.
-        return tally.map(|report| report.result);
+        return tally;
     }
 
     // As explained above, this is the case in which only 1 transport is used, and therefore the
     // retrieval is not paranoid.
-    Ok(values
-        .get(0)
-        // This panic is assumed to be unreachable
+    data.into_iter()
+        .next()
         .expect("At least one value must have been received")
-        .clone())
 }
 
 /// Run aggregate stage of a data request, return a tuple of `Result<RadonReport>` and `ReportContext`
@@ -1383,7 +1388,12 @@ mod tests {
                 reducer: RadonReducers::HashConcatenate as u32,
             },
         };
-        let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None);
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
         let tally_result = report.tally.into_inner();
 
         if let RadonTypes::Bytes(bytes) = tally_result {
@@ -1421,7 +1431,12 @@ mod tests {
                 reducer: RadonReducers::Mode as u32,
             },
         };
-        let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None);
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
         let tally_result = report.tally.into_inner();
 
         assert_eq!(
@@ -1468,7 +1483,12 @@ mod tests {
                 reducer: RadonReducers::Mode as u32,
             },
         };
-        let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None);
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
         let tally_result = report.tally.into_inner();
 
         assert_eq!(
@@ -1515,7 +1535,12 @@ mod tests {
                 reducer: RadonReducers::Mode as u32,
             },
         };
-        let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None);
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
         let tally_result = report.tally.into_inner();
 
         assert_eq!(
@@ -1562,7 +1587,12 @@ mod tests {
                 reducer: RadonReducers::Mode as u32,
             },
         };
-        let report = try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None);
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
         let tally_result = report.tally.into_inner();
 
         assert_eq!(
@@ -1626,6 +1656,7 @@ mod tests {
             &request,
             RadonScriptExecutionSettings::enable_all(),
             Some(&["1", "1", "error"]),
+            None,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1665,7 +1696,9 @@ mod tests {
         ]);
         let aggregate = aggregate_deviation_standard_and_average_mean(1.1);
 
-        let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.7).unwrap();
+        let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.7)
+            .unwrap()
+            .result;
         let expected_result = RadonTypes::from(RadonFloat::from(102.5));
 
         assert_eq!(actual_result, expected_result);
@@ -1681,7 +1714,9 @@ mod tests {
         ]);
         let aggregate = aggregate_deviation_standard_and_average_mean(1.1);
 
-        let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.66).unwrap();
+        let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.66)
+            .unwrap()
+            .result;
         let expected_result = RadonTypes::from(RadonFloat::from(102.5));
 
         assert_eq!(actual_result, expected_result);
@@ -1697,7 +1732,9 @@ mod tests {
         ]);
         let aggregate = aggregate_deviation_standard_and_average_mean(1.1);
 
-        let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.67).unwrap();
+        let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.67)
+            .unwrap()
+            .result;
         let expected_result = RadonTypes::from(RadonError::new(RadError::InconsistentSource));
 
         assert_eq!(actual_result, expected_result);

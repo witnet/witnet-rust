@@ -27,8 +27,7 @@ impl Handler<ResolveRA> for RadManager {
 
     fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
         // Fetching these values this early makes lifetimes easier for the fut block below
-        let transports = self.get_http_transports();
-        let paranoid = self.paranoid;
+        let witnessing = self.witnessing.clone();
 
         // The result of the RAD aggregation is computed asynchronously, because the async block
         // returns a future
@@ -57,8 +56,7 @@ impl Handler<ResolveRA> for RadManager {
                         aggregate.clone(),
                         settings,
                         active_wips.clone(),
-                        transports.as_slice(),
-                        paranoid,
+                        witnessing.clone(),
                     )
                 })
                 .map(|fut| {
@@ -71,12 +69,10 @@ impl Handler<ResolveRA> for RadManager {
             // Perform retrievals in parallel for the sake of synchronization between sources
             //  (increasing the likeliness of multiple sources returning results that are closer to each
             //  other).
-            let retrieve_responses: Vec<RadonReport<RadonTypes>> =
-                futures::future::join_all(retrieve_responses_fut)
-                    .await
-                    .into_iter()
-                    .map(|result| RadonReport::from_result(result, &ReportContext::default()))
-                    .collect();
+            let retrieve_responses = futures::future::join_all(retrieve_responses_fut)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<RadonReport<RadonTypes>>, RadError>>()?;
 
             // Short-circuit if any of the sources is apparently inconsistent
             let inconsistent = retrieve_responses.iter().find(|report| {

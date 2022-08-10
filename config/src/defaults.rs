@@ -116,19 +116,19 @@ pub trait Defaults {
     }
 
     /// Let the default unproxied HTTP transport be enabled by default
-    fn connections_witnessing_allow_unproxied(&self) -> bool {
+    fn witnessing_allow_unproxied(&self) -> bool {
         true
     }
 
     /// Set the paranoid level to 51% by default. That is, we require that "half plus one" of the
     /// data sources are in consensus.
-    fn connections_witnessing_paranoid_percentage(&self) -> u8 {
+    fn witnessing_paranoid_percentage(&self) -> u8 {
         51
     }
 
     /// Addresses to be used as proxies when performing data retrieval. No proxies are used by
     /// default.
-    fn connections_witnessing_proxies(&self) -> Vec<String> {
+    fn witnessing_proxies(&self) -> Vec<String> {
         vec![]
     }
 

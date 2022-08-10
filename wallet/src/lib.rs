@@ -94,6 +94,9 @@ pub fn run(conf: Config) -> Result<(), Error> {
             .map_err(|e| failure::format_err!("{}", e))?,
     );
 
+    // Run setup logic for smart retrievals, aka paranoid witnessing.
+    let witnessing = conf.witnessing.validate();
+
     // Initialize actors inside system context
     system.block_on(async {
         let node_subscriptions = Arc::new(Mutex::new(Default::default()));
@@ -127,6 +130,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             consensus_constants,
             use_unconfirmed_utxos,
             pending_transactions_timeout_seconds,
+            witnessing,
         };
 
         let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {

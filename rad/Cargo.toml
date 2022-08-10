@@ -27,6 +27,7 @@ serde_cbor = "0.11.1"
 # the version of url must be kept in sync with the version used by surf in the `witnet_net` crate
 url = "2.1.1"
 
+witnet_config = { path = "../config" }
 witnet_crypto = { path = "../crypto" }
 witnet_data_structures = { path = "../data_structures" }
 witnet_net = { path = "../net" }

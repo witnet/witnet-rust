@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use witnet_config::config::WitnessingConfig;
 use witnet_crypto::hash::HashFunction;
 use witnet_data_structures::chain::{CheckpointBeacon, ConsensusConstants, EpochConstants, Hash};
 use witnet_net::client::tcp::jsonrpc::Subscribe;
@@ -31,6 +32,7 @@ pub struct Params {
     pub consensus_constants: ConsensusConstants,
     pub use_unconfirmed_utxos: bool,
     pub pending_transactions_timeout_seconds: u64,
+    pub witnessing: WitnessingConfig,
 }
 
 #[derive(Clone)]

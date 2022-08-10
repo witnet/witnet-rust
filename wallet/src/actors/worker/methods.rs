@@ -54,7 +54,12 @@ impl Worker {
     }
 
     pub fn run_rad_request(&self, request: RADRequest) -> RADRequestExecutionReport {
-        witnet_rad::try_data_request(&request, RadonScriptExecutionSettings::enable_all(), None)
+        witnet_rad::try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            Some(self.params.witnessing.clone()),
+        )
     }
 
     pub fn gen_mnemonic(&self, length: mnemonic::Length) -> String {

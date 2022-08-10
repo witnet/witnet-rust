@@ -108,6 +108,7 @@ fn test_data_request_report_json_serialization() {
         &request,
         RadonScriptExecutionSettings::enable_all(),
         Some(&inputs),
+        None,
     );
 
     // Number of retrieval reports should match number of sources

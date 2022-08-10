@@ -1,22 +1,36 @@
+use witnet_config::config::Witnessing;
 use witnet_node::actors::rad_manager::RadManager;
 
-fn with_proxies_test_success_helper(
+fn from_config_test_success_helper(
     allow_unproxied: bool,
     proxies: Vec<String>,
     expected_transports: Vec<Option<String>>,
 ) {
-    let manager = RadManager::with_proxies(allow_unproxied, 51, proxies);
-    let actual_transports = manager.get_http_transports();
-    assert_eq!(actual_transports, expected_transports);
+    let config = Witnessing {
+        allow_unproxied,
+        paranoid_percentage: 51,
+        proxies,
+    }
+    .validate();
+    let manager = RadManager::from_config(config);
+    let actual_transports = &manager.witnessing.transports;
+    assert_eq!(actual_transports, &expected_transports);
 }
 
-fn with_proxies_test_error_helper(
+fn from_config_test_error_helper(
     allow_unproxied: bool,
     proxies: Vec<String>,
     expected_panic_message: &str,
 ) {
-    let manager =
-        std::panic::catch_unwind(|| RadManager::with_proxies(allow_unproxied, 51, proxies));
+    let manager = std::panic::catch_unwind(|| {
+        let config = Witnessing {
+            allow_unproxied,
+            paranoid_percentage: 51,
+            proxies,
+        }
+        .validate();
+        RadManager::from_config(config)
+    });
     let panic_message = *manager.unwrap_err().downcast::<&str>().unwrap();
     assert_eq!(panic_message, expected_panic_message);
 }
@@ -27,7 +41,7 @@ fn test_unproxied_true_without_proxies() {
     let proxies = vec![];
     let expected_transports = vec![None];
 
-    with_proxies_test_success_helper(unproxied, proxies, expected_transports);
+    from_config_test_success_helper(unproxied, proxies, expected_transports);
 }
 
 #[test]
@@ -43,7 +57,7 @@ fn test_unproxied_true_with_proxies() {
         Some(String::from("http://domain.tld")),
     ];
 
-    with_proxies_test_success_helper(unproxied, proxies, expected_transports);
+    from_config_test_success_helper(unproxied, proxies, expected_transports);
 }
 
 #[test]
@@ -58,7 +72,7 @@ fn test_unproxied_false_with_proxies() {
         Some(String::from("http://domain.tld")),
     ];
 
-    with_proxies_test_success_helper(unproxied, proxies, expected_transports);
+    from_config_test_success_helper(unproxied, proxies, expected_transports);
 }
 
 #[test]
@@ -67,5 +81,5 @@ fn test_unproxied_false_without_proxies() {
     let proxies = vec![];
     let expected_panic_message = "Unproxied retrieval is disabled through configuration, but no proxy addresses have been configured. At least one HTTP transport needs to be enabled. Please either set the `connections.unproxied_retrieval` setting to `true` or add the address of at least one proxy in `connections.retrieval_proxies`.";
 
-    with_proxies_test_error_helper(unproxied, proxies, expected_panic_message);
+    from_config_test_error_helper(unproxied, proxies, expected_panic_message);
 }

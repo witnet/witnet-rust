@@ -5837,6 +5837,7 @@ dependencies = [
  "serde",
  "serde_cbor",
  "url 2.2.2",
+ "witnet_config",
  "witnet_crypto",
  "witnet_data_structures",
  "witnet_net",

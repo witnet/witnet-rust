@@ -489,6 +489,7 @@ impl RadError {
             RadonErrors::BridgeMalformedRequest
             | RadonErrors::BridgePoorIncentives
             | RadonErrors::BridgeOversizedResult => RadError::MalformedReveal,
+            RadonErrors::InconsistentSource => RadError::InconsistentSource,
         }))
     }
 
@@ -591,6 +592,7 @@ impl RadError {
             RadError::MalformedReveal => RadonErrors::MalformedReveal,
             RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
             RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
+            RadError::InconsistentSource => RadonErrors::InconsistentSource,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }
