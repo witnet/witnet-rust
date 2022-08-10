@@ -1,5 +1,7 @@
 //! # RAD Engine
 
+extern crate witnet_data_structures;
+
 use std::str::FromStr;
 
 use futures::{executor::block_on, future::join_all};
@@ -431,6 +433,15 @@ pub async fn run_paranoid_retrieval(
 
 /// Evaluate whether the values obtained when retrieving a data source through multiple transports
 /// are consistent, i.e. enough of them pass the filters from the aggregation stage.
+///
+/// There are 4 cases in which this function will fail with `InconsistentSource`:
+///
+/// 1. All the transports failed or no transports are configured at all (in theory, this condition
+/// should be unreachable).
+/// 2. The retrieval failed on some of the used transports.
+/// 3. The values that we got from different transports cannot be aggregated together.
+/// 4. The result of applying the aggregation on the data coming from the different transports
+/// reached a level of consensus that is lower than the configured paranoid threshold.
 fn evaluate_paranoid_retrieval(
     data: Vec<Result<RadonReport<RadonTypes>>>,
     aggregate: RADAggregate,
@@ -439,47 +450,59 @@ fn evaluate_paranoid_retrieval(
 ) -> Result<RadonReport<RadonTypes>> {
     // If there was only one retrieved value, there's no actual need to run the tally, as this means
     // that only one transport was used and therefore the node is not in paranoid mode.
-    if data.len() > 1 {
-        let mut values = vec![];
-
-        // Turn the reports into values, short-circuiting if any retrieval inevitably failed.
-        for each in data {
-            let report = each?;
-            let result = report.into_inner();
-            values.push(result);
-        }
-
-        // This block is using a Tally context because Aggregate contexts currently do not keep
-        // track of outliers.
-        // Additionally, the `RADAggregate` struct is converted into `RADTally` for the same reason.
-        // In the future, if we think that is an interesting feature (e.g. for
-        // debugging data sources through `witnet_toolkit`), we can refactor `AggregateMetaData` and
-        // avoid these tricks here.
-        let mut context = ReportContext::from_stage(Stage::Tally(TallyMetaData::default()));
-        let consensus = RADTally::from(aggregate);
-        let tally =
-            run_tally_with_context_report(values.clone(), &consensus, &mut context, settings);
-
-        // If the consensus of the data points is below the paranoid threshold of the node, we need
-        // to resolve to the `InconsistentSource` error.
-        if let Stage::Tally(TallyMetaData { consensus, .. }) = context.stage {
-            if consensus < paranoid {
-                return Ok(RadonReport::from_result(
-                    Err(RadError::InconsistentSource),
-                    &context,
-                ));
-            }
-        }
-
-        // If all the values pass the filters, return the output of the aggregation.
-        return tally;
+    // We can simply return the first report as is.
+    if data.len() < 2 {
+        return data
+            .into_iter()
+            .next()
+            // Case 1
+            .ok_or(RadError::InconsistentSource)
+            .and_then(|r| r);
     }
 
-    // As explained above, this is the case in which only 1 transport is used, and therefore the
-    // retrieval is not paranoid.
-    data.into_iter()
+    // Case 2
+    let reports = data
+        .into_iter()
+        .collect::<Result<Vec<_>>>()
+        .or(Err(RadError::InconsistentSource))?;
+    let values = reports
+        .iter()
+        .cloned()
+        .map(RadonReport::into_inner)
+        .collect();
+
+    // This block is using a Tally context because Aggregate contexts currently do not keep
+    // track of outliers.
+    // Additionally, the `RADAggregate` struct is converted into `RADTally` for the same reason.
+    // In the future, if we think that is an interesting feature (e.g. for
+    // debugging data sources through `witnet_toolkit`), we can refactor `AggregateMetaData` and
+    // avoid these tricks here.
+    let mut context = ReportContext::from_stage(Stage::Tally(TallyMetaData::default()));
+    let consensus = RADTally::from(aggregate);
+    let tally = run_tally_with_context_report(values, &consensus, &mut context, settings)
+        // Case 3
+        .or(Err(RadError::InconsistentSource))?;
+
+    // If the consensus of the data points is below the paranoid threshold of the node, we need
+    // to resolve to the `InconsistentSource` error.
+    if let Stage::Tally(TallyMetaData { consensus, .. }) = context.stage {
+        if consensus < paranoid {
+            // Case 4
+            return Err(RadError::InconsistentSource);
+        }
+    }
+
+    // If all the values pass the filters, return one of the reports, but swap the result for
+    // that of the tally, so the potentially committed value is already averaged across the
+    // multiple transports.
+    // Case 1 as well
+    let mut report = reports
+        .into_iter()
         .next()
-        .expect("At least one value must have been received")
+        .ok_or(RadError::InconsistentSource)?;
+    report.result = tally.result;
+
+    Ok(report)
 }
 
 /// Run aggregate stage of a data request, return a tuple of `Result<RadonReport>` and `ReportContext`
@@ -1732,10 +1755,9 @@ mod tests {
         ]);
         let aggregate = aggregate_deviation_standard_and_average_mean(1.1);
 
-        let actual_result = evaluate_paranoid_retrieval(data, aggregate, settings, 0.67)
-            .unwrap()
-            .result;
-        let expected_result = RadonTypes::from(RadonError::new(RadError::InconsistentSource));
+        let actual_result =
+            evaluate_paranoid_retrieval(data, aggregate, settings, 0.67).unwrap_err();
+        let expected_result = RadError::InconsistentSource;
 
         assert_eq!(actual_result, expected_result);
     }
