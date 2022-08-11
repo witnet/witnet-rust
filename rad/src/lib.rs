@@ -405,6 +405,11 @@ pub async fn run_paranoid_retrieval(
     active_wips: ActiveWips,
     witnessing: WitnessingConfig,
 ) -> Result<RadonReport<RadonTypes>> {
+    // We can skip paranoid checks for retrieval types that don't use networking (e.g. RNG)
+    if !retrieve.kind.is_http() {
+        return run_retrieval_report(retrieve, settings, active_wips, None).await;
+    }
+
     let futures: Result<Vec<_>> = witnessing
         .transports
         .iter()

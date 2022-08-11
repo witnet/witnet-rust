@@ -1649,6 +1649,12 @@ pub enum RADType {
     HttpPost,
 }
 
+impl RADType {
+    pub fn is_http(&self) -> bool {
+        matches!(self, RADType::HttpGet | RADType::HttpPost)
+    }
+}
+
 impl Default for RADType {
     fn default() -> Self {
         RADType::Unknown
