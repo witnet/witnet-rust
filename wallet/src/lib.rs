@@ -23,6 +23,7 @@ use failure::Error;
 use witnet_config::config::Config;
 use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
 use witnet_net::client::tcp::JsonRpcClient;
+use witnet_validations::witnessing::validate_witnessing_config;
 
 use crate::actors::app;
 
@@ -95,7 +96,8 @@ pub fn run(conf: Config) -> Result<(), Error> {
     );
 
     // Run setup logic for smart retrievals, aka paranoid witnessing.
-    let witnessing = conf.witnessing.validate();
+    let witnessing_config = conf.witnessing.into_config();
+    validate_witnessing_config(&witnessing_config)?;
 
     // Initialize actors inside system context
     system.block_on(async {
@@ -130,7 +132,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             consensus_constants,
             use_unconfirmed_utxos,
             pending_transactions_timeout_seconds,
-            witnessing,
+            witnessing: witnessing_config,
         };
 
         let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {

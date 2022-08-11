@@ -59,6 +59,9 @@ pub mod radon_error;
 /// Module containing RadonReport structures
 pub mod radon_report;
 
+/// Module containing structures related to witnessing
+pub mod witnessing;
+
 /// Serialization boilerplate to allow serializing some data structures as
 /// strings or bytes depending on the serializer.
 mod serialization_helpers;

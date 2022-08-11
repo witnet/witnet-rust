@@ -1,17 +1,19 @@
 //! # RAD Engine
 
+extern crate witnet_data_structures;
+
 use std::str::FromStr;
 
 use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
-pub use witnet_config::config::WitnessingConfig;
 #[cfg(test)]
 use witnet_data_structures::mainnet_validations::all_wips_active;
 use witnet_data_structures::{
     chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
     mainnet_validations::{current_active_wips, ActiveWips},
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
+    witnessing::WitnessingConfig,
 };
 use witnet_net::{
     client::http::WitnetHttpClient,

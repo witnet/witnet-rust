@@ -6,7 +6,6 @@ use std::{
 };
 
 use itertools::Itertools;
-
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::CryptoEngine,

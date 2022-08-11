@@ -11,7 +11,7 @@ fn from_config_test_success_helper(
         paranoid_percentage: 51,
         proxies,
     }
-    .validate();
+    .into_config();
     let manager = RadManager::from_config(config);
     let actual_transports = &manager.witnessing.transports;
     assert_eq!(actual_transports, &expected_transports);
@@ -28,7 +28,7 @@ fn from_config_test_error_helper(
             paranoid_percentage: 51,
             proxies,
         }
-        .validate();
+        .into_config();
         RadManager::from_config(config)
     });
     let panic_message = *manager.unwrap_err().downcast::<&str>().unwrap();

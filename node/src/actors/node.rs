@@ -12,11 +12,16 @@ use crate::{
     config_mngr, signature_mngr, storage_mngr,
 };
 use witnet_config::config::Config;
+use witnet_validations::witnessing::validate_witnessing_config;
 
 /// Function to run the main system
 pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
     // Init system
     let system = System::new();
+
+    // Perform some initial validations on the configuration
+    let witnessing_config = config.witnessing.clone().into_config();
+    validate_witnessing_config(&witnessing_config)?;
 
     // Init actors
     system.block_on(async {
@@ -55,7 +60,7 @@ pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
         SystemRegistry::set(inventory_manager_addr);
 
         // Start RadManager actor
-        let rad_manager_addr = RadManager::from_config(config.witnessing.validate()).start();
+        let rad_manager_addr = RadManager::from_config(witnessing_config).start();
         SystemRegistry::set(rad_manager_addr);
 
         // Start JSON RPC server

@@ -4,9 +4,11 @@ use std::{
     time::Duration,
 };
 
-use witnet_config::config::WitnessingConfig;
 use witnet_crypto::hash::HashFunction;
-use witnet_data_structures::chain::{CheckpointBeacon, ConsensusConstants, EpochConstants, Hash};
+use witnet_data_structures::{
+    chain::{CheckpointBeacon, ConsensusConstants, EpochConstants, Hash},
+    witnessing::WitnessingConfig,
+};
 use witnet_net::client::tcp::jsonrpc::Subscribe;
 
 use crate::{actors::app::NodeClient, types};

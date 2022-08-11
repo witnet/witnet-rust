@@ -1,8 +1,10 @@
-use witnet_data_structures::chain::{ConsensusConstants, Hash};
+use witnet_data_structures::{
+    chain::{ConsensusConstants, Hash},
+    witnessing::WitnessingConfig,
+};
 
 use super::*;
 use crate::db::HashMapDb;
-use witnet_config::config::WitnessingConfig;
 use witnet_crypto::{hash::HashFunction, mnemonic};
 
 pub fn wallet(data: Option<HashMapDb>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {

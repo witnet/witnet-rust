@@ -7,8 +7,7 @@
 //! [RAD Engine]: https://docs.witnet.io/protocol/data-requests/overview/#the-rad-engine
 
 use crate::utils::stop_system_if_panicking;
-
-use witnet_config::config::WitnessingConfig;
+use witnet_data_structures::witnessing::WitnessingConfig;
 
 mod actor;
 mod handlers;

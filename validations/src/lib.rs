@@ -10,5 +10,8 @@
 /// Module containing validations
 pub mod validations;
 
+/// Module containing validations specific to witnessing
+pub mod witnessing;
+
 #[cfg(test)]
 mod tests;

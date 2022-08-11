@@ -38,21 +38,22 @@
 //! // Default config for mainnet
 //! // Config::from_partial(&PartialConfig::default_mainnet());
 //! ```
+use std::convert::TryFrom;
 use std::{
     collections::HashSet, fmt, marker::PhantomData, net::SocketAddr, path::PathBuf, time::Duration,
 };
 
+use partial_struct::PartialStruct;
 use serde::{de, Deserialize, Deserializer, Serialize};
+use witnet_crypto::hash::HashFunction;
+use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
+use witnet_data_structures::witnessing::WitnessingConfig;
+use witnet_protected::ProtectedString;
 
 use crate::{
     defaults::{Defaults, Development, Mainnet, Testnet},
     dirs,
 };
-use partial_struct::PartialStruct;
-use std::convert::TryFrom;
-use witnet_crypto::hash::HashFunction;
-use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
-use witnet_protected::ProtectedString;
 
 /// The total configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
@@ -1080,16 +1081,6 @@ impl Rocksdb {
     }
 }
 
-/// Holds witnessing configuration after it has been validated.
-///
-/// This is ready to use with `witnet_node::actors::RadManager::from_config` or in
-/// `witnet_wallet::Params`.
-#[derive(Clone, Debug)]
-pub struct WitnessingConfig {
-    pub transports: Vec<Option<String>>,
-    pub paranoid_threshold: f32,
-}
-
 impl Witnessing {
     pub fn from_partial(config: &PartialWitnessing, defaults: &dyn Defaults) -> Self {
         Witnessing {
@@ -1114,7 +1105,7 @@ impl Witnessing {
         }
     }
 
-    pub fn validate(&self) -> WitnessingConfig {
+    pub fn into_config(self) -> WitnessingConfig {
         log::info!(
             "The default unproxied HTTP transport for retrieval is {}.",
             self.allow_unproxied
@@ -1148,15 +1139,6 @@ impl Witnessing {
         WitnessingConfig {
             paranoid_threshold: paranoid,
             transports,
-        }
-    }
-}
-
-impl Default for WitnessingConfig {
-    fn default() -> Self {
-        Self {
-            transports: vec![None],
-            paranoid_threshold: 0.51,
         }
     }
 }
