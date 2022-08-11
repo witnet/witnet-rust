@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use actix::{Handler, ResponseFuture};
-use futures::{FutureExt, TryFutureExt};
+use futures::FutureExt;
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 use witnet_rad::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
@@ -57,20 +57,6 @@ impl Handler<ResolveRA> for RadManager {
                         settings,
                         active_wips.clone(),
                         witnessing.clone(),
-                    )
-                    .map_err(
-                        // The `InconsistentSource` error is mapped here for the sake of backwards
-                        // compatibility. Namely, to enable paranoid retrieval without having to
-                        // immediately introduce a breaking change that may jeopardize oracle
-                        // queries. The point of making the mapping here is to only affect actual
-                        // witnessing and committing, but not the `try_data_request` function, which
-                        // can rather use the `InconsistentSource` error for clarity.
-                        // TODO: pursue a WIP that introduces `InconsistentSource` as a proper
-                        //  RadonError at the protocol level.
-                        |err| match err {
-                            RadError::InconsistentSource => RadError::Unknown,
-                            other => other,
-                        },
                     )
                 })
                 .map(|fut| {

@@ -34,8 +34,6 @@ pub enum RadonErrors {
     HTTPError = 0x30,
     /// Al least one of the sources could not be retrieved, timeout reached.
     RetrieveTimeout = 0x31,
-    /// One or more data sources look inconsistent when queried through multiple transports at once.
-    InconsistentSource = 0x32,
     // Math errors
     /// Math operator caused an underflow.
     Underflow = 0x40,

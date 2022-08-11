@@ -489,7 +489,6 @@ impl RadError {
             RadonErrors::BridgeMalformedRequest
             | RadonErrors::BridgePoorIncentives
             | RadonErrors::BridgeOversizedResult => RadError::MalformedReveal,
-            RadonErrors::InconsistentSource => RadError::InconsistentSource,
         }))
     }
 
@@ -592,7 +591,16 @@ impl RadError {
             RadError::MalformedReveal => RadonErrors::MalformedReveal,
             RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
             RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
-            RadError::InconsistentSource => RadonErrors::InconsistentSource,
+            // The `InconsistentSource` error is mapped here for the sake of backwards
+            // compatibility. Namely, to enable paranoid retrieval without having to immediately
+            // introduce a breaking change that may jeopardize oracle queries. The point of making
+            // the mapping here is to only affect actual witnessing and committing, but not the
+            // `try_data_request` function, which can rather use the `InconsistentSource` error for
+            // clarity.
+            // TODO: pursue a WIP that introduces `InconsistentSource` as a proper
+            //  RadonError at the protocol level
+            //  https://github.com/witnet/WIPs/issues/86
+            RadError::InconsistentSource => RadonErrors::Unknown,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }
