@@ -6,7 +6,7 @@ use itertools::Itertools;
 use witnet_data_structures::witnessing::WitnessingConfig;
 
 /// The error type for `validate_witnessing_config`
-#[derive(Clone, Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Fail, PartialEq)]
 pub enum WitnessingConfigError {
     /// The error is in the addresses.
     Addresses(Vec<(String, TransportAddressError)>),
@@ -61,7 +61,7 @@ pub fn validate_witnessing_config(config: &WitnessingConfig) -> Result<(), Witne
 }
 
 ///
-#[derive(Clone, Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Fail, PartialEq)]
 pub enum TransportAddressError {
     /// The address is missing a port number.
     #[fail(display = "the address is missing a port number")]

@@ -12,7 +12,7 @@ pub struct WitnetHttpClient {
 }
 
 /// Errors for WitnetHttpClient and other auxiliary structures in this module.
-#[derive(Clone, Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Fail, PartialEq)]
 pub enum WitnetHttpError {
     /// Error when trying to build a WitnetHttpClient.
     #[fail(

@@ -260,8 +260,8 @@ pub struct Connections {
 }
 
 /// Witnessing-specific configuration.
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(Clone, Debug, Eq, PartialEq, PartialStruct)]
+#[partial_struct(derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize))]
 pub struct Witnessing {
     /// Allows disabling the default unproxied HTTP transport so as to protect the "clearnet" IP
     /// address of a witnessing node. This feature can only be active if the address of at least one
