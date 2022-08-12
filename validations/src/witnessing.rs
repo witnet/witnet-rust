@@ -14,20 +14,21 @@ pub enum WitnessingConfigError {
 
 impl fmt::Display for WitnessingConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
+        let submessage = match self {
             WitnessingConfigError::Addresses(addresses) => {
                 let interpolation = addresses
                     .iter()
                     .map(|(address, error)| format!("{} ({})", address, error))
                     .join("\n- ");
 
-                write!(
-                    f,
+                format!(
                     "The following transport addresses are invalid:\n- {}",
                     interpolation
                 )
             }
-        }
+        };
+
+        write!(f, "Invalid witnessing configuration. {}", submessage)
     }
 }
 
