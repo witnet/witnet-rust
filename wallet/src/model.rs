@@ -29,7 +29,7 @@ pub struct UnlockedWallet {
     pub available_accounts: Vec<u32>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Address {
     pub address: String,
     pub index: u32,
@@ -47,7 +47,7 @@ pub struct Addresses {
     pub total: u32,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct AddressInfo {
     pub label: Option<String>,
     pub received_payments: Vec<String>,

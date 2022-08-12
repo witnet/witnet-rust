@@ -18,7 +18,7 @@ use crate::{
 use witnet_crypto::hash::calculate_sha256;
 
 /// Pool of active data requests
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataRequestPool {
     /// Current active data request, in which this node has announced commitments.
     /// Key: DRTransaction hash, Value: Reveal Transaction

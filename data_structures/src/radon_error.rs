@@ -91,7 +91,7 @@ pub trait ErrorLike: Clone + Fail {
 }
 
 /// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RadonError<IE>
 where
     IE: ErrorLike,

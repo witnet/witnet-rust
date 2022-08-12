@@ -104,7 +104,7 @@ pub mod mining;
 pub const MAX_BLOCKS_SYNC: usize = 500;
 
 /// Possible errors when interacting with ChainManager
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum ChainManagerError {
     /// A block being processed was already known to this node
     #[fail(display = "A block being processed was already known to this node")]

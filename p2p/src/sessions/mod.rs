@@ -23,7 +23,7 @@ pub enum SessionType {
 }
 
 /// Session Status (used for bootstrapping)
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SessionStatus {
     /// Recently created session (no handshake yet)
     Unconsolidated,

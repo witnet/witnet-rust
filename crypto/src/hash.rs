@@ -13,7 +13,7 @@ pub enum HashFunction {
 }
 
 /// Secure hashing algorithm v2
-#[derive(Copy, Clone, Debug, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Sha256(pub [u8; 32]);
 
 /// Value of an empty hash

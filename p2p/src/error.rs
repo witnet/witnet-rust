@@ -3,7 +3,7 @@
 use failure::Fail;
 
 /// Sessions Errors under different operations
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum SessionsError {
     /// Errors when registering sessions. Max number of peers reached
     #[fail(display = "Register failed. Max number of peers reached")]
@@ -33,7 +33,7 @@ pub enum SessionsError {
 }
 
 /// Sessions Errors under different operations
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum PeersError {
     /// Peer not found. Empty buckets
     #[fail(display = "Peer not found. Empty buckets")]

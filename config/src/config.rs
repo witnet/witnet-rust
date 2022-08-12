@@ -122,8 +122,8 @@ pub struct Config {
 }
 
 /// Log-specific configuration.
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Log {
     /// Level for the log messages.
     #[partial_struct(serde(
@@ -136,8 +136,8 @@ pub struct Log {
 }
 
 /// Connection-specific configuration.
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Connections {
     /// Server address, that is, the socket address (interface ip and
     /// port) to which the server accepting connections from other
@@ -254,7 +254,7 @@ pub struct Connections {
 }
 
 /// Available storage backends
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum StorageBackend {
     #[serde(rename = "hashmap")]
     HashMap,
@@ -269,8 +269,8 @@ impl Default for StorageBackend {
 }
 
 /// Storage-specific configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Storage {
     /// Storage backend to use
     #[partial_struct(skip)]
@@ -286,8 +286,8 @@ pub struct Storage {
 }
 
 /// JsonRPC API configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct JsonRPC {
     /// Binary flag telling whether to enable the JSON-RPC interface or not
     pub enabled: bool,
@@ -299,8 +299,8 @@ pub struct JsonRPC {
 }
 
 /// Mining-related configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Mining {
     /// Binary flag telling whether to enable the MiningManager or not
     pub enabled: bool,
@@ -335,8 +335,8 @@ pub struct Mining {
 }
 
 /// NTP-related configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Ntp {
     /// Period that indicate the validity of a ntp timestamp
     #[partial_struct(serde(
@@ -355,8 +355,8 @@ pub struct Ntp {
 }
 
 /// Mempool-related configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Mempool {
     /// Timeout to use again an UTXO spent by a pending transaction
     pub tx_pending_timeout: u64,
@@ -368,7 +368,7 @@ pub struct Mempool {
 ///
 /// Allow miners to oppose activation of future protocol improvements even if their nodes
 /// do implement the required logic.
-#[derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct Tapi {
     /// Oppose WIP0020
@@ -841,8 +841,8 @@ impl Mempool {
 }
 
 /// Wallet-specific configuration.
-#[derive(PartialStruct, Serialize, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Serialize, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Wallet {
     /// Whether or not this wallet will comunicate with a testnet node.
     #[partial_struct(skip)]
@@ -966,8 +966,8 @@ impl Wallet {
 }
 
 /// Rocksdb-specific configuration
-#[derive(PartialStruct, Serialize, Debug, Clone, PartialEq)]
-#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
+#[derive(PartialStruct, Serialize, Debug, Clone, PartialEq, Eq)]
+#[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Rocksdb {
     /// By default, RocksDB uses only one background thread for flush and compaction. Calling this
     /// function will set it up such that total of total_threads is used. Good value for

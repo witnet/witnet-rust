@@ -4,7 +4,7 @@ use failure::Fail;
 use std::fmt;
 
 /// The error type for operations in Reputation module
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum ReputationError {
     /// Proposed time for updating is previous to current
     #[fail(
@@ -15,7 +15,7 @@ pub enum ReputationError {
 }
 
 /// Received an alpha < max_alpha
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct NonSortedAlpha<A> {
     pub alpha: A,
     pub max_alpha: A,
@@ -37,7 +37,7 @@ where
 impl<A> Fail for NonSortedAlpha<A> where A: 'static + fmt::Debug + Send + Sync {}
 
 /// Error in the penalization function
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RepError<V> {
     pub old_rep: V,
     pub new_rep: V,

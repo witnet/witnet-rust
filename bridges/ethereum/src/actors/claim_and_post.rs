@@ -59,7 +59,7 @@ fn try_to_claim_local_query(
             let eth_state = Arc::clone(&eth_state);
 
             move |claimable: Vec<bool>| {
-                match claimable.get(0) {
+                match claimable.first() {
                     Some(true) => {
                         Either::A(eth_state.wrb_contract
                             .query(

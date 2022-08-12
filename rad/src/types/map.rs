@@ -17,7 +17,7 @@ use crate::{
 
 const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RadonMap {
     value: BTreeMap<String, RadonTypes>,
 }

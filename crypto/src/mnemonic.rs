@@ -92,7 +92,7 @@ impl AsRef<[u8]> for Seed {
 /// * `192 bits` generates `18 words` mnemonic
 /// * `224 bits` generates `21 words` mnemonic
 /// * `256 bits` generates `24 words` mnemonic
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Length {
     /// 12 words length
@@ -108,7 +108,7 @@ pub enum Length {
 }
 
 /// The language in which Mnemonics are generated
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Lang {
     /// English language
     English,

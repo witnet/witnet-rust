@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use witnet_protected::Protected;
 
 /// The error type for [generate_master](generate_master)
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum MasterKeyGenError {
     /// Invalid hmac key length
     #[fail(display = "The length of the hmac key is invalid")]
@@ -141,7 +141,7 @@ where
     }
 }
 /// Error returned trying to derivate a key
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum KeyDerivationError {
     /// Invalid hmac key length
     #[fail(display = "The length of the hmac key is invalid")]

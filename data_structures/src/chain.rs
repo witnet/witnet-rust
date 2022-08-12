@@ -109,7 +109,7 @@ pub struct SyncStatus {
 
 /// Possible values for the "environment" configuration param.
 // The variants are explicitly tagged so that bincode serialization does not break
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Environment {
     /// "mainnet" environment
     #[serde(rename = "mainnet")]
@@ -3190,7 +3190,7 @@ impl Default for DataRequestStage {
 pub type Blockchain = BTreeMap<Epoch, Hash>;
 
 /// Node stats
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeStats {
     /// Number of proposed blocks
     pub block_proposed_count: u32,

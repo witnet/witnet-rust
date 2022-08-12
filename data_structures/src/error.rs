@@ -8,7 +8,7 @@ use crate::chain::{
 };
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum ChainInfoError {
     /// Errors when try to use a None value for ChainInfo
     #[fail(display = "No ChainInfo loaded in ChainManager")]
@@ -16,7 +16,7 @@ pub enum ChainInfoError {
 }
 
 /// Error in builders functions
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum BuildersError {
     /// No inventory vectors available to create a Inventory Announcement message
     #[fail(display = "No inventory vectors available to create a Inventory Announcement message")]
@@ -27,7 +27,7 @@ pub enum BuildersError {
 }
 
 /// The error type for operations on a [`Transaction`](Transaction)
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum TransactionError {
     #[fail(display = "The transaction is invalid")]
     NotValidTransaction,
@@ -281,7 +281,7 @@ pub enum TransactionError {
 }
 
 /// The error type for operations on a [`Block`](Block)
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum BlockError {
     /// The block has no transactions in it.
     #[fail(display = "The block has no transactions")]
@@ -414,7 +414,7 @@ pub enum OutputPointerParseError {
 }
 
 /// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum Secp256k1ConversionError {
     #[fail(
         display = "Failed to convert `witnet_data_structures::Signature` into `secp256k1::Signature`"
@@ -436,7 +436,7 @@ pub enum Secp256k1ConversionError {
 }
 
 /// The error type for operations on a [`DataRequestPool`](DataRequestPool)
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, PartialEq, Eq, Fail)]
 pub enum DataRequestError {
     /// Add commit method failed.
     #[fail(
@@ -502,7 +502,7 @@ pub enum DataRequestError {
 }
 
 /// Possible errors when converting between epoch and timestamp
-#[derive(Copy, Clone, Debug, PartialEq, Fail)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
 pub enum EpochCalculationError {
     /// Checkpoint zero is in the future
     #[fail(display = "Checkpoint zero is in the future (timestamp: {})", _0)]

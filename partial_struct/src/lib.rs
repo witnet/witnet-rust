@@ -129,7 +129,7 @@ fn get_attributes(orig: &[syn::Attribute]) -> (Vec<syn::Attribute>, Action) {
             Ok(syn::Meta::List(ref meta)) if &*meta.ident.to_string() == "partial_struct" => {
                 for nested in &meta.nested {
                     match nested {
-                        syn::NestedMeta::Meta(syn::Meta::Word(ident)) if &*ident == "skip" => {
+                        syn::NestedMeta::Meta(syn::Meta::Word(ident)) if ident == "skip" => {
                             action = Action::Skip;
                         }
                         syn::NestedMeta::Meta(syn::Meta::NameValue(params)) => {

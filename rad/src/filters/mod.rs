@@ -10,7 +10,7 @@ use witnet_data_structures::radon_report::ReportContext;
 pub mod deviation;
 pub mod mode;
 
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u8)]
 pub enum RadonFilters {
     // Implemented

@@ -7,7 +7,7 @@ use crate::hash_functions::sha2::sha2_256;
 
 mod sha2;
 
-#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum RadonHashFunctions {
     Fail = 0xFF,

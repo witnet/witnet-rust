@@ -586,8 +586,8 @@ pub fn calculate_superblock_signing_committee(
     } else {
         // Hash of the current_index, to avoid potential committee collisions
         let index_hash = Hash::from(calculate_sha256(&current_superblock_index.to_be_bytes()));
-        let first_byte_sb_hash = *superblock_hash.as_ref().get(0).unwrap();
-        let first_byte_index_hash = *index_hash.as_ref().get(0).unwrap();
+        let first_byte_sb_hash = *superblock_hash.as_ref().first().unwrap();
+        let first_byte_index_hash = *index_hash.as_ref().first().unwrap();
 
         // Start counting the members of the subset from the superblock_hash plus superblock index hash
         let mut first = u32::from(first_byte_sb_hash) + u32::from(first_byte_index_hash);

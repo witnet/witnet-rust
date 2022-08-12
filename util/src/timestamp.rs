@@ -6,7 +6,7 @@ use std::sync::RwLock;
 use std::time::Duration;
 
 /// NTP Timestamp difference
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct NTPDiff {
     /// Difference between NTP and system timestamp
     pub ntp_diff: Duration,

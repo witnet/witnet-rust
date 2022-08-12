@@ -15,7 +15,7 @@ use crate::{
 
 const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RadonArray {
     value: Vec<RadonTypes>,
     is_homogeneous: bool,

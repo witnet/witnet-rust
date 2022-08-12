@@ -14,7 +14,7 @@ pub mod hash_concatenate;
 pub mod median;
 pub mod mode;
 
-#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum RadonReducers {
     // Implemented

@@ -22,7 +22,7 @@ mod actor;
 mod handlers;
 
 /// Possible errors when getting the current epoch
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum EpochManagerError {
     /// Epoch zero time and checkpoints period unknown
     UnknownEpochConstants,

@@ -13,7 +13,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 const RADON_BOOLEAN_TYPE_NAME: &str = "RadonBoolean";
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct RadonBoolean {
     value: bool,
 }

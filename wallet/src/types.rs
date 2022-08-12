@@ -162,7 +162,7 @@ pub struct DataReqParams {
     pub fee_type: FeeType,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TransactionComponents {
     pub value: u64,
     pub change: u64,

@@ -31,7 +31,7 @@ pub const SECOND_HARD_FORK: Epoch = 376320;
 pub const THIRD_HARD_FORK: Epoch = 445440;
 
 /// TAPI Engine
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TapiEngine {
     /// bit votes counter by bits
     pub bit_tapi_counter: BitTapiCounter,
@@ -210,7 +210,7 @@ impl TapiEngine {
 }
 
 /// Struct that count the positives votes of a WIP
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BitVotesCounter {
     pub votes: u32,
     pub period: Epoch,
@@ -220,7 +220,7 @@ pub struct BitVotesCounter {
     pub bit: usize,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BitTapiCounter {
     info: [Option<BitVotesCounter>; 32],
     last_epoch: Epoch,
