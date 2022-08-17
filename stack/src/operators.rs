@@ -75,6 +75,24 @@ impl MyValue {
             _ => Err(ScriptError::UnexpectedArgument),
         }
     }
+
+    pub fn from_pkh(pkh: &PublicKeyHash) -> Self {
+        let pkh_bytes = pkh.as_ref();
+
+        MyValue::Bytes(pkh_bytes.to_vec())
+    }
+
+    pub fn to_pkh(&self) -> Result<PublicKeyHash, ScriptError> {
+        match self {
+            MyValue::Bytes(bytes) => {
+                let pkh: PublicKeyHash = PublicKeyHash::from_bytes(bytes)
+                    .map_err(|_e| ScriptError::InvalidPublicKeyHash)?;
+
+                Ok(pkh)
+            }
+            _ => Err(ScriptError::UnexpectedArgument),
+        }
+    }
 }
 
 fn equal_operator(stack: &mut Stack<MyValue>) -> Result<(), ScriptError> {
@@ -199,16 +217,8 @@ fn check_multi_sig(
 
     let mut pkhs = vec![];
     for bytes_pkh in bytes_pkhs {
-        match bytes_pkh {
-            MyValue::Bytes(bytes) => {
-                let pkh: PublicKeyHash = PublicKeyHash::from_bytes(&bytes)
-                    .map_err(|_e| ScriptError::InvalidPublicKeyHash)?;
-                pkhs.push(pkh);
-            }
-            _ => {
-                return Err(ScriptError::UnexpectedArgument);
-            }
-        }
+        let pkh = bytes_pkh.to_pkh()?;
+        pkhs.push(pkh);
     }
 
     for sign_pkh in signed_pkhs {
