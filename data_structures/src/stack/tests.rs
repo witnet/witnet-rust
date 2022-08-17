@@ -1,9 +1,9 @@
-use crate::{
+use super::{
     encode, execute_complete_script, execute_locking_script, execute_redeem_script, execute_script,
     Item, MyOperator, MyValue, ScriptContext, ScriptError,
 };
+use crate::chain::KeyedSignature;
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::KeyedSignature;
 
 const EQUAL_OPERATOR_HASH: [u8; 20] = [
     52, 128, 191, 80, 253, 28, 169, 253, 237, 29, 0, 51, 201, 0, 31, 203, 157, 99, 218, 210,
@@ -142,7 +142,7 @@ fn test_ks_id(id: u8) -> KeyedSignature {
     let secret_key =
         witnet_crypto::secp256k1::SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
     let public_key = witnet_crypto::secp256k1::PublicKey::from_secret_key_global(&secret_key);
-    let public_key = witnet_data_structures::chain::PublicKey::from(public_key);
+    let public_key = crate::chain::PublicKey::from(public_key);
     // TODO: mock this signature, it is not even validated in tests but we need a valid signature to
     // test signature deserialization
     let signature = witnet_crypto::signature::sign(secret_key, &[0x01; 32]).unwrap();

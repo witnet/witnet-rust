@@ -5558,7 +5558,6 @@ dependencies = [
  "witnet_data_structures",
  "witnet_node",
  "witnet_rad",
- "witnet_stack",
  "witnet_util",
  "witnet_validations",
  "witnet_wallet",
@@ -5690,6 +5689,7 @@ dependencies = [
  "protobuf",
  "protobuf-convert",
  "rand 0.7.3",
+ "scriptful",
  "serde",
  "serde_cbor",
  "serde_json",
@@ -5759,7 +5759,6 @@ dependencies = [
  "witnet_p2p",
  "witnet_protected",
  "witnet_rad",
- "witnet_stack",
  "witnet_storage",
  "witnet_util",
  "witnet_validations",
@@ -5821,18 +5820,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "witnet_stack"
-version = "0.1.0"
-dependencies = [
- "hex",
- "scriptful",
- "serde",
- "serde_json",
- "witnet_crypto",
- "witnet_data_structures",
-]
-
-[[package]]
 name = "witnet_storage"
 version = "0.3.2"
 dependencies = [
@@ -5880,7 +5867,6 @@ dependencies = [
  "witnet_data_structures",
  "witnet_protected",
  "witnet_rad",
- "witnet_stack",
 ]
 
 [[package]]

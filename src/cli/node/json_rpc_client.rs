@@ -20,6 +20,7 @@ use witnet_crypto::{
     hash::calculate_sha256,
     key::{ExtendedPK, ExtendedSK},
 };
+use witnet_data_structures::stack::{Item, MyOperator, MyValue};
 use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch, Hash,
@@ -40,7 +41,6 @@ use witnet_node::actors::{
     messages::{BuildScriptTransaction, BuildVtt, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
-use witnet_stack::{Item, MyOperator, MyValue};
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
 use witnet_validations::validations::{
     run_tally_panic_safe, validate_data_request_output, validate_rad_request, Wit,
@@ -735,7 +735,8 @@ pub fn create_multisig_address(
         Item::Operator(MyOperator::CheckMultiSig),
     ]);
 
-    let script_address = PublicKeyHash::from_script_bytes(&witnet_stack::encode(&redeem_script)?);
+    let script_address =
+        PublicKeyHash::from_script_bytes(&witnet_data_structures::stack::encode(&redeem_script)?);
 
     println!(
         "Created {}-of-{} multisig address {} composed of {:?}",
@@ -776,7 +777,7 @@ pub fn create_opened_multisig(
         Item::Value(MyValue::Integer(i128::from(n))),
         Item::Operator(MyOperator::CheckMultiSig),
     ]);
-    let redeem_script_bytes = witnet_stack::encode(&redeem_script)?;
+    let redeem_script_bytes = witnet_data_structures::stack::encode(&redeem_script)?;
     let vt_outputs = vec![ValueTransferOutput {
         pkh: address,
         value,
@@ -907,11 +908,11 @@ pub fn sign_tx(
                 // TODO: this only works if the witness field represents a script
                 // It could also represent a signature in the case of normal value transfer
                 // transactions. It would be nice to also support signing normal transactions here
-                let mut script = witnet_stack::decode(&vtt.witness[input_index])?;
+                let mut script = witnet_data_structures::stack::decode(&vtt.witness[input_index])?;
 
                 println!(
                     "-----------------------\nPrevious witness:\n-----------------------\n{}",
-                    witnet_stack::parser::script_to_string(&script)
+                    witnet_data_structures::stack::parser::script_to_string(&script)
                 );
 
                 script.insert(
@@ -921,9 +922,9 @@ pub fn sign_tx(
 
                 println!(
                     "-----------------------\nNew witness:\n-----------------------\n{}",
-                    witnet_stack::parser::script_to_string(&script)
+                    witnet_data_structures::stack::parser::script_to_string(&script)
                 );
-                let encoded_script = witnet_stack::encode(&script)?;
+                let encoded_script = witnet_data_structures::stack::encode(&script)?;
 
                 vtt.witness[input_index] = encoded_script;
 
@@ -988,9 +989,9 @@ pub fn address_to_bytes(address: PublicKeyHash) -> Result<(), failure::Error> {
 /// Convert script text file into hex bytes
 pub fn encode_script(script_file: &Path) -> Result<(), failure::Error> {
     let script_str = std::fs::read_to_string(script_file)?;
-    let script = witnet_stack::parser::parse_script(&script_str)
+    let script = witnet_data_structures::stack::parser::parse_script(&script_str)
         .map_err(|e| format_err!("Failed to parse script: {:?}", e))?;
-    let script_bytes = witnet_stack::encode(&script)?;
+    let script_bytes = witnet_data_structures::stack::encode(&script)?;
     let script_hex = hex::encode(&script_bytes);
     let script_pkh = PublicKeyHash::from_script_bytes(&script_bytes);
     println!("Script address: {}", script_pkh);
@@ -1006,9 +1007,9 @@ pub fn decode_script(hex: String, script_file: Option<&Path>) -> Result<(), fail
     let script_pkh = PublicKeyHash::from_script_bytes(&script_bytes);
     println!("Script address: {}", script_pkh);
 
-    let script = witnet_stack::decode(&script_bytes)?;
+    let script = witnet_data_structures::stack::decode(&script_bytes)?;
 
-    let script_str = witnet_stack::parser::script_to_string(&script);
+    let script_str = witnet_data_structures::stack::parser::script_to_string(&script);
 
     match script_file {
         Some(script_file) => {

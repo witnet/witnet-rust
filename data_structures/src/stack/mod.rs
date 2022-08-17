@@ -1,9 +1,9 @@
 use scriptful::{core::machine::Machine, core::Script, core::ScriptRef};
 
-pub use crate::error::ScriptError;
-pub use crate::operators::{MyOperator, MyValue};
+pub use self::error::ScriptError;
+pub use self::operators::{MyOperator, MyValue};
+use crate::chain::Hash;
 pub use scriptful::core::item::Item;
-use witnet_data_structures::chain::Hash;
 
 mod error;
 mod operators;

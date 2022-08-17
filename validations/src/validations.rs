@@ -12,6 +12,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
+use witnet_data_structures::stack::{execute_complete_script, Item, ScriptContext};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
@@ -44,7 +45,6 @@ use witnet_rad::{
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
-use witnet_stack::{execute_complete_script, Item, ScriptContext};
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -1256,7 +1256,7 @@ pub fn validate_transaction_signatures(
                 &signature,
             );
         } else {
-            let witness_script = witnet_stack::decode(witness)?;
+            let witness_script = witnet_data_structures::stack::decode(witness)?;
             // Operators are not allowed in witness script
             for item in witness_script {
                 match item {

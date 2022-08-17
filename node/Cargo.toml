@@ -36,7 +36,6 @@ witnet_futures_utils = { path = "../futures_utils" }
 witnet_p2p = { path = "../p2p" }
 witnet_protected = { path = "../protected", features = ["with-serde"]  }
 witnet_rad = { path = "../rad" }
-witnet_stack = { path = "../stack" }
 witnet_storage = { path = "../storage", features = ["rocksdb-backend"] }
 witnet_util = { path = "../util" }
 witnet_validations = { path = "../validations" }

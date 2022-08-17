@@ -1,9 +1,9 @@
-use crate::{ScriptContext, ScriptError};
+use super::{ScriptContext, ScriptError};
+use crate::chain::{Hash, PublicKey, Secp256k1Signature, Signature};
+use crate::chain::{KeyedSignature, PublicKeyHash};
 use scriptful::prelude::{ConditionStack, Stack};
 use serde::{Deserialize, Serialize};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
-use witnet_data_structures::chain::{Hash, PublicKey, Secp256k1Signature, Signature};
-use witnet_data_structures::chain::{KeyedSignature, PublicKeyHash};
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 // TODO: Include more operators

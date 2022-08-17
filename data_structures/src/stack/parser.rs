@@ -1,4 +1,4 @@
-use crate::{MyOperator, MyValue};
+use super::{MyOperator, MyValue};
 use scriptful::prelude::Item;
 use std::str::FromStr;
 
@@ -143,7 +143,7 @@ pub fn parse_operator(s: &str) -> Option<MyOperator> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use witnet_data_structures::chain::PublicKey;
+    use crate::chain::PublicKey;
 
     #[test]
     fn script_to_string_multisig() {
