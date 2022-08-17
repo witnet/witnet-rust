@@ -1243,7 +1243,7 @@ pub fn validate_transaction_signatures(
         if input.redeem_script.is_empty() {
             // Validate that public key hash of the pointed output matches public
             // key in the provided signature
-            let keyed_signature = vtt_witness_to_signature(witness);
+            let keyed_signature = vtt_witness_to_signature(witness)?;
             validate_pkh_signature(input, &keyed_signature, utxo_set).map_err(fte)?;
 
             // Validate the actual signature

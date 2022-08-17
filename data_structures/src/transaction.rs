@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::stack::{Item, MyValue, ScriptError};
 use crate::{
     chain::{
         Block, Bn256PublicKey, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature,
@@ -199,13 +200,22 @@ pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {
 }
 
 pub fn vtt_signature_to_witness(ks: &KeyedSignature) -> Vec<u8> {
-    // TODO: it would be nice to encode KeyedSignature as a script
-    // This way vtt.witness is always a valid script
-    ks.to_pb_bytes().unwrap()
+    let script = vec![Item::Value(MyValue::from_signature(ks))];
+
+    crate::stack::encode(&script).unwrap()
 }
 
-pub fn vtt_witness_to_signature(witness: &[u8]) -> KeyedSignature {
-    KeyedSignature::from_pb_bytes(witness).unwrap()
+pub fn vtt_witness_to_signature(witness: &[u8]) -> Result<KeyedSignature, ScriptError> {
+    let script = crate::stack::decode(witness)?;
+
+    if script.len() != 1 {
+        return Err(ScriptError::InvalidSignature);
+    }
+
+    match &script[0] {
+        Item::Value(value) => value.to_signature(),
+        _ => Err(ScriptError::InvalidSignature),
+    }
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]

@@ -904,10 +904,9 @@ pub fn sign_tx(
 
         match tx {
             Transaction::ValueTransfer(ref mut vtt) => {
-                let signature_bytes = signature.to_pb_bytes()?;
-                // TODO: this only works if the witness field represents a script
-                // It could also represent a signature in the case of normal value transfer
-                // transactions. It would be nice to also support signing normal transactions here
+                let signature_bytes = MyValue::from_signature(&signature);
+                // This also works with normal transactions, because the signature is encoded as a
+                // script with one element.
                 let mut script = witnet_data_structures::stack::decode(&vtt.witness[input_index])?;
 
                 println!(
@@ -915,10 +914,7 @@ pub fn sign_tx(
                     witnet_data_structures::stack::parser::script_to_string(&script)
                 );
 
-                script.insert(
-                    signature_position_in_witness,
-                    Item::Value(MyValue::Bytes(signature_bytes)),
-                );
+                script.insert(signature_position_in_witness, Item::Value(signature_bytes));
 
                 println!(
                     "-----------------------\nNew witness:\n-----------------------\n{}",
