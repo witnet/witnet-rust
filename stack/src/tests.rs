@@ -4,7 +4,6 @@ use crate::{
 };
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::KeyedSignature;
-use witnet_data_structures::proto::ProtobufConvert;
 
 const EQUAL_OPERATOR_HASH: [u8; 20] = [
     52, 128, 191, 80, 253, 28, 169, 253, 237, 29, 0, 51, 201, 0, 31, 203, 157, 99, 218, 210,
@@ -161,7 +160,7 @@ fn test_check_sig() {
 
     let pk_1 = ks_1.public_key.clone();
 
-    let witness = vec![Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap()))];
+    let witness = vec![Item::Value(MyValue::from_signature(&ks_1))];
     let redeem_bytes = encode(&[
         Item::Value(MyValue::Bytes(pk_1.pkh().bytes().to_vec())),
         Item::Operator(MyOperator::CheckSig),
@@ -176,7 +175,7 @@ fn test_check_sig() {
         Ok(true)
     ));
 
-    let invalid_witness = vec![Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap()))];
+    let invalid_witness = vec![Item::Value(MyValue::from_signature(&ks_2))];
     assert!(matches!(
         execute_redeem_script(
             &encode(&invalid_witness).unwrap(),
@@ -198,8 +197,8 @@ fn test_check_multisig() {
     let pk_3 = ks_3.public_key.clone();
 
     let witness = vec![
-        Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
-        Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_1)),
+        Item::Value(MyValue::from_signature(&ks_2)),
     ];
     let redeem_bytes = encode(&[
         Item::Value(MyValue::Integer(2)),
@@ -220,8 +219,8 @@ fn test_check_multisig() {
     ));
 
     let other_valid_witness = vec![
-        Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
-        Item::Value(MyValue::Bytes(ks_3.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_1)),
+        Item::Value(MyValue::from_signature(&ks_3)),
     ];
     assert!(matches!(
         execute_redeem_script(
@@ -234,8 +233,8 @@ fn test_check_multisig() {
 
     let ks_4 = test_ks_id(4);
     let invalid_witness = vec![
-        Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
-        Item::Value(MyValue::Bytes(ks_4.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_1)),
+        Item::Value(MyValue::from_signature(&ks_4)),
     ];
     assert!(matches!(
         execute_redeem_script(
@@ -416,7 +415,7 @@ fn test_execute_script_atomic_swap() {
 
     // 1 can spend after timelock
     let witness_script = vec![
-        Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_1)),
         Item::Value(MyValue::Boolean(true)),
     ];
     assert!(matches!(
@@ -433,7 +432,7 @@ fn test_execute_script_atomic_swap() {
 
     // 1 cannot spend before timelock
     let witness_script = vec![
-        Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_1)),
         Item::Value(MyValue::Boolean(true)),
     ];
     assert!(matches!(
@@ -450,7 +449,7 @@ fn test_execute_script_atomic_swap() {
 
     // 2 can spend with secret
     let witness_script = vec![
-        Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_2)),
         Item::Value(MyValue::Bytes(secret)),
         Item::Value(MyValue::Boolean(false)),
     ];
@@ -468,7 +467,7 @@ fn test_execute_script_atomic_swap() {
 
     // 2 cannot spend with a wrong secret
     let witness_script = vec![
-        Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_2)),
         Item::Value(MyValue::Bytes(vec![0, 0, 0, 0])),
         Item::Value(MyValue::Boolean(false)),
     ];
@@ -512,7 +511,7 @@ fn test_execute_script_atomic_swap_2() {
     .unwrap();
 
     // 1 can spend after timelock
-    let witness_script = vec![Item::Value(MyValue::Bytes(ks_1.to_pb_bytes().unwrap()))];
+    let witness_script = vec![Item::Value(MyValue::from_signature(&ks_1))];
     assert!(matches!(
         execute_redeem_script(
             &encode(&witness_script).unwrap(),
@@ -539,7 +538,7 @@ fn test_execute_script_atomic_swap_2() {
 
     // 2 can spend with secret
     let witness_script = vec![
-        Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_2)),
         Item::Value(MyValue::Bytes(secret.clone())),
     ];
     assert!(matches!(
@@ -556,7 +555,7 @@ fn test_execute_script_atomic_swap_2() {
 
     // 2 cannot spend with a wrong secret
     let witness_script = vec![
-        Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_2)),
         Item::Value(MyValue::Bytes(vec![0, 0, 0, 0])),
     ];
     assert!(matches!(
@@ -573,7 +572,7 @@ fn test_execute_script_atomic_swap_2() {
 
     // 2 cannot spend after timelock
     let witness_script = vec![
-        Item::Value(MyValue::Bytes(ks_2.to_pb_bytes().unwrap())),
+        Item::Value(MyValue::from_signature(&ks_2)),
         Item::Value(MyValue::Bytes(secret)),
     ];
     assert!(matches!(

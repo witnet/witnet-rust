@@ -2,11 +2,8 @@ use crate::{ScriptContext, ScriptError};
 use scriptful::prelude::{ConditionStack, Stack};
 use serde::{Deserialize, Serialize};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
-use witnet_data_structures::chain::Hash;
-use witnet_data_structures::{
-    chain::{KeyedSignature, PublicKeyHash},
-    proto::ProtobufConvert,
-};
+use witnet_data_structures::chain::{Hash, PublicKey, Secp256k1Signature, Signature};
+use witnet_data_structures::chain::{KeyedSignature, PublicKeyHash};
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 // TODO: Include more operators
@@ -33,7 +30,7 @@ pub enum MyOperator {
     EndIf,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum MyValue {
     /// A binary value: either `true` or `false`.
     Boolean(bool),
@@ -41,6 +38,43 @@ pub enum MyValue {
     Integer(i128),
     /// Bytes.
     Bytes(Vec<u8>),
+}
+
+impl MyValue {
+    pub fn from_signature(ks: &KeyedSignature) -> Self {
+        let public_key_bytes = ks.public_key.to_bytes();
+        let signature_bytes = match &ks.signature {
+            Signature::Secp256k1(signature) => &signature.der,
+        };
+
+        let bytes = [&public_key_bytes[..], signature_bytes].concat();
+
+        MyValue::Bytes(bytes)
+    }
+
+    pub fn to_signature(&self) -> Result<KeyedSignature, ScriptError> {
+        match self {
+            MyValue::Bytes(bytes) => {
+                // Public keys are always 33 bytes, so first 33 bytes of KeyedSignature will always
+                // be the public key, and the rest will be the signature
+                if bytes.len() < 33 {
+                    return Err(ScriptError::InvalidSignature);
+                }
+                let (public_key_bytes, signature_bytes) = bytes.split_at(33);
+
+                let ks = KeyedSignature {
+                    public_key: PublicKey::try_from_slice(public_key_bytes)
+                        .expect("public_key_bytes must have length 33"),
+                    signature: Signature::Secp256k1(Secp256k1Signature {
+                        der: signature_bytes.to_vec(),
+                    }),
+                };
+
+                Ok(ks)
+            }
+            _ => Err(ScriptError::UnexpectedArgument),
+        }
+    }
 }
 
 fn equal_operator(stack: &mut Stack<MyValue>) -> Result<(), ScriptError> {
@@ -146,30 +180,21 @@ fn check_multi_sig(
 ) -> Result<bool, ScriptError> {
     let mut signed_pkhs = vec![];
     let mut keyed_signatures = vec![];
-    for signature in bytes_keyed_signatures {
-        match signature {
-            MyValue::Bytes(bytes) => {
-                // TODO: signatures are encoded using Protocol Buffers, maybe choose a different encoding?
-                let ks: KeyedSignature = KeyedSignature::from_pb_bytes(&bytes)
-                    .map_err(|_e| ScriptError::InvalidSignature)?;
-                let signed_pkh = ks.public_key.pkh();
-                signed_pkhs.push(signed_pkh);
-                let signature = ks
-                    .signature
-                    .clone()
-                    .try_into()
-                    .map_err(|_e| ScriptError::InvalidSignature)?;
-                let public_key = ks
-                    .public_key
-                    .clone()
-                    .try_into()
-                    .map_err(|_e| ScriptError::InvalidPublicKey)?;
-                keyed_signatures.push((signature, public_key));
-            }
-            _ => {
-                return Err(ScriptError::UnexpectedArgument);
-            }
-        }
+    for value in bytes_keyed_signatures {
+        let ks = value.to_signature()?;
+        let signed_pkh = ks.public_key.pkh();
+        signed_pkhs.push(signed_pkh);
+        let signature = ks
+            .signature
+            .clone()
+            .try_into()
+            .map_err(|_e| ScriptError::InvalidSignature)?;
+        let public_key = ks
+            .public_key
+            .clone()
+            .try_into()
+            .map_err(|_e| ScriptError::InvalidPublicKey)?;
+        keyed_signatures.push((signature, public_key));
     }
 
     let mut pkhs = vec![];
