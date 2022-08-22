@@ -181,6 +181,8 @@ impl TryFrom<WitnetHttpResponse> for surf::http::Response {
         let body_reader = futures::io::BufReader::new(body);
 
         // Create a surf response and set all the relevant parts
+        // Version and headers are currently not used, but they are included here for completion and
+        // future readiness.
         let mut res = surf::http::Response::new(status);
         res.set_version(Some(surf::http::Version::try_from(version)?));
         res.set_body(surf::Body::from_reader(body_reader, None));
