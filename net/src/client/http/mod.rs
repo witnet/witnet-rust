@@ -23,7 +23,7 @@ pub enum WitnetHttpError {
         /// An error message.
         msg: String,
     },
-    /// HTTP eequest error.
+    /// HTTP request error.
     #[fail(display = "HTTP request error. Underlying error: {}", msg)]
     HttpRequestError {
         /// An error message.
