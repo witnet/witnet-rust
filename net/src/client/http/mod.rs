@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, str::FromStr, sync::Arc};
+use std::{convert::TryFrom, str::FromStr};
 
 use isahc::prelude::*;
 
@@ -8,7 +8,7 @@ use failure::Fail;
 /// A surf-alike HTTP client that additionally supports proxies (HTTP(S), SOCKS4 and SOCKS5)
 #[derive(Clone, Debug)]
 pub struct WitnetHttpClient {
-    client: Arc<isahc::HttpClient>,
+    client: isahc::HttpClient,
 }
 
 /// Errors for WitnetHttpClient and other auxiliary structures in this module.
@@ -84,14 +84,12 @@ impl WitnetHttpClient {
         };
 
         // Build an `isahc::HttpClient`. Will use the proxy URI, if any
-        let client = Arc::new(
-            isahc::HttpClient::builder()
-                .proxy(proxy_uri)
-                .build()
-                .map_err(|err| WitnetHttpError::ClientBuildError {
-                    msg: err.to_string(),
-                })?,
-        );
+        let client = isahc::HttpClient::builder()
+            .proxy(proxy_uri)
+            .build()
+            .map_err(|err| WitnetHttpError::ClientBuildError {
+                msg: err.to_string(),
+            })?;
 
         Ok(Self { client })
     }
@@ -331,16 +329,13 @@ impl From<WitnetHttpVersion> for isahc::http::version::Version {
 #[async_trait]
 impl surf::HttpClient for WitnetHttpClient {
     async fn send(&self, req: surf::http::Request) -> Result<surf::http::Response, surf::Error> {
-        // Gain access to the HttpClient inside the Arc
-        let client = self.client.clone();
-
         // Transform surf request into isahc request
         let req = WitnetHttpRequest::try_from(&mut req.clone())
             .map_err(|err| surf::Error::from_str(400, err.to_string()))?
             .req;
 
         // Send HTTP request and wait for response
-        let res = client.send_async(req).await?;
+        let res = self.client.send_async(req).await?;
 
         // Transform isahc response into surf response
         let res = surf::http::Response::try_from(WitnetHttpResponse::from(res))
