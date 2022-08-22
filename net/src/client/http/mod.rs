@@ -127,15 +127,8 @@ impl TryFrom<surf::http::Request> for WitnetHttpRequest {
         let uri = req.url().to_string();
         let body = isahc::AsyncBody::from_reader(req.take_body().into_reader());
         let headers: Vec<(String, String)> = req
-            .header_names()
-            .map(|name| {
-                (
-                    name.to_string(),
-                    req.header(name)
-                        .map(std::string::ToString::to_string)
-                        .unwrap_or_default(),
-                )
-            })
+            .iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
             .collect();
 
         // Start to build an isahc request with the basic parts
