@@ -111,10 +111,10 @@ impl From<isahc::Request<isahc::AsyncBody>> for WitnetHttpRequest {
     }
 }
 
-impl TryFrom<&mut surf::http::Request> for WitnetHttpRequest {
+impl TryFrom<surf::http::Request> for WitnetHttpRequest {
     type Error = WitnetHttpError;
 
-    fn try_from(req: &mut surf::http::Request) -> Result<Self, Self::Error> {
+    fn try_from(mut req: surf::http::Request) -> Result<Self, Self::Error> {
         let method = isahc::http::Method::from(WitnetHttpMethod::try_from(req.method())?);
         let version = req
             .version()
@@ -324,7 +324,7 @@ impl From<WitnetHttpVersion> for isahc::http::version::Version {
 impl surf::HttpClient for WitnetHttpClient {
     async fn send(&self, req: surf::http::Request) -> Result<surf::http::Response, surf::Error> {
         // Transform surf request into isahc request
-        let req = WitnetHttpRequest::try_from(&mut req.clone())
+        let req = WitnetHttpRequest::try_from(req)
             .map_err(|err| surf::Error::from_str(400, err.to_string()))?
             .req;
 
