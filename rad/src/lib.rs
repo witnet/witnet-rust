@@ -233,7 +233,13 @@ async fn http_response(
     })?;
 
     // Use the provided HTTP client, or instantiate a new one if none
-    let client = client.unwrap_or_default().as_surf_client();
+    let client = match client {
+        Some(client) => client,
+        None => WitnetHttpClient::new(&None).map_err(|err| RadError::HttpOther {
+            message: err.to_string(),
+        })?,
+    }
+    .as_surf_client();
 
     let request = match retrieve.kind {
         RADType::HttpGet => client.get(&retrieve.url),

@@ -100,12 +100,6 @@ impl WitnetHttpClient {
     }
 }
 
-impl Default for WitnetHttpClient {
-    fn default() -> Self {
-        Self::new(&None).unwrap()
-    }
-}
-
 /// Enables interoperability between `isahc::Request` and `surf::http::Request`.
 pub struct WitnetHttpRequest {
     req: isahc::Request<isahc::AsyncBody>,
