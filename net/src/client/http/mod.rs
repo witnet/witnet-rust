@@ -325,7 +325,7 @@ impl surf::HttpClient for WitnetHttpClient {
     async fn send(&self, req: surf::http::Request) -> Result<surf::http::Response, surf::Error> {
         // Transform surf request into isahc request
         let req = WitnetHttpRequest::try_from(req)
-            .map_err(|err| surf::Error::from_str(400, err.to_string()))?
+            .map_err(surf::Error::from_display)?
             .req;
 
         // Send HTTP request and wait for response
@@ -333,7 +333,7 @@ impl surf::HttpClient for WitnetHttpClient {
 
         // Transform isahc response into surf response
         let res = surf::http::Response::try_from(WitnetHttpResponse::from(res))
-            .map_err(|err| surf::Error::from_str(400, err.to_string()))?;
+            .map_err(surf::Error::from_display)?;
 
         Ok(res)
     }
