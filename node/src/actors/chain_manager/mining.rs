@@ -393,6 +393,7 @@ impl ChainManager {
                 block_number_limit,
             ) {
                 log::debug!("Mining data request: Insufficient collateral, the data request need {} mature wits", Wit::from_nanowits(collateral_amount));
+                self.chain_state.node_stats.dr_insufficient_collateral_count += 1;
                 continue;
             }
 
@@ -520,6 +521,7 @@ impl ChainManager {
                                 available_balance,
                                 required_collateral,
                             );
+                            act.chain_state.node_stats.dr_all_collateral_locked_count += 1;
                             // Decrease the retrieval limit hoping that some other, cheaper,
                             // data request can be resolved instead
                             cloned_retrieval_count2.fetch_sub(added_retrieval_count, atomic::Ordering::Relaxed);
