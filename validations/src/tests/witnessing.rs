@@ -37,7 +37,10 @@ fn test_validate_transport_addresses() {
             "socks5://127.0.0.1",
             Err(TransportAddressError::MissingPort),
         ),
-        ("socks5://127.0.0.1:9050", Ok(())),
+        (
+            "socks5://127.0.0.1:9050",
+            Ok(String::from("socks5://127.0.0.1:9050")),
+        ),
     ];
 
     for (address, expected) in addresses {

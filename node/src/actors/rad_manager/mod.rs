@@ -16,7 +16,7 @@ mod handlers;
 #[derive(Debug, Default)]
 pub struct RadManager {
     /// Contains configuration for witnessing, namely about transports and the paranoid threshold.
-    pub witnessing: WitnessingConfig,
+    pub witnessing: WitnessingConfig<witnet_rad::Uri>,
 }
 
 impl RadManager {
@@ -24,12 +24,12 @@ impl RadManager {
     /// sources through different transports so as to ensure that the data sources are consistent
     /// and we are taking as small of a risk as possible when committing to specially crafted data
     /// requests that may be potentially ill-intended.
-    pub fn add_proxy(&mut self, proxy_address: String) {
+    pub fn add_proxy(&mut self, proxy_address: witnet_rad::Uri) {
         self.witnessing.transports.push(Some(proxy_address))
     }
 
     /// Construct a `RadManager` from existing witnessing configuration.
-    pub fn from_config(config: WitnessingConfig) -> Self {
+    pub fn from_config(config: WitnessingConfig<witnet_rad::Uri>) -> Self {
         Self { witnessing: config }
     }
 }

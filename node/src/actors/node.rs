@@ -21,7 +21,8 @@ pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
 
     // Perform some initial validations on the configuration
     let witnessing_config = config.witnessing.clone().into_config();
-    validate_witnessing_config(&witnessing_config)?;
+    let witnessing_config =
+        validate_witnessing_config::<String, witnet_rad::Uri>(&witnessing_config)?;
 
     // Init actors
     system.block_on(async {

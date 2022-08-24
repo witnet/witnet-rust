@@ -7,6 +7,7 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
+pub use isahc::http::Uri;
 pub use surf;
 
 pub mod client;

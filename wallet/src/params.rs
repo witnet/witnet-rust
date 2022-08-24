@@ -34,7 +34,7 @@ pub struct Params {
     pub consensus_constants: ConsensusConstants,
     pub use_unconfirmed_utxos: bool,
     pub pending_transactions_timeout_seconds: u64,
-    pub witnessing: WitnessingConfig,
+    pub witnessing: WitnessingConfig<witnet_net::Uri>,
 }
 
 #[derive(Clone)]

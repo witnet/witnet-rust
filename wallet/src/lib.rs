@@ -97,7 +97,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     // Run setup logic for smart retrievals, aka paranoid witnessing.
     let witnessing_config = conf.witnessing.into_config();
-    validate_witnessing_config(&witnessing_config)?;
+    let witnessing_config = validate_witnessing_config(&witnessing_config)?;
 
     // Initialize actors inside system context
     system.block_on(async {

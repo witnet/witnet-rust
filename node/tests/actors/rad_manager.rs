@@ -1,5 +1,6 @@
 use witnet_config::config::Witnessing;
 use witnet_node::actors::rad_manager::RadManager;
+use witnet_validations::witnessing::validate_witnessing_config;
 
 fn from_config_test_success_helper(
     allow_unproxied: bool,
@@ -12,9 +13,16 @@ fn from_config_test_success_helper(
         proxies,
     }
     .into_config();
+    let config = validate_witnessing_config::<String, witnet_rad::Uri>(&config).unwrap();
     let manager = RadManager::from_config(config);
-    let actual_transports = &manager.witnessing.transports;
-    assert_eq!(actual_transports, &expected_transports);
+    let actual_transports = manager
+        .witnessing
+        .transports
+        .iter()
+        .cloned()
+        .map(|option| option.map(|uri| uri.to_string()))
+        .collect::<Vec<_>>();
+    assert_eq!(actual_transports, expected_transports);
 }
 
 fn from_config_test_error_helper(
@@ -29,6 +37,7 @@ fn from_config_test_error_helper(
             proxies,
         }
         .into_config();
+        let config = validate_witnessing_config::<String, witnet_rad::Uri>(&config).unwrap();
         RadManager::from_config(config)
     });
     let panic_message = *manager.unwrap_err().downcast::<&str>().unwrap();
@@ -48,13 +57,13 @@ fn test_unproxied_true_without_proxies() {
 fn test_unproxied_true_with_proxies() {
     let unproxied = true;
     let proxies = vec![
-        String::from("http://example.com"),
-        String::from("http://domain.tld"),
+        String::from("http://example.com:9000"),
+        String::from("http://domain.tld:9000"),
     ];
     let expected_transports = vec![
         None,
-        Some(String::from("http://example.com")),
-        Some(String::from("http://domain.tld")),
+        Some(String::from("http://example.com:9000")),
+        Some(String::from("http://domain.tld:9000")),
     ];
 
     from_config_test_success_helper(unproxied, proxies, expected_transports);
@@ -64,12 +73,12 @@ fn test_unproxied_true_with_proxies() {
 fn test_unproxied_false_with_proxies() {
     let unproxied = false;
     let proxies = vec![
-        String::from("http://example.com"),
-        String::from("http://domain.tld"),
+        String::from("http://example.com:9000"),
+        String::from("http://domain.tld:9000"),
     ];
     let expected_transports = vec![
-        Some(String::from("http://example.com")),
-        Some(String::from("http://domain.tld")),
+        Some(String::from("http://example.com:9000")),
+        Some(String::from("http://domain.tld:9000")),
     ];
 
     from_config_test_success_helper(unproxied, proxies, expected_transports);

@@ -15,6 +15,7 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
     witnessing::WitnessingConfig,
 };
+pub use witnet_net::Uri;
 use witnet_net::{
     client::http::WitnetHttpClient,
     surf::{
@@ -65,7 +66,7 @@ pub fn try_data_request(
     request: &RADRequest,
     settings: RadonScriptExecutionSettings,
     inputs_injection: Option<&[&str]>,
-    witnessing: Option<WitnessingConfig>,
+    witnessing: Option<WitnessingConfig<witnet_net::Uri>>,
 ) -> RADRequestExecutionReport {
     #[cfg(not(test))]
     let active_wips = current_active_wips();
@@ -235,7 +236,7 @@ async fn http_response(
     // Use the provided HTTP client, or instantiate a new one if none
     let client = match client {
         Some(client) => client,
-        None => WitnetHttpClient::new(&None).map_err(|err| RadError::HttpOther {
+        None => WitnetHttpClient::new(None).map_err(|err| RadError::HttpOther {
             message: err.to_string(),
         })?,
     }
@@ -411,7 +412,7 @@ pub async fn run_paranoid_retrieval(
     aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
-    witnessing: WitnessingConfig,
+    witnessing: WitnessingConfig<witnet_net::Uri>,
 ) -> Result<RadonReport<RadonTypes>> {
     // We can skip paranoid checks for retrieval types that don't use networking (e.g. RNG)
     if !retrieve.kind.is_http() {
@@ -419,8 +420,11 @@ pub async fn run_paranoid_retrieval(
     }
 
     let futures: Result<Vec<_>> = witnessing
-        .transports
-        .iter()
+        .transports_as::<witnet_net::Uri>()
+        .map_err(|(_, err)| RadError::HttpOther {
+            message: err.to_string(),
+        })?
+        .into_iter()
         .map(|transport| {
             WitnetHttpClient::new(transport)
                 .map_err(|err| RadError::HttpOther {

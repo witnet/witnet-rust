@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, str::FromStr};
+use std::convert::TryFrom;
 
 use isahc::prelude::*;
 
@@ -70,22 +70,10 @@ pub enum WitnetHttpError {
 
 impl WitnetHttpClient {
     /// Create a new `WitnetHttpClient`
-    pub fn new(proxy: &Option<String>) -> Result<Self, WitnetHttpError> {
-        // Try to parse the provided proxy address, if any, and fail if the address is not a valid URI
-        let proxy_uri = if let Some(address) = proxy {
-            Some(isahc::http::Uri::from_str(address.as_ref()).map_err(|err| {
-                WitnetHttpError::InvalidProxyUri {
-                    address: address.clone(),
-                    msg: err.to_string(),
-                }
-            })?)
-        } else {
-            None
-        };
-
+    pub fn new(proxy: impl Into<Option<isahc::http::Uri>>) -> Result<Self, WitnetHttpError> {
         // Build an `isahc::HttpClient`. Will use the proxy URI, if any
         let client = isahc::HttpClient::builder()
-            .proxy(proxy_uri)
+            .proxy(proxy)
             .build()
             .map_err(|err| WitnetHttpError::ClientBuildError {
                 msg: err.to_string(),
