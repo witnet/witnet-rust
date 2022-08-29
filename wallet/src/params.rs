@@ -68,7 +68,7 @@ impl NodeParams {
         }
     }
 
-    /// Get the URL and address of an existing JsonRpcClient actor.
+    /// Get an existing JsonRpcClient actor.
     ///
     /// This method exists for convenience in case that at some point we decide to allow changing
     /// the `JsonRpcClient` address by putting `NodeClient` inside an `Arc<RwLock<_>>` or similar.

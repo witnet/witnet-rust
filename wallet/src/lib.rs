@@ -19,14 +19,12 @@ use std::time::Duration;
 
 use actix::prelude::*;
 use failure::Error;
-use rand::seq::SliceRandom;
 
 use witnet_config::config::Config;
 use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
 use witnet_net::client::tcp::JsonRpcClient;
 
 use crate::actors::app;
-use crate::actors::app::NodeClient;
 
 mod account;
 mod actors;
@@ -46,7 +44,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let server_addr = conf.wallet.server_addr;
     let db_path = conf.wallet.db_path;
     let db_file_name = conf.wallet.db_file_name;
-    let node_url = conf.wallet.node_url;
+    let node_urls = conf.wallet.node_url;
     let rocksdb_opts = conf.rocksdb.to_rocksdb_options();
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: conf.consensus_constants.checkpoint_zero_timestamp,
@@ -87,26 +85,9 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     let system = System::new();
 
-    let node_jsonrpc_server_address = conf.jsonrpc.server_address;
-
     let consensus_constants = conf.consensus_constants;
 
     let pending_transactions_timeout_seconds = conf.wallet.pending_transactions_timeout_seconds;
-
-    // Select random node from list
-    let node_client_url = node_url.choose(&mut rand::thread_rng()).ok_or_else(|| {
-        log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
-                        [wallet]\n\
-                        node_url = \"{}\"\n", node_jsonrpc_server_address);
-
-        app::Error::NodeNotConnected
-    })?;
-
-    // Connecting to a remote node server that is not configured locally is not a deal breaker,
-    // but still could mean some misconfiguration, so we print a warning with some help.
-    if node_client_url != &node_jsonrpc_server_address.to_string() {
-        log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, node_client_url);
-    }
 
     let db = Arc::new(
         ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
@@ -116,15 +97,17 @@ pub fn run(conf: Config) -> Result<(), Error> {
     // Initialize actors inside system context
     system.block_on(async {
         let node_subscriptions = Arc::new(Mutex::new(Default::default()));
-        let node_client_actor = JsonRpcClient::start_with_subscriptions(
-            node_client_url.as_ref(),
-            node_subscriptions.clone(),
-        )
-        .map_err(|_| app::Error::NodeNotConnected)?;
-        let node_client = Arc::new(NodeClient {
+        let (node_client_actor, url) =
+            JsonRpcClient::start_with_subscriptions(node_urls.clone(), node_subscriptions.clone())
+                .map_err(|_| app::Error::NodeNotConnected)?;
+        let node_client = Arc::new(app::NodeClient {
             actor: node_client_actor,
-            url: node_client_url.clone(),
+            url,
         });
+
+        // Trigger connection validation. Due to how the JSON-RPC client works, it will keep
+        // retrying connection using a different URL each time.
+        node_client.valid_connection().await;
 
         let params = params::Params {
             testnet,

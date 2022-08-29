@@ -463,7 +463,7 @@ impl Worker {
                         "balance": balance,
                     },
                     "node": {
-                        "address": client.url,
+                        "address": client.current_url(),
                         "network": self.node.network,
                         "last_beacon": self.node.get_last_beacon(),
                     },

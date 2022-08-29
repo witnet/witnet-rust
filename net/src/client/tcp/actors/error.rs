@@ -6,6 +6,9 @@ use serde_json::error::Error as JsonError;
 /// Possible types of errors that can occurr when sending requests.
 #[derive(Debug, Fail)]
 pub enum Error {
+    /// No url has been provided.
+    #[fail(display = "couldn't start client because no url was provided")]
+    NoUrl,
     /// The url used to create the connection is not valid.
     #[fail(display = "couldn't start client due to invalid url")]
     InvalidUrl,

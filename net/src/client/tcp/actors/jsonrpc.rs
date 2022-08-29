@@ -14,23 +14,34 @@ use async_jsonrpc_client::{
 };
 use futures::StreamExt;
 use futures_util::compat::Compat01As03;
+use rand::seq::SliceRandom;
 use serde::Serialize;
-use serde_json::{value, Value};
+use serde_json::value;
+
+pub use serde_json::Value;
 
 use super::Error;
+
+const DEFAULT_BACKOFF_TIME_MILLIS: u64 = 250;
+
+struct Connection {
+    backoff: Duration,
+    socket: TcpSocket,
+    timestamp: Instant,
+    url: Arc<Mutex<String>>,
+}
 
 /// Json-RPC Client actor.
 ///
 /// Use this actor to send json-rpc requests over a websockets connection.
 pub struct JsonRpcClient {
     _handle: EventLoopHandle,
-    socket: TcpSocket,
     active_subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
     pending_subscriptions: HashMap<String, Subscribe>,
-    url: String,
+    urls: Vec<String>,
     // Used to calculate the time since the last reconnection, and prevent multiple reconnections
     // in a short time interval
-    last_reconnection: Instant,
+    connection: Connection,
 }
 
 impl JsonRpcClient {
@@ -38,49 +49,76 @@ impl JsonRpcClient {
     pub fn start(url: &str) -> Result<Addr<JsonRpcClient>, Error> {
         let subscriptions = Arc::new(Default::default());
 
-        Self::start_with_subscriptions(url, subscriptions)
+        Self::start_with_subscriptions(vec![String::from(url)], subscriptions)
+            .map(|(actor, _)| actor)
     }
 
     /// Start JSON-RPC async client actor providing the URL of the server and some subscriptions.
     pub fn start_with_subscriptions(
-        url: &str,
+        urls: Vec<String>,
         subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
-    ) -> Result<Addr<JsonRpcClient>, Error> {
-        log::info!("Connecting client to {}", url);
-        let last_reconnection = Instant::now();
-        let (_handle, socket) = TcpSocket::new(url).map_err(|_| Error::InvalidUrl)?;
-        let client = Self {
-            _handle,
-            socket,
-            active_subscriptions: subscriptions,
-            pending_subscriptions: Default::default(),
-            url: String::from(url),
-            last_reconnection,
-        };
+    ) -> Result<(Addr<JsonRpcClient>, Arc<Mutex<String>>), Error> {
+        log::info!("Configuring JSONRPC client with URLs: {:?}", &urls);
+        let timestamp = Instant::now();
+        let url = urls
+            .choose(&mut rand::thread_rng())
+            .ok_or(Error::NoUrl)?
+            .clone();
+        let (_handle, socket) = TcpSocket::new(&url).map_err(|_| Error::InvalidUrl)?;
+
         log::info!("TCP socket is now connected to {}", url);
 
-        Ok(Actor::start(client))
+        let url = Arc::new(Mutex::new(url));
+        let client = Self {
+            _handle,
+            active_subscriptions: subscriptions,
+            pending_subscriptions: Default::default(),
+            urls,
+            connection: Connection {
+                backoff: Duration::from_millis(DEFAULT_BACKOFF_TIME_MILLIS),
+                socket,
+                timestamp,
+                url: url.clone(),
+            },
+        };
+
+        Ok((Actor::start(client), url))
     }
 
     /// Replace the TCP connection with a fresh new connection.
     pub fn reconnect(&mut self, ctx: &mut <Self as Actor>::Context) {
-        let now = Instant::now();
-        // Attempt to reconnect at most once every 10 seconds
-        let reconnection_cooldown = Duration::from_secs(10);
-        if now.duration_since(self.last_reconnection) < reconnection_cooldown {
+        let timestamp = Instant::now();
+        // Apply exponential back-off on retries
+        let reconnection_cooldown = self.connection.backoff;
+        if timestamp.duration_since(self.connection.timestamp) < reconnection_cooldown {
             log::debug!(
-                "Ignoring reconnect request: last reconnection attempt was a few seconds ago"
+                "Ignoring reconnect request: last reconnection attempt was less than {} seconds ago", reconnection_cooldown.as_secs_f32()
             );
             return;
         }
 
-        self.last_reconnection = now;
-        log::info!("Reconnecting TCP client to {}", self.url);
-        let (_handle, socket) = TcpSocket::new(self.url.as_str())
+        // Pick a new URL randomly
+        let url = self
+            .urls
+            .choose(&mut rand::thread_rng())
+            .expect("At this point there should be at least one URL set for connecting the client")
+            .clone();
+
+        // Connect to the new URL
+        log::info!("Reconnecting TCP client to {}", url);
+        let (_handle, socket) = TcpSocket::new(&url)
             .map_err(|e| log::error!("Reconnection error: {}", e))
             .expect("TCP socket reconnection should not panic, as the only possible error is malformed URL");
+
+        // Update connection info
         self._handle = _handle;
-        self.socket = socket;
+        self.connection.socket = socket;
+        self.connection.timestamp = timestamp;
+        self.connection
+            .url
+            .lock()
+            .map(|mut mutex| *mutex = url)
+            .ok();
 
         // Recover active subscriptions
         let active_subscriptions = self
@@ -120,6 +158,11 @@ impl JsonRpcClient {
         self.pending_subscriptions.clear();
     }
 
+    /// Retrieve the URL of the current client connection.
+    pub fn current_url(&self) -> String {
+        self.connection.url.lock().unwrap().to_string()
+    }
+
     /// Send Json-RPC request.
     pub async fn send_request(
         socket: TcpSocket,
@@ -146,6 +189,23 @@ impl JsonRpcClient {
                 error_kind: err.0,
             }
         })
+    }
+
+    fn double_backoff_time(&mut self, ctx: &mut <Self as Actor>::Context) {
+        let time = core::cmp::min(self.connection.backoff * 2, Duration::from_secs(30));
+        self.set_backoff_time(ctx, time);
+    }
+
+    fn reset_backoff_time(&mut self, ctx: &mut <Self as Actor>::Context) {
+        self.set_backoff_time(ctx, Duration::from_millis(DEFAULT_BACKOFF_TIME_MILLIS));
+    }
+
+    fn set_backoff_time(&mut self, _ctx: &mut <Self as Actor>::Context, time: Duration) {
+        log::debug!(
+            "Connection backoff time is now set to {} seconds",
+            time.as_secs_f32()
+        );
+        self.connection.backoff = time;
     }
 }
 
@@ -252,18 +312,26 @@ impl Handler<Request> for JsonRpcClient {
             params,
             timeout.as_millis()
         );
-        let fut = JsonRpcClient::send_request(self.socket.clone(), method, params)
+        let fut = JsonRpcClient::send_request(self.connection.socket.clone(), method, params)
             .into_actor(self)
             .timeout(timeout)
             .map(move |res, _act, _ctx| {
                 res.unwrap_or(Err(Error::RequestTimedOut(timeout.as_millis())))
             })
             .map(|res, act, ctx| {
-                res.map_err(|err| {
+                res.map(|res| {
+                    // Backoff time is reset
+                    act.reset_backoff_time(ctx);
+                    res
+                })
+                .map_err(|err| {
                     log::error!("JSONRPC Request error: {:?}", err);
                     if is_connection_error(&err) {
+                        // Backoff time is doubled
+                        act.double_backoff_time(ctx);
                         act.reconnect(ctx);
                     }
+
                     err
                 })
             });
@@ -306,7 +374,7 @@ impl Handler<Subscribe> for JsonRpcClient {
                             (*subscriptions).insert(id.clone(), subscribe.clone());
                         };
 
-                        let stream_01 = act.socket.subscribe(&id.clone().into());
+                        let stream_01 = act.connection.socket.subscribe(&id.clone().into());
 
                         let stream_03 = Compat01As03::new(stream_01);
                         let stream = stream_03.map(move |res| {

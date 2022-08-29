@@ -5711,6 +5711,7 @@ dependencies = [
  "jsonrpc-pubsub",
  "jsonrpc-ws-server",
  "log 0.4.14",
+ "rand 0.8.5",
  "serde",
  "serde_json",
 ]
