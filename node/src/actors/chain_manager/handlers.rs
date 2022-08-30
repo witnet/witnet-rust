@@ -161,10 +161,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             utxo_diff,
                             reputation: _,
                             vrf_proof: _,
+                            priorities,
                         }) = best_candidate
                         {
                             // Persist block and update ChainState
-                            self.consolidate_block(ctx, block, utxo_diff, false);
+                            self.consolidate_block(ctx, block, utxo_diff, priorities, false);
                         } else if msg.checkpoint > 0 {
                             let previous_epoch = msg.checkpoint - 1;
                             log::warn!(

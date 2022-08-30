@@ -48,7 +48,9 @@ use witnet_config::config::Tapi;
 use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
-        penalize_factor, reputation_issuance,
+        penalize_factor,
+        priority::Priorities,
+        reputation_issuance,
         tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
         Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainInfo, ChainState,
         CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo, DataRequestOutput,
@@ -249,6 +251,8 @@ pub struct BlockCandidate {
     pub reputation: Reputation,
     /// Vrf proof
     pub vrf_proof: Hash,
+    /// Prority info
+    pub priorities: Priorities,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -522,6 +526,7 @@ impl ChainManager {
                 active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: block.block_header.beacon.checkpoint,
             };
+            let mut priorities = Priorities::default();
 
             let utxo_diff = process_validations(
                 &block,
@@ -538,10 +543,11 @@ impl ChainManager {
                 &chain_info.consensus_constants,
                 resynchronizing,
                 &active_wips,
+                &mut priorities,
             )?;
 
             // Persist block and update ChainState
-            self.consolidate_block(ctx, block, utxo_diff, resynchronizing);
+            self.consolidate_block(ctx, block, utxo_diff, priorities, resynchronizing);
 
             Ok(())
         } else {
@@ -653,6 +659,11 @@ impl ChainManager {
                         return;
                     }
                 }
+
+                // This structure will keep track of the highest and lowest priorities found in the
+                // block candidate.
+                let mut priorities = Priorities::default();
+
                 match process_validations(
                     &block,
                     current_epoch,
@@ -672,6 +683,7 @@ impl ChainManager {
                     &chain_info.consensus_constants,
                     false,
                     &active_wips,
+                    &mut priorities,
                 ) {
                     Ok(utxo_diff) => {
                         self.best_candidate = Some(BlockCandidate {
@@ -679,6 +691,7 @@ impl ChainManager {
                             utxo_diff,
                             reputation,
                             vrf_proof,
+                            priorities,
                         });
 
                         self.broadcast_item(InventoryItem::Block(block));
@@ -719,6 +732,7 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block: Block,
         utxo_diff: Diff,
+        priorities: Priorities,
         resynchronizing: bool,
     ) {
         // Update chain_info and reputation_engine
@@ -911,6 +925,9 @@ impl ChainManager {
                         JsonRpcServer::from_registry().do_send(BlockNotify { block })
                     }
                 }
+
+                // Update transaction priority information
+                self.chain_state.priority_engine.push_priorities(priorities);
 
                 // Update votes counter for WIPs
                 self.chain_state.tapi_engine.update_bit_counter(
@@ -1744,6 +1761,7 @@ impl ChainManager {
     ) -> ResponseActFuture<Self, Result<Diff, failure::Error>> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
+        let mut priorities = Priorities::default();
         let consensus_constants = self.consensus_constants();
         let active_wips = ActiveWips {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
@@ -1780,6 +1798,7 @@ impl ChainManager {
                 block_number,
                 &consensus_constants,
                 &active_wips,
+                &mut priorities,
             );
             async {
                 // Short-circuit if validation failed
@@ -2420,6 +2439,7 @@ pub fn process_validations(
     consensus_constants: &ConsensusConstants,
     resynchronizing: bool,
     active_wips: &ActiveWips,
+    priorities: &mut Priorities,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2448,6 +2468,7 @@ pub fn process_validations(
         block_number,
         consensus_constants,
         active_wips,
+        priorities,
     )?;
 
     if !resynchronizing {

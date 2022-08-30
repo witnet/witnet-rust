@@ -13,6 +13,7 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
+        priority::Priorities,
         tapi::{all_wips_active, current_active_wips, ActiveWips, TapiEngine, FIRST_HARD_FORK},
         *,
     },
@@ -8044,6 +8045,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         block_number,
         &consensus_constants,
         &active_wips,
+        &mut Priorities::default(),
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -8318,6 +8320,7 @@ fn block_difficult_proof() {
                 block_number,
                 &consensus_constants,
                 &current_active_wips(),
+                &mut Priorities::default(),
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -9022,6 +9025,7 @@ fn test_blocks_with_limits(
             block_number,
             &consensus_constants,
             &current_active_wips(),
+            &mut Priorities::default(),
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -9612,6 +9616,7 @@ fn genesis_block_value_overflow() {
         block_number,
         &consensus_constants,
         &current_active_wips(),
+        &mut Priorities::default(),
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -9696,6 +9701,7 @@ fn genesis_block_full_validate() {
         block_number,
         &consensus_constants,
         &current_active_wips(),
+        &mut Priorities::default(),
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -9784,6 +9790,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             block_number,
             &consensus_constants,
             &current_active_wips(),
+            &mut Priorities::default(),
         )
         .unwrap()
     };
@@ -9948,6 +9955,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             block_number,
             &consensus_constants,
             &current_active_wips(),
+            &mut Priorities::default(),
         )
         .unwrap()
     };
@@ -10008,6 +10016,7 @@ fn validate_required_tally_not_found() {
         100,
         &ConsensusConstants::default(),
         &current_active_wips(),
+        &mut Priorities::default(),
     )
     .unwrap_err();
 

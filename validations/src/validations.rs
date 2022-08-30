@@ -14,9 +14,9 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
-        ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
-        EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+        priority::Priorities, tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon,
+        CheckpointVRF, ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState,
+        Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
         RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
         ValueTransferOutput,
     },
@@ -1325,6 +1325,7 @@ pub fn validate_block_transactions(
     block_number: u32,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
+    priorities: &mut Priorities,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == consensus_constants.genesis_hash;
@@ -1381,6 +1382,10 @@ pub fn validate_block_transactions(
             .into());
         }
         vt_weight = acc_weight;
+
+        // Update priorities
+        let priority = fee / u64::from(weight);
+        priorities.digest_vtt_priority(priority);
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
@@ -1564,7 +1569,8 @@ pub fn validate_block_transactions(
         dr_mt.push(Sha256(sha));
 
         // Update dr weight
-        let acc_weight = dr_weight.saturating_add(transaction.weight());
+        let weight = transaction.weight();
+        let acc_weight = dr_weight.saturating_add(weight);
         if acc_weight > consensus_constants.max_dr_weight {
             return Err(BlockError::TotalDataRequestWeightLimitExceeded {
                 weight: acc_weight,
@@ -1573,6 +1579,10 @@ pub fn validate_block_transactions(
             .into());
         }
         dr_weight = acc_weight;
+
+        // Update priorities
+        let priority = fee / u64::from(weight);
+        priorities.digest_drt_priority(priority);
     }
     let dr_hash_merkle_root = dr_mt.root();
 
