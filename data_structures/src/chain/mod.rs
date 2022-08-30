@@ -1,3 +1,6 @@
+/// Keeps track of priority being used by transactions included in recent blocks, and provides
+/// methods for estimating sensible priority values for future transactions.
+pub mod priority;
 /// Contains all TAPI related structures and business logic
 pub mod tapi;
 
@@ -31,7 +34,7 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
-    chain::{tapi::TapiEngine, Signature::Secp256k1},
+    chain::{priority::PriorityEngine, tapi::TapiEngine, Signature::Secp256k1},
     data_request::DataRequestPool,
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
@@ -3248,6 +3251,8 @@ pub struct ChainState {
     pub superblock_state: SuperBlockState,
     /// TAPI Engine
     pub tapi_engine: TapiEngine,
+    /// Transaction priority engine
+    pub priority_engine: PriorityEngine,
     /// Unspent Outputs Pool
     #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,

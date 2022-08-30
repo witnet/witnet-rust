@@ -1,4 +1,9 @@
+use std::convert::TryFrom;
+use std::sync::{Arc, RwLock};
+
+use protobuf::Message;
 use serde::{Deserialize, Serialize};
+use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 use crate::{
     chain::{
@@ -8,10 +13,6 @@ use crate::{
     proto::{schema::witnet, ProtobufConvert},
     vrf::DataRequestEligibilityClaim,
 };
-use protobuf::Message;
-use std::convert::TryFrom;
-use std::sync::{Arc, RwLock};
-use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 // These constants were calculated in:
 // https://github.com/witnet/WIPs/blob/master/wip-0007.md
