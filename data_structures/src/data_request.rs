@@ -7,11 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{
-        DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState, Epoch, Hash,
-        Hashable, PublicKeyHash, ValueTransferOutput,
+        tapi::ActiveWips, DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState,
+        Epoch, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
-    mainnet_validations::ActiveWips,
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };

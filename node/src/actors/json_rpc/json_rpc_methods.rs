@@ -17,10 +17,9 @@ use serde::{Deserialize, Serialize};
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
-        Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType, StateMachine,
-        SyncStatus,
+        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType,
+        StateMachine, SyncStatus,
     },
-    mainnet_validations::ActiveWips,
     transaction::Transaction,
     vrf::VrfMessage,
 };

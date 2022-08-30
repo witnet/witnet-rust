@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use witnet_data_structures::{
-    mainnet_validations::current_active_wips,
+    chain::tapi::current_active_wips,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext},
 };

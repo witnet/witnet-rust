@@ -17,6 +17,7 @@ use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
 use witnet_data_structures::{
     chain::{
+        tapi::{after_second_hard_fork, ActiveWips},
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
         TransactionsPool, ValueTransferOutput,
@@ -27,7 +28,6 @@ use witnet_data_structures::{
     },
     error::TransactionError,
     get_environment,
-    mainnet_validations::{after_second_hard_fork, ActiveWips},
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,

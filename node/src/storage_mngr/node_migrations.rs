@@ -1,6 +1,7 @@
 use super::*;
 use witnet_data_structures::{
-    chain::ChainState, mainnet_validations::TapiEngine, utxo_pool::UtxoWriteBatch,
+    chain::{tapi::TapiEngine, ChainState},
+    utxo_pool::UtxoWriteBatch,
 };
 
 macro_rules! as_failure {

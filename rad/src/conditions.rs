@@ -1,8 +1,7 @@
 use std::{cmp::Ordering, convert::TryFrom};
 
 use witnet_data_structures::{
-    chain::RADTally,
-    mainnet_validations::ActiveWips,
+    chain::{tapi::ActiveWips, RADTally},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
 };

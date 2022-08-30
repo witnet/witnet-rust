@@ -1,3 +1,6 @@
+/// Contains all TAPI related structures and business logic
+pub mod tapi;
+
 use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
@@ -13,9 +16,8 @@ use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use failure::Fail;
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
-
 use partial_struct::PartialStruct;
+use serde::{Deserialize, Serialize};
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::ExtendedSK,
@@ -29,14 +31,13 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
-    chain::Signature::Secp256k1,
+    chain::{tapi::TapiEngine, Signature::Secp256k1},
     data_request::DataRequestPool,
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
         TransactionError,
     },
     get_environment,
-    mainnet_validations::TapiEngine,
     proto::{schema::witnet, ProtobufConvert},
     superblock::SuperBlockState,
     transaction::{

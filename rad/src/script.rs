@@ -6,8 +6,7 @@ use serde_cbor::{
 };
 
 use witnet_data_structures::{
-    chain::RADFilter,
-    mainnet_validations::ActiveWips,
+    chain::{tapi::ActiveWips, RADFilter},
     radon_report::{RadonReport, ReportContext, Stage},
 };
 

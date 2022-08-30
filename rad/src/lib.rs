@@ -8,10 +8,12 @@ use futures::{executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
 #[cfg(test)]
-use witnet_data_structures::mainnet_validations::all_wips_active;
+use witnet_data_structures::chain::tapi::all_wips_active;
 use witnet_data_structures::{
-    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
-    mainnet_validations::{current_active_wips, ActiveWips},
+    chain::{
+        tapi::{current_active_wips, ActiveWips},
+        RADAggregate, RADRequest, RADRetrieve, RADTally, RADType,
+    },
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
     witnessing::WitnessingConfig,
 };

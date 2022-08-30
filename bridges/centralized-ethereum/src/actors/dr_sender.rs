@@ -9,8 +9,7 @@ use actix::prelude::*;
 use serde_json::json;
 use std::{fmt, time::Duration};
 use witnet_data_structures::{
-    chain::{DataRequestOutput, Hash},
-    mainnet_validations::current_active_wips,
+    chain::{tapi::current_active_wips, DataRequestOutput, Hash},
     proto::ProtobufConvert,
     radon_error::RadonErrors,
 };

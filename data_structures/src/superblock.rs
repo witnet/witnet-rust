@@ -1,10 +1,10 @@
 use crate::{
     chain::{
+        tapi::{after_second_hard_fork, in_emergency_period},
         AltKeys, BlockHeader, Bn256PublicKey, CheckpointBeacon, Epoch, Hash, Hashable,
         PublicKeyHash, SuperBlock, SuperBlockVote,
     },
     get_environment,
-    mainnet_validations::{after_second_hard_fork, in_emergency_period},
 };
 use std::{
     collections::{HashMap, HashSet},

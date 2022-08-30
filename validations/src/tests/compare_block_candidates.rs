@@ -1,7 +1,4 @@
-use witnet_data_structures::{
-    chain::{Hash, Reputation},
-    mainnet_validations::current_active_wips,
-};
+use witnet_data_structures::chain::{tapi::current_active_wips, Hash, Reputation};
 
 use std::cmp::Ordering;
 

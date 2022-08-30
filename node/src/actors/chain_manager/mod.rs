@@ -48,18 +48,16 @@ use witnet_config::config::Tapi;
 use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
-        penalize_factor, reputation_issuance, Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey,
-        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
-        Hashable, InventoryEntry, InventoryItem, NodeStats, PublicKeyHash, Reputation,
-        ReputationEngine, SignaturesToVerify, StateMachine, SuperBlock, SuperBlockVote,
-        TransactionsPool,
+        penalize_factor, reputation_issuance,
+        tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
+        Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainInfo, ChainState,
+        CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo, DataRequestOutput,
+        DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
+        NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, StateMachine,
+        SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
     get_environment,
-    mainnet_validations::{
-        after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips,
-    },
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},

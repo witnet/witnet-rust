@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
 
-use crate::{mainnet_validations::ActiveWips, radon_error::ErrorLike};
+use crate::{chain::tapi::ActiveWips, radon_error::ErrorLike};
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
 ///

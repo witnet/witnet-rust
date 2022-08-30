@@ -21,8 +21,7 @@ use tokio::{sync::mpsc, timer::Interval};
 use web3::{contract, futures::Future, types::U256};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_data_structures::{
-    chain::{DataRequestOutput, Hashable, KeyedSignature},
-    mainnet_validations::current_active_wips,
+    chain::{tapi::current_active_wips, DataRequestOutput, Hashable, KeyedSignature},
     proto::ProtobufConvert,
 };
 use witnet_util::timestamp::get_local_timestamp;

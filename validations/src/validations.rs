@@ -14,17 +14,17 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
-        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
-        RADType, Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
+        tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
+        ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
+        EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+        RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
+        ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward,
         calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
-    mainnet_validations::ActiveWips,
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,

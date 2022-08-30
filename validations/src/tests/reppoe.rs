@@ -1,14 +1,16 @@
 use approx::assert_abs_diff_eq;
 use witnet_data_structures::{
-    chain::{calculate_backup_witnesses, Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine},
-    mainnet_validations::ActiveWips,
+    chain::{
+        calculate_backup_witnesses,
+        tapi::{current_active_wips, ActiveWips},
+        Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine,
+    },
     transaction::DRTransaction,
 };
 
 use std::collections::HashMap;
 
 use crate::validations::*;
-use witnet_data_structures::mainnet_validations::current_active_wips;
 
 fn calculate_reppoe_threshold_v1(
     rep_eng: &ReputationEngine,

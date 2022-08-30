@@ -22,11 +22,11 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
+        tapi::{current_active_wips, ActiveWips},
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
-    mainnet_validations::{current_active_wips, ActiveWips},
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::NodeBalance,

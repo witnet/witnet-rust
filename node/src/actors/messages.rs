@@ -17,12 +17,12 @@ use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{
+        tapi::{ActiveWips, BitVotesCounter},
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
         RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
         ValueTransferOutput,
     },
-    mainnet_validations::{ActiveWips, BitVotesCounter},
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
     transaction_factory::NodeBalance,

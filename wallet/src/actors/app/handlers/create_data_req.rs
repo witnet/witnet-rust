@@ -9,8 +9,7 @@ use crate::{
     },
 };
 use witnet_data_structures::{
-    chain::{DataRequestOutput, Hashable},
-    mainnet_validations::current_active_wips,
+    chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,

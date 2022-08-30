@@ -12,14 +12,14 @@ use witnet_crypto::{
     signature::sign,
 };
 use witnet_data_structures::{
-    chain::*,
+    chain::{
+        tapi::{all_wips_active, current_active_wips, ActiveWips, TapiEngine, FIRST_HARD_FORK},
+        *,
+    },
     data_request::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
-    mainnet_validations::{
-        all_wips_active, current_active_wips, ActiveWips, TapiEngine, FIRST_HARD_FORK,
-    },
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,

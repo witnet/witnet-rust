@@ -10,11 +10,10 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable, NodeStats,
-        SuperBlockVote, SupplyInfo,
+        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
+        Hashable, NodeStats, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
-    mainnet_validations::ActiveWips,
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,

@@ -3,9 +3,9 @@ extern crate bencher;
 use bencher::Bencher;
 use std::{convert::TryFrom, iter};
 use witnet_data_structures::chain::{
+    tapi::{ActiveWips, TapiEngine},
     Alpha, Environment, PublicKeyHash, Reputation, ReputationEngine,
 };
-use witnet_data_structures::mainnet_validations::{ActiveWips, TapiEngine};
 
 // To benchmark the old algorithm, comment out this import:
 use witnet_validations::validations;
