@@ -54,12 +54,12 @@ impl PriorityEngine {
         // Will keep track of the absolute minimum and maximum priorities found in the engine.
         let mut absolutes = Priorities::default();
         // Initialize accumulators for different priorities.
-        let mut drt_slow = 0u64;
+        let mut drt_low = 0u64;
         let mut drt_medium = 0u64;
-        let mut drt_fast = 0u64;
-        let mut vtt_slow = 0u64;
+        let mut drt_high = 0u64;
+        let mut vtt_low = 0u64;
         let mut vtt_medium = 0u64;
-        let mut vtt_fast = 0u64;
+        let mut vtt_high = 0u64;
         // To be used later as the divisors in an age weighted arithmetic means.
         // These are initialized to 1 to avoid division by zero issues.
         let mut drt_divisor = 1u64;
@@ -76,80 +76,137 @@ impl PriorityEngine {
             age -= 1;
 
             // Digest the lowest and highest priorities in each entry to find the absolute lowest
-            // (to be used for "painful" priority estimation) and absolute highest (used for
-            // "ludicrous" priority estimation).
+            // (to be used for "stinky" priority estimation) and absolute highest (used for
+            // "opulent" priority estimation).
             //
             // Priority values are also added to accumulators as the addition part of an age
             // weighted arithmetic mean.
             if let Some(drt_lowest) = drt_lowest {
                 absolutes.digest_drt_priority(drt_lowest);
-                drt_slow += age * drt_lowest;
+                drt_low += age * drt_lowest;
                 drt_medium += age * (drt_lowest + drt_highest) / 2;
                 drt_divisor += age;
             }
             if let Some(vtt_lowest) = vtt_lowest {
                 absolutes.digest_vtt_priority(vtt_lowest);
-                vtt_slow += age * vtt_lowest;
+                vtt_low += age * vtt_lowest;
                 vtt_medium += age * (vtt_lowest + vtt_highest) / 2;
                 vtt_divisor += age;
             }
             absolutes.digest_drt_priority(drt_highest);
             absolutes.digest_vtt_priority(vtt_highest);
-            drt_fast += age * drt_highest;
-            vtt_fast += age * vtt_highest;
+            drt_high += age * drt_highest;
+            vtt_high += age * vtt_highest;
         }
 
-        // Note that the division part of the weighted arithmetic mean (`x / divisor`) is done in
-        // place.
-        // Different floors are enforced for the different types of estimate.
+        // Different floors are enforced on the different tiers of priority.
+        // Some are also corrected by 15% up or down to make priorities more dynamic.
+        let drt_stinky_priority = absolutes.drt_lowest.unwrap_or_default();
+        let drt_low_priority = cmp::max(drt_low * 85 / drt_divisor / 100, 10);
+        let drt_medium_priority = cmp::max(drt_medium / drt_divisor, 20);
+        let drt_high_priority = cmp::max(drt_high * 115 / drt_divisor / 100, 30);
+        let drt_opulent_priority = cmp::max(absolutes.drt_highest * 110 / 100, 40);
+        let vtt_stinky_priority = absolutes.vtt_lowest.unwrap_or_default();
+        let vtt_low_priority = cmp::max(vtt_low * 85 / vtt_divisor / 100, 10);
+        let vtt_medium_priority = cmp::max(vtt_medium / vtt_divisor, 20);
+        let vtt_high_priority = cmp::max(vtt_high * 115 / vtt_divisor / 100, 30);
+        let vtt_opulent_priority = cmp::max(absolutes.vtt_highest * 110 / 100, 40);
+
+        // Collect the relative epochs inside the engine in which each tier of priority was enough
+        // for making it into a block, by comparing to the lowest priority mined in that epoch.
+        let mut drt_stinky_enough_epochs = vec![];
+        let mut drt_low_enough_epochs = vec![];
+        let mut drt_medium_enough_epochs = vec![];
+        let mut drt_high_enough_epochs = vec![];
+        let mut vtt_stinky_enough_epochs = vec![];
+        let mut vtt_low_enough_epochs = vec![];
+        let mut vtt_medium_enough_epochs = vec![];
+        let mut vtt_high_enough_epochs = vec![];
+        for (epoch, priorities) in self.priorities.iter().enumerate() {
+            if Some(drt_stinky_priority) >= priorities.drt_lowest {
+                drt_stinky_enough_epochs.push(epoch);
+            }
+            if Some(drt_low_priority) >= priorities.drt_lowest {
+                drt_low_enough_epochs.push(epoch);
+            }
+            if Some(drt_medium_priority) >= priorities.drt_lowest {
+                drt_medium_enough_epochs.push(epoch);
+            }
+            if Some(drt_high_priority) >= priorities.drt_lowest {
+                drt_high_enough_epochs.push(epoch);
+            }
+            if Some(vtt_stinky_priority) >= priorities.drt_lowest {
+                vtt_stinky_enough_epochs.push(epoch);
+            }
+            if Some(vtt_low_priority) >= priorities.vtt_lowest {
+                vtt_low_enough_epochs.push(epoch);
+            }
+            if Some(vtt_medium_priority) >= priorities.vtt_lowest {
+                vtt_medium_enough_epochs.push(epoch);
+            }
+            if Some(vtt_high_priority) >= priorities.vtt_lowest {
+                vtt_high_enough_epochs.push(epoch);
+            }
+        }
+
+        // Measure the average time between occurrences of a tier of priority being enough for
+        // making it into a block.
+        let drt_stinky_ttb = cmp::max(average_gap(drt_stinky_enough_epochs, len), capacity / 2);
+        let drt_low_ttb = cmp::max(average_gap(drt_low_enough_epochs, len), 2);
+        let drt_medium_ttb = cmp::max(average_gap(drt_medium_enough_epochs, len), 2);
+        let drt_high_ttb = cmp::max(average_gap(drt_high_enough_epochs, len), 2);
+        let vtt_stinky_ttb = cmp::max(average_gap(vtt_stinky_enough_epochs, len), capacity / 2);
+        let vtt_low_ttb = cmp::max(average_gap(vtt_low_enough_epochs, len), 2);
+        let vtt_medium_ttb = cmp::max(average_gap(vtt_medium_enough_epochs, len), 2);
+        let vtt_high_ttb = cmp::max(average_gap(vtt_high_enough_epochs, len), 2);
+
         Some(PrioritiesEstimate {
-            drt_painful: PriorityEstimate {
-                priority: absolutes.drt_lowest.unwrap_or_default(),
-                epochs: TimeToBlock::UpTo(capacity),
+            drt_stinky: PriorityEstimate {
+                priority: drt_stinky_priority,
+                time_to_block: TimeToBlock::UpTo(drt_stinky_ttb),
             },
-            drt_slow: PriorityEstimate {
-                priority: cmp::max(drt_slow / drt_divisor, 100),
-                epochs: TimeToBlock::Unknown,
+            drt_low: PriorityEstimate {
+                priority: drt_low_priority,
+                time_to_block: TimeToBlock::Around(drt_low_ttb),
             },
             drt_medium: PriorityEstimate {
-                priority: cmp::max(drt_medium / drt_divisor, 200),
-                epochs: TimeToBlock::Unknown,
+                priority: drt_medium_priority,
+                time_to_block: TimeToBlock::Around(drt_medium_ttb),
             },
-            drt_fast: PriorityEstimate {
-                priority: cmp::max(drt_fast / drt_divisor, 300),
-                epochs: TimeToBlock::Unknown,
+            drt_high: PriorityEstimate {
+                priority: drt_high_priority,
+                time_to_block: TimeToBlock::Around(drt_high_ttb),
             },
-            drt_ludicrous: PriorityEstimate {
-                priority: cmp::max(absolutes.drt_highest, 400),
-                epochs: TimeToBlock::LessThan(1),
+            drt_opulent: PriorityEstimate {
+                priority: drt_opulent_priority,
+                time_to_block: TimeToBlock::LessThan(2),
             },
-            vtt_painful: PriorityEstimate {
-                priority: absolutes.vtt_lowest.unwrap_or_default(),
-                epochs: TimeToBlock::UpTo(capacity),
+            vtt_stinky: PriorityEstimate {
+                priority: vtt_stinky_priority,
+                time_to_block: TimeToBlock::UpTo(vtt_stinky_ttb),
             },
-            vtt_slow: PriorityEstimate {
-                priority: cmp::max(vtt_slow / vtt_divisor, 100),
-                epochs: TimeToBlock::Unknown,
+            vtt_low: PriorityEstimate {
+                priority: vtt_low_priority,
+                time_to_block: TimeToBlock::Around(vtt_low_ttb),
             },
             vtt_medium: PriorityEstimate {
-                priority: cmp::max(vtt_medium / vtt_divisor, 200),
-                epochs: TimeToBlock::Unknown,
+                priority: vtt_medium_priority,
+                time_to_block: TimeToBlock::Around(vtt_medium_ttb),
             },
-            vtt_fast: PriorityEstimate {
-                priority: cmp::max(vtt_fast / vtt_divisor, 300),
-                epochs: TimeToBlock::Unknown,
+            vtt_high: PriorityEstimate {
+                priority: vtt_high_priority,
+                time_to_block: TimeToBlock::Around(vtt_high_ttb),
             },
-            vtt_ludicrous: PriorityEstimate {
-                priority: cmp::max(absolutes.vtt_highest, 400),
-                epochs: TimeToBlock::LessThan(2),
+            vtt_opulent: PriorityEstimate {
+                priority: vtt_opulent_priority,
+                time_to_block: TimeToBlock::LessThan(2),
             },
         })
     }
 
     /// Creates a new engine from a vector of `Priorities`.
     ///
-    /// This assumes that the vector is ordered from oldest to newest.
-    /// TODO: verify the statement above is true, or whether it's just the opposite
+    /// This assumes that the vector is ordered from newest to oldest.
     pub fn from_vec(priorities: Vec<Priorities>) -> Self {
         // Create a new queue with the desired capacity
         let mut fees = CircularQueue::with_capacity(DEFAULT_QUEUE_CAPACITY_EPOCHS);
@@ -178,9 +235,12 @@ impl PriorityEngine {
     /// Push a new `Priorities` entry into the engine.
     #[inline]
     pub fn push_priorities(&mut self, priorities: Priorities) {
-        // TODO: make this a debug line
-        log::warn!("Pushing new transaction priorities entry: {:?}", priorities);
+        log::debug!("Pushing new transaction priorities entry: {:?}", priorities);
         self.priorities.push(priorities);
+        log::debug!(
+            "The priority engine has received new data. The priority estimate is now:\n{}",
+            self.estimate_priority().unwrap_or_default()
+        );
     }
 
     /// Create a new engine of a certain queue capacity.
@@ -192,19 +252,18 @@ impl PriorityEngine {
     }
 }
 
-// TODO: show fee estimations
 impl fmt::Debug for PriorityEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let fees = self
             .priorities
             .iter()
             .enumerate()
-            .map(|(i, fees)| format!("{}\t→\t{:?}", i, fees))
+            .map(|(i, fees)| format!("{:>4} → {:?}", i, fees))
             .join("\n");
 
         write!(
             f,
-            "There is priority information for {} epochs:\n{}",
+            "[PriorityEngine] There is priority information for {} epochs:\n{}",
             self.priorities.len(),
             fees,
         )
@@ -293,7 +352,7 @@ impl fmt::Debug for Priorities {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "DRT: (High: {}, Low: {}) | VTT: (High: {}, Low: {})",
+            "[DRT](↑{:<10}, ↓{:<10}) | [VTT](↑{:<10}, ↓{:<10})",
             self.drt_highest,
             self.drt_lowest.unwrap_or_default(),
             self.vtt_highest,
@@ -304,24 +363,65 @@ impl fmt::Debug for Priorities {
 
 /// A whole set of estimates for priority of DRT and VTT transactions.
 ///
-/// There are 5 different levels of estimations:
-/// - Painful
-/// - Slow
+/// Each estimate contains values for 5 different tiers of priority:
+/// - Stinky
+/// - low
 /// - Medium
-/// - Fast
-/// - Ludicrous
+/// - High
+/// - Opulent
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PrioritiesEstimate {
-    pub drt_painful: PriorityEstimate,
-    pub drt_slow: PriorityEstimate,
+    pub drt_stinky: PriorityEstimate,
+    pub drt_low: PriorityEstimate,
     pub drt_medium: PriorityEstimate,
-    pub drt_fast: PriorityEstimate,
-    pub drt_ludicrous: PriorityEstimate,
-    pub vtt_painful: PriorityEstimate,
-    pub vtt_slow: PriorityEstimate,
+    pub drt_high: PriorityEstimate,
+    pub drt_opulent: PriorityEstimate,
+    pub vtt_stinky: PriorityEstimate,
+    pub vtt_low: PriorityEstimate,
     pub vtt_medium: PriorityEstimate,
-    pub vtt_fast: PriorityEstimate,
-    pub vtt_ludicrous: PriorityEstimate,
+    pub vtt_high: PriorityEstimate,
+    pub vtt_opulent: PriorityEstimate,
+}
+
+impl fmt::Display for PrioritiesEstimate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            r#"╔══════════════════════════════════════════════════════════╗
+║ TRANSACTION PRIORITY ESTIMATION REPORT                   ║
+╠══════════════════════════════════════════════════════════╣
+║ Data request transactions                                ║
+╟──────────┬──────────────────┬────────────────────────────║
+║     Tier │ Priority         │ Time-to-block              ║
+╟──────────┼──────────────────┼────────────────────────────║
+║   Stinky │ {:<45} ║
+║      Low │ {:<45} ║
+║   Medium │ {:<45} ║
+║     High │ {:<45} ║
+║  Opulent │ {:<45} ║
+╠══════════════════════════════════════════════════════════╣
+║ Value transfer transactions                              ║
+╟──────────┬──────────────────┬────────────────────────────║
+║     Tier │ Priority         │ Time-to-block              ║
+╟──────────┼──────────────────┼────────────────────────────║
+║   Stinky │ {:<45} ║
+║      Low │ {:<45} ║
+║   Medium │ {:<45} ║
+║     High │ {:<45} ║
+║  Opulent │ {:<45} ║
+╚══════════════════════════════════════════════════════════╝"#,
+            self.drt_stinky.to_string(),
+            self.drt_low.to_string(),
+            self.drt_medium.to_string(),
+            self.drt_high.to_string(),
+            self.drt_opulent.to_string(),
+            self.vtt_stinky.to_string(),
+            self.vtt_low.to_string(),
+            self.vtt_medium.to_string(),
+            self.vtt_high.to_string(),
+            self.vtt_opulent.to_string(),
+        )
+    }
 }
 
 /// A estimate for priority and time-to-block.
@@ -331,7 +431,13 @@ pub struct PrioritiesEstimate {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PriorityEstimate {
     pub priority: u64,
-    pub epochs: TimeToBlock,
+    pub time_to_block: TimeToBlock,
+}
+
+impl fmt::Display for PriorityEstimate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:<16} | {}", self.priority, self.time_to_block)
+    }
 }
 
 /// Allows tagging time-to-block estimations for the sake of UX.
@@ -346,6 +452,30 @@ pub enum TimeToBlock {
     Unknown,
     /// The time-to-block is up to X epochs.
     UpTo(usize),
+}
+
+impl fmt::Display for TimeToBlock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TimeToBlock::Around(x) => write!(f, "around {} epochs", x),
+            TimeToBlock::LessThan(x) => write!(f, "less than {} epochs", x),
+            TimeToBlock::Unknown => write!(f, "unknown"),
+            TimeToBlock::UpTo(x) => write!(f, "up to {} epochs", x),
+        }
+    }
+}
+
+/// Calculates the average gap between the values in a `Vec<usize>`.
+fn average_gap(occurrences: Vec<usize>, sample_size: usize) -> usize {
+    let (_, gaps) = occurrences.iter().fold((0, 0), |(prev_i, sum), cur_i| {
+        let gap = *cur_i - prev_i;
+
+        (*cur_i, (sum + gap).saturating_sub(1))
+    });
+
+    sample_size
+        .saturating_div(occurrences.len().saturating_sub(gaps).saturating_add(1))
+        .saturating_add(1)
 }
 
 #[cfg(test)]
@@ -459,13 +589,54 @@ mod tests {
 
     #[test]
     fn can_estimate_correctly() {
+        use TimeToBlock::*;
+
         let priorities = priorities_factory(100);
         let engine = PriorityEngine::from_vec(priorities);
-        println!("{:?}", engine);
         let estimate = engine.estimate_priority().unwrap();
-        println!("{:#?}", estimate);
 
-        let expected = PrioritiesEstimate::default();
+        let expected = PrioritiesEstimate {
+            drt_stinky: PriorityEstimate {
+                priority: 70,
+                time_to_block: UpTo(480),
+            },
+            drt_low: PriorityEstimate {
+                priority: 2788,
+                time_to_block: Around(12),
+            },
+            drt_medium: PriorityEstimate {
+                priority: 5157,
+                time_to_block: Around(2),
+            },
+            drt_high: PriorityEstimate {
+                priority: 8089,
+                time_to_block: Around(2),
+            },
+            drt_opulent: PriorityEstimate {
+                priority: 10931,
+                time_to_block: LessThan(2),
+            },
+            vtt_stinky: PriorityEstimate {
+                priority: 26,
+                time_to_block: UpTo(480),
+            },
+            vtt_low: PriorityEstimate {
+                priority: 2943,
+                time_to_block: Around(101),
+            },
+            vtt_medium: PriorityEstimate {
+                priority: 4891,
+                time_to_block: Around(3),
+            },
+            vtt_high: PriorityEstimate {
+                priority: 7266,
+                time_to_block: Around(2),
+            },
+            vtt_opulent: PriorityEstimate {
+                priority: 10917,
+                time_to_block: LessThan(2),
+            },
+        };
 
         assert_eq!(estimate, expected);
     }
