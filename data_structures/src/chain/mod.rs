@@ -3252,6 +3252,7 @@ pub struct ChainState {
     /// TAPI Engine
     pub tapi_engine: TapiEngine,
     /// Transaction priority engine
+    #[serde(skip)]
     pub priority_engine: PriorityEngine,
     /// Unspent Outputs Pool
     #[serde(skip)]

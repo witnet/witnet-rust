@@ -1384,7 +1384,8 @@ pub fn validate_block_transactions(
         vt_weight = acc_weight;
 
         // Update priorities
-        let priority = fee / u64::from(weight);
+        // Fee is multiplied by 1,000 for better precision
+        let priority = fee * 1000 / u64::from(weight);
         priorities.digest_vtt_priority(priority);
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
@@ -1581,7 +1582,8 @@ pub fn validate_block_transactions(
         dr_weight = acc_weight;
 
         // Update priorities
-        let priority = fee / u64::from(weight);
+        // Fee is multiplied by 1,000 for better precision
+        let priority = fee * 1000 / u64::from(weight);
         priorities.digest_drt_priority(priority);
     }
     let dr_hash_merkle_root = dr_mt.root();
