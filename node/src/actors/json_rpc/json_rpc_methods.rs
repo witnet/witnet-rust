@@ -31,10 +31,11 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
             AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, DropAllPeers,
-            GetBalance, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
-            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation,
-            GetSignalingInfo, GetState, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
+            EstimatePriority, GetBalance, GetBlocksEpochRange, GetConsolidatedPeers,
+            GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
+            GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
+            GetNodeStats, GetReputation, GetSignalingInfo, GetState, GetUtxoInfo, InitializePeers,
+            IsConfirmedBlock, Rewind,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -113,6 +114,9 @@ pub fn jsonrpc_io_handler(
     });
     io.add_method("signalingInfo", |params: Params| {
         Compat::new(Box::pin(signaling_info(params.parse())))
+    });
+    io.add_method("priority", |_params: Params| {
+        Compat::new(Box::pin(priority()))
     });
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
@@ -1754,6 +1758,19 @@ pub async fn signaling_info(params: Result<(), jsonrpc_core::Error>) -> JsonRpcR
         },
         Err(e) => Err(internal_error_s(e)),
     }
+}
+
+/// Get priority and time-to-block estimations for different priority tiers.
+pub async fn priority() -> JsonRpcResult {
+    let chain_manager_addr = ChainManager::from_registry();
+    let estimate = chain_manager_addr.send(EstimatePriority {}).await;
+
+    estimate
+        .map_err(internal_error_s)?
+        .ok_or_else(|| internal_error_s(
+            "Cannot estimate priority right now. Please try later.",
+        ))
+        .and_then(|estimate| serde_json::to_value(estimate).map_err(internal_error_s))
 }
 
 #[cfg(test)]

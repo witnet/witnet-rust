@@ -369,7 +369,7 @@ impl fmt::Debug for Priorities {
 /// - Medium
 /// - High
 /// - Opulent
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PrioritiesEstimate {
     pub drt_stinky: PriorityEstimate,
     pub drt_low: PriorityEstimate,
@@ -428,7 +428,7 @@ impl fmt::Display for PrioritiesEstimate {
 ///
 /// Time-to-block states what is the expected time (in epochs) that it would take for a transaction
 /// with this priority to be included into a block.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PriorityEstimate {
     pub priority: u64,
     pub time_to_block: TimeToBlock,
@@ -441,7 +441,7 @@ impl fmt::Display for PriorityEstimate {
 }
 
 /// Allows tagging time-to-block estimations for the sake of UX.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum TimeToBlock {
     /// The time-to-block is around X epochs.
     Around(usize),

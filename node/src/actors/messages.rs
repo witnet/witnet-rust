@@ -17,6 +17,7 @@ use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{
+        priority::PrioritiesEstimate,
         tapi::{ActiveWips, BitVotesCounter},
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
@@ -1131,4 +1132,12 @@ pub struct NodeStatusNotify {
 
 impl Message for NodeStatusNotify {
     type Result = ();
+}
+
+/// Message for ordering a transaction priority estimation.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EstimatePriority;
+
+impl Message for EstimatePriority {
+    type Result = Option<PrioritiesEstimate>;
 }

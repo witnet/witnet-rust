@@ -28,8 +28,8 @@ use crate::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
+            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
+            GetBalance, GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
             GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
@@ -1786,6 +1786,14 @@ impl Handler<GetSignalingInfo> for ChainManager {
             pending_upgrades,
             epoch,
         })
+    }
+}
+
+impl Handler<EstimatePriority> for ChainManager {
+    type Result = <EstimatePriority as Message>::Result;
+
+    fn handle(&mut self, _msg: EstimatePriority, _ctx: &mut Self::Context) -> Self::Result {
+        self.chain_state.priority_engine.estimate_priority()
     }
 }
 
