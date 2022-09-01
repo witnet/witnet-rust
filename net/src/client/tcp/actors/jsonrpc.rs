@@ -2,6 +2,7 @@
 //!
 //! See the `JsonRpcClient` struct for more information.
 use std::{
+    cmp,
     collections::HashMap,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -97,12 +98,10 @@ impl JsonRpcClient {
             return;
         }
 
-        // Pick a new URL randomly
-        let url = self
-            .urls
-            .choose(&mut rand::thread_rng())
-            .expect("At this point there should be at least one URL set for connecting the client")
-            .clone();
+        // If there is only 1 URL, use that one.
+        // If there are many, pick a new one randomly that is not the same as the previous one
+        let url = pick_random(&self.urls, self.current_url())
+            .expect("At this point there should be at least one URL set for connecting the client");
 
         // Connect to the new URL
         log::info!("Reconnecting TCP client to {}", url);
@@ -461,4 +460,27 @@ fn subscription_topic_from_request(request: &Request) -> String {
         .map(serde_json::from_value)
         .expect("Subscriptions should always have a topic")
         .expect("Subscription topics should always be String")
+}
+
+/// Pick a random element from a list, avoiding "twice-in-a-row" repetition when possible.
+fn pick_random<T>(input: &[T], old: T) -> Option<T>
+where
+    T: Clone + cmp::PartialEq,
+{
+    match input.len() {
+        0 => None,
+        1 => Some(input[0].clone()),
+        _ => {
+            let mut pick;
+            loop {
+                pick = input.choose(&mut rand::thread_rng())?.clone();
+
+                if pick != old {
+                    break;
+                }
+            }
+
+            Some(pick)
+        }
+    }
 }
