@@ -159,6 +159,7 @@ pub fn connect_routes<T, S>(
         ("get_output", "getOutput"),
         ("get_transaction_by_hash", "getTransaction"),
         ("inventory", "inventory"),
+        ("priority", "priority"),
     );
 
     routes!(
