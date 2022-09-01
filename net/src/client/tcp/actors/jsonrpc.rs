@@ -24,6 +24,7 @@ pub use serde_json::Value;
 use super::Error;
 
 const DEFAULT_BACKOFF_TIME_MILLIS: u64 = 250;
+const MAX_BACKOFF_TIME_MILLIS: u64 = 15_000;
 
 struct Connection {
     backoff: Duration,
@@ -190,8 +191,11 @@ impl JsonRpcClient {
         })
     }
 
-    fn double_backoff_time(&mut self, ctx: &mut <Self as Actor>::Context) {
-        let time = core::cmp::min(self.connection.backoff * 2, Duration::from_secs(30));
+    fn increase_backoff_time(&mut self, ctx: &mut <Self as Actor>::Context) {
+        let time = core::cmp::min(
+            self.connection.backoff * 125 / 100,
+            Duration::from_millis(MAX_BACKOFF_TIME_MILLIS),
+        );
         self.set_backoff_time(ctx, time);
     }
 
@@ -200,7 +204,7 @@ impl JsonRpcClient {
     }
 
     fn set_backoff_time(&mut self, _ctx: &mut <Self as Actor>::Context, time: Duration) {
-        log::debug!(
+        log::trace!(
             "Connection backoff time is now set to {} seconds",
             time.as_secs_f32()
         );
@@ -327,7 +331,7 @@ impl Handler<Request> for JsonRpcClient {
                     log::error!("JSONRPC Request error: {:?}", err);
                     if is_connection_error(&err) {
                         // Backoff time is doubled
-                        act.double_backoff_time(ctx);
+                        act.increase_backoff_time(ctx);
                         act.reconnect(ctx);
                     }
 
