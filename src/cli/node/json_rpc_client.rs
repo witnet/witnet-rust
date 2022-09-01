@@ -20,8 +20,10 @@ use witnet_crypto::{
     hash::calculate_sha256,
     key::{CryptoEngine, ExtendedPK, ExtendedSK},
 };
+
 use witnet_data_structures::{
     chain::{
+        priority::PrioritiesEstimate,
         tapi::{current_active_wips, ActiveWips},
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
@@ -1439,6 +1441,23 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
         } else {
             println!("- {} (using bit {}): Starts in {}", i.wip, i.bit, i.init);
         }
+    }
+
+    Ok(())
+}
+
+pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
+    // Perform the JSONRPC request to the indicated node
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "priority", "id": "1"}"#;
+    let response = send_request(&mut stream, request)?;
+
+    // JSON mode skips parsing of the JSONRPC response and rather outputs the JSON string as such
+    if json {
+        println!("{}", response);
+    } else {
+        let estimate: PrioritiesEstimate = parse_response(&response)?;
+        println!("{}", estimate);
     }
 
     Ok(())

@@ -235,9 +235,9 @@ impl PriorityEngine {
     /// Push a new `Priorities` entry into the engine.
     #[inline]
     pub fn push_priorities(&mut self, priorities: Priorities) {
-        log::debug!("Pushing new transaction priorities entry: {:?}", priorities);
+        log::trace!("Pushing new transaction priorities entry: {:?}", priorities);
         self.priorities.push(priorities);
-        log::debug!(
+        log::trace!(
             "The priority engine has received new data. The priority estimate is now:\n{}",
             self.estimate_priority().unwrap_or_default()
         );
@@ -384,6 +384,7 @@ pub struct PrioritiesEstimate {
 }
 
 impl fmt::Display for PrioritiesEstimate {
+    #[allow(clippy::to_string_in_format_args)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -410,6 +411,8 @@ impl fmt::Display for PrioritiesEstimate {
 ║     High │ {:<45} ║
 ║  Opulent │ {:<45} ║
 ╚══════════════════════════════════════════════════════════╝"#,
+            // Believe it or not, these `to_string` are needed for proper formatting, hence the
+            // clippy allow directive above.
             self.drt_stinky.to_string(),
             self.drt_low.to_string(),
             self.drt_medium.to_string(),

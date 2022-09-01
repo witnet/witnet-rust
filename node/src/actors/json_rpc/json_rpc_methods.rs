@@ -1767,9 +1767,7 @@ pub async fn priority() -> JsonRpcResult {
 
     estimate
         .map_err(internal_error_s)?
-        .ok_or_else(|| internal_error_s(
-            "Cannot estimate priority right now. Please try later.",
-        ))
+        .ok_or_else(|| internal_error_s("Cannot estimate priority right now. Please try later."))
         .and_then(|estimate| serde_json::to_value(estimate).map_err(internal_error_s))
 }
 

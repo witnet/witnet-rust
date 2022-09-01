@@ -270,6 +270,9 @@ pub fn exec_cmd(
         Command::SignalingInfo { node } => {
             rpc::signaling_info(node.unwrap_or(config.jsonrpc.server_address))
         }
+        Command::Priority { node, json } => {
+            rpc::priority(node.unwrap_or(config.jsonrpc.server_address), json)
+        }
     }
 }
 
@@ -714,6 +717,18 @@ pub enum Command {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "priority",
+        aliases = &["getPriority", "estimatePriority", "fee", "getFee", "estimateFee", "fees", "getFees", "estimateFees"],
+        about = "Estimate priority values and their time-to-block for multiple priority tiers."
+    )]
+    Priority {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        #[structopt(long = "json", help = "Show output in JSON format")]
+        json: bool,
     },
 }
 
