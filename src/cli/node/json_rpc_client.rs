@@ -667,11 +667,11 @@ pub fn send_vtt(
             // Iterative algorithm for weight discovery
             loop {
                 // Calculate fee for current priority and weight
-                fee = u64::from(weight) * priority / 1_000;
+                fee = priority.derive_fee(weight);
 
                 // Create and dry run a VTT transaction using that fee
                 let dry_params = BuildVtt {
-                    fee,
+                    fee: fee.nanowits(),
                     dry_run: true,
                     ..params.clone()
                 };
@@ -698,8 +698,6 @@ pub fn send_vtt(
         }
         println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");
         for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
-            let fee = f64::try_from(u32::try_from(*fee)?)? / 1_000_000_000.0;
-            let priority = f64::try_from(u32::try_from(*priority)?)? / 1000.0;
             println!(
                 "({}) {:<9}→  Costs {} Wit and will most likely take {} (priority = {})",
                 i, label, fee, time_to_block, priority
@@ -722,12 +720,10 @@ pub fn send_vtt(
             stdin.read_line(&mut input)?;
 
             let selected: usize = input.trim().parse()?;
-            if let Some((label, selected_fee, selected_priority, time_to_block)) =
+            if let Some((label, priority, selected_fee, time_to_block)) =
                 estimates.get(selected).cloned()
             {
                 fee = selected_fee;
-                let fee = f64::try_from(u32::try_from(selected_fee)?)? / 1_000_000_000.0;
-                let priority = f64::try_from(u32::try_from(selected_priority)?)? / 1000.0;
                 println!(
                     "You have selected priority tier ({}) \"{}\"\n- A fee of {} Wit will be used\n- Priority is {}.\n- The expected time-to-block is {}",
                     selected, label, fee, priority, time_to_block
@@ -739,7 +735,7 @@ pub fn send_vtt(
         }
 
         // We are ready to compose the params for the actual transaction.
-        params.fee = fee;
+        params.fee = fee.nanowits();
     }
 
     // Finally ask the node to create the transaction with the chosen fee.

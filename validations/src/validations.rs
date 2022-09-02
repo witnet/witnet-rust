@@ -14,11 +14,12 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        priority::Priorities, tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon,
-        CheckpointVRF, ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState,
-        Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
-        RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
-        ValueTransferOutput,
+        priority::{Priorities, Priority},
+        tapi::ActiveWips,
+        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
+        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
+        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
+        RADType, Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward,
@@ -1384,9 +1385,7 @@ pub fn validate_block_transactions(
         vt_weight = acc_weight;
 
         // Update priorities
-        // Fee is multiplied by 1,000 for better precision
-        let priority = fee * 1000 / u64::from(weight);
-        priorities.digest_vtt_priority(priority);
+        priorities.digest_vtt_priority(Priority::from_fee_weight(fee, weight));
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
@@ -1582,9 +1581,7 @@ pub fn validate_block_transactions(
         dr_weight = acc_weight;
 
         // Update priorities
-        // Fee is multiplied by 1,000 for better precision
-        let priority = fee * 1000 / u64::from(weight);
-        priorities.digest_drt_priority(priority);
+        priorities.digest_drt_priority(Priority::from_fee_weight(fee, weight));
     }
     let dr_hash_merkle_root = dr_mt.root();
 

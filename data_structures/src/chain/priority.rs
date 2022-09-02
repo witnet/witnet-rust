@@ -1,16 +1,21 @@
-use std::{cmp, fmt};
+use std::{cmp, convert, fmt, ops};
 
 use circular_queue::CircularQueue;
 use failure::Fail;
 use itertools::Itertools;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::ops::Add;
+
+use crate::wit::Wit;
 
 // Assuming no missing epochs, this will keep track of priority used by transactions in the last 12
 // hours (960 epochs).
 const DEFAULT_QUEUE_CAPACITY_EPOCHS: usize = 960;
 // The minimum number of epochs that we need to track before estimating transaction priority
 const MINIMUM_TRACKED_EPOCHS: usize = 20;
+// The number of zeroes in this power of ten tells how many decimal digits to store for Priority values.
+const PRIORITY_PRECISION: u64 = 1_000;
 
 /// Keeps track of fees being paid by transactions included in recent blocks, and provides methods
 /// for estimating sensible priority values for future transactions.
@@ -59,12 +64,12 @@ impl PriorityEngine {
         // Will keep track of the absolute minimum and maximum priorities found in the engine.
         let mut absolutes = Priorities::default();
         // Initialize accumulators for different priorities.
-        let mut drt_low = 0u64;
-        let mut drt_medium = 0u64;
-        let mut drt_high = 0u64;
-        let mut vtt_low = 0u64;
-        let mut vtt_medium = 0u64;
-        let mut vtt_high = 0u64;
+        let mut drt_low = Priority::default();
+        let mut drt_medium = Priority::default();
+        let mut drt_high = Priority::default();
+        let mut vtt_low = Priority::default();
+        let mut vtt_medium = Priority::default();
+        let mut vtt_high = Priority::default();
         // To be used later as the divisors in an age weighted arithmetic means.
         // These are initialized to 1 to avoid division by zero issues.
         let mut drt_divisor = 1u64;
@@ -88,34 +93,46 @@ impl PriorityEngine {
             // weighted arithmetic mean.
             if let Some(drt_lowest) = drt_lowest {
                 absolutes.digest_drt_priority(drt_lowest);
-                drt_low += age * drt_lowest;
-                drt_medium += age * (drt_lowest + drt_highest) / 2;
+                drt_low += drt_lowest * age;
+                drt_medium += (drt_lowest + drt_highest) / 2 * age;
                 drt_divisor += age;
             }
             if let Some(vtt_lowest) = vtt_lowest {
                 absolutes.digest_vtt_priority(vtt_lowest);
-                vtt_low += age * vtt_lowest;
-                vtt_medium += age * (vtt_lowest + vtt_highest) / 2;
+                vtt_low += vtt_lowest * age;
+                vtt_medium += (vtt_lowest + vtt_highest) / 2 * age;
                 vtt_divisor += age;
             }
             absolutes.digest_drt_priority(drt_highest);
             absolutes.digest_vtt_priority(vtt_highest);
-            drt_high += age * drt_highest;
-            vtt_high += age * vtt_highest;
+            drt_high += drt_highest * age;
+            vtt_high += vtt_highest * age;
         }
 
         // Different floors are enforced on the different tiers of priority.
         // Some are also corrected by 15% up or down to make priorities more dynamic.
-        let drt_stinky_priority = absolutes.drt_lowest.unwrap_or_default();
-        let drt_low_priority = cmp::max(drt_low * 85 / drt_divisor / 100, 10);
-        let drt_medium_priority = cmp::max(drt_medium / drt_divisor, 20);
-        let drt_high_priority = cmp::max(drt_high * 115 / drt_divisor / 100, 30);
-        let drt_opulent_priority = cmp::max(absolutes.drt_highest * 110 / 100, 40);
-        let vtt_stinky_priority = absolutes.vtt_lowest.unwrap_or_default();
-        let vtt_low_priority = cmp::max(vtt_low * 85 / vtt_divisor / 100, 10);
-        let vtt_medium_priority = cmp::max(vtt_medium / vtt_divisor, 20);
-        let vtt_high_priority = cmp::max(vtt_high * 115 / vtt_divisor / 100, 30);
-        let vtt_opulent_priority = cmp::max(absolutes.vtt_highest * 110 / 100, 40);
+        let drt_stinky_priority = absolutes
+            .drt_lowest
+            .unwrap_or_else(Priority::default_stinky);
+        let drt_low_priority = cmp::max(drt_low * 85 / drt_divisor / 100, Priority::default_low());
+        let drt_medium_priority = cmp::max(drt_medium / drt_divisor, Priority::default_medium());
+        let drt_high_priority =
+            cmp::max(drt_high * 115 / drt_divisor / 100, Priority::default_high());
+        let drt_opulent_priority = cmp::max(
+            absolutes.drt_highest * 110 / 100,
+            Priority::default_opulent(),
+        );
+        let vtt_stinky_priority = absolutes
+            .vtt_lowest
+            .unwrap_or_else(Priority::default_stinky);
+        let vtt_low_priority = cmp::max(vtt_low * 85 / vtt_divisor / 100, Priority::default_low());
+        let vtt_medium_priority = cmp::max(vtt_medium / vtt_divisor, Priority::default_medium());
+        let vtt_high_priority =
+            cmp::max(vtt_high * 115 / vtt_divisor / 100, Priority::default_high());
+        let vtt_opulent_priority = cmp::max(
+            absolutes.vtt_highest * 110 / 100,
+            Priority::default_opulent(),
+        );
 
         // Collect the relative epochs inside the engine in which each tier of priority was enough
         // for making it into a block, by comparing to the lowest priority mined in that epoch.
@@ -310,6 +327,195 @@ impl Serialize for PriorityEngine {
     }
 }
 
+/// Conveniently wraps a priority value with sub-nanoWit precision.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Priority {
+    nano_wit: u64,
+    sub_nano_wit: u64,
+}
+
+impl Priority {
+    /// Get the priority value in its "raw" representation, i.e. the integer part multiplied by the
+    /// precision, plus the decimal part.
+    #[inline]
+    pub fn as_raw(&self) -> u64 {
+        self.nano_wit * PRIORITY_PRECISION + self.sub_nano_wit
+    }
+
+    /// The default precision for tier "High".
+    #[inline]
+    pub fn default_high() -> Self {
+        Self::from_raw(PRIORITY_PRECISION * 3 / 10)
+    }
+
+    /// The default precision for tier "Low".
+    #[inline]
+    pub fn default_low() -> Self {
+        Self::from_raw(PRIORITY_PRECISION * 2 / 10)
+    }
+
+    /// The default precision for tier "Medium".
+    #[inline]
+    pub fn default_medium() -> Self {
+        Self::from_raw(PRIORITY_PRECISION / 10)
+    }
+
+    /// The default precision for tier "Opulent".
+    #[inline]
+    pub fn default_opulent() -> Self {
+        Self::from_raw(PRIORITY_PRECISION * 4 / 10)
+    }
+
+    /// The default precision for tier "Stinky".
+    #[inline]
+    pub fn default_stinky() -> Self {
+        Self::from_raw(0)
+    }
+
+    /// Derive fee from priority and weight.
+    #[inline]
+    pub fn derive_fee(&self, weight: u32) -> Wit {
+        Wit::from_nanowits(self.as_raw() * weight as u64 / PRIORITY_PRECISION)
+    }
+
+    /// Constructs a Priority from a transaction fee and weight.
+    #[inline]
+    pub fn from_fee_weight(fee: u64, weight: u32) -> Self {
+        let raw = fee
+            .saturating_mul(PRIORITY_PRECISION)
+            .saturating_div(weight as u64);
+
+        Self::from_raw(raw)
+    }
+
+    /// Constructs a Priority from its integer part and decimals.
+    #[inline]
+    pub fn from_integer_and_decimals(integer: u64, decimals: u64) -> Self {
+        let raw = integer
+            .saturating_mul(PRIORITY_PRECISION)
+            .saturating_add(decimals);
+
+        Self::from_raw(raw)
+    }
+
+    /// Constructs a Priority from its "raw" representation, i.e. the integer part multiplied by the
+    /// precision, plus the decimal part.
+    #[inline]
+    pub fn from_raw(raw: u64) -> Self {
+        let nano_wit = raw / PRIORITY_PRECISION;
+        let sub_nano_wit = raw % PRIORITY_PRECISION;
+
+        Self {
+            nano_wit,
+            sub_nano_wit,
+        }
+    }
+
+    /// Retrieves the integer and decimal parts of a priority value separately.
+    #[inline]
+    pub fn integer_and_decimals(&self) -> (u64, u64) {
+        (self.nano_wit, self.sub_nano_wit)
+    }
+
+    /// Tells whether the priority value is zero.
+    #[inline]
+    pub fn is_zero(&self) -> bool {
+        self.integer_and_decimals() == (0, 0)
+    }
+}
+
+impl fmt::Display for Priority {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{:03}", self.nano_wit, self.sub_nano_wit)
+    }
+}
+
+impl cmp::Ord for Priority {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.integer_and_decimals()
+            .cmp(&other.integer_and_decimals())
+    }
+}
+
+impl cmp::PartialEq<u64> for Priority {
+    fn eq(&self, other: &u64) -> bool {
+        self.eq(&Priority::from_raw(other * PRIORITY_PRECISION))
+    }
+}
+
+impl cmp::PartialOrd for Priority {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Conveniently create a Priority value from a u64 value.
+impl convert::From<u64> for Priority {
+    fn from(input: u64) -> Self {
+        Self::from_integer_and_decimals(input, 0)
+    }
+}
+
+/// Allow adding two Priority values together.
+impl ops::Add for Priority {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::from_raw(self.as_raw() + rhs.as_raw())
+    }
+}
+
+/// Allow `+=` on `Priority`
+impl ops::AddAssign for Priority {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.add(rhs);
+    }
+}
+
+/// Allow multiplying `Priority` values by `u64` values.
+impl ops::Mul<u64> for Priority {
+    type Output = Self;
+
+    fn mul(self, rhs: u64) -> Self::Output {
+        let raw = self.as_raw().saturating_mul(rhs);
+
+        Self::from_raw(raw)
+    }
+}
+
+/// Allow dividing `Priority` values by `u64` values.
+impl ops::Div<u64> for Priority {
+    type Output = Self;
+
+    fn div(self, rhs: u64) -> Self::Output {
+        let (integer, decimals) = self.integer_and_decimals();
+        let raw = integer
+            .saturating_mul(PRIORITY_PRECISION)
+            .saturating_add(decimals)
+            .saturating_div(rhs);
+
+        Self::from_raw(raw)
+    }
+}
+
+impl<'de> Deserialize<'de> for Priority {
+    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        u64::deserialize(deserializer).map(Self::from_raw)
+    }
+}
+
+impl Serialize for Priority {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        Serialize::serialize(&self.as_raw(), serializer)
+    }
+}
+
 /// Type for each of the entries in `FeesEngine`.
 ///
 /// Fees are always expressed in their relative form (nanowits per weight unit), aka "transaction
@@ -317,30 +523,30 @@ impl Serialize for PriorityEngine {
 #[derive(Clone, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Priorities {
     /// The highest priority used by data request transactions in a block.
-    pub drt_highest: u64,
+    pub drt_highest: Priority,
     /// The lowest priority used by data requests transactions in a block.
-    pub drt_lowest: Option<u64>,
+    pub drt_lowest: Option<Priority>,
     /// The highest priority used by value transfer transactions in a block.
-    pub vtt_highest: u64,
+    pub vtt_highest: Priority,
     /// The lowest priority used by data requests transactions in a block.
-    pub vtt_lowest: Option<u64>,
+    pub vtt_lowest: Option<Priority>,
 }
 
 impl Priorities {
     /// Process the priority of a data request transaction, and update the highest and lowest values
     /// accordingly, if the provided value is higher or lower than the previously set values.
     #[inline]
-    pub fn digest_drt_priority(&mut self, priority: u64) {
+    pub fn digest_drt_priority(&mut self, priority: Priority) {
         // Update highest
         if priority > self.drt_highest {
             self.drt_highest = priority;
         }
         // Update lowest
-        if let Some(drt_lowest) = self.drt_lowest {
-            if priority < drt_lowest {
+        if let Some(drt_lowest) = &self.drt_lowest {
+            if &priority < drt_lowest {
                 self.drt_lowest = Some(priority);
             }
-        } else if priority > 0 {
+        } else if priority != 0 {
             self.drt_lowest = Some(priority);
         }
     }
@@ -348,17 +554,17 @@ impl Priorities {
     /// Process the priority of a value transfer transaction, and update the highest and lowest
     /// values accordingly, if the provided value is higher or lower than the previously set values.
     #[inline]
-    pub fn digest_vtt_priority(&mut self, priority: u64) {
+    pub fn digest_vtt_priority(&mut self, priority: Priority) {
         // Update highest
         if priority > self.vtt_highest {
             self.vtt_highest = priority;
         }
         // Update lowest
-        if let Some(vtt_lowest) = self.vtt_lowest {
-            if priority < vtt_lowest {
+        if let Some(vtt_lowest) = &self.vtt_lowest {
+            if &priority < vtt_lowest {
                 self.vtt_lowest = Some(priority);
             }
-        } else if priority > 0 {
+        } else if priority != 0 {
             self.vtt_lowest = Some(priority);
         }
     }
@@ -411,34 +617,44 @@ impl fmt::Display for PrioritiesEstimate {
 ╟──────────┬──────────────────┬────────────────────────────║
 ║     Tier │ Priority         │ Time-to-block              ║
 ╟──────────┼──────────────────┼────────────────────────────║
-║   Stinky │ {:<45} ║
-║      Low │ {:<45} ║
-║   Medium │ {:<45} ║
-║     High │ {:<45} ║
-║  Opulent │ {:<45} ║
+║   Stinky │ {:<16} │ {:<25}  ║
+║      Low │ {:<16} │ {:<25}  ║
+║   Medium │ {:<16} │ {:<25}  ║
+║     High │ {:<16} │ {:<25}  ║
+║  Opulent │ {:<16} │ {:<25}  ║
 ╠══════════════════════════════════════════════════════════╣
 ║ Value transfer transactions                              ║
 ╟──────────┬──────────────────┬────────────────────────────║
 ║     Tier │ Priority         │ Time-to-block              ║
 ╟──────────┼──────────────────┼────────────────────────────║
-║   Stinky │ {:<45} ║
-║      Low │ {:<45} ║
-║   Medium │ {:<45} ║
-║     High │ {:<45} ║
-║  Opulent │ {:<45} ║
+║   Stinky │ {:<16} │ {:<25}  ║
+║      Low │ {:<16} │ {:<25}  ║
+║   Medium │ {:<16} │ {:<25}  ║
+║     High │ {:<16} │ {:<25}  ║
+║  Opulent │ {:<16} │ {:<25}  ║
 ╚══════════════════════════════════════════════════════════╝"#,
             // Believe it or not, these `to_string` are needed for proper formatting, hence the
             // clippy allow directive above.
-            self.drt_stinky.to_string(),
-            self.drt_low.to_string(),
-            self.drt_medium.to_string(),
-            self.drt_high.to_string(),
-            self.drt_opulent.to_string(),
-            self.vtt_stinky.to_string(),
-            self.vtt_low.to_string(),
-            self.vtt_medium.to_string(),
-            self.vtt_high.to_string(),
-            self.vtt_opulent.to_string(),
+            self.drt_stinky.priority.to_string(),
+            self.drt_stinky.time_to_block.to_string(),
+            self.drt_low.priority.to_string(),
+            self.drt_low.time_to_block.to_string(),
+            self.drt_medium.priority.to_string(),
+            self.drt_medium.time_to_block.to_string(),
+            self.drt_high.priority.to_string(),
+            self.drt_high.time_to_block.to_string(),
+            self.drt_opulent.priority.to_string(),
+            self.drt_opulent.time_to_block.to_string(),
+            self.vtt_stinky.priority.to_string(),
+            self.vtt_stinky.time_to_block.to_string(),
+            self.vtt_low.priority.to_string(),
+            self.vtt_low.time_to_block.to_string(),
+            self.vtt_medium.priority.to_string(),
+            self.vtt_medium.time_to_block.to_string(),
+            self.vtt_high.priority.to_string(),
+            self.vtt_high.time_to_block.to_string(),
+            self.vtt_opulent.priority.to_string(),
+            self.vtt_opulent.time_to_block.to_string(),
         )
     }
 }
@@ -449,7 +665,7 @@ impl fmt::Display for PrioritiesEstimate {
 /// with this priority to be included into a block.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PriorityEstimate {
-    pub priority: u64,
+    pub priority: Priority,
     pub time_to_block: TimeToBlock,
 }
 
@@ -520,10 +736,10 @@ mod tests {
             }
 
             output.push(Priorities {
-                drt_highest: a,
-                drt_lowest: Some(b),
-                vtt_highest: c,
-                vtt_lowest: Some(d),
+                drt_highest: Priority::from_raw(a),
+                drt_lowest: Some(Priority::from_raw(b)),
+                vtt_highest: Priority::from_raw(c),
+                vtt_lowest: Some(Priority::from_raw(d)),
             })
         }
 
@@ -557,21 +773,21 @@ mod tests {
         assert_eq!(priorities.drt_highest, 0);
         assert_eq!(priorities.drt_lowest, None);
 
-        priorities.digest_drt_priority(0);
+        priorities.digest_drt_priority(0.into());
         assert_eq!(priorities.drt_highest, 0);
         assert_eq!(priorities.drt_lowest, None);
 
-        priorities.digest_drt_priority(5);
+        priorities.digest_drt_priority(5.into());
         assert_eq!(priorities.drt_highest, 5);
-        assert_eq!(priorities.drt_lowest, Some(5));
+        assert_eq!(priorities.drt_lowest, Some(5.into()));
 
-        priorities.digest_drt_priority(7);
+        priorities.digest_drt_priority(7.into());
         assert_eq!(priorities.drt_highest, 7);
-        assert_eq!(priorities.drt_lowest, Some(5));
+        assert_eq!(priorities.drt_lowest, Some(5.into()));
 
-        priorities.digest_drt_priority(3);
+        priorities.digest_drt_priority(3.into());
         assert_eq!(priorities.drt_highest, 7);
-        assert_eq!(priorities.drt_lowest, Some(3));
+        assert_eq!(priorities.drt_lowest, Some(3.into()));
     }
 
     #[test]
@@ -580,21 +796,21 @@ mod tests {
         assert_eq!(priorities.vtt_highest, 0);
         assert_eq!(priorities.vtt_lowest, None);
 
-        priorities.digest_vtt_priority(0);
+        priorities.digest_vtt_priority(0.into());
         assert_eq!(priorities.vtt_highest, 0);
         assert_eq!(priorities.vtt_lowest, None);
 
-        priorities.digest_vtt_priority(5);
+        priorities.digest_vtt_priority(5.into());
         assert_eq!(priorities.vtt_highest, 5);
-        assert_eq!(priorities.vtt_lowest, Some(5));
+        assert_eq!(priorities.vtt_lowest, Some(5.into()));
 
-        priorities.digest_vtt_priority(7);
+        priorities.digest_vtt_priority(7.into());
         assert_eq!(priorities.vtt_highest, 7);
-        assert_eq!(priorities.vtt_lowest, Some(5));
+        assert_eq!(priorities.vtt_lowest, Some(5.into()));
 
-        priorities.digest_vtt_priority(3);
+        priorities.digest_vtt_priority(3.into());
         assert_eq!(priorities.vtt_highest, 7);
-        assert_eq!(priorities.vtt_lowest, Some(3));
+        assert_eq!(priorities.vtt_lowest, Some(3.into()));
     }
 
     #[test]
@@ -624,43 +840,73 @@ mod tests {
 
         let expected = PrioritiesEstimate {
             drt_stinky: PriorityEstimate {
-                priority: 70,
+                priority: Priority {
+                    nano_wit: 0,
+                    sub_nano_wit: 70,
+                },
                 time_to_block: UpTo(480),
             },
             drt_low: PriorityEstimate {
-                priority: 2788,
+                priority: Priority {
+                    nano_wit: 2,
+                    sub_nano_wit: 788,
+                },
                 time_to_block: Around(12),
             },
             drt_medium: PriorityEstimate {
-                priority: 5157,
+                priority: Priority {
+                    nano_wit: 5,
+                    sub_nano_wit: 157,
+                },
                 time_to_block: Around(2),
             },
             drt_high: PriorityEstimate {
-                priority: 8089,
+                priority: Priority {
+                    nano_wit: 8,
+                    sub_nano_wit: 89,
+                },
                 time_to_block: Around(2),
             },
             drt_opulent: PriorityEstimate {
-                priority: 10931,
+                priority: Priority {
+                    nano_wit: 10,
+                    sub_nano_wit: 931,
+                },
                 time_to_block: LessThan(2),
             },
             vtt_stinky: PriorityEstimate {
-                priority: 26,
+                priority: Priority {
+                    nano_wit: 0,
+                    sub_nano_wit: 26,
+                },
                 time_to_block: UpTo(480),
             },
             vtt_low: PriorityEstimate {
-                priority: 2943,
+                priority: Priority {
+                    nano_wit: 2,
+                    sub_nano_wit: 943,
+                },
                 time_to_block: Around(101),
             },
             vtt_medium: PriorityEstimate {
-                priority: 4891,
+                priority: Priority {
+                    nano_wit: 4,
+                    sub_nano_wit: 890,
+                },
                 time_to_block: Around(3),
             },
             vtt_high: PriorityEstimate {
-                priority: 7266,
+                priority: Priority {
+                    nano_wit: 7,
+                    sub_nano_wit: 266,
+                },
                 time_to_block: Around(2),
             },
             vtt_opulent: PriorityEstimate {
-                priority: 10917,
+                priority: Priority {
+                    nano_wit: 10,
+                    sub_nano_wit: 917,
+                },
                 time_to_block: LessThan(2),
             },
         };
