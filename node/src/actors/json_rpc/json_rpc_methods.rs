@@ -1763,12 +1763,12 @@ pub async fn signaling_info(params: Result<(), jsonrpc_core::Error>) -> JsonRpcR
 /// Get priority and time-to-block estimations for different priority tiers.
 pub async fn priority() -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
-    let estimate = chain_manager_addr.send(EstimatePriority {}).await;
-
-    estimate
+    let response = chain_manager_addr.send(EstimatePriority {}).await;
+    let estimate = response
         .map_err(internal_error_s)?
-        .ok_or_else(|| internal_error_s("Cannot estimate priority right now. Please try later."))
-        .and_then(|estimate| serde_json::to_value(estimate).map_err(internal_error_s))
+        .map_err(internal_error_s)?;
+
+    serde_json::to_value(estimate).map_err(internal_error_s)
 }
 
 #[cfg(test)]

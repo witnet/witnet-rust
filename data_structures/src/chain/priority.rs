@@ -1,6 +1,7 @@
 use std::{cmp, fmt};
 
 use circular_queue::CircularQueue;
+use failure::Fail;
 use itertools::Itertools;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -9,7 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 // hours (960 epochs).
 const DEFAULT_QUEUE_CAPACITY_EPOCHS: usize = 960;
 // The minimum number of epochs that we need to track before estimating transaction priority
-const MINIMUM_TRACKED_EPOCHS: usize = 10;
+const MINIMUM_TRACKED_EPOCHS: usize = 20;
 
 /// Keeps track of fees being paid by transactions included in recent blocks, and provides methods
 /// for estimating sensible priority values for future transactions.
@@ -42,11 +43,15 @@ impl PriorityEngine {
     /// digits. They need to be divided by 1,000 for the real protocol-wide nanoWit value, and by
     /// 1,000,000,000,000 for the Wit value. This allows for more fine-grained estimations while the
     /// market for block space is idle.
-    pub fn estimate_priority(&self) -> Option<PrioritiesEstimate> {
+    pub fn estimate_priority(&self) -> Result<PrioritiesEstimate, PriorityError> {
         // Short-circuit if there are too few tracked epochs for an accurate estimation.
         let len = self.priorities.len();
         if len < MINIMUM_TRACKED_EPOCHS {
-            return None;
+            return Err(PriorityError::NotEnoughSampledEpochs(
+                len,
+                MINIMUM_TRACKED_EPOCHS,
+                (MINIMUM_TRACKED_EPOCHS - len) * 45 / 60 + 1,
+            ));
         }
 
         // Find out the queue capacity. We can only provide estimates up to this number of epochs.
@@ -160,7 +165,7 @@ impl PriorityEngine {
         let vtt_medium_ttb = cmp::max(average_gap(vtt_medium_enough_epochs, len), 2);
         let vtt_high_ttb = cmp::max(average_gap(vtt_high_enough_epochs, len), 2);
 
-        Some(PrioritiesEstimate {
+        Ok(PrioritiesEstimate {
             drt_stinky: PriorityEstimate {
                 priority: drt_stinky_priority,
                 time_to_block: TimeToBlock::UpTo(drt_stinky_ttb),
@@ -250,6 +255,17 @@ impl PriorityEngine {
             priorities: CircularQueue::with_capacity(capacity),
         }
     }
+}
+
+/// Different errors that the `PriorityEngine` can produce.
+#[derive(Debug, Eq, Fail, PartialEq)]
+pub enum PriorityError {
+    /// The number of sampled epochs in the engine is not enough for providing a reliable estimate.
+    #[fail(
+        display = "The node has only sampled priority from {} blocks but at least {} are needed to provide a reliable priority estimate. Please retry after {} minutes.",
+        _0, _1, _2
+    )]
+    NotEnoughSampledEpochs(usize, usize, usize),
 }
 
 impl fmt::Debug for PriorityEngine {
@@ -486,7 +502,7 @@ mod tests {
     use super::*;
     use rand::prelude::*;
 
-    fn priorities_factory(count: u64) -> Vec<Priorities> {
+    fn priorities_factory(count: usize) -> Vec<Priorities> {
         let mut prng = StdRng::seed_from_u64(0);
 
         let mut output = vec![];
@@ -583,11 +599,19 @@ mod tests {
 
     #[test]
     fn cannot_estimate_with_few_epochs_in_queue() {
-        let priorities = priorities_factory(MINIMUM_TRACKED_EPOCHS as u64 - 1);
+        let count = MINIMUM_TRACKED_EPOCHS - 1;
+        let priorities = priorities_factory(count);
         let engine = PriorityEngine::from_vec(priorities);
         let estimate = engine.estimate_priority();
 
-        assert_eq!(estimate, None);
+        assert_eq!(
+            estimate,
+            Err(PriorityError::NotEnoughSampledEpochs(
+                count,
+                MINIMUM_TRACKED_EPOCHS,
+                1
+            ))
+        );
     }
 
     #[test]

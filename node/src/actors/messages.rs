@@ -1141,5 +1141,5 @@ impl Message for NodeStatusNotify {
 pub struct EstimatePriority;
 
 impl Message for EstimatePriority {
-    type Result = Option<PrioritiesEstimate>;
+    type Result = Result<PrioritiesEstimate, failure::Error>;
 }

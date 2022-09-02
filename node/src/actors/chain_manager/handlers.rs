@@ -1260,7 +1260,7 @@ impl Handler<BuildVtt> for ChainManager {
                                         },
                                         get_timestamp(),
                                     )
-                                        .map_ok(move |_, _, _| vtt),
+                                    .map_ok(move |_, _, _| vtt),
                                 )
                             }
                         }
@@ -1798,7 +1798,11 @@ impl Handler<EstimatePriority> for ChainManager {
     type Result = <EstimatePriority as Message>::Result;
 
     fn handle(&mut self, _msg: EstimatePriority, _ctx: &mut Self::Context) -> Self::Result {
-        self.chain_state.priority_engine.estimate_priority()
+        // Prevent estimating priority if chain is not synchronized
+        match self.sm_state {
+            StateMachine::Synced => Ok(self.chain_state.priority_engine.estimate_priority()?),
+            current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
+        }
     }
 }
 
