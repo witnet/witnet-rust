@@ -33,6 +33,7 @@ use witnet_data_structures::{
     transaction::{Transaction, VTTransaction},
     transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
+    wit::Wit,
 };
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
@@ -44,7 +45,7 @@ use witnet_node::actors::{
 use witnet_rad::types::RadonTypes;
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
 use witnet_validations::validations::{
-    run_tally_panic_safe, validate_data_request_output, validate_rad_request, Wit,
+    run_tally_panic_safe, validate_data_request_output, validate_rad_request,
 };
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {

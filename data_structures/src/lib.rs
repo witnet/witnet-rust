@@ -63,6 +63,9 @@ pub mod witnessing;
 /// strings or bytes depending on the serializer.
 mod serialization_helpers;
 
+/// Provides convenient constants, structs and methods for handling values denominated in Wit.
+pub mod wit;
+
 lazy_static! {
     /// Environment in which we are running: mainnet or testnet.
     /// This is used for Bech32 serialization.
