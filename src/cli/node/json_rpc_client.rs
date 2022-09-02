@@ -23,14 +23,14 @@ use witnet_crypto::{
 
 use witnet_data_structures::{
     chain::{
-        priority::PrioritiesEstimate,
+        priority::{PrioritiesEstimate, PriorityEstimate},
         tapi::{current_active_wips, ActiveWips},
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     proto::ProtobufConvert,
-    transaction::Transaction,
+    transaction::{Transaction, VTTransaction},
     transaction_factory::NodeBalance,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
 };
@@ -553,24 +553,42 @@ pub fn send_vtt(
     pkh: Option<PublicKeyHash>,
     value: u64,
     size: Option<u64>,
-    fee: u64,
+    fee: Option<u64>,
+    suggest_fee: bool,
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
+    let mut id = 1;
 
     let size = size.unwrap_or(value);
     if value / size > 1000 {
         bail!("This transaction is creating more than 1000 outputs and may not be accepted by the miners");
     }
 
+    // Prepare for fee estimation if enabled through `--suggest-fee` flag.
+    let (fee, estimate) = match (suggest_fee, fee) {
+        (true, _) | (_, None) => {
+            // If fee suggestions are enabled, or no fee is specified, calculate current transaction
+            // priority and set the fee to 0 for the time being. Then the users will be shown estimates
+            // for different priority tiers, and they will be prompted for interactively choosing the
+            // priority and fee that works best for them.
+            let response = issue_priority_estimation(&mut stream, Some(id))?;
+            let estimate = parse_response::<PrioritiesEstimate>(&response)?;
+            id += 1;
+
+            (0u64, Some(estimate))
+        }
+        (_, Some(fee)) => (fee, None),
+    };
     let pkh = match pkh {
         Some(pkh) => pkh,
         None => {
             log::info!("No pkh specified, will default to node pkh");
-            let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-            let response = send_request(&mut stream, request)?;
+            let request = format!(r#"{{"jsonrpc": "2.0","method": "getPkh", "id": "{}"}}"#, id);
+            id += 1;
+            let response = send_request(&mut stream, &request)?;
             let node_pkh = parse_response::<PublicKeyHash>(&response)?;
             log::info!("Node pkh: {}", node_pkh);
 
@@ -601,22 +619,140 @@ pub fn send_vtt(
         None => UtxoSelectionStrategy::Random { from: None },
     };
 
-    let params = BuildVtt {
+    let mut params = BuildVtt {
         vto: vt_outputs,
         fee,
         utxo_strategy,
+        dry_run,
     };
 
-    let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "sendValue", "params": {}, "id": "1"}}"#,
-        serde_json::to_string(&params)?
-    );
+    // If fees suggestion is enabled, we need to do a dry run for each of the priority tiers to
+    // find out the actual transaction weight (as different priorities will affect the number
+    // of inputs being used, and thus also the weight).
+    if let Some(PrioritiesEstimate {
+        vtt_stinky,
+        vtt_low,
+        vtt_medium,
+        vtt_high,
+        vtt_opulent,
+        ..
+    }) = estimate
+    {
+        let priorities = vec![
+            (vtt_stinky, "Stinky"),
+            (vtt_low, "Low"),
+            (vtt_medium, "Medium"),
+            (vtt_high, "High"),
+            (vtt_opulent, "Opulent"),
+        ];
+        let mut estimates = vec![];
+        let mut fee;
+
+        // Iterative algorithm for transaction weight discovery. It calculates the fees for this
+        // transaction assuming that it has the minimum weight, and then repeats the estimation
+        // using the actual weight of the latest created transaction, until the weight stabilizes
+        // or after 5 rounds.
+        for (
+            PriorityEstimate {
+                priority,
+                time_to_block,
+            },
+            label,
+        ) in priorities
+        {
+            // The minimum VTT size is 169 weight units as per WIP-0007
+            let mut weight = 169u32;
+            let mut rounds = 0;
+            // Iterative algorithm for weight discovery
+            loop {
+                // Calculate fee for current priority and weight
+                fee = u64::from(weight) * priority / 1_000;
+
+                // Create and dry run a VTT transaction using that fee
+                let dry_params = BuildVtt {
+                    fee,
+                    dry_run: true,
+                    ..params.clone()
+                };
+                let (dry_vtt, ..) = issue_send_value(&mut stream, dry_params, Some(id))?;
+                let dry_weight = dry_vtt.weight();
+                id += 1;
+
+                // We retry up to 5 times, or until the weight is stable
+                if rounds > 5 || dry_weight == weight {
+                    break;
+                }
+
+                weight = dry_weight;
+                rounds += 1;
+            }
+
+            estimates.push((label, priority, fee, time_to_block));
+        }
+
+        // Time to print the estimates
+        println!("[ Fee suggestions ]");
+        if !suggest_fee {
+            eprintln!("No fee was specified with the `--fee` argument.");
+        }
+        println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");
+        for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
+            let fee = f64::try_from(u32::try_from(*fee)?)? / 1_000_000_000.0;
+            let priority = f64::try_from(u32::try_from(*priority)?)? / 1000.0;
+            println!(
+                "({}) {:<9}→  Costs {} Wit and will most likely take {} (priority = {})",
+                i, label, fee, time_to_block, priority
+            );
+        }
+        let options = (0..estimates.len()).map(|x| usize::to_string(&x)).join("/");
+
+        // This is where we prompt the user for typing the desired priority tier from the options
+        // printed above. This is done in a loop until a valid option is selected.
+        let mut input = String::new();
+        let stdin = io::stdin();
+        let mut stdin = stdin.lock();
+        loop {
+            print!(
+                "Please type the number of your preferred priority tier and press Enter ({}): ",
+                options
+            );
+            io::stdout().flush()?;
+            input.clear();
+            stdin.read_line(&mut input)?;
+
+            let selected: usize = input.trim().parse()?;
+            if let Some((label, selected_fee, selected_priority, time_to_block)) =
+                estimates.get(selected).cloned()
+            {
+                fee = selected_fee;
+                let fee = f64::try_from(u32::try_from(selected_fee)?)? / 1_000_000_000.0;
+                let priority = f64::try_from(u32::try_from(selected_priority)?)? / 1000.0;
+                println!(
+                    "You have selected priority tier ({}) \"{}\"\n- A fee of {} Wit will be used\n- Priority is {}.\n- The expected time-to-block is {}",
+                    selected, label, fee, priority, time_to_block
+                );
+                break;
+            } else {
+                eprintln!(r#""{}" is not a valid option."#, input.trim());
+            }
+        }
+
+        // We are ready to compose the params for the actual transaction.
+        params.fee = fee;
+    }
+
+    // Finally ask the node to create the transaction with the chosen fee.
+    let (_vtt, (request, response)) = issue_send_value(&mut stream, params, Some(id))?;
+
+    // On dry run mode, print the request, otherwise, print the response.
+    // This is kept like this strictly for backwards compatibility.
+    // TODO: wouldn't it be better to always print the response or both?
     if dry_run {
         println!("{}", request);
     } else {
-        let response = send_request(&mut stream, &request)?;
         println!("{}", response);
     }
+
     Ok(())
 }
 
@@ -1449,14 +1585,13 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
 pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
     // Perform the JSONRPC request to the indicated node
     let mut stream = start_client(addr)?;
-    let request = r#"{"jsonrpc": "2.0","method": "priority", "id": "1"}"#;
-    let response = send_request(&mut stream, request)?;
+    let response = issue_priority_estimation(&mut stream, None)?;
 
     // JSON mode skips parsing of the JSONRPC response and rather outputs the JSON string as such
     if json {
         println!("{}", response);
     } else {
-        let estimate: PrioritiesEstimate = parse_response(&response)?;
+        let estimate = parse_response::<PrioritiesEstimate>(&response)?;
         println!("{}", estimate);
     }
 
@@ -1625,6 +1760,35 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failur
             Err(error_json.error.into())
         }
     }
+}
+
+/// Perform a `priority` JSON-RPC query directed to a specified Witnet node.
+fn issue_priority_estimation(
+    stream: &mut TcpStream,
+    id: Option<u8>,
+) -> Result<String, failure::Error> {
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "priority", "id": "{}"}}"#,
+        id.unwrap_or(1)
+    );
+
+    send_request(stream, &request).map_err(From::from)
+}
+
+// Perform a `sendValue` JSON-RPC query directed to a specified Witnet node.
+fn issue_send_value(
+    stream: &mut TcpStream,
+    params: BuildVtt,
+    id: Option<u8>,
+) -> Result<(VTTransaction, (String, String)), failure::Error> {
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sendValue", "params": {}, "id": "{}"}}"#,
+        serde_json::to_string(&params)?,
+        id.unwrap_or(1)
+    );
+    let response = send_request(stream, &request)?;
+
+    parse_response::<VTTransaction>(&response).map(|vtt| (vtt, (request, response)))
 }
 
 #[cfg(test)]

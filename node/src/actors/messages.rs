@@ -25,7 +25,7 @@ use witnet_data_structures::{
         ValueTransferOutput,
     },
     radon_report::RadonReport,
-    transaction::{CommitTransaction, RevealTransaction, Transaction},
+    transaction::{CommitTransaction, RevealTransaction, Transaction, VTTransaction},
     transaction_factory::NodeBalance,
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
@@ -203,10 +203,12 @@ pub struct BuildVtt {
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
+    /// Construct the transaction but do not broadcast it
+    pub dry_run: bool,
 }
 
 impl Message for BuildVtt {
-    type Result = Result<Hash, failure::Error>;
+    type Result = Result<VTTransaction, failure::Error>;
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`

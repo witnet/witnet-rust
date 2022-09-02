@@ -1212,7 +1212,7 @@ impl Handler<PeersBeacons> for ChainManager {
 }
 
 impl Handler<BuildVtt> for ChainManager {
-    type Result = ResponseActFuture<Self, Result<Hash, failure::Error>>;
+    type Result = ResponseActFuture<Self, <BuildVtt as Message>::Result>;
 
     fn handle(&mut self, msg: BuildVtt, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -1235,6 +1235,7 @@ impl Handler<BuildVtt> for ChainManager {
             self.tx_pending_timeout,
             &msg.utxo_strategy,
             max_vt_weight,
+            msg.dry_run,
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
@@ -1243,21 +1244,25 @@ impl Handler<BuildVtt> for ChainManager {
             Ok(vtt) => {
                 let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
                     .into_actor(self)
-                    .then(|s, act, _ctx| match s {
+                    .then(move |s, act, _ctx| match s {
                         Ok(signatures) => {
-                            let transaction =
-                                Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
-                            let tx_hash = transaction.hash();
-                            Either::Left(
-                                act.add_transaction(
-                                    AddTransaction {
-                                        transaction,
-                                        broadcast_flag: true,
-                                    },
-                                    get_timestamp(),
+                            let vtt = VTTransaction::new(vtt, signatures);
+                            let transaction = Transaction::ValueTransfer(vtt.clone());
+
+                            if msg.dry_run {
+                                Either::Right(actix::fut::result(Ok(vtt)))
+                            } else {
+                                Either::Left(
+                                    act.add_transaction(
+                                        AddTransaction {
+                                            transaction,
+                                            broadcast_flag: true,
+                                        },
+                                        get_timestamp(),
+                                    )
+                                        .map_ok(move |_, _, _| vtt),
                                 )
-                                .map_ok(move |_, _, _| tx_hash),
-                            )
+                            }
                         }
                         Err(e) => {
                             log::error!("Failed to sign value transfer transaction: {}", e);
