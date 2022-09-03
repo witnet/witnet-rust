@@ -49,7 +49,7 @@ use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
         penalize_factor,
-        priority::Priorities,
+        priority::{PriorityEngine, Priorities},
         reputation_issuance,
         tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
         Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainInfo, ChainState,
@@ -230,6 +230,8 @@ pub struct ChainManager {
     last_superblock_consensus: Option<CheckpointBeacon>,
     /// Settings for Threshold Activation of Protocol Improvements
     tapi: Tapi,
+    /// Transaction priority engine
+    priority_engine: PriorityEngine,
 }
 
 impl Drop for ChainManager {
@@ -927,7 +929,7 @@ impl ChainManager {
                 }
 
                 // Update transaction priority information
-                self.chain_state.priority_engine.push_priorities(priorities);
+                self.priority_engine.push_priorities(priorities);
 
                 // Update votes counter for WIPs
                 self.chain_state.tapi_engine.update_bit_counter(

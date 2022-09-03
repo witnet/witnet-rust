@@ -34,7 +34,7 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
-    chain::{priority::PriorityEngine, tapi::TapiEngine, Signature::Secp256k1},
+    chain::{tapi::TapiEngine, Signature::Secp256k1},
     data_request::DataRequestPool,
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
@@ -3251,9 +3251,6 @@ pub struct ChainState {
     pub superblock_state: SuperBlockState,
     /// TAPI Engine
     pub tapi_engine: TapiEngine,
-    /// Transaction priority engine
-    #[serde(skip)]
-    pub priority_engine: PriorityEngine,
     /// Unspent Outputs Pool
     #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,

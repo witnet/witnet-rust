@@ -1800,7 +1800,7 @@ impl Handler<EstimatePriority> for ChainManager {
     fn handle(&mut self, _msg: EstimatePriority, _ctx: &mut Self::Context) -> Self::Result {
         // Prevent estimating priority if chain is not synchronized
         match self.sm_state {
-            StateMachine::Synced => Ok(self.chain_state.priority_engine.estimate_priority()?),
+            StateMachine::Synced => Ok(self.priority_engine.estimate_priority()?),
             current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
         }
     }
