@@ -555,8 +555,8 @@ pub enum Command {
         node: Option<SocketAddr>,
         #[structopt(long = "hex")]
         hex: String,
-        #[structopt(long = "fee", default_value = "0")]
-        fee: u64,
+        #[structopt(long = "fee")]
+        fee: Option<u64>,
         /// Run the data request locally to ensure correctness of RADON scripts
         /// It will returns a RadonTypes with the Tally result
         #[structopt(long = "dry-run")]

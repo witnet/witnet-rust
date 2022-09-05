@@ -1247,11 +1247,11 @@ impl Handler<BuildVtt> for ChainManager {
                     .then(move |s, act, _ctx| match s {
                         Ok(signatures) => {
                             let vtt = VTTransaction::new(vtt, signatures);
-                            let transaction = Transaction::ValueTransfer(vtt.clone());
 
                             if msg.dry_run {
                                 Either::Right(actix::fut::result(Ok(vtt)))
                             } else {
+                                let transaction = Transaction::ValueTransfer(vtt.clone());
                                 Either::Left(
                                     act.add_transaction(
                                         AddTransaction {
@@ -1277,7 +1277,7 @@ impl Handler<BuildVtt> for ChainManager {
 }
 
 impl Handler<BuildDrt> for ChainManager {
-    type Result = ResponseActFuture<Self, Result<Hash, failure::Error>>;
+    type Result = ResponseActFuture<Self, Result<DRTransaction, failure::Error>>;
 
     fn handle(&mut self, msg: BuildDrt, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -1309,6 +1309,7 @@ impl Handler<BuildDrt> for ChainManager {
             timestamp,
             self.tx_pending_timeout,
             max_dr_weight,
+            msg.dry_run,
         ) {
             Err(e) => {
                 log::error!("Error when building data request transaction: {}", e);
@@ -1318,21 +1319,26 @@ impl Handler<BuildDrt> for ChainManager {
                 log::debug!("Created drt:\n{:?}", drt);
                 let fut = signature_mngr::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
-                    .then(|s, act, _ctx| match s {
+                    .then(move |s, act, _ctx| match s {
                         Ok(signatures) => {
-                            let transaction =
-                                Transaction::DataRequest(DRTransaction::new(drt, signatures));
-                            let tx_hash = transaction.hash();
-                            Either::Left(
-                                act.add_transaction(
-                                    AddTransaction {
-                                        transaction,
-                                        broadcast_flag: true,
-                                    },
-                                    get_timestamp(),
+                            let drt = DRTransaction::new(drt, signatures);
+
+                            if msg.dry_run {
+                                Either::Right(actix::fut::result(Ok(drt)))
+                            } else {
+                                let transaction =
+                                    Transaction::DataRequest(drt.clone());
+                                Either::Left(
+                                    act.add_transaction(
+                                        AddTransaction {
+                                            transaction,
+                                            broadcast_flag: true,
+                                        },
+                                        get_timestamp(),
+                                    )
+                                        .map_ok(move |_, _, _| drt),
                                 )
-                                .map_ok(move |_, _, _| tx_hash),
-                            )
+                            }
                         }
                         Err(e) => {
                             log::error!("Failed to sign data request transaction: {}", e);

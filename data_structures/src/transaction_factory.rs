@@ -358,6 +358,7 @@ pub fn build_drt(
     timestamp: u64,
     tx_pending_timeout: u64,
     max_weight: u32,
+    dry_run: bool,
 ) -> Result<DRTransactionBody, TransactionError> {
     let mut utxos = NodeUtxos {
         all_utxos,
@@ -382,7 +383,9 @@ pub fn build_drt(
     // Mark UTXOs as used so we don't double spend
     // Save the timestamp after which the transaction will be considered timed out
     // and the output will become available for spending it again
-    utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
+    if !dry_run {
+        utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
+    }
 
     let mut outputs = tx_info.outputs;
     insert_change_output(

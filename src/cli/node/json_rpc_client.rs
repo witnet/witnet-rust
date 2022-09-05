@@ -3,8 +3,7 @@ use failure::{bail, Fail};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use prettytable::{cell, row, Table};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -23,15 +22,16 @@ use witnet_crypto::{
 
 use witnet_data_structures::{
     chain::{
-        priority::{PrioritiesEstimate, PriorityEstimate},
+        priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
         tapi::{current_active_wips, ActiveWips},
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     proto::ProtobufConvert,
-    transaction::{Transaction, VTTransaction},
+    transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::NodeBalance,
+    types::SequencialId,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::Wit,
 };
@@ -40,7 +40,7 @@ use witnet_node::actors::{
     json_rpc::json_rpc_methods::{
         AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
-    messages::{BuildVtt, GetReputationResult, SignalingInfo},
+    messages::{BuildDrt, BuildVtt, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
@@ -560,7 +560,7 @@ pub fn send_vtt(
     dry_run: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let mut id = 1;
+    let mut id = SequencialId::initialize(1u8);
 
     let size = size.unwrap_or(value);
     if value / size > 1000 {
@@ -568,16 +568,14 @@ pub fn send_vtt(
     }
 
     // Prepare for fee estimation if no fee value was specified
-    let (fee, estimate) = unwrap_fee_or_estimate_priority(fee);
+    let (fee, estimate) = unwrap_fee_or_estimate_priority(fee, &mut stream, &mut id)?;
 
     let pkh = match pkh {
         Some(pkh) => pkh,
         None => {
             log::info!("No pkh specified, will default to node pkh");
-            let request = format!(r#"{{"jsonrpc": "2.0","method": "getPkh", "id": "{}"}}"#, id);
-            id += 1;
-            let response = send_request(&mut stream, &request)?;
-            let node_pkh = parse_response::<PublicKeyHash>(&response)?;
+            let (node_pkh, ..) =
+                issue_method("getPkh", None::<serde_json::Value>, &mut stream, id.next())?;
             log::info!("Node pkh: {}", node_pkh);
 
             node_pkh
@@ -662,9 +660,9 @@ pub fn send_vtt(
                     dry_run: true,
                     ..params.clone()
                 };
-                let (dry_vtt, ..) = issue_send_value(&mut stream, dry_params, Some(id))?;
+                let (dry_vtt, ..): (VTTransaction, _) =
+                    issue_method("sendValue", Some(dry_params), &mut stream, id.next())?;
                 let dry_weight = dry_vtt.weight();
-                id += 1;
 
                 // We retry up to 5 times, or until the weight is stable
                 if rounds > 5 || dry_weight == weight {
@@ -678,52 +676,13 @@ pub fn send_vtt(
             estimates.push((label, priority, fee, time_to_block));
         }
 
-        // Time to print the estimates
-        println!("[ Fee suggestions ]");
-        println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");
-        for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
-            println!(
-                "({}) {:<9}→  Costs {} Wit and will most likely take {} (priority = {})",
-                i, label, fee, time_to_block, priority
-            );
-        }
-        let options = (0..estimates.len()).map(|x| usize::to_string(&x)).join("/");
-
-        // This is where we prompt the user for typing the desired priority tier from the options
-        // printed above. This is done in a loop until a valid option is selected.
-        let mut input = String::new();
-        let stdin = io::stdin();
-        let mut stdin = stdin.lock();
-        loop {
-            print!(
-                "Please type the number of your preferred priority tier and press Enter ({}): ",
-                options
-            );
-            io::stdout().flush()?;
-            input.clear();
-            stdin.read_line(&mut input)?;
-
-            let selected: usize = input.trim().parse()?;
-            if let Some((label, priority, selected_fee, time_to_block)) =
-                estimates.get(selected).cloned()
-            {
-                fee = selected_fee;
-                println!(
-                    "You have selected priority tier ({}) \"{}\"\n- A fee of {} Wit will be used\n- Priority is {}.\n- The expected time-to-block is {}",
-                    selected, label, fee, priority, time_to_block
-                );
-                break;
-            } else {
-                eprintln!(r#""{}" is not a valid option."#, input.trim());
-            }
-        }
-
         // We are ready to compose the params for the actual transaction.
-        params.fee = fee.nanowits();
+        params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
     }
 
     // Finally ask the node to create the transaction with the chosen fee.
-    let (_vtt, (request, response)) = issue_send_value(&mut stream, params, Some(id))?;
+    let (_vtt, (request, response)): (VTTransaction, _) =
+        issue_method("sendValue", Some(params), &mut stream, id.next())?;
 
     // On dry run mode, print the request, otherwise, print the response.
     // This is kept like this strictly for backwards compatibility.
@@ -769,22 +728,96 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
 pub fn send_dr(
     addr: SocketAddr,
     hex_bytes: String,
-    fee: u64,
+    fee: Option<u64>,
     dry_run: bool,
 ) -> Result<(), failure::Error> {
-    let dr_output = deserialize_and_validate_hex_dr(hex_bytes)?;
+    let dro = deserialize_and_validate_hex_dr(hex_bytes)?;
+    let mut stream = start_client(addr)?;
+    let mut id = SequencialId::initialize(1u8);
+
     if dry_run {
-        let tally_result = run_dr_locally(&dr_output)?;
+        // TODO: this is not a proper dry run of this method but rather a local execution. Shall we
+        //  have a different method or flag for this, and in case of dry_run, return the signed
+        //  transaction?
+        let tally_result = run_dr_locally(&dro)?;
 
         println!("Request run locally with Tally result: {}", tally_result);
     } else {
-        let bdr_params = json!({"dro": dr_output, "fee": fee});
-        let request = format!(
-            r#"{{"jsonrpc": "2.0","method": "sendRequest", "params": {}, "id": "1"}}"#,
-            serde_json::to_string(&bdr_params)?
-        );
-        let mut stream = start_client(addr)?;
-        let response = send_request(&mut stream, &request)?;
+        // Prepare for fee estimation if no fee value was specified
+        let (fee, estimate) = unwrap_fee_or_estimate_priority(fee, &mut stream, &mut id)?;
+
+        let mut params = BuildDrt { dro, fee, dry_run };
+
+        // If no fee was specified, we first need to do a dry run for each of the priority tiers to
+        // find out the actual transaction weight (as different priorities will affect the number
+        // of inputs being used, and thus also the weight).
+        if let Some(PrioritiesEstimate {
+            drt_stinky,
+            drt_low,
+            drt_medium,
+            drt_high,
+            drt_opulent,
+            ..
+        }) = estimate
+        {
+            let priorities = vec![
+                (drt_stinky, "Stinky"),
+                (drt_low, "Low"),
+                (drt_medium, "Medium"),
+                (drt_high, "High"),
+                (drt_opulent, "Opulent"),
+            ];
+            let mut estimates = vec![];
+            let mut fee;
+
+            // Iterative algorithm for transaction weight discovery. It calculates the fees for this
+            // transaction assuming that it has the minimum weight, and then repeats the estimation
+            // using the actual weight of the latest created transaction, until the weight stabilizes
+            // or after 5 rounds.
+            for (
+                PriorityEstimate {
+                    priority,
+                    time_to_block,
+                },
+                label,
+            ) in priorities
+            {
+                // The minimum DRT size is 400 weight units as per WIP-0007
+                let mut weight = 400u32;
+                let mut rounds = 0u8;
+                // Iterative algorithm for weight discovery
+                loop {
+                    // Calculate fee for current priority and weight
+                    fee = priority.derive_fee(weight);
+
+                    // Create and dry run a VTT transaction using that fee
+                    let dry_params = BuildDrt {
+                        fee: fee.nanowits(),
+                        dry_run: true,
+                        ..params.clone()
+                    };
+                    let (dry_drt, ..): (DRTransaction, _) =
+                        issue_method("sendRequest", Some(dry_params), &mut stream, id.next())?;
+                    let dry_weight = dry_drt.weight();
+
+                    // We retry up to 5 times, or until the weight is stable
+                    if rounds > 5 || dry_weight == weight {
+                        break;
+                    }
+
+                    weight = dry_weight;
+                    rounds += 1;
+                }
+
+                estimates.push((label, priority, fee, time_to_block));
+            }
+
+            // We are ready to compose the params for the actual transaction.
+            params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
+        }
+
+        let (_, (_, response)): (DRTransaction, _) =
+            issue_method("sendRequest", Some(params), &mut stream, id.next())?;
 
         println!("{}", response);
     }
@@ -1566,13 +1599,13 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
 pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
     // Perform the JSONRPC request to the indicated node
     let mut stream = start_client(addr)?;
-    let response = issue_priority_estimation(&mut stream, None)?;
+    let (estimate, (_, response)): (PrioritiesEstimate, _) =
+        issue_method("priority", None::<serde_json::Value>, &mut stream, None)?;
 
     // JSON mode skips parsing of the JSONRPC response and rather outputs the JSON string as such
     if json {
         println!("{}", response);
     } else {
-        let estimate = parse_response::<PrioritiesEstimate>(&response)?;
         println!("{}", estimate);
     }
 
@@ -1744,46 +1777,95 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failur
 }
 
 /// Unwraps an `Option<u64>` representing a fee, returning also a priority estimate if it was `None`.
-fn unwrap_fee_or_estimate_priority(fee: Option<u64>) -> (u64, Option<PrioritiesEstimate>) {
-    match fee {
+fn unwrap_fee_or_estimate_priority<S>(
+    fee: Option<u64>,
+    stream: &mut S,
+    id: &mut SequencialId<u8>,
+) -> Result<(u64, Option<PrioritiesEstimate>), failure::Error>
+where
+    S: Read + Write,
+{
+    Ok(match fee {
         None => {
-            let response = issue_priority_estimation(&mut stream, Some(id))?;
-            let estimate = parse_response::<PrioritiesEstimate>(&response)?;
-            id += 1;
+            let (estimate, _) =
+                issue_method("priority", None::<serde_json::Value>, stream, id.next())?;
 
             (0u64, Some(estimate))
         }
         Some(fee) => (fee, None),
-    }
+    })
 }
 
-/// Perform a `priority` JSON-RPC query directed to a specified Witnet node.
-fn issue_priority_estimation(
-    stream: &mut TcpStream,
+/// Perform a JSON-RPC query directed to a specified Witnet node, and return the output as a
+/// specified type, along the request and the response strings.
+fn issue_method<M, S, P, O>(
+    method: M,
+    params: Option<P>,
+    stream: &mut S,
     id: Option<u8>,
-) -> Result<String, failure::Error> {
+) -> Result<(O, (String, String)), failure::Error>
+where
+    M: Into<String>,
+    S: Read + Write,
+    P: Default + Serialize,
+    O: DeserializeOwned,
+{
     let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "priority", "id": "{}"}}"#,
-        id.unwrap_or(1)
-    );
-
-    send_request(stream, &request).map_err(From::from)
-}
-
-// Perform a `sendValue` JSON-RPC query directed to a specified Witnet node.
-fn issue_send_value(
-    stream: &mut TcpStream,
-    params: BuildVtt,
-    id: Option<u8>,
-) -> Result<(VTTransaction, (String, String)), failure::Error> {
-    let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "sendValue", "params": {}, "id": "{}"}}"#,
-        serde_json::to_string(&params)?,
+        r#"{{"jsonrpc": "2.0","method": "{}", "params": {}, "id": "{}"}}"#,
+        method.into(),
+        serde_json::to_string(&params.unwrap_or_default())?,
         id.unwrap_or(1)
     );
     let response = send_request(stream, &request)?;
 
-    parse_response::<VTTransaction>(&response).map(|vtt| (vtt, (request, response)))
+    parse_response::<O>(&response).map(|output| (output, (request, response)))
+}
+
+fn prompt_user_for_priority_selection(
+    estimates: Vec<(&str, Priority, Wit, TimeToBlock)>,
+) -> Result<Wit, failure::Error> {
+    // Time to print the estimates
+    println!("[ Fee suggestions ]");
+    println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");
+    for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
+        println!(
+            "({}) {:<9}→  Costs {} Wit and will most likely take {} (priority = {})",
+            i, label, fee, time_to_block, priority
+        );
+    }
+    let options = (0..estimates.len()).map(|x| usize::to_string(&x)).join("/");
+
+    // This is where we prompt the user for typing the desired priority tier from the options
+    // printed above. This is done in a loop until a valid option is selected.
+    let mut input = String::new();
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+    let fee;
+    loop {
+        print!(
+            "Please type the number of your preferred priority tier and press Enter ({}): ",
+            options
+        );
+        io::stdout().flush()?;
+        input.clear();
+        stdin.read_line(&mut input)?;
+
+        let selected: usize = input.trim().parse()?;
+        if let Some((label, priority, selected_fee, time_to_block)) =
+            estimates.get(selected).cloned()
+        {
+            fee = selected_fee;
+            println!(
+                "You have selected priority tier ({}) \"{}\"\n- A fee of {} Wit will be used\n- Priority is {}.\n- The expected time-to-block is {}",
+                selected, label, selected_fee, priority, time_to_block
+            );
+            break;
+        } else {
+            eprintln!(r#""{}" is not a valid option."#, input.trim());
+        }
+    }
+
+    Ok(fee)
 }
 
 #[cfg(test)]

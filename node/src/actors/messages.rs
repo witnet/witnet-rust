@@ -46,6 +46,7 @@ use super::{
     rad_manager::RadManager,
     session::Session,
 };
+use witnet_data_structures::transaction::DRTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CHAIN MANAGER
@@ -204,6 +205,7 @@ pub struct BuildVtt {
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
     /// Construct the transaction but do not broadcast it
+    #[serde(default)]
     pub dry_run: bool,
 }
 
@@ -218,10 +220,13 @@ pub struct BuildDrt {
     pub dro: DataRequestOutput,
     /// Fee
     pub fee: u64,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 impl Message for BuildDrt {
-    type Result = Result<Hash, failure::Error>;
+    type Result = Result<DRTransaction, failure::Error>;
 }
 
 /// Get ChainManager State (WaitingConsensus, Synchronizing, AlmostSynced, Synced)

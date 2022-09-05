@@ -7,6 +7,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Re-export `WrapingAdd` trait from `num_traits`.
+pub use num_traits::ops::wrapping::WrappingAdd;
+
 /// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Message")]
@@ -168,4 +171,36 @@ impl Default for IpAddress {
 pub struct Address {
     pub ip: IpAddress,
     pub port: u16,
+}
+
+/// A generic and iterable generator of sequencial IDs.
+pub struct SequencialId<T>(T);
+
+impl<T> SequencialId<T>
+where
+    T: Copy + From<u8> + std::ops::Add + num_traits::ops::wrapping::WrappingAdd,
+{
+    /// Create a new sequence, starting with a specified value.
+    ///
+    /// This initial value will be the one to be returned in a first call to `next()` or `next_id()`.
+    #[inline]
+    pub fn initialize(initial_value: T) -> Self {
+        Self(initial_value)
+    }
+}
+
+impl<T> std::iter::Iterator for SequencialId<T>
+where
+    T: Copy + From<u8> + std::ops::Add + WrappingAdd,
+{
+    type Item = T;
+
+    /// Returns the next sequencial ID.
+    #[inline]
+    fn next(&mut self) -> Option<T> {
+        let current = self.0;
+        self.0 = self.0.wrapping_add(&T::from(1u8));
+
+        Some(current)
+    }
 }
