@@ -95,7 +95,6 @@ pub fn exec_cmd(
             address,
             value,
             fee,
-            suggest_fee,
             time_lock,
             dry_run,
         } => rpc::send_vtt(
@@ -104,7 +103,6 @@ pub fn exec_cmd(
             value,
             None,
             fee,
-            suggest_fee,
             time_lock.unwrap_or(0),
             None,
             dry_run,
@@ -115,7 +113,6 @@ pub fn exec_cmd(
             value,
             size,
             fee,
-            suggest_fee,
             time_lock,
             dry_run,
         } => {
@@ -127,7 +124,6 @@ pub fn exec_cmd(
                 value,
                 size,
                 fee,
-                suggest_fee,
                 time_lock.unwrap_or(0),
                 Some(true),
                 dry_run,
@@ -139,7 +135,6 @@ pub fn exec_cmd(
             value,
             size,
             fee,
-            suggest_fee,
             time_lock,
             dry_run,
         } => {
@@ -151,7 +146,6 @@ pub fn exec_cmd(
                 value,
                 size,
                 fee,
-                suggest_fee,
                 time_lock.unwrap_or(0),
                 Some(false),
                 dry_run,
@@ -489,9 +483,6 @@ pub enum Command {
         /// Fee
         #[structopt(long = "fee")]
         fee: Option<u64>,
-        /// Suggest priority and fee interactively for different priority tiers
-        #[structopt(long = "suggest-fee")]
-        suggest_fee: bool,
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
@@ -519,9 +510,6 @@ pub enum Command {
         /// Fee
         #[structopt(long = "fee")]
         fee: Option<u64>,
-        /// Suggest priority and fee interactively for different priority tiers
-        #[structopt(long = "suggest-fee")]
-        suggest_fee: bool,
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
@@ -549,9 +537,6 @@ pub enum Command {
         /// Fee
         #[structopt(long = "fee")]
         fee: Option<u64>,
-        /// Suggest priority and fee interactively for different priority tiers
-        #[structopt(long = "suggest-fee")]
-        suggest_fee: bool,
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,

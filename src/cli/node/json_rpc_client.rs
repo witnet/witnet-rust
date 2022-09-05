@@ -555,7 +555,6 @@ pub fn send_vtt(
     value: u64,
     size: Option<u64>,
     fee: Option<u64>,
-    suggest_fee: bool,
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
@@ -568,21 +567,9 @@ pub fn send_vtt(
         bail!("This transaction is creating more than 1000 outputs and may not be accepted by the miners");
     }
 
-    // Prepare for fee estimation if enabled through `--suggest-fee` flag.
-    let (fee, estimate) = match (suggest_fee, fee) {
-        (true, _) | (_, None) => {
-            // If fee suggestions are enabled, or no fee is specified, calculate current transaction
-            // priority and set the fee to 0 for the time being. Then the users will be shown estimates
-            // for different priority tiers, and they will be prompted for interactively choosing the
-            // priority and fee that works best for them.
-            let response = issue_priority_estimation(&mut stream, Some(id))?;
-            let estimate = parse_response::<PrioritiesEstimate>(&response)?;
-            id += 1;
+    // Prepare for fee estimation if no fee value was specified
+    let (fee, estimate) = unwrap_fee_or_estimate_priority(fee);
 
-            (0u64, Some(estimate))
-        }
-        (_, Some(fee)) => (fee, None),
-    };
     let pkh = match pkh {
         Some(pkh) => pkh,
         None => {
@@ -627,7 +614,7 @@ pub fn send_vtt(
         dry_run,
     };
 
-    // If fees suggestion is enabled, we need to do a dry run for each of the priority tiers to
+    // If no fee was specified, we first need to do a dry run for each of the priority tiers to
     // find out the actual transaction weight (as different priorities will affect the number
     // of inputs being used, and thus also the weight).
     if let Some(PrioritiesEstimate {
@@ -663,7 +650,7 @@ pub fn send_vtt(
         {
             // The minimum VTT size is 169 weight units as per WIP-0007
             let mut weight = 169u32;
-            let mut rounds = 0;
+            let mut rounds = 0u8;
             // Iterative algorithm for weight discovery
             loop {
                 // Calculate fee for current priority and weight
@@ -693,9 +680,6 @@ pub fn send_vtt(
 
         // Time to print the estimates
         println!("[ Fee suggestions ]");
-        if !suggest_fee {
-            eprintln!("No fee was specified with the `--fee` argument.");
-        }
         println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");
         for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
             println!(
@@ -1756,6 +1740,20 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failur
             let error_json: JsonRpcError = serde_json::from_str(response)?;
             Err(error_json.error.into())
         }
+    }
+}
+
+/// Unwraps an `Option<u64>` representing a fee, returning also a priority estimate if it was `None`.
+fn unwrap_fee_or_estimate_priority(fee: Option<u64>) -> (u64, Option<PrioritiesEstimate>) {
+    match fee {
+        None => {
+            let response = issue_priority_estimation(&mut stream, Some(id))?;
+            let estimate = parse_response::<PrioritiesEstimate>(&response)?;
+            id += 1;
+
+            (0u64, Some(estimate))
+        }
+        Some(fee) => (fee, None),
     }
 }
 
