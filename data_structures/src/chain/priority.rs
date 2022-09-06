@@ -226,17 +226,24 @@ impl PriorityEngine {
         })
     }
 
-    /// Creates a new engine from a vector of `Priorities`.
+    /// Creates a new engine with the default capacity from a vector of `Priorities`.
     ///
     /// This assumes that the vector is ordered from newest to oldest.
     pub fn from_vec(priorities: Vec<Priorities>) -> Self {
+        Self::from_vec_with_capacity(priorities, DEFAULT_QUEUE_CAPACITY_EPOCHS)
+    }
+
+    /// Creates a new engine with a custom queue capacity from a vector of `Priorities`.
+    ///
+    /// This assumes that the vector is ordered from newest to oldest.
+    pub fn from_vec_with_capacity(priorities: Vec<Priorities>, capacity: usize) -> Self {
         // Create a new queue with the desired capacity
-        let mut fees = CircularQueue::with_capacity(DEFAULT_QUEUE_CAPACITY_EPOCHS);
+        let mut fees = CircularQueue::with_capacity(capacity);
         // Push as many elements from the input as they can fit in the queue
         priorities
             .into_iter()
+            .take(capacity)
             .rev()
-            .take(DEFAULT_QUEUE_CAPACITY_EPOCHS)
             .for_each(|entry| {
                 fees.push(entry);
             });
@@ -778,11 +785,14 @@ mod tests {
 
     #[test]
     fn engine_from_vec() {
-        let input = priorities_factory(2);
-        let engine = PriorityEngine::from_vec(input.clone());
+        let input = priorities_factory(10);
+        let engine = PriorityEngine::from_vec_with_capacity(input.clone(), 5);
 
         assert_eq!(engine.get(0), input.get(0));
         assert_eq!(engine.get(1), input.get(1));
+        assert_eq!(engine.get(2), input.get(2));
+        assert_eq!(engine.get(3), input.get(3));
+        assert_eq!(engine.get(4), input.get(4));
     }
 
     #[test]
