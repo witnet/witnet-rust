@@ -766,10 +766,10 @@ mod tests {
             let mut c = prng.gen_range(0, 10000);
             let mut d = prng.gen_range(0, 10000);
 
-            if a.cmp(&b) == cmp::Ordering::Less {
+            if a < b {
                 (a, b) = (b, a)
             }
-            if c.cmp(&d) == cmp::Ordering::Less {
+            if c < d {
                 (c, d) = (d, c)
             }
 
