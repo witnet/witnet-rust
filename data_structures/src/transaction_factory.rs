@@ -723,6 +723,7 @@ mod tests {
             timestamp,
             tx_pending_timeout,
             MAX_DR_WEIGHT,
+            false,
         )?;
 
         Ok(Transaction::DataRequest(DRTransaction::new(drt_tx, vec![])))

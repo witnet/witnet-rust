@@ -49,7 +49,7 @@ use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
         penalize_factor,
-        priority::{PriorityEngine, Priorities},
+        priority::{PriorityEngine, Priorities, PriorityVisitor},
         reputation_issuance,
         tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
         Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainInfo, ChainState,
@@ -63,7 +63,7 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
-    types::LastBeacon,
+    types::{LastBeacon, visitor::Visitor},
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
 };
@@ -528,7 +528,8 @@ impl ChainManager {
                 active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: block.block_header.beacon.checkpoint,
             };
-            let mut priorities = Priorities::default();
+
+            let mut transaction_visitor = PriorityVisitor::default();
 
             let utxo_diff = process_validations(
                 &block,
@@ -545,8 +546,11 @@ impl ChainManager {
                 &chain_info.consensus_constants,
                 resynchronizing,
                 &active_wips,
-                &mut priorities,
+                &mut Some(&mut transaction_visitor),
             )?;
+
+            // Extract the collected priorities from the internal state of the visitor
+            let priorities = transaction_visitor.take_state();
 
             // Persist block and update ChainState
             self.consolidate_block(ctx, block, utxo_diff, priorities, resynchronizing);
@@ -662,9 +666,9 @@ impl ChainManager {
                     }
                 }
 
-                // This structure will keep track of the highest and lowest priorities found in the
-                // block candidate.
-                let mut priorities = Priorities::default();
+                // This visitor will be used to derive a `Priorities` value from the transactions
+                // in this block candidate.
+                let mut transaction_visitor = PriorityVisitor::default();
 
                 match process_validations(
                     &block,
@@ -685,9 +689,11 @@ impl ChainManager {
                     &chain_info.consensus_constants,
                     false,
                     &active_wips,
-                    &mut priorities,
+                    &mut Some(&mut transaction_visitor),
                 ) {
                     Ok(utxo_diff) => {
+                        let priorities = transaction_visitor.take_state();
+
                         self.best_candidate = Some(BlockCandidate {
                             block: block.clone(),
                             utxo_diff,
@@ -1752,6 +1758,9 @@ impl ChainManager {
     }
 
     /// Block validation process which uses futures
+    ///
+    /// This is only used for mining (namely `ChainManager::try_mine_block()`), but not for
+    /// candidate validation. Hence why no transaction visitor is used here.
     #[must_use]
     pub fn future_process_validations(
         &mut self,
@@ -1763,7 +1772,6 @@ impl ChainManager {
     ) -> ResponseActFuture<Self, Result<Diff, failure::Error>> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
-        let mut priorities = Priorities::default();
         let consensus_constants = self.consensus_constants();
         let active_wips = ActiveWips {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
@@ -1789,7 +1797,7 @@ impl ChainManager {
         .into_actor(self)
         .and_then(move |(), act, _ctx| {
             let mut signatures_to_verify = vec![];
-            let res = validate_block_transactions(
+            let res = validate_block_transactions::<()>(
                 &act.chain_state.unspent_outputs_pool,
                 &act.chain_state.data_request_pool,
                 &block,
@@ -1800,7 +1808,7 @@ impl ChainManager {
                 block_number,
                 &consensus_constants,
                 &active_wips,
-                &mut priorities,
+                &mut None,
             );
             async {
                 // Short-circuit if validation failed
@@ -2425,8 +2433,10 @@ impl ChainStateSnapshot {
 }
 
 /// Block validation process which doesn't use futures
+///
+/// This uses a `Visitor` that will visit each transaction as well as its fee and weight.
 #[allow(clippy::too_many_arguments)]
-pub fn process_validations(
+pub fn process_validations<T>(
     block: &Block,
     current_epoch: Epoch,
     vrf_input: CheckpointVRF,
@@ -2441,7 +2451,7 @@ pub fn process_validations(
     consensus_constants: &ConsensusConstants,
     resynchronizing: bool,
     active_wips: &ActiveWips,
-    priorities: &mut Priorities,
+    transaction_visitor: &mut Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32), State = T>>,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2470,7 +2480,7 @@ pub fn process_validations(
         block_number,
         consensus_constants,
         active_wips,
-        priorities,
+        transaction_visitor,
     )?;
 
     if !resynchronizing {

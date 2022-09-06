@@ -1,14 +1,14 @@
 use std::fmt;
 
+/// Re-export `WrapingAdd` trait from `num_traits`.
+pub use num_traits::ops::wrapping::WrappingAdd;
+use serde::{Deserialize, Serialize};
+
 use crate::{
     chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, SuperBlock, SuperBlockVote},
     proto::{schema::witnet, ProtobufConvert},
     transaction::Transaction,
 };
-use serde::{Deserialize, Serialize};
-
-/// Re-export `WrapingAdd` trait from `num_traits`.
-pub use num_traits::ops::wrapping::WrappingAdd;
 
 /// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
@@ -202,5 +202,176 @@ where
         self.0 = self.0.wrapping_add(&T::from(1u8));
 
         Some(current)
+    }
+}
+
+/// Provides a trait modeling a basic visitor pattern, plus multiple generic implementations.
+pub mod visitor {
+    /// A trait modeling a basic visitor pattern.
+    pub trait Visitor {
+        type State;
+        type Visitable;
+
+        /// Allows taking the state once we are done visiting.
+        fn take_state(self) -> Self::State;
+
+        /// Operate on an instance of the `Visitable` type.
+        fn visit(&mut self, visitable: &Self::Visitable);
+    }
+
+    /// A visitor that visits values of type `T` using two underlying visitors.
+    pub struct DualVisitor<T, A, B>
+    where
+        A: Visitor<Visitable = T>,
+        B: Visitor<Visitable = T>,
+    {
+        a: A,
+        b: B,
+    }
+
+    #[cfg(test)]
+    impl<T, A, B> DualVisitor<T, A, B>
+    where
+        A: Visitor<Visitable = T>,
+        B: Visitor<Visitable = T>,
+    {
+        /// Construct a `DualVisitor` from an instance of `A: Visitor<Visitable = T>` and
+        /// `B: Visitor<Visitable = T>`.
+        fn from_initialized_visitors(a: A, b: B) -> Self {
+            Self { a, b }
+        }
+    }
+
+    /// Implement `Visitor` for the `DualVisitor`.
+    impl<T, A, B> Visitor for DualVisitor<T, A, B>
+    where
+        A: Visitor<Visitable = T>,
+        B: Visitor<Visitable = T>,
+    {
+        type State = (A::State, B::State);
+        type Visitable = T;
+
+        fn take_state(self) -> Self::State {
+            (self.a.take_state(), self.b.take_state())
+        }
+
+        fn visit(&mut self, visitable: &Self::Visitable) {
+            self.a.visit(visitable);
+            self.b.visit(visitable);
+        }
+    }
+
+    /// A generic `Visitor` that can be constructed with virtually any store and visittee type.
+    ///
+    /// This is somehow similar to what `fold` does on iterators.
+    pub struct GenericVisitor<'a, S, V> {
+        state: S,
+        visitor_fn: &'a mut dyn FnMut(&mut S, &V),
+    }
+
+    impl<'a, S, V> GenericVisitor<'a, S, V> {
+        /// Allow constructing a `GenericVisitor` from an initial state and a visitor function that
+        /// takes a mutable reference to the state plus individual values to visit.
+        pub fn from_state_and_fn(state: S, visitor_fn: &'a mut dyn FnMut(&mut S, &V)) -> Self {
+            Self { state, visitor_fn }
+        }
+    }
+
+    /// Implement `Visitor` for `GenericVisitor`.
+    impl<S, V> Visitor for GenericVisitor<'_, S, V> {
+        type State = S;
+        type Visitable = V;
+
+        fn take_state(self) -> Self::State {
+            self.state
+        }
+
+        fn visit(&mut self, visitable: &Self::Visitable) {
+            (self.visitor_fn)(&mut self.state, visitable)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[derive(Default)]
+        struct AdditionVisitor<T>(pub T)
+        where
+            T: Copy + std::ops::AddAssign;
+
+        impl<T> Visitor for AdditionVisitor<T>
+        where
+            T: Copy + std::ops::AddAssign,
+        {
+            type State = T;
+            type Visitable = T;
+
+            fn take_state(self) -> Self::State {
+                self.0
+            }
+
+            fn visit(&mut self, visitable: &Self::Visitable) {
+                self.0 += *visitable;
+            }
+        }
+
+        #[derive(Default)]
+        struct ConcatVisitor(pub String);
+
+        impl Visitor for ConcatVisitor {
+            type State = String;
+            type Visitable = usize;
+
+            fn take_state(self) -> Self::State {
+                self.0
+            }
+
+            fn visit(&mut self, visitable: &Self::Visitable) {
+                self.0 += visitable.to_string().as_str();
+            }
+        }
+
+        #[test]
+        pub fn basic_visiting() {
+            let mut visitor = AdditionVisitor(0usize);
+            for i in 1usize..=100 {
+                visitor.visit(&i);
+            }
+            let addition = visitor.take_state();
+            let expected = 5050usize;
+
+            assert_eq!(addition, expected);
+        }
+
+        #[test]
+        pub fn dual_visiting() {
+            let a = AdditionVisitor::default();
+            let b = ConcatVisitor::default();
+            let mut dual_visitor = DualVisitor::from_initialized_visitors(a, b);
+            for i in 1usize..=100 {
+                dual_visitor.visit(&i);
+            }
+            let (addition, concatenation) = dual_visitor.take_state();
+            let expected_addition = 5050usize;
+            let expected_concatenation = "123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899100";
+
+            assert_eq!(addition, expected_addition);
+            assert_eq!(concatenation, expected_concatenation);
+        }
+
+        #[test]
+        pub fn generic_visiting() {
+            let mut doubling_fn = |state: &mut Vec<usize>, value: &usize| state.push(value * 2);
+            let mut doubling_visitor =
+                GenericVisitor::from_state_and_fn(Vec::<usize>::new(), &mut doubling_fn);
+            for i in 1usize..=10 {
+                doubling_visitor.visit(&i)
+            }
+            let doubled = doubling_visitor.take_state();
+            let expected = vec![2usize, 4, 6, 8, 10, 12, 14, 16, 18, 20];
+
+            assert_eq!(doubled, expected);
+        }
     }
 }

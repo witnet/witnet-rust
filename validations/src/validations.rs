@@ -14,12 +14,11 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        priority::{Priorities, Priority},
-        tapi::ActiveWips,
-        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
-        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
-        RADType, Reputation, ReputationEngine, SignaturesToVerify, ValueTransferOutput,
+        tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
+        ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
+        EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+        RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
+        ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward,
@@ -32,6 +31,7 @@ use witnet_data_structures::{
         Transaction, VTTransaction,
     },
     transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
+    types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
@@ -1314,8 +1314,10 @@ pub fn update_utxo_diff(
 }
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
+///
+/// This uses a `Visitor` that will visit each transaction as well as its fee and weight.
 #[allow(clippy::too_many_arguments)]
-pub fn validate_block_transactions(
+pub fn validate_block_transactions<T>(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
     block: &Block,
@@ -1326,7 +1328,7 @@ pub fn validate_block_transactions(
     block_number: u32,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
-    priorities: &mut Priorities,
+    visitor: &mut Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32), State = T>>,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == consensus_constants.genesis_hash;
@@ -1348,6 +1350,7 @@ pub fn validate_block_transactions(
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
     let mut vt_weight: u32 = 0;
+
     for transaction in &block.txns.value_transfer_txns {
         let (inputs, outputs, fee, weight) = if is_genesis {
             let (outputs, value_created) = validate_genesis_vt_transaction(transaction)?;
@@ -1384,15 +1387,18 @@ pub fn validate_block_transactions(
         }
         vt_weight = acc_weight;
 
-        // Update priorities
-        priorities.digest_vtt_priority(Priority::from_fee_weight(fee, weight));
-
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
         let Hash::SHA256(sha) = txn_hash;
         vt_mt.push(Sha256(sha));
+
+        // Execute visitor
+        if let Some(visitor) = visitor {
+            let transaction = Transaction::ValueTransfer(transaction.clone());
+            visitor.visit(&(transaction, fee, weight));
+        }
     }
     let vt_hash_merkle_root = vt_mt.root();
 
@@ -1580,8 +1586,11 @@ pub fn validate_block_transactions(
         }
         dr_weight = acc_weight;
 
-        // Update priorities
-        priorities.digest_drt_priority(Priority::from_fee_weight(fee, weight));
+        // Execute visitor
+        if let Some(visitor) = visitor {
+            let transaction = Transaction::DataRequest(transaction.clone());
+            visitor.visit(&(transaction, fee, weight));
+        }
     }
     let dr_hash_merkle_root = dr_mt.root();
 

@@ -7,7 +7,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Add;
 
-use crate::wit::Wit;
+use crate::{transaction::Transaction, types::visitor::Visitor, wit::Wit};
 
 // Assuming no missing epochs, this will keep track of priority used by transactions in the last 12
 // hours (960 epochs).
@@ -580,6 +580,36 @@ impl fmt::Debug for Priorities {
             self.vtt_highest,
             self.vtt_lowest.unwrap_or_default()
         )
+    }
+}
+
+/// A visitor for `Priorities` values.
+///
+/// To be used with `witnet_validations::validations::validate_block_transactions`.
+#[derive(Default)]
+pub struct PriorityVisitor(Priorities);
+
+impl Visitor for PriorityVisitor {
+    type State = Priorities;
+    type Visitable = (Transaction, /* fee */ u64, /* weight */ u32);
+
+    #[inline]
+    fn take_state(self) -> Self::State {
+        self.0
+    }
+
+    fn visit(&mut self, (transaction, fee, weight): &Self::Visitable) {
+        match transaction {
+            Transaction::DataRequest(_) => {
+                self.0
+                    .digest_drt_priority(Priority::from_fee_weight(*fee, *weight));
+            }
+            Transaction::ValueTransfer(_) => {
+                self.0
+                    .digest_vtt_priority(Priority::from_fee_weight(*fee, *weight));
+            }
+            _ => (),
+        }
     }
 }
 
