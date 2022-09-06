@@ -14,7 +14,7 @@ jobs:
   aarch64:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3  
+      - uses: actions/checkout@v3
       - uses: ./.github/actions/build-helper
         name: Building Docker Image
         with:
@@ -23,26 +23,26 @@ jobs:
   armv7:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3  
+      - uses: actions/checkout@v3
       - uses: ./.github/actions/build-helper
         name: Building Docker Image
         with:
           imagename: armv7-unknown-linux-gnueabihf
-    
+
   x86_64:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3  
+      - uses: actions/checkout@v3
       - uses: ./.github/actions/build-helper
         name: Building Docker Image
         with:
           imagename: x86_64-unknown-linux-gnu
-  
+
   macos_helper:
     runs-on: ubuntu-latest
     steps:
       - run: exit 0
-  
+
   windows_helper:
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +66,7 @@ jobs:
         name: Building aarch64 Binary
         with:
           target: aarch64-unknown-linux-gnu
-      
+
       # Upload Build Releases
       - uses: actions/upload-artifact@v3
         with:
@@ -87,7 +87,7 @@ jobs:
         name: Building armv7 Binary
         with:
           target: armv7-unknown-linux-gnueabihf
-      
+
       # Upload Build Releases
       - uses: actions/upload-artifact@v3
         with:
@@ -108,7 +108,7 @@ jobs:
         name: Building x86_64 Binary
         with:
           target: x86_64-unknown-linux-gnu
-      
+
       # Upload Build Releases
       - uses: actions/upload-artifact@v3
         with:
@@ -117,7 +117,7 @@ jobs:
             target/x86_64-unknown-linux-gnu/release/witnet
             target/x86_64-unknown-linux-gnu/release/witnet_toolkit
 
-  
+
   Build_macOs:
     needs: [macos_helper]
     runs-on: macos-latest
@@ -132,7 +132,7 @@ jobs:
       # MacOS Build
       - name: Building Macos Binary
         run: MACOSX_DEPLOYMENT_TARGET=10.12 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
-      
+
       # Upload Build Releases
       - uses: actions/upload-artifact@v3
         with:
@@ -206,7 +206,7 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE  }}
-      
+
       # Trust GPG key
       - name: Trust GPG key
         run: |
@@ -220,7 +220,7 @@ jobs:
         run: |
           cd release
           gpg --output SHA256SUMS.asc --default-key info@witnet.foundation --detach-sig --clearsign SHA256SUMS && rm SHA256SUMS
-      
+
       # Artifact Final Release Files
       - uses: actions/upload-artifact@v3
         with:
@@ -241,7 +241,7 @@ jobs:
         with:
           name: final-release
           path: release/
-      
+
       # Replace tag in RELEASE.md
       - run: |
           TAG=${{github.ref_name}}
@@ -254,7 +254,7 @@ jobs:
           artifacts: "./release/*"
           bodyFile: "RELEASE.md"
           artifactErrorsFailBuild: true
-    
+
   Publish:
     #needs: [Release]
     runs-on: ubuntu-latest
@@ -262,7 +262,7 @@ jobs:
       # Checkout Repo
       - uses: actions/checkout@v3
 
-      - name: Login to GitHub Container Registry
+      - name: Login to Docker Container Registry
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -273,7 +273,7 @@ jobs:
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
           docker buildx create --name multiarch --driver docker-container --use
           docker buildx inspect --bootstrap
-    
+
       # Build Docker images (Latest & TAG)
       - run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=${{github.ref_name}} --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:${{github.ref_name}} docker/witnet-rust --push --no-cache
       - run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=latest --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:latest docker/witnet-rust --push --no-cache
