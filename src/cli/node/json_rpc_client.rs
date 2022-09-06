@@ -31,7 +31,7 @@ use witnet_data_structures::{
     proto::ProtobufConvert,
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::NodeBalance,
-    types::SequencialId,
+    types::SequentialId,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::Wit,
 };
@@ -560,7 +560,7 @@ pub fn send_vtt(
     dry_run: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let mut id = SequencialId::initialize(1u8);
+    let mut id = SequentialId::initialize(1u8);
 
     let size = size.unwrap_or(value);
     if value / size > 1000 {
@@ -733,7 +733,7 @@ pub fn send_dr(
 ) -> Result<(), failure::Error> {
     let dro = deserialize_and_validate_hex_dr(hex_bytes)?;
     let mut stream = start_client(addr)?;
-    let mut id = SequencialId::initialize(1u8);
+    let mut id = SequentialId::initialize(1u8);
 
     if dry_run {
         // TODO: this is not a proper dry run of this method but rather a local execution. Shall we
@@ -1780,7 +1780,7 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failur
 fn unwrap_fee_or_estimate_priority<S>(
     fee: Option<u64>,
     stream: &mut S,
-    id: &mut SequencialId<u8>,
+    id: &mut SequentialId<u8>,
 ) -> Result<(u64, Option<PrioritiesEstimate>), failure::Error>
 where
     S: Read + Write,

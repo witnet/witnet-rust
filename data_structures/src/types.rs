@@ -173,10 +173,10 @@ pub struct Address {
     pub port: u16,
 }
 
-/// A generic and iterable generator of sequencial IDs.
-pub struct SequencialId<T>(T);
+/// A generic and iterable generator of sequential IDs.
+pub struct SequentialId<T>(T);
 
-impl<T> SequencialId<T>
+impl<T> SequentialId<T>
 where
     T: Copy + From<u8> + std::ops::Add + num_traits::ops::wrapping::WrappingAdd,
 {
@@ -189,7 +189,7 @@ where
     }
 }
 
-impl<T> std::iter::Iterator for SequencialId<T>
+impl<T> std::iter::Iterator for SequentialId<T>
 where
     T: Copy + From<u8> + std::ops::Add + WrappingAdd,
 {
