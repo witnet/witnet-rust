@@ -1,10 +1,6 @@
-use std::{
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use witnet_net::client::tcp::jsonrpc::{JsonRpcClient, Request};
+use witnet_net::client::tcp::jsonrpc::{GetCurrentNodeUrl, JsonRpcClient, Request};
 
 use crate::actors;
 
@@ -21,18 +17,17 @@ pub struct Params {
 
 pub struct NodeClient {
     pub actor: Addr<JsonRpcClient>,
-    pub url: Arc<Mutex<String>>,
 }
 
 impl NodeClient {
     /// Get the URL that the current client is connecting to.
-    pub fn current_url(&self) -> String {
-        self.url.lock().unwrap().to_string()
+    pub async fn current_url(&self) -> String {
+        self.actor.send(GetCurrentNodeUrl).await.unwrap()
     }
 
     /// Verifies the existing connection by issuing a `syncStatus` command with a low timeout.
     pub async fn valid_connection(&self) -> bool {
-        let url = self.current_url();
+        let url = self.current_url().await;
 
         log::debug!("Validating connection to {}", url);
 

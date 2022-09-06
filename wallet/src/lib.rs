@@ -97,12 +97,11 @@ pub fn run(conf: Config) -> Result<(), Error> {
     // Initialize actors inside system context
     system.block_on(async {
         let node_subscriptions = Arc::new(Mutex::new(Default::default()));
-        let (node_client_actor, url) =
+        let node_client_actor =
             JsonRpcClient::start_with_subscriptions(node_urls.clone(), node_subscriptions.clone())
                 .map_err(|_| app::Error::NodeNotConnected)?;
         let node_client = Arc::new(app::NodeClient {
             actor: node_client_actor,
-            url,
         });
 
         // Trigger connection validation. Due to how the JSON-RPC client works, it will keep

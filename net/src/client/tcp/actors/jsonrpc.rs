@@ -30,7 +30,7 @@ struct Connection {
     backoff: Duration,
     socket: TcpSocket,
     timestamp: Instant,
-    url: Arc<Mutex<String>>,
+    url: String,
 }
 
 /// Json-RPC Client actor.
@@ -52,14 +52,13 @@ impl JsonRpcClient {
         let subscriptions = Arc::new(Default::default());
 
         Self::start_with_subscriptions(vec![String::from(url)], subscriptions)
-            .map(|(actor, _)| actor)
     }
 
     /// Start JSON-RPC async client actor providing the URL of the server and some subscriptions.
     pub fn start_with_subscriptions(
         urls: Vec<String>,
         subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
-    ) -> Result<(Addr<JsonRpcClient>, Arc<Mutex<String>>), Error> {
+    ) -> Result<Addr<JsonRpcClient>, Error> {
         log::info!("Configuring JSONRPC client with URLs: {:?}", &urls);
         let timestamp = Instant::now();
         let url = urls
@@ -70,7 +69,6 @@ impl JsonRpcClient {
 
         log::info!("TCP socket is now connected to {}", url);
 
-        let url = Arc::new(Mutex::new(url));
         let client = Self {
             _handle,
             active_subscriptions: subscriptions,
@@ -80,11 +78,11 @@ impl JsonRpcClient {
                 backoff: Duration::from_millis(DEFAULT_BACKOFF_TIME_MILLIS),
                 socket,
                 timestamp,
-                url: url.clone(),
+                url,
             },
         };
 
-        Ok((Actor::start(client), url))
+        Ok(Actor::start(client))
     }
 
     /// Replace the TCP connection with a fresh new connection.
@@ -101,7 +99,7 @@ impl JsonRpcClient {
 
         // If there is only 1 URL, use that one.
         // If there are many, pick a new one randomly that is not the same as the previous one
-        let url = pick_random(&self.urls, self.current_url())
+        let url = pick_random(&self.urls, self.current_url().to_string())
             .expect("At this point there should be at least one URL set for connecting the client");
 
         // Connect to the new URL
@@ -114,11 +112,7 @@ impl JsonRpcClient {
         self._handle = _handle;
         self.connection.socket = socket;
         self.connection.timestamp = timestamp;
-        self.connection
-            .url
-            .lock()
-            .map(|mut mutex| *mutex = url)
-            .ok();
+        self.connection.url = url;
 
         // Recover active subscriptions
         let active_subscriptions = self
@@ -159,8 +153,8 @@ impl JsonRpcClient {
     }
 
     /// Retrieve the URL of the current client connection.
-    pub fn current_url(&self) -> String {
-        self.connection.url.lock().unwrap().to_string()
+    pub fn current_url(&self) -> &str {
+        &self.connection.url
     }
 
     /// Send Json-RPC request.
@@ -414,6 +408,22 @@ impl Handler<Subscribe> for JsonRpcClient {
                 }
             })
             .spawn(ctx);
+    }
+}
+
+/// Get the URL of the node that the client is trying to connect to
+#[derive(Clone)]
+pub struct GetCurrentNodeUrl;
+
+impl Message for GetCurrentNodeUrl {
+    type Result = String;
+}
+
+impl Handler<GetCurrentNodeUrl> for JsonRpcClient {
+    type Result = <GetCurrentNodeUrl as Message>::Result;
+
+    fn handle(&mut self, _msg: GetCurrentNodeUrl, _ctx: &mut Self::Context) -> Self::Result {
+        self.connection.url.clone()
     }
 }
 

@@ -455,27 +455,31 @@ impl Worker {
             let balance = wallet.balance()?;
             let wallet_data = wallet.public_data()?;
             let client = self.node.get_client();
-            let payload = json!({
-                "events": events.unwrap_or_default(),
-                "status": {
-                    "account": {
-                        "id": wallet_data.current_account,
-                        "balance": balance,
+            let f = async {
+                let payload = json!({
+                    "events": events.unwrap_or_default(),
+                    "status": {
+                        "account": {
+                            "id": wallet_data.current_account,
+                            "balance": balance,
+                        },
+                        "node": {
+                            "address": client.current_url().await,
+                            "network": self.node.network,
+                            "last_beacon": self.node.get_last_beacon(),
+                        },
+                        "session": wallet.session_id,
+                        "wallet": {
+                            "id": wallet_data.id,
+                            "last_sync": wallet_data.last_sync,
+                        },
                     },
-                    "node": {
-                        "address": client.current_url(),
-                        "network": self.node.network,
-                        "last_beacon": self.node.get_last_beacon(),
-                    },
-                    "session": wallet.session_id,
-                    "wallet": {
-                        "id": wallet_data.id,
-                        "last_sync": wallet_data.last_sync,
-                    },
-                },
-            });
-            let send = sink.notify(rpc::Params::Array(vec![payload]));
-            futures::executor::block_on(Compat01As03::new(send))?;
+                });
+                let send = sink.notify(rpc::Params::Array(vec![payload]));
+                Compat01As03::new(send).await
+            };
+
+            futures::executor::block_on(f)?;
         } else {
             log::debug!("No sinks need to be notified for wallet {}", wallet.id);
         }
