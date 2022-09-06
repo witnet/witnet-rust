@@ -252,6 +252,7 @@ impl PriorityEngine {
     }
 
     /// Get the entry at a certain position, if an item at that position exists, or None otherwise.
+    #[cfg(test)]
     #[inline]
     pub fn get(&self, index: usize) -> Option<&Priorities> {
         if index >= self.priorities.capacity() {
