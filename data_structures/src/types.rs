@@ -207,20 +207,26 @@ where
 
 /// Provides a trait modeling a basic visitor pattern, plus multiple generic implementations.
 pub mod visitor {
+    use std::marker::PhantomData;
+
     /// A trait modeling a basic visitor pattern.
     pub trait Visitor {
-        type State;
         type Visitable;
-
-        /// Allows taking the state once we are done visiting.
-        fn take_state(self) -> Self::State;
 
         /// Operate on an instance of the `Visitable` type.
         fn visit(&mut self, visitable: &Self::Visitable);
     }
 
+    /// A trait modeling a visitor that can hold state.
+    pub trait StatefulVisitor: Visitor {
+        type State;
+
+        /// Turn a visitor into its internal state.
+        fn take_state(self) -> Self::State;
+    }
+
     /// A visitor that visits values of type `T` using two underlying visitors.
-    pub struct DualVisitor<T, A, B>
+    pub struct CombinedVisitor<T, A, B>
     where
         A: Visitor<Visitable = T>,
         B: Visitor<Visitable = T>,
@@ -230,7 +236,7 @@ pub mod visitor {
     }
 
     #[cfg(test)]
-    impl<T, A, B> DualVisitor<T, A, B>
+    impl<T, A, B> CombinedVisitor<T, A, B>
     where
         A: Visitor<Visitable = T>,
         B: Visitor<Visitable = T>,
@@ -243,17 +249,12 @@ pub mod visitor {
     }
 
     /// Implement `Visitor` for the `DualVisitor`.
-    impl<T, A, B> Visitor for DualVisitor<T, A, B>
+    impl<T, A, B> Visitor for CombinedVisitor<T, A, B>
     where
         A: Visitor<Visitable = T>,
         B: Visitor<Visitable = T>,
     {
-        type State = (A::State, B::State);
         type Visitable = T;
-
-        fn take_state(self) -> Self::State {
-            (self.a.take_state(), self.b.take_state())
-        }
 
         fn visit(&mut self, visitable: &Self::Visitable) {
             self.a.visit(visitable);
@@ -261,33 +262,65 @@ pub mod visitor {
         }
     }
 
+    impl<T, A, B> StatefulVisitor for CombinedVisitor<T, A, B>
+    where
+        A: StatefulVisitor + Visitor<Visitable = T>,
+        B: StatefulVisitor + Visitor<Visitable = T>,
+    {
+        type State = (A::State, B::State);
+
+        fn take_state(self) -> Self::State {
+            (self.a.take_state(), self.b.take_state())
+        }
+    }
+
     /// A generic `Visitor` that can be constructed with virtually any store and visittee type.
     ///
     /// This is somehow similar to what `fold` does on iterators.
-    pub struct GenericVisitor<'a, S, V> {
+    pub struct GenericVisitor<S, V, F>
+    where
+        F: FnMut(&mut S, &V),
+    {
         state: S,
-        visitor_fn: &'a mut dyn FnMut(&mut S, &V),
+        visitor_fn: F,
+        visitable_type: PhantomData<V>,
     }
 
-    impl<'a, S, V> GenericVisitor<'a, S, V> {
+    impl<'a, S, V, F> GenericVisitor<S, V, F>
+    where
+        F: FnMut(&mut S, &V),
+    {
         /// Allow constructing a `GenericVisitor` from an initial state and a visitor function that
         /// takes a mutable reference to the state plus individual values to visit.
-        pub fn from_state_and_fn(state: S, visitor_fn: &'a mut dyn FnMut(&mut S, &V)) -> Self {
-            Self { state, visitor_fn }
+        pub fn from_state_and_fn(state: S, visitor_fn: F) -> Self {
+            Self {
+                state,
+                visitor_fn,
+                visitable_type: PhantomData,
+            }
         }
     }
 
     /// Implement `Visitor` for `GenericVisitor`.
-    impl<S, V> Visitor for GenericVisitor<'_, S, V> {
-        type State = S;
+    impl<S, V, F> Visitor for GenericVisitor<S, V, F>
+    where
+        F: FnMut(&mut S, &V),
+    {
         type Visitable = V;
-
-        fn take_state(self) -> Self::State {
-            self.state
-        }
 
         fn visit(&mut self, visitable: &Self::Visitable) {
             (self.visitor_fn)(&mut self.state, visitable)
+        }
+    }
+
+    impl<S, V, F> StatefulVisitor for GenericVisitor<S, V, F>
+    where
+        F: FnMut(&mut S, &V),
+    {
+        type State = S;
+
+        fn take_state(self) -> Self::State {
+            self.state
         }
     }
 
@@ -304,31 +337,48 @@ pub mod visitor {
         where
             T: Copy + std::ops::AddAssign,
         {
-            type State = T;
             type Visitable = T;
-
-            fn take_state(self) -> Self::State {
-                self.0
-            }
 
             fn visit(&mut self, visitable: &Self::Visitable) {
                 self.0 += *visitable;
             }
         }
 
-        #[derive(Default)]
-        struct ConcatVisitor(pub String);
-
-        impl Visitor for ConcatVisitor {
-            type State = String;
-            type Visitable = usize;
+        impl<T> StatefulVisitor for AdditionVisitor<T>
+        where
+            T: Copy + std::ops::AddAssign,
+        {
+            type State = T;
 
             fn take_state(self) -> Self::State {
                 self.0
             }
+        }
+
+        #[derive(Default)]
+        struct ConcatVisitor<T>(pub String, PhantomData<T>)
+        where
+            T: std::fmt::Display;
+
+        impl<T> Visitor for ConcatVisitor<T>
+        where
+            T: std::fmt::Display,
+        {
+            type Visitable = T;
 
             fn visit(&mut self, visitable: &Self::Visitable) {
                 self.0 += visitable.to_string().as_str();
+            }
+        }
+
+        impl<T> StatefulVisitor for ConcatVisitor<T>
+        where
+            T: std::fmt::Display,
+        {
+            type State = String;
+
+            fn take_state(self) -> Self::State {
+                self.0
             }
         }
 
@@ -338,7 +388,7 @@ pub mod visitor {
             for i in 1usize..=100 {
                 visitor.visit(&i);
             }
-            let addition = visitor.take_state();
+            let addition = visitor.0;
             let expected = 5050usize;
 
             assert_eq!(addition, expected);
@@ -348,11 +398,11 @@ pub mod visitor {
         pub fn dual_visiting() {
             let a = AdditionVisitor::default();
             let b = ConcatVisitor::default();
-            let mut dual_visitor = DualVisitor::from_initialized_visitors(a, b);
+            let mut combined_visitor = CombinedVisitor::from_initialized_visitors(a, b);
             for i in 1usize..=100 {
-                dual_visitor.visit(&i);
+                combined_visitor.visit(&i);
             }
-            let (addition, concatenation) = dual_visitor.take_state();
+            let (addition, concatenation) = combined_visitor.take_state();
             let expected_addition = 5050usize;
             let expected_concatenation = "123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899100";
 

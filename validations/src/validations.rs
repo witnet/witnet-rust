@@ -1317,7 +1317,7 @@ pub fn update_utxo_diff(
 ///
 /// This uses a `Visitor` that will visit each transaction as well as its fee and weight.
 #[allow(clippy::too_many_arguments)]
-pub fn validate_block_transactions<T>(
+pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
     block: &Block,
@@ -1328,7 +1328,7 @@ pub fn validate_block_transactions<T>(
     block_number: u32,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
-    visitor: &mut Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32), State = T>>,
+    mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == consensus_constants.genesis_hash;
@@ -1395,7 +1395,7 @@ pub fn validate_block_transactions<T>(
         vt_mt.push(Sha256(sha));
 
         // Execute visitor
-        if let Some(visitor) = visitor {
+        if let Some(visitor) = &mut visitor {
             let transaction = Transaction::ValueTransfer(transaction.clone());
             visitor.visit(&(transaction, fee, weight));
         }
@@ -1587,7 +1587,7 @@ pub fn validate_block_transactions<T>(
         dr_weight = acc_weight;
 
         // Execute visitor
-        if let Some(visitor) = visitor {
+        if let Some(visitor) = &mut visitor {
             let transaction = Transaction::DataRequest(transaction.clone());
             visitor.visit(&(transaction, fee, weight));
         }

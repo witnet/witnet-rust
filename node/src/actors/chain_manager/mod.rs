@@ -63,7 +63,7 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
-    types::{LastBeacon, visitor::Visitor},
+    types::{LastBeacon, visitor::{StatefulVisitor, Visitor}},
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
 };
@@ -546,7 +546,7 @@ impl ChainManager {
                 &chain_info.consensus_constants,
                 resynchronizing,
                 &active_wips,
-                &mut Some(&mut transaction_visitor),
+                Some(&mut transaction_visitor),
             )?;
 
             // Extract the collected priorities from the internal state of the visitor
@@ -689,7 +689,7 @@ impl ChainManager {
                     &chain_info.consensus_constants,
                     false,
                     &active_wips,
-                    &mut Some(&mut transaction_visitor),
+                    Some(&mut transaction_visitor),
                 ) {
                     Ok(utxo_diff) => {
                         let priorities = transaction_visitor.take_state();
@@ -1797,7 +1797,7 @@ impl ChainManager {
         .into_actor(self)
         .and_then(move |(), act, _ctx| {
             let mut signatures_to_verify = vec![];
-            let res = validate_block_transactions::<()>(
+            let res = validate_block_transactions(
                 &act.chain_state.unspent_outputs_pool,
                 &act.chain_state.data_request_pool,
                 &block,
@@ -1808,7 +1808,7 @@ impl ChainManager {
                 block_number,
                 &consensus_constants,
                 &active_wips,
-                &mut None,
+                None,
             );
             async {
                 // Short-circuit if validation failed
@@ -2436,7 +2436,7 @@ impl ChainStateSnapshot {
 ///
 /// This uses a `Visitor` that will visit each transaction as well as its fee and weight.
 #[allow(clippy::too_many_arguments)]
-pub fn process_validations<T>(
+pub fn process_validations(
     block: &Block,
     current_epoch: Epoch,
     vrf_input: CheckpointVRF,
@@ -2451,7 +2451,7 @@ pub fn process_validations<T>(
     consensus_constants: &ConsensusConstants,
     resynchronizing: bool,
     active_wips: &ActiveWips,
-    transaction_visitor: &mut Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32), State = T>>,
+    transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];

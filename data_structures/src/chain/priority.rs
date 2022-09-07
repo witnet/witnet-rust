@@ -8,7 +8,11 @@ use ordered_float::OrderedFloat;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Add;
 
-use crate::{transaction::Transaction, types::visitor::Visitor, wit::Wit};
+use crate::{
+    transaction::Transaction,
+    types::visitor::{StatefulVisitor, Visitor},
+    wit::Wit,
+};
 use std::cmp::Ordering;
 
 // Assuming no missing epochs, this will keep track of priority used by transactions in the last 12
@@ -553,13 +557,7 @@ impl fmt::Debug for Priorities {
 pub struct PriorityVisitor(Priorities);
 
 impl Visitor for PriorityVisitor {
-    type State = Priorities;
     type Visitable = (Transaction, /* fee */ u64, /* weight */ u32);
-
-    #[inline]
-    fn take_state(self) -> Self::State {
-        self.0
-    }
 
     fn visit(&mut self, (transaction, fee, weight): &Self::Visitable) {
         match transaction {
@@ -573,6 +571,14 @@ impl Visitor for PriorityVisitor {
             }
             _ => (),
         }
+    }
+}
+
+impl StatefulVisitor for PriorityVisitor {
+    type State = Priorities;
+
+    fn take_state(self) -> Self::State {
+        self.0
     }
 }
 
