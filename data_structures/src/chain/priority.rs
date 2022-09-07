@@ -3,19 +3,19 @@ use std::{cmp, convert, fmt, ops};
 use circular_queue::CircularQueue;
 use failure::Fail;
 use itertools::Itertools;
+use ordered_float::OrderedFloat;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Add;
 
 use crate::{transaction::Transaction, types::visitor::Visitor, wit::Wit};
+use std::cmp::Ordering;
 
 // Assuming no missing epochs, this will keep track of priority used by transactions in the last 12
 // hours (960 epochs).
 const DEFAULT_QUEUE_CAPACITY_EPOCHS: usize = 960;
 // The minimum number of epochs that we need to track before estimating transaction priority
-const MINIMUM_TRACKED_EPOCHS: usize = 20;
-// The number of zeroes in this power of ten tells how many decimal digits to store for Priority values.
-const PRIORITY_PRECISION: u64 = 1_000;
+const MINIMUM_TRACKED_EPOCHS: u32 = 20;
 
 /// Keeps track of fees being paid by transactions included in recent blocks, and provides methods
 /// for estimating sensible priority values for future transactions.
@@ -50,7 +50,7 @@ impl PriorityEngine {
     /// market for block space is idle.
     pub fn estimate_priority(&self) -> Result<PrioritiesEstimate, PriorityError> {
         // Short-circuit if there are too few tracked epochs for an accurate estimation.
-        let len = self.priorities.len();
+        let len = self.priorities.len() as u32;
         if len < MINIMUM_TRACKED_EPOCHS {
             return Err(PriorityError::NotEnoughSampledEpochs(
                 len,
@@ -114,10 +114,18 @@ impl PriorityEngine {
         let drt_stinky_priority = absolutes
             .drt_lowest
             .unwrap_or_else(Priority::default_stinky);
-        let drt_low_priority = cmp::max(drt_low * 85 / drt_divisor / 100, Priority::default_low());
-        let drt_medium_priority = cmp::max(drt_medium / drt_divisor, Priority::default_medium());
-        let drt_high_priority =
-            cmp::max(drt_high * 115 / drt_divisor / 100, Priority::default_high());
+        let drt_low_priority = cmp::max(
+            Priority::from(drt_low * 85 / drt_divisor / 100),
+            Priority::default_low(),
+        );
+        let drt_medium_priority = cmp::max(
+            Priority::from(drt_medium / drt_divisor),
+            Priority::default_medium(),
+        );
+        let drt_high_priority = cmp::max(
+            Priority::from(drt_high * 115 / drt_divisor / 100),
+            Priority::default_high(),
+        );
         let drt_opulent_priority = cmp::max(
             absolutes.drt_highest * 110 / 100,
             Priority::default_opulent(),
@@ -125,10 +133,18 @@ impl PriorityEngine {
         let vtt_stinky_priority = absolutes
             .vtt_lowest
             .unwrap_or_else(Priority::default_stinky);
-        let vtt_low_priority = cmp::max(vtt_low * 85 / vtt_divisor / 100, Priority::default_low());
-        let vtt_medium_priority = cmp::max(vtt_medium / vtt_divisor, Priority::default_medium());
-        let vtt_high_priority =
-            cmp::max(vtt_high * 115 / vtt_divisor / 100, Priority::default_high());
+        let vtt_low_priority = cmp::max(
+            Priority::from(vtt_low * 85 / vtt_divisor / 100),
+            Priority::default_low(),
+        );
+        let vtt_medium_priority = cmp::max(
+            Priority::from(vtt_medium / vtt_divisor),
+            Priority::default_medium(),
+        );
+        let vtt_high_priority = cmp::max(
+            Priority::from(vtt_high * 115 / vtt_divisor / 100),
+            Priority::default_high(),
+        );
         let vtt_opulent_priority = cmp::max(
             absolutes.vtt_highest * 110 / 100,
             Priority::default_opulent(),
@@ -173,11 +189,17 @@ impl PriorityEngine {
 
         // Measure the average time between occurrences of a tier of priority being enough for
         // making it into a block.
-        let drt_stinky_ttb = cmp::max(average_gap(drt_stinky_enough_epochs, len), capacity / 2);
+        let drt_stinky_ttb = cmp::max(
+            average_gap(drt_stinky_enough_epochs, len),
+            capacity as u32 / 2,
+        );
         let drt_low_ttb = cmp::max(average_gap(drt_low_enough_epochs, len), 2);
         let drt_medium_ttb = cmp::max(average_gap(drt_medium_enough_epochs, len), 2);
         let drt_high_ttb = cmp::max(average_gap(drt_high_enough_epochs, len), 2);
-        let vtt_stinky_ttb = cmp::max(average_gap(vtt_stinky_enough_epochs, len), capacity / 2);
+        let vtt_stinky_ttb = cmp::max(
+            average_gap(vtt_stinky_enough_epochs, len),
+            capacity as u32 / 2,
+        );
         let vtt_low_ttb = cmp::max(average_gap(vtt_low_enough_epochs, len), 2);
         let vtt_medium_ttb = cmp::max(average_gap(vtt_medium_enough_epochs, len), 2);
         let vtt_high_ttb = cmp::max(average_gap(vtt_high_enough_epochs, len), 2);
@@ -290,7 +312,7 @@ pub enum PriorityError {
         display = "The node has only sampled priority from {} blocks but at least {} are needed to provide a reliable priority estimate. Please retry after {} minutes.",
         _0, _1, _2
     )]
-    NotEnoughSampledEpochs(usize, usize, usize),
+    NotEnoughSampledEpochs(u32, u32, u32),
 }
 
 impl fmt::Debug for PriorityEngine {
@@ -337,117 +359,83 @@ impl Serialize for PriorityEngine {
 
 /// Conveniently wraps a priority value with sub-nanoWit precision.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Priority {
-    nano_wit: u64,
-    sub_nano_wit: u64,
-}
+pub struct Priority(OrderedFloat<f64>);
 
 impl Priority {
-    /// Get the priority value in its "raw" representation, i.e. the integer part multiplied by the
-    /// precision, plus the decimal part.
-    #[inline]
-    pub fn as_raw(&self) -> u64 {
-        self.nano_wit * PRIORITY_PRECISION + self.sub_nano_wit
-    }
-
     /// The default precision for tier "High".
     #[inline]
     pub fn default_high() -> Self {
-        Self::from_raw(PRIORITY_PRECISION * 3 / 10)
+        Self::from(0.3)
     }
 
     /// The default precision for tier "Low".
     #[inline]
     pub fn default_low() -> Self {
-        Self::from_raw(PRIORITY_PRECISION * 2 / 10)
+        Self::from(0.1)
     }
 
     /// The default precision for tier "Medium".
     #[inline]
     pub fn default_medium() -> Self {
-        Self::from_raw(PRIORITY_PRECISION / 10)
+        Self::from(0.2)
     }
 
     /// The default precision for tier "Opulent".
     #[inline]
     pub fn default_opulent() -> Self {
-        Self::from_raw(PRIORITY_PRECISION * 4 / 10)
+        Self::from(0.4)
     }
 
     /// The default precision for tier "Stinky".
     #[inline]
     pub fn default_stinky() -> Self {
-        Self::from_raw(0)
+        Self::from(0.0)
     }
 
     /// Derive fee from priority and weight.
     #[inline]
     pub fn derive_fee(&self, weight: u32) -> Wit {
-        Wit::from_nanowits(self.as_raw() * weight as u64 / PRIORITY_PRECISION)
+        Wit::from_nanowits((self.0.into_inner() * weight as f64) as u64)
     }
 
     /// Constructs a Priority from a transaction fee and weight.
     #[inline]
     pub fn from_fee_weight(fee: u64, weight: u32) -> Self {
-        let raw = fee
-            .saturating_mul(PRIORITY_PRECISION)
-            .saturating_div(weight as u64);
-
-        Self::from_raw(raw)
+        Self::from(fee as f64 / weight as f64)
     }
+}
 
-    /// Constructs a Priority from its integer part and decimals.
+/// Conveniently create a Priority value from an f64 value.
+impl convert::From<f64> for Priority {
     #[inline]
-    pub fn from_integer_and_decimals(integer: u64, decimals: u64) -> Self {
-        let raw = integer
-            .saturating_mul(PRIORITY_PRECISION)
-            .saturating_add(decimals);
-
-        Self::from_raw(raw)
+    fn from(input: f64) -> Self {
+        Self(OrderedFloat(input))
     }
+}
 
-    /// Constructs a Priority from its "raw" representation, i.e. the integer part multiplied by the
-    /// precision, plus the decimal part.
+/// Conveniently create a Priority value from a u64 value.
+impl convert::From<u64> for Priority {
     #[inline]
-    pub fn from_raw(raw: u64) -> Self {
-        let nano_wit = raw / PRIORITY_PRECISION;
-        let sub_nano_wit = raw % PRIORITY_PRECISION;
-
-        Self {
-            nano_wit,
-            sub_nano_wit,
-        }
-    }
-
-    /// Retrieves the integer and decimal parts of a priority value separately.
-    #[inline]
-    pub fn integer_and_decimals(&self) -> (u64, u64) {
-        (self.nano_wit, self.sub_nano_wit)
-    }
-
-    /// Tells whether the priority value is zero.
-    #[inline]
-    pub fn is_zero(&self) -> bool {
-        self.integer_and_decimals() == (0, 0)
+    fn from(input: u64) -> Self {
+        Self::from(input as f64)
     }
 }
 
 impl fmt::Display for Priority {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{:03}", self.nano_wit, self.sub_nano_wit)
+        self.0.serialize(f)
     }
 }
 
 impl cmp::Ord for Priority {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.integer_and_decimals()
-            .cmp(&other.integer_and_decimals())
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
     }
 }
 
 impl cmp::PartialEq<u64> for Priority {
     fn eq(&self, other: &u64) -> bool {
-        self.eq(&Priority::from_raw(other * PRIORITY_PRECISION))
+        self.0.into_inner().eq(&(*other as f64))
     }
 }
 
@@ -457,19 +445,12 @@ impl cmp::PartialOrd for Priority {
     }
 }
 
-/// Conveniently create a Priority value from a u64 value.
-impl convert::From<u64> for Priority {
-    fn from(input: u64) -> Self {
-        Self::from_integer_and_decimals(input, 0)
-    }
-}
-
 /// Allow adding two Priority values together.
 impl ops::Add for Priority {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::from_raw(self.as_raw() + rhs.as_raw())
+        Self(self.0 + rhs.0)
     }
 }
 
@@ -485,9 +466,7 @@ impl ops::Mul<u64> for Priority {
     type Output = Self;
 
     fn mul(self, rhs: u64) -> Self::Output {
-        let raw = self.as_raw().saturating_mul(rhs);
-
-        Self::from_raw(raw)
+        Self(self.0 * rhs as f64)
     }
 }
 
@@ -496,13 +475,7 @@ impl ops::Div<u64> for Priority {
     type Output = Self;
 
     fn div(self, rhs: u64) -> Self::Output {
-        let (integer, decimals) = self.integer_and_decimals();
-        let raw = integer
-            .saturating_mul(PRIORITY_PRECISION)
-            .saturating_add(decimals)
-            .saturating_div(rhs);
-
-        Self::from_raw(raw)
+        Self(self.0 / rhs as f64)
     }
 }
 
@@ -511,7 +484,7 @@ impl<'de> Deserialize<'de> for Priority {
     where
         D: Deserializer<'de>,
     {
-        u64::deserialize(deserializer).map(Self::from_raw)
+        u64::deserialize(deserializer).map(Self::from)
     }
 }
 
@@ -520,7 +493,7 @@ impl Serialize for Priority {
     where
         S: Serializer,
     {
-        Serialize::serialize(&self.as_raw(), serializer)
+        Serialize::serialize(&self.0.into_inner(), serializer)
     }
 }
 
@@ -739,16 +712,14 @@ impl fmt::Display for TimeToBlock {
 }
 
 /// Calculates the average gap between the values in a `Vec<usize>`.
-fn average_gap(occurrences: Vec<usize>, sample_size: usize) -> usize {
+fn average_gap(occurrences: Vec<usize>, sample_size: u32) -> u32 {
     let (_, gaps) = occurrences.iter().fold((0, 0), |(prev_i, sum), cur_i| {
         let gap = *cur_i - prev_i;
 
         (*cur_i, (sum + gap).saturating_sub(1))
     });
 
-    sample_size
-        .saturating_div(occurrences.len().saturating_sub(gaps).saturating_add(1))
-        .saturating_add(1)
+    ((sample_size as f64) / occurrences.len().saturating_sub(gaps).saturating_add(1) as f64) as u32
 }
 
 #[cfg(test)]
@@ -761,10 +732,10 @@ mod tests {
 
         let mut output = vec![];
         for _ in 0..count {
-            let mut a = prng.gen_range(0, 10000);
-            let mut b = prng.gen_range(0, 10000);
-            let mut c = prng.gen_range(0, 10000);
-            let mut d = prng.gen_range(0, 10000);
+            let mut a = prng.gen_range(0, 10_000);
+            let mut b = prng.gen_range(0, 10_000);
+            let mut c = prng.gen_range(0, 10_000);
+            let mut d = prng.gen_range(0, 10_000);
 
             if a < b {
                 (a, b) = (b, a)
@@ -774,10 +745,10 @@ mod tests {
             }
 
             output.push(Priorities {
-                drt_highest: Priority::from_raw(a),
-                drt_lowest: Some(Priority::from_raw(b)),
-                vtt_highest: Priority::from_raw(c),
-                vtt_lowest: Some(Priority::from_raw(d)),
+                drt_highest: Priority::from(a / 1_000),
+                drt_lowest: Some(Priority::from(b / 1_000)),
+                vtt_highest: Priority::from(c / 1_000),
+                vtt_lowest: Some(Priority::from(d / 1_000)),
             })
         }
 
@@ -786,7 +757,7 @@ mod tests {
 
     #[test]
     fn engine_from_vec() {
-        let input = priorities_factory(10);
+        let input = priorities_factory(10usize);
         let engine = PriorityEngine::from_vec_with_capacity(input.clone(), 5);
 
         assert_eq!(engine.get(0), input.get(0));
@@ -798,7 +769,7 @@ mod tests {
 
     #[test]
     fn engine_as_vec() {
-        let input = priorities_factory(2);
+        let input = priorities_factory(2usize);
         let mut engine = PriorityEngine::default();
         for priorities in &input {
             engine.push_priorities(priorities.clone());
@@ -857,7 +828,7 @@ mod tests {
     #[test]
     fn cannot_estimate_with_few_epochs_in_queue() {
         let count = MINIMUM_TRACKED_EPOCHS - 1;
-        let priorities = priorities_factory(count);
+        let priorities = priorities_factory(count as usize);
         let engine = PriorityEngine::from_vec(priorities);
         let estimate = engine.estimate_priority();
 
