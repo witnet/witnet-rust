@@ -286,7 +286,7 @@ pub mod visitor {
         visitable_type: PhantomData<V>,
     }
 
-    impl<'a, S, V, F> GenericVisitor<S, V, F>
+    impl<S, V, F> GenericVisitor<S, V, F>
     where
         F: FnMut(&mut S, &V),
     {

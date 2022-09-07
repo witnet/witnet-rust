@@ -118,41 +118,19 @@ impl PriorityEngine {
         let drt_stinky_priority = absolutes
             .drt_lowest
             .unwrap_or_else(Priority::default_stinky);
-        let drt_low_priority = cmp::max(
-            Priority::from(drt_low * 85 / drt_divisor / 100),
-            Priority::default_low(),
-        );
-        let drt_medium_priority = cmp::max(
-            Priority::from(drt_medium / drt_divisor),
-            Priority::default_medium(),
-        );
-        let drt_high_priority = cmp::max(
-            Priority::from(drt_high * 115 / drt_divisor / 100),
-            Priority::default_high(),
-        );
-        let drt_opulent_priority = cmp::max(
-            absolutes.drt_highest * 110 / 100,
-            Priority::default_opulent(),
-        );
+        let drt_low_priority = cmp::max(drt_low * 0.85 / drt_divisor, Priority::default_low());
+        let drt_medium_priority = cmp::max(drt_medium / drt_divisor, Priority::default_medium());
+        let drt_high_priority = cmp::max(drt_high * 1.15 / drt_divisor, Priority::default_high());
+        let drt_opulent_priority =
+            cmp::max(absolutes.drt_highest * 1.15, Priority::default_opulent());
         let vtt_stinky_priority = absolutes
             .vtt_lowest
             .unwrap_or_else(Priority::default_stinky);
-        let vtt_low_priority = cmp::max(
-            Priority::from(vtt_low * 85 / vtt_divisor / 100),
-            Priority::default_low(),
-        );
-        let vtt_medium_priority = cmp::max(
-            Priority::from(vtt_medium / vtt_divisor),
-            Priority::default_medium(),
-        );
-        let vtt_high_priority = cmp::max(
-            Priority::from(vtt_high * 115 / vtt_divisor / 100),
-            Priority::default_high(),
-        );
-        let vtt_opulent_priority = cmp::max(
-            absolutes.vtt_highest * 110 / 100,
-            Priority::default_opulent(),
-        );
+        let vtt_low_priority = cmp::max(vtt_low * 0.85 / vtt_divisor, Priority::default_low());
+        let vtt_medium_priority = cmp::max(vtt_medium / vtt_divisor, Priority::default_medium());
+        let vtt_high_priority = cmp::max(vtt_high * 1.15 / vtt_divisor, Priority::default_high());
+        let vtt_opulent_priority =
+            cmp::max(absolutes.vtt_highest * 1.15, Priority::default_opulent());
 
         // Collect the relative epochs inside the engine in which each tier of priority was enough
         // for making it into a block, by comparing to the lowest priority mined in that epoch.
@@ -451,8 +429,19 @@ impl ops::AddAssign for Priority {
 impl ops::Mul<u64> for Priority {
     type Output = Self;
 
+    #[inline]
     fn mul(self, rhs: u64) -> Self::Output {
-        Self(self.0 * rhs as f64)
+        self.mul(rhs as f64)
+    }
+}
+
+/// Allow multiplying `Priority` values by `u64` values.
+impl ops::Mul<f64> for Priority {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self(self.0 * rhs)
     }
 }
 
@@ -774,7 +763,7 @@ impl TimeToBlock {
             TimeToBlock::Around(_) => format!("around {}", string),
             TimeToBlock::Exactly(_) => string,
             TimeToBlock::LessThan(_) => format!("less than {}", string),
-            TimeToBlock::Unknown => format!("unknown"),
+            TimeToBlock::Unknown => String::from("unknown"),
             TimeToBlock::UpTo(_) => format!("up to {}", string),
         }
     }
