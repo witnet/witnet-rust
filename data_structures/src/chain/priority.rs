@@ -339,24 +339,6 @@ impl Default for PriorityEngine {
     }
 }
 
-impl<'de> Deserialize<'de> for PriorityEngine {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Vec::<Priorities>::deserialize(deserializer).map(Self::from_vec)
-    }
-}
-
-impl Serialize for PriorityEngine {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
-    where
-        S: Serializer,
-    {
-        Serialize::serialize(&self.as_vec(), serializer)
-    }
-}
-
 /// Conveniently wraps a priority value with sub-nanoWit precision.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Priority(OrderedFloat<f64>);
@@ -423,7 +405,7 @@ impl convert::From<u64> for Priority {
 
 impl fmt::Display for Priority {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.serialize(f)
+        write!(f, "{:.3}", self.0)
     }
 }
 
@@ -484,7 +466,7 @@ impl<'de> Deserialize<'de> for Priority {
     where
         D: Deserializer<'de>,
     {
-        u64::deserialize(deserializer).map(Self::from)
+        f64::deserialize(deserializer).map(Self::from)
     }
 }
 
@@ -616,57 +598,76 @@ pub struct PrioritiesEstimate {
     pub vtt_opulent: PriorityEstimate,
 }
 
-impl fmt::Display for PrioritiesEstimate {
+impl PrioritiesEstimate {
+    /// Show a nicely formatted table with the priority and time-to-block estimates for different
+    /// priority tiers.
+    ///
+    /// The `time_formatter` function allows to define how to format the time-to-block.
     #[allow(clippy::to_string_in_format_args)]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
+    pub fn pretty_print<F>(&self, mut time_formatter: F) -> String
+    where
+        F: FnMut(&TimeToBlock) -> String,
+    {
+        format!(
             r#"╔══════════════════════════════════════════════════════════╗
 ║ TRANSACTION PRIORITY ESTIMATION REPORT                   ║
 ╠══════════════════════════════════════════════════════════╣
 ║ Data request transactions                                ║
-╟──────────┬──────────────────┬────────────────────────────║
-║     Tier │ Priority         │ Time-to-block              ║
-╟──────────┼──────────────────┼────────────────────────────║
-║   Stinky │ {:<16} │ {:<25}  ║
-║      Low │ {:<16} │ {:<25}  ║
-║   Medium │ {:<16} │ {:<25}  ║
-║     High │ {:<16} │ {:<25}  ║
-║  Opulent │ {:<16} │ {:<25}  ║
+╟──────────┬──────────┬────────────────────────────────────║
+║     Tier │ Priority │ Time-to-block                      ║
+╟──────────┼──────────┼────────────────────────────────────║
+║   Stinky │ {:<8} │ {:<33}  ║
+║      Low │ {:<8} │ {:<33}  ║
+║   Medium │ {:<8} │ {:<33}  ║
+║     High │ {:<8} │ {:<33}  ║
+║  Opulent │ {:<8} │ {:<33}  ║
 ╠══════════════════════════════════════════════════════════╣
 ║ Value transfer transactions                              ║
-╟──────────┬──────────────────┬────────────────────────────║
-║     Tier │ Priority         │ Time-to-block              ║
-╟──────────┼──────────────────┼────────────────────────────║
-║   Stinky │ {:<16} │ {:<25}  ║
-║      Low │ {:<16} │ {:<25}  ║
-║   Medium │ {:<16} │ {:<25}  ║
-║     High │ {:<16} │ {:<25}  ║
-║  Opulent │ {:<16} │ {:<25}  ║
+╟──────────┬──────────┬────────────────────────────────────║
+║     Tier │ Priority │ Time-to-block                      ║
+╟──────────┼──────────┼────────────────────────────────────║
+║   Stinky │ {:<8} │ {:<33}  ║
+║      Low │ {:<8} │ {:<33}  ║
+║   Medium │ {:<8} │ {:<33}  ║
+║     High │ {:<8} │ {:<33}  ║
+║  Opulent │ {:<8} │ {:<33}  ║
 ╚══════════════════════════════════════════════════════════╝"#,
             // Believe it or not, these `to_string` are needed for proper formatting, hence the
             // clippy allow directive above.
             self.drt_stinky.priority.to_string(),
-            self.drt_stinky.time_to_block.to_string(),
+            time_formatter(&self.drt_stinky.time_to_block),
             self.drt_low.priority.to_string(),
-            self.drt_low.time_to_block.to_string(),
+            time_formatter(&self.drt_low.time_to_block),
             self.drt_medium.priority.to_string(),
-            self.drt_medium.time_to_block.to_string(),
+            time_formatter(&self.drt_medium.time_to_block),
             self.drt_high.priority.to_string(),
-            self.drt_high.time_to_block.to_string(),
+            time_formatter(&self.drt_high.time_to_block),
             self.drt_opulent.priority.to_string(),
-            self.drt_opulent.time_to_block.to_string(),
+            time_formatter(&self.drt_opulent.time_to_block),
             self.vtt_stinky.priority.to_string(),
-            self.vtt_stinky.time_to_block.to_string(),
+            time_formatter(&self.vtt_stinky.time_to_block),
             self.vtt_low.priority.to_string(),
-            self.vtt_low.time_to_block.to_string(),
+            time_formatter(&self.vtt_low.time_to_block),
             self.vtt_medium.priority.to_string(),
-            self.vtt_medium.time_to_block.to_string(),
+            time_formatter(&self.vtt_medium.time_to_block),
             self.vtt_high.priority.to_string(),
-            self.vtt_high.time_to_block.to_string(),
+            time_formatter(&self.vtt_high.time_to_block),
             self.vtt_opulent.priority.to_string(),
-            self.vtt_opulent.time_to_block.to_string(),
+            time_formatter(&self.vtt_opulent.time_to_block),
         )
+    }
+
+    /// Call `TimeToBlock::pretty_print` with time-to-block pretty-printed as seconds.
+    ///
+    /// This requires knowledge of the number of seconds per epoch, aka __checkpoint period__.
+    pub fn pretty_print_secs(&self, seconds_per_epoch: u16) -> String {
+        self.pretty_print(|ttb| ttb.pretty_print_secs(seconds_per_epoch))
+    }
+}
+
+impl fmt::Display for PrioritiesEstimate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.pretty_print(TimeToBlock::to_string))
     }
 }
 
@@ -680,30 +681,104 @@ pub struct PriorityEstimate {
     pub time_to_block: TimeToBlock,
 }
 
-impl fmt::Display for PriorityEstimate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:<16} | {}", self.priority, self.time_to_block)
-    }
-}
-
 /// Allows tagging time-to-block estimations for the sake of UX.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum TimeToBlock {
     /// The time-to-block is around X epochs.
-    Around(usize),
+    Around(u32),
+    /// The time-to-block is exactly X epochs.
+    Exactly(u32),
     /// The time-to-block is less than X epochs.
-    LessThan(usize),
+    LessThan(u32),
     /// The time-to-block is unknown.
     #[default]
     Unknown,
     /// The time-to-block is up to X epochs.
-    UpTo(usize),
+    UpTo(u32),
+}
+
+impl TimeToBlock {
+    /// Convert a `TimeToBlock` into seconds.
+    ///
+    /// This requires knowledge of the number of seconds per epoch, aka __checkpoint period__.
+    pub fn as_secs(&self, seconds_per_epoch: u16) -> Option<u32> {
+        match self {
+            TimeToBlock::Around(x) => Some(x * seconds_per_epoch as u32),
+            TimeToBlock::Exactly(x) => Some(x * seconds_per_epoch as u32),
+            TimeToBlock::LessThan(x) => Some(x * seconds_per_epoch as u32),
+            TimeToBlock::Unknown => None,
+            TimeToBlock::UpTo(x) => Some(x * seconds_per_epoch as u32),
+        }
+    }
+
+    /// Convert a `TimeToBlock` into a formatted string expressing the time-to-block in seconds.
+    ///
+    /// This requires knowledge of the number of seconds per epoch, aka __checkpoint period__.
+    pub fn pretty_print_secs(&self, seconds_per_epoch: u16) -> String {
+        fn unit_change(seconds: u32, divider: u32) -> (u32, u32, String) {
+            let value = seconds / divider;
+            let remainder = seconds % divider;
+            let plural = String::from(if value == 1 { "" } else { "s" });
+
+            (value, remainder, plural)
+        }
+
+        let string = self
+            .as_secs(seconds_per_epoch)
+            .map(|seconds| {
+                let mut strings = Vec::<String>::new();
+                let (days, remainder, plural) = unit_change(seconds, 24 * 60 * 60);
+                if days > 0 {
+                    strings.push(format!("{} day{}", days, plural))
+                }
+                let (hours, remainder, plural) = unit_change(remainder, 60 * 60);
+                if hours > 0 {
+                    let separator = if strings.is_empty() {
+                        ""
+                    } else if remainder > 0 {
+                        ", "
+                    } else {
+                        " and "
+                    };
+
+                    strings.push(format!("{}{} hour{}", separator, hours, plural))
+                }
+                let (minutes, remainder, plural) = unit_change(remainder, 60);
+                if minutes > 0 {
+                    let separator = if strings.is_empty() {
+                        ""
+                    } else if remainder > 0 {
+                        ", "
+                    } else {
+                        " and "
+                    };
+                    strings.push(format!("{}{} minute{}", separator, minutes, plural))
+                }
+                let (seconds, _, plural) = unit_change(remainder, 1);
+                if seconds > 0 || (minutes == 0 && hours == 0 && days == 0) {
+                    let separator = if strings.is_empty() { "" } else { " and " };
+                    strings.push(format!("{}{} second{}", separator, seconds, plural));
+                }
+
+                strings.join("")
+            })
+            .unwrap_or_default();
+
+        match self {
+            TimeToBlock::Around(_) => format!("around {}", string),
+            TimeToBlock::Exactly(_) => string,
+            TimeToBlock::LessThan(_) => format!("less than {}", string),
+            TimeToBlock::Unknown => format!("unknown"),
+            TimeToBlock::UpTo(_) => format!("up to {}", string),
+        }
+    }
 }
 
 impl fmt::Display for TimeToBlock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TimeToBlock::Around(x) => write!(f, "around {} epochs", x),
+            TimeToBlock::Exactly(x) => write!(f, "{}", x),
             TimeToBlock::LessThan(x) => write!(f, "less than {} epochs", x),
             TimeToBlock::Unknown => write!(f, "unknown"),
             TimeToBlock::UpTo(x) => write!(f, "up to {} epochs", x),
@@ -846,83 +921,254 @@ mod tests {
     fn can_estimate_correctly() {
         use TimeToBlock::*;
 
-        let priorities = priorities_factory(100);
+        let priorities = priorities_factory(100usize);
         let engine = PriorityEngine::from_vec(priorities);
         let estimate = engine.estimate_priority().unwrap();
 
         let expected = PrioritiesEstimate {
             drt_stinky: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 0,
-                    sub_nano_wit: 70,
-                },
+                priority: Priority(OrderedFloat(0.0)),
                 time_to_block: UpTo(480),
             },
             drt_low: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 2,
-                    sub_nano_wit: 788,
-                },
-                time_to_block: Around(12),
+                priority: Priority(OrderedFloat(2.350333266006867)),
+                time_to_block: Around(10),
             },
             drt_medium: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 5,
-                    sub_nano_wit: 157,
-                },
+                priority: Priority(OrderedFloat(4.656029085033326)),
                 time_to_block: Around(2),
             },
             drt_high: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 8,
-                    sub_nano_wit: 89,
-                },
+                priority: Priority(OrderedFloat(7.52900424156736)),
                 time_to_block: Around(2),
             },
             drt_opulent: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 10,
-                    sub_nano_wit: 931,
-                },
+                priority: Priority(OrderedFloat(9.9)),
                 time_to_block: LessThan(2),
             },
             vtt_stinky: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 0,
-                    sub_nano_wit: 26,
-                },
+                priority: Priority(OrderedFloat(0.0)),
                 time_to_block: UpTo(480),
             },
             vtt_low: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 2,
-                    sub_nano_wit: 943,
-                },
-                time_to_block: Around(101),
+                priority: Priority(OrderedFloat(2.540729145627146)),
+                time_to_block: Around(100),
             },
             vtt_medium: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 4,
-                    sub_nano_wit: 890,
-                },
-                time_to_block: Around(3),
+                priority: Priority(OrderedFloat(4.41739042617653)),
+                time_to_block: Around(2),
             },
             vtt_high: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 7,
-                    sub_nano_wit: 266,
-                },
+                priority: Priority(OrderedFloat(6.722540900828116)),
                 time_to_block: Around(2),
             },
             vtt_opulent: PriorityEstimate {
-                priority: Priority {
-                    nano_wit: 10,
-                    sub_nano_wit: 917,
-                },
+                priority: Priority(OrderedFloat(9.9)),
                 time_to_block: LessThan(2),
             },
         };
 
         assert_eq!(estimate, expected);
+    }
+
+    #[test]
+    fn time_to_block_pretty_print_secs() {
+        let checkpoint_period = 1;
+        let minute = 60;
+        let hour = 60 * minute;
+        let day = 24 * hour;
+
+        assert_eq!(
+            TimeToBlock::Exactly(0).pretty_print_secs(checkpoint_period),
+            String::from("0 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(1).pretty_print_secs(checkpoint_period),
+            String::from("1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(minute).pretty_print_secs(checkpoint_period),
+            String::from("1 minute")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(minute + 1).pretty_print_secs(checkpoint_period),
+            String::from("1 minute and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("1 minute and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(hour - minute).pretty_print_secs(checkpoint_period),
+            String::from("59 minutes")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(hour - 1).pretty_print_secs(checkpoint_period),
+            String::from("59 minutes and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(hour).pretty_print_secs(checkpoint_period),
+            String::from("1 hour")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(hour + 1).pretty_print_secs(checkpoint_period),
+            String::from("1 hour and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(hour + minute).pretty_print_secs(checkpoint_period),
+            String::from("1 hour and 1 minute")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(hour + minute + 1).pretty_print_secs(checkpoint_period),
+            String::from("1 hour, 1 minute and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(23 * hour).pretty_print_secs(checkpoint_period),
+            String::from("23 hours")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(23 * hour + minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("23 hours and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day - minute).pretty_print_secs(checkpoint_period),
+            String::from("23 hours and 59 minutes")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day - 1).pretty_print_secs(checkpoint_period),
+            String::from("23 hours, 59 minutes and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day).pretty_print_secs(checkpoint_period),
+            String::from("1 day")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + minute).pretty_print_secs(checkpoint_period),
+            String::from("1 day and 1 minute")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + minute + 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 1 minute and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + 2 * minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 1 minute and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + hour - minute).pretty_print_secs(checkpoint_period),
+            String::from("1 day and 59 minutes")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + hour - 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 59 minutes and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + hour).pretty_print_secs(checkpoint_period),
+            String::from("1 day and 1 hour")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + hour + 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 1 hour and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + hour + minute).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 1 hour and 1 minute")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(day + hour + minute + 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 1 hour, 1 minute and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day - hour).pretty_print_secs(checkpoint_period),
+            String::from("1 day and 23 hours")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day - hour + minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 23 hours and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day - minute).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 23 hours and 59 minutes")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day - 1).pretty_print_secs(checkpoint_period),
+            String::from("1 day, 23 hours, 59 minutes and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day).pretty_print_secs(checkpoint_period),
+            String::from("2 days")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + minute).pretty_print_secs(checkpoint_period),
+            String::from("2 days and 1 minute")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + minute + 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 1 minute and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + 2 * minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 1 minute and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + hour - minute).pretty_print_secs(checkpoint_period),
+            String::from("2 days and 59 minutes")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + hour - 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 59 minutes and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + hour).pretty_print_secs(checkpoint_period),
+            String::from("2 days and 1 hour")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + hour + 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 1 hour and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + hour + minute).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 1 hour and 1 minute")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(2 * day + hour + minute + 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 1 hour, 1 minute and 1 second")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(3 * day - hour).pretty_print_secs(checkpoint_period),
+            String::from("2 days and 23 hours")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(3 * day - hour + minute - 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 23 hours and 59 seconds")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(3 * day - minute).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 23 hours and 59 minutes")
+        );
+        assert_eq!(
+            TimeToBlock::Exactly(3 * day - 1).pretty_print_secs(checkpoint_period),
+            String::from("2 days, 23 hours, 59 minutes and 59 seconds")
+        );
     }
 }

@@ -558,6 +558,7 @@ pub fn send_vtt(
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
+    checkpoints_period: u16,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
@@ -677,7 +678,7 @@ pub fn send_vtt(
         }
 
         // We are ready to compose the params for the actual transaction.
-        params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
+        params.fee = prompt_user_for_priority_selection(estimates, checkpoints_period)?.nanowits();
     }
 
     // Finally ask the node to create the transaction with the chosen fee.
@@ -730,6 +731,7 @@ pub fn send_dr(
     hex_bytes: String,
     fee: Option<u64>,
     dry_run: bool,
+    checkpoints_period: u16,
 ) -> Result<(), failure::Error> {
     let dro = deserialize_and_validate_hex_dr(hex_bytes)?;
     let mut stream = start_client(addr)?;
@@ -813,7 +815,8 @@ pub fn send_dr(
             }
 
             // We are ready to compose the params for the actual transaction.
-            params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
+            params.fee =
+                prompt_user_for_priority_selection(estimates, checkpoints_period)?.nanowits();
         }
 
         let (_, (_, response)): (DRTransaction, _) =
@@ -1596,7 +1599,11 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
+pub fn priority(
+    addr: SocketAddr,
+    json: bool,
+    checkpoints_period: u16,
+) -> Result<(), failure::Error> {
     // Perform the JSONRPC request to the indicated node
     let mut stream = start_client(addr)?;
     let (estimate, (_, response)): (PrioritiesEstimate, _) =
@@ -1606,7 +1613,7 @@ pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
     if json {
         println!("{}", response);
     } else {
-        println!("{}", estimate);
+        println!("{}", estimate.pretty_print_secs(checkpoints_period));
     }
 
     Ok(())
@@ -1742,6 +1749,7 @@ fn start_client(addr: SocketAddr) -> Result<TcpStream, failure::Error> {
 }
 
 fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String, io::Error> {
+    log::trace!("> {}", request);
     stream.write_all(request.as_bytes())?;
     // Write missing newline, if needed
     match bytecount::count(request.as_bytes(), b'\n') {
@@ -1753,9 +1761,10 @@ fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String
     }
     // Read only one line
     let mut r = BufReader::new(stream);
-    let mut buf = String::new();
-    r.read_line(&mut buf)?;
-    Ok(buf)
+    let mut response = String::new();
+    r.read_line(&mut response)?;
+    log::trace!("< {}", response);
+    Ok(response)
 }
 
 fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failure::Error> {
@@ -1823,6 +1832,7 @@ where
 
 fn prompt_user_for_priority_selection(
     estimates: Vec<(&str, Priority, Wit, TimeToBlock)>,
+    seconds_per_epoch: u16,
 ) -> Result<Wit, failure::Error> {
     // Time to print the estimates
     println!("[ Fee suggestions ]");
@@ -1830,7 +1840,11 @@ fn prompt_user_for_priority_selection(
     for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
         println!(
             "({}) {:<9}→  Costs {} Wit and will most likely take {} (priority = {})",
-            i, label, fee, time_to_block, priority
+            i,
+            label,
+            fee,
+            time_to_block.pretty_print_secs(seconds_per_epoch),
+            priority
         );
     }
     let options = (0..estimates.len()).map(|x| usize::to_string(&x)).join("/");

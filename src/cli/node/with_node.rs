@@ -106,6 +106,7 @@ pub fn exec_cmd(
             time_lock.unwrap_or(0),
             None,
             dry_run,
+            config.consensus_constants.checkpoints_period,
         ),
         Command::Split {
             node,
@@ -127,6 +128,7 @@ pub fn exec_cmd(
                 time_lock.unwrap_or(0),
                 Some(true),
                 dry_run,
+                config.consensus_constants.checkpoints_period,
             )
         }
         Command::Join {
@@ -149,6 +151,7 @@ pub fn exec_cmd(
                 time_lock.unwrap_or(0),
                 Some(false),
                 dry_run,
+                config.consensus_constants.checkpoints_period,
             )
         }
         Command::SendRequest {
@@ -161,6 +164,7 @@ pub fn exec_cmd(
             hex,
             fee,
             dry_run,
+            config.consensus_constants.checkpoints_period,
         ),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
@@ -270,9 +274,11 @@ pub fn exec_cmd(
         Command::SignalingInfo { node } => {
             rpc::signaling_info(node.unwrap_or(config.jsonrpc.server_address))
         }
-        Command::Priority { node, json } => {
-            rpc::priority(node.unwrap_or(config.jsonrpc.server_address), json)
-        }
+        Command::Priority { node, json } => rpc::priority(
+            node.unwrap_or(config.jsonrpc.server_address),
+            json,
+            config.consensus_constants.checkpoints_period,
+        ),
     }
 }
 
