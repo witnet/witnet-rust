@@ -1416,7 +1416,7 @@ where
 
         // Mark UTXOs as used so we don't double spend
         // Save the timestamp to after which the UTXO can be spent again
-        let tx_pending_timeout = u64::from(state.epoch_constants.checkpoints_period) * 10;
+        let tx_pending_timeout = self.params.pending_transactions_timeout_seconds;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         let inputs = match &txn.transaction {

@@ -64,6 +64,7 @@ fn wallet_inner(
             halving_period: 3_500_000,
         },
         use_unconfirmed_utxos: true,
+        pending_transactions_timeout_seconds: 10 * 45,
     };
     let mnemonic = mnemonic::MnemonicGen::new()
         .with_len(mnemonic::Length::Words12)

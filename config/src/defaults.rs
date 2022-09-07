@@ -382,6 +382,11 @@ pub trait Defaults {
         true
     }
 
+    fn wallet_pending_transactions_timeout_seconds(&self) -> u64 {
+        // Default: 10 epochs
+        10 * u64::from(self.consensus_constants_checkpoints_period())
+    }
+
     fn rocksdb_create_if_missing(&self) -> bool {
         true
     }

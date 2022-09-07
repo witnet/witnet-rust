@@ -896,6 +896,9 @@ pub struct Wallet {
     pub sync_address_batch_length: u16,
     /// Allow to use outputs that have not been confirmed by a superblock in new transactions
     pub use_unconfirmed_utxos: bool,
+    /// If a transaction has not been included in a block for this amount of seconds, mark the UTXOs
+    /// as available again.
+    pub pending_transactions_timeout_seconds: u64,
 }
 
 impl Wallet {
@@ -945,6 +948,9 @@ impl Wallet {
             use_unconfirmed_utxos: config
                 .use_unconfirmed_utxos
                 .unwrap_or_else(|| defaults.wallet_use_unconfirmed_utxos()),
+            pending_transactions_timeout_seconds: config
+                .pending_transactions_timeout_seconds
+                .unwrap_or_else(|| defaults.wallet_pending_transactions_timeout_seconds()),
         }
     }
 
@@ -968,6 +974,7 @@ impl Wallet {
             requests_timeout: Some(self.requests_timeout),
             sync_address_batch_length: Some(self.sync_address_batch_length),
             use_unconfirmed_utxos: Some(self.use_unconfirmed_utxos),
+            pending_transactions_timeout_seconds: Some(self.pending_transactions_timeout_seconds),
         }
     }
 }

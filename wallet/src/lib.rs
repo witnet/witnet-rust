@@ -91,6 +91,8 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     let consensus_constants = conf.consensus_constants;
 
+    let pending_transactions_timeout_seconds = conf.wallet.pending_transactions_timeout_seconds;
+
     // Select random node from list
     let node_client_url = node_url.choose(&mut rand::thread_rng()).ok_or_else(|| {
         log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
@@ -142,6 +144,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             max_dr_weight,
             consensus_constants,
             use_unconfirmed_utxos,
+            pending_transactions_timeout_seconds,
         };
 
         let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
