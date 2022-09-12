@@ -1,22 +1,22 @@
-use std::{cmp, convert, fmt, ops};
+use std::{cmp, convert, fmt, ops, time::Duration};
+
+use itertools::Itertools;
 
 use circular_queue::CircularQueue;
 use failure::Fail;
-use itertools::Itertools;
 use ordered_float::OrderedFloat;
-
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use witnet_util::timestamp::seconds_to_human_string;
 
 use crate::{
     transaction::Transaction,
     types::visitor::{StatefulVisitor, Visitor},
     wit::Wit,
 };
-use std::cmp::Ordering;
 
-// Assuming no missing epochs, this will keep track of priority used by transactions in the last 12
-// hours (960 epochs).
-const DEFAULT_QUEUE_CAPACITY_EPOCHS: usize = 960;
+// Assuming no missing epochs, this will keep track of priority used by transactions in the last 24
+// hours (1920 epochs).
+const DEFAULT_QUEUE_CAPACITY_EPOCHS: usize = 1920;
 // The minimum number of epochs that we need to track before estimating transaction priority
 const MINIMUM_TRACKED_EPOCHS: u32 = 20;
 
@@ -51,196 +51,25 @@ impl PriorityEngine {
     /// digits. They need to be divided by 1,000 for the real protocol-wide nanoWit value, and by
     /// 1,000,000,000,000 for the Wit value. This allows for more fine-grained estimations while the
     /// market for block space is idle.
-    pub fn estimate_priority(&self) -> Result<PrioritiesEstimate, PriorityError> {
+    pub fn estimate_priority(
+        &self,
+        seconds_per_epoch: Duration,
+    ) -> Result<PrioritiesEstimate, PriorityError> {
         // Short-circuit if there are too few tracked epochs for an accurate estimation.
         let len = self.priorities.len() as u32;
         if len < MINIMUM_TRACKED_EPOCHS {
             return Err(PriorityError::NotEnoughSampledEpochs(
                 len,
                 MINIMUM_TRACKED_EPOCHS,
-                (MINIMUM_TRACKED_EPOCHS - len) * 45 / 60 + 1,
+                (MINIMUM_TRACKED_EPOCHS - len) * seconds_per_epoch.as_secs() as u32 / 60 + 1,
             ));
         }
 
-        // Find out the queue capacity. We can only provide estimates up to this number of epochs.
-        let capacity = self.priorities.capacity();
-        // Will keep track of the absolute minimum and maximum priorities found in the engine.
-        let mut absolutes = Priorities::default();
-        // Initialize accumulators for different priorities.
-        let mut drt_low = Priority::default();
-        let mut drt_medium = Priority::default();
-        let mut drt_high = Priority::default();
-        let mut vtt_low = Priority::default();
-        let mut vtt_medium = Priority::default();
-        let mut vtt_high = Priority::default();
-        // To be used later as the divisors in an age weighted arithmetic means.
-        let mut drt_divisor = 0u64;
-        let mut vtt_divisor = 0u64;
-
-        let mut age = len as u64;
-        for Priorities {
-            drt_highest,
-            drt_lowest,
-            vtt_highest,
-            vtt_lowest,
-        } in self.priorities.iter().cloned()
-        {
-            age -= 1;
-
-            // Digest the lowest and highest priorities in each entry to find the absolute lowest
-            // (to be used for "stinky" priority estimation) and absolute highest (used for
-            // "opulent" priority estimation).
-            //
-            // Priority values are also added to accumulators as the addition part of an age
-            // weighted arithmetic mean.
-            if let Some(drt_lowest) = drt_lowest {
-                absolutes.digest_drt_priority(drt_lowest);
-                drt_low += drt_lowest * age;
-                drt_medium += (drt_lowest + drt_highest) / 2 * age;
-            }
-            drt_divisor += age;
-            if let Some(vtt_lowest) = vtt_lowest {
-                absolutes.digest_vtt_priority(vtt_lowest);
-                vtt_low += vtt_lowest * age;
-                vtt_medium += (vtt_lowest + vtt_highest) / 2 * age;
-            }
-            vtt_divisor += age;
-            absolutes.digest_drt_priority(drt_highest);
-            absolutes.digest_vtt_priority(vtt_highest);
-            drt_high += drt_highest * age;
-            vtt_high += vtt_highest * age;
-        }
-
-        // Different floors are enforced on the different tiers of priority.
-        let drt_stinky_priority = absolutes
-            .drt_lowest
-            .unwrap_or_else(Priority::default_stinky);
-        let mut drt_low_priority = cmp::max(drt_low / drt_divisor, Priority::default_low());
-        let drt_medium_priority = cmp::max(drt_medium / drt_divisor, Priority::default_medium());
-        let mut drt_high_priority = cmp::max(drt_high / drt_divisor, Priority::default_high());
-        let drt_opulent_priority = cmp::max(absolutes.drt_highest, Priority::default_opulent());
-        let vtt_stinky_priority = absolutes
-            .vtt_lowest
-            .unwrap_or_else(Priority::default_stinky);
-        let mut vtt_low_priority = cmp::max(vtt_low / vtt_divisor, Priority::default_low());
-        let vtt_medium_priority = cmp::max(vtt_medium / vtt_divisor, Priority::default_medium());
-        let mut vtt_high_priority = cmp::max(vtt_high / vtt_divisor, Priority::default_high());
-        let vtt_opulent_priority = cmp::max(absolutes.vtt_highest, Priority::default_opulent());
-
-        // Some estimates are corrected by 15% up or down to make priorities more dynamic.
-        drt_low_priority = cmp::max(
-            in_between(drt_stinky_priority, drt_low_priority, 0.85),
-            drt_stinky_priority,
-        );
-        drt_high_priority = cmp::min(
-            in_between(drt_high_priority, drt_opulent_priority, 0.15),
-            drt_opulent_priority,
-        );
-        vtt_low_priority = cmp::max(
-            in_between(vtt_stinky_priority, vtt_low_priority, 0.85),
-            vtt_stinky_priority,
-        );
-        vtt_high_priority = cmp::min(
-            in_between(vtt_high_priority, vtt_opulent_priority, 0.15),
-            vtt_opulent_priority,
-        );
-
-        // Collect the relative epochs inside the engine in which each tier of priority was enough
-        // for making it into a block, by comparing to the lowest priority mined in that epoch.
-        let mut drt_stinky_enough_epochs = vec![];
-        let mut drt_low_enough_epochs = vec![];
-        let mut drt_medium_enough_epochs = vec![];
-        let mut drt_high_enough_epochs = vec![];
-        let mut vtt_stinky_enough_epochs = vec![];
-        let mut vtt_low_enough_epochs = vec![];
-        let mut vtt_medium_enough_epochs = vec![];
-        let mut vtt_high_enough_epochs = vec![];
-        for (epoch, priorities) in self.priorities.iter().enumerate() {
-            if Some(drt_stinky_priority) >= priorities.drt_lowest {
-                drt_stinky_enough_epochs.push(epoch);
-            }
-            if Some(drt_low_priority) >= priorities.drt_lowest {
-                drt_low_enough_epochs.push(epoch);
-            }
-            if Some(drt_medium_priority) >= priorities.drt_lowest {
-                drt_medium_enough_epochs.push(epoch);
-            }
-            if Some(drt_high_priority) >= priorities.drt_lowest {
-                drt_high_enough_epochs.push(epoch);
-            }
-            if Some(vtt_stinky_priority) >= priorities.drt_lowest {
-                vtt_stinky_enough_epochs.push(epoch);
-            }
-            if Some(vtt_low_priority) >= priorities.vtt_lowest {
-                vtt_low_enough_epochs.push(epoch);
-            }
-            if Some(vtt_medium_priority) >= priorities.vtt_lowest {
-                vtt_medium_enough_epochs.push(epoch);
-            }
-            if Some(vtt_high_priority) >= priorities.vtt_lowest {
-                vtt_high_enough_epochs.push(epoch);
-            }
-        }
-
-        // Measure the average time between occurrences of a tier of priority being enough for
-        // making it into a block.
-        let drt_stinky_ttb = cmp::max(
-            average_gap(drt_stinky_enough_epochs, len),
-            capacity as u32 / 2,
-        );
-        let drt_low_ttb = cmp::max(average_gap(drt_low_enough_epochs, len), 2);
-        let drt_medium_ttb = cmp::max(average_gap(drt_medium_enough_epochs, len), 2);
-        let drt_high_ttb = cmp::max(average_gap(drt_high_enough_epochs, len), 2);
-        let vtt_stinky_ttb = cmp::max(
-            average_gap(vtt_stinky_enough_epochs, len),
-            capacity as u32 / 2,
-        );
-        let vtt_low_ttb = cmp::max(average_gap(vtt_low_enough_epochs, len), 2);
-        let vtt_medium_ttb = cmp::max(average_gap(vtt_medium_enough_epochs, len), 2);
-        let vtt_high_ttb = cmp::max(average_gap(vtt_high_enough_epochs, len), 2);
-
-        Ok(PrioritiesEstimate {
-            drt_stinky: PriorityEstimate {
-                priority: drt_stinky_priority,
-                time_to_block: TimeToBlock::UpTo(drt_stinky_ttb),
-            },
-            drt_low: PriorityEstimate {
-                priority: drt_low_priority,
-                time_to_block: TimeToBlock::Around(drt_low_ttb),
-            },
-            drt_medium: PriorityEstimate {
-                priority: drt_medium_priority,
-                time_to_block: TimeToBlock::Around(drt_medium_ttb),
-            },
-            drt_high: PriorityEstimate {
-                priority: drt_high_priority,
-                time_to_block: TimeToBlock::Around(drt_high_ttb),
-            },
-            drt_opulent: PriorityEstimate {
-                priority: drt_opulent_priority,
-                time_to_block: TimeToBlock::LessThan(2),
-            },
-            vtt_stinky: PriorityEstimate {
-                priority: vtt_stinky_priority,
-                time_to_block: TimeToBlock::UpTo(vtt_stinky_ttb),
-            },
-            vtt_low: PriorityEstimate {
-                priority: vtt_low_priority,
-                time_to_block: TimeToBlock::Around(vtt_low_ttb),
-            },
-            vtt_medium: PriorityEstimate {
-                priority: vtt_medium_priority,
-                time_to_block: TimeToBlock::Around(vtt_medium_ttb),
-            },
-            vtt_high: PriorityEstimate {
-                priority: vtt_high_priority,
-                time_to_block: TimeToBlock::Around(vtt_high_ttb),
-            },
-            vtt_opulent: PriorityEstimate {
-                priority: vtt_opulent_priority,
-                time_to_block: TimeToBlock::LessThan(2),
-            },
-        })
+        Ok(strategies::target_minutes(
+            self.priorities.iter(),
+            [360, 60, 15, 5, 1],
+            seconds_per_epoch.as_secs() as u16,
+        ))
     }
 
     /// Creates a new engine with the default capacity from a vector of `Priorities`.
@@ -284,10 +113,6 @@ impl PriorityEngine {
     pub fn push_priorities(&mut self, priorities: Priorities) {
         log::trace!("Pushing new transaction priorities entry: {:?}", priorities);
         self.priorities.push(priorities);
-        log::trace!(
-            "The priority engine has received new data. The priority estimate is now:\n{}",
-            self.estimate_priority().unwrap_or_default()
-        );
     }
 
     /// Create a new engine of a certain queue capacity.
@@ -335,10 +160,15 @@ impl Default for PriorityEngine {
 }
 
 /// Conveniently wraps a priority value with sub-nanoWit precision.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct Priority(OrderedFloat<f64>);
 
 impl Priority {
+    #[inline]
+    pub fn as_f64(&self) -> f64 {
+        self.0.into_inner()
+    }
+
     /// The default precision for tier "High".
     #[inline]
     pub fn default_high() -> Self {
@@ -380,6 +210,12 @@ impl Priority {
     pub fn from_fee_weight(fee: u64, weight: u32) -> Self {
         Self::from(fee as f64 / weight as f64)
     }
+
+    #[inline]
+    /// Turn a priority value into its internal `f64` value.
+    pub fn into_inner(self) -> f64 {
+        self.as_f64()
+    }
 }
 
 /// Conveniently create a Priority value from an f64 value.
@@ -405,7 +241,7 @@ impl fmt::Display for Priority {
 }
 
 impl cmp::Ord for Priority {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
@@ -615,76 +451,57 @@ pub struct PrioritiesEstimate {
     pub vtt_opulent: PriorityEstimate,
 }
 
-impl PrioritiesEstimate {
-    /// Show a nicely formatted table with the priority and time-to-block estimates for different
-    /// priority tiers.
-    ///
-    /// The `time_formatter` function allows to define how to format the time-to-block.
+impl fmt::Display for PrioritiesEstimate {
     #[allow(clippy::to_string_in_format_args)]
-    pub fn pretty_print<F>(&self, mut time_formatter: F) -> String
-    where
-        F: FnMut(&TimeToBlock) -> String,
-    {
-        format!(
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
             r#"╔══════════════════════════════════════════════════════════╗
 ║ TRANSACTION PRIORITY ESTIMATION REPORT                   ║
 ╠══════════════════════════════════════════════════════════╣
 ║ Data request transactions                                ║
-╟──────────┬──────────┬────────────────────────────────────║
-║     Tier │ Priority │ Time-to-block                      ║
-╟──────────┼──────────┼────────────────────────────────────║
-║   Stinky │ {:<8} │ {:<33}  ║
-║      Low │ {:<8} │ {:<33}  ║
-║   Medium │ {:<8} │ {:<33}  ║
-║     High │ {:<8} │ {:<33}  ║
-║  Opulent │ {:<8} │ {:<33}  ║
+╟──────────┬───────────────┬───────────────────────────────║
+║     Tier │ Time-to-block │ Priority                      ║
+╟──────────┼───────────────┼───────────────────────────────║
+║   Stinky │ {:>13} │ {:<28}  ║
+║      Low │ {:>13} │ {:<28}  ║
+║   Medium │ {:>13} │ {:<28}  ║
+║     High │ {:>13} │ {:<28}  ║
+║  Opulent │ {:>13} │ {:<28}  ║
 ╠══════════════════════════════════════════════════════════╣
 ║ Value transfer transactions                              ║
-╟──────────┬──────────┬────────────────────────────────────║
-║     Tier │ Priority │ Time-to-block                      ║
-╟──────────┼──────────┼────────────────────────────────────║
-║   Stinky │ {:<8} │ {:<33}  ║
-║      Low │ {:<8} │ {:<33}  ║
-║   Medium │ {:<8} │ {:<33}  ║
-║     High │ {:<8} │ {:<33}  ║
-║  Opulent │ {:<8} │ {:<33}  ║
+╟──────────┬───────────────┬───────────────────────────────║
+║     Tier │ Time-to-block │ Priority                      ║
+╟──────────┼───────────────┼───────────────────────────────║
+║   Stinky │ {:>13} │ {:<28}  ║
+║      Low │ {:>13} │ {:<28}  ║
+║   Medium │ {:>13} │ {:<28}  ║
+║     High │ {:>13} │ {:<28}  ║
+║  Opulent │ {:>13} │ {:<28}  ║
 ╚══════════════════════════════════════════════════════════╝"#,
             // Believe it or not, these `to_string` are needed for proper formatting, hence the
             // clippy allow directive above.
+            self.drt_stinky.time_to_block.to_string(),
             self.drt_stinky.priority.to_string(),
-            time_formatter(&self.drt_stinky.time_to_block),
+            self.drt_low.time_to_block.to_string(),
             self.drt_low.priority.to_string(),
-            time_formatter(&self.drt_low.time_to_block),
+            self.drt_medium.time_to_block.to_string(),
             self.drt_medium.priority.to_string(),
-            time_formatter(&self.drt_medium.time_to_block),
+            self.drt_high.time_to_block.to_string(),
             self.drt_high.priority.to_string(),
-            time_formatter(&self.drt_high.time_to_block),
+            self.drt_opulent.time_to_block.to_string(),
             self.drt_opulent.priority.to_string(),
-            time_formatter(&self.drt_opulent.time_to_block),
+            self.vtt_stinky.time_to_block.to_string(),
             self.vtt_stinky.priority.to_string(),
-            time_formatter(&self.vtt_stinky.time_to_block),
+            self.vtt_low.time_to_block.to_string(),
             self.vtt_low.priority.to_string(),
-            time_formatter(&self.vtt_low.time_to_block),
+            self.vtt_medium.time_to_block.to_string(),
             self.vtt_medium.priority.to_string(),
-            time_formatter(&self.vtt_medium.time_to_block),
+            self.vtt_high.time_to_block.to_string(),
             self.vtt_high.priority.to_string(),
-            time_formatter(&self.vtt_high.time_to_block),
+            self.vtt_opulent.time_to_block.to_string(),
             self.vtt_opulent.priority.to_string(),
-            time_formatter(&self.vtt_opulent.time_to_block),
         )
-    }
-
-    /// Call `TimeToBlock::pretty_print` with time-to-block pretty-printed as seconds.
-    ///
-    /// This requires knowledge of the number of seconds per epoch, aka __checkpoint period__.
-    pub fn pretty_print_secs(&self, seconds_per_epoch: u16) -> String {
-        self.pretty_print(|ttb| ttb.pretty_print_secs(seconds_per_epoch))
-    }
-}
-
-impl fmt::Display for PrioritiesEstimate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.pretty_print(TimeToBlock::to_string))
     }
 }
 
@@ -698,181 +515,223 @@ pub struct PriorityEstimate {
     pub time_to_block: TimeToBlock,
 }
 
-/// Allows tagging time-to-block estimations for the sake of UX.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-pub enum TimeToBlock {
-    /// The time-to-block is around X epochs.
-    Around(u32),
-    /// The time-to-block is exactly X epochs.
-    Exactly(u32),
-    /// The time-to-block is less than X epochs.
-    LessThan(u32),
-    /// The time-to-block is unknown.
-    #[default]
-    Unknown,
-    /// The time-to-block is up to X epochs.
-    UpTo(u32),
-}
+pub struct TimeToBlock(u64);
 
 impl TimeToBlock {
-    /// Convert a `TimeToBlock` into seconds.
-    ///
-    /// This requires knowledge of the number of seconds per epoch, aka __checkpoint period__.
-    pub fn as_secs(&self, seconds_per_epoch: u16) -> Option<u32> {
-        match self {
-            TimeToBlock::Around(x) => Some(x * seconds_per_epoch as u32),
-            TimeToBlock::Exactly(x) => Some(x * seconds_per_epoch as u32),
-            TimeToBlock::LessThan(x) => Some(x * seconds_per_epoch as u32),
-            TimeToBlock::Unknown => None,
-            TimeToBlock::UpTo(x) => Some(x * seconds_per_epoch as u32),
-        }
-    }
-
-    /// Convert a `TimeToBlock` into a formatted string expressing the time-to-block in seconds.
-    ///
-    /// This requires knowledge of the number of seconds per epoch, aka __checkpoint period__.
-    pub fn pretty_print_secs(&self, seconds_per_epoch: u16) -> String {
-        fn unit_change(seconds: u32, divider: u32) -> (u32, u32, String) {
-            let value = seconds / divider;
-            let remainder = seconds % divider;
-            let plural = String::from(if value == 1 { "" } else { "s" });
-
-            (value, remainder, plural)
-        }
-
-        let string = self
-            .as_secs(seconds_per_epoch)
-            .map(|seconds| {
-                let mut strings = Vec::<String>::new();
-                let (days, remainder, plural) = unit_change(seconds, 24 * 60 * 60);
-                if days > 0 {
-                    strings.push(format!("{} day{}", days, plural))
-                }
-                let (hours, remainder, plural) = unit_change(remainder, 60 * 60);
-                if hours > 0 {
-                    let separator = if strings.is_empty() {
-                        ""
-                    } else if remainder > 0 {
-                        ", "
-                    } else {
-                        " and "
-                    };
-
-                    strings.push(format!("{}{} hour{}", separator, hours, plural))
-                }
-                let (minutes, remainder, plural) = unit_change(remainder, 60);
-                if minutes > 0 {
-                    let separator = if strings.is_empty() {
-                        ""
-                    } else if remainder > 0 {
-                        ", "
-                    } else {
-                        " and "
-                    };
-                    strings.push(format!("{}{} minute{}", separator, minutes, plural))
-                }
-                let (seconds, _, plural) = unit_change(remainder, 1);
-                if seconds > 0 || (minutes == 0 && hours == 0 && days == 0) {
-                    let separator = if strings.is_empty() { "" } else { " and " };
-                    strings.push(format!("{}{} second{}", separator, seconds, plural));
-                }
-
-                strings.join("")
-            })
-            .unwrap_or_default();
-
-        match self {
-            TimeToBlock::Around(_) => format!("around {}", string),
-            TimeToBlock::Exactly(_) => string,
-            TimeToBlock::LessThan(_) => format!("less than {}", string),
-            TimeToBlock::Unknown => String::from("unknown"),
-            TimeToBlock::UpTo(_) => format!("up to {}", string),
-        }
+    pub fn from_secs(secs: u64) -> Self {
+        Self(secs)
     }
 }
 
 impl fmt::Display for TimeToBlock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TimeToBlock::Around(x) => write!(f, "around {} epochs", x),
-            TimeToBlock::Exactly(x) => write!(f, "{}", x),
-            TimeToBlock::LessThan(x) => write!(f, "less than {} epochs", x),
-            TimeToBlock::Unknown => write!(f, "unknown"),
-            TimeToBlock::UpTo(x) => write!(f, "up to {} epochs", x),
-        }
+        f.write_str(&seconds_to_human_string(self.0))
     }
 }
 
-/// Calculates the average gap between the values in a `Vec<usize>`.
-fn average_gap(occurrences: Vec<usize>, sample_size: u32) -> u32 {
-    let (_, gaps) = occurrences.iter().fold((0, 0), |(prev_i, sum), cur_i| {
-        let gap = *cur_i - prev_i;
-
-        (*cur_i, (sum + gap).saturating_sub(1))
-    });
-
-    ((sample_size as f64)
-        / cmp::max(
-            OrderedFloat(occurrences.len().saturating_sub(gaps) as f64),
-            OrderedFloat(1.0),
-        )
-        .into_inner()) as u32
+#[inline]
+fn option_update(option: &mut Option<Priority>, candidate: Option<Priority>) {
+    match (&candidate, &option) {
+        (Some(new), Some(old)) if new < old => {
+            *option = candidate;
+        }
+        (Some(_), None) => {
+            *option = candidate;
+        }
+        _ => {}
+    }
 }
 
-/// Calculate the value that is at some percentage halfway between two given values.
-fn in_between<T>(lhs: T, rhs: T, percentage: f64) -> T
-where
-    T: Copy + cmp::Ord + ops::Add<Output = T> + ops::Mul<f64, Output = T> + ops::Sub<Output = T>,
-{
-    // First order the values so lhs < rhs
-    let (lhs, rhs) = if lhs > rhs { (rhs, lhs) } else { (lhs, rhs) };
-    // Calculate absolute value of the difference
-    let diff = rhs - lhs;
-    // Find out how much to advance from lhs by multiplying the difference by the percentage
-    let step = diff * percentage;
-    // Calculate the final value by adding the step on top of lhs
-    let output = lhs + step;
+/// Priority estimation strategies. To be used with `PriorityEngine::estimate_priority`.
+pub mod strategies {
+    use pdatastructs::topk::lossycounter::LossyCounter;
 
-    output
+    use super::*;
+
+    /// A priority estimation strategy that receives a list of targetted time-to-blocks expressed in
+    /// minutes and derives the priority from there by using a [lossy count algorithm].
+    ///
+    /// [lossy count algorithm]: https://en.wikipedia.org/wiki/Lossy_Count_Algorithm
+    pub fn target_minutes<'a>(
+        priorities: impl IntoIterator<Item = &'a Priorities>,
+        target_minutes: [u16; 5],
+        seconds_per_epoch: u16,
+    ) -> PrioritiesEstimate {
+        // Make the priorities argument an iterator (if it was not already) and measure its length.
+        let priorities = priorities.into_iter();
+        let priorities_count = priorities
+            .size_hint()
+            .1
+            .unwrap_or(DEFAULT_QUEUE_CAPACITY_EPOCHS) as f64;
+
+        // Fix the capacity of the buckets and let them be as many as needed
+        let bucket_capacity = 5.0;
+        let buckets_count = priorities_count / bucket_capacity;
+        let mut drt_lowest_absolute = None;
+        let mut drt_highest_absolute = Priority::default();
+        let mut vtt_lowest_absolute = None;
+        let mut vtt_highest_absolute = Priority::default();
+
+        let epsilon = 0.1 / buckets_count;
+        let mut drt_counter = LossyCounter::<u64>::with_epsilon(epsilon);
+        let mut vtt_counter = LossyCounter::<u64>::with_epsilon(epsilon);
+
+        for (
+            epoch,
+            Priorities {
+                drt_highest,
+                drt_lowest,
+                vtt_highest,
+                vtt_lowest,
+            },
+        ) in priorities.enumerate()
+        {
+            // Keep track of the lowest and highest recorded priorities.
+            option_update(&mut drt_lowest_absolute, *drt_lowest);
+            if drt_highest > &drt_highest_absolute {
+                drt_highest_absolute = *drt_highest;
+            }
+            option_update(&mut vtt_lowest_absolute, *vtt_lowest);
+            if vtt_highest > &vtt_highest_absolute {
+                vtt_highest_absolute = *vtt_highest;
+            }
+
+            let epoch = epoch as f64;
+            let drt_lowest = drt_lowest.unwrap_or(*drt_highest).as_f64();
+            let drt_highest_absolute = drt_highest_absolute.as_f64();
+            let drt_lowest_absolute = drt_lowest_absolute
+                .map(Priority::into_inner)
+                .unwrap_or(drt_highest_absolute);
+            let vtt_lowest = vtt_lowest.unwrap_or(*vtt_highest).as_f64();
+            let vtt_highest_absolute = vtt_highest_absolute.as_f64();
+            let vtt_lowest_absolute = vtt_lowest_absolute
+                .map(Priority::into_inner)
+                .unwrap_or(vtt_highest_absolute);
+
+            // This calculates the bucket in which the lowest values should be inserted, by applying
+            // a rolling "compander" mechanism. That is, we keep track of the absolute range of
+            // lowest to highest priority values for all the previous epochs, to then compare the
+            // range in each epoch and map one range to another to find its relative position.
+            let drt_lowest_compared_to_absolute = drt_lowest / drt_lowest_absolute;
+            let drt_range_absolute = drt_highest_absolute / drt_lowest_absolute;
+            let drt_bucket_index =
+                drt_lowest_compared_to_absolute / drt_range_absolute * buckets_count;
+            let vtt_lowest_compared_to_absolute = vtt_lowest / vtt_lowest_absolute;
+            let vtt_range_absolute = vtt_highest_absolute / vtt_lowest_absolute;
+            let vtt_bucket_index =
+                vtt_lowest_compared_to_absolute / vtt_range_absolute * buckets_count;
+
+            // For a perfect calculation, all values lower than the lowest bucket index
+            // (representing the lowest fee should be inserted. However, we can get a good enough
+            // approximation while saving CPU and memory by insert only the 10% closest values from
+            // below.
+            if epoch > 0.0 {
+                for bucket_index in (drt_bucket_index * 0.9) as u64..=drt_bucket_index as u64 {
+                    drt_counter.add(bucket_index);
+                }
+                for bucket_index in (vtt_bucket_index * 0.9) as u64..=vtt_bucket_index as u64 {
+                    vtt_counter.add(bucket_index);
+                }
+            }
+        }
+
+        // Make an estimation for each of the targeted time-to-blocks.
+        let mut drt_priorities: Vec<Priority> = vec![];
+        let mut vtt_priorities: Vec<Priority> = vec![];
+        for minutes in target_minutes.into_iter() {
+            // Derive the frequency threshold for this targeted time-to-block.
+            let epochs = minutes as f64 * 60.0 / seconds_per_epoch as f64;
+            let epochs_freq = epochs / priorities_count;
+            let threshold = epochs_freq / bucket_capacity;
+
+            // Run the frequency query on the lossy counters.
+            let drt_elements = drt_counter.query(threshold);
+            let vtt_elements = vtt_counter.query(threshold);
+
+            // The priority is calculated by reverting the buckets mapping performed before, i.e.
+            // mapping the bucket index back to a priority value.
+            let drt_bucket = drt_elements.max().unwrap_or_default();
+            let drt_priority = drt_lowest_absolute.unwrap_or_default()
+                + (drt_highest_absolute - drt_lowest_absolute.unwrap_or_default())
+                    * (drt_bucket as f64 / buckets_count);
+            let vtt_bucket = vtt_elements.max().unwrap_or_default();
+            let vtt_priority = vtt_lowest_absolute.unwrap_or_default()
+                + (vtt_highest_absolute - drt_lowest_absolute.unwrap_or_default())
+                    * (vtt_bucket as f64 / buckets_count);
+
+            drt_priorities.push(drt_priority);
+            vtt_priorities.push(vtt_priority);
+        }
+
+        let drt_stinky = PriorityEstimate {
+            priority: cmp::max(drt_priorities[0], Priority::default_stinky()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[0] as u64 * 60),
+        };
+        let drt_low = PriorityEstimate {
+            priority: cmp::max(drt_priorities[1], Priority::default_low()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[1] as u64 * 60),
+        };
+        let drt_medium = PriorityEstimate {
+            priority: cmp::max(drt_priorities[2], Priority::default_medium()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[2] as u64 * 60),
+        };
+        let drt_high = PriorityEstimate {
+            priority: cmp::max(drt_priorities[3], Priority::default_high()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[3] as u64 * 60),
+        };
+        let drt_opulent = PriorityEstimate {
+            priority: cmp::max(drt_priorities[4], Priority::default_opulent()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[4] as u64 * 60),
+        };
+        let vtt_stinky = PriorityEstimate {
+            priority: cmp::max(vtt_priorities[0], Priority::default_stinky()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[0] as u64 * 60),
+        };
+        let vtt_low = PriorityEstimate {
+            priority: cmp::max(vtt_priorities[1], Priority::default_low()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[1] as u64 * 60),
+        };
+        let vtt_medium = PriorityEstimate {
+            priority: cmp::max(vtt_priorities[2], Priority::default_medium()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[2] as u64 * 60),
+        };
+        let vtt_high = PriorityEstimate {
+            priority: cmp::max(vtt_priorities[3], Priority::default_high()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[3] as u64 * 60),
+        };
+        let vtt_opulent = PriorityEstimate {
+            priority: cmp::max(vtt_priorities[4], Priority::default_opulent()),
+            time_to_block: TimeToBlock::from_secs(target_minutes[4] as u64 * 60),
+        };
+
+        PrioritiesEstimate {
+            drt_stinky,
+            drt_low,
+            drt_medium,
+            drt_high,
+            drt_opulent,
+            vtt_stinky,
+            vtt_low,
+            vtt_medium,
+            vtt_high,
+            vtt_opulent,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::prelude::*;
-    use TimeToBlock::*;
+    use rand_distr::Normal;
 
-    fn priorities_factory(count: usize) -> Vec<Priorities> {
-        let mut prng = StdRng::seed_from_u64(0);
+    use super::*;
 
-        let mut output = vec![];
-        for _ in 0..count {
-            let mut a = prng.gen_range(0, 10_000);
-            let mut b = prng.gen_range(0, 10_000);
-            let mut c = prng.gen_range(0, 10_000);
-            let mut d = prng.gen_range(0, 10_000);
-
-            if a < b {
-                (a, b) = (b, a)
-            }
-            if c < d {
-                (c, d) = (d, c)
-            }
-
-            output.push(Priorities {
-                drt_highest: Priority::from(a / 1_000),
-                drt_lowest: Some(Priority::from(b / 1_000)),
-                vtt_highest: Priority::from(c / 1_000),
-                vtt_lowest: Some(Priority::from(d / 1_000)),
-            })
-        }
-
-        output
-    }
+    const CHECKPOINTS_PERIOD: u64 = 45;
 
     #[test]
     fn engine_from_vec() {
-        let input = priorities_factory(10usize);
+        let input = priorities_factory(10usize, 0.0..=100.0, None);
         let engine = PriorityEngine::from_vec_with_capacity(input.clone(), 5);
 
         assert_eq!(engine.get(0), input.get(0));
@@ -884,7 +743,7 @@ mod tests {
 
     #[test]
     fn engine_as_vec() {
-        let input = priorities_factory(2usize);
+        let input = priorities_factory(2usize, 0.0..=100.0, None);
         let mut engine = PriorityEngine::default();
         for priorities in &input {
             engine.push_priorities(priorities.clone());
@@ -943,9 +802,9 @@ mod tests {
     #[test]
     fn cannot_estimate_with_few_epochs_in_queue() {
         let count = MINIMUM_TRACKED_EPOCHS - 1;
-        let priorities = priorities_factory(count as usize);
+        let priorities = priorities_factory(count as usize, 0.0..=100.0, None);
         let engine = PriorityEngine::from_vec(priorities);
-        let estimate = engine.estimate_priority();
+        let estimate = engine.estimate_priority(Duration::from_secs(CHECKPOINTS_PERIOD));
 
         assert_eq!(
             estimate,
@@ -959,50 +818,52 @@ mod tests {
 
     #[test]
     fn can_estimate_over_random() {
-        let priorities = priorities_factory(100usize);
+        let priorities = priorities_factory(1920usize, 100.0..=1000.0, Some(1.0));
         let engine = PriorityEngine::from_vec(priorities);
-        let estimate = engine.estimate_priority().unwrap();
+        let estimate = engine
+            .estimate_priority(Duration::from_secs(CHECKPOINTS_PERIOD))
+            .unwrap();
 
         let expected = PrioritiesEstimate {
             drt_stinky: PriorityEstimate {
-                priority: Priority(OrderedFloat(0.0)),
-                time_to_block: UpTo(480),
+                priority: Priority(OrderedFloat(115.34829276116884)),
+                time_to_block: TimeToBlock(21600),
             },
             drt_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(2.3508080808080805)),
-                time_to_block: Around(11),
+                priority: Priority(OrderedFloat(576.3935239638417)),
+                time_to_block: TimeToBlock(3600),
             },
             drt_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(4.656969696969697)),
-                time_to_block: Around(2),
+                priority: Priority(OrderedFloat(674.3934764900139)),
+                time_to_block: TimeToBlock(900),
             },
             drt_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(6.916040404040404)),
-                time_to_block: Around(2),
+                priority: Priority(OrderedFloat(721.1661811047777)),
+                time_to_block: TimeToBlock(300),
             },
             drt_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(9.0)),
-                time_to_block: LessThan(2),
+                priority: Priority(OrderedFloat(736.7570826430324)),
+                time_to_block: TimeToBlock(60),
             },
             vtt_stinky: PriorityEstimate {
-                priority: Priority(OrderedFloat(0.0)),
-                time_to_block: UpTo(480),
+                priority: Priority(OrderedFloat(99.58023815374057)),
+                time_to_block: TimeToBlock(21600),
             },
             vtt_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(2.5412424242424243)),
-                time_to_block: Around(100),
+                priority: Priority(OrderedFloat(550.3186193446192)),
+                time_to_block: TimeToBlock(3600),
             },
             vtt_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(4.418282828282829)),
-                time_to_block: Around(2),
+                priority: Priority(OrderedFloat(626.1640200257766)),
+                time_to_block: TimeToBlock(900),
             },
             vtt_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(6.319838383838384)),
-                time_to_block: Around(2),
+                priority: Priority(OrderedFloat(671.671260434471)),
+                time_to_block: TimeToBlock(300),
             },
             vtt_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(9.0)),
-                time_to_block: LessThan(2),
+                priority: Priority(OrderedFloat(684.6733291226694)),
+                time_to_block: TimeToBlock(60),
             },
         };
 
@@ -1014,247 +875,132 @@ mod tests {
         // 100 blocks where highest and lowest priorities are 1000000 and 1000
         let priorities = vec![
             Priorities {
-                drt_highest: Priority::from_fee_weight(1000000, 1),
-                drt_lowest: Some(Priority::from_fee_weight(1000, 1)),
-                vtt_highest: Priority::from_fee_weight(1000000, 1),
-                vtt_lowest: Some(Priority::from_fee_weight(1000, 1)),
+                drt_highest: Priority::from_fee_weight(1_000_000, 1),
+                drt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
+                vtt_highest: Priority::from_fee_weight(1_000_000, 1),
+                vtt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
             };
             100
         ];
+
         let engine = PriorityEngine::from_vec(priorities);
-        let estimate = engine.estimate_priority().unwrap();
+        let estimate = engine.estimate_priority(Duration::from_secs(45)).unwrap();
 
-        let mut vtt_estimates = vec![];
-        vtt_estimates.push(estimate.vtt_stinky);
-        vtt_estimates.push(estimate.vtt_low);
-        vtt_estimates.push(estimate.vtt_medium);
-        vtt_estimates.push(estimate.vtt_high);
-        vtt_estimates.push(estimate.vtt_opulent);
-
-        let expected = [
-            PriorityEstimate {
+        let expected = PrioritiesEstimate {
+            drt_stinky: PriorityEstimate {
                 priority: Priority(OrderedFloat(1000.0)),
-                time_to_block: UpTo(480),
+                time_to_block: TimeToBlock(21600),
             },
-            PriorityEstimate {
+            drt_low: PriorityEstimate {
                 priority: Priority(OrderedFloat(1000.0)),
-                time_to_block: Around(2),
+                time_to_block: TimeToBlock(3600),
             },
-            PriorityEstimate {
-                priority: Priority(OrderedFloat(500500.0)),
-                time_to_block: Around(2),
+            drt_medium: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(900),
             },
-            PriorityEstimate {
-                priority: Priority(OrderedFloat(1000000.0)),
-                time_to_block: Around(2),
+            drt_high: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(300),
             },
-            PriorityEstimate {
-                priority: Priority(OrderedFloat(1000000.0)),
-                time_to_block: LessThan(2),
+            drt_opulent: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(60),
             },
-        ];
+            vtt_stinky: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(21600),
+            },
+            vtt_low: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(3600),
+            },
+            vtt_medium: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(900),
+            },
+            vtt_high: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(300),
+            },
+            vtt_opulent: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(60),
+            },
+        };
 
-        assert_eq!(vtt_estimates, expected);
+        assert_eq!(estimate, expected);
     }
 
     #[test]
-    fn time_to_block_pretty_print_secs() {
-        let checkpoint_period = 1;
-        let minute = 60;
-        let hour = 60 * minute;
-        let day = 24 * hour;
+    fn test_target_minutes_algorithm_small() {
+        let priorities = priorities_factory(20, 0.0..=1.0, Some(2.0));
+        strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+    }
 
-        assert_eq!(
-            TimeToBlock::Exactly(0).pretty_print_secs(checkpoint_period),
-            String::from("0 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(1).pretty_print_secs(checkpoint_period),
-            String::from("1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(minute).pretty_print_secs(checkpoint_period),
-            String::from("1 minute")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(minute + 1).pretty_print_secs(checkpoint_period),
-            String::from("1 minute and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("1 minute and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(hour - minute).pretty_print_secs(checkpoint_period),
-            String::from("59 minutes")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(hour - 1).pretty_print_secs(checkpoint_period),
-            String::from("59 minutes and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(hour).pretty_print_secs(checkpoint_period),
-            String::from("1 hour")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(hour + 1).pretty_print_secs(checkpoint_period),
-            String::from("1 hour and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(hour + minute).pretty_print_secs(checkpoint_period),
-            String::from("1 hour and 1 minute")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(hour + minute + 1).pretty_print_secs(checkpoint_period),
-            String::from("1 hour, 1 minute and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(23 * hour).pretty_print_secs(checkpoint_period),
-            String::from("23 hours")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(23 * hour + minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("23 hours and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day - minute).pretty_print_secs(checkpoint_period),
-            String::from("23 hours and 59 minutes")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day - 1).pretty_print_secs(checkpoint_period),
-            String::from("23 hours, 59 minutes and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day).pretty_print_secs(checkpoint_period),
-            String::from("1 day")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + minute).pretty_print_secs(checkpoint_period),
-            String::from("1 day and 1 minute")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + minute + 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 1 minute and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + 2 * minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 1 minute and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + hour - minute).pretty_print_secs(checkpoint_period),
-            String::from("1 day and 59 minutes")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + hour - 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 59 minutes and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + hour).pretty_print_secs(checkpoint_period),
-            String::from("1 day and 1 hour")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + hour + 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 1 hour and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + hour + minute).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 1 hour and 1 minute")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(day + hour + minute + 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 1 hour, 1 minute and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day - hour).pretty_print_secs(checkpoint_period),
-            String::from("1 day and 23 hours")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day - hour + minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 23 hours and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day - minute).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 23 hours and 59 minutes")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day - 1).pretty_print_secs(checkpoint_period),
-            String::from("1 day, 23 hours, 59 minutes and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day).pretty_print_secs(checkpoint_period),
-            String::from("2 days")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + minute).pretty_print_secs(checkpoint_period),
-            String::from("2 days and 1 minute")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + minute + 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 1 minute and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + 2 * minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 1 minute and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + hour - minute).pretty_print_secs(checkpoint_period),
-            String::from("2 days and 59 minutes")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + hour - 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 59 minutes and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + hour).pretty_print_secs(checkpoint_period),
-            String::from("2 days and 1 hour")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + hour + 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 1 hour and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + hour + minute).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 1 hour and 1 minute")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(2 * day + hour + minute + 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 1 hour, 1 minute and 1 second")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(3 * day - hour).pretty_print_secs(checkpoint_period),
-            String::from("2 days and 23 hours")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(3 * day - hour + minute - 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 23 hours and 59 seconds")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(3 * day - minute).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 23 hours and 59 minutes")
-        );
-        assert_eq!(
-            TimeToBlock::Exactly(3 * day - 1).pretty_print_secs(checkpoint_period),
-            String::from("2 days, 23 hours, 59 minutes and 59 seconds")
-        );
+    #[test]
+    fn test_target_minutes_algorithm_medium() {
+        let priorities = priorities_factory(360, 0.0..=1.0, Some(2.0));
+        strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+    }
+
+    #[test]
+    fn test_target_minutes_algorithm_big() {
+        let priorities = priorities_factory(1_920, 0.0..=1.0, Some(2.0));
+        strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+    }
+
+    /// This factory produces priority values that are distributed in slight resemblance to those
+    /// found on a real block chain.
+    ///
+    /// Namely, this produces values distributed normally within a certain range, and then applies
+    /// some smoothing.
+    ///
+    /// A smoothing value of 1 will count the current value and the previous ones equally. A value
+    /// higher than 1 will cause the older values to be weighted more than the current one. On the
+    /// contrary, values below 1 effectively give the current value more weight than older ones.
+    fn priorities_factory(
+        count: usize,
+        range: ops::RangeInclusive<f64>,
+        smoothing: Option<f64>,
+    ) -> Vec<Priorities> {
+        let (min, max) = range.into_inner();
+        let middle = (max + min) / 2.0;
+        let sigma = (max - min) / 5.0;
+        let normal = Normal::new(middle, sigma).unwrap();
+        let mut prng = StdRng::seed_from_u64(0);
+        let (mut a, mut b, mut c, mut d) = (middle, middle, middle, middle);
+        let smoothing = smoothing.unwrap_or_default();
+
+        let mut output = vec![];
+        for _ in 0..count {
+            let mut ab = normal.sample(&mut prng);
+            let mut bb = normal.sample(&mut prng);
+            let mut cb = normal.sample(&mut prng);
+            let mut db = normal.sample(&mut prng);
+
+            if ab < bb {
+                (ab, bb) = (bb, ab)
+            }
+            if cb < db {
+                (cb, db) = (db, cb)
+            }
+
+            (a, b, c, d) = (
+                (a * smoothing + ab) / (1.0 + smoothing),
+                (b * smoothing + bb) / (1.0 + smoothing),
+                (c * smoothing + cb) / (1.0 + smoothing),
+                (d * smoothing + db) / (1.0 + smoothing),
+            );
+
+            output.push(Priorities {
+                drt_highest: Priority::from(a),
+                drt_lowest: Some(Priority::from(b)),
+                vtt_highest: Priority::from(c),
+                vtt_lowest: Some(Priority::from(d)),
+            })
+        }
+
+        output
     }
 }

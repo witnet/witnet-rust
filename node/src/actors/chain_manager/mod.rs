@@ -49,7 +49,7 @@ use witnet_crypto::{hash::calculate_sha256, key::CryptoEngine};
 use witnet_data_structures::{
     chain::{
         penalize_factor,
-        priority::{PriorityEngine, Priorities, PriorityVisitor},
+        priority::{Priorities, PriorityEngine, PriorityVisitor},
         reputation_issuance,
         tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
         Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainInfo, ChainState,
@@ -63,7 +63,10 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
-    types::{LastBeacon, visitor::{StatefulVisitor, Visitor}},
+    types::{
+        visitor::{StatefulVisitor, Visitor},
+        LastBeacon,
+    },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
 };

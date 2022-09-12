@@ -1,9 +1,3 @@
-use ansi_term::Color::{Purple, Red, White, Yellow};
-use failure::{bail, Fail};
-use itertools::Itertools;
-use num_format::{Locale, ToFormattedString};
-use prettytable::{cell, row, Table};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -15,11 +9,16 @@ use std::{
     str::FromStr,
 };
 
+use ansi_term::Color::{Purple, Red, White, Yellow};
+use failure::{bail, Fail};
+use itertools::Itertools;
+use num_format::{Locale, ToFormattedString};
+use prettytable::{cell, row, Table};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use witnet_crypto::{
     hash::calculate_sha256,
     key::{CryptoEngine, ExtendedPK, ExtendedSK},
 };
-
 use witnet_data_structures::{
     chain::{
         priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
@@ -558,7 +557,6 @@ pub fn send_vtt(
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
-    checkpoints_period: u16,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
@@ -678,7 +676,7 @@ pub fn send_vtt(
         }
 
         // We are ready to compose the params for the actual transaction.
-        params.fee = prompt_user_for_priority_selection(estimates, checkpoints_period)?.nanowits();
+        params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
     }
 
     // Finally ask the node to create the transaction with the chosen fee.
@@ -731,7 +729,6 @@ pub fn send_dr(
     hex_bytes: String,
     fee: Option<u64>,
     dry_run: bool,
-    checkpoints_period: u16,
 ) -> Result<(), failure::Error> {
     let dro = deserialize_and_validate_hex_dr(hex_bytes)?;
     let mut stream = start_client(addr)?;
@@ -815,8 +812,7 @@ pub fn send_dr(
             }
 
             // We are ready to compose the params for the actual transaction.
-            params.fee =
-                prompt_user_for_priority_selection(estimates, checkpoints_period)?.nanowits();
+            params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
         }
 
         let (_, (_, response)): (DRTransaction, _) =
@@ -1599,11 +1595,7 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn priority(
-    addr: SocketAddr,
-    json: bool,
-    checkpoints_period: u16,
-) -> Result<(), failure::Error> {
+pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
     // Perform the JSONRPC request to the indicated node
     let mut stream = start_client(addr)?;
     let (estimate, (_, response)): (PrioritiesEstimate, _) =
@@ -1613,7 +1605,7 @@ pub fn priority(
     if json {
         println!("{}", response);
     } else {
-        println!("{}", estimate.pretty_print_secs(checkpoints_period));
+        println!("{}", estimate);
     }
 
     Ok(())
@@ -1832,19 +1824,14 @@ where
 
 fn prompt_user_for_priority_selection(
     estimates: Vec<(&str, Priority, Wit, TimeToBlock)>,
-    seconds_per_epoch: u16,
 ) -> Result<Wit, failure::Error> {
     // Time to print the estimates
     println!("[ Fee suggestions ]");
     println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");
     for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
         println!(
-            "({}) {:<9}→  Costs {} Wit and will most likely take {} (priority = {})",
-            i,
-            label,
-            fee,
-            time_to_block.pretty_print_secs(seconds_per_epoch),
-            priority
+            "[{}] {} (around {}) → {} Wit (priority = {})",
+            i, label, time_to_block, fee, priority
         );
     }
     let options = (0..estimates.len()).map(|x| usize::to_string(&x)).join("/");

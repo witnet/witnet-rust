@@ -24,9 +24,11 @@ num_enum = "0.4.2"
 num-traits = "0.2.15"
 ordered-float = "3.0"
 partial_struct = { path = "../partial_struct" }
+pdatastructs = "0.7.0"
 protobuf = { version = "2.23.0", features = ["with-serde"] }
 protobuf-convert = "0.1.1"
-rand = "0.7.3"
+rand = "0.8.5"
+rand_distr = "0.4.3"
 serde = { version = "1.0.104", features = ["derive"] }
 serde_cbor = "0.11.1"
 serde_json = "1.0.48"

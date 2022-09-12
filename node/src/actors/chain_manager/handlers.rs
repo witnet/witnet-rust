@@ -1326,8 +1326,7 @@ impl Handler<BuildDrt> for ChainManager {
                             if msg.dry_run {
                                 Either::Right(actix::fut::result(Ok(drt)))
                             } else {
-                                let transaction =
-                                    Transaction::DataRequest(drt.clone());
+                                let transaction = Transaction::DataRequest(drt.clone());
                                 Either::Left(
                                     act.add_transaction(
                                         AddTransaction {
@@ -1336,7 +1335,7 @@ impl Handler<BuildDrt> for ChainManager {
                                         },
                                         get_timestamp(),
                                     )
-                                        .map_ok(move |_, _, _| drt),
+                                    .map_ok(move |_, _, _| drt),
                                 )
                             }
                         }
@@ -1806,7 +1805,16 @@ impl Handler<EstimatePriority> for ChainManager {
     fn handle(&mut self, _msg: EstimatePriority, _ctx: &mut Self::Context) -> Self::Result {
         // Prevent estimating priority if chain is not synchronized
         match self.sm_state {
-            StateMachine::Synced => Ok(self.priority_engine.estimate_priority()?),
+            StateMachine::Synced => {
+                let seconds_per_epoch = Duration::from_secs(
+                    self.epoch_constants
+                        .ok_or(ChainManagerError::ChainNotReady)?
+                        .checkpoints_period
+                        .into(),
+                );
+
+                Ok(self.priority_engine.estimate_priority(seconds_per_epoch)?)
+            }
             current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
         }
     }

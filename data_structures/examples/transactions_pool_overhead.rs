@@ -59,7 +59,7 @@ fn random_dr_output() -> DataRequestOutput {
 fn random_transaction() -> (Transaction, u64) {
     let mut rng = thread_rng();
 
-    let num_inputs = rng.gen_range(1, 3);
+    let num_inputs = rng.gen_range(1..3);
     let num_outputs = 2;
 
     let mut inputs = vec![];
