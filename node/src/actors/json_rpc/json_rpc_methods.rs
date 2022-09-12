@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     convert::TryFrom,
+    future::Future,
     net::SocketAddr,
     sync::atomic::{AtomicUsize, Ordering},
     sync::Arc,
@@ -9,6 +10,8 @@ use std::{
 use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
+use futures::FutureExt;
+use futures_util::compat::Compat;
 use itertools::Itertools;
 use jsonrpc_core::{MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
@@ -35,7 +38,8 @@ use crate::{
             GetBalance, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation,
-            GetSignalingInfo, GetState, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
+            GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
+            IsConfirmedBlock, Rewind, RewindMode,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -47,10 +51,6 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
-use crate::actors::messages::GetSupplyInfo;
-use futures::FutureExt;
-use futures_util::compat::Compat;
-use std::future::Future;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 
@@ -238,7 +238,7 @@ pub fn jsonrpc_io_handler(
             enable_sensitive_methods,
             "rewind",
             params,
-            |params| rewind(params.parse()),
+            rewind,
         )))
     });
 
@@ -1648,15 +1648,48 @@ pub async fn get_consensus_constants(params: Result<(), jsonrpc_core::Error>) ->
 }
 
 /// Rewind
-pub async fn rewind(params: Result<(Epoch,), jsonrpc_core::Error>) -> JsonRpcResult {
-    let epoch = match params {
-        Ok((epoch,)) => epoch,
-        Err(e) => return Err(e),
+pub async fn rewind(params: Params) -> JsonRpcResult {
+    let rewind_params: Rewind;
+
+    // Handle parameters as an array with an epoch field, or an object which is deserialized as a
+    // Rewind struct
+    if let Params::Array(params) = params {
+        if params.len() != 1 {
+            return Err(jsonrpc_core::Error::invalid_params(
+                "Argument of `rewind` must be either a one-element array or an object",
+            ));
+        } else if let Some(Value::Number(epoch)) = params.get(0) {
+            // Convert Number to Epoch, return error on out of range
+            match epoch.as_u64().and_then(|epoch| Epoch::try_from(epoch).ok()) {
+                Some(epoch) => {
+                    rewind_params = Rewind {
+                        epoch: Some(epoch),
+                        mode: RewindMode::default(),
+                    }
+                }
+                None => {
+                    return Err(jsonrpc_core::Error::invalid_params(
+                        "First argument of `rewind` must have type `Epoch`",
+                    ));
+                }
+            }
+        } else {
+            return Err(jsonrpc_core::Error::invalid_params(
+                "First argument of `rewind` must have type `Epoch`",
+            ));
+        };
+    } else if let Params::Map(_map) = &params {
+        let parsed_params = params.parse()?;
+        rewind_params = parsed_params;
+    } else {
+        return Err(jsonrpc_core::Error::invalid_params(
+            "Argument of `rewind` must be either a one-element array or an object",
+        ));
     };
 
     let chain_manager_addr = ChainManager::from_registry();
     chain_manager_addr
-        .send(Rewind { epoch })
+        .send(rewind_params)
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|success| match success {

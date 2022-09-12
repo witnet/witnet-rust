@@ -165,7 +165,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         }) = best_candidate
                         {
                             // Persist block and update ChainState
-                            self.consolidate_block(ctx, block, utxo_diff, false);
+                            self.consolidate_block(ctx, block, utxo_diff, None);
                         } else if msg.checkpoint > 0 {
                             let previous_epoch = msg.checkpoint - 1;
                             log::warn!(
@@ -309,7 +309,7 @@ impl Handler<AddBlocks> for ChainManager {
                     if msg.blocks.len() == 1 && msg.blocks[0].hash() == consensus_constants.genesis_hash
                     {
                         let block = msg.blocks.into_iter().next().unwrap();
-                        match act.process_requested_block(ctx, block, false) {
+                        match act.process_requested_block(ctx, block, None) {
                             Ok(()) => {
                                 log::debug!("Successfully consolidated genesis block");
 
@@ -1024,7 +1024,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             }
                             let mut consolidated_consensus_candidate = false;
                             for consensus_block in candidates {
-                                match self.process_requested_block(ctx, consensus_block, false) {
+                                match self.process_requested_block(ctx, consensus_block, None) {
                                     Ok(()) => {
                                         consolidated_consensus_candidate = true;
                                         log::info!(
@@ -1720,12 +1720,20 @@ impl Handler<Rewind> for ChainManager {
 
     fn handle(&mut self, msg: Rewind, ctx: &mut Self::Context) -> Self::Result {
         // Save list of blocks that are known to be valid
-        let old_block_chain: VecDeque<(Epoch, Hash)> = self
-            .chain_state
-            .block_chain
-            .range(0..=msg.epoch)
-            .map(|(k, v)| (*k, *v))
-            .collect();
+        let old_block_chain: VecDeque<(Epoch, Hash)> = if let Some(epoch) = msg.epoch {
+            self.chain_state
+                .block_chain
+                .range(0..=epoch)
+                .map(|(k, v)| (*k, *v))
+                .collect()
+        } else {
+            // If rewind epoch is None, rewind to the latest block
+            self.chain_state
+                .block_chain
+                .range(0..)
+                .map(|(k, v)| (*k, *v))
+                .collect()
+        };
 
         self.delete_chain_state_and_reinitialize()
             .map(|_res, act, ctx| {
@@ -1741,7 +1749,7 @@ impl Handler<Rewind> for ChainManager {
                     .into_actor(act)
                     .map(|_res, _act, _ctx| ())
                     .spawn(ctx);
-                act.resync_from_storage(old_block_chain, ctx, |act, ctx| {
+                act.resync_from_storage(old_block_chain, msg, ctx, |act, ctx| {
                     // After the resync is done:
                     // Persist chain state to storage
                     ctx.wait(

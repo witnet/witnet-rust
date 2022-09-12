@@ -82,7 +82,7 @@ use crate::{
         json_rpc::JsonRpcServer,
         messages::{
             AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
-            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
+            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried, Rewind,
             SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
             SetLastBeacon, SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
         },
@@ -376,6 +376,7 @@ impl ChainManager {
     fn resync_from_storage<F>(
         &mut self,
         mut block_list: VecDeque<(Epoch, Hash)>,
+        msg: Rewind,
         ctx: &mut Context<Self>,
         done: F,
     ) where
@@ -403,7 +404,7 @@ impl ChainManager {
                             last_epoch,
                             hash
                         );
-                        act.process_requested_block(ctx, block, true)
+                        act.process_requested_block(ctx, block, Some(&msg))
                             .expect("resync from storage fail");
                         // We need to persist the chain state periodically, otherwise the entire
                         // UTXO set will be in memory, consuming a huge amount of memory.
@@ -413,7 +414,7 @@ impl ChainManager {
                                 .wait(ctx);
                         }
                         // Recursion
-                        act.resync_from_storage(block_list, ctx, done);
+                        act.resync_from_storage(block_list, msg, ctx, done);
                     }
                     Ok(Err(e)) => {
                         panic!("{:?}", e);
@@ -496,7 +497,7 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<Self>,
         block: Block,
-        resynchronizing: bool,
+        rewind: Option<&Rewind>,
     ) -> Result<(), failure::Error> {
         if let (
             Some(epoch_constants),
@@ -538,12 +539,12 @@ impl ChainManager {
                 secp_ctx,
                 block_number,
                 &chain_info.consensus_constants,
-                resynchronizing,
+                rewind,
                 &active_wips,
             )?;
 
             // Persist block and update ChainState
-            self.consolidate_block(ctx, block, utxo_diff, resynchronizing);
+            self.consolidate_block(ctx, block, utxo_diff, rewind);
 
             Ok(())
         } else {
@@ -672,7 +673,7 @@ impl ChainManager {
                         .expect("No initialized SECP256K1 context"),
                     self.chain_state.block_number(),
                     &chain_info.consensus_constants,
-                    false,
+                    None,
                     &active_wips,
                 ) {
                     Ok(utxo_diff) => {
@@ -721,7 +722,7 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block: Block,
         utxo_diff: Diff,
-        resynchronizing: bool,
+        rewind: Option<&Rewind>,
     ) {
         // Update chain_info and reputation_engine
         let own_pkh = match self.own_pkh {
@@ -730,6 +731,12 @@ impl ChainManager {
                 log::error!("No OwnPkh loaded in ChainManager");
                 return;
             }
+        };
+
+        let persist_to_storage = if let Some(rewind) = rewind {
+            rewind.mode.write_items_to_storage
+        } else {
+            true
         };
 
         match self.chain_state {
@@ -826,7 +833,7 @@ impl ChainManager {
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
 
-                        if !resynchronizing {
+                        if persist_to_storage {
                             self.persist_data_requests(ctx, to_be_stored);
                         }
 
@@ -844,7 +851,7 @@ impl ChainManager {
                             })
                         }
 
-                        if !resynchronizing {
+                        if persist_to_storage {
                             self.persist_items(
                                 ctx,
                                 vec![StoreInventoryItem::Block(Box::new(block))],
@@ -876,7 +883,7 @@ impl ChainManager {
                             show_tally_info(dr_info.tally.as_ref().unwrap(), block_epoch);
                         }
 
-                        if !resynchronizing {
+                        if persist_to_storage {
                             self.persist_data_requests(ctx, to_be_stored);
                         }
 
@@ -902,7 +909,7 @@ impl ChainManager {
                         // getTransaction will show the content without any warning that the block
                         // is not on the main chain. To fix this we could remove forked blocks when
                         // a reorganization is detected.
-                        if !resynchronizing {
+                        if persist_to_storage {
                             self.persist_items(
                                 ctx,
                                 vec![StoreInventoryItem::Block(Box::new(block.clone()))],
@@ -1916,7 +1923,7 @@ impl ChainManager {
         let mut num_processed_blocks = 0;
 
         for block in blocks.iter() {
-            if let Err(e) = self.process_requested_block(ctx, block.clone(), false) {
+            if let Err(e) = self.process_requested_block(ctx, block.clone(), None) {
                 log::error!("Error processing block: {}", e);
                 if num_processed_blocks > 0 {
                     // Restore only in case there were several blocks consolidated before
@@ -2420,10 +2427,15 @@ pub fn process_validations(
     secp_ctx: &CryptoEngine,
     block_number: u32,
     consensus_constants: &ConsensusConstants,
-    resynchronizing: bool,
+    rewind: Option<&Rewind>,
     active_wips: &ActiveWips,
 ) -> Result<Diff, failure::Error> {
-    if !resynchronizing {
+    let validate_signatures = if let Some(rewind) = rewind {
+        rewind.mode.validate_signatures
+    } else {
+        true
+    };
+    if validate_signatures {
         let mut signatures_to_verify = vec![];
         validate_block(
             block,
@@ -2452,7 +2464,7 @@ pub fn process_validations(
         active_wips,
     )?;
 
-    if !resynchronizing {
+    if validate_signatures {
         verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
     }
 
