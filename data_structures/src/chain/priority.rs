@@ -13,6 +13,7 @@ use crate::{
     types::visitor::{StatefulVisitor, Visitor},
     wit::Wit,
 };
+use std::num::TryFromIntError;
 
 // Assuming no missing epochs, this will keep track of priority used by transactions in the last 24
 // hours (1920 epochs).
@@ -56,19 +57,20 @@ impl PriorityEngine {
         seconds_per_epoch: Duration,
     ) -> Result<PrioritiesEstimate, PriorityError> {
         // Short-circuit if there are too few tracked epochs for an accurate estimation.
-        let len = self.priorities.len() as u32;
+        let len = u32::try_from(self.priorities.len())?;
         if len < MINIMUM_TRACKED_EPOCHS {
-            return Err(PriorityError::NotEnoughSampledEpochs(
+            Err(PriorityError::NotEnoughSampledEpochs(
                 len,
                 MINIMUM_TRACKED_EPOCHS,
-                (MINIMUM_TRACKED_EPOCHS - len) * seconds_per_epoch.as_secs() as u32 / 60 + 1,
-            ));
+                (MINIMUM_TRACKED_EPOCHS - len) * u32::try_from(seconds_per_epoch.as_secs())? / 60
+                    + 1,
+            ))?;
         }
 
         Ok(strategies::target_minutes(
             self.priorities.iter(),
             [360, 60, 15, 5, 1],
-            seconds_per_epoch.as_secs() as u16,
+            u16::try_from(seconds_per_epoch.as_secs())?,
         ))
     }
 
@@ -127,12 +129,20 @@ impl PriorityEngine {
 /// Different errors that the `PriorityEngine` can produce.
 #[derive(Debug, Eq, Fail, PartialEq)]
 pub enum PriorityError {
+    #[fail(display = "Conversion error: {}", _0)]
+    Conversion(String),
     /// The number of sampled epochs in the engine is not enough for providing a reliable estimate.
     #[fail(
         display = "The node has only sampled priority from {} blocks but at least {} are needed to provide a reliable priority estimate. Please retry after {} minutes.",
         _0, _1, _2
     )]
     NotEnoughSampledEpochs(u32, u32, u32),
+}
+
+impl From<std::num::TryFromIntError> for PriorityError {
+    fn from(error: TryFromIntError) -> Self {
+        Self::Conversion(error.to_string())
+    }
 }
 
 impl fmt::Debug for PriorityEngine {
@@ -200,15 +210,18 @@ impl Priority {
     }
 
     /// Derive fee from priority and weight.
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     #[inline]
     pub fn derive_fee(&self, weight: u32) -> Wit {
-        Wit::from_nanowits((self.0.into_inner() * weight as f64) as u64)
+        Wit::from_nanowits((self.0.into_inner() * f64::from(weight)) as u64)
     }
 
     /// Constructs a Priority from a transaction fee and weight.
+    #[allow(clippy::cast_precision_loss)]
     #[inline]
     pub fn from_fee_weight(fee: u64, weight: u32) -> Self {
-        Self::from(fee as f64 / weight as f64)
+        Self::from(fee as f64 / f64::from(weight))
     }
 
     #[inline]
@@ -228,6 +241,7 @@ impl convert::From<f64> for Priority {
 
 /// Conveniently create a Priority value from a u64 value.
 impl convert::From<u64> for Priority {
+    #[allow(clippy::cast_precision_loss)]
     #[inline]
     fn from(input: u64) -> Self {
         Self::from(input as f64)
@@ -241,14 +255,17 @@ impl fmt::Display for Priority {
 }
 
 impl cmp::Ord for Priority {
+    #[inline]
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
 
 impl cmp::PartialEq<u64> for Priority {
+    #[allow(clippy::cast_precision_loss)]
+    #[inline]
     fn eq(&self, other: &u64) -> bool {
-        self.0.into_inner().eq(&(*other as f64))
+        self.as_f64().eq(&(*other as f64))
     }
 }
 
@@ -262,6 +279,7 @@ impl cmp::PartialOrd for Priority {
 impl ops::Add for Priority {
     type Output = Self;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         Self(self.0 + rhs.0)
     }
@@ -269,6 +287,7 @@ impl ops::Add for Priority {
 
 /// Allow `+=` on `Priority`.
 impl ops::AddAssign for Priority {
+    #[inline]
     fn add_assign(&mut self, rhs: Self) {
         *self = ops::Add::add(*self, rhs);
     }
@@ -278,6 +297,8 @@ impl ops::AddAssign for Priority {
 impl ops::Div<u64> for Priority {
     type Output = Self;
 
+    #[allow(clippy::cast_precision_loss)]
+    #[inline]
     fn div(self, rhs: u64) -> Self::Output {
         Self(self.0 / rhs as f64)
     }
@@ -287,6 +308,7 @@ impl ops::Div<u64> for Priority {
 impl ops::Mul<u64> for Priority {
     type Output = Self;
 
+    #[allow(clippy::cast_precision_loss)]
     #[inline]
     fn mul(self, rhs: u64) -> Self::Output {
         self.mul(rhs as f64)
@@ -307,6 +329,7 @@ impl ops::Mul<f64> for Priority {
 impl ops::Sub for Priority {
     type Output = Self;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         Self(self.0 - rhs.0)
     }
@@ -553,6 +576,9 @@ pub mod strategies {
     /// minutes and derives the priority from there by using a [lossy count algorithm].
     ///
     /// [lossy count algorithm]: https://en.wikipedia.org/wiki/Lossy_Count_Algorithm
+    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     pub fn target_minutes<'a>(
         priorities: impl IntoIterator<Item = &'a Priorities>,
         target_minutes: [u16; 5],
@@ -641,7 +667,7 @@ pub mod strategies {
         let mut vtt_priorities: Vec<Priority> = vec![];
         for minutes in target_minutes.into_iter() {
             // Derive the frequency threshold for this targeted time-to-block.
-            let epochs = minutes as f64 * 60.0 / seconds_per_epoch as f64;
+            let epochs = f64::from(minutes) * 60.0 / f64::from(seconds_per_epoch);
             let epochs_freq = epochs / priorities_count;
             let threshold = epochs_freq / bucket_capacity;
 
@@ -666,43 +692,43 @@ pub mod strategies {
 
         let drt_stinky = PriorityEstimate {
             priority: cmp::max(drt_priorities[0], Priority::default_stinky()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[0] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[0]) * 60),
         };
         let drt_low = PriorityEstimate {
             priority: cmp::max(drt_priorities[1], Priority::default_low()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[1] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[1]) * 60),
         };
         let drt_medium = PriorityEstimate {
             priority: cmp::max(drt_priorities[2], Priority::default_medium()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[2] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[2]) * 60),
         };
         let drt_high = PriorityEstimate {
             priority: cmp::max(drt_priorities[3], Priority::default_high()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[3] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[3]) * 60),
         };
         let drt_opulent = PriorityEstimate {
             priority: cmp::max(drt_priorities[4], Priority::default_opulent()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[4] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[4]) * 60),
         };
         let vtt_stinky = PriorityEstimate {
             priority: cmp::max(vtt_priorities[0], Priority::default_stinky()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[0] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[0]) * 60),
         };
         let vtt_low = PriorityEstimate {
             priority: cmp::max(vtt_priorities[1], Priority::default_low()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[1] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[1]) * 60),
         };
         let vtt_medium = PriorityEstimate {
             priority: cmp::max(vtt_priorities[2], Priority::default_medium()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[2] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[2]) * 60),
         };
         let vtt_high = PriorityEstimate {
             priority: cmp::max(vtt_priorities[3], Priority::default_high()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[3] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[3]) * 60),
         };
         let vtt_opulent = PriorityEstimate {
             priority: cmp::max(vtt_priorities[4], Priority::default_opulent()),
-            time_to_block: TimeToBlock::from_secs(target_minutes[4] as u64 * 60),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[4]) * 60),
         };
 
         PrioritiesEstimate {
