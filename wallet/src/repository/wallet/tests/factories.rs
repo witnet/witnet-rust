@@ -75,10 +75,8 @@ fn wallet_inner(
         &source,
     )
     .unwrap();
-    let engine = CryptoEngine::new();
     let default_account_index = 0;
-    let default_account =
-        account::gen_account(&engine, default_account_index, &master_key).unwrap();
+    let default_account = account::gen_account(default_account_index, &master_key).unwrap();
 
     let mut rng = rand::rngs::OsRng;
     let salt = crypto::salt(&mut rng, params.db_salt_length);
@@ -113,7 +111,7 @@ fn wallet_inner(
         .unwrap();
 
     let session_id = types::SessionId::from(String::from(id));
-    let wallet = Wallet::unlock(id, session_id, db.clone(), params, engine).unwrap();
+    let wallet = Wallet::unlock(id, session_id, db.clone(), params).unwrap();
 
     (wallet, db)
 }
@@ -133,7 +131,7 @@ pub fn vtt_from_body(body: VTTransactionBody) -> model::ExtendedTransaction {
     model::ExtendedTransaction {
         transaction: Transaction::ValueTransfer(VTTransaction {
             body,
-            signatures: vec![],
+            witness: vec![],
         }),
         metadata: None,
     }

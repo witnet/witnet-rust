@@ -29,12 +29,13 @@ use crate::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, GetBalance,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
-            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
+            AddTransaction, Broadcast, BuildDrt, BuildScriptTransaction, BuildVtt,
+            EpochNotification, GetBalance, GetBlocksEpochRange, GetDataRequestInfo,
+            GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool, GetMempoolResult,
+            GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo, GetState,
+            GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
+            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
+            SetPeersLimits, SignalingInfo, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -148,10 +149,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         reputation_engine: Some(_),
                         ..
                     } => {
-                        if self.epoch_constants.is_none()
-                            || self.vrf_ctx.is_none()
-                            || self.secp.is_none()
-                        {
+                        if self.epoch_constants.is_none() || self.vrf_ctx.is_none() {
                             log::error!("{}", ChainManagerError::ChainNotReady);
                             return;
                         }
@@ -1235,6 +1233,8 @@ impl Handler<BuildVtt> for ChainManager {
             self.tx_pending_timeout,
             &msg.utxo_strategy,
             max_vt_weight,
+            vec![],
+            msg.change_address,
         ) {
             Err(e) => {
                 log::error!("Error when building value transfer transaction: {}", e);
@@ -1266,6 +1266,54 @@ impl Handler<BuildVtt> for ChainManager {
                     });
 
                 Box::pin(fut)
+            }
+        }
+    }
+}
+
+impl Handler<BuildScriptTransaction> for ChainManager {
+    type Result = ResponseActFuture<Self, Result<Transaction, failure::Error>>;
+
+    fn handle(&mut self, msg: BuildScriptTransaction, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Box::pin(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
+        }
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+        let max_vt_weight = self.consensus_constants().max_vt_weight;
+        match transaction_factory::build_vtt(
+            msg.vto,
+            msg.fee,
+            &mut self.chain_state.own_utxos,
+            self.own_pkh.unwrap(),
+            &self.chain_state.unspent_outputs_pool,
+            timestamp,
+            self.tx_pending_timeout,
+            &msg.utxo_strategy,
+            max_vt_weight,
+            msg.script_inputs,
+            msg.change_address,
+        ) {
+            Err(e) => {
+                log::error!("Error when building value transfer transaction: {}", e);
+                Box::pin(actix::fut::err(e.into()))
+            }
+            Ok(vtt) => {
+                // Script transactions are not signed by this method because the witness may need
+                // something more aside from a single signature, so script transactions need to be
+                // manually signed using other methods.
+                let empty_witness = witnet_data_structures::stack::encode(&[]).unwrap();
+                let num_inputs = vtt.inputs.len();
+                let transaction = Transaction::ValueTransfer(VTTransaction {
+                    body: vtt,
+                    witness: vec![empty_witness; num_inputs],
+                });
+
+                Box::pin(actix::fut::result(Ok(transaction)))
             }
         }
     }

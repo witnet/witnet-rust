@@ -278,6 +278,19 @@ pub enum TransactionError {
         max_weight: u32,
         dr_output: DataRequestOutput,
     },
+    /// Script execution failed
+    #[fail(
+        display = "Script execution failed: locking_script: {:?}, unlocking_script: {:?}, witness: {:?}",
+        locking_script, unlocking_script, witness
+    )]
+    ScriptExecutionFailed {
+        locking_script: PublicKeyHash,
+        unlocking_script: Vec<u8>,
+        witness: Vec<u8>,
+    },
+    /// Found operator in witness field
+    #[fail(display = "Witness must only contains Values, not Operators")]
+    OperatorInWitness,
 }
 
 /// The error type for operations on a [`Block`](Block)

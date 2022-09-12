@@ -21,8 +21,8 @@ use witnet_crypto::{
     key::ExtendedSK,
     merkle::merkle_tree_root as crypto_merkle_tree_root,
     secp256k1::{
-        PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
-        Signature as Secp256k1_Signature,
+        ecdsa::Signature as Secp256k1_Signature, PublicKey as Secp256k1_PublicKey,
+        SecretKey as Secp256k1_SecretKey,
     },
 };
 use witnet_protected::Protected;
@@ -40,11 +40,9 @@ use crate::{
     proto::{schema::witnet, ProtobufConvert},
     superblock::SuperBlockState,
     transaction::{
-        CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
-        RevealTransaction, TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
-    },
-    transaction::{
-        MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
+        CommitTransaction, DRTransaction, DRTransactionBody, MemoHash, Memoized, MemoizedHashable,
+        MintTransaction, RevealTransaction, TallyTransaction, Transaction, TxInclusionProof,
+        VTTransaction, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
     },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
@@ -1179,6 +1177,12 @@ pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],
 }
 
+impl PublicKeyHash {
+    pub fn bytes(&self) -> &[u8; 20] {
+        &self.hash
+    }
+}
+
 impl AsRef<[u8]> for PublicKeyHash {
     fn as_ref(&self) -> &[u8] {
         self.hash.as_ref()
@@ -1248,6 +1252,15 @@ impl PublicKeyHash {
         Self { hash: pkh }
     }
 
+    /// Calculate the hash of the provided script
+    pub fn from_script_bytes(bytes: &[u8]) -> Self {
+        let mut pkh = [0; 20];
+        let Sha256(h) = calculate_sha256(bytes);
+        pkh.copy_from_slice(&h[..20]);
+
+        Self { hash: pkh }
+    }
+
     /// Create from existing bytes representing the PKH.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PublicKeyHashParseError> {
         let len = bytes.len();
@@ -1312,13 +1325,19 @@ impl PublicKeyHash {
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::Input")]
 pub struct Input {
-    output_pointer: OutputPointer,
+    pub output_pointer: OutputPointer,
+    // TODO: ensure that only VT transactions can use this field
+    #[serde(default)]
+    pub redeem_script: Vec<u8>,
 }
 
 impl Input {
     /// Create a new Input from an OutputPointer
     pub fn new(output_pointer: OutputPointer) -> Self {
-        Self { output_pointer }
+        Self {
+            output_pointer,
+            redeem_script: vec![],
+        }
     }
     /// Return the [`OutputPointer`](OutputPointer) of an input.
     pub fn output_pointer(&self) -> &OutputPointer {
@@ -3994,9 +4013,7 @@ pub fn block_example() -> Block {
 mod tests {
     use witnet_crypto::{
         merkle::{merkle_tree_root, InclusionProof},
-        secp256k1::{
-            PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
-        },
+        secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
         signature::sign,
     };
 
@@ -4378,8 +4395,8 @@ mod tests {
     fn secp256k1_from_into_secpk256k1_signatures() {
         use crate::chain::Secp256k1Signature;
         use witnet_crypto::secp256k1::{
-            Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
-            Signature as Secp256k1_Signature,
+            ecdsa::Signature as Secp256k1_Signature, Message as Secp256k1_Message, Secp256k1,
+            SecretKey as Secp256k1_SecretKey,
         };
 
         let data = [0xab; 32];
@@ -4387,7 +4404,7 @@ mod tests {
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let msg = Secp256k1_Message::from_slice(&data).unwrap();
-        let signature = secp.sign(&msg, &secret_key);
+        let signature = secp.sign_ecdsa(&msg, &secret_key);
 
         let witnet_signature = Secp256k1Signature::from(signature);
         let signature_into: Secp256k1_Signature = witnet_signature.try_into().unwrap();
@@ -4399,8 +4416,8 @@ mod tests {
     fn secp256k1_from_into_signatures() {
         use crate::chain::Signature;
         use witnet_crypto::secp256k1::{
-            Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
-            Signature as Secp256k1_Signature,
+            ecdsa::Signature as Secp256k1_Signature, Message as Secp256k1_Message, Secp256k1,
+            SecretKey as Secp256k1_SecretKey,
         };
 
         let data = [0xab; 32];
@@ -4408,7 +4425,7 @@ mod tests {
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let msg = Secp256k1_Message::from_slice(&data).unwrap();
-        let signature = secp.sign(&msg, &secret_key);
+        let signature = secp.sign_ecdsa(&msg, &secret_key);
 
         let witnet_signature = Signature::from(signature);
         let signature_into: Secp256k1_Signature = witnet_signature.try_into().unwrap();
@@ -5193,6 +5210,7 @@ mod tests {
                 transaction_id: Default::default(),
                 output_index: 2,
             },
+            redeem_script: vec![],
         }];
         let c2 = CommitTransaction {
             body: cb2,
@@ -6441,13 +6459,12 @@ mod tests {
     fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
         let Hash::SHA256(data) = tx.hash();
 
-        let secp = &Secp256k1::new();
         let secret_key =
             Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
-        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+        let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);
         let public_key = PublicKey::from(public_key);
 
-        let signature = sign(secp, secret_key, &data).unwrap();
+        let signature = sign(secret_key, &data).unwrap();
 
         KeyedSignature {
             signature: Signature::from(signature),

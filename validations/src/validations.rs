@@ -9,10 +9,10 @@ use itertools::Itertools;
 
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
-    key::CryptoEngine,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
+use witnet_data_structures::stack::{execute_complete_script, Item, ScriptContext};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
@@ -28,8 +28,8 @@ use witnet_data_structures::{
     mainnet_validations::ActiveWips,
     radon_report::{RadonReport, ReportContext},
     transaction::{
-        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
-        Transaction, VTTransaction,
+        vtt_signature_to_witness, vtt_witness_to_signature, CommitTransaction, DRTransaction,
+        MintTransaction, RevealTransaction, TallyTransaction, Transaction, VTTransaction,
     },
     transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
@@ -307,12 +307,15 @@ pub fn validate_vt_transaction<'a>(
         .into());
     }
 
-    validate_transaction_signature(
-        &vt_tx.signatures,
+    let block_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+
+    validate_transaction_signatures(
+        &vt_tx.witness,
         &vt_tx.body.inputs,
         vt_tx.hash(),
         utxo_diff,
         signatures_to_verify,
+        block_timestamp,
     )?;
 
     // A value transfer transaction must have at least one input
@@ -357,9 +360,9 @@ pub fn validate_genesis_vt_transaction(
         });
     }
     // Genesis VTTs should have 0 signatures
-    if !vt_tx.signatures.is_empty() {
+    if !vt_tx.witness.is_empty() {
         return Err(TransactionError::MismatchingSignaturesNumber {
-            signatures_n: u8::try_from(vt_tx.signatures.len()).unwrap(),
+            signatures_n: u8::try_from(vt_tx.witness.len()).unwrap(),
             inputs_n: 0,
         });
     }
@@ -404,12 +407,21 @@ pub fn validate_dr_transaction<'a>(
         .into());
     }
 
-    validate_transaction_signature(
-        &dr_tx.signatures,
+    let dr_tx_signatures_vec_u8: Vec<_> = dr_tx
+        .signatures
+        .iter()
+        .map(vtt_signature_to_witness)
+        .collect();
+
+    let block_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+
+    validate_transaction_signatures(
+        &dr_tx_signatures_vec_u8,
         &dr_tx.body.inputs,
         dr_tx.hash(),
         utxo_diff,
         signatures_to_verify,
+        block_timestamp,
     )?;
 
     // A data request can only have 0 or 1 outputs
@@ -1197,12 +1209,13 @@ pub fn validate_commit_reveal_signature<'a>(
 }
 
 /// Function to validate a transaction signature
-pub fn validate_transaction_signature(
-    signatures: &[KeyedSignature],
+pub fn validate_transaction_signatures(
+    signatures: &[Vec<u8>],
     inputs: &[Input],
     tx_hash: Hash,
     utxo_set: &UtxoDiff<'_>,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    block_timestamp: i64,
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
         return Err(TransactionError::MismatchingSignaturesNumber {
@@ -1216,7 +1229,7 @@ pub fn validate_transaction_signature(
         Hash::SHA256(x) => x.to_vec(),
     };
 
-    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
+    for (input, witness) in inputs.iter().zip(signatures.iter()) {
         // Helper function to map errors to include transaction hash and input
         // index, as well as the error message.
         let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
@@ -1227,19 +1240,64 @@ pub fn validate_transaction_signature(
         // use a try block, however that's still unstable. See tracking issue:
         // https://github.com/rust-lang/rust/issues/31436
 
-        // Validate that public key hash of the pointed output matches public
-        // key in the provided signature
-        validate_pkh_signature(input, keyed_signature, utxo_set).map_err(fte)?;
+        if input.redeem_script.is_empty() {
+            // Validate that public key hash of the pointed output matches public
+            // key in the provided signature
+            let keyed_signature = vtt_witness_to_signature(witness)?;
+            validate_pkh_signature(input, &keyed_signature, utxo_set).map_err(fte)?;
 
-        // Validate the actual signature
-        let public_key = keyed_signature.public_key.clone().try_into().map_err(fte)?;
-        let signature = keyed_signature.signature.clone().try_into().map_err(fte)?;
-        add_secp_tx_signature_to_verify(
-            signatures_to_verify,
-            &public_key,
-            &tx_hash_bytes,
-            &signature,
-        );
+            // Validate the actual signature
+            let public_key = keyed_signature.public_key.clone().try_into().map_err(fte)?;
+            let signature = keyed_signature.signature.clone().try_into().map_err(fte)?;
+            add_secp_tx_signature_to_verify(
+                signatures_to_verify,
+                &public_key,
+                &tx_hash_bytes,
+                &signature,
+            );
+        } else {
+            let witness_script = witnet_data_structures::stack::decode(witness)?;
+            // Operators are not allowed in witness script
+            for item in witness_script {
+                match item {
+                    Item::Operator(_) => {
+                        return Err(TransactionError::OperatorInWitness.into());
+                    }
+                    Item::Value(_) => {}
+                }
+            }
+
+            let output_pointer = input.output_pointer();
+            let output =
+                utxo_set
+                    .get(output_pointer)
+                    .ok_or_else(|| TransactionError::OutputNotFound {
+                        output: output_pointer.clone(),
+                    })?;
+            let redeem_script_hash = output.pkh;
+            let script_context = ScriptContext {
+                block_timestamp,
+                tx_hash,
+                disable_signature_verify: false,
+            };
+            // Script execution assumes that all the signatures are valid, the signatures will be
+            // validated later.
+            let res = execute_complete_script(
+                witness,
+                &input.redeem_script,
+                redeem_script_hash.bytes(),
+                &script_context,
+            )?;
+
+            if !res {
+                return Err(TransactionError::ScriptExecutionFailed {
+                    locking_script: redeem_script_hash,
+                    unlocking_script: input.redeem_script.clone(),
+                    witness: witness.to_vec(),
+                }
+                .into());
+            }
+        }
     }
 
     Ok(())
@@ -2175,7 +2233,6 @@ pub fn compare_block_candidates(
 pub fn verify_signatures(
     signatures_to_verify: Vec<SignaturesToVerify>,
     vrf: &mut VrfCtx,
-    secp: &CryptoEngine,
 ) -> Result<Vec<Hash>, failure::Error> {
     let mut vrf_hashes = vec![];
     for x in signatures_to_verify {
@@ -2218,7 +2275,7 @@ pub fn verify_signatures(
                 public_key,
                 data,
                 signature,
-            } => verify(secp, &public_key, &data, &signature).map_err(|e| {
+            } => verify(&public_key, &data, &signature).map_err(|e| {
                 TransactionError::VerifyTransactionSignatureFail {
                     hash: {
                         let mut sha256 = [0; 32];
@@ -2232,7 +2289,7 @@ pub fn verify_signatures(
                 public_key,
                 data,
                 signature,
-            } => verify(secp, &public_key, &data, &signature).map_err(|_e| {
+            } => verify(&public_key, &data, &signature).map_err(|_e| {
                 BlockError::VerifySignatureFail {
                     hash: {
                         let mut sha256 = [0; 32];
@@ -2246,7 +2303,6 @@ pub fn verify_signatures(
                 let secp_message = superblock_vote.secp256k1_signature_message();
                 let secp_message_hash = calculate_sha256(&secp_message);
                 verify(
-                    secp,
                     &superblock_vote
                         .secp256k1_signature
                         .public_key

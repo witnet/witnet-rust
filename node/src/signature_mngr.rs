@@ -17,7 +17,7 @@ use crate::{
 use rand::{thread_rng, Rng};
 use std::path::Path;
 use witnet_crypto::{
-    key::{CryptoEngine, ExtendedPK, ExtendedSK, MasterKeyGen, SignEngine},
+    key::{ExtendedPK, ExtendedSK, MasterKeyGen},
     mnemonic::MnemonicGen,
     signature,
 };
@@ -156,8 +156,6 @@ struct SignatureManager {
     bls_keypair: Option<(Bn256SecretKey, Bn256PublicKey)>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
-    /// Secp256k1 context
-    secp: Option<CryptoEngine>,
 }
 
 impl Drop for SignatureManager {
@@ -262,8 +260,6 @@ impl Actor for SignatureManager {
                 ctx.stop();
             })
             .ok();
-
-        self.secp = Some(CryptoEngine::new());
     }
 }
 
@@ -315,7 +311,7 @@ impl Handler<SetKey> for SignatureManager {
     type Result = <SetKey as Message>::Result;
 
     fn handle(&mut self, SetKey(secret_key): SetKey, _ctx: &mut Self::Context) -> Self::Result {
-        let public_key = ExtendedPK::from_secret_key(&SignEngine::signing_only(), &secret_key);
+        let public_key = ExtendedPK::from_secret_key(&secret_key);
         self.keypair = Some((secret_key, public_key));
         log::debug!("Signature Manager received master key and is ready to sign");
 
@@ -345,8 +341,7 @@ impl Handler<Sign> for SignatureManager {
     fn handle(&mut self, Sign(data): Sign, _ctx: &mut Self::Context) -> Self::Result {
         match &self.keypair {
             Some((secret, public)) => {
-                let signature =
-                    signature::sign(self.secp.as_ref().unwrap(), secret.secret_key, &data)?;
+                let signature = signature::sign(secret.secret_key, &data)?;
                 let keyed_signature = KeyedSignature {
                     signature: Signature::from(signature),
                     public_key: PublicKey::from(public.key),
@@ -467,12 +462,7 @@ impl Handler<VerifySignatures> for SignatureManager {
     type Result = <VerifySignatures as Message>::Result;
 
     fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
-        validations::verify_signatures(
-            msg.0,
-            self.vrf_ctx.as_mut().unwrap(),
-            self.secp.as_ref().unwrap(),
-        )
-        .map(|_| ())
+        validations::verify_signatures(msg.0, self.vrf_ctx.as_mut().unwrap()).map(|_| ())
     }
 }
 
@@ -532,10 +522,10 @@ impl Actor for SignatureManagerAdapter {
                         Ok(from_file)
                     } else {
                         // Else, throw error to avoid overwriting the old master key in storage
-                        let node_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_storage);
+                        let node_public_key = ExtendedPK::from_secret_key(&from_storage);
                         let node_pkh = PublicKey::from(node_public_key.key).pkh();
 
-                        let imported_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_file);
+                        let imported_public_key = ExtendedPK::from_secret_key(&from_file);
                         let imported_pkh = PublicKey::from(imported_public_key.key).pkh();
 
                         Err(format_err!(

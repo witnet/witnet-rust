@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::stack::{Item, MyValue, ScriptError};
 use crate::{
     chain::{
         Block, Bn256PublicKey, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature,
@@ -9,8 +10,10 @@ use crate::{
     vrf::DataRequestEligibilityClaim,
 };
 use protobuf::Message;
-use std::convert::TryFrom;
-use std::sync::{Arc, RwLock};
+use std::{
+    convert::TryFrom,
+    sync::{Arc, RwLock},
+};
 use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 // These constants were calculated in:
@@ -196,23 +199,46 @@ pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {
     }
 }
 
+pub fn vtt_signature_to_witness(ks: &KeyedSignature) -> Vec<u8> {
+    let script = vec![Item::Value(MyValue::from_signature(ks))];
+
+    crate::stack::encode(&script).unwrap()
+}
+
+pub fn vtt_witness_to_signature(witness: &[u8]) -> Result<KeyedSignature, ScriptError> {
+    let script = crate::stack::decode(witness)?;
+
+    if script.len() != 1 {
+        return Err(ScriptError::InvalidSignature);
+    }
+
+    match &script[0] {
+        Item::Value(value) => value.to_signature(),
+        _ => Err(ScriptError::InvalidSignature),
+    }
+}
+
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::VTTransaction")]
 pub struct VTTransaction {
     pub body: VTTransactionBody,
-    pub signatures: Vec<KeyedSignature>,
+    pub witness: Vec<Vec<u8>>,
 }
 
 impl VTTransaction {
     /// Creates a new value transfer transaction.
     pub fn new(body: VTTransactionBody, signatures: Vec<KeyedSignature>) -> Self {
-        VTTransaction { body, signatures }
+        VTTransaction {
+            body,
+            witness: signatures.iter().map(vtt_signature_to_witness).collect(),
+        }
     }
 
     /// Returns the weight of a value transfer transaction.
     /// This is the weight that will be used to calculate
     /// how many transactions can fit inside one block
     pub fn weight(&self) -> u32 {
+        // TODO: witness length does not affect weight
         self.body.weight()
     }
 
@@ -262,7 +288,17 @@ impl VTTransactionBody {
             .saturating_mul(OUTPUT_SIZE)
             .saturating_mul(GAMMA);
 
-        inputs_weight.saturating_add(outputs_weight)
+        // Add 1 weight unit for each byte in input script field
+        // This ignores any potential serialization overhead
+        let mut redeem_scripts_weight: u32 = 0;
+        for input in &self.inputs {
+            redeem_scripts_weight = redeem_scripts_weight
+                .saturating_add(u32::try_from(input.redeem_script.len()).unwrap_or(u32::MAX));
+        }
+
+        inputs_weight
+            .saturating_add(outputs_weight)
+            .saturating_add(redeem_scripts_weight)
     }
 }
 

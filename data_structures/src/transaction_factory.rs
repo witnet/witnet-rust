@@ -134,7 +134,42 @@ pub trait OutputsCollection {
         block_number_limit: Option<u32>,
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
+        additional_inputs: Vec<Input>,
     ) -> Result<TransactionInfo, TransactionError> {
+        // If additional_inputs is not empty, only use the additional inputs
+        // TODO: this assumes that value(additional_inputs) is always greater than value(outputs + fee)
+        if !additional_inputs.is_empty() {
+            // On error just assume the value is u64::max_value(), hoping that it is
+            // impossible to pay for this transaction
+            let output_value: u64 = transaction_outputs_sum(&outputs)
+                .unwrap_or(u64::max_value())
+                .checked_add(
+                    dr_output
+                        .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
+                        .unwrap_or_default(),
+                )
+                .ok_or(TransactionError::OutputValueOverflow)?;
+
+            let mut input_value = 0;
+
+            for input in additional_inputs.iter() {
+                let o = input.output_pointer();
+                input_value += self.get_value(o).unwrap_or(0);
+            }
+
+            if input_value < output_value + fee {
+                return Err(TransactionError::NegativeFee);
+            }
+
+            return Ok(TransactionInfo {
+                inputs: additional_inputs,
+                outputs,
+                input_value,
+                output_value,
+                fee,
+            });
+        }
+
         // On error just assume the value is u64::max_value(), hoping that it is
         // impossible to pay for this transaction
         let output_value: u64 = transaction_outputs_sum(&outputs)
@@ -308,6 +343,8 @@ pub fn build_vtt(
     tx_pending_timeout: u64,
     utxo_strategy: &UtxoSelectionStrategy,
     max_weight: u32,
+    additional_inputs: Vec<Input>,
+    change_address: Option<PublicKeyHash>,
 ) -> Result<VTTransactionBody, TransactionError> {
     let mut utxos = NodeUtxos {
         all_utxos,
@@ -327,6 +364,7 @@ pub fn build_vtt(
         None,
         utxo_strategy,
         max_weight,
+        additional_inputs,
     )?;
 
     // Mark UTXOs as used so we don't double spend
@@ -337,7 +375,7 @@ pub fn build_vtt(
     let mut outputs = tx_info.outputs;
     insert_change_output(
         &mut outputs,
-        own_pkh,
+        change_address.unwrap_or(own_pkh),
         tx_info.input_value - tx_info.output_value - tx_info.fee,
     );
 
@@ -374,6 +412,7 @@ pub fn build_drt(
         None,
         &UtxoSelectionStrategy::Random { from: None },
         max_weight,
+        vec![],
     )?;
 
     // Mark UTXOs as used so we don't double spend
@@ -416,6 +455,7 @@ pub fn check_commit_collateral(
             Some(block_number_limit),
             &UtxoSelectionStrategy::SmallFirst { from: None },
             u32::MAX,
+            vec![],
         )
         .is_ok()
 }
@@ -449,6 +489,7 @@ pub fn build_commit_collateral(
         Some(block_number_limit),
         &UtxoSelectionStrategy::SmallFirst { from: None },
         u32::MAX,
+        vec![],
     )?;
 
     // Mark UTXOs as used so we don't double spend
@@ -662,6 +703,8 @@ mod tests {
             tx_pending_timeout,
             &UtxoSelectionStrategy::Random { from: None },
             MAX_VT_WEIGHT,
+            vec![],
+            None,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -689,6 +732,8 @@ mod tests {
             tx_pending_timeout,
             &UtxoSelectionStrategy::Random { from: None },
             MAX_VT_WEIGHT,
+            vec![],
+            None,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
