@@ -189,19 +189,19 @@ impl JsonRpcClient {
         })
     }
 
-    fn increase_backoff_time(&mut self, ctx: &mut <Self as Actor>::Context) {
+    fn increase_backoff_time(&mut self) {
         let time = core::cmp::min(
             self.connection.backoff * 125 / 100,
             Duration::from_millis(MAX_BACKOFF_TIME_MILLIS),
         );
-        self.set_backoff_time(ctx, time);
+        self.set_backoff_time(time);
     }
 
-    fn reset_backoff_time(&mut self, ctx: &mut <Self as Actor>::Context) {
-        self.set_backoff_time(ctx, Duration::from_millis(DEFAULT_BACKOFF_TIME_MILLIS));
+    fn reset_backoff_time(&mut self) {
+        self.set_backoff_time(Duration::from_millis(DEFAULT_BACKOFF_TIME_MILLIS));
     }
 
-    fn set_backoff_time(&mut self, _ctx: &mut <Self as Actor>::Context, time: Duration) {
+    fn set_backoff_time(&mut self, time: Duration) {
         log::trace!(
             "Connection backoff time is now set to {} seconds",
             time.as_secs_f32()
@@ -321,15 +321,15 @@ impl Handler<Request> for JsonRpcClient {
             })
             .map(|res, act, ctx| {
                 res.map(|res| {
-                    // Backoff time is reset
-                    act.reset_backoff_time(ctx);
+                    // Backoff time is reset to default
+                    act.reset_backoff_time();
                     res
                 })
                 .map_err(|err| {
                     log::error!("JSONRPC Request error: {:?}", err);
                     if is_connection_error(&err) {
-                        // Backoff time is doubled
-                        act.increase_backoff_time(ctx);
+                        // Backoff time is increased
+                        act.increase_backoff_time();
                         act.reconnect(ctx);
                     }
 
