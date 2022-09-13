@@ -103,7 +103,7 @@ impl JsonRpcClient {
 
         // If there is only 1 URL, use that one.
         // If there are many, pick a new one randomly that is not the same as the previous one
-        let url = pick_random(&self.urls, self.current_url().to_string())
+        let url = pick_random(&self.urls, Some(self.current_url().to_string()))
             .expect("At this point there should be at least one URL set for connecting the client");
 
         // Connect to the new URL
@@ -481,7 +481,7 @@ fn subscription_topic_from_request(request: &Request) -> String {
 }
 
 /// Pick a random element from a list, avoiding "twice-in-a-row" repetition when possible.
-fn pick_random<T>(input: &[T], old: T) -> Option<T>
+fn pick_random<T>(input: &[T], old: Option<T>) -> Option<T>
 where
     T: Clone + cmp::PartialEq,
 {
@@ -489,16 +489,65 @@ where
         0 => None,
         1 => Some(input[0].clone()),
         _ => {
-            let mut pick;
-            loop {
-                pick = input.choose(&mut rand::thread_rng())?.clone();
-
-                if pick != old {
-                    break;
-                }
+            // Non-iterative approach to randomly picking one item out of a list without drawing
+            // the same item twice in a row.
+            //
+            // 1. Choose from 1 out of N-1 instead of 1 out of N, by making it impossible to draw
+            //    the item at position 0.
+            // 2. If the drawn item is equal to the formerly drawn item, return the item at position
+            //    0 instead.
+            // 3. Otherwise, return the randomly drawn item.
+            let mut pick = input[1..].choose(&mut rand::thread_rng())?;
+            if matches!(old, Some(old) if &old == pick) {
+                pick = &input[0]
             }
 
-            Some(pick)
+            Some(pick.clone())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pick_random_from_empty_list() {
+        let list = Vec::<()>::new();
+
+        let pick = pick_random(&list, None);
+        assert_eq!(pick, None);
+
+        let pick = pick_random(&list, Some(()));
+        assert_eq!(pick, None);
+    }
+
+    #[test]
+    fn pick_random_from_single_item_list() {
+        let list = vec![1337];
+
+        let pick = pick_random(&list, None);
+        assert_eq!(pick, Some(list[0]));
+
+        let pick = pick_random(&list, Some(1337));
+        assert_eq!(pick, Some(list[0]));
+
+        let pick = pick_random(&list, Some(2337));
+        assert_eq!(pick, Some(list[0]));
+    }
+
+    #[test]
+    fn pick_random_from_multiple_item_list() {
+        let list = vec![1337, 23337, 3337];
+
+        // This is drawing 1000 items from a list of three, checking every time that the drawn
+        // number is not the same as the one drawn just before.
+        (0..1_000).fold(None, |prev, _| {
+            let pick = pick_random(&list, prev);
+
+            assert_ne!(pick, prev);
+
+            pick
+        });
     }
 }
