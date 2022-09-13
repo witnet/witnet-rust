@@ -26,10 +26,16 @@ use super::Error;
 const DEFAULT_BACKOFF_TIME_MILLIS: u64 = 250;
 const MAX_BACKOFF_TIME_MILLIS: u64 = 15_000;
 
+/// Represents a JSONRPC client connection, and wraps some related metadata.
 struct Connection {
+    /// Current backoff time (seconds between reconnection attempts).
     backoff: Duration,
+    /// The TCP Socket for the connection.
     socket: TcpSocket,
+    /// Used to calculate the time since the last reconnection, and prevent multiple reconnections
+    /// in a short time interval.
     timestamp: Instant,
+    /// URL for the connection, in String format.
     url: String,
 }
 
@@ -41,8 +47,6 @@ pub struct JsonRpcClient {
     active_subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
     pending_subscriptions: HashMap<String, Subscribe>,
     urls: Vec<String>,
-    // Used to calculate the time since the last reconnection, and prevent multiple reconnections
-    // in a short time interval
     connection: Connection,
 }
 
