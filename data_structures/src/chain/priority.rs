@@ -1,8 +1,7 @@
-use std::{cmp, convert, fmt, ops, time::Duration};
+use std::{cmp, collections::VecDeque, convert, fmt, ops, time::Duration};
 
 use itertools::Itertools;
 
-use circular_queue::CircularQueue;
 use failure::Fail;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -16,8 +15,9 @@ use crate::{
 use std::num::TryFromIntError;
 
 // Assuming no missing epochs, this will keep track of priority used by transactions in the last 24
-// hours (1920 epochs).
-const DEFAULT_QUEUE_CAPACITY_EPOCHS: usize = 1920;
+// hours. This is rounded up to the closest `2 ^ n - 1` because `PriorityEngine` uses a `VecDeque`
+// under the hood.
+const DEFAULT_QUEUE_CAPACITY_EPOCHS: usize = 2047;
 // The minimum number of epochs that we need to track before estimating transaction priority
 const MINIMUM_TRACKED_EPOCHS: u32 = 20;
 
@@ -31,7 +31,7 @@ const MINIMUM_TRACKED_EPOCHS: u32 = 20;
 #[derive(Clone, Eq, PartialEq)]
 pub struct PriorityEngine {
     /// Queue for storing fees info for recent transactions.
-    priorities: CircularQueue<Priorities>,
+    priorities: VecDeque<Priorities>,
 }
 
 impl PriorityEngine {
@@ -86,15 +86,11 @@ impl PriorityEngine {
     /// This assumes that the vector is ordered from newest to oldest.
     pub fn from_vec_with_capacity(priorities: Vec<Priorities>, capacity: usize) -> Self {
         // Create a new queue with the desired capacity
-        let mut fees = CircularQueue::with_capacity(capacity);
+        let mut fees = VecDeque::with_capacity(capacity);
         // Push as many elements from the input as they can fit in the queue
-        priorities
-            .into_iter()
-            .take(capacity)
-            .rev()
-            .for_each(|entry| {
-                fees.push(entry);
-            });
+        priorities.into_iter().take(capacity).for_each(|entry| {
+            fees.push_back(entry);
+        });
 
         Self { priorities: fees }
     }
@@ -103,25 +99,25 @@ impl PriorityEngine {
     #[cfg(test)]
     #[inline]
     pub fn get(&self, index: usize) -> Option<&Priorities> {
-        if index >= self.priorities.capacity() {
-            None
-        } else {
-            self.priorities.iter().nth(index)
-        }
+        self.priorities.get(index)
     }
 
     /// Push a new `Priorities` entry into the engine.
     #[inline]
     pub fn push_priorities(&mut self, priorities: Priorities) {
         log::trace!("Pushing new transaction priorities entry: {:?}", priorities);
-        self.priorities.push(priorities);
+        // If we hit the capacity limit, pop from the back first so the queue does not grow
+        if self.priorities.len() + 1 == self.priorities.capacity() {
+            self.priorities.pop_back();
+        }
+        self.priorities.push_front(priorities);
     }
 
     /// Create a new engine of a certain queue capacity.
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            priorities: CircularQueue::with_capacity(capacity),
+            priorities: VecDeque::with_capacity(capacity),
         }
     }
 }
@@ -752,6 +748,7 @@ mod tests {
     use rand_distr::Normal;
 
     use super::*;
+    use itertools::Itertools;
 
     const CHECKPOINTS_PERIOD: u64 = 45;
 
@@ -823,6 +820,27 @@ mod tests {
         priorities.digest_vtt_priority(3.into());
         assert_eq!(priorities.vtt_highest, 7);
         assert_eq!(priorities.vtt_lowest, Some(3.into()));
+    }
+
+    #[test]
+    fn engine_capacity() {
+        let mut engine = PriorityEngine::with_capacity(2);
+        let priorities_list = (1..=9)
+            .map(|i| Priorities {
+                drt_highest: Priority::from(i),
+                drt_lowest: None,
+                vtt_highest: Priority::from(i * 2),
+                vtt_lowest: None,
+            })
+            .collect_vec();
+
+        for priorities in &priorities_list {
+            engine.push_priorities(priorities.clone())
+        }
+
+        assert_eq!(engine.get(0).unwrap(), &priorities_list[8]);
+        assert_eq!(engine.get(1).unwrap(), &priorities_list[7]);
+        assert_eq!(engine.get(2), None);
     }
 
     #[test]
