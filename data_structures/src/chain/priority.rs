@@ -979,19 +979,209 @@ mod tests {
     #[test]
     fn test_target_minutes_algorithm_small() {
         let priorities = priorities_factory(20, 0.0..=1.0, Some(2.0));
-        strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+        let estimate = strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+
+        assert_eq!(
+            estimate,
+            PrioritiesEstimate {
+                drt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.2891084568633235)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                drt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.2891084568633235)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                drt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.548211837008209)),
+                    time_to_block: TimeToBlock(900)
+                },
+                drt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.548211837008209)),
+                    time_to_block: TimeToBlock(300)
+                },
+                drt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.548211837008209)),
+                    time_to_block: TimeToBlock(60)
+                },
+                vtt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                vtt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.2)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                vtt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.4209289040400327)),
+                    time_to_block: TimeToBlock(900)
+                },
+                vtt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.4209289040400327)),
+                    time_to_block: TimeToBlock(300)
+                },
+                vtt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5444267922462582)),
+                    time_to_block: TimeToBlock(60)
+                }
+            }
+        )
     }
 
     #[test]
     fn test_target_minutes_algorithm_medium() {
         let priorities = priorities_factory(360, 0.0..=1.0, Some(2.0));
-        strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+        let estimate = strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+
+        assert_eq!(
+            estimate,
+            PrioritiesEstimate {
+                drt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.18979375840681975)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                drt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5157078616340202)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                drt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5843213570502729)),
+                    time_to_block: TimeToBlock(900)
+                },
+                drt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6272047916854309)),
+                    time_to_block: TimeToBlock(300)
+                },
+                drt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6357814786124625)),
+                    time_to_block: TimeToBlock(60)
+                },
+                vtt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                vtt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5091580120460959)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                vtt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5743406284608069)),
+                    time_to_block: TimeToBlock(900)
+                },
+                vtt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6302114425305594)),
+                    time_to_block: TimeToBlock(300)
+                },
+                vtt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.639523244875518)),
+                    time_to_block: TimeToBlock(60)
+                }
+            }
+        )
     }
 
     #[test]
     fn test_target_minutes_algorithm_big() {
         let priorities = priorities_factory(1_920, 0.0..=1.0, Some(2.0));
-        strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+        let estimate = strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+
+        assert_eq!(
+            estimate,
+            PrioritiesEstimate {
+                drt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.13668844087951934)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                drt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5136436152555278)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                drt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5916999897475296)),
+                    time_to_block: TimeToBlock(900)
+                },
+                drt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6316800839995306)),
+                    time_to_block: TimeToBlock(300)
+                },
+                drt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6488144101075309)),
+                    time_to_block: TimeToBlock(60)
+                },
+                vtt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.1)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                vtt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.44606067409752925)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                vtt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5197487439029155)),
+                    time_to_block: TimeToBlock(900)
+                },
+                vtt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5527144593421672)),
+                    time_to_block: TimeToBlock(300)
+                },
+                vtt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5701668969276534)),
+                    time_to_block: TimeToBlock(60)
+                }
+            }
+        )
+    }
+
+    #[test]
+    fn test_target_minutes_algorithm_humongous() {
+        let priorities = priorities_factory(10_000, 0.0..=1.0, Some(2.0));
+        let estimate = strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
+
+        assert_eq!(
+            estimate,
+            PrioritiesEstimate {
+                drt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.13668844087951934)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                drt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.521736455827834)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                drt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5913325606907907)),
+                    time_to_block: TimeToBlock(900)
+                },
+                drt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6295347704253484)),
+                    time_to_block: TimeToBlock(300)
+                },
+                drt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6412602011359553)),
+                    time_to_block: TimeToBlock(60)
+                },
+                vtt_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.1)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                vtt_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.4637394804623482)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                vtt_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5306326697892428)),
+                    time_to_block: TimeToBlock(900)
+                },
+                vtt_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5766968420802181)),
+                    time_to_block: TimeToBlock(300)
+                },
+                vtt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5879124666380209)),
+                    time_to_block: TimeToBlock(60)
+                }
+            }
+        )
     }
 
     /// This factory produces priority values that are distributed in slight resemblance to those
