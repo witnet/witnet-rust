@@ -596,17 +596,18 @@ pub mod strategies {
     #[allow(clippy::cast_precision_loss)]
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
-    pub fn target_minutes<'a>(
-        priorities: impl IntoIterator<Item = &'a Priorities>,
+    pub fn target_minutes<'a, I>(
+        priorities: I,
         target_minutes: [u16; 5],
         seconds_per_epoch: u16,
-    ) -> PrioritiesEstimate {
+    ) -> PrioritiesEstimate
+    where
+        I: IntoIterator<Item = &'a Priorities>,
+        I::IntoIter: ExactSizeIterator,
+    {
         // Make the priorities argument an iterator (if it was not already) and measure its length.
         let priorities = priorities.into_iter();
-        let priorities_count = priorities
-            .size_hint()
-            .1
-            .unwrap_or(DEFAULT_QUEUE_CAPACITY_EPOCHS) as f64;
+        let priorities_count = priorities.len() as f64;
 
         // Fix the capacity of the buckets and let them be as many as needed
         let bucket_capacity = 5.0;
