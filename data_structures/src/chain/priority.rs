@@ -46,12 +46,6 @@ impl PriorityEngine {
     /// This is only a first approach to an estimation algorithm. There is abundant prior art about
     /// fee estimation in other blockchains. We might revisit this once we collect more insights
     /// about our fees market and user feedback.
-    ///
-    /// The default values used here assume that estimation operates with picoWit (10 ^ -12).
-    /// That is, from a user perspective, all priority values shown here have 3 implicit decimal
-    /// digits. They need to be divided by 1,000 for the real protocol-wide nanoWit value, and by
-    /// 1,000,000,000,000 for the Wit value. This allows for more fine-grained estimations while the
-    /// market for block space is idle.
     pub fn estimate_priority(
         &self,
         seconds_per_epoch: Duration,
@@ -646,8 +640,8 @@ pub mod strategies {
 
             // For a perfect calculation, all values lower than the lowest bucket index
             // (representing the lowest fee should be inserted. However, we can get a good enough
-            // approximation while saving CPU and memory by insert only the 10% closest values from
-            // below.
+            // approximation while saving CPU and memory by inserting only the 10% closest values
+            // from below.
             if epoch > 0.0 {
                 for bucket_index in (drt_bucket_index * 0.9) as u64..=drt_bucket_index as u64 {
                     drt_counter.add(bucket_index);
