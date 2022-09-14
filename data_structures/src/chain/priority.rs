@@ -543,8 +543,35 @@ impl fmt::Display for TimeToBlock {
     }
 }
 
+/// Updates an `Option` with the value from another candidate `Option` always that the old `Option`
+/// was `None` or contained a value that was greater than the candidate.
+///
+/// This differs from `std::cmp::min` in the case that the existing `Option` is `None`, because
+/// `impl Ord for Option` considers that `None` is always smaller than `Some(_)`:
+///
+/// ```
+/// use witnet_data_structures::chain::priority::Priority;
+///
+/// let mut option = None;
+/// option = std::cmp::min(option, Some(Priority::from(2337)));
+/// option = std::cmp::min(option, Some(Priority::from(1337)));
+/// option = std::cmp::min(option, Some(Priority::from(3337)));
+///
+/// assert_eq!(option, None);
+/// ```
+///
+/// ```
+/// use witnet_data_structures::chain::priority::{option_update_if_less_than, Priority};
+///
+/// let mut option = None;
+/// option_update_if_less_than(&mut option, Some(Priority::from(2337)));
+/// option_update_if_less_than(&mut option, Some(Priority::from(1337)));
+/// option_update_if_less_than(&mut option, Some(Priority::from(3337)));
+///
+/// assert_eq!(option, Some(Priority::from(1337)))
+/// ```
 #[inline]
-fn option_update(option: &mut Option<Priority>, candidate: Option<Priority>) {
+pub fn option_update_if_less_than(option: &mut Option<Priority>, candidate: Option<Priority>) {
     match (&candidate, &option) {
         (Some(new), Some(old)) if new < old => {
             *option = candidate;
@@ -604,11 +631,11 @@ pub mod strategies {
         ) in priorities.enumerate()
         {
             // Keep track of the lowest and highest recorded priorities.
-            option_update(&mut drt_lowest_absolute, *drt_lowest);
+            option_update_if_less_than(&mut drt_lowest_absolute, *drt_lowest);
             if drt_highest > &drt_highest_absolute {
                 drt_highest_absolute = *drt_highest;
             }
-            option_update(&mut vtt_lowest_absolute, *vtt_lowest);
+            option_update_if_less_than(&mut vtt_lowest_absolute, *vtt_lowest);
             if vtt_highest > &vtt_highest_absolute {
                 vtt_highest_absolute = *vtt_highest;
             }
