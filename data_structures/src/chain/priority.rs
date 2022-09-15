@@ -53,12 +53,14 @@ impl PriorityEngine {
         // Short-circuit if there are too few tracked epochs for an accurate estimation.
         let len = u32::try_from(self.priorities.len())?;
         if len < MINIMUM_TRACKED_EPOCHS {
-            Err(PriorityError::NotEnoughSampledEpochs(
-                len,
-                MINIMUM_TRACKED_EPOCHS,
-                (MINIMUM_TRACKED_EPOCHS - len) * u32::try_from(seconds_per_epoch.as_secs())? / 60
+            Err(PriorityError::NotEnoughSampledEpochs {
+                current: len,
+                required: MINIMUM_TRACKED_EPOCHS,
+                wait_minutes: (MINIMUM_TRACKED_EPOCHS - len)
+                    * u32::try_from(seconds_per_epoch.as_secs())?
+                    / 60
                     + 1,
-            ))?;
+            })?;
         }
 
         Ok(strategies::target_minutes(
@@ -124,9 +126,13 @@ pub enum PriorityError {
     /// The number of sampled epochs in the engine is not enough for providing a reliable estimate.
     #[fail(
         display = "The node has only sampled priority from {} blocks but at least {} are needed to provide a reliable priority estimate. Please retry after {} minutes.",
-        _0, _1, _2
+        current, required, wait_minutes
     )]
-    NotEnoughSampledEpochs(u32, u32, u32),
+    NotEnoughSampledEpochs {
+        current: u32,
+        required: u32,
+        wait_minutes: u32,
+    },
 }
 
 impl From<std::num::TryFromIntError> for PriorityError {
@@ -868,11 +874,11 @@ mod tests {
 
         assert_eq!(
             estimate,
-            Err(PriorityError::NotEnoughSampledEpochs(
-                count,
-                MINIMUM_TRACKED_EPOCHS,
-                1
-            ))
+            Err(PriorityError::NotEnoughSampledEpochs {
+                current: count,
+                required: MINIMUM_TRACKED_EPOCHS,
+                wait_minutes: 1
+            })
         );
     }
 
