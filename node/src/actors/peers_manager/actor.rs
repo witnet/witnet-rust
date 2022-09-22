@@ -43,7 +43,7 @@ impl Actor for PeersManager {
                     Err(e) => log::error!("Error when adding peer addresses from config: {}", e),
                 }
 
-                let consensus_constants = (&config.consensus_constants).clone();
+                let consensus_constants = config.consensus_constants.clone();
                 let magic = consensus_constants.get_magic();
                 act.set_magic(magic);
 

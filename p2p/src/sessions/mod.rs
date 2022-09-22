@@ -205,7 +205,7 @@ where
             .map(|info| info.reference.clone())
     }
     /// Method to get all the consolidated sessions (inbound and outbound)
-    pub fn get_all_consolidated_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn get_all_consolidated_sessions(&self) -> impl Iterator<Item = &T> {
         self.outbound_consolidated
             .collection
             .values()
@@ -214,7 +214,7 @@ where
     }
 
     /// Method to get all the consolidated sessions (inbound and outbound)
-    pub fn get_consolidated_inbound_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn get_consolidated_inbound_sessions(&self) -> impl Iterator<Item = &T> {
         self.inbound_consolidated
             .collection
             .values()

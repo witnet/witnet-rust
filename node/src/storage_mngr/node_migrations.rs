@@ -167,9 +167,9 @@ where
 /// The value will be atomically written along with the contents of the batch: either it will all
 /// succeed or it will all fail.
 // TODO: how to ensure that we don't accidentally persist the chain state using put instead of put_chain_state?
-pub fn put_chain_state_in_batch<'a, 'b, K>(
-    key: &'a K,
-    chain_state: &'b ChainState,
+pub fn put_chain_state_in_batch<K>(
+    key: &K,
+    chain_state: &ChainState,
     mut batch: UtxoWriteBatch,
 ) -> impl Future<Output = Result<(), failure::Error>> + 'static
 where

@@ -817,7 +817,7 @@ impl PeersBeacons {
     /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
     pub fn decide_peers_to_unregister(&self, beacon: CheckpointBeacon) -> Vec<SocketAddr> {
         // Unregister peers which have a different beacon
-        (&self.pb)
+        self.pb
             .iter()
             .filter_map(|(p, b)| {
                 if b.as_ref()
@@ -835,7 +835,7 @@ impl PeersBeacons {
     /// Collects the peers to unregister based on the beacon they reported and the beacon to be compared it with
     pub fn decide_peers_to_unregister_s(&self, superbeacon: CheckpointBeacon) -> Vec<SocketAddr> {
         // Unregister peers which have a different beacon
-        (&self.pb)
+        self.pb
             .iter()
             .filter_map(|(p, b)| {
                 if b.as_ref()
@@ -872,7 +872,7 @@ impl PeersBeacons {
     /// Collects the peers that have not sent us a beacon
     pub fn peers_with_no_beacon(&self) -> Vec<SocketAddr> {
         // Unregister peers which have not sent us a beacon
-        (&self.pb)
+        self.pb
             .iter()
             .filter_map(|(p, b)| if b.is_none() { Some(*p) } else { None })
             .collect()

@@ -839,7 +839,7 @@ impl Worker {
 
             let block_chain: Vec<ChainEntry> = futures::executor::block_on(get_block_chain_future)?;
 
-            let batch_size = i128::try_from((&block_chain).len()).unwrap();
+            let batch_size = i128::try_from(block_chain.len()).unwrap();
             log::debug!("[SU] Received chain: {:?}", block_chain);
 
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
