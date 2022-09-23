@@ -1,3 +1,5 @@
+use witnet_node::utils::stop_system_if_panicking;
+
 pub mod codec;
 pub mod epoch_manager;
 pub mod rad_manager;
