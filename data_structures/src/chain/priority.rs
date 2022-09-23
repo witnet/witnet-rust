@@ -30,6 +30,8 @@ const MINIMUM_TRACKED_EPOCHS: u32 = 20;
 /// unit), aka "transaction priority".
 #[derive(Clone, Eq, PartialEq)]
 pub struct PriorityEngine {
+    /// Soft-capped capacity for the inner priorities queue.
+    capacity: usize,
     /// Queue for storing fees info for recent transactions.
     priorities: VecDeque<Priorities>,
 }
@@ -88,7 +90,10 @@ impl PriorityEngine {
             fees.push_back(entry);
         });
 
-        Self { priorities: fees }
+        Self {
+            capacity,
+            priorities: fees,
+        }
     }
 
     /// Get the entry at a certain position, if an item at that position exists, or None otherwise.
@@ -103,7 +108,7 @@ impl PriorityEngine {
     pub fn push_priorities(&mut self, priorities: Priorities) {
         log::trace!("Pushing new transaction priorities entry: {:?}", priorities);
         // If we hit the capacity limit, pop from the back first so the queue does not grow
-        if self.priorities.len() + 1 == self.priorities.capacity() {
+        if self.priorities.len() == self.capacity {
             self.priorities.pop_back();
         }
         self.priorities.push_front(priorities);
@@ -113,6 +118,7 @@ impl PriorityEngine {
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
+            capacity,
             priorities: VecDeque::with_capacity(capacity),
         }
     }
@@ -850,8 +856,34 @@ mod tests {
         assert_eq!(priorities.vtt_lowest, Some(3.into()));
     }
 
+    // "Aligned" here means that the `PriorityEngine` capacity will match that of its inner
+    // `VecDeque`, which only happens for capacities `c` satisfying `c = ℕ ^ 2 + 1`.
     #[test]
-    fn engine_capacity() {
+    fn engine_capacity_aligned() {
+        let mut engine = PriorityEngine::with_capacity(3);
+        let priorities_list = (1..=9)
+            .map(|i| Priorities {
+                drt_highest: Priority::from(i),
+                drt_lowest: None,
+                vtt_highest: Priority::from(i * 2),
+                vtt_lowest: None,
+            })
+            .collect_vec();
+
+        for priorities in &priorities_list {
+            engine.push_priorities(priorities.clone())
+        }
+
+        assert_eq!(engine.get(0).unwrap(), &priorities_list[8]);
+        assert_eq!(engine.get(1).unwrap(), &priorities_list[7]);
+        assert_eq!(engine.get(2).unwrap(), &priorities_list[6]);
+        assert_eq!(engine.get(3), None);
+    }
+
+    // "Aligned" here means that the `PriorityEngine` capacity will match that of its inner
+    // `VecDeque`, which only happens for capacities `c` satisfying `c = ℕ ^ 2 + 1`.
+    #[test]
+    fn engine_capacity_not_aligned() {
         let mut engine = PriorityEngine::with_capacity(2);
         let priorities_list = (1..=9)
             .map(|i| Priorities {
