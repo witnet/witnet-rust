@@ -175,31 +175,31 @@ impl Priority {
         self.0.into_inner()
     }
 
-    /// The default precision for tier "High".
+    /// The default priority for tier "High".
     #[inline]
     pub fn default_high() -> Self {
         Self::from(0.4)
     }
 
-    /// The default precision for tier "Low".
+    /// The default priority for tier "Low".
     #[inline]
     pub fn default_low() -> Self {
         Self::from(0.2)
     }
 
-    /// The default precision for tier "Medium".
+    /// The default priority for tier "Medium".
     #[inline]
     pub fn default_medium() -> Self {
         Self::from(0.3)
     }
 
-    /// The default precision for tier "Opulent".
+    /// The default priority for tier "Opulent".
     #[inline]
     pub fn default_opulent() -> Self {
         Self::from(0.5)
     }
 
-    /// The default precision for tier "Stinky".
+    /// The default priority for tier "Stinky".
     #[inline]
     pub fn default_stinky() -> Self {
         Self::from(0.1)
@@ -219,11 +219,13 @@ impl Priority {
     pub fn from_fee_weight(fee: u64, weight: u32) -> Self {
         Self::from(fee as f64 / f64::from(weight))
     }
+}
 
+/// Conveniently create a Priority value from an OrderedFloat<f64> value.
+impl convert::From<OrderedFloat<f64>> for Priority {
     #[inline]
-    /// Turn a priority value into its internal `f64` value.
-    pub fn into_inner(self) -> f64 {
-        self.as_f64()
+    fn from(input: OrderedFloat<f64>) -> Self {
+        Self(input)
     }
 }
 
@@ -231,7 +233,7 @@ impl Priority {
 impl convert::From<f64> for Priority {
     #[inline]
     fn from(input: f64) -> Self {
-        Self(OrderedFloat(input))
+        Self::from(OrderedFloat(input))
     }
 }
 
@@ -609,24 +611,54 @@ pub mod strategies {
     ) -> PrioritiesEstimate
     where
         I: IntoIterator<Item = &'a Priorities>,
-        I::IntoIter: ExactSizeIterator,
+        I::IntoIter: Clone + ExactSizeIterator,
     {
         // Make the priorities argument an iterator (if it was not already) and measure its length.
         let priorities = priorities.into_iter();
         let priorities_count = priorities.len() as f64;
 
-        // Fix the capacity of the buckets and let them be as many as needed
-        let bucket_capacity = 5.0;
-        let buckets_count = priorities_count / bucket_capacity;
-        let mut drt_lowest_absolute = None;
-        let mut drt_highest_absolute = Priority::default();
-        let mut vtt_lowest_absolute = None;
-        let mut vtt_highest_absolute = Priority::default();
+        // Set the number of buckets used to ease the frequency counting
+        let buckets_count = 50.0;
 
-        let epsilon = 0.1 / buckets_count;
+        // Create lossy counters for measuring frequency of priorities separately for DRTs and VTTs
+        // As we are working on small data sets, we can use a near-zero epsilon value, which
+        // essentially neutralizes the "lossiness" of the lossy counters.
+        let epsilon = 0.0000000001;
         let mut drt_counter = LossyCounter::<u64>::with_epsilon(epsilon);
         let mut vtt_counter = LossyCounter::<u64>::with_epsilon(epsilon);
 
+        // This is a first pass over the priorities in the engine, just to find out the absolute
+        // minimum and maxium among all the lowest priorities, i.e. what was the priority for the
+        // less prioritized transaction in the blocks with the lowest and highest priority
+        // requirements.
+        let (drt_lowest_absolute, drt_highest_absolute, vtt_lowest_absolute, vtt_highest_absolute) =
+            priorities.clone().fold(
+                (f64::MAX, 0.0f64, f64::MAX, 0.0f64),
+                |(drt_lowest, drt_highest, vtt_lowest, vtt_highest), priorities| {
+                    let drt_min = priorities
+                        .drt_lowest
+                        .unwrap_or(priorities.drt_highest)
+                        .as_f64();
+                    let vtt_min = priorities
+                        .vtt_lowest
+                        .unwrap_or(priorities.vtt_highest)
+                        .as_f64();
+
+                    (
+                        drt_lowest.min(drt_min),
+                        drt_highest.max(drt_min),
+                        vtt_lowest.min(vtt_min),
+                        vtt_highest.max(vtt_min),
+                    )
+                },
+            );
+
+        // The size of each bucket in nWitWu (nano wits per weight unit)
+        let drt_buckets_size = (drt_highest_absolute - drt_lowest_absolute) / buckets_count;
+        let vtt_buckets_size = (vtt_highest_absolute - vtt_lowest_absolute) / buckets_count;
+
+        // Now we are ready to map priorities to buckets and insert the bucket numbers into the
+        // lossy counter.
         for Priorities {
             drt_highest,
             drt_lowest,
@@ -634,49 +666,27 @@ pub mod strategies {
             vtt_lowest,
         } in priorities
         {
-            // Keep track of the lowest and highest recorded priorities.
-            option_update_if_less_than(&mut drt_lowest_absolute, *drt_lowest);
-            if drt_highest > &drt_highest_absolute {
-                drt_highest_absolute = *drt_highest;
-            }
-            option_update_if_less_than(&mut vtt_lowest_absolute, *vtt_lowest);
-            if vtt_highest > &vtt_highest_absolute {
-                vtt_highest_absolute = *vtt_highest;
-            }
-
-            let drt_lowest = drt_lowest.unwrap_or(*drt_highest).as_f64();
-            let drt_highest_absolute = drt_highest_absolute.as_f64();
-            let drt_lowest_absolute = drt_lowest_absolute
-                .map(Priority::into_inner)
-                .unwrap_or(drt_highest_absolute);
-            let vtt_lowest = vtt_lowest.unwrap_or(*vtt_highest).as_f64();
-            let vtt_highest_absolute = vtt_highest_absolute.as_f64();
-            let vtt_lowest_absolute = vtt_lowest_absolute
-                .map(Priority::into_inner)
-                .unwrap_or(vtt_highest_absolute);
-
-            // This calculates the bucket in which the lowest values should be inserted, by applying
-            // a rolling "compander" mechanism. That is, we keep track of the absolute range of
-            // lowest to highest priority values for all the previous epochs, to then compare the
-            // range in each epoch and map one range to another to find its relative position.
-            let drt_lowest_compared_to_absolute = drt_lowest / drt_lowest_absolute;
-            let drt_range_absolute = drt_highest_absolute / drt_lowest_absolute;
-            let vtt_lowest_compared_to_absolute = vtt_lowest / vtt_lowest_absolute;
-            let vtt_range_absolute = vtt_highest_absolute / vtt_lowest_absolute;
-            let drt_bucket_index =
-                drt_lowest_compared_to_absolute / drt_range_absolute * buckets_count;
-            let vtt_bucket_index =
-                vtt_lowest_compared_to_absolute / vtt_range_absolute * buckets_count;
+            // This calculates the buckets in which the lowest values should be inserted.
+            let drt_bucket = ((drt_lowest.unwrap_or(*drt_highest).as_f64() - drt_lowest_absolute)
+                / drt_buckets_size)
+                .round() as u64;
+            let vtt_bucket = ((vtt_lowest.unwrap_or(*vtt_highest).as_f64() - vtt_lowest_absolute)
+                / vtt_buckets_size)
+                .round() as u64;
 
             // For a perfect calculation, all values lower than the lowest bucket index
             // (representing the lowest fee should be inserted. However, we can get a good enough
-            // approximation while saving CPU and memory by inserting only the 10% closest values
-            // from below.
-            for bucket_index in (drt_bucket_index * 0.9) as u64..=drt_bucket_index as u64 {
-                drt_counter.add(bucket_index);
+            // approximation while saving almost half of the CPU time and memory by inserting only
+            // the 10% closest values.
+            // This however creates a little downward bias, specially on small datasets. This side
+            // effect can be later counteracted by applying some adjustment coefficient that needs
+            // to be inversely proportional to the number of priorities, and directly proportional
+            // to the standard deviation of the lowest values.
+            for bucket in drt_bucket * 90 / 100..=drt_bucket {
+                drt_counter.add(bucket as u64);
             }
-            for bucket_index in (vtt_bucket_index * 0.9) as u64..=vtt_bucket_index as u64 {
-                vtt_counter.add(bucket_index);
+            for bucket in vtt_bucket * 90 / 100..=vtt_bucket {
+                vtt_counter.add(bucket as u64);
             }
         }
 
@@ -687,7 +697,7 @@ pub mod strategies {
             // Derive the frequency threshold for this targeted time-to-block.
             let epochs = f64::from(minutes) * 60.0 / f64::from(seconds_per_epoch);
             let epochs_freq = epochs / priorities_count;
-            let threshold = epochs_freq / bucket_capacity;
+            let threshold = epochs_freq;
 
             // Run the frequency query on the lossy counters.
             let drt_elements = drt_counter.query(threshold);
@@ -695,14 +705,10 @@ pub mod strategies {
 
             // The priority is calculated by reverting the buckets mapping performed before, i.e.
             // mapping the bucket index back to a priority value.
-            let drt_bucket = drt_elements.max().unwrap_or_default();
-            let drt_priority = drt_lowest_absolute.unwrap_or_default()
-                + (drt_highest_absolute - drt_lowest_absolute.unwrap_or_default())
-                    * (drt_bucket as f64 / buckets_count);
-            let vtt_bucket = vtt_elements.max().unwrap_or_default();
-            let vtt_priority = vtt_lowest_absolute.unwrap_or_default()
-                + (vtt_highest_absolute - drt_lowest_absolute.unwrap_or_default())
-                    * (vtt_bucket as f64 / buckets_count);
+            let drt_bucket = drt_elements.max().unwrap_or_default() as f64;
+            let drt_priority = Priority::from(drt_lowest_absolute + drt_bucket * drt_buckets_size);
+            let vtt_bucket = vtt_elements.max().unwrap_or_default() as f64;
+            let vtt_priority = Priority::from(vtt_lowest_absolute + vtt_bucket * vtt_buckets_size);
 
             drt_priorities.push(drt_priority);
             vtt_priorities.push(vtt_priority);
@@ -896,19 +902,19 @@ mod tests {
                 time_to_block: TimeToBlock(21600),
             },
             drt_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(576.3935239638417)),
+                priority: Priority(OrderedFloat(509.5555102919566)),
                 time_to_block: TimeToBlock(3600),
             },
             drt_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(674.3934764900139)),
+                priority: Priority(OrderedFloat(598.5700432827797)),
                 time_to_block: TimeToBlock(900),
             },
             drt_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(721.1661811047777)),
+                priority: Priority(OrderedFloat(636.7191288502753)),
                 time_to_block: TimeToBlock(300),
             },
             drt_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(736.7570826430324)),
+                priority: Priority(OrderedFloat(674.8682144177709)),
                 time_to_block: TimeToBlock(60),
             },
             vtt_stinky: PriorityEstimate {
@@ -916,19 +922,19 @@ mod tests {
                 time_to_block: TimeToBlock(21600),
             },
             vtt_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(552.4856307926523)),
+                priority: Priority(OrderedFloat(504.6210794958821)),
                 time_to_block: TimeToBlock(3600),
             },
             vtt_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(626.1640200257766)),
+                priority: Priority(OrderedFloat(588.011840948676)),
                 time_to_block: TimeToBlock(900),
             },
             vtt_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(671.671260434471)),
+                priority: Priority(OrderedFloat(635.6637046359867)),
                 time_to_block: TimeToBlock(300),
             },
             vtt_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(684.6733291226694)),
+                priority: Priority(OrderedFloat(683.3155683232975)),
                 time_to_block: TimeToBlock(60),
             },
         };
@@ -999,6 +1005,43 @@ mod tests {
     }
 
     #[test]
+    fn can_estimate_over_contrast() {
+        let priorities = vec![
+            Priorities {
+                drt_highest: Priority::from_fee_weight(1_000_000, 1),
+                drt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
+                vtt_highest: Priority::from_fee_weight(1_000_000, 1),
+                vtt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
+            };
+            DEFAULT_QUEUE_CAPACITY_EPOCHS
+        ];
+
+        let mut engine = PriorityEngine::from_vec(priorities);
+        let estimate1 = engine.estimate_priority(Duration::from_secs(45)).unwrap();
+
+        engine.push_priorities(Priorities {
+            drt_highest: Priority::from_fee_weight(1_000_000, 1),
+            drt_lowest: Some(Priority::from_fee_weight(1, 1)),
+            vtt_highest: Priority::from_fee_weight(1_000_000, 1),
+            vtt_lowest: Some(Priority::from_fee_weight(1, 1)),
+        });
+
+        let estimate2 = engine.estimate_priority(Duration::from_secs(45)).unwrap();
+
+        // The estimation for "stinky" tier is the only one NOT expected to change.
+        assert_ne!(estimate1.drt_stinky, estimate2.drt_stinky);
+        assert_eq!(estimate1.drt_low, estimate2.drt_low);
+        assert_eq!(estimate1.drt_medium, estimate2.drt_medium);
+        assert_eq!(estimate1.drt_high, estimate2.drt_high);
+        assert_eq!(estimate1.drt_opulent, estimate2.drt_opulent);
+        assert_ne!(estimate1.vtt_stinky, estimate2.vtt_stinky);
+        assert_eq!(estimate1.vtt_low, estimate2.vtt_low);
+        assert_eq!(estimate1.vtt_medium, estimate2.vtt_medium);
+        assert_eq!(estimate1.vtt_high, estimate2.vtt_high);
+        assert_eq!(estimate1.vtt_opulent, estimate2.vtt_opulent);
+    }
+
+    #[test]
     fn test_target_minutes_algorithm_small() {
         let priorities = priorities_factory(20, 0.0..=1.0, Some(2.0));
         let estimate = strategies::target_minutes(&priorities, [360, 60, 15, 5, 1], 45);
@@ -1015,15 +1058,15 @@ mod tests {
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.548211837008209)),
+                    priority: Priority(OrderedFloat(0.3)),
                     time_to_block: TimeToBlock(900)
                 },
                 drt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.548211837008209)),
+                    priority: Priority(OrderedFloat(0.4)),
                     time_to_block: TimeToBlock(300)
                 },
                 drt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6777635270806517)),
+                    priority: Priority(OrderedFloat(0.5)),
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
@@ -1035,15 +1078,15 @@ mod tests {
                     time_to_block: TimeToBlock(3600)
                 },
                 vtt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4209289040400327)),
+                    priority: Priority(OrderedFloat(0.3)),
                     time_to_block: TimeToBlock(900)
                 },
                 vtt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4209289040400327)),
+                    priority: Priority(OrderedFloat(0.4)),
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5444267922462582)),
+                    priority: Priority(OrderedFloat(0.5)),
                     time_to_block: TimeToBlock(60)
                 }
             }
@@ -1063,19 +1106,19 @@ mod tests {
                     time_to_block: TimeToBlock(21600)
                 },
                 drt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5157078616340202)),
+                    priority: Priority(OrderedFloat(0.2)),
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5843213570502729)),
+                    priority: Priority(OrderedFloat(0.3)),
                     time_to_block: TimeToBlock(900)
                 },
                 drt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6272047916854309)),
+                    priority: Priority(OrderedFloat(0.49456907863619215)),
                     time_to_block: TimeToBlock(300)
                 },
                 drt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6357814786124625)),
+                    priority: Priority(OrderedFloat(0.5357549327212425)),
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
@@ -1083,19 +1126,19 @@ mod tests {
                     time_to_block: TimeToBlock(21600)
                 },
                 vtt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5091580120460959)),
+                    priority: Priority(OrderedFloat(0.2)),
                     time_to_block: TimeToBlock(3600)
                 },
                 vtt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5836524308057657)),
+                    priority: Priority(OrderedFloat(0.3)),
                     time_to_block: TimeToBlock(900)
                 },
                 vtt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6302114425305594)),
+                    priority: Priority(OrderedFloat(0.48854749932456354)),
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.639523244875518)),
+                    priority: Priority(OrderedFloat(0.5216648016084563)),
                     time_to_block: TimeToBlock(60)
                 }
             }
@@ -1115,19 +1158,19 @@ mod tests {
                     time_to_block: TimeToBlock(21600)
                 },
                 drt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5136436152555278)),
+                    priority: Priority(OrderedFloat(0.43886803485024795)),
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5916999897475296)),
+                    priority: Priority(OrderedFloat(0.5093766067767512)),
                     time_to_block: TimeToBlock(900)
                 },
                 drt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6316800839995306)),
+                    priority: Priority(OrderedFloat(0.5496672193061817)),
                     time_to_block: TimeToBlock(300)
                 },
                 drt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6488144101075309)),
+                    priority: Priority(OrderedFloat(0.6000304849679698)),
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
@@ -1135,19 +1178,19 @@ mod tests {
                     time_to_block: TimeToBlock(21600)
                 },
                 vtt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.44606067409752925)),
+                    priority: Priority(OrderedFloat(0.4339473292851176)),
                     time_to_block: TimeToBlock(3600)
                 },
                 vtt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5216879036346361)),
+                    priority: Priority(OrderedFloat(0.5119998668073571)),
                     time_to_block: TimeToBlock(900)
                 },
                 vtt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5546536190738879)),
+                    priority: Priority(OrderedFloat(0.5454509543168883)),
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5701668969276534)),
+                    priority: Priority(OrderedFloat(0.5789020418264195)),
                     time_to_block: TimeToBlock(60)
                 }
             }
@@ -1163,43 +1206,43 @@ mod tests {
             estimate,
             PrioritiesEstimate {
                 drt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.13668844087951934)),
+                    priority: Priority(OrderedFloat(0.43338175330931106)),
                     time_to_block: TimeToBlock(21600)
                 },
                 drt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.521736455827834)),
+                    priority: Priority(OrderedFloat(0.5181512711463944)),
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5913325606907907)),
+                    priority: Priority(OrderedFloat(0.560536030064936)),
                     time_to_block: TimeToBlock(900)
                 },
                 drt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6295347704253484)),
+                    priority: Priority(OrderedFloat(0.5923245992538423)),
                     time_to_block: TimeToBlock(300)
                 },
                 drt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6412602011359553)),
+                    priority: Priority(OrderedFloat(0.6241131684427486)),
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.1)),
+                    priority: Priority(OrderedFloat(0.4282576876167673)),
                     time_to_block: TimeToBlock(21600)
                 },
                 vtt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4637394804623482)),
+                    priority: Priority(OrderedFloat(0.5217473188261849)),
                     time_to_block: TimeToBlock(3600)
                 },
                 vtt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5306326697892428)),
+                    priority: Priority(OrderedFloat(0.5568059305297165)),
                     time_to_block: TimeToBlock(900)
                 },
                 vtt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5770974001001398)),
+                    priority: Priority(OrderedFloat(0.5801783383320709)),
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5879124666380209)),
+                    priority: Priority(OrderedFloat(0.6269231539367797)),
                     time_to_block: TimeToBlock(60)
                 }
             }
