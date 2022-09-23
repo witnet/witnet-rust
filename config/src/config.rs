@@ -1108,9 +1108,11 @@ impl Witnessing {
     pub fn into_config(self) -> WitnessingConfig<String> {
         log::info!(
             "The default unproxied HTTP transport for retrieval is {}.",
-            self.allow_unproxied
-                .then(|| "enabled")
-                .unwrap_or("disabled")
+            if self.allow_unproxied {
+                "enabled"
+            } else {
+                "disabled"
+            }
         );
 
         if !self.proxies.is_empty() {
