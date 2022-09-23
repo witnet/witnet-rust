@@ -40,8 +40,11 @@ where
 /// This should be used in the `Drop` implementation of essential actors.
 pub fn stop_system_if_panicking(actor_name: &str) {
     if std::thread::panicking() {
-        log::error!("Panic in {}, shutting down system", actor_name);
-        System::current().stop_with_code(1);
+        // If no actix system is running, this method does nothing
+        if let Some(system) = System::try_current() {
+            log::error!("Panic in {}, shutting down system", actor_name);
+            system.stop_with_code(1);
+        }
     }
 }
 
