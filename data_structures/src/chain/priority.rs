@@ -599,14 +599,11 @@ pub fn option_update_if_less_than(option: &mut Option<Priority>, candidate: Opti
 
 /// Priority estimation strategies. To be used with `PriorityEngine::estimate_priority`.
 pub mod strategies {
-    use pdatastructs::topk::lossycounter::LossyCounter;
-
     use super::*;
 
     /// A priority estimation strategy that receives a list of targetted time-to-blocks expressed in
-    /// minutes and derives the priority from there by using a [lossy count algorithm].
-    ///
-    /// [lossy count algorithm]: https://en.wikipedia.org/wiki/Lossy_Count_Algorithm
+    /// minutes and derives the priority from there by using a counter and enabling frequency
+    /// queries on the counted items.
     #[allow(clippy::cast_precision_loss)]
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
@@ -626,15 +623,12 @@ pub mod strategies {
         // Set the number of buckets used to ease the frequency counting
         let buckets_count = 50.0;
 
-        // Create lossy counters for measuring frequency of priorities separately for DRTs and VTTs
-        // As we are working on small data sets, we can use a near-zero epsilon value, which
-        // essentially neutralizes the "lossiness" of the lossy counters.
-        let epsilon = 0.0000000001;
-        let mut drt_counter = LossyCounter::<u64>::with_epsilon(epsilon);
-        let mut vtt_counter = LossyCounter::<u64>::with_epsilon(epsilon);
+        // Create counters for measuring frequency of priorities separately for DRTs and VTTs.
+        let mut drt_counter = counter::Counter::<u64>::new();
+        let mut vtt_counter = counter::Counter::<u64>::new();
 
         // This is a first pass over the priorities in the engine, just to find out the absolute
-        // minimum and maxium among all the lowest priorities, i.e. what was the priority for the
+        // minimum and maximum among all the lowest priorities, i.e. what was the priority for the
         // less prioritized transaction in the blocks with the lowest and highest priority
         // requirements.
         let (drt_lowest_absolute, drt_highest_absolute, vtt_lowest_absolute, vtt_highest_absolute) =
@@ -772,6 +766,57 @@ pub mod strategies {
             vtt_medium,
             vtt_high,
             vtt_opulent,
+        }
+    }
+}
+
+pub(crate) mod counter {
+    use std::{collections::HashMap, hash::Hash};
+
+    /// A dead simple counter for items of type `T` that enables running frequency queries on it.
+    pub struct Counter<T> {
+        counter: HashMap<T, u64>,
+        n: u64,
+    }
+
+    impl<T: Eq + Hash + Clone> Counter<T> {
+        /// Create a new counter.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Add one item to the counter. This will essentially increment by one the current count
+        /// of occurrences for the referred item.
+        pub fn add(&mut self, value: T) {
+            self.n += 1;
+            *self.counter.entry(value).or_default() += 1;
+        }
+
+        /// Run a frequency query on the counter.
+        ///
+        /// Frequency queries are expressed as normalized frequency thresholds. E.g.:
+        /// - `0` means _appears at least once_.
+        /// - `0.5` means _makes for at least 50% of the counted items_.
+        /// - `1` means _all counted items are equal to this_.
+        #[allow(clippy::cast_precision_loss)]
+        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_sign_loss)]
+        pub fn query(&self, threshold: f64) -> impl '_ + Iterator<Item = T> {
+            let bound = ((threshold * (self.n as f64)).ceil()).max(0.) as u64;
+            self.counter
+                .iter()
+                .filter(move |(_k, v)| **v >= bound)
+                .map(|(k, _v)| k)
+                .cloned()
+        }
+    }
+
+    impl<T> Default for Counter<T> {
+        fn default() -> Self {
+            Self {
+                counter: Default::default(),
+                n: 0,
+            }
         }
     }
 }
