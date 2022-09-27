@@ -53,7 +53,7 @@ impl PriorityEngine {
         seconds_per_epoch: Duration,
     ) -> Result<PrioritiesEstimate, PriorityError> {
         // Short-circuit if there are too few tracked epochs for an accurate estimation.
-        let len = u32::try_from(self.priorities.len())?;
+        let len = u32::try_from(self.priorities.len()).unwrap_or(u32::MAX);
         if len < MINIMUM_TRACKED_EPOCHS {
             Err(PriorityError::NotEnoughSampledEpochs {
                 current: len,
