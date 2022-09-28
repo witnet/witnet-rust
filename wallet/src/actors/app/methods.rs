@@ -439,7 +439,7 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         params: types::VttParams,
-    ) -> ResponseActFuture<Transaction> {
+    ) -> ResponseActFuture<worker::CreateVttResponse> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(session_id, wallet_id),
@@ -460,7 +460,7 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         params: types::DataReqParams,
-    ) -> ResponseActFuture<Transaction> {
+    ) -> ResponseActFuture<worker::CreateDataReqResponse> {
         let f = fut::result(
             self.state
                 .get_wallet_by_session_and_id(session_id, wallet_id),

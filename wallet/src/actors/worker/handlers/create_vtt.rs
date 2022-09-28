@@ -8,8 +8,13 @@ pub struct CreateVtt {
     pub params: types::VttParams,
 }
 
+pub struct CreateVttResponse {
+    pub fee: u64,
+    pub transaction: Transaction,
+}
+
 impl Message for CreateVtt {
-    type Result = worker::Result<Transaction>;
+    type Result = worker::Result<CreateVttResponse>;
 }
 
 impl Handler<CreateVtt> for worker::Worker {
@@ -21,5 +26,6 @@ impl Handler<CreateVtt> for worker::Worker {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.create_vtt(&wallet, params)
+            .map(|(transaction, fee)| CreateVttResponse { fee, transaction })
     }
 }

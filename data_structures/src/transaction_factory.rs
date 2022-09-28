@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, convert::TryFrom};
 
 /// Structure that resumes the information needed to create a Transaction
+#[derive(Clone, Debug)]
 pub struct TransactionInfo {
     pub inputs: Vec<Input>,
     pub outputs: Vec<ValueTransferOutput>,
@@ -122,12 +123,14 @@ pub trait OutputsCollection {
 
     /// Generic inputs/outputs builder: can be used to build
     /// value transfer transactions and data request transactions.
+    #[allow(clippy::cast_sign_loss)]
+    #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::too_many_arguments)]
     fn build_inputs_outputs(
         &mut self,
         outputs: Vec<ValueTransferOutput>,
         dr_output: Option<&DataRequestOutput>,
-        fee: u64,
+        fee: f64,
         fee_type: FeeType,
         timestamp: u64,
         // The block number must be lower than this limit
@@ -151,6 +154,7 @@ pub trait OutputsCollection {
 
         match fee_type {
             FeeType::Absolute => {
+                let fee = fee as u64;
                 let amount = output_value
                     .checked_add(fee)
                     .ok_or(TransactionError::FeeOverflow)?;
@@ -170,12 +174,9 @@ pub trait OutputsCollection {
             FeeType::Weighted => {
                 let max_iterations = 1 + ((max_weight - current_weight) / INPUT_SIZE);
                 for _i in 0..max_iterations {
-                    let weighted_fee = fee
-                        .checked_mul(u64::from(current_weight))
-                        .ok_or(TransactionError::FeeOverflow)?;
-
+                    let absolute_fee = (fee * f64::from(current_weight)).round() as u64;
                     let amount = output_value
-                        .checked_add(weighted_fee)
+                        .checked_add(absolute_fee)
                         .ok_or(TransactionError::FeeOverflow)?;
 
                     let (output_pointers, input_value) = self.take_enough_utxos(
@@ -194,7 +195,7 @@ pub trait OutputsCollection {
                             outputs,
                             input_value,
                             output_value,
-                            fee: weighted_fee,
+                            fee: absolute_fee,
                         });
                     } else {
                         current_weight = new_weight;
@@ -297,6 +298,7 @@ pub fn insert_change_output(
 }
 
 /// Build value transfer transaction with the given outputs and fee.
+#[allow(clippy::cast_precision_loss)]
 #[allow(clippy::too_many_arguments)]
 pub fn build_vtt(
     outputs: Vec<ValueTransferOutput>,
@@ -322,7 +324,7 @@ pub fn build_vtt(
     let tx_info = utxos.build_inputs_outputs(
         outputs,
         None,
-        fee,
+        fee as f64,
         fee_type,
         timestamp,
         None,
@@ -348,6 +350,7 @@ pub fn build_vtt(
 }
 
 /// Build data request transaction with the given outputs and fee.
+#[allow(clippy::cast_precision_loss)]
 #[allow(clippy::too_many_arguments)]
 pub fn build_drt(
     dr_output: DataRequestOutput,
@@ -372,7 +375,7 @@ pub fn build_drt(
     let tx_info = utxos.build_inputs_outputs(
         vec![],
         Some(&dr_output),
-        fee,
+        fee as f64,
         fee_type,
         timestamp,
         None,
@@ -398,6 +401,7 @@ pub fn build_drt(
 }
 
 /// Check if there are enough collateral for a CommitTransaction
+#[allow(clippy::cast_precision_loss)]
 pub fn check_commit_collateral(
     collateral: u64,
     own_utxos: &OwnUnspentOutputsPool,
@@ -416,7 +420,7 @@ pub fn check_commit_collateral(
         .build_inputs_outputs(
             vec![],
             None,
-            collateral,
+            collateral as f64,
             FeeType::Absolute,
             timestamp,
             Some(block_number_limit),
@@ -427,6 +431,7 @@ pub fn check_commit_collateral(
 }
 
 /// Build inputs and outputs to be used as the collateral in a CommitTransaction
+#[allow(clippy::cast_precision_loss)]
 pub fn build_commit_collateral(
     collateral: u64,
     own_utxos: &mut OwnUnspentOutputsPool,
@@ -449,7 +454,7 @@ pub fn build_commit_collateral(
     let tx_info = utxos.build_inputs_outputs(
         vec![],
         None,
-        fee,
+        fee as f64,
         FeeType::Absolute,
         timestamp,
         Some(block_number_limit),

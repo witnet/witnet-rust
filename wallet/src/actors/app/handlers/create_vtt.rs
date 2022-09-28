@@ -1,21 +1,22 @@
-use actix::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use crate::{
-    actors::app,
-    types::{
-        self, from_generic_type, from_generic_type_vec, into_generic_type, into_generic_type_vec,
-        number_from_string, u64_to_string, TransactionHelper, VttOutputParamsHelper,
-    },
-};
-
+use actix::prelude::*;
+use serde::{Deserialize, Serialize};
 use witnet_data_structures::{
     chain::{Environment, Hashable, OutputPointer, PublicKeyHash, ValueTransferOutput},
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,
     utxo_pool::UtxoSelectionStrategy,
+};
+
+use crate::{
+    actors::{app, worker},
+    types::{
+        self, f64_to_string, from_generic_type, from_generic_type_vec, into_generic_type,
+        into_generic_type_vec, number_from_string, u32_to_string, u64_to_string, TransactionHelper,
+        VttOutputParamsHelper,
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,10 +29,10 @@ pub struct VttOutputParams {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVttRequest {
     #[serde(
-        serialize_with = "u64_to_string",
+        serialize_with = "f64_to_string",
         deserialize_with = "number_from_string"
     )]
-    fee: u64,
+    fee: f64,
     label: Option<String>,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
@@ -61,6 +62,11 @@ pub struct VttMetadata {
         deserialize_with = "from_generic_type_vec::<_, VttOutputParamsHelper, _>"
     )]
     outputs: Vec<VttOutputParams>,
+    #[serde(
+        serialize_with = "u32_to_string",
+        deserialize_with = "number_from_string"
+    )]
+    weight: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -99,25 +105,24 @@ impl Handler<CreateVttRequest> for app::App {
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)
-                .map_ok(move |transaction, _, _| {
-                    let fee = match fee_type {
-                        FeeType::Absolute => msg.fee,
-                        FeeType::Weighted => msg.fee * u64::from(transaction.weight()),
-                    };
+                .map_ok(
+                    move |worker::CreateVttResponse { fee, transaction }, _, _| {
+                        let transaction_id = hex::encode(transaction.hash().as_ref());
+                        let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
+                        let weight = transaction.weight();
 
-                    let transaction_id = hex::encode(transaction.hash().as_ref());
-                    let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
-
-                    CreateVttResponse {
-                        transaction_id,
-                        transaction,
-                        bytes,
-                        metadata: VttMetadata {
-                            fee,
-                            outputs: msg.outputs,
-                        },
-                    }
-                })
+                        CreateVttResponse {
+                            transaction_id,
+                            transaction,
+                            bytes,
+                            metadata: VttMetadata {
+                                fee,
+                                outputs: msg.outputs,
+                                weight,
+                            },
+                        }
+                    },
+                )
                 .map_err(|err, _, _| {
                     log::error!("Failed to create a VTT: {}", err);
 
@@ -163,8 +168,9 @@ pub fn validate_output_addresses(
 
 #[cfg(test)]
 mod tests {
-    use crate::actors::app::{validate_output_addresses, VttOutputParams};
     use witnet_data_structures::chain::{Environment, PublicKeyHash, ValueTransferOutput};
+
+    use crate::actors::app::{validate_output_addresses, VttOutputParams};
 
     #[test]
     fn test_validate_addresses() {

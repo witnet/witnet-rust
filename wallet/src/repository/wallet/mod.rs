@@ -1068,8 +1068,16 @@ where
         Ok(utxo_info)
     }
 
-    /// Create a new value transfer transaction using available UTXOs.
-    pub fn create_vtt(
+    /// Create a new value transfer transaction using available UTXOs. Returns only the transaction.
+    #[cfg(test)]
+    pub fn create_vtt(&self, params: types::VttParams) -> Result<VTTransaction> {
+        self.create_vtt_return_fee(params)
+            .map(|(transaction, _fee)| transaction)
+    }
+
+    /// Create a new value transfer transaction using available UTXOs. Returns the transaction, plus
+    /// the absolute fee.
+    pub fn create_vtt_return_fee(
         &self,
         types::VttParams {
             fee,
@@ -1078,9 +1086,9 @@ where
             utxo_strategy,
             selected_utxos,
         }: types::VttParams,
-    ) -> Result<VTTransaction> {
+    ) -> Result<(VTTransaction, u64)> {
         let mut state = self.state.write()?;
-        let (inputs, outputs) = self.create_vt_transaction_components(
+        let (inputs, outputs, fee) = self.create_vt_transaction_components(
             &mut state,
             outputs,
             fee,
@@ -1092,28 +1100,35 @@ where
         let body = VTTransactionBody::new(inputs.clone(), outputs);
         let sign_data = body.hash();
         let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
+        let transaction = VTTransaction::new(body, signatures?);
 
-        Ok(VTTransaction::new(body, signatures?))
+        Ok((transaction, fee))
     }
 
     /// Create a new data request transaction using available UTXOs.
-    pub fn create_data_req(
+    #[cfg(test)]
+    pub fn create_data_req(&self, params: types::DataReqParams) -> Result<DRTransaction> {
+        self.create_data_req_return_fee(params)
+            .map(|(transaction, _fee)| transaction)
+    }
+
+    pub fn create_data_req_return_fee(
         &self,
         types::DataReqParams {
             fee,
             request,
             fee_type,
         }: types::DataReqParams,
-    ) -> Result<DRTransaction> {
+    ) -> Result<(DRTransaction, u64)> {
         let mut state = self.state.write()?;
-        let (inputs, outputs) =
+        let (inputs, outputs, fee) =
             self.create_dr_transaction_components(&mut state, request.clone(), fee, fee_type)?;
 
         let body = DRTransactionBody::new(inputs.clone(), outputs, request);
         let sign_data = body.hash();
         let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
 
-        Ok(DRTransaction::new(body, signatures?))
+        Ok((DRTransaction::new(body, signatures?), fee))
     }
 
     /// Create signatures from inputs
@@ -1158,14 +1173,14 @@ where
         &self,
         state: &mut State,
         outputs: Vec<ValueTransferOutput>,
-        fee: u64,
+        fee: f64,
         fee_type: FeeType,
         utxo_strategy: &UtxoSelectionStrategy,
         selected_utxos: HashSet<model::OutPtr>,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64)> {
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        let (inputs, outputs) = self.build_inputs_outputs_wallet(
+        let (inputs, outputs, fee) = self.build_inputs_outputs_wallet(
             outputs,
             None,
             fee,
@@ -1178,20 +1193,20 @@ where
             selected_utxos,
         )?;
 
-        Ok((inputs, outputs))
+        Ok((inputs, outputs, fee))
     }
 
     fn create_dr_transaction_components(
         &self,
         state: &mut State,
         request: DataRequestOutput,
-        fee: u64,
+        fee: f64,
         fee_type: FeeType,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64)> {
         let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        let (inputs, outputs) = self.build_inputs_outputs_wallet(
+        let (inputs, outputs, fee) = self.build_inputs_outputs_wallet(
             vec![],
             Some(&request),
             fee,
@@ -1204,7 +1219,7 @@ where
             HashSet::default(),
         )?;
 
-        Ok((inputs, outputs))
+        Ok((inputs, outputs, fee))
     }
 
     /// Function that returns an address for the change ValueTransferOutput
@@ -1237,7 +1252,7 @@ where
         &self,
         outputs: Vec<ValueTransferOutput>,
         dr_output: Option<&DataRequestOutput>,
-        fee: u64,
+        fee: f64,
         fee_type: FeeType,
         state: &mut State,
         timestamp: u64,
@@ -1246,7 +1261,7 @@ where
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
         selected_utxos: HashSet<model::OutPtr>,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>)> {
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64)> {
         let empty_hashset = HashSet::default();
         let unconfirmed_transactions = if self.params.use_unconfirmed_utxos {
             &empty_hashset
@@ -1282,7 +1297,7 @@ where
             tx_info.input_value - tx_info.output_value - tx_info.fee,
         );
 
-        Ok((tx_info.inputs, outputs))
+        Ok((tx_info.inputs, outputs, tx_info.fee))
     }
 
     fn _gen_internal_address(

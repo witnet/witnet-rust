@@ -1,18 +1,18 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    actors::app,
-    types::{
-        self, from_generic_type, into_generic_type, number_from_string, u64_to_string,
-        DataRequestOutputHelper, TransactionHelper,
-    },
-};
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
     proto::ProtobufConvert,
     transaction::Transaction,
     transaction_factory::FeeType,
+};
+
+use crate::{
+    actors::{app, worker},
+    types::{
+        self, from_generic_type, into_generic_type, number_from_string, u32_to_string,
+        u64_to_string, DataRequestOutputHelper, TransactionHelper,
+    },
 };
 
 #[derive(Debug, Deserialize)]
@@ -25,10 +25,10 @@ pub struct CreateDataReqRequest {
     )]
     request: DataRequestOutput,
     #[serde(
-        serialize_with = "u64_to_string",
+        serialize_with = "f64_to_string",
         deserialize_with = "number_from_string"
     )]
-    fee: u64,
+    fee: f64,
     fee_type: Option<FeeType>,
 }
 
@@ -46,6 +46,11 @@ pub struct CreateDataReqResponse {
         deserialize_with = "number_from_string"
     )]
     pub fee: u64,
+    #[serde(
+        serialize_with = "u32_to_string",
+        deserialize_with = "number_from_string"
+    )]
+    weight: u32,
 }
 
 impl Message for CreateDataReqRequest {
@@ -68,22 +73,21 @@ impl Handler<CreateDataReqRequest> for app::App {
             };
 
             slf.create_data_req(&msg.session_id, &msg.wallet_id, params)
-                .map_ok(move |transaction, _, _| {
-                    let fee = match fee_type {
-                        FeeType::Absolute => msg.fee,
-                        FeeType::Weighted => msg.fee * u64::from(transaction.weight()),
-                    };
+                .map_ok(
+                    move |worker::CreateDataReqResponse { fee, transaction }, _, _| {
+                        let transaction_id = hex::encode(transaction.hash().as_ref());
+                        let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
+                        let weight = transaction.weight();
 
-                    let transaction_id = hex::encode(transaction.hash().as_ref());
-                    let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
-
-                    CreateDataReqResponse {
-                        transaction_id,
-                        transaction,
-                        bytes,
-                        fee,
-                    }
-                })
+                        CreateDataReqResponse {
+                            transaction_id,
+                            transaction,
+                            bytes,
+                            fee,
+                            weight,
+                        }
+                    },
+                )
         });
 
         Box::pin(f)

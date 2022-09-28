@@ -496,10 +496,10 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::VttParams,
-    ) -> Result<Transaction> {
-        let txn = wallet.create_vtt(params)?;
+    ) -> Result<(Transaction, u64)> {
+        let (txn, fee) = wallet.create_vtt_return_fee(params)?;
 
-        Ok(Transaction::ValueTransfer(txn))
+        Ok((Transaction::ValueTransfer(txn), fee))
     }
 
     pub fn get_transaction(
@@ -516,10 +516,10 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::DataReqParams,
-    ) -> Result<Transaction> {
-        let txn = wallet.create_data_req(params)?;
+    ) -> Result<(Transaction, u64)> {
+        let (txn, fee) = wallet.create_data_req_return_fee(params)?;
 
-        Ok(Transaction::DataRequest(txn))
+        Ok((Transaction::DataRequest(txn), fee))
     }
 
     pub fn sign_data(
