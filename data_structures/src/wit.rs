@@ -1,5 +1,7 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// 1 nanowit is the minimal unit of value
 /// 1 wit = 10^9 nanowits
 pub const NANOWITS_PER_WIT: u64 = 1_000_000_000;
@@ -8,21 +10,26 @@ pub const NANOWITS_PER_WIT: u64 = 1_000_000_000;
 pub const WIT_DECIMAL_PLACES: u8 = 9;
 
 /// Unit of value
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, Deserialize, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize,
+)]
 pub struct Wit(u64);
 
 impl Wit {
     /// Create from wits
+    #[inline]
     pub fn from_wits(wits: u64) -> Self {
         Self(wits.checked_mul(NANOWITS_PER_WIT).expect("overflow"))
     }
 
     /// Create from nanowits
+    #[inline]
     pub fn from_nanowits(nanowits: u64) -> Self {
         Self(nanowits)
     }
 
     /// Retrieve the nanowits value within.
+    #[inline]
     pub fn nanowits(self) -> u64 {
         self.0
     }
@@ -49,6 +56,27 @@ impl fmt::Display for Wit {
             amount_nanowits,
             width = width
         )
+    }
+}
+
+impl std::ops::Add for Wit {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.nanowits() + rhs.nanowits())
+    }
+}
+
+impl num_traits::Zero for Wit {
+    #[inline]
+    fn zero() -> Self {
+        Wit(0)
+    }
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        matches!(self, &Wit(0))
     }
 }
 

@@ -1,17 +1,21 @@
+use std::{collections::HashSet, convert::TryFrom};
+
+use serde::{Deserialize, Serialize};
+
 use crate::{
     chain::{
         DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
         ValueTransferOutput,
     },
     error::TransactionError,
+    fee::{AbsoluteFee, Fee},
     transaction::{DRTransactionBody, VTTransactionBody, INPUT_SIZE},
     utxo_pool::{
         NodeUtxos, NodeUtxosRef, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff,
         UtxoSelectionStrategy,
     },
+    wit::Wit,
 };
-use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, convert::TryFrom};
 
 /// Structure that resumes the information needed to create a Transaction
 #[derive(Clone, Debug)]
@@ -20,7 +24,7 @@ pub struct TransactionInfo {
     pub outputs: Vec<ValueTransferOutput>,
     pub input_value: u64,
     pub output_value: u64,
-    pub fee: u64,
+    pub fee: AbsoluteFee,
 }
 
 // Structure that the includes the confirmed and pending balance of a node
@@ -30,17 +34,6 @@ pub struct NodeBalance {
     pub confirmed: Option<u64>,
     /// Total amount of node's funds after last block
     pub total: u64,
-}
-
-/// Fee type distinguished between absolute or Weighted (fee/weight unit)
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub enum FeeType {
-    /// Absolute fee
-    #[serde(rename = "absolute")]
-    Absolute,
-    /// Fee per weight unit
-    #[serde(rename = "weighted")]
-    Weighted,
 }
 
 /// Abstraction that facilitates the creation of new transactions from a set of unspent outputs.
@@ -130,8 +123,7 @@ pub trait OutputsCollection {
         &mut self,
         outputs: Vec<ValueTransferOutput>,
         dr_output: Option<&DataRequestOutput>,
-        fee: f64,
-        fee_type: FeeType,
+        fee: Fee,
         timestamp: u64,
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
@@ -152,11 +144,10 @@ pub trait OutputsCollection {
         // For the first estimation: 1 input and 1 output more for the change address
         let mut current_weight = calculate_weight(1, outputs.len() + 1, dr_output, max_weight)?;
 
-        match fee_type {
-            FeeType::Absolute => {
-                let fee = fee as u64;
+        match fee {
+            Fee::Absolute(absolute_fee) => {
                 let amount = output_value
-                    .checked_add(fee)
+                    .checked_add(absolute_fee.as_nanowits())
                     .ok_or(TransactionError::FeeOverflow)?;
 
                 let (output_pointers, input_value) =
@@ -168,15 +159,15 @@ pub trait OutputsCollection {
                     outputs,
                     input_value,
                     output_value,
-                    fee,
+                    fee: absolute_fee,
                 })
             }
-            FeeType::Weighted => {
+            Fee::Relative(priority) => {
                 let max_iterations = 1 + ((max_weight - current_weight) / INPUT_SIZE);
                 for _i in 0..max_iterations {
-                    let absolute_fee = (fee * f64::from(current_weight)).round() as u64;
+                    let absolute_fee = priority.into_absolute(current_weight);
                     let amount = output_value
-                        .checked_add(absolute_fee)
+                        .checked_add(absolute_fee.as_nanowits())
                         .ok_or(TransactionError::FeeOverflow)?;
 
                     let (output_pointers, input_value) = self.take_enough_utxos(
@@ -302,7 +293,7 @@ pub fn insert_change_output(
 #[allow(clippy::too_many_arguments)]
 pub fn build_vtt(
     outputs: Vec<ValueTransferOutput>,
-    fee: u64,
+    fee: Fee,
     own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
@@ -318,14 +309,10 @@ pub fn build_vtt(
         pkh: own_pkh,
     };
 
-    // FIXME(#1722): Apply FeeTypes in the node methods
-    let fee_type = FeeType::Absolute;
-
     let tx_info = utxos.build_inputs_outputs(
         outputs,
         None,
-        fee as f64,
-        fee_type,
+        fee,
         timestamp,
         None,
         utxo_strategy,
@@ -343,7 +330,7 @@ pub fn build_vtt(
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - tx_info.fee,
+        tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
     Ok(VTTransactionBody::new(tx_info.inputs, outputs))
@@ -354,7 +341,7 @@ pub fn build_vtt(
 #[allow(clippy::too_many_arguments)]
 pub fn build_drt(
     dr_output: DataRequestOutput,
-    fee: u64,
+    fee: Fee,
     own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
@@ -369,14 +356,10 @@ pub fn build_drt(
         pkh: own_pkh,
     };
 
-    // FIXME(#1722): Apply FeeTypes in the node methods
-    let fee_type = FeeType::Absolute;
-
     let tx_info = utxos.build_inputs_outputs(
         vec![],
         Some(&dr_output),
-        fee as f64,
-        fee_type,
+        fee,
         timestamp,
         None,
         &UtxoSelectionStrategy::Random { from: None },
@@ -394,16 +377,15 @@ pub fn build_drt(
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - tx_info.fee,
+        tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
     Ok(DRTransactionBody::new(tx_info.inputs, outputs, dr_output))
 }
 
 /// Check if there are enough collateral for a CommitTransaction
-#[allow(clippy::cast_precision_loss)]
 pub fn check_commit_collateral(
-    collateral: u64,
+    collateral: Wit,
     own_utxos: &OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
@@ -411,6 +393,7 @@ pub fn check_commit_collateral(
     // The block number must be lower than this limit
     block_number_limit: u32,
 ) -> bool {
+    let fee = Fee::absolute_from_wit(collateral);
     let mut utxos = NodeUtxosRef {
         all_utxos,
         own_utxos,
@@ -420,8 +403,7 @@ pub fn check_commit_collateral(
         .build_inputs_outputs(
             vec![],
             None,
-            collateral as f64,
-            FeeType::Absolute,
+            fee,
             timestamp,
             Some(block_number_limit),
             &UtxoSelectionStrategy::SmallFirst { from: None },
@@ -433,7 +415,7 @@ pub fn check_commit_collateral(
 /// Build inputs and outputs to be used as the collateral in a CommitTransaction
 #[allow(clippy::cast_precision_loss)]
 pub fn build_commit_collateral(
-    collateral: u64,
+    collateral: Wit,
     own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
@@ -445,7 +427,7 @@ pub fn build_commit_collateral(
     // The fee is the difference between input value and output value
     // In a CommitTransaction, the collateral is also the difference between the input value
     // and the output value
-    let fee = collateral;
+    let fee = Fee::absolute_from_wit(collateral);
     let mut utxos = NodeUtxos {
         all_utxos,
         own_utxos,
@@ -454,8 +436,7 @@ pub fn build_commit_collateral(
     let tx_info = utxos.build_inputs_outputs(
         vec![],
         None,
-        fee as f64,
-        FeeType::Absolute,
+        fee,
         timestamp,
         Some(block_number_limit),
         &UtxoSelectionStrategy::SmallFirst { from: None },
@@ -471,7 +452,7 @@ pub fn build_commit_collateral(
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - tx_info.fee,
+        tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
     Ok((tx_info.inputs, outputs))
@@ -537,13 +518,6 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, T
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        chain::{Hash, Hashable, PublicKey},
-        error::TransactionError,
-        transaction::*,
-        utxo_pool::UtxoDbWrapStorage,
-    };
     use std::{
         convert::TryFrom,
         sync::{
@@ -551,6 +525,17 @@ mod tests {
             Arc,
         },
     };
+
+    use num_traits::Zero;
+
+    use crate::{
+        chain::{Hash, Hashable, PublicKey},
+        error::TransactionError,
+        transaction::*,
+        utxo_pool::UtxoDbWrapStorage,
+    };
+
+    use super::*;
 
     const MAX_VT_WEIGHT: u32 = 20000;
     const MAX_DR_WEIGHT: u32 = 80000;
@@ -656,7 +641,7 @@ mod tests {
 
     fn build_vtt_tx(
         outputs: Vec<ValueTransferOutput>,
-        fee: u64,
+        fee: Fee,
         own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
@@ -684,7 +669,7 @@ mod tests {
 
     fn build_vtt_tx_with_timestamp(
         outputs: Vec<ValueTransferOutput>,
-        fee: u64,
+        fee: Fee,
         own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
@@ -712,7 +697,7 @@ mod tests {
 
     fn build_drt_tx(
         dr_output: DataRequestOutput,
-        fee: u64,
+        fee: Fee,
         own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
@@ -941,13 +926,20 @@ mod tests {
 
         // Building a zero value transaction returns an error
         assert_eq!(
-            build_vtt_tx(vec![], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(vec![], Fee::zero(), &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
             TransactionError::ZeroAmount
         );
 
         // Building any transaction with an empty own_utxos returns an error
         assert_eq!(
-            build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![pay_bob(1000)],
+                Fee::zero(),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 0,
                 available_balance: 0,
@@ -955,7 +947,14 @@ mod tests {
             }
         );
         assert_eq!(
-            build_vtt_tx(vec![], 50, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![],
+                Fee::absolute_from_nanowits(50),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 0,
                 available_balance: 0,
@@ -965,7 +964,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx(
                 vec![pay_me(0), pay_bob(0)],
-                0,
+                Fee::zero(),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
@@ -995,7 +994,14 @@ mod tests {
 
         // The total value of own_utxos is 300, so trying to spend more than 300 will fail
         assert_eq!(
-            build_vtt_tx(vec![], 301, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![],
+                Fee::absolute_from_nanowits(301),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 300,
                 available_balance: 300,
@@ -1013,7 +1019,14 @@ mod tests {
         assert_eq!(own_utxos.len(), 1);
 
         assert_eq!(
-            build_vtt_tx(vec![pay_bob(2000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![pay_bob(2000)],
+                Fee::zero(),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 1000,
                 available_balance: 1000,
@@ -1023,7 +1036,14 @@ mod tests {
         let outputs = vec![pay_me(1000)];
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         assert_eq!(
-            build_vtt_tx(vec![], 1001, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![],
+                Fee::absolute_from_nanowits(1001),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 1000,
                 available_balance: 1000,
@@ -1033,7 +1053,14 @@ mod tests {
         let outputs = vec![pay_me(1000)];
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         assert_eq!(
-            build_vtt_tx(vec![pay_bob(500)], 600, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![pay_bob(500)],
+                Fee::absolute_from_nanowits(600),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 1000,
                 available_balance: 1000,
@@ -1053,7 +1080,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx_with_timestamp(
                 vec![pay_bob(100)],
-                0,
+                Fee::zero(),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos,
@@ -1069,7 +1096,7 @@ mod tests {
 
         assert!(build_vtt_tx_with_timestamp(
             vec![pay_bob(100)],
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1087,7 +1114,7 @@ mod tests {
 
         let t1 = build_vtt_tx(
             vec![pay_bob(1000)],
-            0,
+            Fee::zero(),
             &mut own_utxos1,
             own_pkh,
             &all_utxos1,
@@ -1096,17 +1123,31 @@ mod tests {
         assert_eq!(outputs_sum(&t1), 1000);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t2 = build_vtt_tx(
+            vec![pay_bob(990)],
+            Fee::absolute_from_nanowits(10),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t2), 990);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t3 = build_vtt_tx(
+            vec![],
+            Fee::absolute_from_nanowits(1000),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t3), 0);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1129,7 +1170,7 @@ mod tests {
 
         let t1 = build_vtt_tx(
             vec![pay_bob(1000)],
-            0,
+            Fee::zero(),
             &mut own_utxos1,
             own_pkh,
             &all_utxos1,
@@ -1139,19 +1180,33 @@ mod tests {
         assert_eq!(outputs_sum_not_mine(&t1), 1000);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t2 = build_vtt_tx(
+            vec![pay_bob(990)],
+            Fee::absolute_from_nanowits(10),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t2), 999_990);
         assert_eq!(outputs_sum_not_mine(&t2), 990);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t3 = build_vtt_tx(
+            vec![],
+            Fee::absolute_from_nanowits(1000),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t3), 999_000);
         assert_eq!(outputs_sum_not_mine(&t3), 0);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1174,7 +1229,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx(
                 vec![],
-                (1_000_000 - 1_000) + 1,
+                Fee::absolute_from_nanowits(1_000_000 - 1_000 + 1),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
@@ -1190,7 +1245,7 @@ mod tests {
         // Now we can spend that new utxo
         let t5 = build_vtt_tx(
             vec![],
-            1_000_000 - 1_000,
+            Fee::absolute_from_nanowits(1_000_000 - 1_000),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1209,22 +1264,50 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1000);
 
-        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t1 = build_vtt_tx(
+            vec![pay_bob(1000)],
+            Fee::zero(),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t1), 1000);
         assert_eq!(inputs_len(&t1), 1000);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t2 = build_vtt_tx(
+            vec![pay_bob(990)],
+            Fee::absolute_from_nanowits(10),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t2), 990);
         assert_eq!(inputs_len(&t2), 1000);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t3 = build_vtt_tx(
+            vec![],
+            Fee::absolute_from_nanowits(1000),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t3), 0);
         assert_eq!(inputs_len(&t3), 1000);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
-        let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t4 = build_vtt_tx(
+            vec![pay_bob(500)],
+            Fee::absolute_from_nanowits(20),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum(&t4), 500);
         assert_eq!(inputs_len(&t4), 520);
 
@@ -1234,7 +1317,14 @@ mod tests {
         assert_eq!(own_utxos.len(), 480);
 
         assert_eq!(
-            build_vtt_tx(vec![], 480 + 1, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![],
+                Fee::absolute_from_nanowits(480 + 1),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 480,
                 available_balance: 480,
@@ -1259,26 +1349,61 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 7);
 
-        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t1 = build_vtt_tx(
+            vec![pay_bob(1000)],
+            Fee::zero(),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum_not_mine(&t1), 1000);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t2 = build_vtt_tx(
+            vec![pay_bob(990)],
+            Fee::absolute_from_nanowits(10),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum_not_mine(&t2), 990);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
-        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t3 = build_vtt_tx(
+            vec![],
+            Fee::absolute_from_nanowits(1000),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum_not_mine(&t3), 0);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
-        let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t4 = build_vtt_tx(
+            vec![pay_bob(500)],
+            Fee::absolute_from_nanowits(20),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         assert_eq!(outputs_sum_not_mine(&t4), 500);
 
         // Execute transaction t4
         let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t4]);
         // This will create a change output with an unknown value, but the total available will be 1000 - 520
         assert_eq!(
-            build_vtt_tx(vec![], 480 + 1, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![],
+                Fee::absolute_from_nanowits(480 + 1),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 480,
                 available_balance: 480,
@@ -1287,7 +1412,14 @@ mod tests {
         );
 
         // A transaction to ourselves with no fees will maintain our total balance
-        let t5 = build_vtt_tx(vec![pay_me(480)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t5 = build_vtt_tx(
+            vec![pay_me(480)],
+            Fee::zero(),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         // Execute transaction t5
         let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t5]);
         // Since we are spending everything, the result is merging all the unspent outputs into one
@@ -1300,7 +1432,14 @@ mod tests {
             480
         );
         assert_eq!(
-            build_vtt_tx(vec![], 480 + 1, &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(
+                vec![],
+                Fee::absolute_from_nanowits(480 + 1),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos
+            )
+            .unwrap_err(),
             TransactionError::NoMoney {
                 total_balance: 480,
                 available_balance: 480,
@@ -1309,7 +1448,14 @@ mod tests {
         );
 
         // Now spend everything
-        let t6 = build_vtt_tx(vec![pay_bob(400)], 80, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t6 = build_vtt_tx(
+            vec![pay_bob(400)],
+            Fee::absolute_from_nanowits(80),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         // Execute transaction t6
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t6]);
         assert!(own_utxos.is_empty(), "{:?}", own_utxos);
@@ -1365,7 +1511,14 @@ mod tests {
             }
         );
 
-        let t2 = build_vtt_tx(vec![pay_bob(100)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
+        let t2 = build_vtt_tx(
+            vec![pay_bob(100)],
+            Fee::zero(),
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         let (own_utxos, mut all_utxos_2) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
         // Assert the balance is 900 after paying 100 to Bob
         assert_eq!(
@@ -1436,7 +1589,7 @@ mod tests {
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1453,7 +1606,7 @@ mod tests {
                 commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1480,7 +1633,7 @@ mod tests {
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1497,7 +1650,7 @@ mod tests {
                 commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1520,7 +1673,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx(
                 vec![],
-                1_000_000 - 3_400 + 1,
+                Fee::absolute_from_nanowits(1_000_000 - 3_400 + 1),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
@@ -1547,7 +1700,7 @@ mod tests {
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1565,7 +1718,7 @@ mod tests {
                 commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
-            0,
+            Fee::zero(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1591,7 +1744,7 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
-        let collateral = 1000;
+        let collateral = Wit::from_nanowits(1000);
         // A limit of block number 0 means that only UTXOs from block 0 can be valid
         let block_number_limit = 0;
         let (inputs, outputs) = build_commit_collateral(
@@ -1636,7 +1789,7 @@ mod tests {
             build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 4);
         assert_eq!(own_utxos.len(), 4);
 
-        let collateral = 1000;
+        let collateral = Wit::from_nanowits(1000);
         // A limit of block number 0 means that only UTXOs from block 0 can be valid
         let block_number_limit = 0;
         let t1 = build_commit_collateral(
@@ -1658,7 +1811,7 @@ mod tests {
             }
         );
 
-        let collateral = 1000;
+        let collateral = Wit::from_nanowits(1000);
         // Only allow using UTXOs from block number <= 1
         let block_number_limit = 1;
         let t2 = build_commit_collateral(
@@ -1680,7 +1833,7 @@ mod tests {
             }
         );
 
-        let collateral = 1000;
+        let collateral = Wit::from_nanowits(1000);
         let block_number_limit = 2;
         let t3 = build_commit_collateral(
             collateral,
@@ -1701,7 +1854,7 @@ mod tests {
             }
         );
 
-        let collateral = 1000;
+        let collateral = Wit::from_nanowits(1000);
         let block_number_limit = 3;
         let (inputs, outputs) = build_commit_collateral(
             collateral,
@@ -1728,7 +1881,7 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
-        let collateral = 1000;
+        let collateral = Wit::from_nanowits(1000);
         // A limit of block number 0 means that only UTXOs from block 0 can be valid
         let block_number_limit = 0;
         let (inputs, outputs) = build_commit_collateral(

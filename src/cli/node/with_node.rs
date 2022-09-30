@@ -8,7 +8,7 @@ use std::{
 use structopt::StructOpt;
 
 use witnet_config::config::Config;
-use witnet_data_structures::chain::Epoch;
+use witnet_data_structures::{chain::Epoch, fee::Fee};
 use witnet_node as node;
 
 use super::json_rpc_client as rpc;
@@ -102,7 +102,7 @@ pub fn exec_cmd(
             Some(address.parse()?),
             value,
             None,
-            fee,
+            fee.map(Fee::absolute_from_nanowits),
             time_lock.unwrap_or(0),
             None,
             dry_run,
@@ -123,7 +123,7 @@ pub fn exec_cmd(
                 address,
                 value,
                 size,
-                fee,
+                fee.map(Fee::absolute_from_nanowits),
                 time_lock.unwrap_or(0),
                 Some(true),
                 dry_run,
@@ -145,7 +145,7 @@ pub fn exec_cmd(
                 address,
                 value,
                 size,
-                fee,
+                fee.map(Fee::absolute_from_nanowits),
                 time_lock.unwrap_or(0),
                 Some(false),
                 dry_run,
@@ -159,7 +159,7 @@ pub fn exec_cmd(
         } => rpc::send_dr(
             node.unwrap_or(config.jsonrpc.server_address),
             hex,
-            fee,
+            fee.map(Fee::absolute_from_nanowits),
             dry_run,
         ),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),

@@ -172,7 +172,7 @@ impl Default for PriorityEngine {
 }
 
 /// Conveniently wraps a priority value with sub-nanoWit precision.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Priority(OrderedFloat<f64>);
 
 impl Priority {
@@ -215,14 +215,14 @@ impl Priority {
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
     #[inline]
-    pub fn derive_fee(&self, weight: u32) -> Wit {
+    pub fn derive_fee_wit(&self, weight: u32) -> Wit {
         Wit::from_nanowits((self.0.into_inner() * f64::from(weight)) as u64)
     }
 
     /// Constructs a Priority from a transaction fee and weight.
     #[allow(clippy::cast_precision_loss)]
     #[inline]
-    pub fn from_fee_weight(fee: u64, weight: u32) -> Self {
+    pub fn from_absolute_fee_weight(fee: u64, weight: u32) -> Self {
         Self::from(fee as f64 / f64::from(weight))
     }
 }
@@ -357,6 +357,22 @@ impl Serialize for Priority {
     }
 }
 
+impl num_traits::Zero for Priority {
+    fn zero() -> Self {
+        Self(OrderedFloat::from(0.0))
+    }
+
+    fn is_zero(&self) -> bool {
+        self.0.is_zero()
+    }
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        <Self as num_traits::Zero>::zero()
+    }
+}
+
 /// Type for each of the entries in `FeesEngine`.
 ///
 /// Fees are always expressed in their relative form (nanowits per weight unit), aka "transaction
@@ -437,11 +453,11 @@ impl Visitor for PriorityVisitor {
         match transaction {
             Transaction::DataRequest(_) => {
                 self.0
-                    .digest_drt_priority(Priority::from_fee_weight(*fee, *weight));
+                    .digest_drt_priority(Priority::from_absolute_fee_weight(*fee, *weight));
             }
             Transaction::ValueTransfer(_) => {
                 self.0
-                    .digest_vtt_priority(Priority::from_fee_weight(*fee, *weight));
+                    .digest_vtt_priority(Priority::from_absolute_fee_weight(*fee, *weight));
             }
             _ => (),
         }
@@ -1024,10 +1040,10 @@ mod tests {
         // 100 blocks where highest and lowest priorities are 1000000 and 1000
         let priorities = vec![
             Priorities {
-                drt_highest: Priority::from_fee_weight(1_000_000, 1),
-                drt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
-                vtt_highest: Priority::from_fee_weight(1_000_000, 1),
-                vtt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
+                drt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+                drt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
+                vtt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+                vtt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
             };
             100
         ];
@@ -1085,10 +1101,10 @@ mod tests {
     fn can_estimate_over_contrast() {
         let priorities = vec![
             Priorities {
-                drt_highest: Priority::from_fee_weight(1_000_000, 1),
-                drt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
-                vtt_highest: Priority::from_fee_weight(1_000_000, 1),
-                vtt_lowest: Some(Priority::from_fee_weight(1_000, 1)),
+                drt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+                drt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
+                vtt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+                vtt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
             };
             DEFAULT_QUEUE_CAPACITY_EPOCHS
         ];
@@ -1097,10 +1113,10 @@ mod tests {
         let estimate1 = engine.estimate_priority(Duration::from_secs(45)).unwrap();
 
         engine.push_priorities(Priorities {
-            drt_highest: Priority::from_fee_weight(1_000_000, 1),
-            drt_lowest: Some(Priority::from_fee_weight(1, 1)),
-            vtt_highest: Priority::from_fee_weight(1_000_000, 1),
-            vtt_lowest: Some(Priority::from_fee_weight(1, 1)),
+            drt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+            drt_lowest: Some(Priority::from_absolute_fee_weight(1, 1)),
+            vtt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+            vtt_lowest: Some(Priority::from_absolute_fee_weight(1, 1)),
         });
 
         let estimate2 = engine.estimate_priority(Duration::from_secs(45)).unwrap();

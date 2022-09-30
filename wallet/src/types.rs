@@ -7,34 +7,30 @@ use std::{
 };
 
 use core::fmt::Display;
-
-use crate::{app::VttOutputParams, model};
 use failure::Fail;
 use serde::{Deserialize, Deserializer, Serialize};
-
 use witnet_crypto::{
     key::{ExtendedSK, SK},
     mnemonic,
 };
-
+pub use witnet_data_structures::chain::Epoch;
 use witnet_data_structures::{
     chain::{
         CheckpointBeacon, DataRequestOutput, Hash, Input, KeyedSignature, PublicKey, PublicKeyHash,
         RADRequest, Signature, StateMachine, SuperBlock, ValueTransferOutput,
     },
+    fee::Fee,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
         TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
     },
-    transaction_factory::FeeType,
     utxo_pool::UtxoSelectionStrategy,
 };
-
 use witnet_protected::{Protected, ProtectedString};
 
-use super::{db, repository};
+use crate::{app::VttOutputParams, model};
 
-pub use witnet_data_structures::chain::Epoch;
+use super::{db, repository};
 
 pub type Password = ProtectedString;
 
@@ -149,17 +145,15 @@ pub struct CreateWalletData<'a> {
 }
 
 pub struct VttParams {
-    pub fee: f64,
+    pub fee: Fee,
     pub outputs: Vec<ValueTransferOutput>,
-    pub fee_type: FeeType,
     pub utxo_strategy: UtxoSelectionStrategy,
     pub selected_utxos: HashSet<model::OutPtr>,
 }
 
 pub struct DataReqParams {
-    pub fee: f64,
+    pub fee: Fee,
     pub request: DataRequestOutput,
-    pub fee_type: FeeType,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -654,17 +648,6 @@ where
         serializer.serialize_str(&val.to_string())
     } else {
         serializer.serialize_u64(*val)
-    }
-}
-
-pub fn f64_to_string<S>(val: &f64, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(&val.to_string())
-    } else {
-        serializer.serialize_f64(*val)
     }
 }
 

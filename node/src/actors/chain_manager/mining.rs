@@ -370,7 +370,7 @@ impl ChainManager {
                 u16::try_from(dr_state.data_request.data_request.retrieve.len())
                     .unwrap_or(core::u16::MAX);
 
-            let collateral_amount = if dr_state.data_request.collateral == 0 {
+            let collateral_amount = Wit::from_nanowits(if dr_state.data_request.collateral == 0 {
                 self.chain_state
                     .chain_info
                     .as_ref()
@@ -379,7 +379,7 @@ impl ChainManager {
                     .collateral_minimum
             } else {
                 dr_state.data_request.collateral
-            };
+            });
 
             // Check if we have enough collateralizable unspent outputs before starting
             // retrieval
@@ -396,7 +396,7 @@ impl ChainManager {
                 // The block number must be lower than this limit
                 block_number_limit,
             ) {
-                log::debug!("Mining data request: Insufficient collateral, the data request need {} mature wits", Wit::from_nanowits(collateral_amount));
+                log::debug!("Mining data request: Insufficient collateral, the data request need {} mature wits", collateral_amount);
                 continue;
             }
 

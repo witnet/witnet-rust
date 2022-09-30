@@ -1,7 +1,7 @@
 use actix::prelude::*;
 
 use crate::{actors::worker, types};
-use witnet_data_structures::transaction::Transaction;
+use witnet_data_structures::{fee::AbsoluteFee, transaction::Transaction};
 
 pub struct CreateVtt {
     pub wallet: types::SessionWallet,
@@ -9,7 +9,7 @@ pub struct CreateVtt {
 }
 
 pub struct CreateVttResponse {
-    pub fee: u64,
+    pub fee: AbsoluteFee,
     pub transaction: Transaction,
 }
 

@@ -32,6 +32,9 @@ pub mod types;
 /// Module containing error definitions
 pub mod error;
 
+/// Provides convenient constants, structs and methods for handling transaction fees.
+pub mod fee;
+
 /// Module containing data_request structures
 pub mod data_request;
 

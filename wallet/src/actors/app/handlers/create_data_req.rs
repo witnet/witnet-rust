@@ -2,16 +2,16 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
+    fee::{AbsoluteFee, Fee},
     proto::ProtobufConvert,
     transaction::Transaction,
-    transaction_factory::FeeType,
 };
 
 use crate::{
     actors::{app, worker},
     types::{
         self, from_generic_type, into_generic_type, number_from_string, u32_to_string,
-        u64_to_string, DataRequestOutputHelper, TransactionHelper,
+        DataRequestOutputHelper, TransactionHelper,
     },
 };
 
@@ -24,12 +24,7 @@ pub struct CreateDataReqRequest {
         deserialize_with = "from_generic_type::<_, DataRequestOutputHelper, _>"
     )]
     request: DataRequestOutput,
-    #[serde(
-        serialize_with = "f64_to_string",
-        deserialize_with = "number_from_string"
-    )]
-    fee: f64,
-    fee_type: Option<FeeType>,
+    fee: Fee,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -41,11 +36,7 @@ pub struct CreateDataReqResponse {
     )]
     pub transaction: Transaction,
     pub bytes: String,
-    #[serde(
-        serialize_with = "u64_to_string",
-        deserialize_with = "number_from_string"
-    )]
-    pub fee: u64,
+    pub fee: AbsoluteFee,
     #[serde(
         serialize_with = "u32_to_string",
         deserialize_with = "number_from_string"
@@ -63,13 +54,10 @@ impl Handler<CreateDataReqRequest> for app::App {
     fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         let validated = validate(msg.request.clone()).map_err(app::validation_error);
 
-        let fee_type = msg.fee_type.unwrap_or(FeeType::Weighted);
-
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
             let params = types::DataReqParams {
                 request,
                 fee: msg.fee,
-                fee_type,
             };
 
             slf.create_data_req(&msg.session_id, &msg.wallet_id, params)

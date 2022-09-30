@@ -24,8 +24,11 @@ use witnet_data_structures::{
         RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
         ValueTransferOutput,
     },
+    fee::Fee,
     radon_report::RadonReport,
-    transaction::{CommitTransaction, RevealTransaction, Transaction, VTTransaction},
+    transaction::{
+        CommitTransaction, DRTransaction, RevealTransaction, Transaction, VTTransaction,
+    },
     transaction_factory::NodeBalance,
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
@@ -46,7 +49,6 @@ use super::{
     rad_manager::RadManager,
     session::Session,
 };
-use witnet_data_structures::transaction::DRTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CHAIN MANAGER
@@ -200,7 +202,7 @@ pub struct BuildVtt {
     /// List of `ValueTransferOutput`s
     pub vto: Vec<ValueTransferOutput>,
     /// Fee
-    pub fee: u64,
+    pub fee: Fee,
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
     pub utxo_strategy: UtxoSelectionStrategy,
@@ -219,7 +221,7 @@ pub struct BuildDrt {
     /// `DataRequestOutput`
     pub dro: DataRequestOutput,
     /// Fee
-    pub fee: u64,
+    pub fee: Fee,
     /// Construct the transaction but do not broadcast it
     #[serde(default)]
     pub dry_run: bool,

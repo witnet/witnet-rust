@@ -231,8 +231,11 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
 }
 
 mod examples {
-    use witnet_data_structures::chain::{
-        DataRequestOutput, RADAggregate, RADFilter, RADRequest, RADRetrieve, RADTally, RADType,
+    use witnet_data_structures::{
+        chain::{
+            DataRequestOutput, RADAggregate, RADFilter, RADRequest, RADRetrieve, RADTally, RADType,
+        },
+        fee::Fee,
     };
     use witnet_node::actors::messages::BuildDrt;
     use witnet_rad::{
@@ -346,7 +349,7 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 10,
+            fee: Fee::absolute_from_nanowits(10),
             ..Default::default()
         }
     }
@@ -404,7 +407,6 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 0,
             ..Default::default()
         }
     }
@@ -451,7 +453,6 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 0,
             ..Default::default()
         }
     }
@@ -576,7 +577,6 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 0,
             ..Default::default()
         }
     }
@@ -611,7 +611,6 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 0,
             ..Default::default()
         }
     }
@@ -674,7 +673,6 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 0,
             ..Default::default()
         }
     }
@@ -736,7 +734,6 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 0,
             ..Default::default()
         }
     }
@@ -809,7 +806,7 @@ mod examples {
                 min_consensus_percentage: 51,
                 collateral: 1_000_000_000,
             },
-            fee: 1000,
+            fee: Fee::absolute_from_nanowits(1000),
             ..Default::default()
         }
     }

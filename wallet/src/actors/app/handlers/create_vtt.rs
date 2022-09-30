@@ -4,18 +4,17 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use witnet_data_structures::{
     chain::{Environment, Hashable, OutputPointer, PublicKeyHash, ValueTransferOutput},
+    fee::{AbsoluteFee, Fee},
     proto::ProtobufConvert,
     transaction::Transaction,
-    transaction_factory::FeeType,
     utxo_pool::UtxoSelectionStrategy,
 };
 
 use crate::{
     actors::{app, worker},
     types::{
-        self, f64_to_string, from_generic_type, from_generic_type_vec, into_generic_type,
-        into_generic_type_vec, number_from_string, u32_to_string, u64_to_string, TransactionHelper,
-        VttOutputParamsHelper,
+        self, from_generic_type, from_generic_type_vec, into_generic_type, into_generic_type_vec,
+        number_from_string, u32_to_string, TransactionHelper, VttOutputParamsHelper,
     },
 };
 
@@ -28,11 +27,7 @@ pub struct VttOutputParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVttRequest {
-    #[serde(
-        serialize_with = "f64_to_string",
-        deserialize_with = "number_from_string"
-    )]
-    fee: f64,
+    fee: Fee,
     label: Option<String>,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
@@ -41,7 +36,6 @@ pub struct CreateVttRequest {
     outputs: Vec<VttOutputParams>,
     session_id: types::SessionId,
     wallet_id: String,
-    fee_type: Option<FeeType>,
     #[serde(default)]
     utxo_strategy: UtxoSelectionStrategy,
     #[serde(default)]
@@ -52,11 +46,7 @@ pub struct CreateVttRequest {
 /// (e.g. in a confirmation screen)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VttMetadata {
-    #[serde(
-        serialize_with = "u64_to_string",
-        deserialize_with = "number_from_string"
-    )]
-    fee: u64,
+    fee: AbsoluteFee,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
         deserialize_with = "from_generic_type_vec::<_, VttOutputParamsHelper, _>"
@@ -93,13 +83,10 @@ impl Handler<CreateVttRequest> for app::App {
         let validated =
             validate_output_addresses(testnet, &msg.outputs).map_err(app::validation_error);
 
-        let fee_type = msg.fee_type.unwrap_or(FeeType::Weighted);
-
         let f = fut::result(validated).and_then(move |outputs, act: &mut Self, _ctx| {
             let params = types::VttParams {
                 fee: msg.fee,
                 outputs,
-                fee_type,
                 utxo_strategy: msg.utxo_strategy.clone(),
                 selected_utxos: msg.selected_utxos.iter().map(|x| x.into()).collect(),
             };

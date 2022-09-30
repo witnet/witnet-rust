@@ -27,6 +27,7 @@ use witnet_data_structures::{
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
+    fee::{Fee, Zero},
     proto::ProtobufConvert,
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::NodeBalance,
@@ -553,7 +554,7 @@ pub fn send_vtt(
     pkh: Option<PublicKeyHash>,
     value: u64,
     size: Option<u64>,
-    fee: Option<u64>,
+    fee: Option<Fee>,
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
@@ -651,11 +652,11 @@ pub fn send_vtt(
             // Iterative algorithm for weight discovery
             loop {
                 // Calculate fee for current priority and weight
-                fee = priority.derive_fee(weight);
+                fee = Fee::absolute_from_wit(priority.derive_fee_wit(weight));
 
                 // Create and dry run a VTT transaction using that fee
                 let dry_params = BuildVtt {
-                    fee: fee.nanowits(),
+                    fee,
                     dry_run: true,
                     ..params.clone()
                 };
@@ -676,7 +677,7 @@ pub fn send_vtt(
         }
 
         // We are ready to compose the params for the actual transaction.
-        params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
+        params.fee = prompt_user_for_priority_selection(estimates)?;
     }
 
     // Finally ask the node to create the transaction with the chosen fee.
@@ -727,7 +728,7 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
 pub fn send_dr(
     addr: SocketAddr,
     hex_bytes: String,
-    fee: Option<u64>,
+    fee: Option<Fee>,
     dry_run: bool,
 ) -> Result<(), failure::Error> {
     let dro = deserialize_and_validate_hex_dr(hex_bytes)?;
@@ -787,11 +788,11 @@ pub fn send_dr(
                 // Iterative algorithm for weight discovery
                 loop {
                     // Calculate fee for current priority and weight
-                    fee = priority.derive_fee(weight);
+                    fee = Fee::absolute_from_wit(priority.derive_fee_wit(weight));
 
                     // Create and dry run a VTT transaction using that fee
                     let dry_params = BuildDrt {
-                        fee: fee.nanowits(),
+                        fee,
                         dry_run: true,
                         ..params.clone()
                     };
@@ -812,7 +813,7 @@ pub fn send_dr(
             }
 
             // We are ready to compose the params for the actual transaction.
-            params.fee = prompt_user_for_priority_selection(estimates)?.nanowits();
+            params.fee = prompt_user_for_priority_selection(estimates)?;
         }
 
         let (_, (_, response)): (DRTransaction, _) =
@@ -1777,12 +1778,12 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failur
     }
 }
 
-/// Unwraps an `Option<u64>` representing a fee, returning also a priority estimate if it was `None`.
+/// Unwraps an `Option<Fee>` representing a fee, returning also a priority estimate if it was `None`.
 fn unwrap_fee_or_estimate_priority<S>(
-    fee: Option<u64>,
+    fee: Option<Fee>,
     stream: &mut S,
     id: &mut SequentialId<u8>,
-) -> Result<(u64, Option<PrioritiesEstimate>), failure::Error>
+) -> Result<(Fee, Option<PrioritiesEstimate>), failure::Error>
 where
     S: Read + Write,
 {
@@ -1791,7 +1792,7 @@ where
             let (estimate, _) =
                 issue_method("priority", None::<serde_json::Value>, stream, id.next())?;
 
-            (0u64, Some(estimate))
+            (Fee::zero(), Some(estimate))
         }
         Some(fee) => (fee, None),
     })
@@ -1823,8 +1824,8 @@ where
 }
 
 fn prompt_user_for_priority_selection(
-    estimates: Vec<(&str, Priority, Wit, TimeToBlock)>,
-) -> Result<Wit, failure::Error> {
+    estimates: Vec<(&str, Priority, Fee, TimeToBlock)>,
+) -> Result<Fee, failure::Error> {
     // Time to print the estimates
     println!("[ Fee suggestions ]");
     println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");

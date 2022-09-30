@@ -18,6 +18,7 @@ use witnet_data_structures::{
         Block, CheckpointBeacon, DataRequestInfo, Hashable, OutputPointer, RADRequest,
         StateMachine, ValueTransferOutput,
     },
+    fee::AbsoluteFee,
     transaction::Transaction,
 };
 use witnet_futures_utils::TryFutureExt2;
@@ -496,7 +497,7 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::VttParams,
-    ) -> Result<(Transaction, u64)> {
+    ) -> Result<(Transaction, AbsoluteFee)> {
         let (txn, fee) = wallet.create_vtt_return_fee(params)?;
 
         Ok((Transaction::ValueTransfer(txn), fee))
@@ -516,10 +517,10 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::DataReqParams,
-    ) -> Result<(Transaction, u64)> {
-        let (txn, fee) = wallet.create_data_req_return_fee(params)?;
+    ) -> Result<(Transaction, AbsoluteFee)> {
+        let (txn, absolute_fee) = wallet.create_data_req_return_fee(params)?;
 
-        Ok((Transaction::DataRequest(txn), fee))
+        Ok((Transaction::DataRequest(txn), absolute_fee))
     }
 
     pub fn sign_data(

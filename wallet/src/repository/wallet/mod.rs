@@ -20,13 +20,14 @@ use witnet_data_structures::{
         CheckpointBeacon, DataRequestOutput, Environment, Epoch, EpochConstants, Hash, Hashable,
         Input, KeyedSignature, OutputPointer, PublicKeyHash, ValueTransferOutput,
     },
+    fee::{AbsoluteFee, Fee},
     get_environment,
     radon_error::RadonError,
     transaction::{
         DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
         VTTransactionBody,
     },
-    transaction_factory::{insert_change_output, FeeType, OutputsCollection},
+    transaction_factory::{insert_change_output, OutputsCollection},
     utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_rad::{error::RadError, types::RadonTypes};
@@ -1082,17 +1083,15 @@ where
         types::VttParams {
             fee,
             outputs,
-            fee_type,
             utxo_strategy,
             selected_utxos,
         }: types::VttParams,
-    ) -> Result<(VTTransaction, u64)> {
+    ) -> Result<(VTTransaction, AbsoluteFee)> {
         let mut state = self.state.write()?;
-        let (inputs, outputs, fee) = self.create_vt_transaction_components(
+        let (inputs, outputs, absolute_fee) = self.create_vt_transaction_components(
             &mut state,
             outputs,
             fee,
-            fee_type,
             &utxo_strategy,
             selected_utxos,
         )?;
@@ -1102,7 +1101,7 @@ where
         let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
         let transaction = VTTransaction::new(body, signatures?);
 
-        Ok((transaction, fee))
+        Ok((transaction, absolute_fee))
     }
 
     /// Create a new data request transaction using available UTXOs.
@@ -1114,21 +1113,17 @@ where
 
     pub fn create_data_req_return_fee(
         &self,
-        types::DataReqParams {
-            fee,
-            request,
-            fee_type,
-        }: types::DataReqParams,
-    ) -> Result<(DRTransaction, u64)> {
+        types::DataReqParams { fee, request }: types::DataReqParams,
+    ) -> Result<(DRTransaction, AbsoluteFee)> {
         let mut state = self.state.write()?;
-        let (inputs, outputs, fee) =
-            self.create_dr_transaction_components(&mut state, request.clone(), fee, fee_type)?;
+        let (inputs, outputs, absolute_fee) =
+            self.create_dr_transaction_components(&mut state, request.clone(), fee)?;
 
         let body = DRTransactionBody::new(inputs.clone(), outputs, request);
         let sign_data = body.hash();
         let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
 
-        Ok((DRTransaction::new(body, signatures?), fee))
+        Ok((DRTransaction::new(body, signatures?), absolute_fee))
     }
 
     /// Create signatures from inputs
@@ -1173,18 +1168,16 @@ where
         &self,
         state: &mut State,
         outputs: Vec<ValueTransferOutput>,
-        fee: f64,
-        fee_type: FeeType,
+        fee: Fee,
         utxo_strategy: &UtxoSelectionStrategy,
         selected_utxos: HashSet<model::OutPtr>,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64)> {
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, AbsoluteFee)> {
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         let (inputs, outputs, fee) = self.build_inputs_outputs_wallet(
             outputs,
             None,
             fee,
-            fee_type,
             state,
             timestamp,
             None,
@@ -1200,9 +1193,8 @@ where
         &self,
         state: &mut State,
         request: DataRequestOutput,
-        fee: f64,
-        fee_type: FeeType,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64)> {
+        fee: Fee,
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, AbsoluteFee)> {
         let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
@@ -1210,7 +1202,6 @@ where
             vec![],
             Some(&request),
             fee,
-            fee_type,
             state,
             timestamp,
             None,
@@ -1252,8 +1243,7 @@ where
         &self,
         outputs: Vec<ValueTransferOutput>,
         dr_output: Option<&DataRequestOutput>,
-        fee: f64,
-        fee_type: FeeType,
+        fee: Fee,
         state: &mut State,
         timestamp: u64,
         // The block number must be lower than this limit
@@ -1261,7 +1251,7 @@ where
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
         selected_utxos: HashSet<model::OutPtr>,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, u64)> {
+    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, AbsoluteFee)> {
         let empty_hashset = HashSet::default();
         let unconfirmed_transactions = if self.params.use_unconfirmed_utxos {
             &empty_hashset
@@ -1280,7 +1270,6 @@ where
             outputs,
             dr_output,
             fee,
-            fee_type,
             timestamp,
             block_number_limit,
             utxo_strategy,
@@ -1294,7 +1283,7 @@ where
         insert_change_output(
             &mut outputs,
             change_pkh,
-            tx_info.input_value - tx_info.output_value - tx_info.fee,
+            tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
         );
 
         Ok((tx_info.inputs, outputs, tx_info.fee))
