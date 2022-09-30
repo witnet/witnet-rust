@@ -22,11 +22,6 @@ fn from_config_test_success_helper(
         .cloned()
         .map(|option| option.map(|uri| uri.to_string()))
         .collect::<Vec<_>>();
-    // This is dropping RadManager explicitly so as to get rid of the panic of doing so.
-    std::panic::catch_unwind(|| {
-        std::mem::drop(manager);
-    })
-    .ok();
     assert_eq!(actual_transports, expected_transports);
 }
 
