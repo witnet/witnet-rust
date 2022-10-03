@@ -378,10 +378,27 @@ impl Message for IsConfirmedBlock {
     type Result = Result<bool, failure::Error>;
 }
 
-/// Rewind
+/// Additional configuration for the rewind method
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct RewindMode {
+    /// Validate block and transaction signatures
+    #[serde(default)]
+    pub validate_signatures: bool,
+    /// Write all the blocks, transactions, and data request reports to storage, regardless of
+    /// whether they already exist or not
+    #[serde(default)]
+    pub write_items_to_storage: bool,
+}
+
+/// Rewind chain state back to some epoch
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct Rewind {
-    /// Epoch
-    pub epoch: u32,
+    /// Epoch of the last block that will be consolidated by the rewind method
+    #[serde(default)]
+    pub epoch: Option<Epoch>,
+    /// Additional configuration for the rewind method
+    #[serde(default)]
+    pub mode: RewindMode,
 }
 
 impl Message for Rewind {
