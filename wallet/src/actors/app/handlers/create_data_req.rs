@@ -2,7 +2,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
-    fee::{AbsoluteFee, Fee},
+    fee::{deserialize_fee_backwards_compatible, AbsoluteFee, Fee},
     proto::ProtobufConvert,
     transaction::Transaction,
 };
@@ -24,6 +24,7 @@ pub struct CreateDataReqRequest {
         deserialize_with = "from_generic_type::<_, DataRequestOutputHelper, _>"
     )]
     request: DataRequestOutput,
+    #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
 }
 
@@ -36,6 +37,7 @@ pub struct CreateDataReqResponse {
     )]
     pub transaction: Transaction,
     pub bytes: String,
+    #[serde(deserialize_with = "number_from_string")]
     pub fee: AbsoluteFee,
     #[serde(
         serialize_with = "u32_to_string",

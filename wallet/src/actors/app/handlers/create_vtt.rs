@@ -4,7 +4,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use witnet_data_structures::{
     chain::{Environment, Hashable, OutputPointer, PublicKeyHash, ValueTransferOutput},
-    fee::{AbsoluteFee, Fee},
+    fee::{deserialize_fee_backwards_compatible, AbsoluteFee, Fee},
     proto::ProtobufConvert,
     transaction::Transaction,
     utxo_pool::UtxoSelectionStrategy,
@@ -27,6 +27,7 @@ pub struct VttOutputParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVttRequest {
+    #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
     label: Option<String>,
     #[serde(
@@ -46,6 +47,7 @@ pub struct CreateVttRequest {
 /// (e.g. in a confirmation screen)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VttMetadata {
+    #[serde(deserialize_with = "number_from_string")]
     fee: AbsoluteFee,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",

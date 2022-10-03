@@ -1,4 +1,4 @@
-use std::{fmt, ops};
+use std::{fmt, ops, str};
 
 pub use num_traits::Zero;
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,15 @@ impl AbsoluteFee {
 impl fmt::Display for AbsoluteFee {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl str::FromStr for AbsoluteFee {
+    type Err = <u64 as str::FromStr>::Err;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        u64::from_str(s).map(Wit::from_nanowits).map(Self)
     }
 }
 
@@ -60,6 +69,15 @@ impl RelativeFee {
 impl fmt::Display for RelativeFee {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} nWitWu", self.0.as_f64())
+    }
+}
+
+impl str::FromStr for RelativeFee {
+    type Err = <f64 as str::FromStr>::Err;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        f64::from_str(s).map(Priority::from).map(Self)
     }
 }
 
@@ -154,4 +172,34 @@ impl num_traits::Zero for Fee {
             Fee::Relative(relative) => relative.is_zero(),
         }
     }
+}
+
+/// Allow backwards compatibility with old Wallet API clients that may provide fee values without
+/// tagging whether they are absolute or relative.
+///
+/// This implicitly treats integers as absolute fees and floats as relative fees. Strings encoding
+/// numbers are also parsed in the same way.
+pub fn deserialize_fee_backwards_compatible<'de, D>(deserializer: D) -> Result<Fee, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Untagged {
+        Fee(Fee),
+        Float(f64),
+        Integer(u64),
+        String(String),
+    }
+
+    Ok(match Untagged::deserialize(deserializer)? {
+        Untagged::Fee(fee) => fee,
+        Untagged::Float(float) => Fee::relative_from_float(float),
+        Untagged::Integer(integer) => Fee::absolute_from_nanowits(integer),
+        Untagged::String(string) => string
+            .parse::<u64>()
+            .map(Fee::absolute_from_nanowits)
+            .or_else(|_| string.parse::<f64>().map(Fee::relative_from_float))
+            .map_err(serde::de::Error::custom)?,
+    })
 }

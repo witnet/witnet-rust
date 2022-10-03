@@ -1946,7 +1946,7 @@ fn test_create_vt_weight_too_large() {
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = 150;
-    let fee = Fee::zero();
+    let fee = Fee::relative_from_float(0.0);
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
