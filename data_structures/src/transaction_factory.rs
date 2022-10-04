@@ -116,8 +116,6 @@ pub trait OutputsCollection {
 
     /// Generic inputs/outputs builder: can be used to build
     /// value transfer transactions and data request transactions.
-    #[allow(clippy::cast_sign_loss)]
-    #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::too_many_arguments)]
     fn build_inputs_outputs(
         &mut self,
@@ -289,7 +287,6 @@ pub fn insert_change_output(
 }
 
 /// Build value transfer transaction with the given outputs and fee.
-#[allow(clippy::cast_precision_loss)]
 #[allow(clippy::too_many_arguments)]
 pub fn build_vtt(
     outputs: Vec<ValueTransferOutput>,
@@ -337,7 +334,6 @@ pub fn build_vtt(
 }
 
 /// Build data request transaction with the given outputs and fee.
-#[allow(clippy::cast_precision_loss)]
 #[allow(clippy::too_many_arguments)]
 pub fn build_drt(
     dr_output: DataRequestOutput,
@@ -413,7 +409,6 @@ pub fn check_commit_collateral(
 }
 
 /// Build inputs and outputs to be used as the collateral in a CommitTransaction
-#[allow(clippy::cast_precision_loss)]
 pub fn build_commit_collateral(
     collateral: Wit,
     own_utxos: &mut OwnUnspentOutputsPool,

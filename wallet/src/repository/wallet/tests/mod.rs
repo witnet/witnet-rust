@@ -2251,7 +2251,7 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
         witnesses: 1000,
         ..DataRequestOutput::default()
     };
-    let fee = Fee::default();
+    let fee = Fee::relative_from_float(0);
     let err = wallet
         .create_dr_transaction_components(&mut state, request.clone(), fee)
         .unwrap_err();
