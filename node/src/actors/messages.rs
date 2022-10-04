@@ -24,7 +24,7 @@ use witnet_data_structures::{
         RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
         ValueTransferOutput,
     },
-    fee::Fee,
+    fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
     transaction::{
         CommitTransaction, DRTransaction, RevealTransaction, Transaction, VTTransaction,
@@ -202,6 +202,7 @@ pub struct BuildVtt {
     /// List of `ValueTransferOutput`s
     pub vto: Vec<ValueTransferOutput>,
     /// Fee
+    #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     pub fee: Fee,
     /// Strategy to sort the unspent outputs pool
     #[serde(default)]
@@ -221,6 +222,7 @@ pub struct BuildDrt {
     /// `DataRequestOutput`
     pub dro: DataRequestOutput,
     /// Fee
+    #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     pub fee: Fee,
     /// Construct the transaction but do not broadcast it
     #[serde(default)]
