@@ -132,7 +132,7 @@ impl Fee {
 
 impl Default for Fee {
     fn default() -> Self {
-        <Self as Zero>::zero()
+        Self::absolute_from_nanowits(0)
     }
 }
 
@@ -141,35 +141,6 @@ impl fmt::Display for Fee {
         match self {
             Fee::Absolute(absolute) => absolute.fmt(f),
             Fee::Relative(relative) => relative.fmt(f),
-        }
-    }
-}
-
-impl ops::Add for Fee {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        use crate::fee::Fee::*;
-        match (self, rhs) {
-            (Absolute(lhs), Absolute(rhs)) => Fee::Absolute(lhs + rhs),
-            (Relative(lhs), Relative(rhs)) => Fee::Relative(lhs + rhs),
-            _ => {
-                unimplemented!()
-            }
-        }
-    }
-}
-
-impl num_traits::Zero for Fee {
-    #[inline]
-    fn zero() -> Self {
-        Self::Absolute(AbsoluteFee::zero())
-    }
-
-    fn is_zero(&self) -> bool {
-        match self {
-            Fee::Absolute(absolute) => absolute.is_zero(),
-            Fee::Relative(relative) => relative.is_zero(),
         }
     }
 }

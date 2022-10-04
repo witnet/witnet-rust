@@ -526,8 +526,6 @@ mod tests {
         },
     };
 
-    use num_traits::Zero;
-
     use crate::{
         chain::{Hash, Hashable, PublicKey},
         error::TransactionError,
@@ -926,7 +924,7 @@ mod tests {
 
         // Building a zero value transaction returns an error
         assert_eq!(
-            build_vtt_tx(vec![], Fee::zero(), &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
+            build_vtt_tx(vec![], Fee::default(), &mut own_utxos, own_pkh, &all_utxos).unwrap_err(),
             TransactionError::ZeroAmount
         );
 
@@ -934,7 +932,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx(
                 vec![pay_bob(1000)],
-                Fee::zero(),
+                Fee::default(),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
@@ -964,7 +962,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx(
                 vec![pay_me(0), pay_bob(0)],
-                Fee::zero(),
+                Fee::default(),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
@@ -1021,7 +1019,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx(
                 vec![pay_bob(2000)],
-                Fee::zero(),
+                Fee::default(),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
@@ -1080,7 +1078,7 @@ mod tests {
         assert_eq!(
             build_vtt_tx_with_timestamp(
                 vec![pay_bob(100)],
-                Fee::zero(),
+                Fee::default(),
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos,
@@ -1096,7 +1094,7 @@ mod tests {
 
         assert!(build_vtt_tx_with_timestamp(
             vec![pay_bob(100)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1114,7 +1112,7 @@ mod tests {
 
         let t1 = build_vtt_tx(
             vec![pay_bob(1000)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos1,
             own_pkh,
             &all_utxos1,
@@ -1147,7 +1145,7 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1170,7 +1168,7 @@ mod tests {
 
         let t1 = build_vtt_tx(
             vec![pay_bob(1000)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos1,
             own_pkh,
             &all_utxos1,
@@ -1206,7 +1204,7 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1266,7 +1264,7 @@ mod tests {
 
         let t1 = build_vtt_tx(
             vec![pay_bob(1000)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1351,7 +1349,7 @@ mod tests {
 
         let t1 = build_vtt_tx(
             vec![pay_bob(1000)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1414,7 +1412,7 @@ mod tests {
         // A transaction to ourselves with no fees will maintain our total balance
         let t5 = build_vtt_tx(
             vec![pay_me(480)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1513,7 +1511,7 @@ mod tests {
 
         let t2 = build_vtt_tx(
             vec![pay_bob(100)],
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1589,7 +1587,7 @@ mod tests {
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1606,7 +1604,7 @@ mod tests {
                 commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1633,7 +1631,7 @@ mod tests {
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1650,7 +1648,7 @@ mod tests {
                 commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1700,7 +1698,7 @@ mod tests {
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,
@@ -1718,7 +1716,7 @@ mod tests {
                 commit_and_reveal_fee: 300,
                 ..DataRequestOutput::default()
             },
-            Fee::zero(),
+            Fee::default(),
             &mut own_utxos,
             own_pkh,
             &all_utxos,

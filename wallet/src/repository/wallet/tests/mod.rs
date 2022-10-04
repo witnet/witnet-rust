@@ -1,7 +1,7 @@
 use std::{collections::HashMap, iter::FromIterator as _, mem};
 
 use witnet_data_structures::{
-    chain::Hashable, fee::Zero, transaction::VTTransaction, transaction_factory::calculate_weight,
+    chain::Hashable, transaction::VTTransaction, transaction_factory::calculate_weight,
 };
 
 use crate::{db::HashMapDb, repository::wallet::tests::factories::vtt_from_body, *};
@@ -326,7 +326,7 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
     let (wallet, _db) = factories::wallet(None);
     let mut state = wallet.state.write().unwrap();
     let value = 1;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let pkh = factories::pkh();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
@@ -380,7 +380,7 @@ fn test_create_transaction_components_without_a_change_address() {
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = 1;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
@@ -432,7 +432,7 @@ fn test_create_transaction_components_with_a_change_address() {
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = 1;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
 
@@ -504,7 +504,7 @@ fn test_create_transaction_components_which_value_overflows() {
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = std::u64::MAX;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
@@ -560,7 +560,7 @@ fn test_create_vtt_does_not_spend_utxos() {
     let (wallet, db) = factories::wallet(Some(db));
     let pkh = factories::pkh();
     let value = 1;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
 
@@ -658,7 +658,7 @@ fn test_create_data_request_does_not_spend_utxos() {
         ..DataRequestOutput::default()
     };
 
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let data_req = wallet
         .create_data_req(types::DataReqParams { fee, request })
         .unwrap();
@@ -955,7 +955,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
     let a_block = factories::BlockInfo::default().create();
     let our_address = wallet.gen_external_address(None).unwrap();
     let their_pkh = factories::pkh();
-    let fee = Fee::zero();
+    let fee = Fee::default();
 
     // index transaction to receive funds
     wallet
@@ -1061,7 +1061,7 @@ fn test_get_transaction() {
     let a_block = factories::BlockInfo::default().create();
     let our_address = wallet.gen_external_address(None).unwrap();
     let their_pkh = factories::pkh();
-    let fee = Fee::zero();
+    let fee = Fee::default();
 
     assert!(wallet.get_transaction(0, 0).is_err());
     // index transaction to receive funds
@@ -1131,7 +1131,7 @@ fn test_get_transactions() {
     let a_block = factories::BlockInfo::default().create();
     let our_address = wallet.gen_external_address(None).unwrap();
     let their_pkh = factories::pkh();
-    let fee = Fee::zero();
+    let fee = Fee::default();
 
     // index transaction to receive funds
     wallet
@@ -1208,7 +1208,7 @@ fn test_create_vtt_with_locked_balance() {
     let a_block = factories::BlockInfo::default().create();
     let our_address = wallet.gen_external_address(None).unwrap();
     let their_pkh = factories::pkh();
-    let fee = Fee::zero();
+    let fee = Fee::default();
 
     assert!(wallet.get_transaction(0, 0).is_err());
     // index transaction to receive funds
@@ -1262,7 +1262,7 @@ fn test_create_vtt_with_multiple_outputs() {
 
     let a_block = factories::BlockInfo::default().create();
     let our_address = wallet.gen_external_address(None).unwrap();
-    let fee = Fee::zero();
+    let fee = Fee::default();
 
     assert!(wallet.get_transaction(0, 0).is_err());
     // index transaction to receive funds
@@ -2251,7 +2251,7 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
         witnesses: 1000,
         ..DataRequestOutput::default()
     };
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let err = wallet
         .create_dr_transaction_components(&mut state, request.clone(), fee)
         .unwrap_err();
@@ -2364,7 +2364,7 @@ fn test_create_transaction_components_filter_from_address() {
     let mut state = wallet.state.write().unwrap();
     let pkh3 = factories::pkh();
     let value = 50;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: Some(pkh1) };
     let vto = ValueTransferOutput {
@@ -2435,7 +2435,7 @@ fn test_create_transaction_components_filter_from_address_2() {
     let mut state = wallet.state.write().unwrap();
     let pkh3 = factories::pkh();
     let value = 50;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: Some(pkh2) };
     let vto = ValueTransferOutput {
@@ -2506,7 +2506,7 @@ fn test_create_transaction_components_filter_from_address_3() {
     let mut state = wallet.state.write().unwrap();
     let pkh3 = factories::pkh();
     let value = 50;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: Some(pkh3) };
     let vto = ValueTransferOutput {
@@ -2584,7 +2584,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
         .insert(Hash::from(txn_hash_pending));
     let pkh = factories::pkh();
     let value = 4;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
@@ -2682,7 +2682,7 @@ fn test_create_transaction_components_uses_unconfirmed_utxos() {
         .insert(Hash::from(txn_hash_pending));
     let pkh = factories::pkh();
     let value = 7;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {
@@ -2748,7 +2748,7 @@ fn test_create_vtt_selecting_utxos() {
 
     let pkh = factories::pkh();
     let value = 4;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
 
@@ -2846,7 +2846,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos_and_selecti
         .insert(Hash::from(txn_hash_pending));
     let pkh = factories::pkh();
     let value = 4;
-    let fee = Fee::zero();
+    let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
     let vto = ValueTransferOutput {

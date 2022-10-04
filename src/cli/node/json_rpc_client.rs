@@ -27,7 +27,7 @@ use witnet_data_structures::{
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
-    fee::{Fee, Zero},
+    fee::Fee,
     proto::ProtobufConvert,
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::NodeBalance,
@@ -1792,7 +1792,7 @@ where
             let (estimate, _) =
                 issue_method("priority", None::<serde_json::Value>, stream, id.next())?;
 
-            (Fee::zero(), Some(estimate))
+            (Fee::default(), Some(estimate))
         }
         Some(fee) => (fee, None),
     })
