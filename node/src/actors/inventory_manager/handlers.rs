@@ -1,6 +1,9 @@
 use actix::{prelude::*, ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture};
+use witnet_data_structures::{
+    chain::{Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock},
+    transaction::Transaction,
+};
 
-use super::{InventoryManager, InventoryManagerError};
 use crate::{
     actors::messages::{
         AddItem, AddItems, GetItem, GetItemBlock, GetItemSuperblock, GetItemTransaction,
@@ -8,10 +11,8 @@ use crate::{
     },
     storage_mngr,
 };
-use witnet_data_structures::{
-    chain::{Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock},
-    transaction::Transaction,
-};
+
+use super::{InventoryManager, InventoryManagerError};
 
 fn key_superblock(superblock_index: u32) -> Vec<u8> {
     // Add 0 padding to the left of the superblock index to make sorted keys represent consecutive
@@ -319,23 +320,27 @@ impl Handler<GetItemSuperblock> for InventoryManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        actors::chain_manager::mining::build_block, config_mngr, storage_mngr,
-        utils::test_actix_system,
-    };
+    use std::collections::HashMap;
     use std::sync::Arc;
+
     use witnet_config::config::{Config, StorageBackend};
     use witnet_data_structures::{
         chain::{
-            CheckpointBeacon, EpochConstants, Input, KeyedSignature, OutputPointer, PublicKeyHash,
-            TransactionsPool, ValueTransferOutput,
+            tapi::ActiveWips, CheckpointBeacon, EpochConstants, Input, KeyedSignature,
+            OutputPointer, PublicKeyHash, TransactionsPool, ValueTransferOutput,
         },
         data_request::DataRequestPool,
         transaction::{Transaction, VTTransaction, VTTransactionBody},
         utxo_pool::UnspentOutputsPool,
         vrf::BlockEligibilityClaim,
     };
+
+    use crate::{
+        actors::chain_manager::mining::build_block, config_mngr, storage_mngr,
+        utils::test_actix_system,
+    };
+
+    use super::*;
 
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;
@@ -407,6 +412,11 @@ mod tests {
         let block_proof = BlockEligibilityClaim::default();
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build block with
 
         let (block_header, txns) = build_block(
@@ -426,6 +436,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)

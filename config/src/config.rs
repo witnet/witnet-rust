@@ -406,6 +406,8 @@ pub struct Mempool {
 pub struct Tapi {
     /// Oppose WIP0022
     pub oppose_wip0022: bool,
+    /// Oppose WIP0023
+    pub oppose_wip0023: bool,
     /// Oppose WIP0024
     pub oppose_wip0024: bool,
     /// Oppose WIP0025
