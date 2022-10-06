@@ -4585,12 +4585,14 @@ fn dr_pool_with_dr_in_tally_all_errors(
     let liars_count = liars_count + commits_count - reveals_count;
     // Calculate tally change assuming that the consensus will be error, and therefore errors will
     // be rewarded
+    let active_wips = current_active_wips();
     let (reward, _) = calculate_witness_reward(
         commits_count,
         liars_count,
         0,
         dr_output.witness_reward,
         DEFAULT_COLLATERAL,
+        active_wips.wip0023(),
     );
 
     (
@@ -4700,12 +4702,14 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     // To calculate witness reward we take into account than non-revealers are considered liars
     let liars_count = liars_count + commits_count - reveals_count;
     // Calculate witness reward
+    let active_wips = current_active_wips();
     let (reward, _) = calculate_witness_reward(
         commits_count,
         liars_count,
         errors_count,
         dr_output.witness_reward,
         DEFAULT_COLLATERAL,
+        active_wips.wip0023(),
     );
 
     (
@@ -4937,11 +4941,18 @@ fn tally_invalid_consensus() {
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 4
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5338,11 +5349,18 @@ fn tally_valid() {
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 4
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5396,11 +5414,18 @@ fn tally_too_many_outputs() {
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 4
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5485,11 +5510,18 @@ fn tally_invalid_change() {
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 4
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5722,11 +5754,18 @@ fn tally_valid_3_reveals_dr_liar() {
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5773,11 +5812,18 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5831,10 +5877,16 @@ fn tally_valid_5_reveals_1_liar_1_error() {
     let dr_output = example_data_request_output_with_mode_filter(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 5, 5, 1, 1, reveal_value, liar_value);
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -6063,11 +6115,18 @@ fn tally_dishonest_reward() {
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+        );
+    }
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -6129,11 +6188,18 @@ fn create_tally_validation_dr_liar() {
             reveal_value.result.encode().unwrap(),
             liar_value.result.encode().unwrap(),
         );
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+        );
+    }
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
@@ -6204,11 +6270,18 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
             reveal_value.result.encode().unwrap(),
             liar_value.result.encode().unwrap(),
         );
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(
-        reward,
-        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3
-    );
+
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(
+            reward,
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3
+        );
+    }
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
@@ -6286,9 +6359,15 @@ fn create_tally_validation_4_commits_2_reveals() {
             reveal_value.result.encode().unwrap(),
             vec![],
         );
-    // You earn your reward, get your collateral back, plus a share of the slashed collateral
-    assert_eq!(reward, DEFAULT_WITNESS_REWARD + 2 * DEFAULT_COLLATERAL);
 
+    let active_wips = current_active_wips();
+    if active_wips.wip0023() {
+        // You earn your reward, and get your collateral back
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL)
+    } else {
+        // You earn your reward, get your collateral back, plus a share of the slashed collateral
+        assert_eq!(reward, DEFAULT_WITNESS_REWARD + 2 * DEFAULT_COLLATERAL)
+    }
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
     let active_wips = current_active_wips();
@@ -6612,12 +6691,22 @@ fn validate_calculate_witness_reward() {
         ..DataRequestOutput::default()
     };
 
+    let active_wips = current_active_wips();
+    let wip0023_active = active_wips.wip0023();
+
     // Case 0 commits
     let expected_reward = 0;
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(0, 0, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(
+            0,
+            0,
+            0,
+            dr_output.witness_reward,
+            dr_output.collateral,
+            wip0023_active,
+        )
     );
 
     // Case 0 reveals
@@ -6625,7 +6714,14 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(
+            5,
+            5,
+            0,
+            dr_output.witness_reward,
+            dr_output.collateral,
+            wip0023_active,
+        )
     );
 
     // Case all honest
@@ -6633,23 +6729,60 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 0, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(
+            5,
+            0,
+            0,
+            dr_output.witness_reward,
+            dr_output.collateral,
+            wip0023_active,
+        )
     );
 
     // Case 2 liars
-    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL * 2 / 3;
-    let rest = DEFAULT_COLLATERAL * 2 % 3;
+    let expected_reward = if wip0023_active {
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL
+    } else {
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL * 2 / 3
+    };
+    let rest = if wip0023_active {
+        0
+    } else {
+        DEFAULT_COLLATERAL * 2 % 3
+    };
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 2, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(
+            5,
+            2,
+            0,
+            dr_output.witness_reward,
+            dr_output.collateral,
+            wip0023_active,
+        )
     );
 
     // Case 1 liar and 1 non-revealer
-    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL * 2 / 3;
-    let rest = DEFAULT_COLLATERAL * 2 % 3;
+    let expected_reward = if wip0023_active {
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL
+    } else {
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL * 2 / 3
+    };
+    let rest = if wip0023_active {
+        0
+    } else {
+        DEFAULT_COLLATERAL * 2 % 3
+    };
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 2, 0, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(
+            5,
+            2,
+            0,
+            dr_output.witness_reward,
+            dr_output.collateral,
+            wip0023_active
+        )
     );
 
     // Case 1 error
@@ -6657,15 +6790,37 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 0, 1, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(
+            5,
+            0,
+            1,
+            dr_output.witness_reward,
+            dr_output.collateral,
+            wip0023_active,
+        )
     );
 
     // Case 1 liar and 1 error
-    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3;
-    let rest = DEFAULT_COLLATERAL % 3;
+    let expected_reward = if wip0023_active {
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL
+    } else {
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3
+    };
+    let rest = if wip0023_active {
+        0
+    } else {
+        DEFAULT_COLLATERAL % 3
+    };
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 1, 1, dr_output.witness_reward, dr_output.collateral)
+        calculate_witness_reward(
+            5,
+            1,
+            1,
+            dr_output.witness_reward,
+            dr_output.collateral,
+            wip0023_active,
+        )
     );
 }
 
@@ -7142,8 +7297,18 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
         vec![216, 39, 129, 24, 49],
     ];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3;
-    let change = DEFAULT_WITNESS_REWARD + 10;
+    let active_wips = current_active_wips();
+    let (reward, change) = if active_wips.wip0023() {
+        (
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL,
+            DEFAULT_WITNESS_REWARD + 10,
+        )
+    } else {
+        (
+            DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3,
+            DEFAULT_WITNESS_REWARD + 10,
+        )
+    };
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![216, 39, 129, 24, 49];
@@ -7659,7 +7824,12 @@ fn tally_valid_rng_one_invalid_type() {
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
-    let reward = collateral + DEFAULT_WITNESS_REWARD + collateral / 3;
+    let active_wips = current_active_wips();
+    let reward = if active_wips.wip0023() {
+        collateral + DEFAULT_WITNESS_REWARD
+    } else {
+        collateral + DEFAULT_WITNESS_REWARD + collateral / 3
+    };
     let change = DEFAULT_WITNESS_REWARD;
 
     let tally_value = RadonTypes::from(RadonBytes::from(

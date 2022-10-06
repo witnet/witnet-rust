@@ -934,6 +934,7 @@ pub fn validate_tally_transaction<'a>(
             errors_count,
             dr_state.data_request.witness_reward,
             collateral,
+            active_wips.wip0023(),
         )
     } else {
         calculate_witness_reward_before_second_hard_fork(
@@ -1055,7 +1056,15 @@ pub fn validate_tally_transaction<'a>(
     }
 
     let expected_collateral_value = if commits_count > 0 {
-        collateral * u64::from(dr_state.data_request.witnesses)
+        if active_wips.wip0023() {
+            if honests_count > 0 {
+                collateral * (u64::from(dr_state.data_request.witnesses) - liars_count as u64)
+            } else {
+                collateral * u64::from(dr_state.data_request.witnesses)
+            }
+        } else {
+            collateral * u64::from(dr_state.data_request.witnesses)
+        }
     } else {
         // In case of no commits, collateral does not affect
         0

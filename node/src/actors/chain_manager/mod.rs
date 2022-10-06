@@ -2300,6 +2300,7 @@ impl ChainManager {
     fn tapi_signals_mask(&self, epoch: Epoch) -> u32 {
         let Tapi {
             oppose_wip0022,
+            oppose_wip0023,
             oppose_wip0024,
             oppose_wip0025,
             oppose_wip0026,
@@ -2333,6 +2334,17 @@ impl ChainManager {
 
         // Bit 4
         let bit = 4;
+        if !oppose_wip0023
+            && self
+                .chain_state
+                .tapi_engine
+                .in_voting_range(epoch, "WIP0023")
+        {
+            v |= 1 << bit;
+        }
+
+        // Bit 5
+        let bit = 5;
         if !oppose_wip0024
             && self
                 .chain_state
@@ -2342,8 +2354,8 @@ impl ChainManager {
             v |= 1 << bit;
         }
 
-        // Bit 5
-        let bit = 5;
+        // Bit 6
+        let bit = 6;
         if !oppose_wip0025
             && self
                 .chain_state
@@ -2353,8 +2365,8 @@ impl ChainManager {
             v |= 1 << bit;
         }
 
-        // Bit 6
-        let bit = 6;
+        // Bit 7
+        let bit = 7;
         if !oppose_wip0026
             && self
                 .chain_state
@@ -2364,8 +2376,8 @@ impl ChainManager {
             v |= 1 << bit;
         }
 
-        // Bit 7
-        let bit = 7;
+        // Bit 8
+        let bit = 8;
         if !oppose_wip0027
             && self
                 .chain_state

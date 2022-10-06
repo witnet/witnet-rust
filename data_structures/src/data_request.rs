@@ -482,6 +482,7 @@ pub fn calculate_witness_reward(
     errors_count: usize,
     reward: u64,
     collateral: u64,
+    wip0023_active: bool,
 ) -> (u64, u64) {
     let honests_count = (commits_count - liars_count - errors_count) as u64;
 
@@ -494,10 +495,14 @@ pub fn calculate_witness_reward(
         let slashed_collateral_reward = collateral * liars_count / honests_count;
         let slashed_collateral_remainder = (collateral * liars_count) % honests_count;
 
-        (
-            reward + collateral + slashed_collateral_reward,
-            slashed_collateral_remainder,
-        )
+        if wip0023_active {
+            (reward + collateral, 0)
+        } else {
+            (
+                reward + collateral + slashed_collateral_reward,
+                slashed_collateral_remainder,
+            )
+        }
     }
 }
 
@@ -610,6 +615,7 @@ where
                 errors_count,
                 dr_output.witness_reward,
                 collateral,
+                active_wips.wip0023(),
             )
         } else {
             calculate_witness_reward_before_second_hard_fork(

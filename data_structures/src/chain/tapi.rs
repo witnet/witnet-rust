@@ -61,6 +61,7 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
     active_wips.insert("WIP0020-0021".to_string(), 1059861);
     active_wips.insert("WIP0022".to_string(), 1651280);
+    active_wips.insert("WIP0023".to_string(), 1651280);
     active_wips.insert("WIP0024".to_string(), 1651280);
     active_wips.insert("WIP0025".to_string(), 1651280);
     active_wips.insert("WIP0026".to_string(), 1651280);
@@ -79,6 +80,7 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0017-0018-0019".to_string(), 0);
     active_wips.insert("WIP0020-0021".to_string(), 0);
     active_wips.insert("WIP0022".to_string(), 0);
+    active_wips.insert("WIP0023".to_string(), 0);
     active_wips.insert("WIP0024".to_string(), 0);
     active_wips.insert("WIP0025".to_string(), 0);
     active_wips.insert("WIP0026".to_string(), 0);
@@ -170,52 +172,63 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0022".to_string(),
-                    // Start signaling on
+                    // Start signaling on February 21 at 9am UTC
                     init: 1651280,
                     end: u32::MAX,
                     bit: 3,
+                };
+                // Hardcoded information about WIPs in vote processing
+                let wip_0023 = BitVotesCounter {
+                    votes: 0,
+                    period: 26880,
+                    wip: "WIP0023".to_string(),
+                    // Start signaling on February 21 at 9am UTC
+                    init: 1651280,
+                    end: u32::MAX,
+                    bit: 4,
                 };
                 let wip_0024 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0024".to_string(),
-                    // Start signaling on
+                    // Start signaling on February 21 at 9am UTC
                     init: 1651280,
                     end: u32::MAX,
-                    bit: 4,
+                    bit: 5,
                 };
                 let wip_0025 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0025".to_string(),
-                    // Start signaling on
+                    // Start signaling on February 21 at 9am UTC
                     init: 1651280,
                     end: u32::MAX,
-                    bit: 5,
+                    bit: 6,
                 };
                 let wip_0026 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0026".to_string(),
-                    // Start signaling on
+                    // Start signaling on February 21 at 9am UTC
                     init: 1651280,
                     end: u32::MAX,
-                    bit: 6,
+                    bit: 7,
                 };
                 let wip_0027 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0027".to_string(),
-                    // Start signaling on
+                    // Start signaling on February 21 at 9am UTC
                     init: 1651280,
                     end: u32::MAX,
-                    bit: 7,
+                    bit: 8,
                 };
                 voting_wips[3] = Some(wip_0022);
-                voting_wips[4] = Some(wip_0024);
-                voting_wips[5] = Some(wip_0025);
-                voting_wips[6] = Some(wip_0026);
-                voting_wips[7] = Some(wip_0027);
+                voting_wips[4] = Some(wip_0023);
+                voting_wips[5] = Some(wip_0024);
+                voting_wips[6] = Some(wip_0025);
+                voting_wips[7] = Some(wip_0026);
+                voting_wips[8] = Some(wip_0027);
             }
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
@@ -507,6 +520,10 @@ impl ActiveWips {
 
     pub fn wip0022(&self) -> bool {
         self.wip_active("WIP0022")
+    }
+
+    pub fn wip0023(&self) -> bool {
+        self.wip_active("WIP0023")
     }
 
     pub fn wip0024(&self) -> bool {
@@ -823,6 +840,7 @@ mod tests {
         // WIP0022 is already included and it won't be updated
         let mut hs = HashSet::new();
         hs.insert("WIP0022".to_string());
+        hs.insert("WIP0023".to_string());
         hs.insert("WIP0024".to_string());
         hs.insert("WIP0025".to_string());
         hs.insert("WIP0026".to_string());
