@@ -212,6 +212,11 @@ impl ChainManager {
 
                 let tapi_version = act.tapi_signals_mask(current_epoch);
 
+                let active_wips = ActiveWips {
+                    active_wips: act.chain_state.tapi_engine.wip_activation.clone(),
+                    block_epoch: current_epoch,
+                };
+
                 // Build the block using the supplied beacon and eligibility proof
                 let (block_header, txns) = build_block(
                     (
@@ -234,6 +239,7 @@ impl ChainManager {
                     initial_block_reward,
                     halving_period,
                     tapi_version,
+                    &active_wips,
                 );
 
                 // Sign the block hash
@@ -806,6 +812,7 @@ pub fn build_block(
     initial_block_reward: u64,
     halving_period: u32,
     tapi_signals: u32,
+    active_wips: &ActiveWips,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -879,6 +886,7 @@ pub fn build_block(
                     errors_count,
                     dr_state.data_request.witness_reward,
                     collateral,
+                    active_wips.wip0023(),
                 )
             } else {
                 calculate_witness_reward_before_second_hard_fork(
@@ -1009,6 +1017,7 @@ pub fn build_block(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::convert::TryInto;
 
     use witnet_crypto::secp256k1::{
@@ -1049,6 +1058,11 @@ mod tests {
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build empty block (because max weight is zero)
         let (block_header, txns) = build_block(
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
@@ -1067,6 +1081,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1118,6 +1133,11 @@ mod tests {
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build empty block (because max weight is zero)
 
         let (block_header, txns) = build_block(
@@ -1137,6 +1157,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
 
         // Create a KeyedSignature
@@ -1241,6 +1262,11 @@ mod tests {
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build block with
 
         let (block_header, txns) = build_block(
@@ -1260,6 +1286,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1336,6 +1363,11 @@ mod tests {
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build block with
 
         let (block_header, txns) = build_block(
@@ -1355,6 +1387,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1445,6 +1478,11 @@ mod tests {
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build block with
 
         let (block_header, txns) = build_block(
@@ -1464,6 +1502,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1537,6 +1576,11 @@ mod tests {
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build block with
 
         let (block_header, txns) = build_block(
@@ -1556,6 +1600,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 

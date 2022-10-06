@@ -324,6 +324,7 @@ mod tests {
         actors::chain_manager::mining::build_block, config_mngr, storage_mngr,
         utils::test_actix_system,
     };
+    use std::collections::HashMap;
     use std::sync::Arc;
     use witnet_config::config::{Config, StorageBackend};
     use witnet_data_structures::{
@@ -332,6 +333,7 @@ mod tests {
             TransactionsPool, ValueTransferOutput,
         },
         data_request::DataRequestPool,
+        mainnet_validations::ActiveWips,
         transaction::{Transaction, VTTransaction, VTTransactionBody},
         utxo_pool::UnspentOutputsPool,
         vrf::BlockEligibilityClaim,
@@ -407,6 +409,11 @@ mod tests {
         let block_proof = BlockEligibilityClaim::default();
         let collateral_minimum = 1_000_000_000;
 
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch: 0,
+        };
+
         // Build block with
 
         let (block_header, txns) = build_block(
@@ -426,6 +433,7 @@ mod tests {
             INITIAL_BLOCK_REWARD,
             HALVING_PERIOD,
             0,
+            &active_wips,
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)
