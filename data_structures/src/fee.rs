@@ -158,19 +158,16 @@ where
     #[serde(untagged)]
     enum Untagged {
         Fee(Fee),
-        Float(f64),
         Integer(u64),
         String(String),
     }
 
     Ok(match Untagged::deserialize(deserializer)? {
         Untagged::Fee(fee) => fee,
-        Untagged::Float(float) => Fee::relative_from_float(float),
         Untagged::Integer(integer) => Fee::absolute_from_nanowits(integer),
         Untagged::String(string) => string
             .parse::<u64>()
             .map(Fee::absolute_from_nanowits)
-            .or_else(|_| string.parse::<f64>().map(Fee::relative_from_float))
             .map_err(serde::de::Error::custom)?,
     })
 }
