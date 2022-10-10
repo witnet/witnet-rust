@@ -281,6 +281,7 @@ pub struct SuperBlockNotification {
 #[serde(rename_all = "camelCase")]
 pub enum FeeType {
     Absolute,
+    #[serde(rename = "weighted")]
     Relative,
 }
 
