@@ -10,7 +10,7 @@ use witnet_data_structures::{
 use crate::{
     actors::{app, worker},
     types::{
-        self, from_generic_type, into_generic_type, number_from_string, u32_to_string,
+        self, fee_compat, from_generic_type, into_generic_type, number_from_string, u32_to_string,
         DataRequestOutputHelper, FeeType, TransactionHelper,
     },
 };
@@ -26,8 +26,7 @@ pub struct CreateDataReqRequest {
     request: DataRequestOutput,
     #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
-    #[serde(default)]
-    fee_type: FeeType,
+    fee_type: Option<FeeType>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,7 +59,7 @@ impl Handler<CreateDataReqRequest> for app::App {
 
         // For the sake of backwards compatibility, if the `fee_type` argument was provided, then we
         // treat the `fee` argument as such type, regardless of how it was originally deserialized.
-        let fee = msg.fee_type.fee_compat(msg.fee);
+        let fee = fee_compat(msg.fee, msg.fee_type);
 
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
             let params = types::DataReqParams { request, fee };

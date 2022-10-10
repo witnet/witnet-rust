@@ -277,27 +277,24 @@ pub struct SuperBlockNotification {
     pub consolidated_block_hashes: Vec<String>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FeeType {
-    #[default]
     Absolute,
     Relative,
 }
 
-impl FeeType {
-    /// For the sake of backwards compatibility, turn a `Fee::Absolute` into `Fee::Relative` if the
-    /// `FeeType` is `Relative`, and a `Fee::Relative` into `Fee::Absolute` if the `FeeType` is
-    /// `Absolute`.
-    #[allow(clippy::cast_precision_loss)]
-    pub fn fee_compat(&self, fee: Fee) -> Fee {
-        match (self, fee) {
-            (&FeeType::Absolute, Fee::Relative(relative)) => Fee::from(relative.into_absolute(1)),
-            (&FeeType::Relative, Fee::Absolute(absolute)) => {
-                Fee::relative_from_float(absolute.as_nanowits() as f64)
-            }
-            _ => fee,
+/// For the sake of backwards compatibility, turn a `Fee::Absolute` into `Fee::Relative` if the
+/// `FeeType` is `Relative`, and a `Fee::Relative` into `Fee::Absolute` if the `FeeType` is
+/// `Absolute`.
+#[allow(clippy::cast_precision_loss)]
+pub fn fee_compat(fee: Fee, fee_type: Option<FeeType>) -> Fee {
+    match (fee, fee_type) {
+        (Fee::Relative(relative), Some(FeeType::Absolute)) => Fee::from(relative.into_absolute(1)),
+        (Fee::Absolute(absolute), Some(FeeType::Relative)) => {
+            Fee::relative_from_float(absolute.as_nanowits() as f64)
         }
+        _ => fee,
     }
 }
 
@@ -738,16 +735,22 @@ mod tests {
 
     #[test]
     fn test_fee_type_backwards_compatibility() {
-        let fee = FeeType::Absolute.fee_compat(Fee::absolute_from_nanowits(123456));
+        let fee = fee_compat(Fee::absolute_from_nanowits(123456), None);
         assert_eq!(fee, Fee::absolute_from_nanowits(123456));
 
-        let fee = FeeType::Absolute.fee_compat(Fee::relative_from_float(123.456));
+        let fee = fee_compat(Fee::relative_from_float(123.456), None);
+        assert_eq!(fee, Fee::relative_from_float(123.456));
+
+        let fee = fee_compat(Fee::absolute_from_nanowits(123456), Some(FeeType::Absolute));
+        assert_eq!(fee, Fee::absolute_from_nanowits(123456));
+
+        let fee = fee_compat(Fee::relative_from_float(123.456), Some(FeeType::Absolute));
         assert_eq!(fee, Fee::absolute_from_nanowits(123));
 
-        let fee = FeeType::Relative.fee_compat(Fee::absolute_from_nanowits(123456));
+        let fee = fee_compat(Fee::absolute_from_nanowits(123456), Some(FeeType::Relative));
         assert_eq!(fee, Fee::relative_from_float(123456.0));
 
-        let fee = FeeType::Relative.fee_compat(Fee::relative_from_float(123.456));
+        let fee = fee_compat(Fee::relative_from_float(123.456), Some(FeeType::Relative));
         assert_eq!(fee, Fee::relative_from_float(123.456));
     }
 }
