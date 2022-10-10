@@ -11,7 +11,7 @@ use crate::{
     actors::{app, worker},
     types::{
         self, from_generic_type, into_generic_type, number_from_string, u32_to_string,
-        DataRequestOutputHelper, TransactionHelper,
+        DataRequestOutputHelper, FeeType, TransactionHelper,
     },
 };
 
@@ -26,6 +26,8 @@ pub struct CreateDataReqRequest {
     request: DataRequestOutput,
     #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
+    #[serde(default)]
+    fee_type: FeeType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,11 +58,12 @@ impl Handler<CreateDataReqRequest> for app::App {
     fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         let validated = validate(msg.request.clone()).map_err(app::validation_error);
 
+        // For the sake of backwards compatibility, if the `fee_type` argument was provided, then we
+        // treat the `fee` argument as such type, regardless of how it was originally deserialized.
+        let fee = msg.fee_type.fee_compat(msg.fee);
+
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
-            let params = types::DataReqParams {
-                request,
-                fee: msg.fee,
-            };
+            let params = types::DataReqParams { request, fee };
 
             slf.create_data_req(&msg.session_id, &msg.wallet_id, params)
                 .map_ok(

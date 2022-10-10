@@ -145,6 +145,18 @@ impl fmt::Display for Fee {
     }
 }
 
+impl From<AbsoluteFee> for Fee {
+    fn from(absolute: AbsoluteFee) -> Self {
+        Self::Absolute(absolute)
+    }
+}
+
+impl From<RelativeFee> for Fee {
+    fn from(relative: RelativeFee) -> Self {
+        Self::Relative(relative)
+    }
+}
+
 /// Allow backwards compatibility with old Wallet API clients that may provide fee values without
 /// tagging whether they are absolute or relative.
 ///

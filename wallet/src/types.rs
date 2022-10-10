@@ -277,6 +277,30 @@ pub struct SuperBlockNotification {
     pub consolidated_block_hashes: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FeeType {
+    #[default]
+    Absolute,
+    Relative,
+}
+
+impl FeeType {
+    /// For the sake of backwards compatibility, turn a `Fee::Absolute` into `Fee::Relative` if the
+    /// `FeeType` is `Relative`, and a `Fee::Relative` into `Fee::Absolute` if the `FeeType` is
+    /// `Absolute`.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn fee_compat(&self, fee: Fee) -> Fee {
+        match (self, fee) {
+            (&FeeType::Absolute, Fee::Relative(relative)) => Fee::from(relative.into_absolute(1)),
+            (&FeeType::Relative, Fee::Absolute(absolute)) => {
+                Fee::relative_from_float(absolute.as_nanowits() as f64)
+            }
+            _ => fee,
+        }
+    }
+}
+
 // Serialization helper
 
 /// Transaction data structure

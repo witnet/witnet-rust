@@ -14,7 +14,7 @@ use crate::{
     actors::{app, worker},
     types::{
         self, from_generic_type, from_generic_type_vec, into_generic_type, into_generic_type_vec,
-        number_from_string, u32_to_string, TransactionHelper, VttOutputParamsHelper,
+        number_from_string, u32_to_string, FeeType, TransactionHelper, VttOutputParamsHelper,
     },
 };
 
@@ -29,6 +29,8 @@ pub struct VttOutputParams {
 pub struct CreateVttRequest {
     #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
+    #[serde(default)]
+    fee_type: FeeType,
     label: Option<String>,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
@@ -85,9 +87,13 @@ impl Handler<CreateVttRequest> for app::App {
         let validated =
             validate_output_addresses(testnet, &msg.outputs).map_err(app::validation_error);
 
+        // For the sake of backwards compatibility, if the `fee_type` argument was provided, then we
+        // treat the `fee` argument as such type, regardless of how it was originally deserialized.
+        let fee = msg.fee_type.fee_compat(msg.fee);
+
         let f = fut::result(validated).and_then(move |outputs, act: &mut Self, _ctx| {
             let params = types::VttParams {
-                fee: msg.fee,
+                fee,
                 outputs,
                 utxo_strategy: msg.utxo_strategy.clone(),
                 selected_utxos: msg.selected_utxos.iter().map(|x| x.into()).collect(),
