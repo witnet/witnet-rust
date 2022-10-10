@@ -699,6 +699,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use crate::app::{
         CreateDataReqRequest, CreateDataReqResponse, CreateVttRequest, CreateVttResponse,
         SendTransactionRequest,
@@ -732,5 +734,20 @@ mod tests {
     #[test]
     fn test_deserialize_send_txn_dr() {
         let _e1: SendTransactionRequest = serde_json::from_str(r#"{"wallet_id":"87575c9031c01cf84dffc33fe2d28474d620dacd673f06990dc0318079ddfde7","session_id":"079b703d4f8935789772651b79326150d1014c92a95e2d02266df1f575abb1fb","transaction":{"DataRequest":{"body":{"dr_output":{"collateral":"1000000000","commit_and_reveal_fee":"1","data_request":{"aggregate":{"filters":[],"reducer":2},"retrieve":[{"kind":"HTTP-GET","script":[128],"url":"https://blockchain.info/q/latesthash"},{"kind":"HTTP-GET","script":[130,24,119,130,24,103,100,104,97,115,104],"url":"https://api-r.bitcoinchain.com/v1/status"},{"kind":"HTTP-GET","script":[131,24,119,130,24,102,100,100,97,116,97,130,24,103,111,98,101,115,116,95,98,108,111,99,107,95,104,97,115,104],"url":"https://api.blockchair.com/bitcoin/stats"}],"tally":{"filters":[{"args":[],"op":8}],"reducer":2},"time_lock":0},"min_consensus_percentage":"51","witness_reward":"1","witnesses":"3"},"inputs":[{"output_pointer":"7db2cb25996c606f3a13e8f581b6112a09acc0d13dc1f444fa36cf645c798c34:0"},{"output_pointer":"b864fb1c00a3a9217c9a90cf9e570a46544356e39b4abe2b73e929c23934d723:0"},{"output_pointer":"2517e3982ee9a16db1c86277ec47d61173943a84933c6b9d1be47ce1dbddcbca:0"},{"output_pointer":"0f56d5a2bdc1c17554f8475b1655aad32e6880a532171fa33b12422d84fb7397:0"}],"outputs":[{"pkh":"wit1dm0rm5hc2uqa5japlpc0n2adfu0tmyx95h3nec","time_lock":0,"value":"7997215"}]},"signatures":[{"public_key":{"bytes":[158,105,89,114,189,234,134,228,92,27,237,221,97,16,29,100,92,144,175,183,160,252,39,134,177,232,245,186,200,119,248,142],"compressed":2},"signature":{"Secp256k1":{"der":[48,68,2,32,123,12,164,83,77,20,246,10,112,206,115,253,207,67,219,85,199,73,193,86,30,107,231,126,226,132,233,14,41,151,251,105,2,32,121,156,174,185,68,84,207,229,52,236,215,106,103,168,15,135,216,103,95,99,57,219,206,212,155,141,129,49,251,40,222,50]}}},{"public_key":{"bytes":[254,74,47,133,149,114,254,214,7,111,206,182,110,168,245,109,170,200,137,97,108,114,229,194,205,26,222,90,7,132,251,47],"compressed":2},"signature":{"Secp256k1":{"der":[48,68,2,32,59,135,250,203,96,245,190,112,13,157,133,31,133,76,245,86,35,90,68,166,61,189,248,31,57,3,120,97,59,143,148,235,2,32,69,92,89,8,155,115,42,93,218,119,1,27,83,69,122,89,28,221,105,203,207,141,218,79,95,70,93,100,76,1,45,170]}}},{"public_key":{"bytes":[247,45,147,229,219,226,79,197,240,181,99,81,110,214,64,98,255,127,136,63,33,105,192,75,58,202,61,19,254,231,83,142],"compressed":2},"signature":{"Secp256k1":{"der":[48,69,2,33,0,198,213,109,66,182,106,42,88,138,190,143,92,121,69,54,152,77,205,38,23,181,113,6,154,250,79,188,190,192,169,88,109,2,32,126,192,235,140,147,31,197,86,172,142,242,224,56,190,60,231,156,159,243,227,160,74,150,207,48,220,244,195,55,184,147,190]}}},{"public_key":{"bytes":[254,74,47,133,149,114,254,214,7,111,206,182,110,168,245,109,170,200,137,97,108,114,229,194,205,26,222,90,7,132,251,47],"compressed":2},"signature":{"Secp256k1":{"der":[48,68,2,32,59,135,250,203,96,245,190,112,13,157,133,31,133,76,245,86,35,90,68,166,61,189,248,31,57,3,120,97,59,143,148,235,2,32,69,92,89,8,155,115,42,93,218,119,1,27,83,69,122,89,28,221,105,203,207,141,218,79,95,70,93,100,76,1,45,170]}}}]}}}"#).unwrap();
+    }
+
+    #[test]
+    fn test_fee_type_backwards_compatibility() {
+        let fee = FeeType::Absolute.fee_compat(Fee::absolute_from_nanowits(123456));
+        assert_eq!(fee, Fee::absolute_from_nanowits(123456));
+
+        let fee = FeeType::Absolute.fee_compat(Fee::relative_from_float(123.456));
+        assert_eq!(fee, Fee::absolute_from_nanowits(123));
+
+        let fee = FeeType::Relative.fee_compat(Fee::absolute_from_nanowits(123456));
+        assert_eq!(fee, Fee::relative_from_float(123456.0));
+
+        let fee = FeeType::Relative.fee_compat(Fee::relative_from_float(123.456));
+        assert_eq!(fee, Fee::relative_from_float(123.456));
     }
 }
