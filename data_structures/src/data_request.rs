@@ -500,6 +500,26 @@ pub fn calculate_witness_reward(
         )
     }
 }
+
+/// Function to calculate the data request reward to collateral ratio
+pub fn calculate_reward_collateral_ratio(
+    collateral: u64,
+    collateral_minimum: u64,
+    witness_reward: u64,
+) -> u64 {
+    let dr_collateral = if collateral == 0 {
+        collateral_minimum
+    } else {
+        collateral
+    };
+
+    if witness_reward > 0 {
+        dr_collateral / witness_reward
+    } else {
+        u64::MAX
+    }
+}
+
 /// Count how many commitments will be considered "errors" and how many will
 /// be considered "lies". This tells apart the case in which the committed value was
 /// an error from any other type of out-of-consensus situation, like non-reveals.
