@@ -21,7 +21,7 @@ use witnet_data_structures::{
         ValueTransferOutput,
     },
     data_request::{
-        calculate_tally_change, calculate_witness_reward,
+        calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
         calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
@@ -512,16 +512,11 @@ pub fn validate_data_request_output(
     }
 
     if active_wips.wip0022() {
-        let collateral = if request.collateral == 0 {
-            collateral_minimum
-        } else {
-            request.collateral
-        };
-        let reward_collateral_ratio = if request.witness_reward > 0 {
-            collateral / request.witness_reward
-        } else {
-            u64::MAX
-        };
+        let reward_collateral_ratio = calculate_reward_collateral_ratio(
+            request.collateral,
+            collateral_minimum,
+            request.witness_reward,
+        );
         if reward_collateral_ratio > required_reward_collateral_ratio {
             return Err(TransactionError::RewardTooLow {
                 reward_collateral_ratio,
