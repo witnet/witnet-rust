@@ -278,7 +278,7 @@ pub struct SuperBlockNotification {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "lowercase")]
 pub enum FeeType {
     Absolute,
     #[serde(rename = "weighted")]

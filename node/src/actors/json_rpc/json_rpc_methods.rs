@@ -2076,7 +2076,7 @@ mod tests {
     fn build_drt_example() {
         let build_drt = BuildDrt::default();
         let s = serde_json::to_string(&build_drt).unwrap();
-        let expected = r#"{"dro":{"data_request":{"time_lock":0,"retrieve":[],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"commit_and_reveal_fee":0,"min_consensus_percentage":0,"collateral":0},"fee":{"Absolute":0},"dry_run":false}"#;
+        let expected = r#"{"dro":{"data_request":{"time_lock":0,"retrieve":[],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"commit_and_reveal_fee":0,"min_consensus_percentage":0,"collateral":0},"fee":{"absolute":0},"dry_run":false}"#;
         assert_eq!(s, expected, "\n{}\n", s);
     }
 

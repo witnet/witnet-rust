@@ -102,12 +102,14 @@ impl num_traits::Zero for RelativeFee {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Hash, PartialEq, Eq, PartialOrd, Serialize)]
 /// Type for representing a fee value that can be absolute (nanoWits) or relative (priority).
+#[derive(Copy, Clone, Debug, Deserialize, Hash, PartialEq, Eq, PartialOrd, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Fee {
     /// An absolute fee, as expressed in nanoWits.
     Absolute(AbsoluteFee),
-    /// A relative fee, aka "priority", as expressed as nanoWits (or fractional amounts) per weightunit.
+    /// A relative fee, aka "priority", as expressed as nanoWits (or fractional amounts) per weight
+    /// unit.
     Relative(RelativeFee),
 }
 
@@ -167,19 +169,87 @@ where
     D: serde::Deserializer<'de>,
 {
     #[derive(Deserialize)]
+    #[serde(rename_all = "lowercase")]
+    enum StringedFee {
+        Absolute(String),
+        Relative(String),
+    }
+
+    #[derive(Deserialize)]
     #[serde(untagged)]
     enum Untagged {
         Fee(Fee),
         Integer(u64),
         String(String),
+        StringedFee(StringedFee),
     }
 
     Ok(match Untagged::deserialize(deserializer)? {
         Untagged::Fee(fee) => fee,
         Untagged::Integer(integer) => Fee::absolute_from_nanowits(integer),
-        Untagged::String(string) => string
+        Untagged::String(string) | Untagged::StringedFee(StringedFee::Absolute(string)) => string
             .parse::<u64>()
             .map(Fee::absolute_from_nanowits)
             .map_err(serde::de::Error::custom)?,
+        Untagged::StringedFee(StringedFee::Relative(string)) => string
+            .parse::<f64>()
+            .map(Fee::relative_from_float)
+            .map_err(serde::de::Error::custom)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize_fee_backwards_compatible() {
+        let mut deserializer = serde_json::Deserializer::from_str("123");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::absolute_from_nanowits(123));
+
+        let mut deserializer = serde_json::Deserializer::from_str("\"123\"");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::absolute_from_nanowits(123));
+
+        let mut deserializer = serde_json::Deserializer::from_str("123.456");
+        let error = deserialize_fee_backwards_compatible(&mut deserializer).unwrap_err();
+        assert!(matches!(error, serde_json::Error { .. }));
+
+        let mut deserializer = serde_json::Deserializer::from_str("\"123.456\"");
+        let error = deserialize_fee_backwards_compatible(&mut deserializer).unwrap_err();
+        assert!(matches!(error, serde_json::Error { .. }));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"absolute\":123}");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::absolute_from_nanowits(123));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"absolute\":\"123\"}");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::absolute_from_nanowits(123));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"absolute\":123.456}");
+        let error = deserialize_fee_backwards_compatible(&mut deserializer).unwrap_err();
+        assert!(matches!(error, serde_json::Error { .. }));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"absolute\":\"123.456\"}");
+        let error = deserialize_fee_backwards_compatible(&mut deserializer).unwrap_err();
+        assert!(matches!(error, serde_json::Error { .. }));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"relative\":123}");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::relative_from_float(123.0));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"relative\":\"123\"}");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::relative_from_float(123.0));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"relative\":123.456}");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::relative_from_float(123.456));
+
+        let mut deserializer = serde_json::Deserializer::from_str("{\"relative\":\"123.456\"}");
+        let fee = deserialize_fee_backwards_compatible(&mut deserializer).unwrap();
+        assert_eq!(fee, Fee::relative_from_float(123.456));
+    }
 }
