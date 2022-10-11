@@ -2033,6 +2033,8 @@ pub struct TransactionsPool {
     // Minimum fee required to include a VTT into a block. We check for this fee in the
     // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
     minimum_vtt_fee: u64,
+    // Minimum valid collateral for a data request set from the consensus constants
+    collateral_minimum: u64,
     // The required reward to collateral percentage for a data request to be accepted by the network.
     // If a data request is sent into the network with a lower percentage, a miner should simply
     // refuse to add the data request in its transaction pool. If the miner adds the data request
@@ -2067,6 +2069,8 @@ impl Default for TransactionsPool {
             vt_to_dr_factor: 1.0,
             // Default is to include all transactions into the pool and blocks
             minimum_vtt_fee: 0,
+            // Collateral minimum from consensus constants
+            collateral_minimum: 0,
             // Required minimum reward to collateral percentage is defined as a consensus constant
             required_reward_collateral_ratio: 0,
             // A miner can specify a minimum reward to collateral percentage different from the
@@ -2116,6 +2120,11 @@ impl TransactionsPool {
     /// as possible.
     pub fn set_minimum_vtt_fee(&mut self, minimum_vtt_fee: u64) {
         self.minimum_vtt_fee = minimum_vtt_fee;
+    }
+
+    /// Set the collateral minimum from consensus constants
+    pub fn set_collateral_minimum(&mut self, collateral_minimum: u64) {
+        self.collateral_minimum = collateral_minimum;
     }
 
     /// Set the required reward to collateral percentage (consensus constant) to include a data request
@@ -2171,6 +2180,7 @@ impl TransactionsPool {
             weight_limit: _,
             vt_to_dr_factor: _,
             minimum_vtt_fee: _,
+            collateral_minimum: _,
             required_reward_collateral_ratio: _,
             minimum_reward_collateral_ratio: _,
             unconfirmed_transactions,
@@ -2723,12 +2733,19 @@ impl TransactionsPool {
                 }
             }
             Transaction::DataRequest(dr_tx) => {
+                let collateral = if dr_tx.body.dr_output.collateral == 0 {
+                    self.collateral_minimum
+                } else {
+                    dr_tx.body.dr_output.collateral
+                };
+
                 let reward = dr_tx.body.dr_output.witness_reward;
                 let dr_tx_reward_collateral_ratio = if reward > 0 {
-                    dr_tx.body.dr_output.collateral / reward
+                    collateral / reward
                 } else {
                     u64::MAX
                 };
+
                 if current_active_wips().wip0022()
                     && dr_tx_reward_collateral_ratio > self.minimum_reward_collateral_ratio
                 {

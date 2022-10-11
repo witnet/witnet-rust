@@ -115,6 +115,9 @@ impl ChainManager {
                 // Minimum fee required to include a VTT into a block
                 act.transactions_pool.set_minimum_vtt_fee(config.mining.minimum_vtt_fee);
 
+                // Collateral minimum sourced from the consensus constants
+                act.transactions_pool.set_collateral_minimum(config.consensus_constants.collateral_minimum);
+
                 // Minimum data request reward to collateral percentage required to include a data request into a block
                 act.transactions_pool.set_required_reward_collateral_ratio(config.consensus_constants.required_reward_collateral_ratio);
                 // Minimum data request reward to collateral percentage required to include a data request into a block

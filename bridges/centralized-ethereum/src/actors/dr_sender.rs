@@ -266,17 +266,18 @@ fn deserialize_and_validate_dr_bytes(
     match DataRequestOutput::from_pb_bytes(dr_bytes) {
         Err(e) => Err(DrSenderError::Deserialization { msg: e.to_string() }),
         Ok(dr_output) => {
+            // TODO: read from consensus constants
+            let collateral_minimum = 1_000_000_000;
             // TODO: read from consensus_constants
-            let required_reward_collateral_ratio = 1;
+            let required_reward_collateral_ratio = 125;
             validate_data_request_output(
                 &dr_output,
+                collateral_minimum,
                 required_reward_collateral_ratio,
                 &current_active_wips(),
             )
             .map_err(|e| DrSenderError::Validation { msg: e.to_string() })?;
 
-            // TODO: read collateral minimum from consensus constants
-            let collateral_minimum = 1_000_000_000;
             // Collateral value validation
             // If collateral is equal to 0 means that is equal to collateral_minimum value
             if (dr_output.collateral != 0) && (dr_output.collateral < collateral_minimum) {
