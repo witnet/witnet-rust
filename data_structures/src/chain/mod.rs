@@ -36,7 +36,7 @@ use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use crate::{
     chain::tapi::current_active_wips,
     chain::{tapi::TapiEngine, Signature::Secp256k1},
-    data_request::DataRequestPool,
+    data_request::{calculate_reward_collateral_ratio, DataRequestPool},
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
         TransactionError,
@@ -2733,19 +2733,11 @@ impl TransactionsPool {
                 }
             }
             Transaction::DataRequest(dr_tx) => {
-                let collateral = if dr_tx.body.dr_output.collateral == 0 {
-                    self.collateral_minimum
-                } else {
-                    dr_tx.body.dr_output.collateral
-                };
-
-                let reward = dr_tx.body.dr_output.witness_reward;
-                let dr_tx_reward_collateral_ratio = if reward > 0 {
-                    collateral / reward
-                } else {
-                    u64::MAX
-                };
-
+                let dr_tx_reward_collateral_ratio = calculate_reward_collateral_ratio(
+                    self.collateral_minimum,
+                    dr_tx.body.dr_output.collateral,
+                    dr_tx.body.dr_output.witness_reward,
+                );
                 if current_active_wips().wip0022()
                     && dr_tx_reward_collateral_ratio > self.minimum_reward_collateral_ratio
                 {
