@@ -157,7 +157,7 @@ pub fn default_params() -> params::Params {
             superblock_committee_decreasing_step: 5,
             initial_block_reward: 250 * 1_000_000_000,
             halving_period: 3_500_000,
-            required_reward_collateral_ratio: 1,
+            required_reward_collateral_ratio: 125,
         },
         use_unconfirmed_utxos: true,
         pending_transactions_timeout_seconds: 10 * 45,

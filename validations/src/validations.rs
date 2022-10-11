@@ -459,6 +459,7 @@ pub fn validate_dr_transaction<'a>(
 
     validate_data_request_output(
         &dr_tx.body.dr_output,
+        collateral_minimum,
         required_reward_collateral_ratio,
         active_wips,
     )?;
@@ -492,6 +493,7 @@ pub fn validate_dr_transaction<'a>(
 /// - The min_consensus_percentage is >50 and <100
 pub fn validate_data_request_output(
     request: &DataRequestOutput,
+    collateral_minimum: u64,
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
 ) -> Result<(), TransactionError> {
@@ -510,7 +512,16 @@ pub fn validate_data_request_output(
     }
 
     if active_wips.wip0022() {
-        let reward_collateral_ratio = request.collateral / request.witness_reward;
+        let collateral = if request.collateral == 0 {
+            collateral_minimum
+        } else {
+            request.collateral
+        };
+        let reward_collateral_ratio = if request.witness_reward > 0 {
+            collateral / request.witness_reward
+        } else {
+            u64::MAX
+        };
         if reward_collateral_ratio > required_reward_collateral_ratio {
             return Err(TransactionError::RewardTooLow {
                 reward_collateral_ratio,

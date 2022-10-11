@@ -32,6 +32,8 @@ pub struct CreateDataReqRequest {
     #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
     fee_type: Option<FeeType>,
+    // TODO: remove these fields and get the value from consensus constants
+    minimum_collateral: u64,
     required_reward_collateral_ratio: u64,
 }
 
@@ -66,8 +68,13 @@ impl Handler<CreateDataReqRequest> for app::App {
     type Result = app::ResponseActFuture<CreateDataReqResponse>;
 
     fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let validated = validate(msg.request.clone(), msg.required_reward_collateral_ratio)
-            .map_err(app::validation_error);
+        // TODO: get the minimum collateral and reward to collateral ratio from consensus constants
+        let validated = validate(
+            msg.request.clone(),
+            msg.minimum_collateral,
+            msg.required_reward_collateral_ratio,
+        )
+        .map_err(app::validation_error);
 
         // For the sake of backwards compatibility, if the `fee_type` argument was provided, then we
         // treat the `fee` argument as such type, regardless of how it was originally deserialized.
@@ -113,12 +120,14 @@ impl Handler<CreateDataReqRequest> for app::App {
 /// - value minus all the fees must divisible by the number of witnesses
 fn validate(
     request: DataRequestOutput,
+    minimum_collateral: u64,
     required_reward_collateral_ratio: u64,
 ) -> Result<DataRequestOutput, app::ValidationErrors> {
     let req = request;
 
     let request = witnet_validations::validations::validate_data_request_output(
         &req,
+        minimum_collateral,
         required_reward_collateral_ratio,
         &current_active_wips(),
     )
