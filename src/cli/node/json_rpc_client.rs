@@ -620,6 +620,7 @@ pub fn send_vtt(
 
 fn deserialize_and_validate_hex_dr(
     hex_bytes: String,
+    collateral_minimum: u64,
     required_reward_collateral_ratio: u64,
 ) -> Result<DataRequestOutput, failure::Error> {
     let dr_bytes = hex::decode(hex_bytes)?;
@@ -630,6 +631,7 @@ fn deserialize_and_validate_hex_dr(
 
     validate_data_request_output(
         &dr,
+        collateral_minimum,
         required_reward_collateral_ratio,
         &current_active_wips(),
     )?;
@@ -667,6 +669,7 @@ pub fn send_dr(
 
     let dr_output = deserialize_and_validate_hex_dr(
         hex_bytes,
+        consensus_constants.collateral_minimum,
         consensus_constants.required_reward_collateral_ratio,
     )?;
 
