@@ -23,6 +23,16 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
+      # Ensure some subcrate versions match that of the main crate
+      - uses: ./.github/actions/versions-match
+        name: Checking version of node
+        with:
+          subcrate: node
+      - uses: ./.github/actions/versions-match
+        name: Checking version of toolkit
+        with:
+          subcrate: toolkit
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -45,7 +55,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all --all-features -- ${{ env.CLIPPY_LINTS }}
-          
+
       - name: Clippy2
         uses: actions-rs/clippy-check@v1
         with:

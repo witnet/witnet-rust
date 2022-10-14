@@ -1,0 +1,23 @@
+name: "Versions match"
+description: "Ensures that the versions for subcrates match that of the main crate."
+
+inputs:
+  subcrate:
+    description: "name of the subcrate to match with the main crate"
+    required: true
+
+
+runs:
+  using: "composite"
+  steps:
+    # Perform the version matching
+    - shell: bash
+      run: |
+        echo "Checking version of subcrate \"${{ inputs.subcrate }}\""
+        MAIN_VERSION=$(sed -nE 's/version\s?=\s?"([0-9]+\.[0-9]\.[0-9])"/\1/p' ./Cargo.toml | head -1)
+        SUBCRATE_VERSION=$(sed -nE 's/version\s?=\s?"([0-9]+\.[0-9]\.[0-9])"/\1/p' ./${{ inputs.subcrate }}/Cargo.toml | head -1)
+        if [[ "$SUBCRATE_VERSION" != "$MAIN_VERSION" ]]; \
+        then \
+          echo "Version of subcrate \"${{ inputs.subcrate }}\" ($SUBCRATE_VERSION) does not match that of main crate ($MAIN_VERSION)"; \
+          exit 10; \
+        fi
