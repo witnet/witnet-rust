@@ -1,6 +1,6 @@
 [package]
 name = "witnet_node"
-version = "1.5.2"
+version = "1.5.3"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "node component"

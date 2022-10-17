@@ -170,7 +170,7 @@ fn random_nonce() -> u64 {
 /// Function that returns the dynamic user agent
 pub fn user_agent() -> String {
     // TODO: Read version, arch and OS
-    let release = "1.5.2";
+    let release = "1.5.3";
 
     format!("witnet-rust {}", release)
 }
