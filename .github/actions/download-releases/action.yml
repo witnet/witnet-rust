@@ -46,7 +46,7 @@ runs:
         cp genesis_block.json ./all-releases/x86_64/
         cp all-releases/x86_64/witnet_toolkit release/witnet_toolkit-x86_64-unknown-linux-gnu
 
-    # armv7      
+    # armv7
     - uses: actions/download-artifact@v3
       with:
         name: armv7-release
@@ -65,7 +65,7 @@ runs:
       run: |
         cp genesis_block.json ./all-releases/aarch64/
         cp all-releases/aarch64/witnet_toolkit release/witnet_toolkit-aarch64-unknown-linux-gnu
-    
+
     # Copy gensis_block & witnet.toml
     - shell: bash
       run: |
@@ -75,12 +75,12 @@ runs:
     # tar Releases
     - shell: bash
       run: |
-        tar -czvf release/witnet-${{github.ref_name}}-x86_64-apple-darwin.tar.gz all-releases/macos/
-        tar -czvf release/witnet-${{github.ref_name}}-x86_64-pc-windows-msvc.tar.gz all-releases/windows/
-        tar -czvf release/witnet-${{github.ref_name}}-x86_64-unknown-linux-gnu.tar.gz all-releases/x86_64/
-        tar -czvf release/witnet-${{github.ref_name}}-armv7-unknown-linux-gnueabihf.tar.gz all-releases/armv7/
-        tar -czvf release/witnet-${{github.ref_name}}-aarch64-unknown-linux-gnu.tar.gz all-releases/aarch64/
-    
+        tar -czvf release/witnet-${{github.ref_name}}-x86_64-apple-darwin.tar.gz -C all-releases/macos/ .
+        tar -czvf release/witnet-${{github.ref_name}}-x86_64-pc-windows-msvc.tar.gz -C all-releases/windows/ .
+        tar -czvf release/witnet-${{github.ref_name}}-x86_64-unknown-linux-gnu.tar.gz -C all-releases/x86_64/ .
+        tar -czvf release/witnet-${{github.ref_name}}-armv7-unknown-linux-gnueabihf.tar.gz -C all-releases/armv7/ .
+        tar -czvf release/witnet-${{github.ref_name}}-aarch64-unknown-linux-gnu.tar.gz -C all-releases/aarch64/ .
+
     # Sign Tars
     - shell: bash
       run: |

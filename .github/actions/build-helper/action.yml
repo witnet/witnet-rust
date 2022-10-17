@@ -5,7 +5,6 @@ Inputs:
   imagename:
     description: name of the image to tag & upload
     required: true
-  
 
 runs:
   using: "composite"

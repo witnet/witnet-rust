@@ -256,7 +256,7 @@ jobs:
           artifactErrorsFailBuild: true
 
   Publish:
-    #needs: [Release]
+    needs: [Release]
     runs-on: ubuntu-latest
     steps:
       # Checkout Repo
