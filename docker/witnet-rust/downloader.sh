@@ -16,6 +16,10 @@ if [[ "$TRIPLET" == *"linux"* ]]; then
     TRIPLET=${TRIPLET/pc/unknown}
 fi
 
+if [[ "$TRIPLET" == *"arm-"* ]]; then
+    TRIPLET=${TRIPLET/arm/armv7}
+fi
+
 URL="https://github.com/witnet/witnet-rust/releases/download/$VERSION/witnet-$VERSION-$TRIPLET.tar.gz"
 
 FILENAME="$VERSION.tar.gz"
