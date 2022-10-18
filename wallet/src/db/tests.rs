@@ -13,6 +13,30 @@ impl HashMapDb {
     pub fn new(rc: Rc<RefCell<HashMap<Bytes, Bytes>>>) -> Self {
         Self { rc }
     }
+
+    #[allow(dead_code)]
+    pub fn export_to_json(&self) -> serde_json::error::Result<String> {
+        // Serialize as a list of key-value pairs, because in JSON maps cannot have non-string keys
+        let mut contents = vec![];
+
+        for (key, value) in &*RefCell::borrow(&self.rc) {
+            contents.push((key.clone(), value.clone()));
+        }
+
+        serde_json::to_string(&contents)
+    }
+
+    pub fn import_from_json(json_str: &str) -> serde_json::error::Result<Self> {
+        let contents: Vec<(Bytes, Bytes)> = serde_json::from_str(json_str)?;
+        let mut hashmap = HashMap::new();
+        for (key, value) in contents {
+            hashmap.insert(key, value);
+        }
+
+        Ok(Self {
+            rc: Rc::new(RefCell::new(hashmap)),
+        })
+    }
 }
 
 impl std::iter::FromIterator<(Bytes, Bytes)> for HashMapDb {

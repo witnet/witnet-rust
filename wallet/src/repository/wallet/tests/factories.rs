@@ -23,53 +23,7 @@ fn wallet_inner(
     store_master_key: bool,
 ) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
     let id = "example-wallet";
-    let params = params::Params {
-        testnet: false,
-        seed_password: "".into(),
-        master_key_salt: b"Bitcoin seed".to_vec(),
-        id_hash_iterations: 4096,
-        id_hash_function: HashFunction::Sha256,
-        db_hash_iterations: 10_000,
-        db_iv_length: 16,
-        db_salt_length: 32,
-        epoch_constants: EpochConstants::default(),
-        node_sync_batch_size: 100,
-        genesis_hash: Hash::default(),
-        genesis_prev_hash: Hash::default(),
-        sync_address_batch_length: 10,
-        max_vt_weight: 20_000,
-        max_dr_weight: 80_000,
-        consensus_constants: ConsensusConstants {
-            checkpoint_zero_timestamp: 0,
-            checkpoints_period: 0,
-            bootstrap_hash: Hash::SHA256([3; 32]),
-            genesis_hash: Hash::SHA256([4; 32]),
-            max_vt_weight: 0,
-            max_dr_weight: 0,
-            activity_period: 0,
-            reputation_expire_alpha_diff: 0,
-            reputation_issuance: 0,
-            reputation_issuance_stop: 0,
-            reputation_penalization_factor: 0.0,
-            mining_backup_factor: 0,
-            mining_replication_factor: 0,
-            collateral_minimum: 0,
-            bootstrapping_committee: vec![],
-            collateral_age: 0,
-            superblock_period: 0,
-            extra_rounds: 0,
-            minimum_difficulty: 0,
-            epochs_with_minimum_difficulty: 0,
-            superblock_signing_committee_size: 100,
-            superblock_committee_decreasing_period: 100,
-            superblock_committee_decreasing_step: 5,
-            initial_block_reward: 250 * 1_000_000_000,
-            halving_period: 3_500_000,
-        },
-        use_unconfirmed_utxos: true,
-        pending_transactions_timeout_seconds: 10 * 45,
-        witnessing: WitnessingConfig::default(),
-    };
+    let params = default_params();
     let mnemonic = mnemonic::MnemonicGen::new()
         .with_len(mnemonic::Length::Words12)
         .generate();
@@ -157,5 +111,55 @@ impl BlockInfo {
         let epoch = self.epoch.unwrap_or_else(rand::random);
 
         model::Beacon { epoch, block_hash }
+    }
+}
+
+pub fn default_params() -> params::Params {
+    params::Params {
+        testnet: false,
+        seed_password: "".into(),
+        master_key_salt: b"Bitcoin seed".to_vec(),
+        id_hash_iterations: 4096,
+        id_hash_function: HashFunction::Sha256,
+        db_hash_iterations: 10_000,
+        db_iv_length: 16,
+        db_salt_length: 32,
+        epoch_constants: EpochConstants::default(),
+        node_sync_batch_size: 100,
+        genesis_hash: Hash::default(),
+        genesis_prev_hash: Hash::default(),
+        sync_address_batch_length: 10,
+        max_vt_weight: 20_000,
+        max_dr_weight: 80_000,
+        consensus_constants: ConsensusConstants {
+            checkpoint_zero_timestamp: 0,
+            checkpoints_period: 0,
+            bootstrap_hash: Hash::SHA256([3; 32]),
+            genesis_hash: Hash::SHA256([4; 32]),
+            max_vt_weight: 0,
+            max_dr_weight: 0,
+            activity_period: 0,
+            reputation_expire_alpha_diff: 0,
+            reputation_issuance: 0,
+            reputation_issuance_stop: 0,
+            reputation_penalization_factor: 0.0,
+            mining_backup_factor: 0,
+            mining_replication_factor: 0,
+            collateral_minimum: 0,
+            bootstrapping_committee: vec![],
+            collateral_age: 0,
+            superblock_period: 0,
+            extra_rounds: 0,
+            minimum_difficulty: 0,
+            epochs_with_minimum_difficulty: 0,
+            superblock_signing_committee_size: 100,
+            superblock_committee_decreasing_period: 100,
+            superblock_committee_decreasing_step: 5,
+            initial_block_reward: 250 * 1_000_000_000,
+            halving_period: 3_500_000,
+        },
+        use_unconfirmed_utxos: true,
+        pending_transactions_timeout_seconds: 10 * 45,
+        witnessing: WitnessingConfig::default(),
     }
 }
