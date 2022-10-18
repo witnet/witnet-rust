@@ -133,10 +133,6 @@ jobs:
       - name: Building Macos Binary
         run: MACOSX_DEPLOYMENT_TARGET=10.12 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
 
-      # Ensure that distributable binary files can be executed
-      - name: Make binaries executable
-        run: chmod +x target/release/witnet*
-
       # Upload Build Releases
       - uses: actions/upload-artifact@v3
         with:
@@ -174,8 +170,8 @@ jobs:
           Set-Variable -Name "OPENSSL_DIR" -Value "C:\Program Files\vcpkg\installed\x64-windows-static"
           cargo build --release -p witnet -p witnet_toolkit
 
-      # Confirm openssl compiled staticly
-      - name: Confirm openssl compiled staticly
+      # Confirm openssl compiled statically
+      - name: Confirm openssl compiled statically
         run: LDD.exe target\release\witnet.exe | Select-String -Pattern "ssl"
 
       # Upload Build Releases

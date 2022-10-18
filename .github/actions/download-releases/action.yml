@@ -23,6 +23,7 @@ runs:
         path: all-releases/macos/
     - shell: bash
       run: |
+        chmod +x ./all-releases/macos/*
         cp genesis_block.json ./all-releases/macos/
         cp witnet.toml ./all-releases/macos/
         mv all-releases/macos/witnet_toolkit release/witnet_toolkit-x86_64-apple-darwin
@@ -34,6 +35,7 @@ runs:
         path: all-releases/windows/
     - shell: bash
       run: |
+        chmod +x ./all-releases/windows/*.exe
         cp genesis_block.json ./all-releases/windows/
         cp witnet.toml ./all-releases/windows/
         mv all-releases/windows/witnet_toolkit.exe release/witnet_toolkit-x86_64-pc-windows-msvc.exe
@@ -45,6 +47,7 @@ runs:
         path: all-releases/x86_64/
     - shell: bash
       run: |
+        chmod +x ./all-releases/x86_64/*
         cp genesis_block.json ./all-releases/x86_64/
         cp witnet.toml ./all-releases/x86_64/
         mv all-releases/x86_64/witnet_toolkit release/witnet_toolkit-x86_64-unknown-linux-gnu
@@ -56,6 +59,7 @@ runs:
         path: all-releases/armv7/
     - shell: bash
       run: |
+        chmod +x ./all-releases/armv7/*
         cp genesis_block.json ./all-releases/armv7/
         cp witnet.toml ./all-releases/armv7/
         mv all-releases/armv7/witnet_toolkit release/witnet_toolkit-armv7-unknown-linux-gnueabihf
@@ -67,6 +71,7 @@ runs:
         path: all-releases/aarch64/
     - shell: bash
       run: |
+        chmod +x ./all-releases/aarch64/*
         cp genesis_block.json ./all-releases/aarch64/
         cp witnet.toml ./all-releases/aarch64/
         mv all-releases/aarch64/witnet_toolkit release/witnet_toolkit-aarch64-unknown-linux-gnu
