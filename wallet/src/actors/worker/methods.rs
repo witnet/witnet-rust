@@ -490,10 +490,8 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::VttParams,
-    ) -> Result<(Transaction, AbsoluteFee)> {
-        let (txn, fee) = wallet.create_vtt_return_fee(params)?;
-
-        Ok((Transaction::ValueTransfer(txn), fee))
+    ) -> Result<(model::ExtendedTransaction, AbsoluteFee)> {
+        Ok(wallet.create_vtt(params)?)
     }
 
     pub fn get_transaction(
@@ -510,10 +508,8 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         params: types::DataReqParams,
-    ) -> Result<(Transaction, AbsoluteFee)> {
-        let (txn, absolute_fee) = wallet.create_data_req_return_fee(params)?;
-
-        Ok((Transaction::DataRequest(txn), absolute_fee))
+    ) -> Result<(model::ExtendedTransaction, AbsoluteFee)> {
+        Ok(wallet.create_data_req(params)?)
     }
 
     pub fn sign_data(

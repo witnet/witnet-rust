@@ -27,7 +27,9 @@ use witnet_data_structures::{
         DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
         VTTransactionBody,
     },
-    transaction_factory::{insert_change_output, OutputsCollection},
+    transaction_factory::{
+        insert_change_output, CollectedOutputs, OutputsCollection, TransactionInfo,
+    },
     utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_rad::{error::RadError, types::RadonTypes};
@@ -108,7 +110,11 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
         }
     }
 
-    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
+    fn get(&self, outptr: &OutputPointer) -> Option<ValueTransferOutput> {
+        self.utxo_set.get(&outptr.into()).cloned().map(Into::into)
+    }
+
+    fn get_usage_timeout(&self, outptr: &OutputPointer) -> Option<u64> {
         let time_lock = self.utxo_set.get(&outptr.into()).map(|vto| vto.time_lock);
         let time_lock_by_used = self.used_outputs.get(&outptr.into()).copied();
 
@@ -122,14 +128,14 @@ impl<'a> OutputsCollection for WalletUtxos<'a> {
     }
 
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
-        self.utxo_set.get(&outptr.into()).map(|vto| vto.amount)
+        self.get(outptr).map(|vto| vto.value)
     }
 
     fn get_included_block_number(&self, _outptr: &OutputPointer) -> Option<u32> {
         None
     }
 
-    fn set_used_output_pointer(&mut self, inputs: &[Input], ts: u64) {
+    fn set_used_output_pointer(&mut self, inputs: impl Iterator<Item = Input>, ts: u64) {
         for input in inputs {
             self.used_outputs.insert(input.output_pointer().into(), ts);
         }
@@ -164,6 +170,13 @@ pub fn sort_utxo_set<'a>(
             }
         })
         .map(|(o, _info)| o)
+}
+
+#[derive(Debug)]
+pub struct TransactionComponents {
+    pub fee: AbsoluteFee,
+    pub inputs: CollectedOutputs,
+    pub outputs: Vec<ValueTransferOutput>,
 }
 
 pub struct Wallet<T> {
@@ -1061,16 +1074,8 @@ where
         Ok(utxo_info)
     }
 
-    /// Create a new value transfer transaction using available UTXOs. Returns only the transaction.
-    #[cfg(test)]
-    pub fn create_vtt(&self, params: types::VttParams) -> Result<VTTransaction> {
-        self.create_vtt_return_fee(params)
-            .map(|(transaction, _fee)| transaction)
-    }
-
-    /// Create a new value transfer transaction using available UTXOs. Returns the transaction, plus
-    /// the absolute fee.
-    pub fn create_vtt_return_fee(
+    /// Create a new value transfer transaction using available UTXOs.
+    pub fn create_vtt(
         &self,
         types::VttParams {
             fee,
@@ -1078,9 +1083,13 @@ where
             utxo_strategy,
             selected_utxos,
         }: types::VttParams,
-    ) -> Result<(VTTransaction, AbsoluteFee)> {
+    ) -> Result<(model::ExtendedTransaction, AbsoluteFee)> {
         let mut state = self.state.write()?;
-        let (inputs, outputs, absolute_fee) = self.create_vt_transaction_components(
+        let TransactionComponents {
+            fee,
+            inputs,
+            outputs,
+        } = self.create_vt_transaction_components(
             &mut state,
             outputs,
             fee,
@@ -1088,34 +1097,54 @@ where
             selected_utxos,
         )?;
 
-        let body = VTTransactionBody::new(inputs.clone(), outputs);
+        let pointers_as_inputs = inputs
+            .pointers
+            .iter()
+            .cloned()
+            .map(Input::new)
+            .collect_vec();
+        let body = VTTransactionBody::new(pointers_as_inputs.clone(), outputs);
         let sign_data = body.hash();
-        let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
+        let signatures =
+            self.create_signatures_from_inputs(pointers_as_inputs, sign_data, &mut state);
         let transaction = VTTransaction::new(body, signatures?);
+        let extended = model::ExtendedTransaction {
+            transaction: Transaction::ValueTransfer(transaction),
+            metadata: Some(model::TransactionMetadata::InputValues(inputs.resolved)),
+        };
 
-        Ok((transaction, absolute_fee))
+        Ok((extended, fee))
     }
 
-    /// Create a new data request transaction using available UTXOs.
-    #[cfg(test)]
-    pub fn create_data_req(&self, params: types::DataReqParams) -> Result<DRTransaction> {
-        self.create_data_req_return_fee(params)
-            .map(|(transaction, _fee)| transaction)
-    }
-
-    pub fn create_data_req_return_fee(
+    pub fn create_data_req(
         &self,
         types::DataReqParams { fee, request }: types::DataReqParams,
-    ) -> Result<(DRTransaction, AbsoluteFee)> {
+    ) -> Result<(model::ExtendedTransaction, AbsoluteFee)> {
         let mut state = self.state.write()?;
-        let (inputs, outputs, absolute_fee) =
-            self.create_dr_transaction_components(&mut state, request.clone(), fee)?;
+        let TransactionComponents {
+            fee,
+            inputs,
+            outputs,
+        } = self.create_dr_transaction_components(&mut state, request.clone(), fee)?;
 
-        let body = DRTransactionBody::new(inputs.clone(), outputs, request);
+        let pointers_as_inputs = inputs
+            .pointers
+            .iter()
+            .cloned()
+            .map(Input::new)
+            .collect_vec();
+
+        let body = DRTransactionBody::new(pointers_as_inputs.clone(), outputs, request);
         let sign_data = body.hash();
-        let signatures = self.create_signatures_from_inputs(inputs, sign_data, &mut state);
+        let signatures =
+            self.create_signatures_from_inputs(pointers_as_inputs, sign_data, &mut state);
+        let transaction = DRTransaction::new(body, signatures?);
+        let extended = model::ExtendedTransaction {
+            transaction: Transaction::DataRequest(transaction),
+            metadata: Some(model::TransactionMetadata::InputValues(inputs.resolved)),
+        };
 
-        Ok((DRTransaction::new(body, signatures?), absolute_fee))
+        Ok((extended, fee))
     }
 
     /// Create signatures from inputs
@@ -1161,10 +1190,10 @@ where
         fee: Fee,
         utxo_strategy: &UtxoSelectionStrategy,
         selected_utxos: HashSet<model::OutPtr>,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, AbsoluteFee)> {
+    ) -> Result<TransactionComponents> {
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        let (inputs, outputs, fee) = self.build_inputs_outputs_wallet(
+        self.build_inputs_outputs_wallet(
             outputs,
             None,
             fee,
@@ -1174,9 +1203,7 @@ where
             utxo_strategy,
             self.params.max_vt_weight,
             selected_utxos,
-        )?;
-
-        Ok((inputs, outputs, fee))
+        )
     }
 
     fn create_dr_transaction_components(
@@ -1184,11 +1211,11 @@ where
         state: &mut State,
         request: DataRequestOutput,
         fee: Fee,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, AbsoluteFee)> {
+    ) -> Result<TransactionComponents> {
         let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        let (inputs, outputs, fee) = self.build_inputs_outputs_wallet(
+        self.build_inputs_outputs_wallet(
             vec![],
             Some(&request),
             fee,
@@ -1198,27 +1225,22 @@ where
             &utxo_strategy,
             self.params.max_dr_weight,
             HashSet::default(),
-        )?;
-
-        Ok((inputs, outputs, fee))
+        )
     }
 
     /// Function that returns an address for the change ValueTransferOutput
     fn calculate_change_address(
         &self,
-        is_vtt: bool,
-        inputs: &[Input],
         state: &mut State,
+        force_input: Option<Input>,
     ) -> Result<PublicKeyHash> {
-        let pkh = if is_vtt {
-            // In case of VTTransaction, a new internal address is used
-            self._gen_internal_address(state, None)?.pkh
-        } else {
-            // In case of DRTransaction, the first input pkh will be used
-            let first_input = inputs.first().unwrap().output_pointer();
-            let key_balance = state.utxo_set.get(&first_input.into()).unwrap();
+        let pkh = if let Some(input) = force_input {
+            let forced = input.output_pointer();
+            let key_balance = state.utxo_set.get(&forced.into()).unwrap();
 
             key_balance.pkh
+        } else {
+            self._gen_internal_address(state, None)?.pkh
         };
 
         Ok(pkh)
@@ -1241,7 +1263,7 @@ where
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
         selected_utxos: HashSet<model::OutPtr>,
-    ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>, AbsoluteFee)> {
+    ) -> Result<TransactionComponents> {
         let empty_hashset = HashSet::default();
         let unconfirmed_transactions = if self.params.use_unconfirmed_utxos {
             &empty_hashset
@@ -1256,7 +1278,12 @@ where
             selected_utxos,
         };
 
-        let tx_info = wallet_utxos.build_inputs_outputs(
+        let TransactionInfo {
+            fee,
+            inputs,
+            output_value,
+            outputs,
+        } = wallet_utxos.build_inputs_outputs(
             outputs,
             dr_output,
             fee,
@@ -1266,17 +1293,20 @@ where
             max_weight,
         )?;
 
-        let change_pkh =
-            self.calculate_change_address(dr_output.is_none(), &tx_info.inputs, state)?;
+        let change_pkh = self.calculate_change_address(state, None)?;
 
-        let mut outputs = tx_info.outputs;
+        let mut outputs = outputs;
         insert_change_output(
             &mut outputs,
             change_pkh,
-            tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
+            inputs.total_value - output_value - fee.as_nanowits(),
         );
 
-        Ok((tx_info.inputs, outputs, tx_info.fee))
+        Ok(TransactionComponents {
+            fee,
+            inputs,
+            outputs,
+        })
     }
 
     fn _gen_internal_address(
@@ -1435,7 +1465,8 @@ where
             selected_utxos: HashSet::default(),
         };
         if let Some(inputs) = inputs {
-            wallet_utxos.set_used_output_pointer(inputs, timestamp + tx_pending_timeout);
+            wallet_utxos
+                .set_used_output_pointer(inputs.iter().cloned(), timestamp + tx_pending_timeout);
         }
 
         if let Some(mut account_mutation) =

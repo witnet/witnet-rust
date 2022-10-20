@@ -8,10 +8,15 @@ use witnet_data_structures::{
 };
 
 use crate::{
-    actors::{app, worker},
+    actors::{
+        app::{self, handlers::create_vtt::VttOutputParams},
+        worker,
+    },
+    model::TransactionMetadata,
     types::{
-        self, fee_compat, from_generic_type, into_generic_type, number_from_string, u32_to_string,
-        DataRequestOutputHelper, FeeType, TransactionHelper,
+        self, fee_compat, from_generic_type, from_generic_type_vec, into_generic_type,
+        into_generic_type_vec, number_from_string, u32_to_string, DataRequestOutputHelper, FeeType,
+        TransactionHelper, VttOutputParamsHelper,
     },
 };
 
@@ -45,6 +50,11 @@ pub struct CreateDataReqResponse {
         deserialize_with = "number_from_string"
     )]
     weight: u32,
+    #[serde(
+        serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
+        deserialize_with = "from_generic_type_vec::<_, VttOutputParamsHelper, _>"
+    )]
+    inputs: Vec<VttOutputParams>,
 }
 
 impl Message for CreateDataReqRequest {
@@ -67,6 +77,13 @@ impl Handler<CreateDataReqRequest> for app::App {
             slf.create_data_req(&msg.session_id, &msg.wallet_id, params)
                 .map_ok(
                     move |worker::CreateDataReqResponse { fee, transaction }, _, _| {
+                        let inputs = match transaction.metadata {
+                            Some(TransactionMetadata::InputValues(inputs)) => {
+                                inputs.into_iter().map(From::from).collect()
+                            }
+                            _ => vec![],
+                        };
+                        let transaction = transaction.transaction;
                         let transaction_id = hex::encode(transaction.hash().as_ref());
                         let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
                         let weight = transaction.weight();
@@ -77,6 +94,7 @@ impl Handler<CreateDataReqRequest> for app::App {
                             bytes,
                             fee,
                             weight,
+                            inputs,
                         }
                     },
                 )

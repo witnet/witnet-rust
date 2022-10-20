@@ -16,15 +16,22 @@ use crate::{
     },
     wit::Wit,
 };
+use itertools::Itertools;
+
+#[derive(Clone, Debug)]
+pub struct CollectedOutputs {
+    pub pointers: Vec<OutputPointer>,
+    pub resolved: Vec<ValueTransferOutput>,
+    pub total_value: u64,
+}
 
 /// Structure that resumes the information needed to create a Transaction
 #[derive(Clone, Debug)]
 pub struct TransactionInfo {
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<ValueTransferOutput>,
-    pub input_value: u64,
-    pub output_value: u64,
     pub fee: AbsoluteFee,
+    pub inputs: CollectedOutputs,
+    pub output_value: u64,
+    pub outputs: Vec<ValueTransferOutput>,
 }
 
 // Structure that the includes the confirmed and pending balance of a node
@@ -41,10 +48,11 @@ pub struct NodeBalance {
 /// can be applied on many heterogeneous data structures that may implement it.
 pub trait OutputsCollection {
     fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer>;
-    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64>;
+    fn get(&self, outptr: &OutputPointer) -> Option<ValueTransferOutput>;
+    fn get_usage_timeout(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64>;
     fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<Epoch>;
-    fn set_used_output_pointer(&mut self, outptrs: &[Input], ts: u64);
+    fn set_used_output_pointer(&mut self, outptrs: impl Iterator<Item = Input>, ts: u64);
 
     /// Select enough UTXOs to sum up to `amount`.
     ///
@@ -57,27 +65,28 @@ pub trait OutputsCollection {
         // The block number must be lower than this limit
         block_number_limit: Option<u32>,
         utxo_strategy: &UtxoSelectionStrategy,
-    ) -> Result<(Vec<OutputPointer>, u64), TransactionError> {
+    ) -> Result<CollectedOutputs, TransactionError> {
         // FIXME: this is a very naive utxo selection algorithm
         if amount == 0 {
             // Transactions with no inputs make no sense
             return Err(TransactionError::ZeroAmount);
         }
 
-        let mut acc = 0;
+        let mut total_value = 0;
         let mut total: u64 = 0;
-        let mut list = vec![];
+        let mut outputs = vec![];
+        let mut pointers = vec![];
 
         let utxo_iter = self.sort_by(utxo_strategy);
 
-        for op in utxo_iter.iter() {
-            let value = self.get_value(op).unwrap();
+        for pointer in utxo_iter.iter() {
+            let output: ValueTransferOutput = self.get(pointer).unwrap();
             total = total
-                .checked_add(value)
+                .checked_add(output.value)
                 .ok_or(TransactionError::OutputValueOverflow)?;
 
-            if let Some(time_lock) = self.get_time_lock(op) {
-                if time_lock > timestamp {
+            if let Some(usage_timeout) = self.get_usage_timeout(pointer) {
+                if usage_timeout > timestamp {
                     continue;
                 }
             }
@@ -86,7 +95,7 @@ pub trait OutputsCollection {
                 // Ignore all outputs created after `block_number_limit`.
                 // Outputs from the genesis block will never be ignored because `block_number_limit`
                 // can't go lower than `0`.
-                if let Some(limit) = self.get_included_block_number(op) {
+                if let Some(limit) = self.get_included_block_number(pointer) {
                     if limit > block_number_limit {
                         continue;
                     }
@@ -95,20 +104,25 @@ pub trait OutputsCollection {
                 }
             }
 
-            acc += value;
-            list.push(*op);
+            total_value += output.value;
+            pointers.push(*pointer);
+            outputs.push(output);
 
-            if acc >= amount {
+            if total_value >= amount {
                 break;
             }
         }
 
-        if acc >= amount {
-            Ok((list, acc))
+        if total_value >= amount {
+            Ok(CollectedOutputs {
+                resolved: outputs,
+                pointers,
+                total_value,
+            })
         } else {
             Err(TransactionError::NoMoney {
                 total_balance: total,
-                available_balance: acc,
+                available_balance: total_value,
                 transaction_value: amount,
             })
         }
@@ -148,16 +162,14 @@ pub trait OutputsCollection {
                     .checked_add(absolute_fee.as_nanowits())
                     .ok_or(TransactionError::FeeOverflow)?;
 
-                let (output_pointers, input_value) =
+                let inputs =
                     self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
-                let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
 
                 Ok(TransactionInfo {
-                    inputs,
-                    outputs,
-                    input_value,
-                    output_value,
                     fee: absolute_fee,
+                    inputs,
+                    output_value,
+                    outputs,
                 })
             }
             Fee::Relative(priority) => {
@@ -168,21 +180,23 @@ pub trait OutputsCollection {
                         .checked_add(absolute_fee.as_nanowits())
                         .ok_or(TransactionError::FeeOverflow)?;
 
-                    let (output_pointers, input_value) = self.take_enough_utxos(
+                    let inputs = self.take_enough_utxos(
                         amount,
                         timestamp,
                         block_number_limit,
                         utxo_strategy,
                     )?;
-                    let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
 
-                    let new_weight =
-                        calculate_weight(inputs.len(), outputs.len() + 1, dr_output, max_weight)?;
+                    let new_weight = calculate_weight(
+                        inputs.pointers.len(),
+                        outputs.len() + 1,
+                        dr_output,
+                        max_weight,
+                    )?;
                     if new_weight == current_weight {
                         return Ok(TransactionInfo {
                             inputs,
                             outputs,
-                            input_value,
                             output_value,
                             fee: absolute_fee,
                         });
@@ -316,21 +330,23 @@ pub fn build_vtt(
         max_weight,
     )?;
 
+    let used_pointers = tx_info.inputs.pointers.iter().cloned().map(Input::new);
+
     // Mark UTXOs as used so we don't double spend
     // Save the timestamp after which the transaction will be considered timed out
     // and the output will become available for spending it again
     if !dry_run {
-        utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
+        utxos.set_used_output_pointer(used_pointers.clone(), timestamp + tx_pending_timeout);
     }
 
     let mut outputs = tx_info.outputs;
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
+        tx_info.inputs.total_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
-    Ok(VTTransactionBody::new(tx_info.inputs, outputs))
+    Ok(VTTransactionBody::new(used_pointers.collect_vec(), outputs))
 }
 
 /// Build data request transaction with the given outputs and fee.
@@ -362,21 +378,27 @@ pub fn build_drt(
         max_weight,
     )?;
 
+    let used_pointers = tx_info.inputs.pointers.iter().cloned().map(Input::new);
+
     // Mark UTXOs as used so we don't double spend
     // Save the timestamp after which the transaction will be considered timed out
     // and the output will become available for spending it again
     if !dry_run {
-        utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
+        utxos.set_used_output_pointer(used_pointers.clone(), timestamp + tx_pending_timeout);
     }
 
     let mut outputs = tx_info.outputs;
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
+        tx_info.inputs.total_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
-    Ok(DRTransactionBody::new(tx_info.inputs, outputs, dr_output))
+    Ok(DRTransactionBody::new(
+        used_pointers.collect_vec(),
+        outputs,
+        dr_output,
+    ))
 }
 
 /// Check if there are enough collateral for a CommitTransaction
@@ -438,19 +460,21 @@ pub fn build_commit_collateral(
         u32::MAX,
     )?;
 
+    let used_pointers = tx_info.inputs.pointers.iter().cloned().map(Input::new);
+
     // Mark UTXOs as used so we don't double spend
     // Save the timestamp after which the transaction will be considered timed out
     // and the output will become available for spending it again
-    utxos.set_used_output_pointer(&tx_info.inputs, timestamp + tx_pending_timeout);
+    utxos.set_used_output_pointer(used_pointers.clone(), timestamp + tx_pending_timeout);
 
     let mut outputs = tx_info.outputs;
     insert_change_output(
         &mut outputs,
         own_pkh,
-        tx_info.input_value - tx_info.output_value - tx_info.fee.as_nanowits(),
+        tx_info.inputs.total_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
-    Ok((tx_info.inputs, outputs))
+    Ok((used_pointers.collect_vec(), outputs))
 }
 
 /// Calculate the sum of the values of the outputs pointed by the

@@ -335,6 +335,22 @@ pub struct OutputInfo {
     pub time_lock: u64,
 }
 
+impl From<OutputInfo> for ValueTransferOutput {
+    fn from(
+        OutputInfo {
+            amount,
+            pkh,
+            time_lock,
+        }: OutputInfo,
+    ) -> Self {
+        Self {
+            pkh,
+            value: amount,
+            time_lock,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct Beacon {
     #[serde(
@@ -393,11 +409,13 @@ impl fmt::Display for Path {
     }
 }
 
+#[derive(Debug)]
 pub struct ExtendedTransaction {
     pub transaction: Transaction,
     pub metadata: Option<TransactionMetadata>,
 }
 
+#[derive(Debug)]
 pub enum TransactionMetadata {
     InputValues(Vec<ValueTransferOutput>),
     Tally(Box<DataRequestInfo>),

@@ -389,7 +389,9 @@ fn test_create_transaction_components_without_a_change_address() {
         time_lock,
     };
 
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -399,7 +401,8 @@ fn test_create_transaction_components_without_a_change_address() {
         )
         .unwrap();
 
-    assert_eq!(1, inputs.len());
+    assert_eq!(1, inputs.pointers.len());
+    assert_eq!(1, inputs.resolved.len());
     assert_eq!(1, outputs.len());
     assert_eq!(value, outputs[0].value);
 }
@@ -442,7 +445,9 @@ fn test_create_transaction_components_with_a_change_address() {
         time_lock,
     };
 
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -452,7 +457,8 @@ fn test_create_transaction_components_with_a_change_address() {
         )
         .unwrap();
 
-    assert_eq!(1, inputs.len());
+    assert_eq!(1, inputs.pointers.len());
+    assert_eq!(1, inputs.resolved.len());
     assert_eq!(2, outputs.len());
     assert_eq!(value, outputs[0].value);
     let expected_change = 1;
@@ -573,7 +579,7 @@ fn test_create_vtt_does_not_spend_utxos() {
     assert!(utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
-    let vtt = wallet
+    let (extended, ..) = wallet
         .create_vtt(types::VttParams {
             fee,
             outputs: vec![ValueTransferOutput {
@@ -585,6 +591,14 @@ fn test_create_vtt_does_not_spend_utxos() {
             selected_utxos: HashSet::default(),
         })
         .unwrap();
+
+    // the extended transaction should actually contain a value transfer transaction
+    let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
+        Some(vtt)
+    } else {
+        None
+    }
+    .unwrap();
 
     // There is a signature for each input
     assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
@@ -659,9 +673,17 @@ fn test_create_data_request_does_not_spend_utxos() {
     };
 
     let fee = Fee::default();
-    let data_req = wallet
+    let (extended, _) = wallet
         .create_data_req(types::DataReqParams { fee, request })
         .unwrap();
+
+    // the extended transaction should actually contain a data request transaction
+    let data_req = if let Transaction::DataRequest(drt) = extended.transaction {
+        Some(drt)
+    } else {
+        None
+    }
+    .unwrap();
 
     let state_utxo_set = wallet.utxo_set().unwrap();
     let new_utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
@@ -974,7 +996,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
         .unwrap();
 
     // spend those funds to create a new transaction which is pending (it has no block)
-    let vtt = wallet
+    let (extended, ..) = wallet
         .create_vtt(types::VttParams {
             fee,
             outputs: vec![ValueTransferOutput {
@@ -986,6 +1008,14 @@ fn test_index_transaction_vtt_created_by_wallet() {
             selected_utxos: HashSet::default(),
         })
         .unwrap();
+
+    // the extended transaction should actually contain a value transfer transaction
+    let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
+        Some(vtt)
+    } else {
+        None
+    }
+    .unwrap();
 
     // There is a signature for each input
     assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
@@ -1089,7 +1119,7 @@ fn test_get_transaction() {
     assert_eq!(0, wallet.balance().unwrap().unconfirmed.locked);
 
     // spend those funds to create a new transaction which is pending (it has no block)
-    let vtt = wallet
+    let (extended, ..) = wallet
         .create_vtt(types::VttParams {
             fee,
             outputs: vec![ValueTransferOutput {
@@ -1101,6 +1131,14 @@ fn test_get_transaction() {
             selected_utxos: HashSet::default(),
         })
         .unwrap();
+
+    // the extended transaction should actually contain a value transfer transaction
+    let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
+        Some(vtt)
+    } else {
+        None
+    }
+    .unwrap();
 
     // There is a signature for each input
     assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
@@ -1163,7 +1201,7 @@ fn test_get_transactions() {
     assert_eq!(wallet.transactions(1, 1).unwrap(), no_transactions);
 
     // spend those funds to create a new transaction which is pending (it has no block)
-    let vtt = wallet
+    let (extended, ..) = wallet
         .create_vtt(types::VttParams {
             fee,
             outputs: vec![ValueTransferOutput {
@@ -1175,6 +1213,14 @@ fn test_get_transactions() {
             selected_utxos: HashSet::default(),
         })
         .unwrap();
+
+    // the extended transaction should actually contain a value transfer transaction
+    let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
+        Some(vtt)
+    } else {
+        None
+    }
+    .unwrap();
 
     // There is a signature for each input
     assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
@@ -1292,7 +1338,7 @@ fn test_create_vtt_with_multiple_outputs() {
     // create wallet with 2 multiple outputs
     let their_pkh1 = factories::pkh();
     let their_pkh2 = factories::pkh();
-    let vtt = wallet
+    let (extended, ..) = wallet
         .create_vtt(types::VttParams {
             fee,
             outputs: vec![
@@ -1311,6 +1357,14 @@ fn test_create_vtt_with_multiple_outputs() {
             selected_utxos: HashSet::default(),
         })
         .unwrap();
+
+    // the extended transaction should actually contain a value transfer transaction
+    let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
+        Some(vtt)
+    } else {
+        None
+    }
+    .unwrap();
 
     // There is a signature for each input
     assert_eq!(vtt.body.inputs.len(), vtt.signatures.len());
@@ -1389,7 +1443,9 @@ fn test_create_vt_components_weighted_fee() {
         value,
         time_lock,
     };
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -1399,7 +1455,8 @@ fn test_create_vt_components_weighted_fee() {
         )
         .unwrap();
 
-    assert_eq!(1, inputs.len());
+    assert_eq!(1, inputs.pointers.len());
+    assert_eq!(1, inputs.resolved.len());
     assert_eq!(2, outputs.len());
 }
 
@@ -1458,7 +1515,9 @@ fn test_create_vt_components_weighted_fee_2() {
         value,
         time_lock,
     };
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -1468,7 +1527,8 @@ fn test_create_vt_components_weighted_fee_2() {
         )
         .unwrap();
 
-    assert!(!inputs.is_empty());
+    assert!(!inputs.pointers.is_empty());
+    assert!(!inputs.resolved.is_empty());
     assert_eq!(2, outputs.len());
 }
 
@@ -1614,7 +1674,9 @@ fn test_create_vt_components_weighted_fee_4() {
         value,
         time_lock,
     };
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -1624,7 +1686,8 @@ fn test_create_vt_components_weighted_fee_4() {
         )
         .unwrap();
 
-    assert!(!inputs.is_empty());
+    assert!(!inputs.pointers.is_empty());
+    assert!(!inputs.resolved.is_empty());
     assert_eq!(2, outputs.len());
 }
 
@@ -1700,7 +1763,9 @@ fn test_create_vt_components_weighted_fee_5() {
         value,
         time_lock,
     };
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -1710,7 +1775,8 @@ fn test_create_vt_components_weighted_fee_5() {
         )
         .unwrap();
 
-    assert!(!inputs.is_empty());
+    assert!(!inputs.pointers.is_empty());
+    assert!(!inputs.resolved.is_empty());
     assert_eq!(2, outputs.len());
 }
 
@@ -1792,7 +1858,9 @@ fn test_create_vt_components_weighted_fee_6() {
         value,
         time_lock,
     };
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -1802,7 +1870,8 @@ fn test_create_vt_components_weighted_fee_6() {
         )
         .unwrap();
 
-    assert!(inputs.len() >= 2);
+    assert!(inputs.pointers.len() >= 2);
+    assert!(inputs.resolved.len() >= 2);
     assert_eq!(2, outputs.len());
 }
 
@@ -2011,11 +2080,12 @@ fn test_create_dr_components_weighted_fee_1() {
 
     let mut state = wallet.state.write().unwrap();
     let fee = Fee::relative_from_float(1.0);
-    let (inputs, _, _) = wallet
+    let TransactionComponents { inputs, .. } = wallet
         .create_dr_transaction_components(&mut state, request, fee)
         .unwrap();
 
-    assert_eq!(inputs.len(), 1);
+    assert_eq!(inputs.pointers.len(), 1);
+    assert_eq!(inputs.resolved.len(), 1);
 }
 
 #[test]
@@ -2108,10 +2178,10 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     let mut state = wallet.state.write().unwrap();
 
     let fee = Fee::relative_from_float(1.0);
-    let (inputs, _, _) = wallet
+    let TransactionComponents { inputs, .. } = wallet
         .create_dr_transaction_components(&mut state, request.clone(), fee)
         .unwrap();
-    let weight = calculate_weight(inputs.len(), 1, Some(&request), u32::MAX).unwrap();
+    let weight = calculate_weight(inputs.pointers.len(), 1, Some(&request), u32::MAX).unwrap();
 
     let mut out_pointer_1 = out_pointer.clone();
     out_pointer_1.output_index = 1;
@@ -2165,11 +2235,12 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     let (wallet_2, _db) = factories::wallet(Some(db_2));
     let mut state_2 = wallet_2.state.write().unwrap();
 
-    let (inputs, _, _) = wallet_2
+    let TransactionComponents { inputs, .. } = wallet_2
         .create_dr_transaction_components(&mut state_2, request, fee)
         .unwrap();
 
-    assert_eq!(inputs.len(), 3);
+    assert_eq!(inputs.pointers.len(), 3);
+    assert_eq!(inputs.resolved.len(), 3);
 }
 
 #[test]
@@ -2372,7 +2443,7 @@ fn test_create_transaction_components_filter_from_address() {
         value,
         time_lock,
     };
-    let (inputs, _outputs, _fee) = wallet
+    let TransactionComponents { inputs, .. } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -2383,8 +2454,9 @@ fn test_create_transaction_components_filter_from_address() {
         .unwrap();
 
     assert!(inputs
+        .pointers
         .iter()
-        .all(|input| { input.output_pointer().output_index < 50 }))
+        .all(|pointer| { pointer.output_index < 50 }))
 }
 
 #[test]
@@ -2443,7 +2515,7 @@ fn test_create_transaction_components_filter_from_address_2() {
         value,
         time_lock,
     };
-    let (inputs, _outputs, _fee) = wallet
+    let TransactionComponents { inputs, .. } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -2454,8 +2526,9 @@ fn test_create_transaction_components_filter_from_address_2() {
         .unwrap();
 
     assert!(inputs
+        .pointers
         .iter()
-        .all(|input| { input.output_pointer().output_index >= 50 }))
+        .all(|pointer| { pointer.output_index >= 50 }))
 }
 
 #[test]
@@ -2615,7 +2688,9 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
         time_lock,
     };
 
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -2625,7 +2700,8 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
         )
         .unwrap();
 
-    assert_eq!(inputs.len(), 1);
+    assert_eq!(inputs.pointers.len(), 1);
+    assert_eq!(inputs.resolved.len(), 1);
     assert_eq!(outputs.len(), 1);
 }
 
@@ -2690,7 +2766,9 @@ fn test_create_transaction_components_uses_unconfirmed_utxos() {
         value,
         time_lock,
     };
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],
@@ -2701,7 +2779,8 @@ fn test_create_transaction_components_uses_unconfirmed_utxos() {
         .unwrap();
 
     // The transaction should use both UTXOs as inputs, including the unconfirmed one
-    assert_eq!(inputs.len(), 2);
+    assert_eq!(inputs.pointers.len(), 2);
+    assert_eq!(inputs.resolved.len(), 2);
     assert_eq!(outputs.len(), 1);
 }
 
@@ -2776,7 +2855,9 @@ fn test_create_vtt_selecting_utxos() {
     );
 
     // In case of using the big utxo, everything goes well
-    let (inputs, outputs, _fee) = wallet
+    let TransactionComponents {
+        inputs, outputs, ..
+    } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto.clone()],
@@ -2786,14 +2867,15 @@ fn test_create_vtt_selecting_utxos() {
         )
         .unwrap();
 
-    assert_eq!(1, inputs.len());
+    assert_eq!(1, inputs.pointers.len());
+    assert_eq!(1, inputs.resolved.len());
     assert_eq!(2, outputs.len());
     assert_eq!(value, outputs[0].value);
     let expected_change = 1;
     assert_eq!(expected_change, outputs[1].value);
 
     // In case of no specify any utxo, everything goes well
-    let (_inputs, outputs, _fee) = wallet
+    let TransactionComponents { outputs, .. } = wallet
         .create_vt_transaction_components(
             &mut state,
             vec![vto],

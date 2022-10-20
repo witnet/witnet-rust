@@ -12,18 +12,40 @@ use witnet_data_structures::{
 
 use crate::{
     actors::{app, worker},
+    model::TransactionMetadata,
     types::{
         self, fee_compat, from_generic_type, from_generic_type_vec, into_generic_type,
         into_generic_type_vec, number_from_string, u32_to_string, FeeType, TransactionHelper,
         VttOutputParamsHelper,
     },
 };
+use itertools::Itertools;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VttOutputParams {
     pub address: String,
     pub amount: u64,
     pub time_lock: Option<u64>,
+}
+
+impl From<ValueTransferOutput> for VttOutputParams {
+    fn from(
+        ValueTransferOutput {
+            pkh,
+            value,
+            time_lock,
+        }: ValueTransferOutput,
+    ) -> Self {
+        Self {
+            address: pkh.to_string(),
+            amount: value,
+            time_lock: if time_lock == 0 {
+                None
+            } else {
+                Some(time_lock)
+            },
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,6 +73,11 @@ pub struct CreateVttRequest {
 pub struct VttMetadata {
     #[serde(deserialize_with = "number_from_string")]
     fee: AbsoluteFee,
+    #[serde(
+        serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
+        deserialize_with = "from_generic_type_vec::<_, VttOutputParamsHelper, _>"
+    )]
+    inputs: Vec<VttOutputParams>,
     #[serde(
         serialize_with = "into_generic_type_vec::<_, VttOutputParamsHelper, _>",
         deserialize_with = "from_generic_type_vec::<_, VttOutputParamsHelper, _>"
@@ -102,6 +129,13 @@ impl Handler<CreateVttRequest> for app::App {
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)
                 .map_ok(
                     move |worker::CreateVttResponse { fee, transaction }, _, _| {
+                        let inputs = match transaction.metadata {
+                            Some(TransactionMetadata::InputValues(inputs)) => {
+                                inputs.into_iter().map(From::from).collect_vec()
+                            }
+                            _ => vec![],
+                        };
+                        let transaction = transaction.transaction;
                         let transaction_id = hex::encode(transaction.hash().as_ref());
                         let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
                         let weight = transaction.weight();
@@ -112,6 +146,7 @@ impl Handler<CreateVttRequest> for app::App {
                             bytes,
                             metadata: VttMetadata {
                                 fee,
+                                inputs,
                                 outputs: msg.outputs,
                                 weight,
                             },

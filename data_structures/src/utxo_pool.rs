@@ -422,8 +422,12 @@ impl<'a> OutputsCollection for NodeUtxosRef<'a> {
         }
     }
 
-    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
-        let time_lock = self.all_utxos.get(outptr).map(|vto| vto.time_lock);
+    fn get(&self, outptr: &OutputPointer) -> Option<ValueTransferOutput> {
+        self.all_utxos.get(outptr)
+    }
+
+    fn get_usage_timeout(&self, outptr: &OutputPointer) -> Option<u64> {
+        let time_lock = self.get(outptr).map(|vto| vto.time_lock);
         let time_lock_by_used = self.own_utxos.get(outptr).copied();
 
         // The most restrictive time_lock will be used to avoid UTXOs during a transaction creation
@@ -436,14 +440,14 @@ impl<'a> OutputsCollection for NodeUtxosRef<'a> {
     }
 
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
-        self.all_utxos.get(outptr).map(|vto| vto.value)
+        self.get(outptr).map(|vto| vto.value)
     }
 
     fn get_included_block_number(&self, outptr: &OutputPointer) -> Option<u32> {
         self.all_utxos.included_in_block_number(outptr)
     }
 
-    fn set_used_output_pointer(&mut self, _inputs: &[Input], _ts: u64) {
+    fn set_used_output_pointer(&mut self, _inputs: impl Iterator<Item = Input>, _ts: u64) {
         log::warn!("Mutable operations not supported in `NodeUtxosRef`, use `NodeUtxos` instead");
     }
 }
@@ -474,8 +478,12 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
         self.as_ref().sort_by(strategy)
     }
 
-    fn get_time_lock(&self, outptr: &OutputPointer) -> Option<u64> {
-        self.as_ref().get_time_lock(outptr)
+    fn get(&self, outptr: &OutputPointer) -> Option<ValueTransferOutput> {
+        self.as_ref().get(outptr)
+    }
+
+    fn get_usage_timeout(&self, outptr: &OutputPointer) -> Option<u64> {
+        self.as_ref().get_usage_timeout(outptr)
     }
 
     fn get_value(&self, outptr: &OutputPointer) -> Option<u64> {
@@ -486,7 +494,7 @@ impl<'a> OutputsCollection for NodeUtxos<'a> {
         self.as_ref().get_included_block_number(outptr)
     }
 
-    fn set_used_output_pointer(&mut self, inputs: &[Input], ts: u64) {
+    fn set_used_output_pointer(&mut self, inputs: impl Iterator<Item = Input>, ts: u64) {
         for input in inputs {
             let current_ts = self.own_utxos.get_mut(input.output_pointer()).unwrap();
             *current_ts = ts;
@@ -559,7 +567,7 @@ pub struct UtxoInfo {
 #[allow(clippy::cast_sign_loss)]
 fn create_utxo_metadata(
     vto: &ValueTransferOutput,
-    o: &OutputPointer,
+    output_pointer: OutputPointer,
     all_utxos: &UnspentOutputsPool,
     block_number_limit: u32,
 ) -> UtxoMetadata {
@@ -569,10 +577,11 @@ fn create_utxo_metadata(
     } else {
         0
     };
-    let utxo_mature: bool = all_utxos.included_in_block_number(o).unwrap() <= block_number_limit;
+    let utxo_mature: bool =
+        all_utxos.included_in_block_number(&output_pointer).unwrap() <= block_number_limit;
 
     UtxoMetadata {
-        output_pointer: *o,
+        output_pointer,
         value: vto.value,
         timelock,
         utxo_mature,
@@ -597,7 +606,7 @@ pub fn get_utxo_info(
                 // We do not need to do anything here because this method returns all utxos.
             },
             |(o, (vto, _block_number))| {
-                v.push(create_utxo_metadata(vto, o, all_utxos, block_number_limit));
+                v.push(create_utxo_metadata(vto, *o, all_utxos, block_number_limit));
             },
         );
         v
@@ -609,7 +618,7 @@ pub fn get_utxo_info(
                 all_utxos
                     .get(o)
                     .as_ref()
-                    .map(|vto| create_utxo_metadata(vto, o, all_utxos, block_number_limit))
+                    .map(|vto| create_utxo_metadata(vto, *o, all_utxos, block_number_limit))
             })
             .collect()
     };
