@@ -310,7 +310,7 @@ pub fn get_utxo_info(
     for utxo_metadata in utxo_info
         .utxos
         .into_iter()
-        .sorted_by_key(|um| (um.value, um.output_pointer.clone()))
+        .sorted_by_key(|um| (um.value, um.output_pointer))
     {
         let ready_for_collateral: bool = (utxo_metadata.value >= utxo_info.collateral_min)
             && utxo_metadata.utxo_mature

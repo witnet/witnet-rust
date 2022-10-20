@@ -137,7 +137,7 @@ impl Serialize for OutputPointer {
         if serializer.is_human_readable() {
             serializer.collect_str(&self)
         } else {
-            OutputPointerSerializationHelper::from(self.clone()).serialize(serializer)
+            OutputPointerSerializationHelper::from(*self).serialize(serializer)
         }
     }
 }

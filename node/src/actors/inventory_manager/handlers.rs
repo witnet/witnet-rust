@@ -346,7 +346,7 @@ mod tests {
 
     fn build_block_with_vt_transactions(block_epoch: u32) -> Block {
         let output1_pointer: OutputPointer = MILLION_TX_OUTPUT.parse().unwrap();
-        let input = vec![Input::new(output1_pointer.clone())];
+        let input = vec![Input::new(output1_pointer)];
         let vto1 = ValueTransferOutput {
             value: 1,
             ..Default::default()
@@ -393,7 +393,7 @@ mod tests {
             pkh: MY_PKH_1.parse().unwrap(),
             value: 1_000_000,
         };
-        unspent_outputs_pool.insert(output1_pointer.clone(), output1, 0);
+        unspent_outputs_pool.insert(output1_pointer, output1, 0);
         assert!(unspent_outputs_pool.contains_key(&output1_pointer));
 
         let dr_pool = DataRequestPool::default();

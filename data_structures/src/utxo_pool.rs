@@ -75,7 +75,7 @@ impl UnspentOutputsPool {
 
     /// Remove a spent `OutputPointer`
     pub fn remove(&mut self, k: &OutputPointer) {
-        let did_exist = self.diff.utxos_to_remove.insert(k.clone());
+        let did_exist = self.diff.utxos_to_remove.insert(*k);
 
         assert!(did_exist, "tried to remove an already removed UTXO");
     }
@@ -133,7 +133,7 @@ impl UnspentOutputsPool {
         self.diff
             .utxos_to_add
             .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
+            .map(|(k, v)| (*k, v.clone()))
             .chain(self.db_iter())
             .filter_map(move |(k, v)| {
                 if self.diff.utxos_to_remove.contains(&k) {
@@ -154,7 +154,7 @@ impl UnspentOutputsPool {
         self.diff
             .utxos_to_add
             .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
+            .map(|(k, v)| (*k, v.clone()))
             .chain(self.db_iter().inspect(fn_confirmed))
             .filter_map(move |(k, v)| {
                 if self.diff.utxos_to_remove.contains(&k) {
@@ -178,7 +178,7 @@ impl UnspentOutputsPool {
             .iter()
             .filter_map(|(k, v)| {
                 if v.0.pkh == pkh {
-                    Some((k.clone(), v.clone()))
+                    Some((*k, v.clone()))
                 } else {
                     None
                 }
@@ -417,7 +417,7 @@ impl<'a> OutputsCollection for NodeUtxosRef<'a> {
                 self.own_utxos.sort(self.all_utxos, false)
             }
             UtxoSelectionStrategy::Random { from: _ } => {
-                self.own_utxos.iter().map(|(o, _ts)| o.clone()).collect()
+                self.own_utxos.iter().map(|(o, _ts)| *o).collect()
             }
         }
     }
@@ -572,7 +572,7 @@ fn create_utxo_metadata(
     let utxo_mature: bool = all_utxos.included_in_block_number(o).unwrap() <= block_number_limit;
 
     UtxoMetadata {
-        output_pointer: o.clone(),
+        output_pointer: *o,
         value: vto.value,
         timelock,
         utxo_mature,

@@ -114,7 +114,7 @@ pub fn validate_commit_collateral(
     for input in &co_tx.body.collateral {
         let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
             TransactionError::OutputNotFound {
-                output: input.output_pointer().clone(),
+                output: *input.output_pointer(),
             }
         })?;
 
@@ -123,7 +123,7 @@ pub fn validate_commit_collateral(
         // So check that the public key matches
         if vt_output.pkh != commit_pkh {
             return Err(TransactionError::CollateralPkhMismatch {
-                output: input.output_pointer().clone(),
+                output: *input.output_pointer(),
                 output_pkh: vt_output.pkh,
                 proof_pkh: commit_pkh,
             }
@@ -149,7 +149,7 @@ pub fn validate_commit_collateral(
             .unwrap();
         if included_in_block_number > block_number_limit {
             return Err(TransactionError::CollateralNotMature {
-                output: input.output_pointer().clone(),
+                output: *input.output_pointer(),
                 must_be_older_than: collateral_age,
                 found: block_number - included_in_block_number,
             }
@@ -159,7 +159,7 @@ pub fn validate_commit_collateral(
         if !seen_output_pointers.insert(input.output_pointer()) {
             // If the set already contained this output pointer
             return Err(TransactionError::OutputNotFound {
-                output: input.output_pointer().clone(),
+                output: *input.output_pointer(),
             }
             .into());
         }
@@ -1292,7 +1292,7 @@ pub fn update_utxo_diff(
             .unwrap_or(0);
         block_number_input = std::cmp::max(block_number, block_number_input);
 
-        utxo_diff.remove_utxo(output_pointer.clone());
+        utxo_diff.remove_utxo(*output_pointer);
     }
 
     for (index, output) in outputs.into_iter().enumerate() {

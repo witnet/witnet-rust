@@ -99,20 +99,20 @@ fn utxo_set_coin_age() {
     let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
         .parse()
         .unwrap();
-    p.insert(k0.clone(), v(), 0);
+    p.insert(k0, v(), 0);
     assert_eq!(p.included_in_block_number(&k0), Some(0));
 
     let k1: OutputPointer = "1222222222222222222222222222222222222222222222222222222222222222:0"
         .parse()
         .unwrap();
-    p.insert(k1.clone(), v(), 1);
+    p.insert(k1, v(), 1);
     assert_eq!(p.included_in_block_number(&k1), Some(1));
 
     // k2 points to the same transaction as k1, so they must have the same coin age
     let k2: OutputPointer = "1222222222222222222222222222222222222222222222222222222222222222:1"
         .parse()
         .unwrap();
-    p.insert(k2.clone(), v(), 1);
+    p.insert(k2, v(), 1);
     assert_eq!(p.included_in_block_number(&k2), Some(1));
 
     // Removing k2 should not affect k1
@@ -142,8 +142,8 @@ fn utxo_set_insert_twice() {
     let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
         .parse()
         .unwrap();
-    p.insert(k0.clone(), v(), 0);
-    p.insert(k0.clone(), v(), 0);
+    p.insert(k0, v(), 0);
+    p.insert(k0, v(), 0);
     assert_eq!(p.included_in_block_number(&k0), Some(0));
     // Removing once is enough
     p.remove(&k0);
@@ -165,7 +165,7 @@ fn utxo_set_insert_and_remove() {
     let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
         .parse()
         .unwrap();
-    p.insert(k0.clone(), v(), 0);
+    p.insert(k0, v(), 0);
     p.remove(&k0);
     p.persist();
 }
@@ -180,13 +180,13 @@ fn utxo_set_insert_same_transaction_different_epoch() {
     let k0: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:0"
         .parse()
         .unwrap();
-    p.insert(k0.clone(), v(), 0);
+    p.insert(k0, v(), 0);
     assert_eq!(p.included_in_block_number(&k0), Some(0));
     let k1: OutputPointer = "0222222222222222222222222222222222222222222222222222222222222222:1"
         .parse()
         .unwrap();
 
-    p.insert(k1.clone(), v(), 1);
+    p.insert(k1, v(), 1);
     assert_eq!(p.included_in_block_number(&k1), Some(1));
 }
 
@@ -219,7 +219,7 @@ fn test_sort_own_utxos() {
 
     let mut own_utxos = OwnUnspentOutputsPool::default();
     for (o, _) in utxo_pool.iter() {
-        own_utxos.insert(o.clone(), 0);
+        own_utxos.insert(o, 0);
     }
     assert_eq!(own_utxos.len(), 4);
 
@@ -265,7 +265,7 @@ fn utxo_set_insert_and_remove_on_next_superblock() {
         .unwrap();
 
     // Insert UTXO in superblock 1
-    p.insert(k0.clone(), v(), 0);
+    p.insert(k0, v(), 0);
 
     // Take snapshot
     let mut old_p = p.clone();
@@ -334,8 +334,8 @@ fn utxo_set_visit_with_pkh_db<S: UtxoDb + Send + Sync + 'static>(db: Arc<S>) {
         .unwrap();
 
     // Insert UTXO
-    p.insert(k0.clone(), v(), 0);
-    p.insert(k1.clone(), v(), 0);
+    p.insert(k0, v(), 0);
+    p.insert(k1, v(), 0);
     let mut v2 = v();
     v2.pkh = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
     p.insert(k2, v2, 0);

@@ -1313,7 +1313,9 @@ impl PublicKeyHash {
 }
 
 /// Input data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(
+    Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, ProtobufConvert, Hash,
+)]
 #[protobuf_convert(pb = "witnet::Input")]
 pub struct Input {
     output_pointer: OutputPointer,
@@ -2469,7 +2471,7 @@ impl TransactionsPool {
         dr_pool: &DataRequestPool,
     ) -> (Vec<CommitTransaction>, u64, Vec<Hash>) {
         let mut total_fee = 0;
-        let mut spent_inputs = HashSet::new();
+        let mut spent_inputs = HashSet::<Input>::new();
         let co_hash_index = &mut self.co_hash_index;
         let mut dr_pointer_vec = vec![];
         let commits_vector = self
@@ -2497,7 +2499,7 @@ impl TransactionsPool {
                                                 valid = false;
                                                 break;
                                             } else {
-                                                current_spent_inputs.insert(input.clone());
+                                                current_spent_inputs.insert(input);
                                             }
                                         }
                                         // Only mark the inputs of this commitment as used if all of them
@@ -2668,7 +2670,7 @@ impl TransactionsPool {
 
                     for input in &vt_tx.body.inputs {
                         self.output_pointer_map
-                            .entry(input.output_pointer.clone())
+                            .entry(input.output_pointer)
                             .or_insert_with(Vec::new)
                             .push(vt_tx.hash());
                     }
@@ -2685,7 +2687,7 @@ impl TransactionsPool {
 
                 for input in &dr_tx.body.inputs {
                     self.output_pointer_map
-                        .entry(input.output_pointer.clone())
+                        .entry(input.output_pointer)
                         .or_insert_with(Vec::new)
                         .push(dr_tx.hash());
                 }
@@ -2897,7 +2899,7 @@ impl TransactionsPool {
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
-#[derive(Default, Hash, Clone, Eq, PartialEq, ProtobufConvert)]
+#[derive(Default, Hash, Copy, Clone, Eq, PartialEq, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::OutputPointer")]
 pub struct OutputPointer {
     /// Transaction identifier
@@ -4091,11 +4093,7 @@ mod tests {
             .iter()
             .map(|input| {
                 DRTransaction::new(
-                    DRTransactionBody::new(
-                        vec![input.clone()],
-                        vec![],
-                        DataRequestOutput::default(),
-                    ),
+                    DRTransactionBody::new(vec![*input], vec![], DataRequestOutput::default()),
                     vec![],
                 )
             })
@@ -4562,14 +4560,14 @@ mod tests {
     #[test]
     fn transactions_pool_remove_all_transactions_with_same_output_pointer() {
         let input = Input::default();
-        let vt_1 = VTTransaction::new(VTTransactionBody::new(vec![input.clone()], vec![]), vec![]);
+        let vt_1 = VTTransaction::new(VTTransactionBody::new(vec![input], vec![]), vec![]);
         let vt_2 = VTTransaction::new(
-            VTTransactionBody::new(vec![input.clone()], vec![ValueTransferOutput::default()]),
+            VTTransactionBody::new(vec![input], vec![ValueTransferOutput::default()]),
             vec![],
         );
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input.clone()], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
             vec![],
         );
         let dr_2 = DRTransaction::new(
@@ -4639,9 +4637,9 @@ mod tests {
             output_index: 1,
             transaction_id: Hash::default(),
         });
-        let vt_1 = VTTransaction::new(VTTransactionBody::new(vec![input.clone()], vec![]), vec![]);
+        let vt_1 = VTTransaction::new(VTTransactionBody::new(vec![input], vec![]), vec![]);
         let vt_2 = VTTransaction::new(
-            VTTransactionBody::new(vec![input2.clone()], vec![ValueTransferOutput::default()]),
+            VTTransactionBody::new(vec![input2], vec![ValueTransferOutput::default()]),
             vec![],
         );
 
@@ -4711,7 +4709,7 @@ mod tests {
         });
         assert_ne!(input0, input1);
 
-        let vt_1 = VTTransaction::new(VTTransactionBody::new(vec![input0.clone()], vec![]), vec![]);
+        let vt_1 = VTTransaction::new(VTTransactionBody::new(vec![input0], vec![]), vec![]);
         let vt_2 = VTTransaction::new(
             VTTransactionBody::new(vec![input0, input1], vec![ValueTransferOutput::default()]),
             vec![],
@@ -4747,7 +4745,7 @@ mod tests {
         assert_ne!(input0, input1);
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input0.clone()], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input0], vec![], DataRequestOutput::default()),
             vec![],
         );
         let dr_2 = DRTransaction::new(
@@ -4776,7 +4774,7 @@ mod tests {
     fn transactions_pool_size_limit() {
         let input = Input::default();
         let vt1 = Transaction::ValueTransfer(VTTransaction::new(
-            VTTransactionBody::new(vec![input.clone()], vec![ValueTransferOutput::default()]),
+            VTTransactionBody::new(vec![input], vec![ValueTransferOutput::default()]),
             vec![],
         ));
         let vt2 = Transaction::ValueTransfer(VTTransaction::new(

@@ -256,7 +256,7 @@ impl<S: UtxoDb> UtxoDb for CacheUtxosByPkh<S> {
         for item in &batch.v {
             match item {
                 UtxoWriteBatchItem::Put(k, v) => {
-                    cache.entry(v.0.pkh).or_default().insert(k.clone());
+                    cache.entry(v.0.pkh).or_default().insert(*k);
                 }
                 UtxoWriteBatchItem::Delete(k) => {
                     let vto = self.db.get_utxo(k)?.unwrap();

@@ -539,14 +539,14 @@ impl Worker {
                     vt.body
                         .inputs
                         .iter()
-                        .map(|input| input.output_pointer().clone())
+                        .map(|input| *input.output_pointer())
                         .collect(),
                 )),
                 Transaction::DataRequest(dr) => Some(IndexTransactionQuery::InputTransactions(
                     dr.body
                         .inputs
                         .iter()
-                        .map(|input| input.output_pointer().clone())
+                        .map(|input| *input.output_pointer())
                         .collect(),
                 )),
                 Transaction::Commit(commit) => Some(IndexTransactionQuery::InputTransactions(
@@ -554,7 +554,7 @@ impl Worker {
                         .body
                         .collateral
                         .iter()
-                        .map(|input| input.output_pointer().clone())
+                        .map(|input| *input.output_pointer())
                         .collect(),
                 )),
                 Transaction::Tally(tally) => Some(IndexTransactionQuery::DataRequestReport(

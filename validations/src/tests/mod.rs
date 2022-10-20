@@ -1558,7 +1558,7 @@ fn data_request_input_double_spend() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let output = utxo_set.iter().next().unwrap().0;
-    let vti = Input::new(output.clone());
+    let vti = Input::new(output);
 
     let dr_output = DataRequestOutput {
         witness_reward: 500,
@@ -3349,7 +3349,7 @@ fn commitment_collateral_zero_value_output() {
 fn commitment_collateral_output_not_found() {
     let utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
     let non_existing_output = OutputPointer::default();
-    let vti = Input::new(non_existing_output.clone());
+    let vti = Input::new(non_existing_output);
 
     let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 100_000);
 
@@ -3371,7 +3371,7 @@ fn commitment_collateral_pkh_mismatch() {
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let output = utxo_set.iter().next().unwrap().0;
-    let vti = Input::new(output.clone());
+    let vti = Input::new(output);
 
     let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 100_000);
 
@@ -3480,7 +3480,7 @@ fn commitment_collateral_not_mature() {
     ))];
     let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 1);
     let output = utxo_set.iter().next().unwrap().0;
-    let vti = Input::new(output.clone());
+    let vti = Input::new(output);
 
     let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 6);
 
@@ -3522,9 +3522,9 @@ fn commitment_collateral_double_spend() {
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let output = utxo_set.iter().next().unwrap().0;
-    let vti = Input::new(output.clone());
+    let vti = Input::new(output);
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti.clone(), vti], vec![]), 100_000);
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti, vti], vec![]), 100_000);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),

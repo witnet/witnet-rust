@@ -96,7 +96,7 @@ pub trait OutputsCollection {
             }
 
             acc += value;
-            list.push(op.clone());
+            list.push(*op);
 
             if acc >= amount {
                 break;
@@ -469,7 +469,7 @@ pub fn transaction_inputs_sum(
     for input in inputs {
         let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
             TransactionError::OutputNotFound {
-                output: input.output_pointer().clone(),
+                output: *input.output_pointer(),
             }
         })?;
 
@@ -486,7 +486,7 @@ pub fn transaction_inputs_sum(
             if !seen_output_pointers.insert(input.output_pointer()) {
                 // If the set already contained this output pointer
                 return Err(TransactionError::OutputNotFound {
-                    output: input.output_pointer().clone(),
+                    output: *input.output_pointer(),
                 }
                 .into());
             }
