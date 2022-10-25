@@ -1596,16 +1596,28 @@ where
 
         let mut utxo_removals: Vec<model::OutPtr> = vec![];
         let mut utxo_inserts: Vec<(model::OutPtr, model::OutputInfo)> = vec![];
+        let mut resolved_inputs: Vec<ValueTransferOutput> = vec![];
 
         let mut input_amount: u64 = 0;
         for input in inputs.iter() {
             let out_ptr: model::OutPtr = input.output_pointer().into();
 
-            if let Some(model::OutputInfo { amount, .. }) = state.utxo_set.get(&out_ptr) {
+            if let Some(model::OutputInfo {
+                amount,
+                pkh,
+                time_lock,
+            }) = state.utxo_set.get(&out_ptr)
+            {
                 input_amount = input_amount
                     .checked_add(*amount)
                     .ok_or(Error::TransactionBalanceOverflow)?;
                 utxo_removals.push(out_ptr);
+
+                resolved_inputs.push(ValueTransferOutput {
+                    value: *amount,
+                    pkh: *pkh,
+                    time_lock: *time_lock,
+                });
             }
         }
 
@@ -1690,9 +1702,16 @@ where
             _ => 0,
         };
 
+        // Insert resolved inputs into transaction metadata so that they can be added to the balance
+        // movement.
+        let txn = model::ExtendedTransaction {
+            metadata: Some(model::TransactionMetadata::InputValues(resolved_inputs)),
+            transaction: txn.transaction.clone(),
+        };
+
         let balance_movement = build_balance_movement(
             state.transaction_next_id,
-            txn,
+            &txn,
             miner_fee,
             kind,
             amount,
