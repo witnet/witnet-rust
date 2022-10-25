@@ -1707,10 +1707,16 @@ where
             _ => 0,
         };
 
-        // Insert resolved inputs into transaction metadata so that they can be added to the balance
-        // movement.
+        // If no metadata is present in the extended transaction, insert resolved inputs so that
+        // they can be added to the balance movement.
+        // Tally transactions are not affected here because they already contain metadata.
         let txn = model::ExtendedTransaction {
-            metadata: Some(model::TransactionMetadata::InputValues(resolved_inputs)),
+            metadata: txn
+                .metadata
+                .clone()
+                .or(Some(model::TransactionMetadata::InputValues(
+                    resolved_inputs,
+                ))),
             transaction: txn.transaction.clone(),
         };
 

@@ -415,7 +415,7 @@ pub struct ExtendedTransaction {
     pub metadata: Option<TransactionMetadata>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TransactionMetadata {
     InputValues(Vec<ValueTransferOutput>),
     Tally(Box<DataRequestInfo>),
