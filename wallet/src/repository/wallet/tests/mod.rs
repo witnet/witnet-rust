@@ -637,7 +637,7 @@ fn test_create_data_request_does_not_spend_utxos() {
         out_pointer.clone(),
         model::OutputInfo {
             pkh,
-            amount: 1,
+            amount: 1000,
             time_lock: 0,
         },
     )]);
@@ -667,12 +667,12 @@ fn test_create_data_request_does_not_spend_utxos() {
     assert!(state_utxo_set.contains_key(&out_pointer));
 
     let request = DataRequestOutput {
-        witness_reward: 1,
-        witnesses: 1,
+        witness_reward: 5,
+        witnesses: 99,
         ..DataRequestOutput::default()
     };
 
-    let fee = Fee::default();
+    let fee = Fee::absolute_from_nanowits(123);
     let (extended, _) = wallet
         .create_data_req(types::DataReqParams { fee, request })
         .unwrap();
@@ -684,6 +684,15 @@ fn test_create_data_request_does_not_spend_utxos() {
         panic!("the extended transaction should actually contain a value transfer transaction, got: {:?}", extended.transaction);
     }
     .unwrap();
+
+    // Make sure that the transaction contains a change output with the right change address and
+    // amount (should reuse the address from the first input)
+    let change_address = data_req.body.outputs[0].pkh;
+    let change_amount = data_req.body.outputs[0].value;
+    let change_timelock = data_req.body.outputs[0].time_lock;
+    assert_eq!(change_address, pkh);
+    assert_eq!(change_amount, 382);
+    assert_eq!(change_timelock, 0);
 
     let state_utxo_set = wallet.utxo_set().unwrap();
     let new_utxo_set: HashMap<model::OutPtr, model::OutputInfo> =
