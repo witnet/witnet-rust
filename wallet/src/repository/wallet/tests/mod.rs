@@ -596,7 +596,7 @@ fn test_create_vtt_does_not_spend_utxos() {
     let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
         Some(vtt)
     } else {
-        None
+        panic!("the extended transaction should actually contain a value transfer transaction, got: {:?}", extended.transaction);
     }
     .unwrap();
 
@@ -681,7 +681,7 @@ fn test_create_data_request_does_not_spend_utxos() {
     let data_req = if let Transaction::DataRequest(drt) = extended.transaction {
         Some(drt)
     } else {
-        None
+        panic!("the extended transaction should actually contain a value transfer transaction, got: {:?}", extended.transaction);
     }
     .unwrap();
 
@@ -1013,7 +1013,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
     let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
         Some(vtt)
     } else {
-        None
+        panic!("the extended transaction should actually contain a value transfer transaction, got: {:?}", extended.transaction);
     }
     .unwrap();
 
@@ -1136,7 +1136,7 @@ fn test_get_transaction() {
     let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
         Some(vtt)
     } else {
-        None
+        panic!("the extended transaction should actually contain a value transfer transaction, got: {:?}", extended.transaction);
     }
     .unwrap();
 
@@ -1218,7 +1218,7 @@ fn test_get_transactions() {
     let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
         Some(vtt)
     } else {
-        None
+        panic!("the extended transaction should actually contain a value transfer transaction, got: {:?}", extended.transaction);
     }
     .unwrap();
 
@@ -1362,7 +1362,7 @@ fn test_create_vtt_with_multiple_outputs() {
     let vtt = if let Transaction::ValueTransfer(vtt) = extended.transaction {
         Some(vtt)
     } else {
-        None
+        panic!("the extended transaction should actually contain a value transfer transaction, got: {:?}", extended.transaction);
     }
     .unwrap();
 
