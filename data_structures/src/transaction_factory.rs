@@ -16,7 +16,6 @@ use crate::{
     },
     wit::Wit,
 };
-use itertools::Itertools;
 
 #[derive(Clone, Debug)]
 pub struct CollectedOutputs {
@@ -346,7 +345,10 @@ pub fn build_vtt(
         tx_info.inputs.total_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
-    Ok(VTTransactionBody::new(used_pointers.collect_vec(), outputs))
+    Ok(VTTransactionBody::new(
+        used_pointers.collect::<Vec<_>>(),
+        outputs,
+    ))
 }
 
 /// Build data request transaction with the given outputs and fee.
@@ -395,7 +397,7 @@ pub fn build_drt(
     );
 
     Ok(DRTransactionBody::new(
-        used_pointers.collect_vec(),
+        used_pointers.collect::<Vec<_>>(),
         outputs,
         dr_output,
     ))
@@ -474,7 +476,7 @@ pub fn build_commit_collateral(
         tx_info.inputs.total_value - tx_info.output_value - tx_info.fee.as_nanowits(),
     );
 
-    Ok((used_pointers.collect_vec(), outputs))
+    Ok((used_pointers.collect::<Vec<_>>(), outputs))
 }
 
 /// Calculate the sum of the values of the outputs pointed by the
