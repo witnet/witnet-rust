@@ -1293,7 +1293,12 @@ where
             max_weight,
         )?;
 
-        let change_pkh = self.calculate_change_address(state, None)?;
+        // For data requests, this will set the change address to the one from the first input.
+        // For any other transaction type, a fresh address is generated in the internal keychain.
+        let change_pkh = self.calculate_change_address(
+            state,
+            dr_output.and_then(|_| inputs.pointers.get(0).cloned().map(Input::new)),
+        )?;
 
         let mut outputs = outputs;
         insert_change_output(
