@@ -70,8 +70,8 @@ impl ProtobufConvert for chain::PublicKey {
     fn to_pb(&self) -> Self::ProtoStruct {
         let mut m = witnet::PublicKey::new();
         let mut v = vec![];
-        v.extend(&[self.compressed]);
-        v.extend(&self.bytes);
+        v.extend([self.compressed]);
+        v.extend(self.bytes);
         m.set_public_key(v);
 
         m

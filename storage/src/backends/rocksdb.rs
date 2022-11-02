@@ -16,7 +16,7 @@ struct Error(#[fail(cause)] rocksdb::Error);
 
 impl Storage for Backend {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        let result = Backend::get(self, &key)
+        let result = Backend::get(self, key)
             .map(|opt| opt.map(|dbvec| dbvec.to_vec()))
             .map_err(Error)?;
         Ok(result)
@@ -28,7 +28,7 @@ impl Storage for Backend {
     }
 
     fn delete(&self, key: &[u8]) -> Result<()> {
-        Backend::delete(self, &key).map_err(Error)?;
+        Backend::delete(self, key).map_err(Error)?;
         Ok(())
     }
 
@@ -111,7 +111,7 @@ mod rocksdb_mock {
             DB::default()
         }
 
-        fn search<K: AsRef<[u8]>>(&self, key: &K) -> Option<usize> {
+        fn search<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Option<usize> {
             for (i, (k, _)) in self.data.read().unwrap().iter().enumerate() {
                 if key.as_ref() == k.as_slice() {
                     return Some(i);
@@ -120,7 +120,7 @@ mod rocksdb_mock {
             None
         }
 
-        pub fn get<K: AsRef<[u8]>>(&self, key: &K) -> Result<Option<Vec<u8>>> {
+        pub fn get<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Result<Option<Vec<u8>>> {
             Ok(self
                 .search(key)
                 .map(|idx| self.data.read().unwrap()[idx].1.clone()))
@@ -138,7 +138,7 @@ mod rocksdb_mock {
             Ok(())
         }
 
-        pub fn delete<K: AsRef<[u8]>>(&self, key: &K) -> Result<()> {
+        pub fn delete<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Result<()> {
             self.search(key)
                 .map(|idx| self.data.write().unwrap().remove(idx));
             Ok(())

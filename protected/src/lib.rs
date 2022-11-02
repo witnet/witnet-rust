@@ -37,13 +37,13 @@ impl<T: Into<Vec<u8>>> From<T> for Protected {
 
 impl AsRef<[u8]> for Protected {
     fn as_ref(&self) -> &[u8] {
-        &*self.0
+        &self.0
     }
 }
 
 impl AsMut<[u8]> for Protected {
     fn as_mut(&mut self) -> &mut [u8] {
-        &mut *self.0
+        &mut self.0
     }
 }
 

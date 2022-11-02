@@ -59,7 +59,7 @@ fn run_dr_locally_with_data(
         log::info!("Running retrieval for {}", r.url);
         retrieval_results.push(witnet_rad::run_retrieval_with_data(
             r,
-            *d,
+            d,
             RadonScriptExecutionSettings::disable_all(),
             all_wips_active(),
         )?);

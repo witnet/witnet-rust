@@ -209,7 +209,7 @@ pub fn master_key() -> Key<&'static str, ExtendedSK> {
 /// Path information associated to a pkh (account, keychain and index).
 #[inline]
 pub fn pkh(pkh: &PublicKeyHash) -> Key<Vec<u8>, model::Path> {
-    Key::new([b"pkh-", pkh.as_ref()].concat().to_vec())
+    Key::new([b"pkh-", pkh.as_ref()].concat())
 }
 
 /// An custom key decided by the client to store something.

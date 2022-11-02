@@ -19,7 +19,7 @@ fn one() {
 // Helper function to test hash order
 fn hash_concat(Sha256(a): Sha256, Sha256(b): Sha256) -> Sha256 {
     let mut h = a.to_vec();
-    h.extend(&b);
+    h.extend(b);
     calculate_sha256(&h)
 }
 

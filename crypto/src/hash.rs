@@ -31,7 +31,7 @@ impl AsRef<[u8]> for Sha256 {
 /// Calculate the SHA256 hash
 pub fn calculate_sha256(bytes: &[u8]) -> Sha256 {
     let mut hasher = sha2::Sha256::new();
-    hasher.input(&bytes);
+    hasher.input(bytes);
     let mut hash = [0; 32];
     hash.copy_from_slice(&hasher.result());
     Sha256(hash)

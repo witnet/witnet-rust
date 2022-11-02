@@ -313,7 +313,7 @@ fn test_balance() {
         available: 99u64,
         locked: 0u64,
     };
-    db.put(&keys::account_balance(0), &new_balance).unwrap();
+    db.put(&keys::account_balance(0), new_balance).unwrap();
 
     let (wallet, _db) = factories::wallet(Some(db));
 

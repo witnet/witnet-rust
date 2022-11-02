@@ -652,8 +652,8 @@ impl Hashable for DataRequestOutput {
 impl Hashable for PublicKey {
     fn hash(&self) -> Hash {
         let mut v = vec![];
-        v.extend(&[self.compressed]);
-        v.extend(&self.bytes);
+        v.extend([self.compressed]);
+        v.extend(self.bytes);
 
         calculate_sha256(&v).into()
     }
@@ -3502,7 +3502,7 @@ impl ReputationEngine {
 fn pkh_alpha_hash(pkh: &PublicKeyHash, alpha: Alpha) -> Hash {
     let alpha_bytes: &[u8] = &alpha.0.to_be_bytes();
     let mut pkh_bytes = Vec::with_capacity(pkh.hash.len() + alpha_bytes.len());
-    pkh_bytes.extend(&pkh.hash);
+    pkh_bytes.extend(pkh.hash);
     pkh_bytes.extend(alpha_bytes);
 
     calculate_sha256(&pkh_bytes).into()
