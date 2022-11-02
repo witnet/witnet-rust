@@ -408,7 +408,7 @@ impl App {
 
                 // If the node is synced start synchronization for this wallet
                 if slf.state.node_state == Some(StateMachine::Synced)
-                    || slf.state.node_state == None
+                    || slf.state.node_state.is_none()
                 {
                     let sink = slf.state.get_sink(&session_id);
                     slf.params

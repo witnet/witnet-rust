@@ -27,7 +27,7 @@ pub fn merkle_tree_root(hashes: &[Sha256]) -> Sha256 {
 /// Calculate `sha256(a || b)` where || means concatenation
 pub fn sha256_concat(a: Sha256, b: Sha256) -> Sha256 {
     let mut h = a.0.to_vec();
-    h.extend(&b.0);
+    h.extend(b.0);
     calculate_sha256(&h)
 }
 

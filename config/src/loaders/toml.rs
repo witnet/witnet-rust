@@ -76,7 +76,7 @@ mod tests {
     fn test_load_empty_config_from_file() {
         super::FILE_CONTENTS.with(|cell| cell.set(""));
         let filename = Path::new("config.toml");
-        let config = super::from_file(&filename).unwrap();
+        let config = super::from_file(filename).unwrap();
 
         assert_eq!(config, PartialConfig::default());
     }
@@ -93,7 +93,7 @@ inbound_limit = 999
             )
         });
         let filename = Path::new("config.toml");
-        let config = super::from_file(&filename).unwrap();
+        let config = super::from_file(filename).unwrap();
 
         assert_eq!(config.environment, Environment::Testnet);
         assert_eq!(config.connections.inbound_limit, Some(999));

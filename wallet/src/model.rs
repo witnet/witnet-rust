@@ -364,7 +364,7 @@ pub struct Beacon {
 impl fmt::Display for Beacon {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "blk {} ({})", hex::encode(&self.block_hash), self.epoch)
+        write!(f, "blk {} ({})", hex::encode(self.block_hash), self.epoch)
     }
 }
 

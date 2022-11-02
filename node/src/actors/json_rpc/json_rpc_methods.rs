@@ -1284,7 +1284,7 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|dr_info| match dr_info {
-                    Ok(x) => match serde_json::to_value(&x) {
+                    Ok(x) => match serde_json::to_value(x) {
                         Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
@@ -1663,7 +1663,7 @@ pub async fn rewind(params: Result<(Epoch,), jsonrpc_core::Error>) -> JsonRpcRes
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|success| match success {
-                    Ok(x) => match serde_json::to_value(&x) {
+                    Ok(x) => match serde_json::to_value(x) {
                         Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);

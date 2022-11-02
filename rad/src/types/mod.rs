@@ -56,7 +56,7 @@ pub enum RadonTypes {
 impl RadonTypes {
     pub fn hash(self) -> Result<Hash, RadError> {
         self.encode()
-            .map(|vector: Vec<u8>| calculate_sha256(&*vector))
+            .map(|vector: Vec<u8>| calculate_sha256(&vector))
             .map(Hash::from)
             .map_err(|_| RadError::Hash)
     }

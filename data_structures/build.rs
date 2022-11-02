@@ -18,7 +18,7 @@ fn main() {
 
     exonum_build::protobuf_generate(
         "../schemas/witnet",
-        &["../schemas/witnet"],
+        ["../schemas/witnet"],
         "witnet_proto_mod.rs",
     );
 }

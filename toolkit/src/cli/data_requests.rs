@@ -38,7 +38,7 @@ pub(crate) fn decode_from_args(
 /// By default, a full trace is provided, i.e.: all execution details including the partial results
 /// after each operator.
 ///
-/// Full trace mode can be disabled by setting `--full_trace` option to `false`.  
+/// Full trace mode can be disabled by setting `--full_trace` option to `false`.
 pub(crate) fn try_from_args(
     args: arguments::TryDataRequest,
 ) -> Result<RADRequestExecutionReport, Error> {

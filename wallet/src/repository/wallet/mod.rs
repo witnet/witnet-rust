@@ -456,7 +456,7 @@ where
 
             batch.put(&keys::address(account, keychain, index), &address)?;
             batch.put(&keys::address_path(account, keychain, index), &path)?;
-            batch.put(&keys::address_pkh(account, keychain, index), &pkh)?;
+            batch.put(&keys::address_pkh(account, keychain, index), pkh)?;
             batch.put(&keys::address_info(account, keychain, index), &info)?;
             batch.put(
                 &keys::pkh(&pkh),
@@ -467,7 +467,7 @@ where
                 },
             )?;
 
-            batch.put(&keys::account_next_index(account, keychain), &next_index)?;
+            batch.put(&keys::account_next_index(account, keychain), next_index)?;
 
             self.db.write(batch)?;
         }
@@ -1007,7 +1007,7 @@ where
             movement.transaction.confirmed = true;
             batch.put(
                 &keys::transactions_index(txn_hash.as_ref()),
-                &movement.db_key,
+                movement.db_key,
             )?;
             batch.put(
                 &keys::transaction_hash(account, movement.db_key),
@@ -1040,7 +1040,7 @@ where
             )?;
             batch.put(
                 &keys::address_pkh(account, address.keychain, address.index),
-                &address.pkh,
+                address.pkh,
             )?;
         }
 
