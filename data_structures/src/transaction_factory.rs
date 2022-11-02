@@ -227,7 +227,7 @@ pub fn calculate_weight(
             return Err(TransactionError::DataRequestWeightLimitExceeded {
                 weight: dr_weight,
                 max_weight,
-                dr_output: dr_output.clone(),
+                dr_output: Box::new(dr_output.clone()),
             });
         } else {
             dr_weight

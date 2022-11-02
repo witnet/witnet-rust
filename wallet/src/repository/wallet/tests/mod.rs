@@ -2337,7 +2337,9 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
         .unwrap_err();
 
     assert_eq!(
-        mem::discriminant(&repository::Error::MaximumDRWeightReached(request)),
+        mem::discriminant(&repository::Error::MaximumDRWeightReached(Box::new(
+            request
+        ))),
         mem::discriminant(&err),
         "{:?}",
         err,

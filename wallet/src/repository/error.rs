@@ -72,7 +72,7 @@ pub enum Error {
         display = "Weight limit reached when trying to create a Data Request. \n > {:?}",
         _0
     )]
-    MaximumDRWeightReached(DataRequestOutput),
+    MaximumDRWeightReached(Box<DataRequestOutput>),
     #[fail(display = "The chosen fee seems too large")]
     FeeTooLarge,
     #[fail(display = "Unknown Fee Type specified")]

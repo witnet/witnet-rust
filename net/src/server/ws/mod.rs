@@ -53,7 +53,7 @@ impl ServerBuilder {
     }
 
     /// Starts a JsonRPC Websockets server.
-    pub fn start(self) -> Result<Server, Error> {
+    pub fn start(self) -> Result<Server, Box<Error>> {
         let Self { handler, addr } = self;
 
         server::ServerBuilder::with_meta_extractor(handler, |context: &server::RequestContext| {
@@ -61,6 +61,6 @@ impl ServerBuilder {
         })
         .start(&addr)
         .map(Server)
-        .map_err(Error)
+        .map_err(|err| Box::new(Error(err)))
     }
 }

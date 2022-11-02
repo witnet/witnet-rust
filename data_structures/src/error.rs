@@ -276,7 +276,7 @@ pub enum TransactionError {
     DataRequestWeightLimitExceeded {
         weight: u32,
         max_weight: u32,
-        dr_output: DataRequestOutput,
+        dr_output: Box<DataRequestOutput>,
     },
 }
 

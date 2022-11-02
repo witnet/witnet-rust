@@ -398,7 +398,7 @@ pub fn validate_dr_transaction<'a>(
         return Err(TransactionError::DataRequestWeightLimitExceeded {
             weight: dr_tx.weight(),
             max_weight: max_dr_weight,
-            dr_output: dr_tx.body.dr_output.clone(),
+            dr_output: Box::new(dr_tx.body.dr_output.clone()),
         }
         .into());
     }

@@ -2384,7 +2384,7 @@ fn dr_validation_weight_limit_exceeded() {
         TransactionError::DataRequestWeightLimitExceeded {
             weight: 1625,
             max_weight: 1625 - 1,
-            dr_output: dro,
+            dr_output: Box::new(dro),
         }
     );
 }
@@ -10203,7 +10203,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
         TransactionError::DataRequestWeightLimitExceeded {
             weight: 80453,
             max_weight: MAX_DR_WEIGHT,
-            dr_output: dro,
+            dr_output: Box::new(dro),
         },
     );
 }
