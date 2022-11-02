@@ -7,7 +7,7 @@ use regex::Regex;
 use witnet_data_structures::chain::DataRequestOutput;
 use witnet_rad::RADRequestExecutionReport;
 
-use crate::{errors::Error, lib};
+use witnet_toolkit::errors::Error;
 
 use super::arguments;
 
@@ -16,7 +16,7 @@ pub(crate) fn decode_from_args(
     args: arguments::DecodeDataRequest,
 ) -> Result<DataRequestOutput, Error> {
     if let Some(hex_string) = &args.hex {
-        lib::data_requests::decode_from_hex_string(hex_string)
+        witnet_toolkit::data_requests::decode_from_hex_string(hex_string)
     } else if let Some(path_string) = &args.from_solidity {
         let path = Path::new(path_string);
 
@@ -27,7 +27,7 @@ pub(crate) fn decode_from_args(
             .map_err(Error::SolidityFileCantRead)?;
 
         let pb_bytes = extract_pb_bytes_from_solidity(&contents)?;
-        lib::data_requests::decode_from_pb_bytes(&pb_bytes)
+        witnet_toolkit::data_requests::decode_from_pb_bytes(&pb_bytes)
     } else {
         Err(Error::DataRequestNoBytes)
     }
@@ -45,7 +45,7 @@ pub(crate) fn try_from_args(
     let full_trace = args.full_trace.unwrap_or(true);
     let request = decode_from_args(args.into())?.data_request;
 
-    lib::data_requests::try_data_request(&request, full_trace)
+    witnet_toolkit::data_requests::try_data_request(&request, full_trace)
 }
 
 /// Extract the Protocol Buffers representation of a data request from a Solidity smart contract

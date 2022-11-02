@@ -34,7 +34,6 @@ export CLIPPY_LINTS := '-D warnings
     -D clippy::cast-sign-loss
     -D clippy::checked-conversions
     -A clippy::upper-case-acronyms
-    -A special_module_name
 '
 
 # run clippy

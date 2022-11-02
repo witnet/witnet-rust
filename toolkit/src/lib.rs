@@ -18,18 +18,5 @@
 //! The `lib.rs` file contains helper functions that can be easily imported into other Rust projects
 //! in order to create Witnet related software using Rust.
 
-use structopt::StructOpt;
-
-use cli::commands::Command;
-
-mod cli;
-
-/// The main entrypoint for the `witnet_toolkit` binary.
-///
-/// This basically handles the core functionality of the CLI, and ensures that the process exits
-/// gracefully.
-fn main() {
-    let command = Command::from_args();
-    let exit_code = cli::process_command(command);
-    std::process::exit(exit_code);
-}
+pub mod data_requests;
+pub mod errors;

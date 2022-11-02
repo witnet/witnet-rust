@@ -7,7 +7,7 @@ mod arguments;
 pub(crate) mod commands;
 pub(crate) mod data_requests;
 
-use crate::errors::Error;
+use witnet_toolkit::errors::Error;
 
 /// This function acts as the main router and error handler for CLI commands.
 pub(crate) fn process_command(command: commands::Command) -> i32 {
