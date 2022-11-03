@@ -1509,7 +1509,30 @@ impl ChainManager {
                                     voted_superblock_beacon.checkpoint,
                                     superblock_index
                         );
-                        SuperBlockConsensus::SameAsLocal
+
+                        if (superblock_index - voted_superblock_beacon.checkpoint) % 2 == 0 {
+                            // Desync bug: if the last valid superblock is even, all the future
+                            // voted superblocks must be odd.
+                            //
+                            // superblock index: status
+                            // 10: consolidated
+                            // 11: consensus unknown, reverted
+                            // 12: 10 consolidated again
+                            // 13: consensus unknown, reverted
+                            //
+                            // So superblock voting must always happen after 2n+1 superepochs
+                            // (11 and 13 in the example).
+                            // If we are in a superblock index that should have votes, we must skip
+                            // the consolidation of the already consolidated superblock. This will
+                            // trigger a revert, and therefore in the next superepoch we will try to
+                            // consolidate the same superblock again, but then the superblock
+                            // checkpoint will be valid.
+                            log::error!("Superblock index desync! It is not possible to consolidate superblock {} when current superblock index is {}", voted_superblock_beacon.checkpoint, superblock_index);
+
+                            SuperBlockConsensus::Unknown
+                        } else {
+                            SuperBlockConsensus::SameAsLocal
+                        }
                     } else {
                         if voted_superblock_beacon.checkpoint + 1 != superblock_index {
                             // Warn when there is are missing superblocks between the one that will be
