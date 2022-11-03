@@ -23,6 +23,18 @@ const SECOND_EMERGENCY_COMMITTEE: [&str; 6] = [
     "wit13l337znc5yuualnxfg9s2hu9txylntq5pyazty",
 ];
 
+/// Committee for superblock indices 144_200-145_500
+/// (aprox. from Nov 4 2022 @ 10:30am UTC, to Nov 12 2022 @ 2:30am UTC)
+const THIRD_EMERGENCY_COMMITTEE: [&str; 7] = [
+    "wit1asdpcspwysf0hg5kgwvgsp2h6g65y5kg9gj5dz",
+    "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq",
+    "wit1drcpu3x42y5vp7w3pe203xrwpnth2pnt6c0dm9",
+    "wit1fkps4hsrvadr2u9veyk27xrv8yhmldaj8zdlpj",
+    "wit1gnw6gvmkzfwe5tyjd55h7t2j4s68xappl85g5v",
+    "wit1q679r2d8yk0ntmk48k6nprc3fervd627vqe39l",
+    "wit1wl200uau9zp072ps0wfpq74kd0a65uhd5c4dfk",
+];
+
 /// 22 January 2021 @ 09:00:00 UTC
 pub const FIRST_HARD_FORK: Epoch = 192000;
 /// 28 April 2021 @ 9:00:00 UTC
@@ -359,6 +371,20 @@ pub fn in_emergency_period(
             SECOND_EMERGENCY_COMMITTEE
                 .iter()
                 .map(|address| address.parse().expect("Malformed signing committee"))
+                .collect(),
+        )
+    } else if Environment::Mainnet == environment
+        && superblock_index > 144_200
+        && superblock_index < 145_500
+    {
+        Some(
+            THIRD_EMERGENCY_COMMITTEE
+                .iter()
+                .map(|address| {
+                    address
+                        .parse()
+                        .expect("Malformed address in emergency committee")
+                })
                 .collect(),
         )
     } else {
