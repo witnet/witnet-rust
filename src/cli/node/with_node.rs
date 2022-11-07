@@ -188,6 +188,7 @@ pub fn exec_cmd(
 
             if let Some(master_key_import_path) = params.master_key_import {
                 config.storage.master_key_import_path = Some(master_key_import_path);
+                config.storage.overwrite = params.overwrite;
             }
 
             config.connections.known_peers.extend(params.known_peers);
@@ -751,6 +752,9 @@ pub struct ConfigParams {
     /// Path to file that contains the master key to import
     #[structopt(long = "master-key-import")]
     master_key_import: Option<PathBuf>,
+    /// Whether to overwrite an existing private key when importing a new one
+    #[structopt(long = "overwrite")]
+    overwrite: bool,
 }
 
 static NODE_DB_HELP: &str = r#"Path to the node database. If not specified will use '.witnet-rust-mainnet' for mainnet, or '.witnet-rust-testnet-N' for testnet number N."#;

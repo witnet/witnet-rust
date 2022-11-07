@@ -517,7 +517,7 @@ impl Actor for SignatureManagerAdapter {
                 },
                 // There is a master key in storage and imported:
                 (Some(from_file), Some(from_storage)) => {
-                    if from_file == from_storage {
+                    if from_file == from_storage || config.storage.overwrite {
                         // If they are equal, use that master key
                         Ok(from_file)
                     } else {

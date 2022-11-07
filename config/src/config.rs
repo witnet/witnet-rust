@@ -312,6 +312,10 @@ pub struct Storage {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub master_key_import_path: Option<PathBuf>,
+    /// Whether to overwrite an existing master key when importing a new one
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub overwrite: bool,
     /// Keep a map of "address" to "list of UTXOs" in memory, to speed up getBalance and getUtxoInfo methods
     pub utxos_in_memory: bool,
 }
@@ -736,6 +740,7 @@ impl Storage {
                 .to_owned()
                 .unwrap_or_else(|| defaults.storage_db_path()),
             master_key_import_path: config.master_key_import_path.clone(),
+            overwrite: config.overwrite,
             utxos_in_memory: config
                 .utxos_in_memory
                 .to_owned()
@@ -748,6 +753,7 @@ impl Storage {
             backend: self.backend.clone(),
             db_path: Some(self.db_path.clone()),
             master_key_import_path: self.master_key_import_path.clone(),
+            overwrite: self.overwrite,
             utxos_in_memory: Some(self.utxos_in_memory),
         }
     }
@@ -1280,6 +1286,7 @@ mod tests {
             backend: StorageBackend::RocksDB,
             db_path: Some(PathBuf::from("other")),
             master_key_import_path: None,
+            overwrite: false,
             utxos_in_memory: None,
         };
         let config = Storage::from_partial(&partial_config, &Testnet);
