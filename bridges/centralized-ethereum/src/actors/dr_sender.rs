@@ -9,9 +9,10 @@ use actix::prelude::*;
 use serde_json::json;
 use std::{fmt, time::Duration};
 use witnet_data_structures::{
-    chain::{tapi::current_active_wips, DataRequestOutput, Hash},
+    chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
     proto::ProtobufConvert,
     radon_error::RadonErrors,
+    transaction::DRTransaction,
 };
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_node::utils::stop_system_if_panicking;
@@ -100,9 +101,9 @@ impl DrSender {
                         };
 
                         match res {
-                            Ok(dr_tx_hash) => {
-                                match serde_json::from_value::<Hash>(dr_tx_hash) {
-                                    Ok(dr_tx_hash) => {
+                            Ok(dr_tx) => {
+                                match serde_json::from_value::<DRTransaction>(dr_tx) {
+                                    Ok(dr_tx) => {
                                         // Save dr_tx_hash in database and set state to Pending
                                         dr_database_addr
                                             .send(SetDrInfoBridge(
@@ -110,7 +111,7 @@ impl DrSender {
                                                 DrInfoBridge {
                                                     dr_bytes,
                                                     dr_state: DrState::Pending,
-                                                    dr_tx_hash: Some(dr_tx_hash),
+                                                    dr_tx_hash: Some(dr_tx.hash()),
                                                     dr_tx_creation_timestamp: Some(get_timestamp()),
                                                 },
                                             ))
@@ -119,7 +120,7 @@ impl DrSender {
                                     }
                                     Err(e) => {
                                         // Unexpected error deserializing hash
-                                        panic!("[{}] error deserializing dr_tx_hash: {}", dr_id, e);
+                                        panic!("[{}] error deserializing dr_tx: {}", dr_id, e);
                                     }
                                 }
                             }
