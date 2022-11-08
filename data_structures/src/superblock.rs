@@ -751,7 +751,7 @@ pub fn hash_merkle_tree_root(hashes: &[Hash]) -> Hash {
 mod tests {
     use super::*;
     use crate::{
-        chain::{BlockMerkleRoots, Bn256SecretKey, CheckpointBeacon, PublicKey},
+        chain::{BlockMerkleRoots, Bn256SecretKey, CheckpointBeacon, PublicKey, Signature},
         vrf::BlockEligibilityClaim,
     };
     use itertools::Itertools;
@@ -1368,6 +1368,82 @@ mod tests {
         let mut v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 3);
         v2.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v2, 2), AddSuperBlockVote::MaybeValid);
+    }
+
+    #[test]
+    fn superblock_state_no_double_vote_if_superblock_hash_is_the_same() {
+        // Check that an identity can vote more than once for the same superblock, with a different
+        // but valid secp signature each time
+        let mut sbs = SuperBlockState::default();
+        let block_headers = vec![BlockHeader::default()];
+        let genesis_hash = Hash::default();
+
+        let p1 = PublicKey::from_bytes([1; 33]);
+        let pkhs = vec![p1.pkh()];
+        let keys = vec![create_bn256(1)];
+        let ars0 = ARSIdentities::new(vec![]);
+        let ars1 = ARSIdentities::new(pkhs.clone());
+        let ars2 = ARSIdentities::new(pkhs.clone());
+        let alt_keys = create_alt_keys(pkhs, keys);
+
+        // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
+        // (because it does not exist)
+        let _sb0 = sbs.build_superblock(
+            &block_headers,
+            ars0,
+            100,
+            0,
+            genesis_hash,
+            &alt_keys,
+            None,
+            1,
+        );
+
+        // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
+        // can be valid, they all return `NotInSigningCommittee`
+        let _sb1 = sbs.build_superblock(
+            &block_headers,
+            ars1,
+            100,
+            1,
+            genesis_hash,
+            &alt_keys,
+            None,
+            1,
+        );
+
+        // The ARS included in superblock 1 contains only identity p1, so only its vote will be
+        // valid in superblock votes for index 2
+        let sb2 = sbs.build_superblock(
+            &block_headers,
+            ars2,
+            100,
+            2,
+            genesis_hash,
+            &alt_keys,
+            None,
+            1,
+        );
+        let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
+        v1.secp256k1_signature.public_key = p1;
+        // Add dummy signature, but pretend it is valid
+        match &mut v1.secp256k1_signature.signature {
+            Signature::Secp256k1(sig) => sig.der = vec![0; 32],
+        }
+        assert_eq!(sbs.add_vote(&v1, 2), AddSuperBlockVote::ValidWithSameHash);
+        let mut v2 = v1.clone();
+        // Flip one bit in the signature, but pretend that the signature is still valid (malleability).
+        // This will create a different vote but with identical content
+        match &mut v2.secp256k1_signature.signature {
+            Signature::Secp256k1(sig) => sig.der[10] ^= 0x01,
+        }
+        // AddSuperBlockVote::AlreadySeen would also be good
+        assert_eq!(sbs.add_vote(&v2, 2), AddSuperBlockVote::ValidWithSameHash);
+        // The two votes only count as one vote
+        assert_eq!(
+            sbs.votes_mempool.most_voted_superblock(),
+            Some((sb2.hash(), 1))
+        );
     }
 
     #[test]
