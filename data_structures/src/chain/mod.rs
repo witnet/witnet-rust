@@ -4802,6 +4802,158 @@ mod tests {
     }
 
     #[test]
+    fn transactions_pool_malleability_vt() {
+        let input = Input::default();
+        let mut vt_1 = VTTransaction::new(
+            VTTransactionBody::new(vec![input], vec![]),
+            vec![KeyedSignature::default()],
+        );
+        // Add dummy signature, but pretend it is valid
+        match &mut vt_1.signatures[0].signature {
+            Signature::Secp256k1(sig) => sig.der = vec![0; 32],
+        }
+
+        let mut vt_2 = vt_1.clone();
+        // Flip one bit in the signature, but pretend that the signature is still valid (malleability).
+        match &mut vt_2.signatures[0].signature {
+            Signature::Secp256k1(secp_sig) => {
+                // Flip 1 bit
+                secp_sig.der[10] ^= 0x01;
+            }
+        }
+
+        let vt1 = Transaction::ValueTransfer(vt_1.clone());
+        let vt2 = Transaction::ValueTransfer(vt_2.clone());
+        assert_eq!(vt1.hash(), vt2.hash());
+        assert_ne!(vt1, vt2);
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(vt1.clone(), 1);
+        transactions_pool.insert(vt2.clone(), 1);
+        // Removing vt_1 actually returns vt_2, because they have the same hash, but this is fine
+        // because they both have a valid signature
+        let t = transactions_pool.vt_remove(&vt_1).unwrap();
+        assert_eq!(Transaction::ValueTransfer(t), vt2);
+        assert!(!transactions_pool.contains(&vt1).unwrap());
+        assert!(!transactions_pool.contains(&vt2).unwrap());
+    }
+
+    #[test]
+    fn transactions_pool_malleability_dr() {
+        let input = Input::default();
+        let mut dr_1 = DRTransaction::new(
+            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            vec![KeyedSignature::default()],
+        );
+        // Add dummy signature, but pretend it is valid
+        match &mut dr_1.signatures[0].signature {
+            Signature::Secp256k1(sig) => sig.der = vec![0; 32],
+        }
+
+        let mut dr_2 = dr_1.clone();
+        // Flip one bit in the signature, but pretend that the signature is still valid (malleability).
+        match &mut dr_2.signatures[0].signature {
+            Signature::Secp256k1(secp_sig) => {
+                // Flip 1 bit
+                secp_sig.der[10] ^= 0x01;
+            }
+        }
+
+        let dr1 = Transaction::DataRequest(dr_1.clone());
+        let dr2 = Transaction::DataRequest(dr_2.clone());
+        assert_eq!(dr1.hash(), dr2.hash());
+        assert_ne!(dr1, dr2);
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(dr1.clone(), 1);
+        transactions_pool.insert(dr2.clone(), 1);
+        // Removing dr_1 actually returns dr_2, because they have the same hash, but this is fine
+        // because they both have a valid signature
+        let t = transactions_pool.dr_remove(&dr_1).unwrap();
+        assert_eq!(Transaction::DataRequest(t), dr2);
+        assert!(!transactions_pool.contains(&dr1).unwrap());
+        assert!(!transactions_pool.contains(&dr2).unwrap());
+    }
+
+    #[test]
+    fn transactions_pool_malleability_co() {
+        let c1 = Hash::SHA256([1; 32]);
+        let mut t1 = Transaction::Commit(CommitTransaction {
+            body: CommitTransactionBody::without_collateral(
+                Default::default(),
+                c1,
+                Default::default(),
+            ),
+            signatures: vec![KeyedSignature::default()],
+        });
+        // Add dummy signature, but pretend it is valid
+        match &mut t1 {
+            Transaction::Commit(co1) => match &mut co1.signatures[0].signature {
+                Signature::Secp256k1(sig) => sig.der = vec![0; 32],
+            },
+            _ => unreachable!(),
+        }
+
+        let mut t2 = t1.clone();
+        // Flip one bit in the signature, but pretend that the signature is still valid (malleability).
+        match &mut t2 {
+            Transaction::Commit(co2) => {
+                match &mut co2.signatures[0].signature {
+                    Signature::Secp256k1(secp_sig) => {
+                        // Flip 1 bit
+                        secp_sig.der[10] ^= 0x01;
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1, 0);
+        transactions_pool.insert(t2.clone(), 0);
+        let mut expected = TransactionsPool::default();
+        expected.insert(t2, 0);
+        assert_eq!(transactions_pool.co_transactions, expected.co_transactions);
+    }
+
+    #[test]
+    fn transactions_pool_malleability_re() {
+        let r1 = vec![1];
+        let mut t1 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(Default::default(), r1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        // Add dummy signature, but pretend it is valid
+        match &mut t1 {
+            Transaction::Reveal(re1) => match &mut re1.signatures[0].signature {
+                Signature::Secp256k1(sig) => sig.der = vec![0; 32],
+            },
+            _ => unreachable!(),
+        }
+
+        let mut t2 = t1.clone();
+        // Flip one bit in the signature, but pretend that the signature is still valid (malleability).
+        match &mut t2 {
+            Transaction::Reveal(re2) => {
+                match &mut re2.signatures[0].signature {
+                    Signature::Secp256k1(secp_sig) => {
+                        // Flip 1 bit
+                        secp_sig.der[10] ^= 0x01;
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1, 0);
+        transactions_pool.insert(t2.clone(), 0);
+        let mut expected = TransactionsPool::default();
+        expected.insert(t2, 0);
+        assert_eq!(transactions_pool.re_transactions, expected.re_transactions);
+    }
+
+    #[test]
     fn transactions_pool_size_limit() {
         let input = Input::default();
         let vt1 = Transaction::ValueTransfer(VTTransaction::new(
