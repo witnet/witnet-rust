@@ -463,6 +463,10 @@ impl ActiveWips {
     pub fn wip0021(&self) -> bool {
         self.wip_active("WIP0020-0021")
     }
+
+    pub fn wip0025(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]

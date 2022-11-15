@@ -4,6 +4,10 @@ use isahc::prelude::*;
 
 use async_trait::async_trait;
 use failure::Fail;
+use isahc::config::RedirectPolicy;
+
+/// Maximum number of HTTP redirects to follow
+const MAX_REDIRECTS: u32 = 4;
 
 /// A surf-alike HTTP client that additionally supports proxies (HTTP(S), SOCKS4 and SOCKS5)
 #[derive(Clone, Debug)]
@@ -66,14 +70,28 @@ pub enum WitnetHttpError {
         /// The unsupported HTTP method.
         method: String,
     },
+    /// Error taking body from request.
+    #[fail(display = "Error taking body from request: {}", msg)]
+    TakeBodyError {
+        /// An error message
+        msg: String,
+    },
 }
 
 impl WitnetHttpClient {
     /// Create a new `WitnetHttpClient`
-    pub fn new(proxy: impl Into<Option<isahc::http::Uri>>) -> Result<Self, WitnetHttpError> {
+    pub fn new(
+        proxy: impl Into<Option<isahc::http::Uri>>,
+        follow_redirects: bool,
+    ) -> Result<Self, WitnetHttpError> {
         // Build an `isahc::HttpClient`. Will use the proxy URI, if any
         let client = isahc::HttpClient::builder()
             .proxy(proxy)
+            .redirect_policy(if follow_redirects {
+                RedirectPolicy::Limit(MAX_REDIRECTS)
+            } else {
+                RedirectPolicy::None
+            })
             .build()
             .map_err(|err| WitnetHttpError::ClientBuildError {
                 msg: err.to_string(),
@@ -99,16 +117,26 @@ impl From<isahc::Request<isahc::AsyncBody>> for WitnetHttpRequest {
     }
 }
 
-impl TryFrom<surf::http::Request> for WitnetHttpRequest {
-    type Error = WitnetHttpError;
-
-    fn try_from(mut req: surf::http::Request) -> Result<Self, Self::Error> {
+impl WitnetHttpRequest {
+    /// Create `WitnetHttpRequest` from `surf::http::Request`
+    pub async fn try_from(
+        mut req: surf::http::Request,
+    ) -> Result<WitnetHttpRequest, WitnetHttpError> {
         let method = isahc::http::Method::from(WitnetHttpMethod::try_from(req.method())?);
         let version = isahc::http::Version::from(WitnetHttpVersion::try_from(
             req.version().unwrap_or(surf::http::Version::Http1_1),
         )?);
         let uri = req.url().to_string();
-        let body = isahc::AsyncBody::from_reader(req.take_body().into_reader());
+        let body_bytes =
+            req.take_body()
+                .into_bytes()
+                .await
+                .map_err(|err| WitnetHttpError::TakeBodyError {
+                    msg: err.to_string(),
+                })?;
+        // Use from_bytes_static to avoid error RequestBodyNotRewindable when following an HTTP
+        // redirect
+        let body = isahc::AsyncBody::from_bytes_static(body_bytes);
         let headers: Vec<(String, String)> = req
             .iter()
             .map(|(name, value)| (name.to_string(), value.to_string()))
@@ -128,7 +156,7 @@ impl TryFrom<surf::http::Request> for WitnetHttpRequest {
         // Attach the body to the builder and compose the request itself
         let req = req
             .body(body)
-            .map_err(|err| Self::Error::HttpRequestError {
+            .map_err(|err| WitnetHttpError::HttpRequestError {
                 msg: err.to_string(),
             })?;
 
@@ -303,6 +331,7 @@ impl surf::HttpClient for WitnetHttpClient {
     async fn send(&self, req: surf::http::Request) -> Result<surf::http::Response, surf::Error> {
         // Transform surf request into isahc request
         let req = WitnetHttpRequest::try_from(req)
+            .await
             .map_err(surf::Error::from_display)?
             .req;
 

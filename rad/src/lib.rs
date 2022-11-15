@@ -238,9 +238,17 @@ async fn http_response(
     // Use the provided HTTP client, or instantiate a new one if none
     let client = match client {
         Some(client) => client,
-        None => WitnetHttpClient::new(None).map_err(|err| RadError::HttpOther {
-            message: err.to_string(),
-        })?,
+        None => {
+            let follow_redirects = context
+                .active_wips
+                .as_ref()
+                .map(|active_wips| active_wips.wip0025())
+                .unwrap_or(true);
+
+            WitnetHttpClient::new(None, follow_redirects).map_err(|err| RadError::HttpOther {
+                message: err.to_string(),
+            })?
+        }
     }
     .as_surf_client();
 
@@ -428,7 +436,9 @@ pub async fn run_paranoid_retrieval(
         })?
         .into_iter()
         .map(|transport| {
-            WitnetHttpClient::new(transport)
+            let follow_redirects = active_wips.wip0025();
+
+            WitnetHttpClient::new(transport, follow_redirects)
                 .map_err(|err| RadError::HttpOther {
                     message: err.to_string(),
                 })
