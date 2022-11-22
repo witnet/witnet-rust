@@ -74,10 +74,12 @@ pub fn update_global_timestamp(addr: &str) {
 
 fn local_time(timestamp: ntp::protocol::TimestampFormat) -> chrono::DateTime<chrono::Local> {
     let unix_time = ntp::unix_time::Instant::from(timestamp);
-    chrono::Local.timestamp(
-        unix_time.secs(),
-        u32::try_from(unix_time.subsec_nanos()).unwrap(),
-    )
+    chrono::Local
+        .timestamp_opt(
+            unix_time.secs(),
+            u32::try_from(unix_time.subsec_nanos()).unwrap(),
+        )
+        .unwrap()
 }
 /// Get NTP timestamp from an addr specified
 pub fn get_timestamp_ntp(addr: &str) -> Result<(i64, u32), std::io::Error> {
@@ -141,7 +143,7 @@ pub fn duration_between_timestamps(
 
 /// Function for pretty printing a timestamp as a human friendly date and time
 pub fn pretty_print(seconds: i64, nanoseconds: u32) -> String {
-    Utc.timestamp(seconds, nanoseconds).to_string()
+    Utc.timestamp_opt(seconds, nanoseconds).unwrap().to_string()
 }
 
 /// Convert seconds to a human readable format like "2h 46m 40s"
