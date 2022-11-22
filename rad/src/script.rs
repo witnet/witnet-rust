@@ -555,6 +555,45 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_json_map_big_integers() {
+        use crate::types::float::RadonFloat;
+        use crate::types::map::RadonMap;
+        use crate::types::string::RadonString;
+
+        let input = RadonTypes::from(RadonString::from(r#"{"data": 122637770461000000000}"#));
+        let script = vec![(RadonOpCodes::StringParseJSONMap, None)];
+
+        let output = execute_contextfree_radon_script(input, &script).unwrap();
+
+        assert_eq!(
+            output,
+            RadonTypes::from(RadonMap::from(BTreeMap::from([(
+                "data".to_string(),
+                RadonTypes::from(RadonFloat::from(122637770461000000000.0))
+            )])))
+        );
+    }
+
+    #[test]
+    fn test_parse_json_array_big_integers() {
+        use crate::types::array::RadonArray;
+        use crate::types::float::RadonFloat;
+        use crate::types::string::RadonString;
+
+        let input = RadonTypes::from(RadonString::from(r#"[122637770461000000000]"#));
+        let script = vec![(RadonOpCodes::StringParseJSONArray, None)];
+
+        let output = execute_contextfree_radon_script(input, &script).unwrap();
+
+        assert_eq!(
+            output,
+            RadonTypes::from(RadonArray::from(vec![RadonTypes::from(RadonFloat::from(
+                122637770461000000000.0
+            ))]))
+        );
+    }
+
+    #[test]
     fn test_unpack_radon_script() {
         let cbor_vec = Value::Array(vec![
             Value::Integer(RadonOpCodes::StringParseJSONMap as i128),

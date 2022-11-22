@@ -1,4 +1,4 @@
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::Value;
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -68,20 +68,23 @@ impl TryFrom<Value> for RadonArray {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        from_value::<Vec<Value>>(value)
-            .map(|value_vec| {
-                value_vec
-                    .iter()
-                    .map(|cbor_value| RadonTypes::try_from(cbor_value.to_owned()).ok())
-                    .fuse()
-                    .flatten()
-                    .collect::<Vec<RadonTypes>>()
-            })
-            .map_err(|_| RadError::Decode {
-                from: "cbor::value::Value",
-                to: RadonArray::radon_type_name(),
-            })
-            .map(Self::from)
+        match value {
+            Value::Array(a) => Ok(a),
+            _ => Err(()),
+        }
+        .map(|value_vec| {
+            value_vec
+                .iter()
+                .map(|cbor_value| RadonTypes::try_from(cbor_value.to_owned()).ok())
+                .fuse()
+                .flatten()
+                .collect::<Vec<RadonTypes>>()
+        })
+        .map_err(|_| RadError::Decode {
+            from: "cbor::value::Value",
+            to: RadonArray::radon_type_name(),
+        })
+        .map(Self::from)
     }
 }
 

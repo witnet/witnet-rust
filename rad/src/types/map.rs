@@ -4,7 +4,7 @@ use std::{
     fmt,
 };
 
-use serde_cbor::value::{from_value, to_value, Value};
+use serde_cbor::value::{to_value, Value};
 
 use witnet_data_structures::radon_report::ReportContext;
 
@@ -43,16 +43,30 @@ impl TryFrom<Value> for RadonMap {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let error = |_| RadError::Decode {
+        let error = || RadError::Decode {
             from: "cbor::value::Value",
             to: RadonMap::radon_type_name(),
         };
 
-        let hm = from_value::<BTreeMap<String, Value>>(value)
-            .map_err(error)?
-            .iter()
-            .filter_map(|(key, value)| match RadonTypes::try_from(value.clone()) {
-                Ok(x) => Some((key.clone(), x)),
+        let hm: Result<BTreeMap<String, Value>, _> = match value {
+            Value::Map(hm) => hm
+                .into_iter()
+                .map(|(key, value)| {
+                    let key_string = match key {
+                        Value::Text(s) => s,
+                        _ => return Err(error()),
+                    };
+
+                    Ok((key_string, value))
+                })
+                .collect(),
+            _ => return Err(error()),
+        };
+
+        let hm = hm?
+            .into_iter()
+            .filter_map(|(key, value)| match RadonTypes::try_from(value) {
+                Ok(x) => Some((key, x)),
                 Err(_) => None,
             })
             .collect::<BTreeMap<String, RadonTypes>>();
