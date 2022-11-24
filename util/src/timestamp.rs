@@ -72,23 +72,18 @@ pub fn update_global_timestamp(addr: &str) {
     }
 }
 
-fn local_time(timestamp: ntp::protocol::TimestampFormat) -> chrono::DateTime<chrono::Local> {
-    let unix_time = ntp::unix_time::Instant::from(timestamp);
-    chrono::Local
-        .timestamp_opt(
-            unix_time.secs(),
-            u32::try_from(unix_time.subsec_nanos()).unwrap(),
-        )
-        .unwrap()
-}
 /// Get NTP timestamp from an addr specified
 pub fn get_timestamp_ntp(addr: &str) -> Result<(i64, u32), std::io::Error> {
     ntp::request(addr).map(|p| {
-        let ts = local_time(p.receive_timestamp);
+        let unix_time = ntp::unix_time::Instant::from(p.receive_timestamp);
 
-        (ts.timestamp(), ts.timestamp_subsec_nanos())
+        (
+            unix_time.secs(),
+            u32::try_from(unix_time.subsec_nanos()).unwrap(),
+        )
     })
 }
+
 /// Function to get timestamp from system/ntp server as UTC Unix timestamp, seconds since Unix epoch
 pub fn get_timestamp() -> i64 {
     get_timestamp_nanos().0
