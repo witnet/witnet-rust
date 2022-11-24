@@ -355,6 +355,9 @@ pub enum RadError {
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     #[fail(display = "The reveal was not serialized correctly")]
     MalformedReveal,
+    /// Failed to encode reveal
+    #[fail(display = "Error when encoding reveal value")]
+    EncodeReveal,
     /// Error while parsing HTTP header
     #[fail(
         display = "Invalid HTTP header: {}. name={:?}, value={:?}",
@@ -440,6 +443,7 @@ impl RadError {
             RadonErrors::DivisionByZero => RadError::DivisionByZero,
             RadonErrors::RetrieveTimeout => RadError::RetrieveTimeout,
             RadonErrors::MalformedReveal => RadError::MalformedReveal,
+            RadonErrors::EncodeReveal => RadError::EncodeReveal,
             RadonErrors::ArrayIndexOutOfBounds => {
                 let (index,) = deserialize_args(error_args)?;
                 RadError::ArrayIndexOutOfBounds { index }
@@ -589,6 +593,7 @@ impl RadError {
                 RadonErrors::UnhandledIntercept
             }
             RadError::MalformedReveal => RadonErrors::MalformedReveal,
+            RadError::EncodeReveal => RadonErrors::EncodeReveal,
             RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
             RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
             // The `InconsistentSource` error is mapped here for the sake of backwards
