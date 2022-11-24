@@ -19,7 +19,7 @@ use crate::{
     },
 };
 use witnet_data_structures::{
-    chain::Hash,
+    chain::{tapi::ActiveWips, Hash},
     radon_error::{try_from_cbor_value_for_serde_cbor_value, RadonError},
     radon_report::{RadonReport, ReportContext, TypeLike},
 };
@@ -466,13 +466,25 @@ impl TryFrom<CborValue> for RadonTypes {
 pub fn serial_iter_decode<T>(
     iter: &mut dyn Iterator<Item = (&[u8], &T)>,
     err_action: fn(RadError, &[u8], &T) -> Option<RadonReport<RadonTypes>>,
+    active_wips: &ActiveWips,
 ) -> Vec<RadonReport<RadonTypes>> {
     iter.filter_map(
         |(slice, inner)| match panic::catch_unwind(|| RadonTypes::try_from(slice)) {
-            Ok(Ok(radon_types)) => Some(RadonReport::from_result(
-                Ok(radon_types),
-                &ReportContext::default(),
-            )),
+            Ok(Ok(radon_types)) => {
+                // Handle future errors that should not appear yet
+                if let RadonTypes::RadonError(radon_error) = &radon_types {
+                    if let RadError::EncodeReveal = radon_error.inner() {
+                        if !active_wips.wip0026() {
+                            return err_action(RadError::EncodeReveal, slice, inner);
+                        }
+                    }
+                }
+
+                Some(RadonReport::from_result(
+                    Ok(radon_types),
+                    &ReportContext::default(),
+                ))
+            }
             Ok(Err(e)) => err_action(e, slice, inner),
             Err(_e) => {
                 log::error!("Panic found during CBOR conversion");
@@ -485,6 +497,8 @@ pub fn serial_iter_decode<T>(
 
 #[cfg(test)]
 mod tests {
+    use witnet_data_structures::chain::tapi::all_wips_active;
+
     use super::*;
     use std::collections::HashSet;
 
@@ -505,33 +519,44 @@ mod tests {
         let malformed_reveal =
             RadonTypes::RadonError(RadonError::try_from(RadError::MalformedReveal).unwrap());
 
+        let active_wips = all_wips_active();
+
         // No reveals: returns empty vector
         let zero_empty_bytes: Vec<(&[u8], &())> = vec![];
-        let empty: Vec<_> =
-            serial_iter_decode(&mut zero_empty_bytes.into_iter(), ignore_invalid_fn)
-                .into_iter()
-                .map(|report| report.into_inner())
-                .collect();
+        let empty: Vec<_> = serial_iter_decode(
+            &mut zero_empty_bytes.into_iter(),
+            ignore_invalid_fn,
+            &active_wips,
+        )
+        .into_iter()
+        .map(|report| report.into_inner())
+        .collect();
         assert_eq!(empty, vec![]);
 
         // One reveal with zero bytes: return err_action
         // In this case, filter out invalid reveals, so it returns empty vector
         let one_empty_bytes: Vec<(&[u8], &())> = vec![(&[], &())];
-        let still_empty: Vec<_> =
-            serial_iter_decode(&mut one_empty_bytes.into_iter(), ignore_invalid_fn)
-                .into_iter()
-                .map(|report| report.into_inner())
-                .collect();
+        let still_empty: Vec<_> = serial_iter_decode(
+            &mut one_empty_bytes.into_iter(),
+            ignore_invalid_fn,
+            &active_wips,
+        )
+        .into_iter()
+        .map(|report| report.into_inner())
+        .collect();
         assert_eq!(still_empty, vec![]);
 
         // One reveal with zero bytes: return err_action
         // In this case, replace invalid reveals with RadError::MalformedReveal
         let one_empty_bytes: Vec<(&[u8], &())> = vec![(&[], &())];
-        let rad_decode_error_as_result: Vec<_> =
-            serial_iter_decode(&mut one_empty_bytes.into_iter(), malformed_reveal_fn)
-                .into_iter()
-                .map(|report| report.into_inner())
-                .collect();
+        let rad_decode_error_as_result: Vec<_> = serial_iter_decode(
+            &mut one_empty_bytes.into_iter(),
+            malformed_reveal_fn,
+            &active_wips,
+        )
+        .into_iter()
+        .map(|report| report.into_inner())
+        .collect();
         assert_eq!(rad_decode_error_as_result, vec![malformed_reveal]);
     }
 
@@ -601,13 +626,18 @@ mod tests {
         let malformed_reveal =
             RadonTypes::RadonError(RadonError::try_from(RadError::MalformedReveal).unwrap());
 
+        let active_wips = all_wips_active();
+
         // One reveal with value RadonErrors(0xE0)
         let cbor_bytes: Vec<(&[u8], &())> = vec![(&[0xD8, 0x27, 0x81, 0x18, 0xE0], &())];
-        let rad_decode_error_as_result: Vec<_> =
-            serial_iter_decode(&mut cbor_bytes.into_iter(), malformed_reveal_fn)
-                .into_iter()
-                .map(|report| report.into_inner())
-                .collect();
+        let rad_decode_error_as_result: Vec<_> = serial_iter_decode(
+            &mut cbor_bytes.into_iter(),
+            malformed_reveal_fn,
+            &active_wips,
+        )
+        .into_iter()
+        .map(|report| report.into_inner())
+        .collect();
         assert_eq!(rad_decode_error_as_result, vec![malformed_reveal]);
     }
 }
