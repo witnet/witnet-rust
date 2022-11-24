@@ -28,7 +28,8 @@ use witnet_data_structures::{
     },
     error::TransactionError,
     get_environment,
-    radon_report::{RadonReport, ReportContext},
+    radon_error::RadonError,
+    radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
@@ -589,8 +590,14 @@ impl ChainManager {
                     match Vec::<u8>::try_from(&reveal_value) {
                         Ok(reveal_bytes) => actix::fut::ok((reveal_bytes, vrf_proof_dr, collateral)),
                         Err(e) => {
-                            log::error!("Couldn't decode tally value from bytes: {}", e);
-                            actix::fut::err(())
+                            if active_wips.wip0026() {
+                                log::warn!("Couldn't encode reveal value to bytes, will commit RadError::EncodeReveal instead: {}", e);
+                                let reveal_bytes: Vec<u8> = RadonTypes::RadonError(RadonError::try_from(RadError::EncodeReveal).unwrap()).encode().unwrap();
+                                actix::fut::ok((reveal_bytes, vrf_proof_dr, collateral))
+                            } else {
+                                log::error!("Couldn't encode reveal value to bytes: {}", e);
+                                actix::fut::err(())
+                            }
                         }
                     }
                 })
@@ -707,6 +714,7 @@ impl ChainManager {
                                     &ReportContext::default(),
                                 ))
                             },
+                            &active_wips_inside_move
                         );
 
                         let min_consensus_ratio =
@@ -1601,5 +1609,13 @@ mod tests {
         assert_eq!(public_key, public_key2);
 
         assert!(verify(&public_key2, &data, &signature2).is_ok());
+    }
+
+    #[test]
+    fn encode_error_can_be_encoded() {
+        let _reveal_bytes: Vec<u8> =
+            RadonTypes::RadonError(RadonError::try_from(RadError::EncodeReveal).unwrap())
+                .encode()
+                .unwrap();
     }
 }

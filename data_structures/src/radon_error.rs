@@ -52,6 +52,8 @@ pub enum RadonErrors {
     TallyExecution = 0x53,
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     MalformedReveal = 0x60,
+    /// Failed to encode reveal
+    EncodeReveal = 0x61,
     // Access errors
     /// Tried to access a value from an index using an index that is out of bounds
     ArrayIndexOutOfBounds = 0x70,

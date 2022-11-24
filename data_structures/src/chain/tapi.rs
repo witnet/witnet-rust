@@ -467,6 +467,10 @@ impl ActiveWips {
     pub fn wip0025(&self) -> bool {
         false
     }
+
+    pub fn wip0026(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]

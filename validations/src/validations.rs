@@ -693,6 +693,7 @@ pub fn run_tally_panic_safe(
                     &ReportContext::default(),
                 ))
             },
+            active_wips,
         );
 
         run_tally(results, tally, non_error_min, commits_count, active_wips)
