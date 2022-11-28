@@ -28,6 +28,7 @@ pub struct DrSender {
     witnet_client: Option<Addr<JsonRpcClient>>,
     wit_dr_sender_polling_rate_ms: u64,
     max_dr_value_nanowits: u64,
+    dr_fee_nanowits: u64,
 }
 
 impl Drop for DrSender {
@@ -65,17 +66,20 @@ impl DrSender {
     pub fn from_config(config: &Config, node_client: Addr<JsonRpcClient>) -> Self {
         let max_dr_value_nanowits = config.max_dr_value_nanowits;
         let wit_dr_sender_polling_rate_ms = config.wit_dr_sender_polling_rate_ms;
+        let dr_fee_nanowits = config.dr_fee_nanowits;
 
         Self {
             witnet_client: Some(node_client),
             wit_dr_sender_polling_rate_ms,
             max_dr_value_nanowits,
+            dr_fee_nanowits,
         }
     }
 
     fn check_new_drs(&self, ctx: &mut Context<Self>, period: Duration) {
         let witnet_client = self.witnet_client.clone().unwrap();
         let max_dr_value_nanowits = self.max_dr_value_nanowits;
+        let dr_fee_nanowits = self.dr_fee_nanowits;
 
         let fut = async move {
             let dr_database_addr = DrDatabase::from_registry();
@@ -89,7 +93,7 @@ impl DrSender {
                     Ok(dr_output) => {
                         let req = jsonrpc::Request::method("sendRequest")
                             .timeout(Duration::from_millis(5_000))
-                            .params(json!({"dro": dr_output, "fee": 10_000}))
+                            .params(json!({"dro": dr_output, "fee": dr_fee_nanowits}))
                             .expect("params failed serialization");
                         let res = witnet_client.send(req).await;
                         let res = match res {

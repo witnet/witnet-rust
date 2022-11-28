@@ -48,6 +48,8 @@ pub struct Config {
     /// Number of block confirmations needed to assume finality when sending transactions to ethereum
     #[serde(default = "one")]
     pub num_confirmations: usize,
+    /// Miner fee for the witnet data request transactions, in nanowits
+    pub dr_fee_nanowits: u64,
 }
 
 fn one() -> usize {
