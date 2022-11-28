@@ -32,6 +32,10 @@ jobs:
         name: Checking version of toolkit
         with:
           subcrate: toolkit
+      - uses: ./.github/actions/versions-match
+        name: Checking version of bridges/centralized-ethereum
+        with:
+          subcrate: bridges/centralized-ethereum
 
       - uses: actions-rs/toolchain@v1
         with:
