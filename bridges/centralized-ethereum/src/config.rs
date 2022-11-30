@@ -41,6 +41,8 @@ pub struct Config {
     /// Storage
     #[serde(deserialize_with = "nested_toml_if_using_envy")]
     pub storage: Storage,
+    /// Skip first requests up to index n when updating database
+    pub skip_first: Option<u64>,
     /// Maximum data request result size (in bytes)
     pub max_result_size: usize,
     /// Max time to wait for an ethereum transaction to be confirmed before returning an error

@@ -22,6 +22,8 @@ pub struct EthPoller {
     pub wrb_contract: Option<Arc<Contract<web3::transports::Http>>>,
     /// Period to check for new requests in the WRB
     pub eth_new_dr_polling_rate_ms: u64,
+    /// Skip first requests up to index n when updating database
+    pub skip_first: u64,
 }
 
 impl Drop for EthPoller {
@@ -59,6 +61,7 @@ impl EthPoller {
         Self {
             wrb_contract: Some(wrb_contract),
             eth_new_dr_polling_rate_ms: config.eth_new_dr_polling_rate_ms,
+            skip_first: config.skip_first.unwrap_or(0),
         }
     }
 
@@ -66,6 +69,7 @@ impl EthPoller {
         log::debug!("Checking new DRs from Ethereum contract...");
 
         let wrb_contract = self.wrb_contract.clone().unwrap();
+        let skip_first = U256::from(self.skip_first);
         // Check requests
         let fut = async move {
             let total_requests_count: Result<U256, web3::contract::Error> = wrb_contract
@@ -89,9 +93,16 @@ impl EthPoller {
             let dr_database_addr = DrDatabase::from_registry();
             let db_request_count = dr_database_addr.send(GetLastDrId).await;
 
-            if let (Ok(total_requests_count), Ok(Ok(db_request_count))) =
+            if let (Ok(total_requests_count), Ok(Ok(mut db_request_count))) =
                 (total_requests_count, db_request_count)
             {
+                if db_request_count < skip_first {
+                    log::debug!(
+                        "Skipping first {} requests per skip_first config param",
+                        skip_first
+                    );
+                    db_request_count = skip_first;
+                }
                 if db_request_count < total_requests_count {
                     let init_index = usize::try_from(db_request_count + 1).unwrap();
                     let last_index = usize::try_from(total_requests_count).unwrap();
