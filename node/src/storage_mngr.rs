@@ -366,8 +366,11 @@ pub fn create_appropriate_backend(
         }
         config::StorageBackend::RocksDB => {
             let path = conf.db_path.as_path();
-
-            let db = backends::rocksdb::Backend::open_default(path).map_err(|e| as_failure!(e))?;
+            let mut options = backends::rocksdb::Options::default();
+            options.create_if_missing(true);
+            options.set_max_open_files(conf.max_open_files);
+            let db =
+                backends::rocksdb::Backend::open(&options, path).map_err(|e| as_failure!(e))?;
 
             wrap_storage_as_nodestorage(db, conf)
         }

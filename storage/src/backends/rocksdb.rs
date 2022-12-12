@@ -10,6 +10,9 @@ use crate::storage::{Result, Storage, StorageIterator, WriteBatch, WriteBatchIte
 /// Rocksdb backend
 pub type Backend = rocksdb::DB;
 
+/// Rocksdb Options
+pub type Options = rocksdb::Options;
+
 #[derive(Debug, Fail)]
 #[fail(display = "RocksDB error: {}", _0)]
 struct Error(#[fail(cause)] rocksdb::Error);
@@ -234,4 +237,7 @@ mod rocksdb_mock {
             Ok(())
         }
     }
+
+    #[derive(Default)]
+    pub struct Options {}
 }

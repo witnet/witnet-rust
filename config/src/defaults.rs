@@ -50,6 +50,11 @@ pub trait Defaults {
         false
     }
 
+    /// Unlimited number of open files by default
+    fn storage_max_open_files(&self) -> i32 {
+        -1
+    }
+
     /// Default period for bootstrap peers
     fn connections_bootstrap_peers_period(&self) -> Duration {
         Duration::from_secs(5)
