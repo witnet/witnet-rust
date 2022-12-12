@@ -5902,6 +5902,7 @@ dependencies = [
  "log 0.4.14",
  "pin-project-lite",
  "rand 0.7.3",
+ "rocksdb",
  "sentry",
  "serde",
  "serde_json",
