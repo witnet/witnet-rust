@@ -5730,7 +5730,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "1.5.4"
+version = "1.5.4+A"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
