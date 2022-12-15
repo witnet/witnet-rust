@@ -327,15 +327,8 @@ impl BitTapiCounter {
         self.info[..self.current_length]
             .iter()
             .filter_map(|x| {
-                if let Some(bit_info) = x {
-                    if active_wips.contains_key(&bit_info.wip) {
-                        None
-                    } else {
-                        Some(bit_info)
-                    }
-                } else {
-                    None
-                }
+                x.as_ref()
+                    .filter(|bit_info| !active_wips.contains_key(&bit_info.wip))
             })
             .cloned()
             .collect()

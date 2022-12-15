@@ -311,8 +311,8 @@ where
                 // database, this is mostly used for testing where overflow
                 // checks are enabled
                 utxo_set
-                    .iter()
-                    .map(|(_, balance)| (balance.amount, balance.time_lock))
+                    .values()
+                    .map(|balance| (balance.amount, balance.time_lock))
                     .fold(
                         model::BalanceInfo::default(),
                         |mut acc, (amount, time_lock)| {
@@ -893,8 +893,8 @@ where
         let timestamp = convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
         state.balance.unconfirmed = state
             .utxo_set
-            .iter()
-            .map(|(_, balance)| (balance.amount, balance.time_lock))
+            .values()
+            .map(|balance| (balance.amount, balance.time_lock))
             .fold(
                 model::BalanceInfo::default(),
                 |mut acc, (amount, time_lock)| {
@@ -909,7 +909,7 @@ where
                 },
             );
 
-        let addresses = addresses.into_iter().map(|(_k, v)| v).collect();
+        let addresses = addresses.into_values().collect();
 
         // Persist into database
         if confirmed {

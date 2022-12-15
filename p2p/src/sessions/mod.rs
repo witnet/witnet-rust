@@ -323,14 +323,14 @@ where
             inbound: self
                 .inbound_consolidated
                 .collection
-                .iter()
-                .map(|(k, _v)| *k)
+                .keys()
+                .copied()
                 .collect(),
             outbound: self
                 .outbound_consolidated
                 .collection
-                .iter()
-                .map(|(k, _v)| *k)
+                .keys()
+                .copied()
                 .collect(),
         }
     }

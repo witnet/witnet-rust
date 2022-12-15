@@ -4250,7 +4250,7 @@ fn create_commits_reveals(
         };
         let index = i as u8 + 1;
         let (public_key, commit, reveal) =
-            create_commit_reveal([index as u8; 32], dr_pointer, reveal_value);
+            create_commit_reveal([index; 32], dr_pointer, reveal_value);
         commits.push(commit);
         reveals.push(reveal);
         if liars_count > 0 {

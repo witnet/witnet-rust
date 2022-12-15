@@ -699,10 +699,10 @@ pub mod strategies {
             // to be inversely proportional to the number of priorities, and directly proportional
             // to the standard deviation of the lowest values.
             for bucket in drt_bucket * 90 / 100..=drt_bucket {
-                drt_counter.add(bucket as u64);
+                drt_counter.add(bucket);
             }
             for bucket in vtt_bucket * 90 / 100..=vtt_bucket {
-                vtt_counter.add(bucket as u64);
+                vtt_counter.add(bucket);
             }
         }
 

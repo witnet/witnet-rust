@@ -1306,7 +1306,7 @@ pub async fn get_supply_info() -> JsonRpcResult {
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|supply_info| match supply_info {
-                    Ok(x) => match serde_json::to_value(&x) {
+                    Ok(x) => match serde_json::to_value(x) {
                         Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
@@ -1332,7 +1332,7 @@ pub async fn get_utxo_info(params: Result<(PublicKeyHash,), jsonrpc_core::Error>
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|dr_info| match dr_info {
-                    Ok(x) => match serde_json::to_value(&x) {
+                    Ok(x) => match serde_json::to_value(x) {
                         Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
@@ -1362,7 +1362,7 @@ pub async fn get_reputation(
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|dr_info| match dr_info {
-                    Ok(x) => match serde_json::to_value(&x) {
+                    Ok(x) => match serde_json::to_value(x) {
                         Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
@@ -1442,7 +1442,7 @@ pub async fn peers() -> JsonRpcResult {
                             )
                             .collect();
 
-                        match serde_json::to_value(&peers) {
+                        match serde_json::to_value(peers) {
                             Ok(x) => Ok(x),
                             Err(e) => {
                                 let err = internal_error_s(e);
@@ -1485,7 +1485,7 @@ pub async fn known_peers() -> JsonRpcResult {
                             )
                             .collect();
 
-                        match serde_json::to_value(&peers) {
+                        match serde_json::to_value(peers) {
                             Ok(x) => Ok(x),
                             Err(e) => {
                                 let err = internal_error_s(e);
@@ -1508,7 +1508,7 @@ pub async fn node_stats() -> JsonRpcResult {
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|node_stats| match node_stats {
-                    Ok(x) => match serde_json::to_value(&x) {
+                    Ok(x) => match serde_json::to_value(x) {
                         Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
@@ -1535,7 +1535,7 @@ pub async fn get_mempool(params: Result<(), jsonrpc_core::Error>) -> JsonRpcResu
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|dr_info| match dr_info {
-                    Ok(x) => match serde_json::to_value(&x) {
+                    Ok(x) => match serde_json::to_value(x) {
                         Ok(x) => Ok(x),
                         Err(e) => {
                             let err = internal_error_s(e);
@@ -1749,7 +1749,7 @@ pub async fn signaling_info(params: Result<(), jsonrpc_core::Error>) -> JsonRpcR
         .map_err(internal_error)?;
 
     match info {
-        Ok(x) => match serde_json::to_value(&x) {
+        Ok(x) => match serde_json::to_value(x) {
             Ok(x) => Ok(x),
             Err(e) => {
                 let err = internal_error_s(e);

@@ -90,7 +90,7 @@ mod tests {
     use super::*;
 
     fn backend() -> Box<dyn Storage> {
-        Box::new(Backend::default())
+        Box::<Backend>::default()
     }
 
     #[test]

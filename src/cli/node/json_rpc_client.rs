@@ -1243,7 +1243,7 @@ pub fn search_requests(
     let expected_dr_output_bytes = match (hex_dr_bytes, same_as_dr_tx) {
         (Some(hex_dr_bytes), None) => {
             // Use dr_output_bytes from argument
-            hex::decode(&hex_dr_bytes)?
+            hex::decode(hex_dr_bytes)?
         }
         (None, Some(dr_tx_hash)) => {
             // Use dr_output_bytes from data request provided as argument

@@ -179,7 +179,7 @@ mod tests {
         let expected = RadonTypes::from(RadonBytes::from(
             calculate_sha256(
                 &hex::decode(
-                    &[
+                    [
                         "0000000000000000000000000000000000000000000000000000000000000000",
                         "00000000000000000000000000000000000000000000000000000000000000d4",
                         "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",

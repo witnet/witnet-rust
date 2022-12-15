@@ -2714,7 +2714,7 @@ fn update_reputation(
     }
     log::log!(log_level, "}}");
     let (honests, _errors, liars) = separate_honest_errors_and_liars(result_count.clone());
-    let revealers = result_count.into_iter().map(|(pkh, _)| pkh);
+    let revealers = result_count.into_keys();
     // Leftover reputation from the previous epoch
     let extra_rep_previous_epoch = rep_eng.extra_reputation;
     // Expire in old_alpha to maximize reputation lost in penalizations.

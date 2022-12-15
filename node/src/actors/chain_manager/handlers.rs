@@ -79,7 +79,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         let current_timestamp = get_timestamp();
         log::debug!(
             "Timestamp diff: {}, Epoch timestamp: {}. Current timestamp: {}",
-            current_timestamp as i64 - msg.timestamp as i64,
+            current_timestamp - msg.timestamp,
             msg.timestamp,
             current_timestamp
         );

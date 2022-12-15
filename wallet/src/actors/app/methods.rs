@@ -610,12 +610,7 @@ impl App {
         let block = Arc::new(serde_json::from_value::<Block>(value).map_err(node_error)?);
 
         // This iterator is collected early so as to free the immutable reference to `self`.
-        let wallets: Vec<types::SessionWallet> = self
-            .state
-            .wallets
-            .iter()
-            .map(|(_, wallet)| wallet.clone())
-            .collect();
+        let wallets: Vec<types::SessionWallet> = self.state.wallets.values().cloned().collect();
 
         for wallet in &wallets {
             let sink = self.state.get_sink(&wallet.session_id);
@@ -631,12 +626,7 @@ impl App {
             serde_json::from_value::<types::SuperBlockNotification>(value).map_err(node_error)?;
 
         // This iterator is collected early so as to free the immutable reference to `self`.
-        let wallets: Vec<types::SessionWallet> = self
-            .state
-            .wallets
-            .iter()
-            .map(|(_, wallet)| wallet.clone())
-            .collect();
+        let wallets: Vec<types::SessionWallet> = self.state.wallets.values().cloned().collect();
 
         for wallet in &wallets {
             let sink = self.state.get_sink(&wallet.session_id);
@@ -825,12 +815,7 @@ impl App {
     /// Send syncStatus request to the node every 10 seconds and send
     /// NodeDisconnected event if error in the response
     pub fn periodic_node_request(&self, ctx: &mut <Self as Actor>::Context) {
-        let wallets: Vec<types::SessionWallet> = self
-            .state
-            .wallets
-            .iter()
-            .map(|(_, wallet)| wallet.clone())
-            .collect();
+        let wallets: Vec<types::SessionWallet> = self.state.wallets.values().cloned().collect();
 
         let wallets2 = wallets.clone();
 

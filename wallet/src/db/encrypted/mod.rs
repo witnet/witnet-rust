@@ -44,7 +44,7 @@ impl Database for EncryptedDb {
     {
         let prefix_key = self.prefixer.prefix(key);
         let enc_key = self.engine.encrypt(&prefix_key)?;
-        let res = self.as_ref().get(&enc_key)?;
+        let res = self.as_ref().get(enc_key)?;
 
         match res {
             Some(dbvec) => {
@@ -62,7 +62,7 @@ impl Database for EncryptedDb {
     {
         let prefix_key = self.prefixer.prefix(key);
         let enc_key = self.engine.encrypt(&prefix_key)?;
-        let res = self.as_ref().get(&enc_key)?;
+        let res = self.as_ref().get(enc_key)?;
 
         match res {
             Some(_) => Ok(true),
