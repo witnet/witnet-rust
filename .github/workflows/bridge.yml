@@ -1,23 +1,15 @@
 name: Bridge
 
 on:
-  workflow_dispatch:
-    branches: [master]
+  push:
+    tags:
+      - '*'
 
 jobs:
   Bridge:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Check & Compare Version
-        run: |
-          cd bridges/centralized-ethereum
-          export TERM=xterm-256color
-          export VERSION=$(awk '/^version/' Cargo.toml | head -n 1 | awk '{print $3}' | tr -d '"')
-          export RESULT=$(wget -q https://registry.hub.docker.com/v1/repositories/witnet/witnet-centralized-ethereum-bridge/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}' | grep $VERSION)
-          if [ ! -z $RESULT ]; then tput setaf 1; echo "VERSION IS ALREADY PUBLISHED" && exit 1; else true; fi;
-          echo "IMAGE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Install Protobuf
         run: |
