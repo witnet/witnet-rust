@@ -13,7 +13,7 @@ use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
-use prettytable::{cell, row, Table};
+use prettytable::{row, Table};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use witnet_crypto::{
     hash::calculate_sha256,
