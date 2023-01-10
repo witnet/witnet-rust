@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
     fee::{deserialize_fee_backwards_compatible, AbsoluteFee, Fee},
@@ -32,9 +33,6 @@ pub struct CreateDataReqRequest {
     #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
     fee_type: Option<FeeType>,
-    // TODO: remove these fields and get the value from consensus constants
-    minimum_collateral: u64,
-    required_reward_collateral_ratio: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -68,11 +66,12 @@ impl Handler<CreateDataReqRequest> for app::App {
     type Result = app::ResponseActFuture<CreateDataReqResponse>;
 
     fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
-        // TODO: get the minimum collateral and reward to collateral ratio from consensus constants
+        let consensus_constants = &self.params.consensus_constants;
+        let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
         let validated = validate(
             msg.request.clone(),
-            msg.minimum_collateral,
-            msg.required_reward_collateral_ratio,
+            consensus_constants.collateral_minimum,
+            required_reward_collateral_ratio,
         )
         .map_err(app::validation_error);
 
