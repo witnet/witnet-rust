@@ -143,19 +143,17 @@ pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
     Ok(input)
 }
 
-/// This module contains tests to guarantee a smooth activation of WIP-0022.
+/// This module contains tests to guarantee a smooth activation of WIP-0024.
 ///
 /// Because RADON scripts are never evaluated for old blocks (e.g. during synchronization), this
-/// module can theoretically be removed altogether once WIP-0022 is activated.
+/// module can theoretically be removed altogether once WIP-0024 is activated.
 mod legacy {
     #[cfg(test)]
     mod tests {
         use std::collections::BTreeMap;
 
         use serde_cbor::Value;
-        use witnet_data_structures::{
-            mainnet_validations::ActiveWips, radon_report::ReportContext,
-        };
+        use witnet_data_structures::{chain::tapi::ActiveWips, radon_report::ReportContext};
 
         use crate::{
             error::RadError,
@@ -168,7 +166,7 @@ mod legacy {
         };
 
         #[test]
-        fn test_wip0022_transition() {
+        fn test_wip0024_transition() {
             let checks: Vec<(RadonTypes, RadonOpCodes, Vec<Value>)> = vec![
                 (
                     RadonTypes::from2::<RadonString>("1234.567"),
@@ -508,7 +506,7 @@ mod legacy {
 
             // This context is set to an epoch prior to activation
             let mut before_wips = ActiveWips::default();
-            before_wips.insert_wip("WIP0022", 1_000);
+            before_wips.insert_wip("WIP0024", 1_000);
             before_wips.set_epoch(999);
             let mut before_context = ReportContext::from_active_wips(before_wips);
 

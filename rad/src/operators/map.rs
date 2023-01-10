@@ -81,18 +81,18 @@ pub fn values(input: &RadonMap) -> RadonArray {
     RadonArray::from(v)
 }
 
-/// This module was introduced for encapsulating the interim legacy logic before WIP-0022 is
+/// This module was introduced for encapsulating the interim legacy logic before WIP-0024 is
 /// introduced, for the sake of maintainability.
 ///
 /// Because RADON scripts are never evaluated for old blocks (e.g. during synchronization), this
-/// module can theoretically be removed altogether once WIP-0022 is activated.
+/// module can theoretically be removed altogether once WIP-0024 is activated.
 pub mod legacy {
     use crate::types::{float::RadonFloat, integer::RadonInteger};
 
     use super::*;
 
-    /// Legacy (pre-WIP0022) version of `get::<RadonFloat, _>`.
-    pub fn get_float_before_wip0022(
+    /// Legacy (pre-WIP0024) version of `get::<RadonFloat, _>`.
+    pub fn get_float_before_wip0024(
         input: &RadonMap,
         args: &[Value],
     ) -> Result<RadonFloat, RadError> {
@@ -102,8 +102,8 @@ pub mod legacy {
         })
     }
 
-    /// Legacy (pre-WIP0022) version of `get::<RadonInteger, _>`.
-    pub fn get_integer_before_wip0022(
+    /// Legacy (pre-WIP0024) version of `get::<RadonInteger, _>`.
+    pub fn get_integer_before_wip0024(
         input: &RadonMap,
         args: &[Value],
     ) -> Result<RadonInteger, RadError> {
