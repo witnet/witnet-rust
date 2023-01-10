@@ -464,12 +464,16 @@ impl ActiveWips {
         self.wip_active("WIP0020-0021")
     }
 
-    pub fn wip0025(&self) -> bool {
-        false
-    }
-
     pub fn wip0022(&self) -> bool {
         self.wip_active("WIP0022")
+    }
+
+    pub fn wip0024(&self) -> bool {
+        self.wip_active("WIP0024")
+    }
+
+    pub fn wip0025(&self) -> bool {
+        self.wip_active("WIP0025")
     }
 
     pub fn wip0026(&self) -> bool {

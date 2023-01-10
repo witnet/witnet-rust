@@ -355,24 +355,24 @@ fn default_decimal_separator<T>(_: T) -> String {
     String::from(DEFAULT_DECIMAL_SEPARATOR)
 }
 
-/// This module was introduced for encapsulating the interim legacy logic before WIP-0022 is
+/// This module was introduced for encapsulating the interim legacy logic before WIP-0024 is
 /// introduced, for the sake of maintainability.
 ///
 /// Because RADON scripts are never evaluated for old blocks (e.g. during synchronization), this
-/// module can theoretically be removed altogether once WIP-0022 is activated.
+/// module can theoretically be removed altogether once WIP-0024 is activated.
 pub mod legacy {
     use super::*;
 
-    /// Legacy (pre-WIP0022) version of `as_float`.
-    pub fn as_float_before_wip0022(input: &RadonString) -> Result<RadonFloat, RadError> {
+    /// Legacy (pre-WIP0024) version of `as_float`.
+    pub fn as_float_before_wip0024(input: &RadonString) -> Result<RadonFloat, RadError> {
         let str_value = radon_trim(input);
         f64::from_str(&str_value)
             .map(RadonFloat::from)
             .map_err(Into::into)
     }
 
-    /// Legacy (pre-WIP0022) version of `as_integer`.
-    pub fn as_integer_before_wip0022(input: &RadonString) -> Result<RadonInteger, RadError> {
+    /// Legacy (pre-WIP0024) version of `as_integer`.
+    pub fn as_integer_before_wip0024(input: &RadonString) -> Result<RadonInteger, RadError> {
         let str_value = radon_trim(input);
         i128::from_str(&str_value)
             .map(RadonInteger::from)
