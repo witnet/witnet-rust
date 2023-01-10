@@ -15,6 +15,7 @@ use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use prettytable::{row, Table};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
     hash::calculate_sha256,
     key::{ExtendedPK, ExtendedSK},
@@ -744,11 +745,11 @@ pub fn send_dr(
     let request = r#"{"jsonrpc": "2.0","method": "getConsensusConstants", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
     let consensus_constants: ConsensusConstants = parse_response(&response)?;
-
+    let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
     let dro = deserialize_and_validate_hex_dr(
         hex_bytes,
         consensus_constants.collateral_minimum,
-        consensus_constants.required_reward_collateral_ratio,
+        required_reward_collateral_ratio,
     )?;
     let mut id = SequentialId::initialize(1u8);
 
