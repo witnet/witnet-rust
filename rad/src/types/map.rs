@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde_cbor::value::{from_value, to_value, Value};
-use witnet_data_structures::{mainnet_validations::ActiveWips, radon_report::ReportContext};
+use witnet_data_structures::{chain::tapi::ActiveWips, radon_report::ReportContext};
 
 use crate::{
     error::RadError,
@@ -124,10 +124,10 @@ impl Operable for RadonMap {
         call: &RadonCall,
         context: &mut ReportContext<RadonTypes>,
     ) -> Result<RadonTypes, RadError> {
-        let wip0022 = context
+        let wip0024 = context
             .active_wips
             .as_ref()
-            .map(ActiveWips::wip0022)
+            .map(ActiveWips::wip0024)
             .unwrap_or(true);
 
         match call {
@@ -141,16 +141,16 @@ impl Operable for RadonMap {
             (RadonOpCodes::MapGetBytes, Some(args)) => {
                 map_operators::get::<RadonBytes, _>(self, args.as_slice()).map(RadonTypes::from)
             }
-            (RadonOpCodes::MapGetInteger, Some(args)) => if wip0022 {
+            (RadonOpCodes::MapGetInteger, Some(args)) => if wip0024 {
                 map_operators::get_number::<RadonInteger>(self, args)
             } else {
-                map_operators::legacy::get_integer_before_wip0022(self, args)
+                map_operators::legacy::get_integer_before_wip0024(self, args)
             }
             .map(RadonTypes::from),
-            (RadonOpCodes::MapGetFloat, Some(args)) => if wip0022 {
+            (RadonOpCodes::MapGetFloat, Some(args)) => if wip0024 {
                 map_operators::get_number::<RadonFloat>(self, args)
             } else {
-                map_operators::legacy::get_float_before_wip0022(self, args)
+                map_operators::legacy::get_float_before_wip0024(self, args)
             }
             .map(RadonTypes::from),
             (RadonOpCodes::MapGetMap, Some(args)) => {

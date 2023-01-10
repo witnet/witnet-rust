@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde_cbor::value::{from_value, Value};
-use witnet_data_structures::{mainnet_validations::ActiveWips, radon_report::ReportContext};
+use witnet_data_structures::{chain::tapi::ActiveWips, radon_report::ReportContext};
 
 use crate::{
     error::RadError,
@@ -97,25 +97,25 @@ impl Operable for RadonString {
         call: &RadonCall,
         context: &mut ReportContext<RadonTypes>,
     ) -> Result<RadonTypes, RadError> {
-        let wip0022 = context
+        let wip0024 = context
             .active_wips
             .as_ref()
-            .map(ActiveWips::wip0022)
+            .map(ActiveWips::wip0024)
             .unwrap_or(true);
 
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::StringAsFloat, args) => if wip0022 {
+            (RadonOpCodes::StringAsFloat, args) => if wip0024 {
                 string_operators::as_float(self, args)
             } else {
-                string_operators::legacy::as_float_before_wip0022(self)
+                string_operators::legacy::as_float_before_wip0024(self)
             }
             .map(RadonTypes::from)
             .map_err(Into::into),
-            (RadonOpCodes::StringAsInteger, args) => if wip0022 {
+            (RadonOpCodes::StringAsInteger, args) => if wip0024 {
                 string_operators::as_integer(self, args)
             } else {
-                string_operators::legacy::as_integer_before_wip0022(self)
+                string_operators::legacy::as_integer_before_wip0024(self)
             }
             .map(RadonTypes::from)
             .map_err(Into::into),
