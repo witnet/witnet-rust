@@ -122,6 +122,8 @@ impl ChainManager {
                 // Minimum data request reward to collateral percentage required to include a data request into a block
                 let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
                 act.transactions_pool.set_required_reward_collateral_ratio(required_reward_collateral_ratio);
+                // Minimum data request reward to collateral percentage required to include a data request into a block
+                act.transactions_pool.set_minimum_reward_collateral_ratio(config.mining.minimum_reward_collateral_ratio);
 
                 // Store settings for Threshold Activation of Protocol Improvements
                 act.tapi = config.tapi.clone();
