@@ -1,13 +1,14 @@
 name: Bridge
 
 on:
-  push:
-    tags:
-      - '*'
+  workflow_run:
+    workflows: ["Release Tag"]
+    types: [completed]
 
 jobs:
   Bridge:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v3
 
@@ -40,3 +41,9 @@ jobs:
         run: |
           docker push witnet/witnet-centralized-ethereum-bridge:"${{ env.IMAGE_VERSION }}"
           docker push witnet/witnet-centralized-ethereum-bridge:latest
+
+  Failure:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - run: echo "(Release Tag) workflow failed, EXITING!!!!" && exit 1
