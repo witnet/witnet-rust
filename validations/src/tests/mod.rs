@@ -8039,7 +8039,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
-        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
     // TODO: In this test the active wips depend on the current epoch
     // Ideally this should use all_wips_active() so that when adding new WIPs the existing tests
@@ -8319,7 +8318,6 @@ fn block_difficult_proof() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
-        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
 
     // Insert output to utxo
@@ -9024,7 +9022,6 @@ fn test_blocks_with_limits(
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
-        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
 
     // Insert output to utxo
@@ -9592,7 +9589,6 @@ fn genesis_block_after_not_bootstrap_hash() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
-        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
     let mut signatures_to_verify = vec![];
 
@@ -9672,7 +9668,6 @@ fn genesis_block_value_overflow() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
-        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
     let vrf_input = CheckpointVRF::default();
     let mut signatures_to_verify = vec![];
@@ -9760,7 +9755,6 @@ fn genesis_block_full_validate() {
         superblock_committee_decreasing_step: 5,
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
-        required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
     };
 
     // Validate block
@@ -9828,7 +9822,6 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             superblock_committee_decreasing_step: 5,
             initial_block_reward: INITIAL_BLOCK_REWARD,
             halving_period: HALVING_PERIOD,
-            required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
         };
         let dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -10011,7 +10004,6 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             superblock_committee_decreasing_step: 5,
             initial_block_reward: INITIAL_BLOCK_REWARD,
             halving_period: HALVING_PERIOD,
-            required_reward_collateral_ratio: REQUIRED_REWARD_COLLATERAL_RATIO,
         };
 
         let (inputs, outputs) = (vec![vti], vec![change_vto.clone()]);

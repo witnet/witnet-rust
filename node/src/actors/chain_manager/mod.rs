@@ -44,7 +44,13 @@ use failure::Fail;
 use futures::future::{try_join_all, FutureExt};
 use itertools::Itertools;
 use rand::Rng;
-use witnet_config::{config::Tapi, defaults::CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE};
+use witnet_config::{
+    config::Tapi,
+    defaults::{
+        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
+    },
+};
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
@@ -1262,6 +1268,8 @@ impl ChainManager {
             } else {
                 chain_info.consensus_constants.collateral_age
             };
+            let required_reward_collateral_ratio =
+                CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
             let fut = future::ready(validate_new_transaction(
                 &msg.transaction,
                 (
@@ -1279,9 +1287,7 @@ impl ChainManager {
                 chain_info.consensus_constants.max_vt_weight,
                 chain_info.consensus_constants.max_dr_weight,
                 chain_info.consensus_constants.minimum_difficulty,
-                chain_info
-                    .consensus_constants
-                    .required_reward_collateral_ratio,
+                required_reward_collateral_ratio,
                 &active_wips,
             ))
             .into_actor(self)
