@@ -60,7 +60,7 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0014-0016".to_string(), 549141);
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
     active_wips.insert("WIP0020-0021".to_string(), 1059861);
-    // active_wips.insert("WIP0022".to_string(), 1441920 + 26880 + 21);
+    // active_wips.insert("WIP0022".to_string(), 99999999);
 
     active_wips
 }
@@ -91,7 +91,10 @@ pub fn current_active_wips() -> ActiveWips {
 /// Auxiliary function that returns the current active wips and the WIPs in voting process as actived
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
-    current_active_wips()
+    let mut active_wips = current_active_wips();
+    active_wips.active_wips.insert("WIP0022".to_string(), 0);
+
+    active_wips
 }
 
 impl TapiEngine {
@@ -157,8 +160,8 @@ impl TapiEngine {
                     period: 26880,
                     wip: "WIP0022".to_string(),
                     // Start signaling on
-                    // 14 October 2022 @ 9:00:00 UTC
-                    init: 1441920,
+                    // TODO: insert date here
+                    init: 99999999,
                     end: u32::MAX,
                     bit,
                 };
@@ -768,7 +771,7 @@ mod tests {
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // The first block whose vote must be counted is the one from WIP0021
-        let init_epoch_wip0022 = 1441920;
+        let init_epoch_wip0022 = 99999999;
         assert_eq!(epoch, init_epoch_wip0022);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
