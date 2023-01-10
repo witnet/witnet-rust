@@ -129,7 +129,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             sync_address_batch_length,
             max_vt_weight,
             max_dr_weight,
-            consensus_constants,
+            consensus_constants: consensus_constants.clone(),
             use_unconfirmed_utxos,
             pending_transactions_timeout_seconds,
             witnessing: witnessing_config,
@@ -157,6 +157,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             server_addr,
             session_expires_in,
             requests_timeout,
+            consensus_constants,
         });
 
         // Intercept SIGTERM signal to gracefully close the wallet
