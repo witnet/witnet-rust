@@ -248,9 +248,6 @@ pub struct ConsensusConstants {
 
     /// Halving period
     pub halving_period: u32,
-
-    /// Required reward to collateral percentage
-    pub required_reward_collateral_ratio: u64,
 }
 
 impl ConsensusConstants {
@@ -260,7 +257,6 @@ impl ConsensusConstants {
     /// This magic number is used in the handshake protocol to prevent nodes with different
     /// consensus constants from peering with each other.
     pub fn get_magic(&self) -> u16 {
-        // TODO: before wip0022 activation, remove required_reward_collateral_ratio from the magic calculation
         let magic = calculate_sha256(&self.to_pb_bytes().unwrap());
         u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]))
     }

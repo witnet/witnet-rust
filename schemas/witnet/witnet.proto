@@ -331,7 +331,6 @@ message ConsensusConstants {
     uint32 superblock_committee_decreasing_step = 23;
     uint64 initial_block_reward = 24;
     uint32 halving_period = 25;
-    uint64 required_reward_collateral_ratio = 26;
 }
 
 message VrfProof {

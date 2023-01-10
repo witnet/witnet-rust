@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use std::{pin::Pin, str::FromStr, time::Duration};
+use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
 
 use super::{handlers::EveryEpochPayload, ChainManager};
 use crate::{
@@ -119,7 +120,8 @@ impl ChainManager {
                 act.transactions_pool.set_collateral_minimum(config.consensus_constants.collateral_minimum);
 
                 // Minimum data request reward to collateral percentage required to include a data request into a block
-                act.transactions_pool.set_required_reward_collateral_ratio(config.consensus_constants.required_reward_collateral_ratio);
+                let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+                act.transactions_pool.set_required_reward_collateral_ratio(required_reward_collateral_ratio);
                 // Minimum data request reward to collateral percentage required to include a data request into a block
                 act.transactions_pool.set_minimum_reward_collateral_ratio(config.mining.minimum_reward_collateral_ratio);
 

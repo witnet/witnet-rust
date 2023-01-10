@@ -440,7 +440,6 @@ fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusCon
         superblock_committee_decreasing_step: Some(c.superblock_committee_decreasing_step),
         initial_block_reward: Some(c.initial_block_reward),
         halving_period: Some(c.halving_period),
-        required_reward_collateral_ratio: Some(c.required_reward_collateral_ratio),
     }
 }
 
@@ -601,10 +600,6 @@ pub fn consensus_constants_from_partial(
             .halving_period
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_halving_period()),
-        required_reward_collateral_ratio: config
-            .required_reward_collateral_ratio
-            .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_required_reward_collateral_ratio()),
     }
 }
 
