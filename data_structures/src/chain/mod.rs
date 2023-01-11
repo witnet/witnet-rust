@@ -34,7 +34,6 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
-    chain::tapi::current_active_wips,
     chain::{tapi::TapiEngine, Signature::Secp256k1},
     data_request::{calculate_reward_collateral_ratio, DataRequestPool},
     error::{
@@ -2736,9 +2735,7 @@ impl TransactionsPool {
                     dr_tx.body.dr_output.collateral,
                     dr_tx.body.dr_output.witness_reward,
                 );
-                if current_active_wips().wip0022()
-                    && dr_tx_reward_collateral_ratio > self.minimum_reward_collateral_ratio
-                {
+                if dr_tx_reward_collateral_ratio > self.minimum_reward_collateral_ratio {
                     return vec![Transaction::DataRequest(dr_tx)];
                 } else {
                     let weight = f64::from(dr_tx.weight());
@@ -5081,15 +5078,10 @@ mod tests {
         let mut transactions_pool = TransactionsPool::default();
         transactions_pool.set_minimum_reward_collateral_ratio(125);
 
-        // Inserting a transaction with a `witness_reward` lower than 1% of the collateral should fail
+        // Inserting a transaction with a `witness_reward` lower than 1 / 125 of the collateral should fail
         let removed = transactions_pool.insert(dr1.clone(), 0);
-        if current_active_wips().wip0022() {
-            assert_eq!(removed, vec![dr1.clone()]);
-            assert!(!transactions_pool.contains(&dr1).unwrap());
-        } else {
-            assert_eq!(removed, vec![]);
-            assert!(transactions_pool.contains(&dr1).unwrap());
-        }
+        assert_eq!(removed, vec![dr1.clone()]);
+        assert!(!transactions_pool.contains(&dr1).unwrap());
         // Inserting a transaction with a `witness_reward` higher or equal than 1 / 125 of the collateral should succeed
         let removed = transactions_pool.insert(dr2.clone(), 0);
         assert_eq!(removed, vec![]);
@@ -5100,13 +5092,8 @@ mod tests {
 
         // Inserting a transaction with a `witness_reward` lower than 1 / 50 of the collateral should fail
         let removed = transactions_pool.insert(dr2.clone(), 0);
-        if current_active_wips().wip0022() {
-            assert_eq!(removed, vec![dr2.clone()]);
-            assert!(!transactions_pool.contains(&dr2).unwrap());
-        } else {
-            assert_eq!(removed, vec![]);
-            assert!(transactions_pool.contains(&dr2).unwrap());
-        }
+        assert_eq!(removed, vec![dr2.clone()]);
+        assert!(!transactions_pool.contains(&dr2).unwrap());
         // Inserting a transaction with a `witness_reward` higher or equal than 1 / 50 of the collateral should succeed
         let removed = transactions_pool.insert(dr3.clone(), 0);
         assert_eq!(removed, vec![]);
