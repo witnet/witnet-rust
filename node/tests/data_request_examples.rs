@@ -6,6 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::chain::{tapi::all_wips_active, DataRequestOutput};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
@@ -15,7 +16,7 @@ use witnet_rad::{
         RadonTypes,
     },
 };
-use witnet_validations::validations::validate_rad_request;
+use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
 /// Id. Can be null, a number, or a string
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,9 +50,17 @@ fn run_dr_locally_with_data(
     data: &[&str],
 ) -> Result<RadonTypes, failure::Error> {
     // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
-    // This does not validate other data request parameters such as number of witnesses, weight, or
-    // collateral, so it is still possible that this request is considered invalid by miners.
     validate_rad_request(&dr.data_request, &all_wips_active())?;
+    // Validate other parameters such as collateral and reward
+    // TODO: read this values from ConsensusConstants
+    let collateral_minimum = 1_000_000_000;
+    let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+    validate_data_request_output(
+        dr,
+        collateral_minimum,
+        required_reward_collateral_ratio,
+        &all_wips_active(),
+    )?;
 
     let mut retrieval_results = vec![];
     assert_eq!(dr.data_request.retrieve.len(), data.len());
@@ -343,7 +352,7 @@ mod examples {
                         reducer: RadonReducers::AverageMean as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 2,
                 commit_and_reveal_fee: 1,
                 min_consensus_percentage: 51,
@@ -401,7 +410,7 @@ mod examples {
                         reducer: RadonReducers::AverageMean as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 4,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
@@ -447,7 +456,7 @@ mod examples {
                         reducer: RadonReducers::AverageMean as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 2,
                 commit_and_reveal_fee: 5,
                 min_consensus_percentage: 51,
@@ -571,7 +580,7 @@ mod examples {
                         reducer: RadonReducers::Mode as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 3,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
@@ -605,7 +614,7 @@ mod examples {
                         reducer: RadonReducers::HashConcatenate as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 5,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
@@ -667,7 +676,7 @@ mod examples {
                         reducer: RadonReducers::AverageMean as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 3,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
@@ -728,7 +737,7 @@ mod examples {
                         reducer: RadonReducers::Mode as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 3,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
@@ -800,7 +809,7 @@ mod examples {
                         reducer: RadonReducers::Mode as u32,
                     },
                 },
-                witness_reward: 1000,
+                witness_reward: 8000000,
                 witnesses: 3,
                 commit_and_reveal_fee: 10,
                 min_consensus_percentage: 51,
