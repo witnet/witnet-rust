@@ -235,16 +235,16 @@ enabled = false
         // and they default to "false"
         let empty_config = super::from_str("[tapi]").unwrap();
 
-        let config_oppose_0021 = super::from_str(
+        let config_oppose_0022 = super::from_str(
             r"
 [tapi]
-oppose_wip0021 = true
+oppose_wip0022 = true
     ",
         )
         .unwrap();
 
         assert_eq!(empty_config.tapi, Tapi::default());
-        assert!(!empty_config.tapi.oppose_wip0021);
-        assert!(config_oppose_0021.tapi.oppose_wip0021);
+        assert!(!empty_config.tapi.oppose_wip0022);
+        assert!(config_oppose_0022.tapi.oppose_wip0022);
     }
 }
