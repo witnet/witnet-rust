@@ -238,13 +238,13 @@ enabled = false
         let config_oppose_0021 = super::from_str(
             r"
 [tapi]
-oppose_wip0021 = true
+oppose_wip0022 = true
     ",
         )
         .unwrap();
 
         assert_eq!(empty_config.tapi, Tapi::default());
-        assert!(!empty_config.tapi.oppose_wip0021);
-        assert!(config_oppose_0021.tapi.oppose_wip0021);
+        assert!(!empty_config.tapi.oppose_wip0022);
+        assert!(config_oppose_0021.tapi.oppose_wip0022);
     }
 }
