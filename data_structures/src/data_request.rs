@@ -517,17 +517,26 @@ pub fn calculate_reward_collateral_ratio(
         collateral
     };
 
-    if witness_reward > 0 {
-        let ratio = dr_collateral / witness_reward;
+    saturating_div_ceil(dr_collateral, witness_reward)
+}
 
-        if dr_collateral % witness_reward == 0 {
-            ratio
-        } else {
-            // If the ratio is not an integer, e.g. 123.0001, we round it to the next integer, e.g. 124.
-            ratio.saturating_add(1)
-        }
+/// Saturating version of `u64::div_ceil`.
+///
+/// Calculates the quotient of `lhs` and `rhs`, rounding the result towards positive infinity.
+///
+/// Returns `u64::MAX` if `rhs` is zero.
+fn saturating_div_ceil(lhs: u64, rhs: u64) -> u64 {
+    if rhs == 0 {
+        return u64::MAX;
+    }
+
+    let d = lhs / rhs;
+    let r = lhs % rhs;
+
+    if r > 0 {
+        d + 1
     } else {
-        u64::MAX
+        d
     }
 }
 
