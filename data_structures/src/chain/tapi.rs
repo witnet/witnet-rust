@@ -469,7 +469,7 @@ impl ActiveWips {
     }
 
     pub fn wip0026(&self) -> bool {
-        false
+        self.wip_active("WIP0026")
     }
 }
 
