@@ -7790,6 +7790,72 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     x.unwrap();
 }
 
+#[test]
+fn tally_error_encode_reveal_wip() {
+    // Reveal value (EncodeReveal error): 39([97])
+    let reveal_value = vec![216, 39, 129, 24, 97];
+    let dr_output = example_data_request_output(2, 200, 20);
+    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_all_errors(dr_output, 2, 2, reveal_value);
+    assert_eq!(reward, ONE_WIT + 200);
+
+    // Tally value (EncodeReveal error): 39([97])
+    let tally_value_error_encode_reveal = vec![216, 39, 129, 24, 97];
+    // Tally value (MalformedReveal error): 39([96])
+    let tally_value_malformed_reveal = vec![216, 39, 129, 24, 96];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: error_witnesses[0],
+        value: reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: error_witnesses[1],
+        value: reward,
+    };
+    assert_eq!(change, 0);
+    let tally_transaction_error_encode_reveal = TallyTransaction::new(
+        dr_pointer,
+        tally_value_error_encode_reveal.clone(),
+        vec![vt0, vt1],
+        slashed,
+        error_witnesses,
+    );
+
+    let mut active_wips = current_active_wips();
+    // Disable WIP-0026
+    active_wips.active_wips.remove("WIP0026");
+
+    // Before WIP-0026:
+    let x = validate_tally_transaction(
+        &tally_transaction_error_encode_reveal,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::MismatchedConsensus {
+            miner_tally: tally_value_error_encode_reveal,
+            expected_tally: tally_value_malformed_reveal,
+        }
+    );
+
+    // Enable WIP-0026
+    active_wips.active_wips.insert("WIP0026".to_string(), 0);
+
+    // After WIP-0026:
+    let x = validate_tally_transaction(
+        &tally_transaction_error_encode_reveal,
+        &dr_pool,
+        ONE_WIT,
+        &active_wips,
+    )
+    .map(|_| ());
+    x.unwrap();
+}
+
 static LAST_VRF_INPUT: &str = "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
 
 #[test]
