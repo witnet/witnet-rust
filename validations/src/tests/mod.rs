@@ -6,6 +6,7 @@ use std::{
 
 use itertools::Itertools;
 
+use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
     secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
     signature::sign,
@@ -2746,6 +2747,152 @@ fn data_request_zero_value_output() {
         TransactionError::ZeroValueOutput {
             tx_hash: dr_transaction.hash(),
             output_id: 0,
+        }
+    );
+}
+
+#[test]
+fn data_request_reward_collateral_ratio_wip() {
+    // A data request with low reward becomes invalid when WIP0022 activates
+    let mut signatures_to_verify = vec![];
+    let data_request = example_data_request();
+    let dr_output = DataRequestOutput {
+        witness_reward: 750 / 2,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+        ..DataRequestOutput::default()
+    };
+
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: 1000,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+    let mut active_wips = current_active_wips();
+    // Disable WIP-0022
+    active_wips.active_wips.remove("WIP0022");
+
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+        MAX_DR_WEIGHT,
+        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        &active_wips,
+    );
+    x.unwrap();
+
+    // Enable WIP-0022
+    active_wips.active_wips.insert("WIP0022".to_string(), 0);
+
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+        MAX_DR_WEIGHT,
+        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        &active_wips,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::RewardTooLow {
+            reward_collateral_ratio: 2666667,
+            required_reward_collateral_ratio: CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO
+        }
+    );
+}
+
+#[test]
+fn data_request_reward_collateral_ratio_limit() {
+    // Data request transaction with the minimum witness reward allowed by WIP0022,
+    // decreasing the reward by 1 nanowit will make the transaction invalid
+    let mut signatures_to_verify = vec![];
+    let data_request = example_data_request();
+    let dr_output = DataRequestOutput {
+        witness_reward: ONE_WIT / CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request: data_request.clone(),
+        ..DataRequestOutput::default()
+    };
+
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+    let mut active_wips = current_active_wips();
+    // Enable WIP-0022
+    active_wips.active_wips.insert("WIP0022".to_string(), 0);
+
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+        MAX_DR_WEIGHT,
+        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        &active_wips,
+    );
+    x.unwrap();
+
+    // Decreasing the reward by 1 nanowit makes the transaction invalid
+    let dr_output = DataRequestOutput {
+        witness_reward: ONE_WIT / CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO - 1,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request,
+        ..DataRequestOutput::default()
+    };
+
+    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
+
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+        MAX_DR_WEIGHT,
+        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        &active_wips,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::RewardTooLow {
+            reward_collateral_ratio: 126,
+            required_reward_collateral_ratio: CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO
         }
     );
 }
