@@ -502,6 +502,10 @@ pub fn calculate_witness_reward(
 }
 
 /// Function to calculate the data request reward to collateral ratio
+///
+/// The ratio is rounded up to the next integer. This is because the validation checks for ratios
+/// greater than a maximum, so a ratio of 125.0001 should be greater than 125. Therefore, 125.0001
+/// will be rounded up to 126.
 pub fn calculate_reward_collateral_ratio(
     collateral: u64,
     collateral_minimum: u64,
@@ -514,7 +518,14 @@ pub fn calculate_reward_collateral_ratio(
     };
 
     if witness_reward > 0 {
-        dr_collateral / witness_reward
+        let ratio = dr_collateral / witness_reward;
+
+        if dr_collateral % witness_reward == 0 {
+            ratio
+        } else {
+            // If the ratio is not an integer, e.g. 123.0001, we round it to the next integer, e.g. 124.
+            ratio.saturating_add(1)
+        }
     } else {
         u64::MAX
     }
