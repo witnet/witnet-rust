@@ -365,9 +365,6 @@ pub struct Mining {
     /// Minimum value transfer transaction fee that allows being included into a block
     #[partial_struct(serde(default, rename = "minimum_vtt_fee_nanowits"))]
     pub minimum_vtt_fee: u64,
-    /// Minimum reward to collateral percentage that allows being included into a block
-    #[partial_struct(serde(default, rename = "minimum_reward_collateral_ratio"))]
-    pub minimum_reward_collateral_ratio: u64,
 }
 
 /// NTP-related configuration
@@ -819,10 +816,6 @@ impl Mining {
                 .minimum_vtt_fee
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_minimum_vtt_fee()),
-            minimum_reward_collateral_ratio: config
-                .minimum_reward_collateral_ratio
-                .to_owned()
-                .unwrap_or_else(|| defaults.mining_minimum_reward_collateral_ratio()),
         }
     }
 
@@ -836,7 +829,6 @@ impl Mining {
             mint_external_address: self.mint_external_address.clone(),
             transactions_pool_total_weight_limit: Some(self.transactions_pool_total_weight_limit),
             minimum_vtt_fee: Some(self.minimum_vtt_fee),
-            minimum_reward_collateral_ratio: Some(self.minimum_reward_collateral_ratio),
         }
     }
 }
