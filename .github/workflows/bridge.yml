@@ -8,6 +8,7 @@ on:
 jobs:
   Bridge:
     runs-on: ubuntu-latest
+    environment: tags
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v3

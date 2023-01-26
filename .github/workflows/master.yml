@@ -191,6 +191,7 @@ jobs:
   Sign:
     needs: [Build_windows, Build_macOs, Build_x86_64, Build_armv7, Build_aarch64]
     runs-on: ubuntu-latest
+    environment: tags
     steps:
       # Checkout Repo
       - uses: actions/checkout@v3
@@ -258,6 +259,7 @@ jobs:
   Publish:
     needs: [Release]
     runs-on: ubuntu-latest
+    environment: tags
     steps:
       # Checkout Repo
       - uses: actions/checkout@v3
