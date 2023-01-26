@@ -58,10 +58,10 @@ impl<T: Database> Wallets<T> {
 
     /// Create a wallet based on name, description, IV, salt and account. The name is stored in the
     /// public wallets DB, while all parameters are stored in the private encrypted wallet DB
-    pub fn create<'a, D: Database>(
+    pub fn create<D: Database>(
         &self,
         wallet_db: &D,
-        wallet_data: types::CreateWalletData<'a>,
+        wallet_data: types::CreateWalletData<'_>,
     ) -> Result<()> {
         let types::CreateWalletData {
             id,
