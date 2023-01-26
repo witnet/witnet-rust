@@ -862,8 +862,8 @@ pub fn build_block(
         if new_vt_weight <= max_vt_weight {
             update_utxo_diff(
                 &mut utxo_diff,
-                vt_tx.body.inputs.iter().collect(),
-                vt_tx.body.outputs.iter().collect(),
+                vt_tx.body.inputs.iter(),
+                vt_tx.body.outputs.iter(),
                 vt_tx.hash(),
             );
             value_transfer_txns.push(vt_tx.clone());
@@ -967,8 +967,8 @@ pub fn build_block(
         if new_dr_weight <= max_dr_weight {
             update_utxo_diff(
                 &mut utxo_diff,
-                dr_tx.body.inputs.iter().collect(),
-                dr_tx.body.outputs.iter().collect(),
+                dr_tx.body.inputs.iter(),
+                dr_tx.body.outputs.iter(),
                 dr_tx.hash(),
             );
 

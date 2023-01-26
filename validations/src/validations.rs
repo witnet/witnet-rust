@@ -1308,31 +1308,46 @@ fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
         .current += 1;
 }
 
-/// Update UTXO diff with the provided inputs and outputs
-pub fn update_utxo_diff(
+/// Update UTXO diff with the provided inputs and outputs.
+///
+/// If all the inputs have the same PKH, the outputs with that PKH will keep the maximum
+/// (most recent) block number of the inputs. Outputs with different PKH have the block number reset.
+/// And in case one of the inputs has a different PKH from another input, the block number of all the outputs is reset.
+pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
     utxo_diff: &mut UtxoDiff<'_>,
-    inputs: Vec<&Input>,
-    outputs: Vec<&ValueTransferOutput>,
+    inputs: IterInputs,
+    outputs: IterOutputs,
     tx_hash: Hash,
-) {
-    let mut input_pkh = inputs
-        .first()
-        .and_then(|first| utxo_diff.get(first.output_pointer()).map(|vt| vt.pkh));
-
+) where
+    IterInputs: IntoIterator<Item = &'a Input>,
+    IterOutputs: IntoIterator<Item = &'a ValueTransferOutput>,
+{
+    let mut input_pkh = None;
     let mut block_number_input = 0;
+    let mut first = true;
+
     for input in inputs {
-        // Obtain the OuputPointer of each input and remove it from the utxo_diff
+        // Obtain the OutputPointer of each input and remove it from the utxo_diff
         let output_pointer = input.output_pointer();
 
-        // Returns the input PKH in case that all PKHs are the same
-        if input_pkh != utxo_diff.get(output_pointer).map(|vt| vt.pkh) {
+        if !first && input_pkh.is_none() {
+            // No need to check PKH and block number, there is more than one distinct input PKH
+        } else if !first && input_pkh != utxo_diff.get(output_pointer).map(|vt| vt.pkh) {
+            // PKH of this input is different from the previous input, no need to check block number
             input_pkh = None;
+        } else {
+            // All inputs up until this one have the same PKH
+            if first {
+                first = false;
+                // Store the PKH of the first element
+                input_pkh = utxo_diff.get(output_pointer).map(|vt| vt.pkh);
+            }
+            // Update block number to max of inputs
+            let block_number = utxo_diff
+                .included_in_block_number(output_pointer)
+                .unwrap_or(0);
+            block_number_input = std::cmp::max(block_number, block_number_input);
         }
-
-        let block_number = utxo_diff
-            .included_in_block_number(output_pointer)
-            .unwrap_or(0);
-        block_number_input = std::cmp::max(block_number, block_number_input);
 
         utxo_diff.remove_utxo(*output_pointer);
     }
@@ -1481,8 +1496,8 @@ pub fn validate_block_transactions(
         increment_witnesses_counter(&mut commits_number, &dr_pointer, u32::from(dr_witnesses));
 
         let (inputs, outputs) = (
-            transaction.body.collateral.iter().collect(),
-            transaction.body.outputs.iter().collect(),
+            transaction.body.collateral.iter(),
+            transaction.body.outputs.iter(),
         );
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
@@ -1657,7 +1672,7 @@ pub fn validate_block_transactions(
         update_utxo_diff(
             &mut utxo_diff,
             vec![],
-            block.txns.mint.outputs.iter().collect(),
+            block.txns.mint.outputs.iter(),
             block.txns.mint.hash(),
         );
     }

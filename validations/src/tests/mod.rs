@@ -217,6 +217,48 @@ pub fn generate_unspent_outputs_pool(
     unspent_outputs
 }
 
+fn get_vtis_from_utxo_set(
+    utxo_set: &UnspentOutputsPool,
+    vtos: &[ValueTransferOutput],
+) -> Vec<Input> {
+    let mut utxos_list: Vec<_> = utxo_set.iter().collect();
+    let mut vtis = vec![];
+
+    for vto in vtos {
+        // Search for this output in the list
+        let found_index = utxos_list
+            .iter()
+            .position(|(_output_pointer, (output, _block_number))| output == vto)
+            .expect("failed to find vto in utxo set");
+        // Remove UTXO from list
+        let (output_pointer, (_output, _block_number)) = utxos_list.remove(found_index);
+        vtis.push(Input::new(output_pointer));
+    }
+
+    vtis
+}
+
+fn get_block_numbers_from_utxo_set(
+    utxo_set: &UnspentOutputsPool,
+    vtos: &[ValueTransferOutput],
+) -> Vec<u32> {
+    let mut utxos_list: Vec<_> = utxo_set.iter().collect();
+    let mut vtis = vec![];
+
+    for vto in vtos {
+        // Search for this output in the list
+        let found_index = utxos_list
+            .iter()
+            .position(|(_output_pointer, (output, _block_number))| output == vto)
+            .expect("failed to find vto in utxo set");
+        // Remove UTXO from list
+        let (_output_pointer, (_output, block_number)) = utxos_list.remove(found_index);
+        vtis.push(block_number);
+    }
+
+    vtis
+}
+
 // Validate transactions in block
 #[test]
 fn mint_mismatched_reward() {
@@ -10603,6 +10645,109 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         .sorted_by(|a, b| a.0.cmp(&b.0))
         .collect();
     assert_eq!(utxos, expected_utxos);
+}
+
+#[test]
+fn validate_update_utxo_diff() {
+    let pkh1 = MY_PKH_1.parse().unwrap();
+    let pkh2 = MY_PKH_2.parse().unwrap();
+
+    // For the get_vtis_from_utxo_set function to work correctly, all the vtos here need to be different, so they have different value
+    let vto1 = ValueTransferOutput {
+        pkh: pkh1,
+        value: 1000,
+        time_lock: 0,
+    };
+    let vto2 = ValueTransferOutput {
+        pkh: pkh1,
+        value: 1001,
+        time_lock: 0,
+    };
+    let vto3 = ValueTransferOutput {
+        pkh: pkh2,
+        value: 1002,
+        time_lock: 0,
+    };
+    let mut utxo_set = build_utxo_set_with_mint(vec![vto1.clone(), vto3.clone()], None, vec![]);
+    let vto2_ptr = "2222222222222222222222222222222222222222222222222222222222222222:0"
+        .parse()
+        .unwrap();
+    utxo_set.insert(vto2_ptr, vto2.clone(), 999);
+
+    let vtis = get_vtis_from_utxo_set(&utxo_set, &[vto1, vto2, vto3]);
+    let vti0 = vtis[0];
+    let vti1 = vtis[1];
+    let vti2 = vtis[2];
+
+    let block_number = 1000;
+    let tx_hash = Hash::default();
+
+    let test_diff_block_numbers =
+        |inputs: &[Input], outputs: &[ValueTransferOutput], block_numbers: &[u32]| {
+            let mut utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+
+            update_utxo_diff(&mut utxo_diff, inputs, outputs, tx_hash);
+
+            let diff = utxo_diff.take_diff();
+
+            let mut utxo_set_copy = utxo_set.clone();
+            diff.apply(&mut utxo_set_copy);
+            let utxo_block_numbers = get_block_numbers_from_utxo_set(&utxo_set_copy, outputs);
+
+            assert_eq!(utxo_block_numbers, block_numbers);
+        };
+
+    let vto4 = ValueTransferOutput {
+        pkh: pkh1,
+        value: 100,
+        time_lock: 0,
+    };
+    let vto5 = ValueTransferOutput {
+        pkh: pkh1,
+        value: 101,
+        time_lock: 0,
+    };
+    let vto6 = ValueTransferOutput {
+        pkh: pkh2,
+        value: 102,
+        time_lock: 0,
+    };
+
+    // 1 input and 1 output with same PKH: keep block number
+    test_diff_block_numbers(&[vti0], &[vto4.clone()], &[0]);
+
+    // 2 inputs and 1 output with same PKH: keep block number of max input
+    test_diff_block_numbers(&[vti0, vti1], &[vto4.clone()], &[999]);
+
+    // 1 input and 2 outputs with same PKH: keep block number
+    test_diff_block_numbers(&[vti0], &[vto4.clone(), vto5.clone()], &[0, 0]);
+
+    // 2 inputs and 2 outputs with same PKH: keep block number of max input
+    test_diff_block_numbers(&[vti0, vti1], &[vto4.clone(), vto5], &[999, 999]);
+
+    // No inputs: reset block number
+    test_diff_block_numbers(&[], &[vto4.clone()], &[1000]);
+
+    // 1 input and 1 output with different PKH: reset block number
+    test_diff_block_numbers(&[vti0], &[vto6.clone()], &[1000]);
+
+    // 2 inputs with different PKH: reset block number for all outputs
+    test_diff_block_numbers(&[vti0, vti2], &[vto4.clone()], &[1000]);
+
+    // 2 inputs with different PKH: reset block number for all outputs
+    test_diff_block_numbers(&[vti0, vti2], &[vto6.clone()], &[1000]);
+
+    // 2 inputs with different PKH: reset block number for all outputs
+    test_diff_block_numbers(&[vti0, vti2], &[vto4.clone(), vto6.clone()], &[1000, 1000]);
+
+    // 2 outputs with different PKH: reset the block number of the new PKH only
+    test_diff_block_numbers(&[vti0], &[vto4.clone(), vto6.clone()], &[0, 1000]);
+
+    // 2 outputs with different PKH: the order of the outputs does not matter
+    test_diff_block_numbers(&[vti0], &[vto6.clone(), vto4.clone()], &[1000, 0]);
+
+    // 2 outputs with different PKH: reset the block number of the new PKH only
+    test_diff_block_numbers(&[vti0, vti1], &[vto4, vto6], &[999, 1000]);
 }
 
 #[test]
