@@ -2035,11 +2035,6 @@ pub struct TransactionsPool {
     // refuse to add the data request in its transaction pool. If the miner adds the data request
     // into a block, other miners will consider the block to be invalid.
     required_reward_collateral_ratio: u64,
-    // A miner can specify a minimum reward to collateral percentage. If the reward is lower,
-    // the miner will refuse to insert the data request in his transaction pool and thus not attempt
-    // to solve it either (if eligible). This can be different from the required minimum as defined
-    // by the consensus constants.
-    minimum_reward_collateral_ratio: u64,
     // Map for unconfirmed transactions
     unconfirmed_transactions: UnconfirmedTransactions,
 }
@@ -2068,9 +2063,6 @@ impl Default for TransactionsPool {
             collateral_minimum: 0,
             // Required minimum reward to collateral percentage is defined as a consensus constant
             required_reward_collateral_ratio: u64::MAX,
-            // A miner can specify a minimum reward to collateral percentage different from the
-            // required minimum as defined by the consensus constants
-            minimum_reward_collateral_ratio: u64::MAX,
             unconfirmed_transactions: Default::default(),
         }
     }
@@ -2126,23 +2118,6 @@ impl TransactionsPool {
     /// into the `TransactionsPool` and blocks.
     pub fn set_required_reward_collateral_ratio(&mut self, required_reward_collateral_ratio: u64) {
         self.required_reward_collateral_ratio = required_reward_collateral_ratio;
-        self.minimum_reward_collateral_ratio = std::cmp::min(
-            required_reward_collateral_ratio,
-            self.minimum_reward_collateral_ratio,
-        );
-    }
-
-    /// As a miner, require a minimum reward to collateral ratio to include a data request into the
-    /// `TransactionsPool` and blocks. If this function tries to set a minimum greater than what is
-    /// defined in the consensus constants, the node should panic.
-    pub fn set_minimum_reward_collateral_ratio(&mut self, minimum_reward_collateral_ratio: u64) {
-        if minimum_reward_collateral_ratio > self.required_reward_collateral_ratio {
-            panic!(
-                "Cannot set minimum reward collateral ratio bigger than {}",
-                self.required_reward_collateral_ratio
-            );
-        }
-        self.minimum_reward_collateral_ratio = minimum_reward_collateral_ratio;
     }
 
     /// Returns `true` if the pool contains no transactions.
@@ -2181,7 +2156,6 @@ impl TransactionsPool {
             minimum_vtt_fee: _,
             collateral_minimum: _,
             required_reward_collateral_ratio: _,
-            minimum_reward_collateral_ratio: _,
             unconfirmed_transactions,
         } = self;
 
@@ -2735,7 +2709,7 @@ impl TransactionsPool {
                     dr_tx.body.dr_output.collateral,
                     dr_tx.body.dr_output.witness_reward,
                 );
-                if dr_tx_reward_collateral_ratio > self.minimum_reward_collateral_ratio {
+                if dr_tx_reward_collateral_ratio > self.required_reward_collateral_ratio {
                     return vec![Transaction::DataRequest(dr_tx)];
                 } else {
                     let weight = f64::from(dr_tx.weight());
@@ -5031,90 +5005,6 @@ mod tests {
         let removed = transactions_pool.insert(vt1.clone(), 1);
         assert_eq!(removed, vec![]);
         assert!(transactions_pool.contains(&vt1).unwrap());
-    }
-
-    #[test]
-    fn transactions_pool_minimum_reward_collateral_ratio() {
-        let input = Input::default();
-
-        let dr1 = Transaction::DataRequest(DRTransaction::new(
-            DRTransactionBody::new(
-                vec![input],
-                vec![ValueTransferOutput::default()],
-                DataRequestOutput {
-                    collateral: 1_000_000_000,
-                    ..Default::default()
-                },
-            ),
-            vec![],
-        ));
-
-        let dr2 = Transaction::DataRequest(DRTransaction::new(
-            DRTransactionBody::new(
-                vec![input],
-                vec![ValueTransferOutput::default()],
-                DataRequestOutput {
-                    witness_reward: 8_000_000,
-                    collateral: 1_000_000_000,
-                    ..Default::default()
-                },
-            ),
-            vec![],
-        ));
-
-        let dr3 = Transaction::DataRequest(DRTransaction::new(
-            DRTransactionBody::new(
-                vec![input],
-                vec![ValueTransferOutput::default()],
-                DataRequestOutput {
-                    witness_reward: 30_000_000,
-                    collateral: 1_000_000_000,
-                    ..Default::default()
-                },
-            ),
-            vec![],
-        ));
-
-        let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.set_minimum_reward_collateral_ratio(125);
-
-        // Inserting a transaction with a `witness_reward` lower than 1 / 125 of the collateral should fail
-        let removed = transactions_pool.insert(dr1.clone(), 0);
-        assert_eq!(removed, vec![dr1.clone()]);
-        assert!(!transactions_pool.contains(&dr1).unwrap());
-        // Inserting a transaction with a `witness_reward` higher or equal than 1 / 125 of the collateral should succeed
-        let removed = transactions_pool.insert(dr2.clone(), 0);
-        assert_eq!(removed, vec![]);
-        assert!(transactions_pool.contains(&dr2).unwrap());
-
-        transactions_pool.clear();
-        transactions_pool.set_minimum_reward_collateral_ratio(50);
-
-        // Inserting a transaction with a `witness_reward` lower than 1 / 50 of the collateral should fail
-        let removed = transactions_pool.insert(dr2.clone(), 0);
-        assert_eq!(removed, vec![dr2.clone()]);
-        assert!(!transactions_pool.contains(&dr2).unwrap());
-        // Inserting a transaction with a `witness_reward` higher or equal than 1 / 50 of the collateral should succeed
-        let removed = transactions_pool.insert(dr3.clone(), 0);
-        assert_eq!(removed, vec![]);
-        assert!(transactions_pool.contains(&dr3).unwrap());
-    }
-
-    #[test]
-    fn transactions_pool_required_reward_collateral_ratio_good() {
-        let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.set_required_reward_collateral_ratio(125);
-        transactions_pool.set_minimum_reward_collateral_ratio(125);
-        // Miners can also set a lower ratio to reject some valid requests with low reward
-        transactions_pool.set_minimum_reward_collateral_ratio(1);
-    }
-
-    #[test]
-    #[should_panic = "Cannot set minimum reward collateral ratio bigger than 125"]
-    fn transactions_pool_required_reward_collateral_ratio_bad() {
-        let mut transactions_pool = TransactionsPool::default();
-        transactions_pool.set_required_reward_collateral_ratio(125);
-        transactions_pool.set_minimum_reward_collateral_ratio(126);
     }
 
     #[test]
