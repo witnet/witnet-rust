@@ -44,7 +44,7 @@ use failure::Fail;
 use futures::future::{try_join_all, FutureExt};
 use itertools::Itertools;
 use rand::Rng;
-use witnet_config::config::Tapi;
+use witnet_config::{config::Tapi, defaults::CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE};
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
@@ -1257,6 +1257,11 @@ impl ChainManager {
                 // than or equal to the current epoch
                 block_epoch: current_epoch,
             };
+            let collateral_age = if active_wips.wip0027() {
+                CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
+            } else {
+                chain_info.consensus_constants.collateral_age
+            };
             let fut = future::ready(validate_new_transaction(
                 &msg.transaction,
                 (
@@ -1270,7 +1275,7 @@ impl ChainManager {
                 self.chain_state.block_number(),
                 &mut signatures_to_verify,
                 chain_info.consensus_constants.collateral_minimum,
-                chain_info.consensus_constants.collateral_age,
+                collateral_age,
                 chain_info.consensus_constants.max_vt_weight,
                 chain_info.consensus_constants.max_dr_weight,
                 chain_info.consensus_constants.minimum_difficulty,
@@ -2933,6 +2938,8 @@ fn show_sync_progress(
 }
 
 fn last_superblock_signed_by_bootstrap(consensus_constants: &ConsensusConstants) -> u32 {
+    // This needs to use the old value of collateral_age, because it is calculating a superblock
+    // index from the early days of the chain
     (consensus_constants.collateral_age + consensus_constants.activity_period)
         / u32::from(consensus_constants.superblock_period)
 }
