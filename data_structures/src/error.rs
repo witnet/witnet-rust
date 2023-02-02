@@ -279,7 +279,7 @@ pub enum TransactionError {
         dr_output: Box<DataRequestOutput>,
     },
     #[fail(
-        display = "Data request reward to collateral percentage is {}, but must be greater than {}",
+        display = "The reward-to-collateral ratio for this data request is {}, but must be equal or less than {}",
         reward_collateral_ratio, required_reward_collateral_ratio
     )]
     RewardTooLow {
