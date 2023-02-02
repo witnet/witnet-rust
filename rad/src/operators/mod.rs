@@ -506,7 +506,7 @@ mod legacy {
 
             // This context is set to an epoch prior to activation
             let mut before_wips = ActiveWips::default();
-            before_wips.insert_wip("WIP0024", 1_000);
+            before_wips.insert_wip("WIP0022-0024-0025-0026-0027", 1_000);
             before_wips.set_epoch(999);
             let mut before_context = ReportContext::from_active_wips(before_wips);
 
