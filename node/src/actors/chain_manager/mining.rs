@@ -15,6 +15,7 @@ use actix::{
 };
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
+use witnet_config::defaults::CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -351,10 +352,14 @@ impl ChainManager {
                 checkpoint: current_epoch,
                 ..vrf_input
             };
-
             let active_wips = ActiveWips {
                 active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: current_epoch,
+            };
+            let collateral_age = if active_wips.wip0027() {
+                CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
+            } else {
+                collateral_age
             };
             let (target_hash, probability) = calculate_reppoe_threshold(
                 rep_eng,
