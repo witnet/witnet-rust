@@ -451,6 +451,10 @@ pub trait Defaults {
     }
 }
 
+/// Modified value of callateral_age after WIP0027 (1 week)
+// TODO: modify the value directly in ConsensusConstants
+pub const CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE: u32 = 13440;
+
 /// Struct that will implement all the development defaults
 pub struct Development;
 

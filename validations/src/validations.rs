@@ -6,6 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use witnet_config::defaults::CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
@@ -1407,6 +1408,11 @@ pub fn validate_block_transactions(
     let mut commits_number = HashMap::new();
     let block_beacon = block.block_header.beacon;
     let mut commit_hs = HashSet::with_capacity(block.txns.commit_txns.len());
+    let collateral_age = if active_wips.wip0027() {
+        CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
+    } else {
+        consensus_constants.collateral_age
+    };
     for transaction in &block.txns.commit_txns {
         let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
             transaction,
@@ -1418,7 +1424,7 @@ pub fn validate_block_transactions(
             epoch_constants,
             &utxo_diff,
             consensus_constants.collateral_minimum,
-            consensus_constants.collateral_age,
+            collateral_age,
             block_number,
             consensus_constants.minimum_difficulty,
             active_wips,
