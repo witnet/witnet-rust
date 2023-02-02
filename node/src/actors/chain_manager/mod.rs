@@ -2298,7 +2298,13 @@ impl ChainManager {
 
     /// Return the value of the version field for a block in this epoch
     fn tapi_signals_mask(&self, epoch: Epoch) -> u32 {
-        let Tapi { oppose_wip0022 } = &self.tapi;
+        let Tapi {
+            oppose_wip0022,
+            oppose_wip0024,
+            oppose_wip0025,
+            oppose_wip0026,
+            oppose_wip0027,
+        } = &self.tapi;
 
         let mut v = 0;
         // Bit 0
@@ -2316,11 +2322,16 @@ impl ChainManager {
 
         // Bit 3
         let bit = 3;
+        // TODO: add remaining WIPs and edit WIP string to match tapi.rs
         if !oppose_wip0022
+            && !oppose_wip0024
+            && !oppose_wip0025
+            && !oppose_wip0026
+            && !oppose_wip0027
             && self
                 .chain_state
                 .tapi_engine
-                .in_voting_range(epoch, "WIP0022")
+                .in_voting_range(epoch, "WIP0022-0024-0025-0026-0027")
         {
             v |= 1 << bit;
         }
