@@ -92,7 +92,9 @@ pub fn current_active_wips() -> ActiveWips {
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
     let mut active_wips = current_active_wips();
-    active_wips.active_wips.insert("WIP0022".to_string(), 0);
+    active_wips
+        .active_wips
+        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
 
     active_wips
 }
@@ -158,7 +160,7 @@ impl TapiEngine {
                 let wip_0022 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
-                    wip: "WIP0022".to_string(),
+                    wip: "WIP0022-0024-0025-0026-0027".to_string(),
                     // Start signaling on
                     // TODO: insert date here
                     init: 99999999,
@@ -179,7 +181,7 @@ impl TapiEngine {
                 let wip_0022 = BitVotesCounter {
                     votes: 0,
                     period: 50,
-                    wip: "WIP0022".to_string(),
+                    wip: "WIP0022-0024-0025-0026-0027".to_string(),
                     // Start voting at
                     // TODO: insert date here
                     init: 0,
@@ -470,23 +472,23 @@ impl ActiveWips {
     }
 
     pub fn wip0022(&self) -> bool {
-        self.wip_active("WIP0022")
+        self.wip_active("WIP0022-0024-0025-0026-0027")
     }
 
     pub fn wip0024(&self) -> bool {
-        self.wip_active("WIP0024")
+        self.wip_active("WIP0022-0024-0025-0026-0027")
     }
 
     pub fn wip0025(&self) -> bool {
-        self.wip_active("WIP0025")
+        self.wip_active("WIP0022-0024-0025-0026-0027")
     }
 
     pub fn wip0026(&self) -> bool {
-        self.wip_active("WIP0026")
+        self.wip_active("WIP0022-0024-0025-0026-0027")
     }
 
     pub fn wip0027(&self) -> bool {
-        self.wip_active("WIP0027")
+        self.wip_active("WIP0022-0024-0025-0026-0027")
     }
 
     /// Convenience method for inserting WIPs.
@@ -785,7 +787,7 @@ mod tests {
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // WIP0022 is already included and it won't be updated
-        let name_wip0022 = "WIP0022".to_string();
+        let name_wip0022 = "WIP0022-0024-0025-0026-0027".to_string();
         let mut hs = HashSet::new();
         hs.insert(name_wip0022);
         assert_eq!(old_wips, hs);

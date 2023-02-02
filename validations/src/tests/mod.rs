@@ -2780,7 +2780,9 @@ fn data_request_reward_collateral_ratio_wip() {
 
     let mut active_wips = current_active_wips();
     // Disable WIP-0022
-    active_wips.active_wips.remove("WIP0022");
+    active_wips
+        .active_wips
+        .remove("WIP0022-0024-0025-0026-0027");
 
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -2796,7 +2798,9 @@ fn data_request_reward_collateral_ratio_wip() {
     x.unwrap();
 
     // Enable WIP-0022
-    active_wips.active_wips.insert("WIP0022".to_string(), 0);
+    active_wips
+        .active_wips
+        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
 
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -2848,7 +2852,9 @@ fn data_request_reward_collateral_ratio_limit() {
 
     let mut active_wips = current_active_wips();
     // Enable WIP-0022
-    active_wips.active_wips.insert("WIP0022".to_string(), 0);
+    active_wips
+        .active_wips
+        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
 
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -7992,7 +7998,9 @@ fn tally_error_encode_reveal_wip() {
 
     let mut active_wips = current_active_wips();
     // Disable WIP-0026
-    active_wips.active_wips.remove("WIP0026");
+    active_wips
+        .active_wips
+        .remove("WIP0022-0024-0025-0026-0027");
 
     // Before WIP-0026:
     let x = validate_tally_transaction(
@@ -8011,7 +8019,9 @@ fn tally_error_encode_reveal_wip() {
     );
 
     // Enable WIP-0026
-    active_wips.active_wips.insert("WIP0026".to_string(), 0);
+    active_wips
+        .active_wips
+        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
 
     // After WIP-0026:
     let x = validate_tally_transaction(
