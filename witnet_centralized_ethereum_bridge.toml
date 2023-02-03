@@ -45,6 +45,10 @@ num_confirmations = 1
 # Miner fee for the witnet data request transactions, in nanowits
 dr_fee_nanowits = 10_000
 
+# Max ratio between the gas price recommended by the provider and the gas price of the requests in the WRB
+# That is, the bridge will refrain from paying more than these times the gas price originally set forth by the requesters.
+report_result_max_network_gas_price_ratio = 1.0
+
 # Gas limits for some methods.
 # To let the client estimate, comment out the fields
 [gas_limits]

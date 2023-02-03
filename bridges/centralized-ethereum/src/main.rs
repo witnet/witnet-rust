@@ -46,7 +46,8 @@ fn init_logger() {
 
 async fn post_example_dr(config: Arc<config::Config>) {
     log::info!("Posting an example of Data Request");
-    let wrb_contract = create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
+    let (_web3, wrb_contract) =
+        create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
 
     log::info!("calling postDataRequest");
 
@@ -122,10 +123,9 @@ fn run(callback: fn()) -> Result<(), String> {
                 .expect("witnet node not running");
 
             // Web3 contract using HTTP transport with an Ethereum client
-            let wrb_contract = Arc::new(create_wrb_contract(
-                &config.eth_client_url,
-                config.wrb_contract_addr,
-            ));
+            let (web3, wrb_contract) =
+                create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
+            let wrb_contract = Arc::new(wrb_contract);
 
             // Start DrDatabase actor
             let dr_database_addr = DrDatabase::default().start();
@@ -148,7 +148,7 @@ fn run(callback: fn()) -> Result<(), String> {
             SystemRegistry::set(eth_poller_addr);
 
             // Start DrReporter actor
-            let dr_reporter_addr = DrReporter::from_config(&config, wrb_contract).start();
+            let dr_reporter_addr = DrReporter::from_config(&config, wrb_contract, web3).start();
             SystemRegistry::set(dr_reporter_addr);
 
             // Initialize Storage Manager

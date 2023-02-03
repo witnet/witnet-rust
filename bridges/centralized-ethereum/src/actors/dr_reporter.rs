@@ -10,6 +10,7 @@ use web3::{
     ethabi::{ethereum_types::H256, Token},
     transports::Http,
     types::{H160, U256},
+    Web3,
 };
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};
 use witnet_node::utils::stop_system_if_panicking;
@@ -19,6 +20,8 @@ use witnet_node::utils::stop_system_if_panicking;
 pub struct DrReporter {
     /// WRB contract
     pub wrb_contract: Option<Arc<Contract<web3::transports::Http>>>,
+    /// Web3
+    pub web3: Option<Web3<Http>>,
     /// eth_account
     pub eth_account: H160,
     /// report_result_limit
@@ -32,6 +35,9 @@ pub struct DrReporter {
     pub eth_confirmation_timeout_ms: u64,
     /// Number of block confirmations needed to assume finality when sending transactions to ethereum
     pub num_confirmations: usize,
+    /// Max ratio between the gas price recommended by the provider and the gas price of the requests in the WRB
+    /// That is, the bridge will refrain from paying more than these times the gas price originally set forth by the requesters.
+    pub report_result_max_network_gas_price_ratio: f64,
 }
 
 impl Drop for DrReporter {
@@ -60,15 +66,22 @@ impl SystemService for DrReporter {}
 
 impl DrReporter {
     /// Initialize `DrReporter` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config, wrb_contract: Arc<Contract<Http>>) -> Self {
+    pub fn from_config(
+        config: &Config,
+        wrb_contract: Arc<Contract<Http>>,
+        web3: Web3<Http>,
+    ) -> Self {
         Self {
             wrb_contract: Some(wrb_contract),
+            web3: Some(web3),
             eth_account: config.eth_account,
             report_result_limit: config.gas_limits.report_result,
             max_result_size: config.max_result_size,
             pending_report_result: Default::default(),
             eth_confirmation_timeout_ms: config.eth_confirmation_timeout_ms,
             num_confirmations: config.num_confirmations,
+            report_result_max_network_gas_price_ratio: config
+                .report_result_max_network_gas_price_ratio,
         }
     }
 }
@@ -139,6 +152,10 @@ impl Handler<DrReporterMsg> for DrReporter {
             self.pending_report_result.insert(report.dr_id);
         }
 
+        let eth = self.web3.as_ref().unwrap().eth();
+        let report_result_max_network_gas_price_ratio =
+            self.report_result_max_network_gas_price_ratio;
+
         let fut = async move {
             // Check if the request has already been resolved by some old pending transaction
             // that got confirmed after the eth_confirmation_timeout has elapsed
@@ -162,11 +179,31 @@ impl Handler<DrReporterMsg> for DrReporter {
                 return;
             }
 
-            let max_gas_price = get_max_gas_price(&msg, &wrb_contract).await;
+            // TODO: max_gas_price is the same for all batches, it could be calculated per-batch
+            let mut report_gas_price = get_max_gas_price(&msg, &wrb_contract).await;
+            let network_gas_price = match eth.gas_price().await {
+                Ok(x) => x,
+                Err(e) => {
+                    log::error!("Error estimating network gas price: {}", e);
 
-            if max_gas_price == U256::from(0u8) {
-                // Error reading gas price, abort
-                return;
+                    return;
+                }
+            };
+            let max_report_gas_price = u256_saturating_mul_f64(
+                report_gas_price,
+                report_result_max_network_gas_price_ratio,
+            );
+            if report_gas_price <= max_report_gas_price {
+                // If not higher than the allowed ratio, set gas price
+                if network_gas_price > report_gas_price {
+                    log::debug!("Network gas price is higher than requests' gas price. Setting report gas price to {}", network_gas_price);
+                }
+                report_gas_price = network_gas_price;
+            } else {
+                // Higher network gas price: show warning but try anyway, the reportResult transaction may fail
+                let ratio = u256_div_as_f64(network_gas_price, report_gas_price);
+                log::warn!("Network gas price is {}x higher than request's gas price. Capping report gas price to {}", ratio, max_report_gas_price);
+                report_gas_price = max_report_gas_price;
             }
 
             let batch_results: Vec<_> = msg
@@ -193,7 +230,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                 eth_account,
                 report_result_limit,
                 verbose,
-                max_gas_price,
+                report_gas_price,
             )
             .await;
 
@@ -225,7 +262,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                         eth_account,
                         contract::Options::with(|opt| {
                             opt.gas = Some(estimated_gas_limit);
-                            opt.gas_price = Some(max_gas_price);
+                            opt.gas_price = Some(report_gas_price);
                         }),
                         num_confirmations,
                     );
@@ -239,7 +276,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                         eth_account,
                         contract::Options::with(|opt| {
                             opt.gas = Some(estimated_gas_limit);
-                            opt.gas_price = Some(max_gas_price);
+                            opt.gas_price = Some(report_gas_price);
                         }),
                         num_confirmations,
                     );
@@ -463,6 +500,56 @@ fn parse_posted_result_event(
     }
 }
 
+/// Returns `a / b`, as f64
+fn u256_div_as_f64(a: U256, b: U256) -> f64 {
+    u256_to_f64(a) / u256_to_f64(b)
+}
+
+/// Converts `U256` into `f64` in a lossy way
+fn u256_to_f64(a: U256) -> f64 {
+    a.to_string().parse().unwrap()
+}
+
+/// Returns `a * b` as U256, saturating on overflow
+fn u256_saturating_mul_f64(a: U256, b: f64) -> U256 {
+    assert!(
+        b >= 0.0,
+        "u256_mul_f64 only supports positive floating point values, got {}",
+        b
+    );
+
+    // Binary search a value x such that x / a == b
+    let mut lo = U256::from(0);
+    let mut hi = U256::MAX;
+    // mid = (lo + hi) / 2, but avoid overflows
+    let mut mid = lo / 2 + hi / 2;
+
+    loop {
+        let ratio = u256_div_as_f64(mid, a);
+
+        if ratio == b {
+            break mid;
+        }
+        if ratio > b {
+            hi = mid;
+        }
+        if ratio < b {
+            lo = mid;
+        }
+
+        let new_mid = lo / 2 + hi / 2;
+        if new_mid == mid {
+            if ratio > b {
+                break lo;
+            }
+            if ratio < b {
+                break hi;
+            }
+        }
+        mid = new_mid;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -557,5 +644,21 @@ mod tests {
             parse_posted_result_event(&wrb_contract_abi, log_posted_result),
             Some(U256::from(63605)),
         );
+    }
+
+    #[test]
+    fn test_u256_mul_f64() {
+        let x = u256_saturating_mul_f64(U256::from(1_000_000), 0.0);
+        assert_eq!(x, U256::from(0));
+        let x = u256_saturating_mul_f64(U256::from(1_000_000), 0.5);
+        assert_eq!(x, U256::from(500_000));
+        let x = u256_saturating_mul_f64(U256::from(1_000_000), 1.0);
+        assert_eq!(x, U256::from(1_000_000));
+        let x = u256_saturating_mul_f64(U256::from(1_000_000), 1.3);
+        assert_eq!(x, U256::from(1_300_000));
+        let x = u256_saturating_mul_f64(U256::from(1_000_000), 1.5);
+        assert_eq!(x, U256::from(1_500_000));
+        let x = u256_saturating_mul_f64(U256::from(1_000_000), f64::INFINITY);
+        assert_eq!(x, U256::MAX);
     }
 }

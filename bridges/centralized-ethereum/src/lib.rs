@@ -14,6 +14,7 @@ use web3::{
     contract::Contract,
     transports::Http,
     types::{TransactionReceipt, H160},
+    Web3,
 };
 
 /// Actors
@@ -22,7 +23,10 @@ pub mod actors;
 pub mod config;
 
 /// Creates a Witnet Request Board contract from Config information
-pub fn create_wrb_contract(eth_client_url: &str, wrb_contract_addr: H160) -> Contract<Http> {
+pub fn create_wrb_contract(
+    eth_client_url: &str,
+    wrb_contract_addr: H160,
+) -> (Web3<Http>, Contract<Http>) {
     let web3_http = web3::transports::Http::new(eth_client_url)
         .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
         .unwrap();
@@ -37,7 +41,9 @@ pub fn create_wrb_contract(eth_client_url: &str, wrb_contract_addr: H160) -> Con
     // https://github.com/witnet/witnet-rust/issues/2046
     hack_fix_functions_with_multiple_definitions(&mut wrb_contract_abi);
 
-    Contract::new(web3.eth(), wrb_contract_addr, wrb_contract_abi)
+    let wrb_contract = Contract::new(web3.eth(), wrb_contract_addr, wrb_contract_abi);
+
+    (web3, wrb_contract)
 }
 
 // The web3 library does not properly support overloaded functions yet, so here we ensure that there

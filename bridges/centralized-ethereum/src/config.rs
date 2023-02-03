@@ -52,10 +52,18 @@ pub struct Config {
     pub num_confirmations: usize,
     /// Miner fee for the witnet data request transactions, in nanowits
     pub dr_fee_nanowits: u64,
+    /// Max ratio between the gas price recommended by the provider and the gas price of the requests in the WRB
+    /// That is, the bridge will refrain from paying more than these times the gas price originally set forth by the requesters.
+    #[serde(default = "one_f64")]
+    pub report_result_max_network_gas_price_ratio: f64,
 }
 
 fn one() -> usize {
     1
+}
+
+fn one_f64() -> f64 {
+    1.0
 }
 
 /// Gas limits for some methods. If missing, let the client estimate
