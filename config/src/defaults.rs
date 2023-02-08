@@ -253,10 +253,11 @@ pub trait Defaults {
         0
     }
 
-    /// Allow setting a reward to collateral percentage for a data request to be included in a block
-    /// The absolute minimum accepted by the network is defined as a consensus constant
-    fn mining_minimum_reward_collateral_ratio(&self) -> u64 {
-        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO
+    /// A network-wide reward to collateral ratio for data requests to be included in a block
+    /// The absolute minimum accepted by the network should be defined as a consensus constant,
+    /// but to avoid affecting the magic number, it's a "pseudoconsensus constant" for now.
+    fn consensus_constants_minimum_reward_collateral_ratio(&self) -> u64 {
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO
     }
 
     fn consensus_constants_max_vt_weight(&self) -> u32 {
@@ -460,11 +461,11 @@ pub trait Defaults {
 /// Allow setting a reward to collateral percentage for a data request to be included in a block
 /// The absolute minimum accepted by the network is defined as a consensus constant
 // TODO: move this into ConsensusConstants
-pub const CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO: u64 = 125;
+pub const PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO: u64 = 125;
 
 /// Modified value of callateral_age after WIP0027 (1 week)
 // TODO: modify the value directly in ConsensusConstants
-pub const CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE: u32 = 13440;
+pub const PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE: u32 = 13440;
 
 /// Struct that will implement all the development defaults
 pub struct Development;

@@ -6,7 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::chain::{tapi::all_wips_active, DataRequestOutput};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
@@ -54,7 +54,8 @@ fn run_dr_locally_with_data(
     // Validate other parameters such as collateral and reward
     // TODO: read this values from ConsensusConstants
     let collateral_minimum = 1_000_000_000;
-    let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+    let required_reward_collateral_ratio =
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
     validate_data_request_output(
         dr,
         collateral_minimum,
