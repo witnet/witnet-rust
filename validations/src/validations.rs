@@ -7,8 +7,8 @@ use std::{
 
 use itertools::Itertools;
 use witnet_config::defaults::{
-    CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
-    CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
@@ -1437,7 +1437,7 @@ pub fn validate_block_transactions(
     let block_beacon = block.block_header.beacon;
     let mut commit_hs = HashSet::with_capacity(block.txns.commit_txns.len());
     let collateral_age = if active_wips.wip0027() {
-        CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
     } else {
         consensus_constants.collateral_age
     };
@@ -1589,7 +1589,8 @@ pub fn validate_block_transactions(
     // Validate data request transactions in a block
     let mut dr_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.data_request_txns {
-        let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+        let required_reward_collateral_ratio =
+            PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
         let (inputs, outputs, fee) = validate_dr_transaction(
             transaction,
             &utxo_diff,

@@ -47,8 +47,8 @@ use rand::Rng;
 use witnet_config::{
     config::Tapi,
     defaults::{
-        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
-        CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
     },
 };
 use witnet_crypto::hash::calculate_sha256;
@@ -1264,12 +1264,12 @@ impl ChainManager {
                 block_epoch: current_epoch,
             };
             let collateral_age = if active_wips.wip0027() {
-                CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
+                PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
             } else {
                 chain_info.consensus_constants.collateral_age
             };
             let required_reward_collateral_ratio =
-                CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+                PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
             let fut = future::ready(validate_new_transaction(
                 &msg.transaction,
                 (
@@ -2322,16 +2322,55 @@ impl ChainManager {
 
         // Bit 3
         let bit = 3;
-        // TODO: add remaining WIPs and edit WIP string to match tapi.rs
         if !oppose_wip0022
-            && !oppose_wip0024
-            && !oppose_wip0025
-            && !oppose_wip0026
-            && !oppose_wip0027
             && self
                 .chain_state
                 .tapi_engine
-                .in_voting_range(epoch, "WIP0022-0024-0025-0026-0027")
+                .in_voting_range(epoch, "WIP0022")
+        {
+            v |= 1 << bit;
+        }
+
+        // Bit 4
+        let bit = 4;
+        if !oppose_wip0024
+            && self
+                .chain_state
+                .tapi_engine
+                .in_voting_range(epoch, "WIP0024")
+        {
+            v |= 1 << bit;
+        }
+
+        // Bit 5
+        let bit = 5;
+        if !oppose_wip0025
+            && self
+                .chain_state
+                .tapi_engine
+                .in_voting_range(epoch, "WIP0025")
+        {
+            v |= 1 << bit;
+        }
+
+        // Bit 6
+        let bit = 6;
+        if !oppose_wip0026
+            && self
+                .chain_state
+                .tapi_engine
+                .in_voting_range(epoch, "WIP0026")
+        {
+            v |= 1 << bit;
+        }
+
+        // Bit 7
+        let bit = 7;
+        if !oppose_wip0027
+            && self
+                .chain_state
+                .tapi_engine
+                .in_voting_range(epoch, "WIP0027")
         {
             v |= 1 << bit;
         }

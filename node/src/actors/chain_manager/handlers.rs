@@ -7,7 +7,7 @@ use std::{
     net::SocketAddr,
     time::Duration,
 };
-use witnet_config::defaults::CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
@@ -1524,7 +1524,7 @@ impl Handler<GetUtxoInfo> for ChainManager {
             block_epoch: self.current_epoch.unwrap(),
         };
         let collateral_age = if active_wips.wip0027() {
-            CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
+            PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
         } else {
             chain_info.consensus_constants.collateral_age
         };

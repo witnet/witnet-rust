@@ -1,6 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
     fee::{deserialize_fee_backwards_compatible, AbsoluteFee, Fee},
@@ -67,7 +67,8 @@ impl Handler<CreateDataReqRequest> for app::App {
 
     fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         let consensus_constants = &self.params.consensus_constants;
-        let required_reward_collateral_ratio = CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+        let required_reward_collateral_ratio =
+            PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
         let validated = validate(
             msg.request.clone(),
             consensus_constants.collateral_minimum,

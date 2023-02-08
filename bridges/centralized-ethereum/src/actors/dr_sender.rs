@@ -8,7 +8,7 @@ use crate::{
 use actix::prelude::*;
 use serde_json::json;
 use std::{fmt, time::Duration};
-use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
     proto::ProtobufConvert,
@@ -271,7 +271,7 @@ fn deserialize_and_validate_dr_bytes(
             let collateral_minimum = 1_000_000_000;
             // TODO: read from consensus_constants
             let required_reward_collateral_ratio =
-                CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+                PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
             validate_data_request_output(
                 &dr_output,
                 collateral_minimum,
