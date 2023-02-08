@@ -26,9 +26,13 @@ jobs:
         run: |
           cp target/release/witnet-centralized-ethereum-bridge ./
 
+      - name: Set Version
+        run: |
+          echo VERNUM=$(sed -nE 's/version\s?=\s?"([0-9]+\.[0-9]\.[0-9])"/\1/p' ./bridges/centralized-ethereum/Cargo.toml | head -1) >> $GITHUB_ENV
+
       - name: Build docker Image
         run: |
-          docker build -t witnet/witnet-centralized-ethereum-bridge:"${{ env.IMAGE_VERSION }}" -f ./docker/bridge/Dockerfile .
+          docker build -t witnet/witnet-centralized-ethereum-bridge:"$VERNUM" -f ./docker/bridge/Dockerfile .
           docker build -t witnet/witnet-centralized-ethereum-bridge:latest -f ./docker/bridge/Dockerfile .
           docker image ls
 
@@ -40,7 +44,7 @@ jobs:
 
       - name: Push Image
         run: |
-          docker push witnet/witnet-centralized-ethereum-bridge:"${{ env.IMAGE_VERSION }}"
+          docker push witnet/witnet-centralized-ethereum-bridge:"$VERNUM"
           docker push witnet/witnet-centralized-ethereum-bridge:latest
 
   Failure:
