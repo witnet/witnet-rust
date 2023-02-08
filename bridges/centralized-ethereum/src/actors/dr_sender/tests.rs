@@ -40,16 +40,17 @@ fn example_request() -> RADRequest {
 fn deserialize_dr_high_value() {
     // A minimal valid data request
     let dro = DataRequestOutput {
-        witness_reward: 1_000_000,
+        witness_reward: 1_000_000_000,
         witnesses: 20,
         min_consensus_percentage: 51,
         data_request: example_request(),
+        collateral: 1_000_000_000,
         ..Default::default()
     };
     // The cost of creating this data request is the reward (1_000_000) times the number of
     // witnesses (20)
     let total_value = dro.checked_total_value().unwrap();
-    assert_eq!(total_value, 20_000_000);
+    assert_eq!(total_value, 20_000_000_000);
 
     let dro_bytes = dro.to_pb_bytes().unwrap();
     // Setting the maximum allowed value to 1 nanowit below that will result in an error 0xE1:
