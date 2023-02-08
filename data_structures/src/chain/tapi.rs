@@ -60,7 +60,11 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0014-0016".to_string(), 549141);
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
     active_wips.insert("WIP0020-0021".to_string(), 1059861);
-    // active_wips.insert("WIP0022".to_string(), 99999999);
+    active_wips.insert("WIP0022".to_string(), 1651280);
+    active_wips.insert("WIP0024".to_string(), 1651280);
+    active_wips.insert("WIP0025".to_string(), 1651280);
+    active_wips.insert("WIP0026".to_string(), 1651280);
+    active_wips.insert("WIP0027".to_string(), 1651280);
 
     active_wips
 }
@@ -74,7 +78,11 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0014-0016".to_string(), 0);
     active_wips.insert("WIP0017-0018-0019".to_string(), 0);
     active_wips.insert("WIP0020-0021".to_string(), 0);
-    // active_wips.insert("WIP0022".to_string(), 0);
+    active_wips.insert("WIP0022".to_string(), 0);
+    active_wips.insert("WIP0024".to_string(), 0);
+    active_wips.insert("WIP0025".to_string(), 0);
+    active_wips.insert("WIP0026".to_string(), 0);
+    active_wips.insert("WIP0027".to_string(), 0);
 
     active_wips
 }
@@ -92,9 +100,11 @@ pub fn current_active_wips() -> ActiveWips {
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
     let mut active_wips = current_active_wips();
-    active_wips
-        .active_wips
-        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
+    active_wips.active_wips.insert("WIP0022".to_string(), 0);
+    active_wips.active_wips.insert("WIP0024".to_string(), 0);
+    active_wips.active_wips.insert("WIP0025".to_string(), 0);
+    active_wips.active_wips.insert("WIP0026".to_string(), 0);
+    active_wips.active_wips.insert("WIP0027".to_string(), 0);
 
     active_wips
 }
@@ -156,18 +166,56 @@ impl TapiEngine {
                 }
 
                 // Hardcoded information about WIPs in vote processing
-                let bit = 3;
                 let wip_0022 = BitVotesCounter {
                     votes: 0,
                     period: 26880,
-                    wip: "WIP0022-0024-0025-0026-0027".to_string(),
+                    wip: "WIP0022".to_string(),
                     // Start signaling on
-                    // TODO: insert date here
-                    init: 99999999,
+                    init: 1651280,
                     end: u32::MAX,
-                    bit,
+                    bit: 3,
                 };
-                voting_wips[bit] = Some(wip_0022);
+                let wip_0024 = BitVotesCounter {
+                    votes: 0,
+                    period: 26880,
+                    wip: "WIP0024".to_string(),
+                    // Start signaling on
+                    init: 1651280,
+                    end: u32::MAX,
+                    bit: 4,
+                };
+                let wip_0025 = BitVotesCounter {
+                    votes: 0,
+                    period: 26880,
+                    wip: "WIP0025".to_string(),
+                    // Start signaling on
+                    init: 1651280,
+                    end: u32::MAX,
+                    bit: 5,
+                };
+                let wip_0026 = BitVotesCounter {
+                    votes: 0,
+                    period: 26880,
+                    wip: "WIP0026".to_string(),
+                    // Start signaling on
+                    init: 1651280,
+                    end: u32::MAX,
+                    bit: 6,
+                };
+                let wip_0027 = BitVotesCounter {
+                    votes: 0,
+                    period: 26880,
+                    wip: "WIP0027".to_string(),
+                    // Start signaling on
+                    init: 1651280,
+                    end: u32::MAX,
+                    bit: 7,
+                };
+                voting_wips[3] = Some(wip_0022);
+                voting_wips[4] = Some(wip_0024);
+                voting_wips[5] = Some(wip_0025);
+                voting_wips[6] = Some(wip_0026);
+                voting_wips[7] = Some(wip_0027);
             }
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
@@ -175,20 +223,6 @@ impl TapiEngine {
                 for (k, v) in test_wip_info() {
                     self.wip_activation.insert(k, v);
                 }
-
-                // Hardcoded information about WIPs in vote processing
-                let bit = 3;
-                let wip_0022 = BitVotesCounter {
-                    votes: 0,
-                    period: 50,
-                    wip: "WIP0022-0024-0025-0026-0027".to_string(),
-                    // Start voting at
-                    // TODO: insert date here
-                    init: 0,
-                    end: u32::MAX,
-                    bit,
-                };
-                voting_wips[bit] = Some(wip_0022);
             }
         };
 
@@ -472,23 +506,23 @@ impl ActiveWips {
     }
 
     pub fn wip0022(&self) -> bool {
-        self.wip_active("WIP0022-0024-0025-0026-0027")
+        self.wip_active("WIP0022")
     }
 
     pub fn wip0024(&self) -> bool {
-        self.wip_active("WIP0022-0024-0025-0026-0027")
+        self.wip_active("WIP0024")
     }
 
     pub fn wip0025(&self) -> bool {
-        self.wip_active("WIP0022-0024-0025-0026-0027")
+        self.wip_active("WIP0025")
     }
 
     pub fn wip0026(&self) -> bool {
-        self.wip_active("WIP0022-0024-0025-0026-0027")
+        self.wip_active("WIP0026")
     }
 
     pub fn wip0027(&self) -> bool {
-        self.wip_active("WIP0022-0024-0025-0026-0027")
+        self.wip_active("WIP0027")
     }
 
     /// Convenience method for inserting WIPs.

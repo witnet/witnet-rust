@@ -6,7 +6,7 @@ use std::{
 
 use itertools::Itertools;
 
-use witnet_config::defaults::CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO;
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
     secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
     signature::sign,
@@ -2780,9 +2780,7 @@ fn data_request_reward_collateral_ratio_wip() {
 
     let mut active_wips = current_active_wips();
     // Disable WIP-0022
-    active_wips
-        .active_wips
-        .remove("WIP0022-0024-0025-0026-0027");
+    active_wips.active_wips.remove("WIP0022");
 
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -2792,15 +2790,13 @@ fn data_request_reward_collateral_ratio_wip() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
-        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
     );
     x.unwrap();
 
     // Enable WIP-0022
-    active_wips
-        .active_wips
-        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
+    active_wips.active_wips.insert("WIP0022".to_string(), 0);
 
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -2810,14 +2806,15 @@ fn data_request_reward_collateral_ratio_wip() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
-        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::RewardTooLow {
             reward_collateral_ratio: 2666667,
-            required_reward_collateral_ratio: CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO
+            required_reward_collateral_ratio:
+                PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO
         }
     );
 }
@@ -2829,7 +2826,7 @@ fn data_request_reward_collateral_ratio_limit() {
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: ONE_WIT / CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        witness_reward: ONE_WIT / PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         witnesses: 2,
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
@@ -2852,9 +2849,7 @@ fn data_request_reward_collateral_ratio_limit() {
 
     let mut active_wips = current_active_wips();
     // Enable WIP-0022
-    active_wips
-        .active_wips
-        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
+    active_wips.active_wips.insert("WIP0022".to_string(), 0);
 
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -2864,14 +2859,14 @@ fn data_request_reward_collateral_ratio_limit() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
-        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
     );
     x.unwrap();
 
     // Decreasing the reward by 1 nanowit makes the transaction invalid
     let dr_output = DataRequestOutput {
-        witness_reward: ONE_WIT / CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO - 1,
+        witness_reward: ONE_WIT / PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO - 1,
         witnesses: 2,
         min_consensus_percentage: 51,
         collateral: ONE_WIT,
@@ -2891,14 +2886,15 @@ fn data_request_reward_collateral_ratio_limit() {
         &mut signatures_to_verify,
         ONE_WIT,
         MAX_DR_WEIGHT,
-        CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO,
+        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::RewardTooLow {
             reward_collateral_ratio: 126,
-            required_reward_collateral_ratio: CONSENSUS_CONSTANTS_REQUIRED_REWARD_COLLATERAL_RATIO
+            required_reward_collateral_ratio:
+                PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO
         }
     );
 }
@@ -7998,9 +7994,7 @@ fn tally_error_encode_reveal_wip() {
 
     let mut active_wips = current_active_wips();
     // Disable WIP-0026
-    active_wips
-        .active_wips
-        .remove("WIP0022-0024-0025-0026-0027");
+    active_wips.active_wips.remove("WIP-0026");
 
     // Before WIP-0026:
     let x = validate_tally_transaction(
@@ -8019,9 +8013,7 @@ fn tally_error_encode_reveal_wip() {
     );
 
     // Enable WIP-0026
-    active_wips
-        .active_wips
-        .insert("WIP0022-0024-0025-0026-0027".to_string(), 0);
+    active_wips.active_wips.insert("WIP0026".to_string(), 0);
 
     // After WIP-0026:
     let x = validate_tally_transaction(
