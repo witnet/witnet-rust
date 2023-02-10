@@ -806,8 +806,8 @@ mod tests {
         let mut t = TapiEngine::default();
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // The first block whose vote must be counted is the one from WIP0021
-        let init_epoch_wip0022 = 99999999;
+        // The first block whose vote must be counted is the one from WIP0022
+        let init_epoch_wip0022 = 1651280;
         assert_eq!(epoch, init_epoch_wip0022);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
@@ -821,9 +821,12 @@ mod tests {
         // Test initialize_wip_information with a non-empty TapiEngine
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // WIP0022 is already included and it won't be updated
-        let name_wip0022 = "WIP0022-0024-0025-0026-0027".to_string();
         let mut hs = HashSet::new();
-        hs.insert(name_wip0022);
+        hs.insert("WIP0022".to_string());
+        hs.insert("WIP0024".to_string());
+        hs.insert("WIP0025".to_string());
+        hs.insert("WIP0026".to_string());
+        hs.insert("WIP0027".to_string());
         assert_eq!(old_wips, hs);
 
         // There is no new WIPs to update so we obtain the max value
