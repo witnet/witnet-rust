@@ -893,6 +893,8 @@ pub fn validate_tally_transaction<'a>(
         "expected_ta_tx.tally: {}",
         hex::encode(&expected_ta_tx.tally)
     );
+    #[cfg(test)]
+    println!("ta_tx.tally:          {}", hex::encode(&ta_tx.tally));
 
     // Validation of tally result
     if expected_ta_tx.tally != ta_tx.tally {

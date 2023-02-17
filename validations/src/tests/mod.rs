@@ -47,10 +47,15 @@ mod witnessing;
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
-const REQUIRED_REWARD_COLLATERAL_RATIO: u64 = u64::MAX;
+const REQUIRED_REWARD_COLLATERAL_RATIO: u64 =
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
 const HALVING_PERIOD: u32 = 3_500_000;
-const LAST_EPOCH_WITH_WIP_ACTIVATED: u32 = 683_541;
+const LAST_EPOCH_WITH_WIP_ACTIVATED: u32 = 1_651_280;
+static DEFAULT_COLLATERAL: u64 = ONE_WIT;
+static DEFAULT_WITNESS_REWARD: u64 =
+    DEFAULT_COLLATERAL / PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
+static DEFAULT_INPUT_VALUE: u64 = 2 * ONE_WIT;
 
 // Block epoch used in tally tests
 const E: Epoch = LAST_EPOCH_WITH_WIP_ACTIVATED;
@@ -1399,7 +1404,7 @@ fn data_request_no_inputs() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -1435,7 +1440,7 @@ fn data_request_no_inputs_but_one_signature() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -1480,7 +1485,7 @@ fn data_request_one_input_but_no_signature() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -1512,7 +1517,7 @@ fn data_request_one_input_but_no_signature() {
 fn data_request_one_input_signatures() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1000,
+        value: DEFAULT_INPUT_VALUE,
         time_lock: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -1521,11 +1526,11 @@ fn data_request_one_input_signatures() {
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
 
     let dr_output = DataRequestOutput {
-        witness_reward: 500,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -1570,7 +1575,7 @@ fn data_request_input_double_spend() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -1611,7 +1616,7 @@ fn data_request_input_not_in_utxo() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -1656,7 +1661,7 @@ fn data_request_input_not_enough_value() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -1725,7 +1730,7 @@ fn data_request_output_value_overflow() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -1758,7 +1763,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
     let mut signatures_to_verify = vec![];
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1000,
+        value: ONE_WIT,
         time_lock: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -1785,10 +1790,10 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
 
 fn test_rad_request(data_request: RADRequest) -> Result<(), failure::Error> {
     test_drtx(DataRequestOutput {
-        witness_reward: 500,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     })
@@ -1935,7 +1940,7 @@ fn example_data_request_output(witnesses: u16, witness_reward: u64, fee: u64) ->
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     }
 }
 
@@ -1950,7 +1955,7 @@ fn example_data_request_output_rng(
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request_rng(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     }
 }
 
@@ -1965,7 +1970,7 @@ fn example_data_request_output_average_mean_reducer(
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request_average_mean_reducer(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     }
 }
 
@@ -1980,7 +1985,7 @@ fn example_data_request_output_with_mode_filter(
         witness_reward,
         min_consensus_percentage: 51,
         data_request: example_data_request_with_mode_filter(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     }
 }
 
@@ -2039,7 +2044,7 @@ fn data_request_witnesses_0() {
         witness_reward: 500,
         witnesses: 0,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -2055,10 +2060,10 @@ fn data_request_witnesses_1() {
     // But that can change in the future
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -2072,7 +2077,7 @@ fn data_request_no_value() {
         witness_reward: 0,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -2086,7 +2091,7 @@ fn data_request_no_value() {
 fn data_request_insufficient_collateral() {
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        witness_reward: 10,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
         collateral: 1000,
@@ -2107,17 +2112,20 @@ fn data_request_minimum_value() {
     // Create a data request with the minimum possible value
     let data_request = example_data_request();
     let dro = DataRequestOutput {
-        witness_reward: 1,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
     // The dro is valid
     test_drtx(dro.clone()).unwrap();
     // The total value is 1
-    assert_eq!(dro.checked_total_value(), Ok(1));
+    assert_eq!(
+        dro.checked_total_value(),
+        Ok(ONE_WIT / PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO)
+    );
 }
 
 #[test]
@@ -2128,7 +2136,7 @@ fn data_request_no_reward() {
         commit_and_reveal_fee: 100,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
     });
     assert_eq!(
@@ -2141,11 +2149,11 @@ fn data_request_no_reward() {
 fn data_request_http_post_before_wip_activation() {
     let data_request = example_data_request_http_post();
     let dr_output = DataRequestOutput {
-        witness_reward: 1,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         commit_and_reveal_fee: 100,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
     };
 
@@ -2153,7 +2161,7 @@ fn data_request_http_post_before_wip_activation() {
         let mut signatures_to_verify = vec![];
         let vto = ValueTransferOutput {
             pkh: MY_PKH_1.parse().unwrap(),
-            value: 1000,
+            value: DEFAULT_INPUT_VALUE,
             time_lock: 0,
         };
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2209,11 +2217,11 @@ fn data_request_http_get_with_headers_before_wip_activation() {
         },
     };
     let dr_output = DataRequestOutput {
-        witness_reward: 1,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         commit_and_reveal_fee: 100,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
     };
 
@@ -2221,7 +2229,7 @@ fn data_request_http_get_with_headers_before_wip_activation() {
         let mut signatures_to_verify = vec![];
         let vto = ValueTransferOutput {
             pkh: MY_PKH_1.parse().unwrap(),
-            value: 1000,
+            value: DEFAULT_INPUT_VALUE,
             time_lock: 0,
         };
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2267,11 +2275,11 @@ fn data_request_parse_xml_before_wip_activation() {
     data_request.retrieve[0].script = vec![0x81, 0x18, 0x78];
     data_request.retrieve[0].url = "http://127.0.0.1".to_string();
     let dr_output = DataRequestOutput {
-        witness_reward: 1,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         commit_and_reveal_fee: 100,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
     };
 
@@ -2279,7 +2287,7 @@ fn data_request_parse_xml_before_wip_activation() {
         let mut signatures_to_verify = vec![];
         let vto = ValueTransferOutput {
             pkh: MY_PKH_1.parse().unwrap(),
-            value: 1000,
+            value: DEFAULT_INPUT_VALUE,
             time_lock: 0,
         };
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2321,11 +2329,11 @@ fn data_request_parse_xml_after_wip_activation() {
     data_request.retrieve[0].script = vec![0x81, 0x18, 0x78];
     data_request.retrieve[0].url = "http://127.0.0.1".to_string();
     let dr_output = DataRequestOutput {
-        witness_reward: 1,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         commit_and_reveal_fee: 100,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
     };
 
@@ -2333,7 +2341,7 @@ fn data_request_parse_xml_after_wip_activation() {
         let mut signatures_to_verify = vec![];
         let vto = ValueTransferOutput {
             pkh: MY_PKH_1.parse().unwrap(),
-            value: 1000,
+            value: DEFAULT_INPUT_VALUE,
             time_lock: 0,
         };
         let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2372,7 +2380,7 @@ fn dr_validation_weight_limit_exceeded() {
     let mut signatures_to_verify = vec![];
     let utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_set, 1000);
-    let dro = example_data_request_output(2, 1, 0);
+    let dro = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 0);
 
     let dr_body = DRTransactionBody::new(
         vec![Input::default()],
@@ -2409,11 +2417,11 @@ fn dr_validation_weight_limit_exceeded() {
 fn data_request_value_overflow() {
     let data_request = example_data_request();
     let dro = DataRequestOutput {
-        witness_reward: 1,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         commit_and_reveal_fee: 1,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
     };
     // Test different combinations of overflowing values
@@ -2450,17 +2458,17 @@ fn data_request_miner_fee() {
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: 750 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
 
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1000,
+        value: DEFAULT_INPUT_VALUE,
         time_lock: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2484,7 +2492,10 @@ fn data_request_miner_fee() {
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
-    assert_eq!(dr_miner_fee, 1000 - 750);
+    assert_eq!(
+        dr_miner_fee,
+        DEFAULT_INPUT_VALUE - DEFAULT_WITNESS_REWARD * 2
+    );
 }
 
 #[test]
@@ -2493,17 +2504,17 @@ fn data_request_miner_fee_with_change() {
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: 750 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
 
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1000,
+        value: DEFAULT_INPUT_VALUE,
         time_lock: 0,
     };
     let change_output = ValueTransferOutput {
@@ -2532,27 +2543,29 @@ fn data_request_miner_fee_with_change() {
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
-    assert_eq!(dr_miner_fee, 1000 - 750 - 200);
+    assert_eq!(
+        dr_miner_fee,
+        DEFAULT_INPUT_VALUE - DEFAULT_WITNESS_REWARD * 2 - 200
+    );
 }
 
 #[test]
 fn data_request_change_to_different_pkh() {
-    // Use 1000 input to pay 750 for data request, and request 200 change to a different address
     // This should fail because the change can only be sent to the same pkh as the first input
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: 750 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
 
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1000,
+        value: ONE_WIT,
         time_lock: 0,
     };
     let change_output = ValueTransferOutput {
@@ -2597,10 +2610,10 @@ fn data_request_two_change_outputs() {
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: 750 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -2656,10 +2669,10 @@ fn data_request_miner_fee_with_too_much_change() {
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: 750 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -2701,14 +2714,13 @@ fn data_request_miner_fee_with_too_much_change() {
 
 #[test]
 fn data_request_zero_value_output() {
-    // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: 750 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -2716,7 +2728,7 @@ fn data_request_zero_value_output() {
     let vto = ValueTransferOutput {
         time_lock: 0,
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1000,
+        value: ONE_WIT,
     };
     let change_output = ValueTransferOutput {
         time_lock: 0,
@@ -2757,17 +2769,17 @@ fn data_request_reward_collateral_ratio_wip() {
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        witness_reward: 750 / 2,
+        witness_reward: 1,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
 
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1000,
+        value: DEFAULT_INPUT_VALUE,
         time_lock: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -2812,7 +2824,9 @@ fn data_request_reward_collateral_ratio_wip() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::RewardTooLow {
-            reward_collateral_ratio: 2666667,
+            // As we're using 1 nanoWit as fee, and the collateral is 1 Wit, the ratio is exactly
+            // the same as how many nanoWits is 1 Wit worth
+            reward_collateral_ratio: ONE_WIT,
             required_reward_collateral_ratio:
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO
         }
@@ -2829,7 +2843,7 @@ fn data_request_reward_collateral_ratio_limit() {
         witness_reward: ONE_WIT / PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request: data_request.clone(),
         ..DataRequestOutput::default()
     };
@@ -2869,7 +2883,7 @@ fn data_request_reward_collateral_ratio_limit() {
         witness_reward: ONE_WIT / PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO - 1,
         witnesses: 2,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -2930,7 +2944,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "469dc46106ef5008cc5a6106ff9dedcf4ac19a23b1ea41807ae1fc08ab79a08e";
+static DR_HASH: &str = "b64967ac190893e13083cc950b9e18e5fdb832051ca3aca5ea41212461b3bc91";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr_and_utxo_set(
@@ -2948,11 +2962,11 @@ fn test_commit_with_dr_and_utxo_set(
     let rep_eng = ReputationEngine::new(100);
 
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -3008,11 +3022,11 @@ fn test_commit_difficult_proof() {
     rep_eng.ars_mut().push_activity(vec![rep_pkh]);
 
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -3098,11 +3112,11 @@ fn test_commit_with_collateral(
     };
 
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -3261,11 +3275,11 @@ fn commitment_no_signature() {
     };
 
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -3358,11 +3372,11 @@ fn commitment_invalid_proof() {
     cb.outputs = vec![];
 
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -3425,11 +3439,11 @@ fn commitment_dr_in_reveal_stage() {
     };
 
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -3687,7 +3701,7 @@ fn commitment_collateral_genesis_always_mature() {
 fn commitment_collateral_double_spend() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: ONE_WIT / 2,
+        value: DEFAULT_INPUT_VALUE,
         time_lock: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -3706,7 +3720,7 @@ fn commitment_collateral_double_spend() {
 fn commitment_collateral_wrong_amount() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: ONE_WIT,
+        value: DEFAULT_INPUT_VALUE,
         time_lock: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -3724,7 +3738,7 @@ fn commitment_collateral_wrong_amount() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::IncorrectCollateral {
             expected: ONE_WIT,
-            found: ONE_WIT - 1
+            found: DEFAULT_INPUT_VALUE - 1
         }
     );
 }
@@ -3796,7 +3810,7 @@ fn commitment_collateral_zero_is_minimum() {
         };
 
         let dro = DataRequestOutput {
-            witness_reward: 1000,
+            witness_reward: DEFAULT_WITNESS_REWARD,
             witnesses: 1,
             min_consensus_percentage: 51,
             data_request: example_data_request(),
@@ -3810,7 +3824,7 @@ fn commitment_collateral_zero_is_minimum() {
         // dr_hash changed because the collateral is 0
         assert_eq!(
             dr_hash,
-            "0c2775673255e90167230d5e70b2b087fa66e45c69e46744d7516e89ca764076"
+            "c7bdc53fbd411ca49fc47f57c78766a130e51e4fe7798414f20a6dc2bfc82afb"
                 .parse()
                 .unwrap()
         );
@@ -3885,11 +3899,11 @@ fn commitment_timelock() {
         rad_request.time_lock = time_lock;
 
         let dro = DataRequestOutput {
-            witness_reward: 1000,
+            witness_reward: DEFAULT_WITNESS_REWARD,
             witnesses: 1,
             min_consensus_percentage: 51,
             data_request: rad_request,
-            collateral: ONE_WIT,
+            collateral: DEFAULT_COLLATERAL,
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -3982,11 +3996,11 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
     let block_hash = Hash::default();
     let epoch = 0;
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -4101,11 +4115,11 @@ fn reveal_dr_in_commit_stage() {
     let mut dr_pool = DataRequestPool::default();
     let epoch = 0;
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -4235,7 +4249,7 @@ fn reveal_valid_commitment() {
         witnesses: 5,
         commit_and_reveal_fee: 20,
         min_consensus_percentage: 51,
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
@@ -4576,7 +4590,7 @@ fn dr_pool_with_dr_in_tally_all_errors(
         liars_count,
         0,
         dr_output.witness_reward,
-        ONE_WIT,
+        DEFAULT_COLLATERAL,
     );
 
     (
@@ -4691,7 +4705,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
         liars_count,
         errors_count,
         dr_output.witness_reward,
-        ONE_WIT,
+        DEFAULT_COLLATERAL,
     );
 
     (
@@ -4837,10 +4851,10 @@ fn tally_dr_not_tally_stage() {
     let dr_output = DataRequestOutput {
         witnesses: 1,
         commit_and_reveal_fee: 20,
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     };
     let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output.clone());
     let dr_transaction_signature = sign_tx(PRIV_KEY_2, &dr_transaction_body);
@@ -4920,10 +4934,14 @@ fn tally_invalid_consensus() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
 
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -4980,9 +4998,9 @@ fn tally_invalid_consensus() {
 
 #[test]
 fn tally_valid_1_reveal_5_commits() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
-    let change = 5 * 200 + 4 * 20;
+    let change = 5 * DEFAULT_WITNESS_REWARD + 4 * 20;
 
     let tally_value = RadonReport::from_result(
         Ok(RadonTypes::from(
@@ -5071,11 +5089,11 @@ fn generic_tally_test_stddev_dr(
         },
     };
 
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let dr_output = DataRequestOutput {
         witnesses: 4,
         commit_and_reveal_fee: 10,
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         min_consensus_percentage: 51,
         data_request,
         collateral,
@@ -5088,7 +5106,11 @@ fn generic_tally_test_rng(
     num_commits: usize,
     reveals: Vec<Vec<u8>>,
 ) -> (Vec<PublicKeyHash>, PublicKeyHash, Hash, DataRequestPool) {
-    let dr_output = example_data_request_output_rng(u16::try_from(num_commits).unwrap(), 200, 20);
+    let dr_output = example_data_request_output_rng(
+        u16::try_from(num_commits).unwrap(),
+        DEFAULT_WITNESS_REWARD,
+        20,
+    );
 
     generic_tally_test_inner(num_commits, reveals, dr_output)
 }
@@ -5097,7 +5119,11 @@ fn generic_tally_test(
     num_commits: usize,
     reveals: Vec<Vec<u8>>,
 ) -> (Vec<PublicKeyHash>, PublicKeyHash, Hash, DataRequestPool) {
-    let dr_output = example_data_request_output(u16::try_from(num_commits).unwrap(), 200, 20);
+    let dr_output = example_data_request_output(
+        u16::try_from(num_commits).unwrap(),
+        DEFAULT_WITNESS_REWARD,
+        20,
+    );
 
     generic_tally_test_inner(num_commits, reveals, dr_output)
 }
@@ -5163,9 +5189,9 @@ fn generic_tally_test_inner(
 
 #[test]
 fn tally_valid_1_reveal_5_commits_invalid_value() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
-    let change = 5 * 200 + 4 * 20;
+    let change = 5 * DEFAULT_WITNESS_REWARD + 4 * 20;
 
     let tally_value = RadonReport::from_result(
         Ok(RadonTypes::from(
@@ -5235,9 +5261,9 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
 
 #[test]
 fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
-    let change = 5 * 200 + 4 * 20;
+    let change = 5 * DEFAULT_WITNESS_REWARD + 4 * 20;
 
     let tally_value = RadonReport::from_result(
         Ok(RadonTypes::from(
@@ -5309,10 +5335,14 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
 fn tally_valid() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5363,10 +5393,14 @@ fn tally_valid() {
 fn tally_too_many_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5412,10 +5446,11 @@ fn tally_too_many_outputs() {
 fn tally_too_less_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5447,10 +5482,14 @@ fn tally_too_less_outputs() {
 fn tally_invalid_change() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT + (ONE_WIT / 4));
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + (DEFAULT_COLLATERAL / 4)
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5507,10 +5546,11 @@ fn tally_invalid_change() {
 fn tally_double_reward() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5548,10 +5588,11 @@ fn tally_double_reward() {
 fn tally_reveal_not_found() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5589,10 +5630,11 @@ fn tally_reveal_not_found() {
 fn tally_invalid_reward() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5634,10 +5676,11 @@ fn tally_invalid_reward() {
 fn tally_valid_2_reveals() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5676,10 +5719,14 @@ fn tally_valid_3_reveals_dr_liar() {
     let liar_value = vec![0x0a];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
-    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5723,10 +5770,14 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
     let liar_value = vec![0x0a];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
-    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5777,10 +5828,13 @@ fn tally_valid_5_reveals_1_liar_1_error() {
     let liar_value = vec![0x0a];
 
     // Create a DataRequestPool with 5 reveals (one of them is a lie and another is an error)
-    let dr_output = example_data_request_output_with_mode_filter(5, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 5, 5, 1, 1, reveal_value, liar_value);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 3);
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5802,7 +5856,7 @@ fn tally_valid_5_reveals_1_liar_1_error() {
     let vt3 = ValueTransferOutput {
         time_lock: 0,
         pkh: error_witnesses[0],
-        value: ONE_WIT,
+        value: DEFAULT_COLLATERAL,
     };
     let vt4 = ValueTransferOutput {
         time_lock: 0,
@@ -5837,10 +5891,11 @@ fn tally_valid_3_reveals_1_error() {
     let reveal_value = vec![0x00];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
-    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 1, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5857,7 +5912,7 @@ fn tally_valid_3_reveals_1_error() {
     let vt2 = ValueTransferOutput {
         time_lock: 0,
         pkh: error_witnesses[0],
-        value: ONE_WIT,
+        value: DEFAULT_COLLATERAL,
     };
     let vt3 = ValueTransferOutput {
         time_lock: 0,
@@ -5888,10 +5943,11 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
     let reveal_value = vec![0x00];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
-    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 1, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -5934,7 +5990,7 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidReward {
             value: reward,
-            expected_value: ONE_WIT,
+            expected_value: DEFAULT_COLLATERAL,
         }
     )
 }
@@ -5945,10 +6001,11 @@ fn tally_valid_3_reveals_mark_all_as_error() {
     let reveal_value = vec![0x00];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
-    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -6003,10 +6060,14 @@ fn tally_dishonest_reward() {
     let liar_value = vec![0x0a];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
-    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+    );
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -6058,7 +6119,7 @@ fn create_tally_validation_dr_liar() {
     );
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
-    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(
             dr_output.clone(),
@@ -6068,7 +6129,11 @@ fn create_tally_validation_dr_liar() {
             reveal_value.result.encode().unwrap(),
             liar_value.result.encode().unwrap(),
         );
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 2);
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 2
+    );
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
@@ -6128,7 +6193,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
     );
 
     // Create a DataRequestPool with 5 reveals (one lie and one error)
-    let dr_output = example_data_request_output_with_mode_filter(5, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(
             dr_output.clone(),
@@ -6139,7 +6204,11 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
             reveal_value.result.encode().unwrap(),
             liar_value.result.encode().unwrap(),
         );
-    assert_eq!(reward, 200 + ONE_WIT + ONE_WIT / 3);
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(
+        reward,
+        DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3
+    );
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
@@ -6207,7 +6276,7 @@ fn create_tally_validation_4_commits_2_reveals() {
     );
 
     // Create a DataRequestPool with 4 commits and 2 reveals
-    let dr_output = example_data_request_output_with_mode_filter(4, 200, 20);
+    let dr_output = example_data_request_output_with_mode_filter(4, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output.clone(),
@@ -6217,7 +6286,8 @@ fn create_tally_validation_4_commits_2_reveals() {
             reveal_value.result.encode().unwrap(),
             vec![],
         );
-    assert_eq!(reward, 200 + 2 * ONE_WIT);
+    // You earn your reward, get your collateral back, plus a share of the slashed collateral
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + 2 * DEFAULT_COLLATERAL);
 
     // Create the RadonReport using the reveals and the RADTally script
     let min_consensus = 0.51;
@@ -6261,7 +6331,7 @@ fn create_tally_validation_4_commits_2_reveals() {
 
 #[test]
 fn tally_valid_zero_commits() {
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![]);
     assert_eq!(reward, 0);
@@ -6288,7 +6358,7 @@ fn tally_valid_zero_commits() {
 
 #[test]
 fn create_tally_validation_zero_commits() {
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 0, 0, 0, vec![], vec![]);
     assert_eq!(reward, 0);
@@ -6318,7 +6388,7 @@ fn create_tally_validation_zero_commits() {
 
 #[test]
 fn tally_invalid_zero_commits() {
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![]);
     assert_eq!(reward, 0);
@@ -6361,10 +6431,11 @@ fn tally_invalid_zero_commits() {
 
 #[test]
 fn tally_valid_zero_reveals() {
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
-    assert_eq!(reward, ONE_WIT);
+    // You get your collateral back
+    assert_eq!(reward, DEFAULT_COLLATERAL);
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
@@ -6420,10 +6491,11 @@ fn tally_valid_zero_reveals() {
 
 #[test]
 fn create_tally_validation_zero_reveals() {
-    let dr_output = example_data_request_output(5, 200, 20);
+    let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
-    assert_eq!(reward, ONE_WIT);
+    // There were no reveals, you get your collateral back
+    assert_eq!(reward, DEFAULT_COLLATERAL);
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
@@ -6457,11 +6529,12 @@ fn create_tally_validation_zero_reveals() {
 
 #[test]
 fn create_tally_validation_zero_reveals_zero_collateral() {
-    let mut dr_output = example_data_request_output(5, 200, 20);
+    let mut dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     dr_output.collateral = 0;
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
-    assert_eq!(reward, ONE_WIT);
+    // No rewards, you just get your collateral back
+    assert_eq!(reward, DEFAULT_COLLATERAL);
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
@@ -6498,16 +6571,16 @@ fn validate_calculate_tally_change() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
         commit_and_reveal_fee: 15,
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         ..DataRequestOutput::default()
     };
 
     // Case 0 commits
-    let expected_change = (15 + 15 + 1000) * 5;
+    let expected_change = (15 + 15 + DEFAULT_WITNESS_REWARD) * 5;
     assert_eq!(expected_change, calculate_tally_change(0, 0, 0, &dr_output));
 
     // Case 0 reveals
-    let expected_change = (15 + 1000) * 5;
+    let expected_change = (15 + DEFAULT_WITNESS_REWARD) * 5;
     assert_eq!(expected_change, calculate_tally_change(5, 0, 0, &dr_output));
 
     // Case all honests
@@ -6515,14 +6588,14 @@ fn validate_calculate_tally_change() {
     assert_eq!(expected_change, calculate_tally_change(5, 5, 5, &dr_output));
 
     // Case 2 liars
-    let expected_change = 1000 * 2;
+    let expected_change = DEFAULT_WITNESS_REWARD * 2;
     assert_eq!(
         expected_change,
         calculate_tally_change(5, 5, 5 - 2, &dr_output)
     );
 
     // Case 1 liar and 1 non-revealer
-    let expected_change = 1000 * 2 + 15;
+    let expected_change = DEFAULT_WITNESS_REWARD * 2 + 15;
     assert_eq!(
         expected_change,
         calculate_tally_change(5, 4, 4 - 1, &dr_output)
@@ -6534,8 +6607,8 @@ fn validate_calculate_witness_reward() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
         commit_and_reveal_fee: 15,
-        witness_reward: 1000,
-        collateral: 5000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
+        collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
 
@@ -6548,15 +6621,15 @@ fn validate_calculate_witness_reward() {
     );
 
     // Case 0 reveals
-    let expected_reward = 5000;
+    let expected_reward = DEFAULT_COLLATERAL;
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
         calculate_witness_reward(5, 5, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
-    // Case all honests
-    let expected_reward = 1000 + 5000;
+    // Case all honest
+    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
@@ -6564,23 +6637,23 @@ fn validate_calculate_witness_reward() {
     );
 
     // Case 2 liars
-    let expected_reward = 1000 + 5000 + 5000 * 2 / 3;
-    let rest = 5000 * 2 % 3;
+    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL * 2 / 3;
+    let rest = DEFAULT_COLLATERAL * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
         calculate_witness_reward(5, 2, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 1 liar and 1 non-revealer
-    let expected_reward = 1000 + 5000 + 5000 * 2 / 3;
-    let rest = 5000 * 2 % 3;
+    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL * 2 / 3;
+    let rest = DEFAULT_COLLATERAL * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
         calculate_witness_reward(5, 2, 0, dr_output.witness_reward, dr_output.collateral)
     );
 
     // Case 1 error
-    let expected_reward = 1000 + 5000;
+    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
@@ -6588,8 +6661,8 @@ fn validate_calculate_witness_reward() {
     );
 
     // Case 1 liar and 1 error
-    let expected_reward = 1000 + 5000 + 5000 / 3;
-    let rest = 5000 % 3;
+    let expected_reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3;
+    let rest = DEFAULT_COLLATERAL % 3;
     assert_eq!(
         (expected_reward, rest),
         calculate_witness_reward(5, 1, 1, dr_output.witness_reward, dr_output.collateral)
@@ -6598,11 +6671,11 @@ fn validate_calculate_witness_reward() {
 
 #[test]
 fn tally_valid_4_reveals_all_liars() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]];
     let stddev_cbor = vec![249, 0, 0];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let change = 1000 * 4;
+    let change = DEFAULT_WITNESS_REWARD * 4;
 
     // Tally value: insufficient consensus
     let tally_value = vec![
@@ -6652,13 +6725,13 @@ fn tally_valid_4_reveals_all_liars() {
 
 #[test]
 fn tally_valid_4_reveals_all_liars_attacker_pkh() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
         4,
         vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]],
         vec![249, 0, 0],
     );
-    let change = 1000 * 4;
+    let change = DEFAULT_WITNESS_REWARD * 4;
     let attacker_pkh = PublicKeyHash::from_bytes(&[0xAA; 20]).unwrap();
 
     // Tally value: insufficient consensus
@@ -6713,14 +6786,14 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
 
 #[test]
 fn tally_valid_4_reveals_2_liars_2_true() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0x39, 0]; // 0.625
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
         4,
         vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]],
         stddev_cbor,
     );
-    let change = 1000 * 4;
+    let change = DEFAULT_WITNESS_REWARD * 4;
 
     // Tally value: insufficient consensus
     let tally_value = vec![
@@ -6770,7 +6843,7 @@ fn tally_valid_4_reveals_2_liars_2_true() {
 
 #[test]
 fn tally_valid_4_reveals_2_errors_2_true() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0, 0]; // 0.0
     let reveals = vec![
         vec![24, 60],
@@ -6779,7 +6852,7 @@ fn tally_valid_4_reveals_2_errors_2_true() {
         vec![216, 39, 129, 0],
     ];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let change = 1000 * 4;
+    let change = DEFAULT_WITNESS_REWARD * 4;
 
     // Tally value: insufficient consensus
     let tally_value = vec![
@@ -6829,14 +6902,14 @@ fn tally_valid_4_reveals_2_errors_2_true() {
 
 #[test]
 fn tally_valid_4_reveals_1_liar_2_true() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0x39, 0]; // 0.625
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
         4,
         vec![vec![24, 60], vec![24, 60], vec![24, 61]],
         stddev_cbor,
     );
-    let change = 1000 * 4;
+    let change = DEFAULT_WITNESS_REWARD * 4;
 
     // Tally value: insufficient consensus
     let tally_value = vec![
@@ -6886,7 +6959,7 @@ fn tally_valid_4_reveals_1_liar_2_true() {
 
 #[test]
 fn tally_valid_4_reveals_invalid_script_arg() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     // Note: this data request should be impossible to include in a block because it does not pass
     // the data request validation.
     // But it's a useful test for the branch that results in "RadError::TallyExecution".
@@ -6894,7 +6967,7 @@ fn tally_valid_4_reveals_invalid_script_arg() {
     let stddev_cbor = vec![0x3F];
     let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let change = 1000 * 4;
+    let change = DEFAULT_WITNESS_REWARD * 4;
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![
@@ -6947,7 +7020,7 @@ fn tally_valid_4_reveals_invalid_script_arg() {
 
 #[test]
 fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     // Note: this data request should be impossible to include in a block because it does not pass
     // the data request validation.
     // But it's a useful test for the branch that results in "RadError::TallyExecution".
@@ -6955,7 +7028,7 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
     let stddev_cbor = vec![0x3F];
     let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61]];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let change = 1000 * 4 + 10;
+    let change = DEFAULT_WITNESS_REWARD * 4 + 10;
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![
@@ -7008,7 +7081,6 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
 
 #[test]
 fn tally_valid_4_reveals_majority_of_errors() {
-    let collateral = ONE_WIT;
     let stddev_cbor = vec![249, 0, 0]; // 0.0
                                        // RetrieveTimeout
     let reveals = vec![
@@ -7019,7 +7091,7 @@ fn tally_valid_4_reveals_majority_of_errors() {
     ];
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) =
         generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let reward = collateral + 1000;
+    let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![216, 39, 129, 24, 49];
@@ -7062,7 +7134,6 @@ fn tally_valid_4_reveals_majority_of_errors() {
 
 #[test]
 fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
-    let collateral = ONE_WIT;
     let stddev_cbor = vec![249, 0, 0]; // 0.0
                                        // RetrieveTimeout
     let reveals = vec![
@@ -7071,8 +7142,8 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
         vec![216, 39, 129, 24, 49],
     ];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let reward = collateral + 1000 + collateral / 3;
-    let change = 1000 + 10;
+    let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL + DEFAULT_COLLATERAL / 3;
+    let change = DEFAULT_WITNESS_REWARD + 10;
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![216, 39, 129, 24, 49];
@@ -7115,12 +7186,12 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
 
 #[test]
 fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0, 0]; // 0.0
                                        // RetrieveTimeout
     let reveals = vec![vec![216, 39, 129, 24, 49], vec![216, 39, 129, 24, 49]];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let change = 1000 * 4 + 10 * 2;
+    let change = DEFAULT_WITNESS_REWARD * 4 + 10 * 2;
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![
@@ -7170,7 +7241,7 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
 
 #[test]
 fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0, 0]; // 0.0
 
     // There is only 50% consensus for error RetrieveTimeout
@@ -7181,7 +7252,7 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
         vec![216, 39, 129, 24, 65], // Underflow
     ];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let change = 1000 * 4;
+    let change = DEFAULT_WITNESS_REWARD * 4;
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![
@@ -7231,7 +7302,7 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
 
 #[test]
 fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus() {
-    let collateral = ONE_WIT;
+    let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0, 0]; // 0.0
 
     // There is only 50% consensus for error RetrieveTimeout
@@ -7241,7 +7312,7 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
         vec![216, 39, 129, 24, 64], // Overflow
     ];
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
-    let change = 1000 * 4 + 10;
+    let change = DEFAULT_WITNESS_REWARD * 4 + 10;
 
     // TODO: serialize tally value from RadError to make this test more clear
     let tally_value = vec![
@@ -7311,11 +7382,10 @@ fn tally_valid_rng() {
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
-    let collateral = ONE_WIT;
-    let reward = collateral + 200;
+    let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("0eb583894535900b2b3b71285f242ee4dda6681b38c802e1a71defe52372e0d4").unwrap(),
+        hex::decode("26dd11b019b78ed2aea221fd9d27a90031c6550b004e443b7e81f1a176235a26").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -7366,11 +7436,10 @@ fn tally_valid_rng_wrong_bytes_len() {
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
-    let collateral = ONE_WIT;
-    let reward = collateral + 200;
+    let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("1ce0d369c43108958b266e481f03b636985eb1808b40da363666b3b2368a46fc").unwrap(),
+        hex::decode("8ccdac64f7d20bcaff0ac8306ce67d7dfe2623feaa5c9066aa6c91e4a1b0dddd").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -7436,12 +7505,12 @@ fn tally_valid_rng_one_error() {
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
-    let collateral = ONE_WIT;
-    let reward = collateral + 200;
-    let change = 200;
+    let collateral = DEFAULT_COLLATERAL;
+    let reward = collateral + DEFAULT_WITNESS_REWARD;
+    let change = DEFAULT_WITNESS_REWARD;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("ddf68feb872a32980477d818e57fbfce2d3d7711eb8d2b4638b2e27e215df031").unwrap(),
+        hex::decode("d167af9c78f098e4b064f7f8c98a34f27b406a529565c1da9e832cdd52e332cb").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -7521,8 +7590,8 @@ fn tally_valid_rng_all_errors() {
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
-    let collateral = ONE_WIT;
-    let reward = collateral + 200;
+    let collateral = DEFAULT_COLLATERAL;
+    let reward = collateral + DEFAULT_WITNESS_REWARD;
 
     let tally_value = RadonTypes::from(
         RadonError::try_from(RadError::TallyExecution {
@@ -7589,12 +7658,12 @@ fn tally_valid_rng_one_invalid_type() {
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
-    let collateral = ONE_WIT;
-    let reward = collateral + 200 + collateral / 3;
-    let change = 200;
+    let collateral = DEFAULT_COLLATERAL;
+    let reward = collateral + DEFAULT_WITNESS_REWARD + collateral / 3;
+    let change = DEFAULT_WITNESS_REWARD;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
-        hex::decode("ddf68feb872a32980477d818e57fbfce2d3d7711eb8d2b4638b2e27e215df031").unwrap(),
+        hex::decode("d167af9c78f098e4b064f7f8c98a34f27b406a529565c1da9e832cdd52e332cb").unwrap(),
     ))
     .encode()
     .unwrap();
@@ -7645,8 +7714,8 @@ fn tally_valid_rng_all_invalid_type() {
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
-    let collateral = ONE_WIT;
-    let reward = collateral + 200;
+    let collateral = DEFAULT_COLLATERAL;
+    let reward = collateral + DEFAULT_WITNESS_REWARD;
 
     let tally_value = RadonTypes::from(
         RadonError::try_from(RadError::UnhandledInterceptV2 { inner: None }).unwrap(),
@@ -7705,10 +7774,11 @@ fn tally_unserializable_value() {
 
     // Reveal value: negative(18446744073709551361)
     let reveal_value = vec![59, 255, 255, 255, 255, 255, 255, 255, 0];
-    let dr_output = example_data_request_output_average_mean_reducer(2, 200, 20);
+    let dr_output = example_data_request_output_average_mean_reducer(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value: RadError::Unknown
     let tally_value = tally_bytes_on_encode_error();
@@ -7749,10 +7819,11 @@ fn tally_unhandled_intercept_with_message() {
     let reveal_value = vec![
         216, 39, 130, 24, 255, 0x66, b'H', b'e', b'l', b'l', b'o', b'!',
     ];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_all_errors(dr_output, 2, 2, reveal_value.clone());
-    assert_eq!(reward, ONE_WIT + 200);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value with message: 39([255, "Hello!"])
     let tally_value_with_message = reveal_value;
@@ -7854,10 +7925,11 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     // Reveal value: integer(2)
     let reveal_value_2 = vec![0x02];
     let reveal_values = vec![reveal_value_1, reveal_value_2];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_different_reveals(dr_output, 2, reveal_values, vec![]);
-    assert_eq!(reward, ONE_WIT + 200);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Expeted tally value: ModeTie error because the mode of [1, 2] is not defined
     // Tally value with message: 39([255, "(long description of ModeTie error)"])
@@ -7964,10 +8036,11 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
 fn tally_error_encode_reveal_wip() {
     // Reveal value (EncodeReveal error): 39([97])
     let reveal_value = vec![216, 39, 129, 24, 97];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_all_errors(dr_output, 2, 2, reveal_value);
-    assert_eq!(reward, ONE_WIT + 200);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     // Tally value (EncodeReveal error): 39([97])
     let tally_value_error_encode_reveal = vec![216, 39, 129, 24, 97];
@@ -7994,7 +8067,7 @@ fn tally_error_encode_reveal_wip() {
 
     let mut active_wips = current_active_wips();
     // Disable WIP-0026
-    active_wips.active_wips.remove("WIP-0026");
+    active_wips.active_wips.remove("WIP0026");
 
     // Before WIP-0026:
     let x = validate_tally_transaction(
@@ -8119,10 +8192,8 @@ fn block_signatures() {
     );
 }
 
-static MILLION_TX_OUTPUT: &str =
-    "0f0f000000000000000000000000000000000000000000000000000000000000:0";
-static MILLION_TX_OUTPUT2: &str =
-    "0f0f000000000000000000000000000000000000000000000000000000000001:0";
+static ONE_WIT_OUTPUT: &str = "0f0f000000000000000000000000000000000000000000000000000000000000:0";
+static ONE_WIT_OUTPUT2: &str = "0f0f000000000000000000000000000000000000000000000000000000000001:0";
 
 static BOOTSTRAP_HASH: &str = "4404291750b0cff95068e9894040e84e27cfdab1cb14f8c59928c3480a155b68";
 static GENESIS_BLOCK_HASH: &str =
@@ -8198,11 +8269,11 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let output1 = ValueTransferOutput {
         time_lock: 0,
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1_000_000,
+        value: ONE_WIT,
     };
     //let tx_output1 = VTTransactionBody::new(vec![], vec![output1.clone()]);
     //let output1_pointer = OutputPointer { transaction_id: tx_output1.hash(), output_index: 0 };
-    let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+    let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
     utxo_set.insert(output1_pointer, output1, 0);
 
     let secret_key = SecretKey {
@@ -8477,7 +8548,7 @@ fn block_difficult_proof() {
     };
     //let tx_output1 = VTTransactionBody::new(vec![], vec![output1.clone()]);
     //let output1_pointer = OutputPointer { transaction_id: tx_output1.hash(), output_index: 0 };
-    let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+    let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
     utxo_set.insert(output1_pointer, output1, block_number);
 
     let secret_key = SecretKey {
@@ -8603,7 +8674,7 @@ fn block_add_vtt_but_dont_update_mint() {
             pkh: Default::default(),
             value: 1,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
@@ -8617,7 +8688,7 @@ fn block_add_vtt_but_dont_update_mint() {
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::MismatchedMintValue {
             mint_value: old_mint_value.unwrap(),
-            fees_value: 1_000_000 - 1,
+            fees_value: ONE_WIT - 1,
             reward_value: old_mint_value.unwrap(),
         },
     );
@@ -8631,7 +8702,7 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
             pkh: Default::default(),
             value: 1,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
@@ -8641,7 +8712,7 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
             b.txns.mint.epoch,
             vec![ValueTransferOutput {
                 time_lock: 0,
-                value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 1_000_000 - 1,
+                value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + ONE_WIT - 1,
                 ..b.txns.mint.outputs[0]
             }],
         );
@@ -8671,12 +8742,12 @@ fn block_duplicated_commits() {
     };
 
     let dro = DataRequestOutput {
-        witness_reward: 1000 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         commit_and_reveal_fee: 50,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
@@ -8764,12 +8835,12 @@ fn block_duplicated_reveals() {
 
     // Add commits
     let dro = DataRequestOutput {
-        witness_reward: 1100 / 2,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
         commit_and_reveal_fee: 50,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
@@ -8866,10 +8937,11 @@ fn block_duplicated_reveals() {
 #[test]
 fn block_duplicated_tallies() {
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(2, 200, 20);
+    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
-    assert_eq!(reward, 200 + ONE_WIT);
+    // You earn your reward, and get your collateral back
+    assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
     let tally_value = vec![0x00];
     let vt0 = ValueTransferOutput {
@@ -8931,12 +9003,12 @@ fn block_duplicated_tallies() {
 fn block_before_and_after_hard_fork() {
     let mut dr_pool = DataRequestPool::default();
     let dro = DataRequestOutput {
-        witness_reward: 1000,
+        witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 100,
         commit_and_reveal_fee: 50,
         min_consensus_percentage: 51,
         data_request: example_data_request_before_wip19(),
-        collateral: ONE_WIT,
+        collateral: DEFAULT_COLLATERAL,
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro.clone());
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
@@ -8946,10 +9018,9 @@ fn block_before_and_after_hard_fork() {
         .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
         .unwrap();
 
-    // Another data request to insert in the block
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 110020,
+        value: DEFAULT_INPUT_VALUE,
         time_lock: 0,
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
@@ -8958,6 +9029,8 @@ fn block_before_and_after_hard_fork() {
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
+    let dr_cost = (DEFAULT_WITNESS_REWARD + 100) * 100;
+    let dr_fee = DEFAULT_INPUT_VALUE - dr_cost;
     let x = test_block_with_drpool_and_utxo_set(
         |b| {
             b.txns.data_request_txns.push(dr_transaction.clone());
@@ -8966,7 +9039,7 @@ fn block_before_and_after_hard_fork() {
                 b.txns.mint.epoch,
                 vec![ValueTransferOutput {
                     time_lock: 0,
-                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 20,
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + dr_fee,
                     ..b.txns.mint.outputs[0]
                 }],
             );
@@ -9177,13 +9250,13 @@ fn test_blocks_with_limits(
     let output1 = ValueTransferOutput {
         time_lock: 0,
         pkh: MY_PKH_1.parse().unwrap(),
-        value: 1_000_000,
+        value: ONE_WIT,
     };
     //let tx_output1 = VTTransactionBody::new(vec![], vec![output1.clone()]);
     //let output1_pointer = OutputPointer { transaction_id: tx_output1.hash(), output_index: 0 };
-    let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+    let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
     utxo_set.insert(output1_pointer, output1.clone(), block_number);
-    let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
+    let output2_pointer = ONE_WIT_OUTPUT2.parse().unwrap();
     utxo_set.insert(output2_pointer, output1, block_number);
 
     let secret_key = SecretKey {
@@ -9331,7 +9404,7 @@ fn block_add_vtt() {
             pkh: Default::default(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
@@ -9341,7 +9414,7 @@ fn block_add_vtt() {
                 value_transfer_txns: vec![vt_tx],
                 ..BlockTransactions::default()
             },
-            1_000_000 - 10,
+            ONE_WIT - 10,
         )
     };
     let x = test_blocks(vec![t0]);
@@ -9356,7 +9429,7 @@ fn block_add_2_vtt_same_input() {
             pkh: Default::default(),
             value: 1,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx1 = VTTransaction::new(vt_body, vec![vts]);
@@ -9366,7 +9439,7 @@ fn block_add_2_vtt_same_input() {
             pkh: Default::default(),
             value: 1,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx2 = VTTransaction::new(vt_body, vec![vts]);
@@ -9384,7 +9457,7 @@ fn block_add_2_vtt_same_input() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::OutputNotFound {
-            output: MILLION_TX_OUTPUT.parse().unwrap(),
+            output: ONE_WIT_OUTPUT.parse().unwrap(),
         },
     );
 }
@@ -9397,7 +9470,7 @@ fn block_add_1_vtt_2_same_input() {
             pkh: Default::default(),
             value: 1,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer); 2], vec![vto0]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx1 = VTTransaction::new(vt_body, vec![vts; 2]);
@@ -9415,7 +9488,7 @@ fn block_add_1_vtt_2_same_input() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::OutputNotFound {
-            output: MILLION_TX_OUTPUT.parse().unwrap(),
+            output: ONE_WIT_OUTPUT.parse().unwrap(),
         },
     );
 }
@@ -9431,7 +9504,7 @@ fn block_vtt_sequence() {
             pkh: Default::default(),
             value: 1_000_000 - 10,
         };
-        let output0_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output0_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output0_pointer)], vec![vto0]);
         t0_hash = vt_body.hash();
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
@@ -9485,10 +9558,10 @@ fn block_add_drt() {
     let t0 = {
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            witness_reward: 750 / 2,
+            witness_reward: DEFAULT_WITNESS_REWARD,
             witnesses: 2,
             min_consensus_percentage: 51,
-            collateral: ONE_WIT,
+            collateral: DEFAULT_COLLATERAL,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -9498,7 +9571,7 @@ fn block_add_drt() {
             pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
@@ -9509,7 +9582,7 @@ fn block_add_drt() {
                 data_request_txns: vec![dr_transaction],
                 ..BlockTransactions::default()
             },
-            1_000_000 - 750 - 10,
+            ONE_WIT - 2 * DEFAULT_WITNESS_REWARD - 10,
         )
     };
     let x = test_blocks(vec![t0]);
@@ -9521,10 +9594,10 @@ fn block_add_2_drt_same_input() {
     let t0 = {
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            witness_reward: 750 / 2,
+            witness_reward: DEFAULT_WITNESS_REWARD,
             witnesses: 2,
             min_consensus_percentage: 51,
-            collateral: ONE_WIT,
+            collateral: DEFAULT_COLLATERAL,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -9534,7 +9607,7 @@ fn block_add_2_drt_same_input() {
             pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
@@ -9542,9 +9615,9 @@ fn block_add_2_drt_same_input() {
 
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            witness_reward: 750 / 2,
+            witness_reward: DEFAULT_WITNESS_REWARD,
             witnesses: 2,
-            collateral: ONE_WIT,
+            collateral: DEFAULT_COLLATERAL,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -9554,7 +9627,7 @@ fn block_add_2_drt_same_input() {
             pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
@@ -9565,14 +9638,14 @@ fn block_add_2_drt_same_input() {
                 data_request_txns: vec![dr_tx1, dr_tx2],
                 ..BlockTransactions::default()
             },
-            1_000_000 - 750 - 10,
+            ONE_WIT - DEFAULT_WITNESS_REWARD - 10,
         )
     };
     let x = test_blocks(vec![t0]);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::OutputNotFound {
-            output: MILLION_TX_OUTPUT.parse().unwrap(),
+            output: ONE_WIT_OUTPUT.parse().unwrap(),
         },
     );
 }
@@ -9582,11 +9655,11 @@ fn block_add_1_drt_and_1_vtt_same_input() {
     let t0 = {
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            witness_reward: 750 / 2,
+            witness_reward: DEFAULT_WITNESS_REWARD,
             witnesses: 2,
             min_consensus_percentage: 51,
             data_request,
-            collateral: ONE_WIT,
+            collateral: DEFAULT_COLLATERAL,
             ..DataRequestOutput::default()
         };
 
@@ -9595,7 +9668,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
             pkh: MY_PKH_1.parse().unwrap(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
@@ -9606,7 +9679,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
             pkh: Default::default(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
@@ -9624,7 +9697,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::OutputNotFound {
-            output: MILLION_TX_OUTPUT.parse().unwrap(),
+            output: ONE_WIT_OUTPUT.parse().unwrap(),
         },
     );
 }
@@ -10048,7 +10121,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
     // Check that the collateral from commit transactions is removed from the UTXO set,
     // and the change outputs from commit transactions are included into the UTXO set
     let block_number = 100_000;
-    let collateral_value = ONE_WIT;
+    let collateral_value = DEFAULT_COLLATERAL;
     let change_value = 250;
 
     let change_vto = ValueTransferOutput {
@@ -10076,11 +10149,11 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         let rep_eng = ReputationEngine::new(100);
 
         let dro = DataRequestOutput {
-            witness_reward: 1000,
+            witness_reward: DEFAULT_WITNESS_REWARD,
             witnesses: 1,
             min_consensus_percentage: 51,
             data_request: example_data_request(),
-            collateral: ONE_WIT,
+            collateral: DEFAULT_COLLATERAL,
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -10269,13 +10342,13 @@ fn validate_vt_weight_overflow() {
             pkh: Default::default(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0.clone()]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         assert_eq!(vt_tx.weight(), 493);
 
-        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
+        let output2_pointer = ONE_WIT_OUTPUT2.parse().unwrap();
         let vt_body2 = VTTransactionBody::new(vec![Input::new(output2_pointer)], vec![vto0]);
         let vts2 = sign_tx(PRIV_KEY_1, &vt_body2);
         let vt_tx2 = VTTransaction::new(vt_body2, vec![vts2]);
@@ -10286,7 +10359,7 @@ fn validate_vt_weight_overflow() {
                 value_transfer_txns: vec![vt_tx, vt_tx2],
                 ..BlockTransactions::default()
             },
-            2_000_000 - 2 * 10,
+            DEFAULT_INPUT_VALUE - 2 * 10,
         )
     };
     let x = test_blocks_with_limits(
@@ -10312,13 +10385,13 @@ fn validate_vt_weight_valid() {
             pkh: Default::default(),
             value: 10,
         };
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0.clone()]);
         let vts = sign_tx(PRIV_KEY_1, &vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         assert_eq!(vt_tx.weight(), 493);
 
-        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
+        let output2_pointer = ONE_WIT_OUTPUT2.parse().unwrap();
         let vt_body2 = VTTransactionBody::new(vec![Input::new(output2_pointer)], vec![vto0]);
         let vts2 = sign_tx(PRIV_KEY_1, &vt_body2);
         let vt_tx2 = VTTransaction::new(vt_body2, vec![vts2]);
@@ -10329,7 +10402,7 @@ fn validate_vt_weight_valid() {
                 value_transfer_txns: vec![vt_tx, vt_tx2],
                 ..BlockTransactions::default()
             },
-            2_000_000 - 2 * 10,
+            DEFAULT_INPUT_VALUE - 2 * 10,
         )
     };
     let x = test_blocks_with_limits(vec![t0], 2 * 493, 0, GENESIS_BLOCK_HASH.parse().unwrap());
@@ -10366,9 +10439,9 @@ fn validate_vt_weight_genesis_valid() {
 #[test]
 fn validate_dr_weight_overflow() {
     let t0 = {
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
-        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
-        let dro = example_data_request_output(2, 1, 0);
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
+        let output2_pointer = ONE_WIT_OUTPUT2.parse().unwrap();
+        let dro = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 0);
         let dr_value = dro.checked_total_value().unwrap();
 
         let dr_body =
@@ -10387,7 +10460,7 @@ fn validate_dr_weight_overflow() {
                 data_request_txns: vec![dr_tx, dr_tx2],
                 ..BlockTransactions::default()
             },
-            2_000_000 - 2 * dr_value,
+            DEFAULT_INPUT_VALUE - 2 * dr_value,
         )
     };
     let x = test_blocks_with_limits(
@@ -10408,9 +10481,9 @@ fn validate_dr_weight_overflow() {
 // This test evaluates the theoretical limit of witnesses for a MAX_DR_WEIGHT of 80_000
 #[test]
 fn validate_dr_weight_overflow_126_witnesses() {
-    let dro = example_data_request_output(126, 1, 0);
+    let dro = example_data_request_output(126, DEFAULT_WITNESS_REWARD, 0);
     let t0 = {
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_value = dro.checked_total_value().unwrap();
 
         let dr_body =
@@ -10425,7 +10498,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
                 data_request_txns: vec![dr_tx],
                 ..BlockTransactions::default()
             },
-            1_000_000 - dr_value,
+            DEFAULT_INPUT_VALUE - dr_value,
         )
     };
     let x = test_blocks_with_limits(
@@ -10447,9 +10520,9 @@ fn validate_dr_weight_overflow_126_witnesses() {
 #[test]
 fn validate_dr_weight_valid() {
     let t0 = {
-        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
-        let output2_pointer = MILLION_TX_OUTPUT2.parse().unwrap();
-        let dro = example_data_request_output(2, 1, 0);
+        let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
+        let output2_pointer = ONE_WIT_OUTPUT2.parse().unwrap();
+        let dro = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 0);
         let dr_value = dro.checked_total_value().unwrap();
 
         let dr_body =
@@ -10468,7 +10541,7 @@ fn validate_dr_weight_valid() {
                 data_request_txns: vec![dr_tx, dr_tx2],
                 ..BlockTransactions::default()
             },
-            2_000_000 - 2 * dr_value,
+            DEFAULT_INPUT_VALUE - 2 * dr_value,
         )
     };
     let x = test_blocks_with_limits(vec![t0], 0, 2 * 1605, GENESIS_BLOCK_HASH.parse().unwrap());
