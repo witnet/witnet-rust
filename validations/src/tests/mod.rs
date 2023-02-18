@@ -10717,3 +10717,25 @@ fn validate_dr_weight_valid() {
     let x = test_blocks_with_limits(vec![t0], 0, 2 * 1605, GENESIS_BLOCK_HASH.parse().unwrap());
     x.unwrap();
 }
+
+#[test]
+fn wip0023_burning() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+    let liar_value = vec![0x0a];
+
+    // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
+    let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
+    let (_dr_pool, _dr_pointer, _rewarded, _slashed, _error_witnesses, _dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
+
+    // The total amount of value involved in a data request equals the addition of the witness
+    // reward, the required collateral, the commit fee, and the reveal fee, all multiplied by the
+    // number of witnesses. The commit and reveal fees are omitted here for simplicity.
+    let total_input = (DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL) * 3;
+    // The total output is the sum of all the witnesses payouts and collateral refunds, plus any
+    // refund to the requester (vt2 here).
+    let total_output = reward * 2 + change;
+    // Make sure that the collateral of the liar was burned
+    assert_eq!(total_input - total_output, DEFAULT_COLLATERAL);
+}
