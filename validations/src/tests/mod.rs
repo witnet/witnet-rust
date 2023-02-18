@@ -3065,10 +3065,7 @@ fn test_commit_difficult_proof() {
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     // This test is only valid before the third hard fork
-    let active_wips = ActiveWips {
-        active_wips: Default::default(),
-        block_epoch: 0,
-    };
+    let active_wips = ActiveWips::default();
 
     let mut signatures_to_verify = vec![];
     let x = validate_commit_transaction(

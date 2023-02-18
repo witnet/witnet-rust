@@ -8,8 +8,6 @@ use witnet_data_structures::{
     transaction::DRTransaction,
 };
 
-use std::collections::HashMap;
-
 use crate::validations::*;
 
 fn calculate_reppoe_threshold_v1(
@@ -18,10 +16,7 @@ fn calculate_reppoe_threshold_v1(
     num_witnesses: u16,
     minimum_difficulty: u32,
 ) -> (Hash, f64) {
-    let active_wips = ActiveWips {
-        active_wips: HashMap::default(),
-        block_epoch: 0,
-    };
+    let active_wips = ActiveWips::default();
     assert!(!active_wips.wip0016());
     assert!(!active_wips.third_hard_fork());
     calculate_reppoe_threshold(
@@ -39,10 +34,7 @@ fn calculate_reppoe_threshold_v2(
     num_witnesses: u16,
     minimum_difficulty: u32,
 ) -> (Hash, f64) {
-    let mut active_wips = ActiveWips {
-        active_wips: HashMap::default(),
-        block_epoch: 0,
-    };
+    let mut active_wips = ActiveWips::default();
     active_wips
         .active_wips
         .insert("THIRD_HARD_FORK".to_string(), 0);

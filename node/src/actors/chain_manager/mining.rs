@@ -1071,11 +1071,7 @@ mod tests {
         let block_proof = BlockEligibilityClaim::default();
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
-
-        let active_wips: ActiveWips = ActiveWips {
-            active_wips: HashMap::default(),
-            block_epoch: 0,
-        };
+        let active_wips = ActiveWips::default();
 
         // Build empty block (because max weight is zero)
         let (block_header, txns) = build_block(
