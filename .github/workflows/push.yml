@@ -34,6 +34,10 @@ jobs:
         with:
           subcrate: toolkit
       - uses: ./.github/actions/versions-match
+        name: Checking version of data_structures
+        with:
+          subcrate: data_structures
+      - uses: ./.github/actions/versions-match
         name: Checking version of bridges/centralized-ethereum
         with:
           subcrate: bridges/centralized-ethereum
