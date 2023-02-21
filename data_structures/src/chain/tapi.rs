@@ -172,7 +172,7 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0022".to_string(),
-                    // Start signaling on February 21 at 9am UTC
+                    // Start signaling on February 23 at 9am UTC
                     init: 1655120,
                     end: u32::MAX,
                     bit: 3,
@@ -182,7 +182,7 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0023".to_string(),
-                    // Start signaling on February 21 at 9am UTC
+                    // Start signaling on February 23 at 9am UTC
                     init: 1655120,
                     end: u32::MAX,
                     bit: 4,
@@ -191,7 +191,7 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0024".to_string(),
-                    // Start signaling on February 21 at 9am UTC
+                    // Start signaling on February 23 at 9am UTC
                     init: 1655120,
                     end: u32::MAX,
                     bit: 5,
@@ -200,7 +200,7 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0025".to_string(),
-                    // Start signaling on February 21 at 9am UTC
+                    // Start signaling on February 23 at 9am UTC
                     init: 1655120,
                     end: u32::MAX,
                     bit: 6,
@@ -209,7 +209,7 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0026".to_string(),
-                    // Start signaling on February 21 at 9am UTC
+                    // Start signaling on February 23 at 9am UTC
                     init: 1655120,
                     end: u32::MAX,
                     bit: 7,
@@ -218,7 +218,7 @@ impl TapiEngine {
                     votes: 0,
                     period: 26880,
                     wip: "WIP0027".to_string(),
-                    // Start signaling on February 21 at 9am UTC
+                    // Start signaling on February 23 at 9am UTC
                     init: 1655120,
                     end: u32::MAX,
                     bit: 8,
