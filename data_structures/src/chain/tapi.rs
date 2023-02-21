@@ -52,6 +52,12 @@ pub struct TapiEngine {
 }
 
 /// Initial information about WIPs
+///
+/// # IMPORTANT
+///
+/// - A WIP SHOULD ONLY BE ADDED HERE AFTER IT HAS BEEN ACTIVATED.
+/// - THE EPOCH SHOWN HERE IS THE FIRST EPOCH IN WHICH THE WIP WAS IN FORCE.
+/// - FOR TAPI UPGRADES, THE EPOCH ALWAYS ENDS WITH A `1`.
 pub fn wip_info() -> HashMap<String, Epoch> {
     let mut active_wips = HashMap::<String, Epoch>::default();
     active_wips.insert("WIP0008".to_string(), FIRST_HARD_FORK);
@@ -60,12 +66,6 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0014-0016".to_string(), 549141);
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
     active_wips.insert("WIP0020-0021".to_string(), 1059861);
-    active_wips.insert("WIP0022".to_string(), 1651280);
-    active_wips.insert("WIP0023".to_string(), 1651280);
-    active_wips.insert("WIP0024".to_string(), 1651280);
-    active_wips.insert("WIP0025".to_string(), 1651280);
-    active_wips.insert("WIP0026".to_string(), 1651280);
-    active_wips.insert("WIP0027".to_string(), 1651280);
 
     active_wips
 }
@@ -173,7 +173,7 @@ impl TapiEngine {
                     period: 26880,
                     wip: "WIP0022".to_string(),
                     // Start signaling on February 21 at 9am UTC
-                    init: 1651280,
+                    init: 1655120,
                     end: u32::MAX,
                     bit: 3,
                 };
@@ -183,7 +183,7 @@ impl TapiEngine {
                     period: 26880,
                     wip: "WIP0023".to_string(),
                     // Start signaling on February 21 at 9am UTC
-                    init: 1651280,
+                    init: 1655120,
                     end: u32::MAX,
                     bit: 4,
                 };
@@ -192,7 +192,7 @@ impl TapiEngine {
                     period: 26880,
                     wip: "WIP0024".to_string(),
                     // Start signaling on February 21 at 9am UTC
-                    init: 1651280,
+                    init: 1655120,
                     end: u32::MAX,
                     bit: 5,
                 };
@@ -201,7 +201,7 @@ impl TapiEngine {
                     period: 26880,
                     wip: "WIP0025".to_string(),
                     // Start signaling on February 21 at 9am UTC
-                    init: 1651280,
+                    init: 1655120,
                     end: u32::MAX,
                     bit: 6,
                 };
@@ -210,7 +210,7 @@ impl TapiEngine {
                     period: 26880,
                     wip: "WIP0026".to_string(),
                     // Start signaling on February 21 at 9am UTC
-                    init: 1651280,
+                    init: 1655120,
                     end: u32::MAX,
                     bit: 7,
                 };
@@ -219,7 +219,7 @@ impl TapiEngine {
                     period: 26880,
                     wip: "WIP0027".to_string(),
                     // Start signaling on February 21 at 9am UTC
-                    init: 1651280,
+                    init: 1655120,
                     end: u32::MAX,
                     bit: 8,
                 };
@@ -247,7 +247,14 @@ impl TapiEngine {
             match wip {
                 Some(wip) => {
                     if self.bit_tapi_counter.contains(i, &wip) {
-                        old_wips.insert(wip.wip.clone());
+                        let alleged_activation =
+                            self.wip_activation.get(&wip.wip).unwrap_or(&u32::MAX);
+                        let minimum_activation = wip.init + wip.period;
+                        // Ensure that WIPs cannot be active before a whole signaling period has
+                        // been completed after a first signaling epoch.
+                        if alleged_activation > &minimum_activation {
+                            old_wips.insert(wip.wip.clone());
+                        }
                     } else {
                         if wip.init < min_epoch {
                             min_epoch = wip.init;
@@ -258,6 +265,17 @@ impl TapiEngine {
                 None => self.bit_tapi_counter.remove(i),
             }
         }
+
+        // Reset the active WIPs to those statically defined in `wip_info()` and only enables those
+        // that have been marked as `old_wips` above, thus forgetting about accidentally enabled
+        // WIPs, and WIPs that are no longer under signaling.
+        let mut truly_active = wip_info();
+        for (name, epoch) in &self.wip_activation {
+            if old_wips.contains(name) {
+                truly_active.insert(name.clone(), *epoch);
+            }
+        }
+        self.wip_activation = truly_active;
 
         (min_epoch, old_wips)
     }
@@ -824,7 +842,7 @@ mod tests {
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // The first block whose vote must be counted is the one from WIP0022
-        let init_epoch_wip0022 = 1651280;
+        let init_epoch_wip0022 = 1655120;
         assert_eq!(epoch, init_epoch_wip0022);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
