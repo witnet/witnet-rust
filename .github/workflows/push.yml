@@ -30,6 +30,10 @@ jobs:
         with:
           subcrate: node
       - uses: ./.github/actions/versions-match
+        name: Checking version of wallet
+        with:
+          subcrate: wallet
+      - uses: ./.github/actions/versions-match
         name: Checking version of toolkit
         with:
           subcrate: toolkit
