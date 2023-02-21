@@ -4613,6 +4613,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     error_values: Vec<Vec<u8>>,  // Error reveal values
     dr_committer: bool,          // Flag to indicate that the data requester is also a committer
     dr_liar: bool,               // Flag to indicate that the data requester lies
+    active_wips: ActiveWips,     // Run this with a specific set of Wips being active
 ) -> (
     DataRequestPool,    // DataRequestPool updated
     Hash,               // Data Request pointer
@@ -4699,7 +4700,6 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     // To calculate witness reward we take into account than non-revealers are considered liars
     let liars_count = liars_count + commits_count - reveals_count;
     // Calculate witness reward
-    let active_wips = current_active_wips();
     let (reward, _) = calculate_witness_reward(
         commits_count,
         liars_count,
@@ -4728,6 +4728,7 @@ fn dr_pool_with_dr_in_tally_stage(
     liars_count: usize,
     reveal_value: Vec<u8>,
     liar_value: Vec<u8>,
+    active_wips: ActiveWips,
 ) -> (
     DataRequestPool,
     Hash,
@@ -4746,6 +4747,7 @@ fn dr_pool_with_dr_in_tally_stage(
         vec![],
         false,
         false,
+        active_wips,
     )
 }
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -4754,6 +4756,7 @@ fn dr_pool_with_dr_in_tally_stage_different_reveals(
     commits_count: usize,
     reveal_values: Vec<Vec<u8>>,
     liar_values: Vec<Vec<u8>>,
+    active_wips: ActiveWips,
 ) -> (
     DataRequestPool,
     Hash,
@@ -4772,6 +4775,7 @@ fn dr_pool_with_dr_in_tally_stage_different_reveals(
         vec![],
         false,
         false,
+        active_wips,
     )
 }
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -4783,6 +4787,7 @@ fn dr_pool_with_dr_in_tally_stage_with_errors(
     errors_count: usize,
     reveal_value: Vec<u8>,
     liar_value: Vec<u8>,
+    active_wips: ActiveWips,
 ) -> (
     DataRequestPool,
     Hash,
@@ -4811,6 +4816,7 @@ fn dr_pool_with_dr_in_tally_stage_with_errors(
         vec![error_value; errors_count],
         false,
         false,
+        active_wips,
     )
 }
 
@@ -4822,6 +4828,7 @@ fn dr_pool_with_dr_in_tally_stage_with_dr_liar(
     liars_count: usize,
     reveal_value: Vec<u8>,
     liar_value: Vec<u8>,
+    active_wips: ActiveWips,
 ) -> (
     DataRequestPool,
     Hash,
@@ -4840,6 +4847,7 @@ fn dr_pool_with_dr_in_tally_stage_with_dr_liar(
         vec![],
         true,
         true,
+        active_wips,
     )
 }
 
@@ -4932,14 +4940,21 @@ fn tally_dr_not_tally_stage() {
 
 #[test]
 fn tally_invalid_consensus() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            5,
+            4,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -4989,12 +5004,7 @@ fn tally_invalid_consensus() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    );
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedConsensus {
@@ -5341,13 +5351,21 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
 
 #[test]
 fn tally_valid() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            5,
+            4,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -5394,13 +5412,8 @@ fn tally_valid() {
         error_witnesses,
     );
 
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -5408,11 +5421,18 @@ fn tally_valid() {
 fn tally_too_many_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
+    let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-
-    let active_wips = current_active_wips();
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            5,
+            4,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -5448,13 +5468,8 @@ fn tally_too_many_outputs() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -5466,11 +5481,20 @@ fn tally_too_many_outputs() {
 
 #[test]
 fn tally_too_less_outputs() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            2,
+            2,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -5484,13 +5508,8 @@ fn tally_too_less_outputs() {
 
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -5502,13 +5521,20 @@ fn tally_too_less_outputs() {
 
 #[test]
 fn tally_invalid_change() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 5, 4, 0, reveal_value, vec![]);
-
-    let active_wips = current_active_wips();
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            5,
+            4,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -5555,13 +5581,8 @@ fn tally_invalid_change() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidTallyChange {
@@ -5573,11 +5594,20 @@ fn tally_invalid_change() {
 
 #[test]
 fn tally_double_reward() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            2,
+            2,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -5600,13 +5630,8 @@ fn tally_double_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MultipleRewards { pkh: rewarded[0] },
@@ -5615,11 +5640,20 @@ fn tally_double_reward() {
 
 #[test]
 fn tally_reveal_not_found() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            2,
+            2,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -5642,13 +5676,8 @@ fn tally_reveal_not_found() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::RevealNotFound,
@@ -5657,11 +5686,20 @@ fn tally_reveal_not_found() {
 
 #[test]
 fn tally_invalid_reward() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            2,
+            2,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -5685,13 +5723,8 @@ fn tally_invalid_reward() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidReward {
@@ -5703,11 +5736,20 @@ fn tally_invalid_reward() {
 
 #[test]
 fn tally_valid_2_reveals() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            2,
+            2,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -5731,18 +5773,14 @@ fn tally_valid_2_reveals() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
 #[test]
 fn tally_valid_3_reveals_dr_liar() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let liar_value = vec![0x0a];
@@ -5750,9 +5788,16 @@ fn tally_valid_3_reveals_dr_liar() {
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
+        dr_pool_with_dr_in_tally_stage_with_dr_liar(
+            dr_output,
+            3,
+            3,
+            1,
+            reveal_value,
+            liar_value,
+            active_wips.clone(),
+        );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -5801,6 +5846,7 @@ fn tally_valid_3_reveals_dr_liar() {
 
 #[test]
 fn tally_valid_3_reveals_dr_liar_invalid() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let liar_value = vec![0x0a];
@@ -5808,9 +5854,16 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
+        dr_pool_with_dr_in_tally_stage_with_dr_liar(
+            dr_output,
+            3,
+            3,
+            1,
+            reveal_value,
+            liar_value,
+            active_wips.clone(),
+        );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -5847,13 +5900,8 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         slashed_witnesses.clone(),
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -5866,6 +5914,7 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
 
 #[test]
 fn tally_valid_5_reveals_1_liar_1_error() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let liar_value = vec![0x0a];
@@ -5873,9 +5922,17 @@ fn tally_valid_5_reveals_1_liar_1_error() {
     // Create a DataRequestPool with 5 reveals (one of them is a lie and another is an error)
     let dr_output = example_data_request_output_with_mode_filter(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 5, 5, 1, 1, reveal_value, liar_value);
+        dr_pool_with_dr_in_tally_stage_with_errors(
+            dr_output,
+            5,
+            5,
+            1,
+            1,
+            reveal_value,
+            liar_value,
+            active_wips.clone(),
+        );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
     } else {
@@ -5936,13 +5993,23 @@ fn tally_valid_5_reveals_1_liar_1_error() {
 
 #[test]
 fn tally_valid_3_reveals_1_error() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 1, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage_with_errors(
+            dr_output,
+            3,
+            3,
+            0,
+            1,
+            reveal_value,
+            vec![],
+            active_wips,
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -5988,13 +6055,23 @@ fn tally_valid_3_reveals_1_error() {
 
 #[test]
 fn tally_valid_3_reveals_1_error_invalid_reward() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 1, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage_with_errors(
+            dr_output,
+            3,
+            3,
+            0,
+            1,
+            reveal_value,
+            vec![],
+            active_wips,
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -6046,13 +6123,23 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
 
 #[test]
 fn tally_valid_3_reveals_mark_all_as_error() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_errors(dr_output, 3, 3, 0, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage_with_errors(
+            dr_output,
+            3,
+            3,
+            0,
+            0,
+            reveal_value,
+            vec![],
+            active_wips,
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -6104,6 +6191,7 @@ fn tally_valid_3_reveals_mark_all_as_error() {
 
 #[test]
 fn tally_dishonest_reward() {
+    let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let liar_value = vec![0x0a];
@@ -6111,9 +6199,16 @@ fn tally_dishonest_reward() {
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
+        dr_pool_with_dr_in_tally_stage_with_dr_liar(
+            dr_output,
+            3,
+            3,
+            1,
+            reveal_value,
+            liar_value,
+            active_wips.clone(),
+        );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -6165,6 +6260,7 @@ fn tally_dishonest_reward() {
 
 #[test]
 fn create_tally_validation_dr_liar() {
+    let active_wips = current_active_wips();
     let reveal_value = RadonReport::from_result(
         Ok(RadonTypes::from(RadonInteger::from(1))),
         &ReportContext::default(),
@@ -6184,9 +6280,9 @@ fn create_tally_validation_dr_liar() {
             1,
             reveal_value.result.encode().unwrap(),
             liar_value.result.encode().unwrap(),
+            active_wips.clone(),
         );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -6240,6 +6336,7 @@ fn create_tally_validation_dr_liar() {
 
 #[test]
 fn create_tally_validation_5_reveals_1_liar_1_error() {
+    let active_wips = current_active_wips();
     let reveal_value = RadonReport::from_result(
         Ok(RadonTypes::from(RadonInteger::from(1))),
         &ReportContext::default(),
@@ -6266,9 +6363,9 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
             1,
             reveal_value.result.encode().unwrap(),
             liar_value.result.encode().unwrap(),
+            active_wips.clone(),
         );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -6340,6 +6437,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
 
 #[test]
 fn create_tally_validation_4_commits_2_reveals() {
+    let active_wips = current_active_wips();
     let reveal_value = RadonReport::from_result(
         Ok(RadonTypes::from(RadonInteger::from(1))),
         &ReportContext::default(),
@@ -6355,9 +6453,9 @@ fn create_tally_validation_4_commits_2_reveals() {
             0,
             reveal_value.result.encode().unwrap(),
             vec![],
+            active_wips.clone(),
         );
 
-    let active_wips = current_active_wips();
     if active_wips.wip0023() {
         // You earn your reward, and get your collateral back
         assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL)
@@ -6407,14 +6505,14 @@ fn create_tally_validation_4_commits_2_reveals() {
 
 #[test]
 fn tally_valid_zero_commits() {
+    let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![]);
+        dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![], active_wips.clone());
     assert_eq!(reward, 0);
 
     // Tally value: Insufficient commits Error
     let min_consensus = 0.0;
-    let active_wips = current_active_wips();
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, &active_wips);
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
@@ -6434,14 +6532,22 @@ fn tally_valid_zero_commits() {
 
 #[test]
 fn create_tally_validation_zero_commits() {
+    let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output.clone(), 0, 0, 0, vec![], vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output.clone(),
+            0,
+            0,
+            0,
+            vec![],
+            vec![],
+            active_wips.clone(),
+        );
     assert_eq!(reward, 0);
 
     // Tally value: Insufficient commits Error
     let min_consensus = 0.51;
-    let active_wips = current_active_wips();
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, &active_wips);
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
@@ -6464,14 +6570,14 @@ fn create_tally_validation_zero_commits() {
 
 #[test]
 fn tally_invalid_zero_commits() {
+    let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![]);
+        dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![], active_wips.clone());
     assert_eq!(reward, 0);
 
     // Tally value: Insufficient commits Error
     let min_consensus = 0.0;
-    let active_wips = current_active_wips();
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 0, &active_wips);
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
@@ -6507,15 +6613,23 @@ fn tally_invalid_zero_commits() {
 
 #[test]
 fn tally_valid_zero_reveals() {
+    let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output.clone(),
+            5,
+            0,
+            0,
+            vec![],
+            vec![],
+            active_wips.clone(),
+        );
     // You get your collateral back
     assert_eq!(reward, DEFAULT_COLLATERAL);
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
-    let active_wips = current_active_wips();
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
@@ -6567,15 +6681,23 @@ fn tally_valid_zero_reveals() {
 
 #[test]
 fn create_tally_validation_zero_reveals() {
+    let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output.clone(),
+            5,
+            0,
+            0,
+            vec![],
+            vec![],
+            active_wips.clone(),
+        );
     // There were no reveals, you get your collateral back
     assert_eq!(reward, DEFAULT_COLLATERAL);
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
-    let active_wips = current_active_wips();
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
@@ -6605,16 +6727,24 @@ fn create_tally_validation_zero_reveals() {
 
 #[test]
 fn create_tally_validation_zero_reveals_zero_collateral() {
+    let active_wips = current_active_wips();
     let mut dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     dr_output.collateral = 0;
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output.clone(),
+            5,
+            0,
+            0,
+            vec![],
+            vec![],
+            active_wips.clone(),
+        );
     // No rewards, you just get your collateral back
     assert_eq!(reward, DEFAULT_COLLATERAL);
 
     // Tally value: NoReveals commits Error
     let min_consensus = 0.51;
-    let active_wips = current_active_wips();
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
@@ -7936,6 +8066,7 @@ fn tally_bytes_on_encode_error_does_not_change() {
 
 #[test]
 fn tally_unserializable_value() {
+    let active_wips = current_active_wips();
     // When the result of the tally cannot be serialized, the result is a RadError::Unknown, as
     // returned by `tally_bytes_on_encode_error`
 
@@ -7943,7 +8074,15 @@ fn tally_unserializable_value() {
     let reveal_value = vec![59, 255, 255, 255, 255, 255, 255, 255, 0];
     let dr_output = example_data_request_output_average_mean_reducer(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(
+            dr_output,
+            2,
+            2,
+            0,
+            reveal_value,
+            vec![],
+            active_wips.clone(),
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -7967,13 +8106,8 @@ fn tally_unserializable_value() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
-        &current_active_wips(),
-    )
-    .map(|_| ());
+    let x =
+        validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT, &active_wips).map(|_| ());
     x.unwrap();
 }
 
@@ -8086,6 +8220,7 @@ fn tally_unhandled_intercept_with_message() {
 fn tally_unhandled_intercept_mode_tie_has_no_message() {
     // Check that UnhandledIntercept errors created during tally execution are serialized without
     // the message field if WIP0018 is enabled
+    let mut active_wips = current_active_wips();
 
     // Reveal value: integer(1)
     let reveal_value_1 = vec![0x01];
@@ -8094,7 +8229,13 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     let reveal_values = vec![reveal_value_1, reveal_value_2];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage_different_reveals(dr_output, 2, reveal_values, vec![]);
+        dr_pool_with_dr_in_tally_stage_different_reveals(
+            dr_output,
+            2,
+            reveal_values,
+            vec![],
+            active_wips.clone(),
+        );
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -8139,7 +8280,6 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         error_witnesses,
     );
 
-    let mut active_wips = current_active_wips();
     // Disable WIP-0018
     active_wips.active_wips.remove("WIP0017-0018-0019");
 
@@ -9103,10 +9243,11 @@ fn block_duplicated_reveals() {
 
 #[test]
 fn block_duplicated_tallies() {
+    let active_wips = current_active_wips();
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
-        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![]);
+        dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![], active_wips);
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -10721,17 +10862,45 @@ fn wip0023_burning() {
     let reveal_value = vec![0x00];
     let liar_value = vec![0x0a];
 
+    let mut active_wips = current_active_wips();
+    active_wips.active_wips.remove("WIP0023");
+
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
     let (_dr_pool, _dr_pointer, _rewarded, _slashed, _error_witnesses, _dr_pkh, change, reward) =
-        dr_pool_with_dr_in_tally_stage_with_dr_liar(dr_output, 3, 3, 1, reveal_value, liar_value);
+        dr_pool_with_dr_in_tally_stage_with_dr_liar(
+            dr_output.clone(),
+            3,
+            3,
+            1,
+            reveal_value.clone(),
+            liar_value.clone(),
+            active_wips.clone(),
+        );
 
     // The total amount of value involved in a data request equals the addition of the witness
     // reward, the required collateral, the commit fee, and the reveal fee, all multiplied by the
     // number of witnesses. The commit and reveal fees are omitted here for simplicity.
     let total_input = (DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL) * 3;
-    // The total output is the sum of all the witnesses payouts and collateral refunds, plus any
-    // refund to the requester (vt2 here).
+
+    // BEFORE WIP-0023
+    let total_output = reward * 2 + change;
+    // Make sure that the collateral of the liar has been re-distributed to other witnesses
+    assert_eq!(total_input - total_output, 0);
+
+    active_wips.insert_wip("WIP0023", 0);
+    let (_dr_pool, _dr_pointer, _rewarded, _slashed, _error_witnesses, _dr_pkh, change, reward) =
+        dr_pool_with_dr_in_tally_stage_with_dr_liar(
+            dr_output,
+            3,
+            3,
+            1,
+            reveal_value,
+            liar_value,
+            active_wips,
+        );
+
+    // AFTER WIP-0023
     let total_output = reward * 2 + change;
     // Make sure that the collateral of the liar was burned
     assert_eq!(total_input - total_output, DEFAULT_COLLATERAL);
