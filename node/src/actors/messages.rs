@@ -14,15 +14,14 @@ use actix::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
-
 use witnet_data_structures::{
     chain::{
         priority::PrioritiesEstimate,
         tapi::{ActiveWips, BitVotesCounter},
-        Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
-        ValueTransferOutput,
+        Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch,
+        EpochConstants, Hash, InventoryEntry, InventoryItem, NodeStats, PointerToBlock,
+        PublicKeyHash, RADRequest, RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote,
+        SupplyInfo, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
@@ -401,11 +400,12 @@ impl Message for Rewind {
 }
 
 /** Commands for exporting and importing chain state snapshots **/
+
 /// Create and export a snapshot of the current chain state.
 pub struct SnapshotExport;
 
 impl Message for SnapshotExport {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<ChainState, failure::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

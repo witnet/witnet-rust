@@ -1834,7 +1834,7 @@ impl Handler<SnapshotExport> for ChainManager {
     fn handle(&mut self, _msg: SnapshotExport, _ctx: &mut Self::Context) -> Self::Result {
         match self.sm_state {
             StateMachine::Synced => {
-                Ok(())
+                Ok(self.chain_state.clone())
             }
             current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
         }
