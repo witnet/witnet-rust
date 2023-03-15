@@ -44,7 +44,7 @@ use witnet_node::actors::{
     messages::{BuildDrt, BuildVtt, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
-use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
+use witnet_util::{files::create_private_file, timestamp::pretty_print};
 use witnet_validations::validations::{
     run_tally_panic_safe, validate_data_request_output, validate_rad_request,
 };
@@ -860,7 +860,7 @@ pub fn master_key_export(
             let pkh = PublicKey::from(public_key.key).pkh();
             if let Some(base_path) = write_to_path {
                 let path = base_path.join(format!("private_key_{}.txt", pkh));
-                let mut file = create_credentials_file(&path)?;
+                let mut file = create_private_file(&path)?;
                 file.write_all(format!("{}\n", private_key_slip32).as_bytes())?;
                 let full_path = Path::new(&path);
                 println!(

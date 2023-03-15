@@ -2,17 +2,18 @@ use std::{
     collections::{BTreeMap, HashSet, VecDeque},
     convert::{TryFrom, TryInto},
     future,
+    io::Write,
     net::SocketAddr,
     time::Duration,
 };
 
-use actix::{ActorFutureExt, fut::WrapFuture, prelude::*};
+use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
 use futures::future::Either;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
-        Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable,
-        NodeStats, SuperBlockVote, SupplyInfo, tapi::ActiveWips,
+        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
+        Hashable, NodeStats, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -20,12 +21,12 @@ use witnet_data_structures::{
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
 };
-use witnet_util::timestamp::get_timestamp;
+use witnet_util::{files::create_file, timestamp::get_timestamp};
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
 
 use crate::{
     actors::{
-        chain_manager::{BlockCandidate, handlers::BlockBatches::*},
+        chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
@@ -33,7 +34,8 @@ use crate::{
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
             GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, TryMineBlock,
+            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport,
+            TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1831,10 +1833,30 @@ impl Handler<EstimatePriority> for ChainManager {
 impl Handler<SnapshotExport> for ChainManager {
     type Result = <SnapshotExport as Message>::Result;
 
-    fn handle(&mut self, _msg: SnapshotExport, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        SnapshotExport { path }: SnapshotExport,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
         match self.sm_state {
             StateMachine::Synced => {
-                Ok(self.chain_state.clone())
+                let chain_info = self.chain_state.chain_info.clone().unwrap_or_default();
+                let environment = chain_info.environment;
+                let checkpoint = chain_info.highest_block_checkpoint.checkpoint;
+
+                // Compose the path of the file to write the snapshot to, and create the file
+                let path = path.parent().unwrap_or(&path).join(format!(
+                    "witnet_chain_snapshot_{}_{}.bin",
+                    environment, checkpoint
+                ));
+                let mut file = create_file(&path)?;
+
+                // Serialize a copy of the chain state using bincode, and write it into the file
+                let bytes = &self.chain_state.clone().as_bytes()?;
+                file.write_all(bytes)?;
+
+                // Return the exported file path
+                Ok(path.display().to_string())
             }
             current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
         }

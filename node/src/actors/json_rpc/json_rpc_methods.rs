@@ -1,11 +1,12 @@
+use std::future::Future;
 use std::{
     collections::HashMap,
     convert::TryFrom,
     net::SocketAddr,
-    sync::Arc,
+    path::PathBuf,
     sync::atomic::{AtomicUsize, Ordering},
+    sync::Arc,
 };
-use std::future::Future;
 
 use actix::MailboxError;
 #[cfg(not(test))]
@@ -19,16 +20,17 @@ use serde::{Deserialize, Serialize};
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
-        Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType, StateMachine,
-        SyncStatus, tapi::ActiveWips,
+        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType,
+        StateMachine, SyncStatus,
     },
     transaction::Transaction,
     vrf::VrfMessage,
 };
 
+use crate::actors::messages::GetSupplyInfo;
 use crate::{
     actors::{
-        chain_manager::{ChainManager, ChainManagerError, run_dr_locally},
+        chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
@@ -44,7 +46,6 @@ use crate::{
     },
     config_mngr, signature_mngr,
 };
-use crate::actors::messages::GetSupplyInfo;
 
 use super::Subscriptions;
 
@@ -243,12 +244,13 @@ pub fn jsonrpc_io_handler(
             |params| rewind(params.parse()),
         )))
     });
+    // This method is private to prevent DoS attacks, because it is CPU intensive.
     io.add_method("snapshotExport", move |params| {
         Compat::new(Box::pin(call_if_authorized(
             enable_sensitive_methods,
             "snapshotExport",
             params,
-            |_params| snapshot_export(),
+            |params| snapshot_export(params.parse()),
         )))
     });
 
@@ -1778,17 +1780,34 @@ pub async fn priority() -> JsonRpcResult {
     serde_json::to_value(estimate).map_err(internal_error_s)
 }
 
+/// Parameters of snapshotExport
+#[derive(Deserialize)]
+pub struct SnapshotExportParams {
+    /// The path where the chain state snapshot should be written to.
+    pub path: PathBuf,
+}
+
 /// Export a snapshot of the current chain state.
 ///
 /// This method is intended for fast syncing nodes from snapshot files that can downloaded over
 /// HTTP, FTP, Torrent or IPFS.
-pub async fn snapshot_export() -> JsonRpcResult {
+pub async fn snapshot_export(
+    params: Result<SnapshotExportParams, jsonrpc_core::Error>,
+) -> JsonRpcResult {
+    // Use path from parameters if provided, otherwise try to guess path from configuration
+    let path = match params {
+        Ok(params) => params.path,
+        Err(e) => witnet_config::dirs::find_config().ok_or(e)?,
+    };
+
+    // Tell the chain manager to create and export the snapshot
     let chain_manager = ChainManager::from_registry();
-    let actor_response = chain_manager.send(SnapshotExport).await;
+    let actor_response = chain_manager.send(SnapshotExport { path }).await;
     let response = actor_response
         .map_err(internal_error_s)?
-        .map_err(internal_error_s);
+        .map_err(internal_error_s)?;
 
+    // Write the response back (the path to the snapshot file)
     serde_json::to_value(response).map_err(internal_error_s)
 }
 

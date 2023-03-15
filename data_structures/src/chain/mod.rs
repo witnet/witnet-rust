@@ -3321,6 +3321,10 @@ impl ChainState {
             .consensus_constants
             .clone()
     }
+
+    pub fn as_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
+        bincode::serialize(self)
+    }
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to

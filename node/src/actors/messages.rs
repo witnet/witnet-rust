@@ -5,6 +5,7 @@ use std::{
     marker::Send,
     net::SocketAddr,
     ops::{Bound, RangeBounds},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -18,10 +19,10 @@ use witnet_data_structures::{
     chain::{
         priority::PrioritiesEstimate,
         tapi::{ActiveWips, BitVotesCounter},
-        Block, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch,
-        EpochConstants, Hash, InventoryEntry, InventoryItem, NodeStats, PointerToBlock,
-        PublicKeyHash, RADRequest, RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote,
-        SupplyInfo, ValueTransferOutput,
+        Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
+        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
+        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
+        ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
@@ -402,10 +403,13 @@ impl Message for Rewind {
 /** Commands for exporting and importing chain state snapshots **/
 
 /// Create and export a snapshot of the current chain state.
-pub struct SnapshotExport;
+pub struct SnapshotExport {
+    /// The output path where the snapshot file should be written to.
+    pub path: PathBuf,
+}
 
 impl Message for SnapshotExport {
-    type Result = Result<ChainState, failure::Error>;
+    type Result = Result<String, failure::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
