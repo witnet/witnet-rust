@@ -1,5 +1,3 @@
-use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
-use futures::future::Either;
 use std::{
     collections::{BTreeMap, HashSet, VecDeque},
     convert::{TryFrom, TryInto},
@@ -7,11 +5,14 @@ use std::{
     net::SocketAddr,
     time::Duration,
 };
+
+use actix::{ActorFutureExt, fut::WrapFuture, prelude::*};
+use futures::future::Either;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
-        Hashable, NodeStats, SuperBlockVote, SupplyInfo,
+        Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable,
+        NodeStats, SuperBlockVote, SupplyInfo, tapi::ActiveWips,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -22,10 +23,9 @@ use witnet_data_structures::{
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
 
-use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
 use crate::{
     actors::{
-        chain_manager::{handlers::BlockBatches::*, BlockCandidate},
+        chain_manager::{BlockCandidate, handlers::BlockBatches::*},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
@@ -33,13 +33,15 @@ use crate::{
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
             GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
             GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, TryMineBlock,
+            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
     config_mngr, signature_mngr, storage_mngr,
     utils::mode_consensus,
 };
+
+use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -1826,6 +1828,19 @@ impl Handler<EstimatePriority> for ChainManager {
     }
 }
 
+impl Handler<SnapshotExport> for ChainManager {
+    type Result = <SnapshotExport as Message>::Result;
+
+    fn handle(&mut self, _msg: SnapshotExport, _ctx: &mut Self::Context) -> Self::Result {
+        match self.sm_state {
+            StateMachine::Synced => {
+                Ok(())
+            }
+            current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockBatches<T> {
     TargetNotReached(Vec<T>),
@@ -1930,8 +1945,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
 
     #[test]
     fn peers_beacons_consensus_less_peers_than_outbound() {

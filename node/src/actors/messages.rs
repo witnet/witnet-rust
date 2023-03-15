@@ -400,6 +400,14 @@ impl Message for Rewind {
     type Result = Result<bool, failure::Error>;
 }
 
+/** Commands for exporting and importing chain state snapshots **/
+/// Create and export a snapshot of the current chain state.
+pub struct SnapshotExport;
+
+impl Message for SnapshotExport {
+    type Result = Result<(), failure::Error>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

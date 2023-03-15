@@ -2,23 +2,25 @@ use std::{
     collections::HashMap,
     convert::TryFrom,
     net::SocketAddr,
-    sync::atomic::{AtomicUsize, Ordering},
     sync::Arc,
+    sync::atomic::{AtomicUsize, Ordering},
 };
+use std::future::Future;
 
 use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
+use futures::FutureExt;
+use futures_util::compat::Compat;
 use itertools::Itertools;
 use jsonrpc_core::{MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
-
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType,
-        StateMachine, SyncStatus,
+        Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType, StateMachine,
+        SyncStatus, tapi::ActiveWips,
     },
     transaction::Transaction,
     vrf::VrfMessage,
@@ -26,7 +28,7 @@ use witnet_data_structures::{
 
 use crate::{
     actors::{
-        chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
+        chain_manager::{ChainManager, ChainManagerError, run_dr_locally},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
@@ -35,22 +37,19 @@ use crate::{
             GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
             GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
             GetNodeStats, GetReputation, GetSignalingInfo, GetState, GetUtxoInfo, InitializePeers,
-            IsConfirmedBlock, Rewind,
+            IsConfirmedBlock, Rewind, SnapshotExport,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
     },
     config_mngr, signature_mngr,
 };
+use crate::actors::messages::GetSupplyInfo;
 
 use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
-use crate::actors::messages::GetSupplyInfo;
-use futures::FutureExt;
-use futures_util::compat::Compat;
-use std::future::Future;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 
@@ -242,6 +241,14 @@ pub fn jsonrpc_io_handler(
             "rewind",
             params,
             |params| rewind(params.parse()),
+        )))
+    });
+    io.add_method("snapshotExport", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "snapshotExport",
+            params,
+            |_params| snapshot_export(),
         )))
     });
 
@@ -1771,6 +1778,20 @@ pub async fn priority() -> JsonRpcResult {
     serde_json::to_value(estimate).map_err(internal_error_s)
 }
 
+/// Export a snapshot of the current chain state.
+///
+/// This method is intended for fast syncing nodes from snapshot files that can downloaded over
+/// HTTP, FTP, Torrent or IPFS.
+pub async fn snapshot_export() -> JsonRpcResult {
+    let chain_manager = ChainManager::from_registry();
+    let actor_response = chain_manager.send(SnapshotExport).await;
+    let response = actor_response
+        .map_err(internal_error_s)?
+        .map_err(internal_error_s);
+
+    serde_json::to_value(response).map_err(internal_error_s)
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -1803,7 +1824,6 @@ mod tests {
     use std::collections::BTreeSet;
 
     use jsonrpc_core::futures::sync::mpsc;
-
     use witnet_data_structures::{chain::RADRequest, transaction::*};
 
     use super::*;
