@@ -782,3 +782,13 @@ impl OldUnspentOutputsPool {
         self.map.is_empty()
     }
 }
+
+impl From<UnspentOutputsPool> for OldUnspentOutputsPool {
+    /// Enable backwards compatibility of `UnspentOutputsPool` (this eases the portability of
+    /// `ChainState`).
+    fn from(pool: UnspentOutputsPool) -> OldUnspentOutputsPool {
+        let map = pool.iter().collect();
+
+        OldUnspentOutputsPool { map }
+    }
+}

@@ -19,7 +19,7 @@ use witnet_data_structures::{
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
-    utxo_pool::{get_utxo_info, UtxoInfo},
+    utxo_pool::{get_utxo_info, OldUnspentOutputsPool, UtxoInfo},
 };
 use witnet_util::{files::create_file, timestamp::get_timestamp};
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
@@ -1844,6 +1844,11 @@ impl Handler<SnapshotExport> for ChainManager {
                 let environment = chain_info.environment;
                 let checkpoint = chain_info.highest_block_checkpoint.checkpoint;
 
+                // Copy the chain state and bundle UTXO set into it
+                let mut chain_state = self.chain_state.clone();
+                chain_state.unspent_outputs_pool_old_migration_db =
+                    OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
+
                 // Compose the path of the file to write the snapshot to, and create the file
                 let path = path.parent().unwrap_or(&path).join(format!(
                     "witnet_chain_snapshot_{}_{}.bin",
@@ -1851,9 +1856,9 @@ impl Handler<SnapshotExport> for ChainManager {
                 ));
                 let mut file = create_file(&path)?;
 
-                // Serialize a copy of the chain state using bincode, and write it into the file
-                let bytes = &self.chain_state.clone().as_bytes()?;
-                file.write_all(bytes)?;
+                // Serialize the chain state using bincode, and write it into the file
+                let bytes = chain_state.as_bytes()?;
+                file.write_all(&bytes)?;
 
                 // Return the exported file path
                 Ok(path.display().to_string())
