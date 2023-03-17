@@ -9,7 +9,9 @@ use std::{
 
 use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
 use futures::future::Either;
+use itertools::Itertools;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
+use witnet_data_structures::chain::Snapshot;
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
@@ -27,6 +29,7 @@ use witnet_validations::validations::{block_reward, total_block_reward, validate
 use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
+        inventory_manager::InventoryManager,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
@@ -1831,40 +1834,112 @@ impl Handler<EstimatePriority> for ChainManager {
 }
 
 impl Handler<SnapshotExport> for ChainManager {
-    type Result = <SnapshotExport as Message>::Result;
+    type Result = ResponseActFuture<Self, <SnapshotExport as Message>::Result>;
 
     fn handle(
         &mut self,
         SnapshotExport { path }: SnapshotExport,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        match self.sm_state {
+        #[inline]
+        fn log_info<T>(msg: T)
+        where
+            T: std::fmt::Display,
+        {
+            log::info!("[SnapshotExport] {}", msg)
+        }
+
+        let fut = match self.sm_state {
             StateMachine::Synced => {
                 let chain_info = self.chain_state.chain_info.clone().unwrap_or_default();
                 let environment = chain_info.environment;
                 let checkpoint = chain_info.highest_block_checkpoint.checkpoint;
-
-                // Copy the chain state and bundle UTXO set into it
-                let mut chain_state = self.chain_state.clone();
-                chain_state.unspent_outputs_pool_old_migration_db =
-                    OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
 
                 // Compose the path of the file to write the snapshot to, and create the file
                 let path = path.parent().unwrap_or(&path).join(format!(
                     "witnet_chain_snapshot_{}_{}.bin",
                     environment, checkpoint
                 ));
-                let mut file = create_file(&path)?;
+                log_info(format!(
+                    "Snapshot will be created and written into {}",
+                    path.display()
+                ));
 
-                // Serialize the chain state using bincode, and write it into the file
-                let bytes = chain_state.as_bytes()?;
-                file.write_all(&bytes)?;
+                // Copy the chain state and bundle UTXO set into it
+                // TODO: Avoid double-cloning and having the UTXO set twice, by rather constructing
+                //  a new chain state with the cloned pieces
+                // TODO: try to optimize using rayon parallelization
+                log_info("Cloning chain state and UTXO set...");
+                let mut chain_state = self.chain_state.clone();
+                chain_state.unspent_outputs_pool_old_migration_db =
+                    OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
 
-                // Return the exported file path
-                Ok(path.display().to_string())
+                let fut = async move {
+                    // Collect superblocks from inventory
+                    log_info("Fetching all superblocks...");
+                    let superblocks = InventoryManager::get_all_superblocks().await?;
+
+                    // Collect blocks from inventory. This is done in chunks because blocks don't
+                    // use prefixes in the storage
+                    // TODO: try to optimize using rayon parallelization
+                    let mut blocks = Vec::new();
+                    let chunk_size = 500;
+                    let total_blocks = chain_state.block_chain.len();
+                    log_info(format!(
+                        "Starting to fetch all {} blocks in chunks of {} blocks...",
+                        total_blocks, chunk_size
+                    ));
+                    let mut i = 0;
+                    // TODO: remove limit
+                    for chunk in &chain_state
+                        .block_chain
+                        .iter()
+                        .take(chunk_size * 10)
+                        .chunks(chunk_size)
+                    {
+                        let from = i * chunk_size;
+                        let to = total_blocks.min(i * chunk_size + chunk_size - 1);
+                        log_info(format!(
+                            "Fetching blocks {} to {} out of {}",
+                            from, to, total_blocks
+                        ));
+                        let hashes = chunk.map(|(_epoch, hash)| hash);
+                        let mut batch = InventoryManager::get_multiple_blocks(hashes).await?;
+                        blocks.append(&mut batch);
+                        i += 1;
+                    }
+
+                    // Put everything into a Snapshot structure
+                    let snapshot = Snapshot {
+                        blocks,
+                        chain_state,
+                        superblocks,
+                    };
+
+                    // Serialize the chain state using bincode, and write it into the file
+                    log_info("Serializing snapshot into binary form...");
+                    let bytes = bincode::serialize(&snapshot)?;
+                    log_info(format!("Creating export file as {}", path.display()));
+                    let mut file = create_file(&path)?;
+                    log_info("Exporting the snapshot...");
+                    file.write_all(&bytes)?;
+                    log_info("Done!");
+
+                    // Return the exported file path
+                    Ok(path.display().to_string())
+                };
+
+                Either::Left(
+                    fut.into_actor(self)
+                        .and_then(|response, _act, _ctx| actix::fut::ok(response)),
+                )
             }
-            current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
-        }
+            current_state => Either::Right(actix::fut::err(
+                ChainManagerError::NotSynced { current_state }.into(),
+            )),
+        };
+
+        Box::pin(fut)
     }
 }
 

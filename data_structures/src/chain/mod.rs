@@ -3321,10 +3321,18 @@ impl ChainState {
             .consensus_constants
             .clone()
     }
+}
 
-    pub fn as_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
-        bincode::serialize(self)
-    }
+/// Unifies `ChainState` with whatever other data structure that is needed for chain
+/// state portability, i.e., copying state from one node to another.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Snapshot {
+    /// The full history of blocks.
+    pub blocks: Vec<Block>,
+    /// The chain state itself.
+    pub chain_state: ChainState,
+    /// The full history of superblocks.
+    pub superblocks: Vec<SuperBlock>,
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to

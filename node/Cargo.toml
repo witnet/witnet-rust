@@ -16,6 +16,7 @@ bytes = "1.0.0"
 failure = "0.1.8"
 futures = "0.3.8"
 futures-util = { version = "0.3.4", features = ["compat"] }
+hex = "0.4.3"
 itertools = "0.8.2"
 jsonrpc-core = "15.1.0"
 jsonrpc-pubsub = "15.1.0"

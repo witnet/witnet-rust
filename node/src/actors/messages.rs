@@ -625,6 +625,13 @@ impl Message for GetItemSuperblock {
     type Result = Result<SuperBlockNotify, InventoryManagerError>;
 }
 
+/// Ask for every superblock in the storage
+pub struct GetAllSuperblocks;
+
+impl Message for GetAllSuperblocks {
+    type Result = Result<Vec<SuperBlock>, InventoryManagerError>;
+}
+
 /// Get TAPI Signaling Info
 pub struct GetSignalingInfo {}
 

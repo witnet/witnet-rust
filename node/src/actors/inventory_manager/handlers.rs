@@ -1,6 +1,9 @@
 use actix::{prelude::*, ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture};
+
 use witnet_data_structures::{
-    chain::{Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock},
+    chain::{
+        Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock, SuperBlock,
+    },
     transaction::Transaction,
 };
 
@@ -14,10 +17,14 @@ use crate::{
 
 use super::{InventoryManager, InventoryManagerError};
 
+mod prefixes {
+    pub static SUPERBLOCK: &str = "SUPERBLOCK-";
+}
+
 fn key_superblock(superblock_index: u32) -> Vec<u8> {
     // Add 0 padding to the left of the superblock index to make sorted keys represent consecutive
     // indexes
-    format!("SUPERBLOCK-{:010}", superblock_index).into()
+    format!("{}{:010}", prefixes::SUPERBLOCK, superblock_index).into()
 }
 
 impl InventoryManager {
@@ -234,6 +241,52 @@ impl InventoryManager {
             });
 
         Box::pin(fut)
+    }
+
+    /// Fetch all superblocks from storage.
+    pub async fn get_all_superblocks() -> Result<Vec<SuperBlock>, InventoryManagerError> {
+        let backend = storage_mngr::get_backend()
+            .await
+            .unwrap_or_else(|err| {
+                panic!("Failed to get storage backend: {}", err);
+            })
+            .as_arc_dyn_storage();
+
+        // This is a little hack to derive the actual prefix, which contains some leading bincode
+        // bytes that encode the bytes length of the key
+        let mut prefix = bincode::serialize(&format!("{}0000000000", prefixes::SUPERBLOCK))
+            .expect("prefix serialization error");
+        prefix.truncate(prefix.len() - 10);
+
+        let all_superblocks = backend
+            .prefix_iterator(&prefix)
+            .expect("prefix iterator error")
+            .map(|(_k, v)| bincode::deserialize(&v).unwrap())
+            .collect::<Vec<SuperBlock>>();
+
+        Ok(all_superblocks)
+    }
+
+    /// Fetch multiple blocks at once.
+    pub async fn get_multiple_blocks<'a, I>(hashes: I) -> Result<Vec<Block>, InventoryManagerError>
+    where
+        I: IntoIterator<Item = &'a Hash>,
+    {
+        let mut blocks = Vec::new();
+
+        for hash in hashes {
+            let key = match hash {
+                Hash::SHA256(x) => x.to_vec(),
+            };
+            let response = storage_mngr::get(&key).await;
+            if let Ok(Some(block)) = response {
+                blocks.push(block);
+            } else {
+                log::error!("No block found with hash {}. Error: {:?}", hash, response);
+            }
+        }
+
+        Ok(blocks)
     }
 }
 
