@@ -1,7 +1,13 @@
-use std::sync::Arc;
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 
 pub use actix::System;
 use actix::{Actor, SystemRegistry};
+use witnet_config::config::Config;
+use witnet_validations::witnessing::validate_witnessing_config;
 
 use crate::{
     actors::{
@@ -10,12 +16,11 @@ use crate::{
         peers_manager::PeersManager, rad_manager::RadManager, sessions_manager::SessionsManager,
     },
     config_mngr, signature_mngr, storage_mngr,
+    utils::Force,
 };
-use witnet_config::config::Config;
-use witnet_validations::witnessing::validate_witnessing_config;
 
 /// Function to run the main system
-pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
+pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), failure::Error> {
     // Init system
     let system = System::new();
 
@@ -53,7 +58,7 @@ pub fn run(config: Arc<Config>, callback: fn()) -> Result<(), failure::Error> {
         SystemRegistry::set(epoch_manager_addr);
 
         // Start ChainManager actor
-        let chain_manager_addr = ChainManager::default().start();
+        let chain_manager_addr = ChainManager::default().with_node_ops(ops).start();
         SystemRegistry::set(chain_manager_addr);
 
         // Start InventoryManager actor
@@ -78,4 +83,74 @@ pub fn close(system: &System) {
     log::info!("Closing node");
 
     system.stop();
+}
+
+/// Special operations that the node can execute.
+///
+/// Most often, these operations will be executed at an early stage after starting the node, even
+/// before some actors go totally live.
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub enum NodeOp {
+    /// Import a chain snapshot from a file.
+    SnapshotImport(Force<PathBuf>),
+}
+
+/// A list of `NodeOp` items to perform.
+pub struct NodeOps(Arc<RwLock<HashSet<NodeOp>>>);
+
+impl NodeOps {
+    /// Add an operation.
+    pub fn add(&mut self, op: NodeOp) {
+        let mut ops = self.0.write().unwrap();
+        (*ops).insert(op);
+    }
+
+    /// Clear the list of operations.
+    pub fn clear(&mut self) -> Self {
+        Self::new()
+    }
+
+    /// Instantiate a new list of operations.
+    pub fn new() -> Self {
+        Self(Default::default())
+    }
+
+    /// Tell whether the list of operations contains a chain snapshot import operation.
+    pub fn snapshot_import(&self) -> Force<PathBuf> {
+        self.0
+            .read()
+            .unwrap()
+            .iter()
+            .find_map(|op| match op {
+                NodeOp::SnapshotImport(path) => Some(path),
+            })
+            .cloned()
+            .into()
+    }
+}
+
+/// Trait defining the behavior of stuff that can take `NodeOps` into account.
+///
+/// This is meant to be implemented by the node actors.
+pub trait WithNodeOps {
+    /// Provide an instance of the implementor that has somehow processed the `NodeOps` data.
+    fn with_node_ops(self, ops: NodeOps) -> Self;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_nodeops_snapshot_import() {
+        let mut ops = NodeOps::new();
+        assert_eq!(ops.snapshot_import(), Force::None);
+
+        let path = PathBuf::from("./whatever.bin");
+        ops.add(NodeOp::SnapshotImport(Force::Some(path.clone())));
+        assert_eq!(ops.snapshot_import(), Force::Some(path.clone()));
+
+        ops.clear();
+        ops.add(NodeOp::SnapshotImport(Force::Forced(path.clone())));
+        assert_eq!(ops.snapshot_import(), Force::Forced(path));
+    }
 }

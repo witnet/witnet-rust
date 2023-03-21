@@ -77,6 +77,7 @@ impl StreamHandler<Result<BytesMut, io::Error>> for JsonRpc {
                 // and the message is printed in the debug logs for further inspection.
                 log::error!("Invalid UTF8 in JSON-RPC input");
                 log::debug!("{:?}", e);
+                log::debug!("{:?}", bytes);
 
                 // Generate a ParseError later by trying to parse an empty string
                 ""

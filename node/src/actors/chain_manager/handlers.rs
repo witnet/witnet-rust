@@ -2,20 +2,18 @@ use std::{
     collections::{BTreeMap, HashSet, VecDeque},
     convert::{TryFrom, TryInto},
     future,
-    io::Write,
     net::SocketAddr,
     time::Duration,
 };
 
-use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
+use actix::{ActorFutureExt, fut::WrapFuture, prelude::*};
 use futures::future::Either;
 use itertools::Itertools;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
-use witnet_data_structures::chain::Snapshot;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
-        Hashable, NodeStats, SuperBlockVote, SupplyInfo,
+        Block, ChainExport, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable,
+        NodeStats, SuperBlockVote, SupplyInfo, tapi::ActiveWips,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -28,7 +26,7 @@ use witnet_validations::validations::{block_reward, total_block_reward, validate
 
 use crate::{
     actors::{
-        chain_manager::{handlers::BlockBatches::*, BlockCandidate},
+        chain_manager::{BlockCandidate, handlers::BlockBatches::*},
         inventory_manager::InventoryManager,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
@@ -1883,47 +1881,47 @@ impl Handler<SnapshotExport> for ChainManager {
                     // use prefixes in the storage
                     // TODO: try to optimize using rayon parallelization
                     let mut blocks = Vec::new();
-                    let chunk_size = 500;
+                    let chunk_size = 5_000;
                     let total_blocks = chain_state.block_chain.len();
                     log_info(format!(
                         "Starting to fetch all {} blocks in chunks of {} blocks...",
                         total_blocks, chunk_size
                     ));
                     let mut i = 0;
-                    // TODO: remove limit
-                    for chunk in &chain_state
-                        .block_chain
-                        .iter()
-                        .take(chunk_size * 10)
-                        .chunks(chunk_size)
-                    {
+                    for chunk in &chain_state.block_chain.iter().chunks(chunk_size) {
                         let from = i * chunk_size;
                         let to = total_blocks.min(i * chunk_size + chunk_size - 1);
                         log_info(format!(
-                            "Fetching blocks {} to {} out of {}",
+                            "Starting to fetch blocks {} to {} out of {}",
                             from, to, total_blocks
                         ));
                         let hashes = chunk.map(|(_epoch, hash)| hash);
                         let mut batch = InventoryManager::get_multiple_blocks(hashes).await?;
+                        log_info(format!(
+                            "Successfully fetched blocks {} to {} out of {}",
+                            from, to, total_blocks
+                        ));
                         blocks.append(&mut batch);
                         i += 1;
                     }
 
-                    // Put everything into a Snapshot structure
-                    let snapshot = Snapshot {
+                    // Put everything into a ChainExport structure
+                    let snapshot = ChainExport {
                         blocks,
                         chain_state,
                         superblocks,
                     };
 
-                    // Serialize the chain state using bincode, and write it into the file
-                    log_info("Serializing snapshot into binary form...");
-                    let bytes = bincode::serialize(&snapshot)?;
-                    log_info(format!("Creating export file as {}", path.display()));
-                    let mut file = create_file(&path)?;
-                    log_info("Exporting the snapshot...");
-                    file.write_all(&bytes)?;
-                    log_info("Done!");
+                    // Serialize the export using bincode, and write it into the file.
+                    // This is done all at once to avoid having a copy of the whole byte
+                    // serialization in memory
+                    log_info(format!("Serializing snapshot into binary form and exporting it into {}", path.display()));
+                    let file = create_file(&path)?;
+                    bincode::serialize_into(file, &snapshot)?;
+                    log_info(format!(
+                        "Success! Finished exporting chain snapshot into {}",
+                        path.display()
+                    ));
 
                     // Return the exported file path
                     Ok(path.display().to_string())

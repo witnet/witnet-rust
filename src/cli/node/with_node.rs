@@ -192,7 +192,18 @@ pub fn exec_cmd(
 
             config.connections.known_peers.extend(params.known_peers);
 
-            node::actors::node::run(Arc::new(config), || {
+            // Collect required node operations from parameters
+            let mut ops = node::actors::node::NodeOps::new();
+            if let Some(path) = params.snapshot_import {
+                let path = if params.force {
+                    node::utils::Force::Forced(path)
+                } else {
+                    node::utils::Force::Some(path)
+                };
+                ops.add(node::actors::node::NodeOp::SnapshotImport(path));
+            }
+
+            node::actors::node::run(Arc::new(config), ops, || {
                 let system = node::actors::node::System::current();
                 ctrlc::set_handler(move || {
                     node::actors::node::close(&system);
@@ -751,6 +762,12 @@ pub struct ConfigParams {
     /// Path to file that contains the master key to import
     #[structopt(long = "master-key-import")]
     master_key_import: Option<PathBuf>,
+    /// Path to a file that contains a chain state snapshot
+    #[structopt(long = "snapshot-import")]
+    snapshot_import: Option<PathBuf>,
+    /// Indicate whether other operations must be executed regardless of pre-checks.
+    #[structopt(long, short)]
+    force: bool,
 }
 
 static NODE_DB_HELP: &str = r#"Path to the node database. If not specified will use '.witnet-rust-mainnet' for mainnet, or '.witnet-rust-testnet-N' for testnet number N."#;

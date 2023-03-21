@@ -3326,7 +3326,7 @@ impl ChainState {
 /// Unifies `ChainState` with whatever other data structure that is needed for chain
 /// state portability, i.e., copying state from one node to another.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Snapshot {
+pub struct ChainExport {
     /// The full history of blocks.
     pub blocks: Vec<Block>,
     /// The chain state itself.

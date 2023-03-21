@@ -1,21 +1,11 @@
-use actix::prelude::*;
 use std::{pin::Pin, str::FromStr, time::Duration};
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 
-use super::{handlers::EveryEpochPayload, ChainManager};
-use crate::{
-    actors::{
-        epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
-        messages::{AddBlocks, GetEpoch, GetEpochConstants, SetLastBeacon, Subscribe},
-        sessions_manager::SessionsManager,
-        storage_keys,
-    },
-    config_mngr, signature_mngr, storage_mngr,
-};
+use actix::prelude::*;
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{
         ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo, PublicKeyHash,
-        ReputationEngine,
+        ReputationEngine, StateMachine,
     },
     data_request::DataRequestPool,
     get_environment,
@@ -25,6 +15,20 @@ use witnet_data_structures::{
     vrf::VrfCtx,
 };
 use witnet_util::timestamp::pretty_print;
+
+use crate::{
+    actors::{
+        chain_manager::{handlers::EveryEpochPayload, ChainManager},
+        epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
+        messages::{
+            AddBlocks, GetEpoch, GetEpochConstants, SetLastBeacon, StoreInventoryItem, Subscribe,
+        },
+        sessions_manager::SessionsManager,
+        storage_keys,
+    },
+    config_mngr, signature_mngr, storage_mngr,
+    utils::Force,
+};
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -37,7 +41,14 @@ impl Actor for ChainManager {
 
         ctx.wait(Self::check_only_one_chain_state_in_storage().into_actor(self));
 
-        self.initialize_from_storage(ctx);
+        ctx.wait(
+            self.initialize_from_storage_fut(false)
+                .map(|_res, act, ctx| {
+                    // If we are importing a chain snapshot, it is time to load and store all the relevant data,
+                    // before the actor starts to communicate with any other actors
+                    act.process_import(ctx);
+                }),
+        );
 
         self.subscribe_to_epoch_manager(ctx);
 
@@ -318,7 +329,7 @@ impl ChainManager {
                 let consensus_constants = &config.consensus_constants;
                 let chain_info = chain_state.chain_info.as_ref().unwrap();
                 log::info!(
-                    "Actual ChainState CheckpointBeacon: epoch ({}), hash_block ({})",
+                    "Current ChainState CheckpointBeacon: epoch ({}), hash_block ({})",
                     chain_info.highest_block_checkpoint.checkpoint,
                     chain_info.highest_block_checkpoint.hash_prev_block
                 );
@@ -587,6 +598,125 @@ impl ChainManager {
             .wait(ctx);
     }
 
+    /// Load all the data from the `import` field into their corresponding locations, and persist
+    /// when necessary.
+    fn process_import(&mut self, ctx: &mut Context<ChainManager>) {
+        // Only run the import if the imported chain is ahead of our own, or the force flag is set
+        let import = match self.import.take() {
+            Force::Forced(import) => import,
+            Force::Some(import) => {
+                let imported_checkpoint = import
+                    .chain_state
+                    .chain_info
+                    .as_ref()
+                    .map(|chain_info| chain_info.highest_superblock_checkpoint.checkpoint);
+                let local_checkpoint = self
+                    .chain_state
+                    .chain_info
+                    .as_ref()
+                    .map(|chain_info| chain_info.highest_superblock_checkpoint.checkpoint);
+
+                // Do not import if our own chain is ahead of the imported chain
+                if imported_checkpoint <= local_checkpoint {
+                    if let (Some(imported), Some(local)) = (imported_checkpoint, local_checkpoint) {
+                        log::warn!("Skipping chain import because the latest superblock in the imported chain is older than the one in our local chain ({} < {})", imported, local);
+                    }
+
+                    return;
+                }
+
+                import
+            }
+            Force::None => {
+                // Without nothing to import, do nothing.
+                return;
+            }
+        };
+
+        if let Some(chain_info) = &import.chain_state.chain_info {
+            log::info!("Importing chain snapshot now. After importing, the node will be synced up to superblock #{}.", chain_info.highest_superblock_checkpoint.checkpoint);
+        }
+
+        // TODO: try to optimize with rayon
+        // Import blocks
+        log::info!("Importing {} blocks into storage", import.blocks.len());
+        let items = import
+            .blocks
+            .into_iter()
+            .map(Box::new)
+            .map(StoreInventoryItem::Block)
+            .collect();
+        self.persist_items(ctx, items);
+
+        // TODO: try to optimize with rayon
+        // Import superblocks
+        let superblocks_count = import.superblocks.len();
+        log::info!("Importing {} superblocks into storage", superblocks_count);
+        for (i, superblock) in import.superblocks.into_iter().enumerate() {
+            if i % 10_000 == 0 {
+                log::info!(
+                    "Writing superblock #{} ({}/{})",
+                    superblock.index,
+                    i,
+                    superblocks_count
+                );
+            } else {
+                log::debug!(
+                    "Writing superblock #{} ({}/{})",
+                    superblock.index,
+                    i,
+                    superblocks_count
+                );
+            }
+            self.notify_superblock_consolidation(superblock);
+        }
+
+        // Reuse the existing UTXO database: simply wipe it and insert the new stuff later
+        let mut old_utxos = self.chain_state.unspent_outputs_pool.clone();
+        let drop_count = old_utxos.delete_all_from_db();
+        log::info!("Dropped {} UTXOs from persistent UTXO set", drop_count);
+        // This is exactly where the chain state is replaced
+        self.chain_state = import.chain_state;
+        self.chain_state.unspent_outputs_pool = old_utxos;
+        self.sm_state = StateMachine::WaitingConsensus;
+
+        // Migrate the UTXO set from its export/import format into its persistent form
+        self.chain_state
+            .unspent_outputs_pool
+            .migrate_old_unspent_outputs_pool_to_db(
+                &mut self.chain_state.unspent_outputs_pool_old_migration_db,
+                |i, total| {
+                    if i % 10_000 == 0 {
+                        log::info!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
+                    } else {
+                        log::debug!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
+                    }
+                },
+            );
+
+        // Delete any saved copies of the old chain state to avoid accidentally persisting a forked
+        // state
+        self.chain_state_snapshot.clear();
+        // Time to set the `highest_persisted_superblock` to the latest consolidated superblock
+        self.chain_state_snapshot.highest_persisted_superblock =
+            self.get_superblock_beacon().checkpoint;
+
+        // Important: persist the new chain state right away
+        self.persist_chain_state(None);
+
+        // Finally, we let the sessions manager know about the new chain tip
+        SessionsManager::from_registry().do_send(SetLastBeacon {
+            beacon: LastBeacon {
+                highest_block_checkpoint: self.get_chain_beacon(),
+                highest_superblock_checkpoint: self.get_superblock_beacon(),
+            },
+        });
+
+        log::info!("Finished importing the chain snapshot!");
+
+        self.mut_drop_import()
+    }
+
     /// Put some basic information into the scope of the telemetry service (Sentry)
     #[cfg(feature = "telemetry")]
     fn configure_telemetry_scope(&mut self) {
@@ -604,10 +734,13 @@ impl ChainManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{actors::storage_keys::chain_state_key, utils::test_actix_system};
     use std::sync::Arc;
+
     use witnet_config::config::{Config, StorageBackend};
+
+    use crate::{actors::storage_keys::chain_state_key, utils::test_actix_system};
+
+    use super::*;
 
     #[test]
     fn test_check_only_one_chain_state_in_storage_empty_storage() {

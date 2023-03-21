@@ -25,6 +25,7 @@
 //! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
+use std::path::PathBuf;
 use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
@@ -52,6 +53,7 @@ use witnet_config::{
     },
 };
 use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::chain::ChainExport;
 use witnet_data_structures::{
     chain::{
         penalize_factor,
@@ -76,7 +78,6 @@ use witnet_data_structures::{
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
 };
-
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
@@ -95,12 +96,13 @@ use crate::{
             SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
             SetLastBeacon, SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
         },
+        node::{NodeOps, WithNodeOps},
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
         storage_keys,
     },
     signature_mngr, storage_mngr,
-    utils::stop_system_if_panicking,
+    utils::{stop_system_if_panicking, Force},
 };
 
 mod actor;
@@ -239,12 +241,71 @@ pub struct ChainManager {
     tapi: Tapi,
     /// Transaction priority engine
     priority_engine: PriorityEngine,
+    /// Chain snapshot to be imported
+    import: Force<ChainExport>,
+}
+
+impl ChainManager {
+    /// Drop the value of the `import` field.
+    fn mut_drop_import(&mut self) {
+        self.import = Force::None;
+    }
+
+    /// Put a chain export into the `import` field.
+    ///
+    /// This is only done if the chain to import is ahead of our own, or the `--force` flag is set.
+    fn with_import(mut self, import: ChainExport, force: bool) -> Self {
+        self.import = match force {
+            true => Force::Forced(import),
+            false => Force::Some(import),
+        };
+
+        self
+    }
+
+    /// Try to read and load a chain snapshot from the filesystem.
+    ///
+    /// This method is intentionally best-effort.
+    fn with_import_from_path(mut self, path: PathBuf, force: bool) -> Self {
+        let path_clone = path.clone();
+        let path_display = path_clone.display();
+        log::debug!("Trying to read chain snapshot from file {}", path_display);
+
+        if let Ok(bytes) = std::fs::read(path) {
+            if let Ok(import) = bincode::deserialize(&bytes) {
+                log::info!(
+                    "Successfully read chain snapshot from file {}",
+                    path_display
+                );
+                self = self.with_import(import, force);
+            } else {
+                log::error!(
+                    "Failed to deserialize a chain snapshot file from {}",
+                    path_display
+                )
+            }
+        } else {
+            log::error!("Could not load chain snapshot file from {}", path_display);
+        }
+
+        self
+    }
 }
 
 impl Drop for ChainManager {
     fn drop(&mut self) {
         log::trace!("Dropping ChainManager");
         stop_system_if_panicking("ChainManager");
+    }
+}
+
+impl WithNodeOps for ChainManager {
+    fn with_node_ops(self, ops: NodeOps) -> Self {
+        match ops.snapshot_import() {
+            Force::Forced(path) => self.with_import_from_path(path, true),
+            Force::Some(path) => self.with_import_from_path(path, false),
+            Force::None => self,
+        }
     }
 }
 
@@ -3133,11 +3194,8 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        config_mngr,
-        utils::{test_actix_system, ActorFutureToNormalFuture},
-    };
     use std::sync::Arc;
+
     use witnet_config::{
         config::{consensus_constants_from_partial, Config, StorageBackend},
         defaults::Testnet,
@@ -3162,6 +3220,11 @@ mod tests {
     };
     use witnet_protected::Protected;
     use witnet_validations::validations::block_reward;
+
+    use crate::{
+        config_mngr,
+        utils::{test_actix_system, ActorFutureToNormalFuture},
+    };
 
     use super::*;
 

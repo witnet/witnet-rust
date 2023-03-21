@@ -1,5 +1,5 @@
 use actix::{prelude::*, ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture};
-
+use futures_util::FutureExt;
 use witnet_data_structures::{
     chain::{
         Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock, SuperBlock,
@@ -36,7 +36,10 @@ impl InventoryManager {
         let mut transactions_to_add = vec![];
         let mut superblocks_to_add = vec![];
 
-        for item in msg.items {
+        let total = msg.items.len();
+        for (i, item) in msg.items.into_iter().enumerate() {
+            log::debug!("Adding item {} out of {}", i, total);
+
             match item {
                 StoreInventoryItem::Block(block) => {
                     let block_hash = block.hash();
@@ -272,19 +275,27 @@ impl InventoryManager {
     where
         I: IntoIterator<Item = &'a Hash>,
     {
-        let mut blocks = Vec::new();
-
-        for hash in hashes {
+        let futs = hashes.into_iter().map(|hash| {
             let key = match hash {
                 Hash::SHA256(x) => x.to_vec(),
             };
-            let response = storage_mngr::get(&key).await;
-            if let Ok(Some(block)) = response {
-                blocks.push(block);
-            } else {
-                log::error!("No block found with hash {}. Error: {:?}", hash, response);
-            }
-        }
+
+            storage_mngr::get(&key).map(|response| (hash.clone(), response))
+        });
+
+        let blocks = futures::future::join_all(futs)
+            .await
+            .into_iter()
+            .filter_map(|(hash, response)| {
+                if let Ok(Some(block)) = response {
+                    Some(block)
+                } else {
+                    log::error!("No block found with hash {}. Error: {:?}", hash, response);
+
+                    None
+                }
+            })
+            .collect();
 
         Ok(blocks)
     }

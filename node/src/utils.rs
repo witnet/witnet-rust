@@ -126,3 +126,48 @@ where
     A: Actor,
 {
 }
+
+/// Similar to an `Option`, but has a third case that signals the forced nature of some value.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum Force<T> {
+    /// A forced value.
+    Forced(T),
+    /// A regular value.
+    Some(T),
+    /// No value.
+    None,
+}
+
+impl<T> Force<T> {
+    #[inline]
+    /// Wraps a value in a `Force` with the same degree of force than an existing `Force`.
+    pub fn same<V>(&self, value: V) -> Force<V> {
+        match self {
+            Force::Forced(_) => Force::Forced(value),
+            Force::Some(_) => Force::Some(value),
+            Force::None => Force::None,
+        }
+    }
+
+    #[inline]
+    /// Equivalent to `Option::take`.
+    pub fn take(&mut self) -> Force<T> {
+        std::mem::replace(self, Self::None)
+    }
+}
+
+impl<T> Default for Force<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl<T> From<Option<Force<T>>> for Force<T> {
+    fn from(value: Option<Force<T>>) -> Self {
+        match value {
+            None => Force::None,
+            Some(value) => value,
+        }
+    }
+}
