@@ -271,16 +271,16 @@ impl InventoryManager {
     }
 
     /// Fetch multiple blocks at once.
-    pub async fn get_multiple_blocks<'a, I>(hashes: I) -> Result<Vec<Block>, InventoryManagerError>
+    pub async fn get_multiple_blocks<I>(hashes: I) -> Result<Vec<Block>, InventoryManagerError>
     where
-        I: IntoIterator<Item = &'a Hash>,
+        I: IntoIterator<Item = Hash>,
     {
         let futs = hashes.into_iter().map(|hash| {
             let key = match hash {
                 Hash::SHA256(x) => x.to_vec(),
             };
 
-            storage_mngr::get(&key).map(|response| (hash.clone(), response))
+            storage_mngr::get(&key).map(move |response| (hash, response))
         });
 
         let blocks = futures::future::join_all(futs)

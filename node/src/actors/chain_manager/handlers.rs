@@ -6,14 +6,14 @@ use std::{
     time::Duration,
 };
 
-use actix::{ActorFutureExt, fut::WrapFuture, prelude::*};
-use futures::future::Either;
+use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
+use futures::{future::Either, stream::StreamExt};
 use itertools::Itertools;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
-        Block, ChainExport, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash, Hashable,
-        NodeStats, SuperBlockVote, SupplyInfo, tapi::ActiveWips,
+        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
+        Hashable, NodeStats, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -21,12 +21,12 @@ use witnet_data_structures::{
     types::LastBeacon,
     utxo_pool::{get_utxo_info, OldUnspentOutputsPool, UtxoInfo},
 };
-use witnet_util::{files::create_file, timestamp::get_timestamp};
+use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
 
 use crate::{
     actors::{
-        chain_manager::{BlockCandidate, handlers::BlockBatches::*},
+        chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         inventory_manager::InventoryManager,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
@@ -41,7 +41,7 @@ use crate::{
         sessions_manager::SessionsManager,
     },
     config_mngr, signature_mngr, storage_mngr,
-    utils::mode_consensus,
+    utils::{file_name_compose, mode_consensus, serialize_to_file},
 };
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
@@ -1854,13 +1854,14 @@ impl Handler<SnapshotExport> for ChainManager {
                 let checkpoint = chain_info.highest_block_checkpoint.checkpoint;
 
                 // Compose the path of the file to write the snapshot to, and create the file
-                let path = path.parent().unwrap_or(&path).join(format!(
+                let base_path = path.join(format!(
                     "witnet_chain_snapshot_{}_{}.bin",
                     environment, checkpoint
                 ));
+                let base_path_display = base_path.display().to_string();
                 log_info(format!(
                     "Snapshot will be created and written into {}",
-                    path.display()
+                    base_path_display
                 ));
 
                 // Copy the chain state and bundle UTXO set into it
@@ -1873,58 +1874,87 @@ impl Handler<SnapshotExport> for ChainManager {
                     OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
 
                 let fut = async move {
-                    // Collect superblocks from inventory
+                    // Collect superblocks from inventory and write them into file system
                     log_info("Fetching all superblocks...");
                     let superblocks = InventoryManager::get_all_superblocks().await?;
+                    log_info("Done fetching all superblocks...");
+                    let path = file_name_compose(base_path.clone(), Some("superblocks".into()));
+                    log_info(format!("Exporting all superblocks into {}", path.display()));
+                    serialize_to_file(&superblocks, &path)?;
 
-                    // Collect blocks from inventory. This is done in chunks because blocks don't
-                    // use prefixes in the storage
-                    // TODO: try to optimize using rayon parallelization
-                    let mut blocks = Vec::new();
-                    let chunk_size = 5_000;
+                    // Collect blocks from inventory and write them into the file system
+                    // This is done in batches for the sake of performance and reduced memory
+                    // footprint
+                    let batch_size = 50_000;
                     let total_blocks = chain_state.block_chain.len();
                     log_info(format!(
                         "Starting to fetch all {} blocks in chunks of {} blocks...",
-                        total_blocks, chunk_size
+                        total_blocks, batch_size
                     ));
                     let mut i = 0;
-                    for chunk in &chain_state.block_chain.iter().chunks(chunk_size) {
-                        let from = i * chunk_size;
-                        let to = total_blocks.min(i * chunk_size + chunk_size - 1);
+                    let mut futs = Vec::new();
+                    let batches = chain_state.block_chain.iter().chunks(batch_size);
+                    for batch in &batches {
+                        let from = i * batch_size;
+                        let to = total_blocks.min(i * batch_size + batch_size - 1);
                         log_info(format!(
-                            "Starting to fetch blocks {} to {} out of {}",
-                            from, to, total_blocks
+                            "Starting to fetch blocks batch #{} ({} to {} out of {})",
+                            i, from, to, total_blocks
                         ));
-                        let hashes = chunk.map(|(_epoch, hash)| hash);
-                        let mut batch = InventoryManager::get_multiple_blocks(hashes).await?;
-                        log_info(format!(
-                            "Successfully fetched blocks {} to {} out of {}",
-                            from, to, total_blocks
-                        ));
-                        blocks.append(&mut batch);
+                        let path = file_name_compose(
+                            base_path.clone(),
+                            Some(format!("blocks_batch_{}", i)),
+                        );
+                        let hashes = batch.map(|(_epoch, hash)| hash.clone()).collect::<Vec<_>>();
+
+                        let fut = async move {
+                            let batch =
+                                InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
+                            log_info(format!(
+                                "Successfully fetched blocks batch #{} ({} to {} out of {})",
+                                i, from, to, total_blocks
+                            ));
+                            log_info(format!(
+                                "Blocks batch #{} ({} to {} out of {}) is now being written into {}",
+                                i, from, to, total_blocks, path.display()
+                            ));
+                            serialize_to_file(&batch, &path)?;
+                            log_info(format!(
+                                "Successfully exported blocks batch #{} ({} to {} out of {}) into {}",
+                                i, from, to, total_blocks, path.display()
+                            ));
+
+                            Result::<(), failure::Error>::Ok(())
+                        };
+
+                        futs.push(fut);
                         i += 1;
                     }
 
-                    // Put everything into a ChainExport structure
-                    let snapshot = ChainExport {
-                        blocks,
-                        chain_state,
-                        superblocks,
-                    };
-
-                    // Serialize the export using bincode, and write it into the file.
-                    // This is done all at once to avoid having a copy of the whole byte
-                    // serialization in memory
-                    log_info(format!("Serializing snapshot into binary form and exporting it into {}", path.display()));
-                    let file = create_file(&path)?;
-                    bincode::serialize_into(file, &snapshot)?;
+                    // Blocks batches are processed concurrently, in no particular order, with a
+                    // limit of 4 at once
+                    futures::stream::iter(futs)
+                        .buffer_unordered(4)
+                        .collect::<Vec<_>>()
+                        .await;
                     log_info(format!(
-                        "Success! Finished exporting chain snapshot into {}",
-                        path.display()
+                        "Succesfully exported all {} blocks in chunks of {} blocks...",
+                        total_blocks, batch_size
                     ));
 
-                    // Return the exported file path
-                    Ok(path.display().to_string())
+                    // Finally serialize and write the chain state itself
+                    log_info(format!(
+                        "Exporting chain state it into {}",
+                        base_path_display
+                    ));
+                    serialize_to_file(&chain_state, &base_path)?;
+                    log_info(format!(
+                        "Success! Finished exporting chain snapshot into {}",
+                        base_path_display
+                    ));
+
+                    // Return the path of the exported chain state
+                    Ok(base_path_display)
                 };
 
                 Either::Left(

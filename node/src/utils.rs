@@ -1,8 +1,11 @@
 use actix::{Actor, ActorFuture, System};
 use std::{
     collections::HashMap,
+    fs::File,
     future::Future,
     hash::Hash,
+    io::BufReader,
+    path::PathBuf,
     pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -169,5 +172,65 @@ impl<T> From<Option<Force<T>>> for Force<T> {
             None => Force::None,
             Some(value) => value,
         }
+    }
+}
+
+/// Compose a file name out of a existing path, and a suffix that will be inserted between the file
+/// stem and the file extension.
+///
+/// Without a suffix, this function does nothing.
+pub fn file_name_compose(mut path: PathBuf, suffix: Option<String>) -> PathBuf {
+    // Interpolate suffix if needed
+    if let (Some(file_name), Some(extension), Some(suffix)) = (
+        path.file_stem().and_then(std::ffi::OsStr::to_str),
+        path.extension().and_then(std::ffi::OsStr::to_str),
+        suffix,
+    ) {
+        path.set_file_name(format!("{}-{}.{}", file_name, suffix, extension))
+    }
+
+    path
+}
+
+/// Efficiently write data into the file system as it gets encoded on the fly using `bincode`.
+pub fn serialize_to_file<D>(data: &D, path: &PathBuf) -> Result<(), failure::Error>
+where
+    D: serde::Serialize,
+{
+    // Create file, serialize and write
+    let file = witnet_util::files::create_file(path.clone())?;
+    let writer = std::io::BufWriter::new(file);
+    bincode::serialize_into(writer, data)?;
+
+    Ok(())
+}
+
+/// Efficiently read data from the file system as it gets decoded on the fly using `bincode`.
+pub fn deserialize_from_file<D>(path: &PathBuf) -> Result<D, failure::Error>
+where
+    D: serde::de::DeserializeOwned,
+{
+    // Read file, deserialize and return
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let data = bincode::deserialize_from(reader)?;
+
+    Ok(data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_file_name_compose() {
+        let base_path = PathBuf::from("./everything/everywhere/at.once");
+
+        let unchanged = file_name_compose(base_path.clone(), None);
+        assert_eq!(unchanged, base_path);
+
+        let changed = file_name_compose(base_path, Some("not-exactly".into()));
+        let expected = PathBuf::from("./everything/everywhere/at-not-exactly.once");
+        assert_eq!(changed, expected);
     }
 }
