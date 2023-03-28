@@ -98,3 +98,22 @@ fn deserialize_dr_value_overflow() {
     let err = deserialize_and_validate_dr_bytes(&dro_bytes, 1).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }
+
+#[test]
+fn deserialize_and_validate_dr_bytes_wip_0022() {
+    // This data request will return an error when checking the reward to collateral ratio.
+    // This will result in error 0xE0: BridgeMalformedRequest
+    let dro = DataRequestOutput {
+        collateral: 1_000_000_000,
+        min_consensus_percentage: 51,
+        witness_reward: 1,
+        witnesses: 20,
+        data_request: example_request(),
+        ..Default::default()
+    };
+
+    let dro_bytes = dro.to_pb_bytes().unwrap();
+    let max_dr_value_nanowits = 100_000_000_000;
+    let err = deserialize_and_validate_dr_bytes(&dro_bytes, max_dr_value_nanowits).unwrap_err();
+    assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
+}

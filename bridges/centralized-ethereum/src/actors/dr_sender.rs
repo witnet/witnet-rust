@@ -11,6 +11,7 @@ use std::{fmt, time::Duration};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
+    error::TransactionError,
     proto::ProtobufConvert,
     radon_error::RadonErrors,
     transaction::DRTransaction,
@@ -197,6 +198,8 @@ enum DrSenderError {
     RadonValidation { msg: String },
     /// The specified collateral amount is invalid
     InvalidCollateral { msg: String },
+    /// E.g. the WIP-0022 reward to collateral ratio is not satisfied
+    InvalidReward { msg: String },
     /// Overflow when calculating the data request value
     InvalidValue { msg: String },
     /// The cost of the data request is greater than the maximum allowed by the configuration of
@@ -221,6 +224,9 @@ impl fmt::Display for DrSenderError {
             }
             DrSenderError::InvalidCollateral { msg } => {
                 write!(f, "Invalid collateral: {}", msg)
+            }
+            DrSenderError::InvalidReward { msg } => {
+                write!(f, "Invalid reward: {}", msg)
             }
             DrSenderError::InvalidValue { msg } => {
                 write!(f, "Invalid value: {}", msg)
@@ -247,6 +253,7 @@ impl DrSenderError {
             | DrSenderError::Validation { .. }
             | DrSenderError::RadonValidation { .. }
             | DrSenderError::InvalidCollateral { .. }
+            | DrSenderError::InvalidReward { .. }
             | DrSenderError::InvalidValue { .. } => RadonErrors::BridgeMalformedRequest,
             // Errors for data requests that the bridge node chooses not to relay, but other bridge
             // nodes may relay
@@ -278,7 +285,12 @@ fn deserialize_and_validate_dr_bytes(
                 required_reward_collateral_ratio,
                 &current_active_wips(),
             )
-            .map_err(|e| DrSenderError::Validation { msg: e.to_string() })?;
+            .map_err(|e| match e {
+                e @ TransactionError::RewardTooLow { .. } => {
+                    DrSenderError::InvalidReward { msg: e.to_string() }
+                }
+                e => DrSenderError::Validation { msg: e.to_string() },
+            })?;
 
             // Collateral value validation
             // If collateral is equal to 0 means that is equal to collateral_minimum value

@@ -494,6 +494,7 @@ pub fn validate_dr_transaction<'a>(
 /// - The number of witnesses is at least 1
 /// - The witness reward is at least 1
 /// - The min_consensus_percentage is >50 and <100
+///  - The reward to collateral ratio is greater than 1/125
 pub fn validate_data_request_output(
     request: &DataRequestOutput,
     collateral_minimum: u64,

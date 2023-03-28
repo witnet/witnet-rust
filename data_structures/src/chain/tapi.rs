@@ -66,6 +66,12 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0014-0016".to_string(), 549141);
     active_wips.insert("WIP0017-0018-0019".to_string(), 683541);
     active_wips.insert("WIP0020-0021".to_string(), 1059861);
+    active_wips.insert("WIP0022".to_string(), 1708901);
+    active_wips.insert("WIP0023".to_string(), 1708901);
+    active_wips.insert("WIP0024".to_string(), 1708901);
+    active_wips.insert("WIP0025".to_string(), 1708901);
+    active_wips.insert("WIP0026".to_string(), 1708901);
+    active_wips.insert("WIP0027".to_string(), 1708901);
 
     active_wips
 }
