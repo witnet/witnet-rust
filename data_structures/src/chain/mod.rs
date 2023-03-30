@@ -13,7 +13,6 @@ use std::{
     fmt::Write as _,
     ops::{AddAssign, SubAssign},
     str::FromStr,
-    vec::IntoIter,
 };
 
 use bech32::{FromBase32, ToBase32};
@@ -3332,7 +3331,7 @@ where
     E: std::error::Error,
 {
     /// The full history of blocks, accumulated in batches.
-    pub blocks: BoxFuture<'static, Result<IntoIter<Result<Vec<Block>, E>>, E>>,
+    pub blocks: Result<Vec<BoxFuture<'static, Result<Vec<Block>, E>>>, E>,
     /// The chain state itself.
     pub chain_state: BoxFuture<'static, Result<ChainState, E>>,
     /// The full history of superblocks.

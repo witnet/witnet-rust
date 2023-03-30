@@ -1903,7 +1903,7 @@ impl Handler<SnapshotExport> for ChainManager {
                         ));
                         let path = file_name_compose(
                             base_path.clone(),
-                            Some(format!("blocks_batch_{}", i)),
+                            Some(format!("blocks_batch_{:0>4}", i)),
                         );
                         let hashes = batch.map(|(_epoch, hash)| hash.clone()).collect::<Vec<_>>();
 

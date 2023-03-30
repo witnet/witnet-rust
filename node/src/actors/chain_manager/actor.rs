@@ -1,15 +1,14 @@
-use std::{pin::Pin, str::FromStr, time::Duration, vec::IntoIter};
+use std::{pin::Pin, str::FromStr, time::Duration};
 
 use actix::prelude::*;
-use actix::{ActorTryFutureExt, WrapFuture};
+use actix::{ActorTryFutureExt, ContextFutureSpawner, WrapFuture};
 
 use futures::future::BoxFuture;
-use futures_util::{FutureExt, StreamExt, TryFutureExt};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{
         Block, ChainImport, ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF,
-        GenesisBlockInfo, PublicKeyHash, ReputationEngine, SuperBlock,
+        GenesisBlockInfo, PublicKeyHash, ReputationEngine, StateMachine, SuperBlock,
     },
     data_request::DataRequestPool,
     get_environment,
@@ -603,9 +602,9 @@ impl ChainManager {
     }
 
     fn process_superblocks_fut(
-        superblocks: Vec<SuperBlock>,
-        act: &mut Self,
+        &mut self,
         _ctx: &mut Context<Self>,
+        superblocks: Vec<SuperBlock>,
     ) -> ResponseActFuture<Self, Result<(), ImportError>> {
         // Write superblocks into storage
         let superblocks_count = superblocks.len();
@@ -626,44 +625,135 @@ impl ChainManager {
                     superblocks_count
                 );
             }
-            act.notify_superblock_consolidation(superblock);
+            self.notify_superblock_consolidation(superblock);
         }
 
         Box::pin(futures::future::ok(()))
     }
 
+    /// Process the blocks found inside a single batch by persisting them as inventory items.
     fn process_blocks_batch_fut(
-        blocks: Vec<Block>,
-        act: &mut Self,
+        &mut self,
         ctx: &mut Context<Self>,
+        blocks: Vec<Block>,
     ) -> ResponseActFuture<Self, Result<usize, ImportError>> {
+        // Build inventory items from a vector of blocks
         let items = blocks
             .into_iter()
             .map(Box::new)
             .map(StoreInventoryItem::Block)
             .collect::<Vec<_>>();
-
         let count = items.len();
-        act.persist_items(ctx, items);
 
+        // Persist the inventory items
+        self.persist_items(ctx, items);
+
+        // Return how many blocks where processed
         Box::pin(futures::future::ok(count))
     }
 
+    /// Process multiple block batches efficiently by decoding and loading on the fly.
     fn process_blocks_batches_fut(
-        iter: IntoIter<Result<Vec<Block>, ImportError>>,
-        act: &mut Self,
+        &mut self,
         ctx: &mut Context<Self>,
+        batches: Vec<BoxFuture<'static, Result<Vec<Block>, ImportError>>>,
     ) -> ResponseActFuture<Self, Result<(), ImportError>> {
-        for (i, batch) in iter.enumerate() {
-            log::info!("Processing blocks batch #{}", i);
-            if let Ok(blocks) = batch {
-                ChainManager::process_blocks_batch_fut(blocks, act, ctx).map_ok(|count, _, _| {
-                    log::info!("Succesfully processed {} blocks from batch #{}", count, i)
-                });
-            } else {
-                return Box::pin(futures::future::err(batch.unwrap_err()));
-            }
+        // Enumerate the batches so that we can keep track of progress
+        let batches = batches.into_iter().enumerate();
+        let batches_count = batches.len();
+
+        // Process each batch in series (parallelization would take too much memory here)
+        for (i, batch) in batches {
+            let fut = async move { batch.await };
+            let fut = fut
+                .into_actor(self)
+                .and_then(move |blocks, act, ctx| {
+                    log::info!("Processing blocks batch #{} out of {}", i, batches_count);
+
+                    act.process_blocks_batch_fut(ctx, blocks)
+                })
+                .and_then(move |count, _, _| {
+                    log::info!("Imported {} blocks from batch #{}", count, i);
+
+                    futures::future::ok(())
+                })
+                .map(|_, _, _| ());
+
+            ctx.wait(fut);
         }
+
+        Box::pin(futures::future::ok(()))
+    }
+
+    fn process_chain_state_fut(
+        &mut self,
+        chain_state: ChainState,
+    ) -> ResponseActFuture<Self, Result<(), ImportError>> {
+        // Reuse the existing UTXO database: simply wipe it and insert the new stuff later
+        let mut old_utxos = self.chain_state.unspent_outputs_pool.clone();
+        let drop_count = old_utxos.delete_all_from_db();
+        log::info!("Dropped {} UTXOs from persistent UTXO set", drop_count);
+        // This is exactly where the chain state is replaced
+        self.chain_state = chain_state;
+        self.chain_state.unspent_outputs_pool = old_utxos;
+        self.sm_state = StateMachine::WaitingConsensus;
+
+        // Migrate the UTXO set from its export/import format into its persistent form
+        self.chain_state
+            .unspent_outputs_pool
+            .migrate_old_unspent_outputs_pool_to_db(
+                &mut self.chain_state.unspent_outputs_pool_old_migration_db,
+                |i, total| {
+                    if i % 10_000 == 0 {
+                        log::info!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
+                    } else {
+                        log::debug!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
+                    }
+                },
+            );
+
+        // Find and index our own UTXOs from the UTXO set
+        let mut own_utxos = OwnUnspentOutputsPool::new();
+        let own_pkh = self.own_pkh.unwrap().clone();
+        log::info!("Trying to find and index unspent outputs for {}", own_pkh);
+        self.chain_state.unspent_outputs_pool.visit_with_pkh(
+            own_pkh,
+            |(output_pointer, (vto, _))| {
+                own_utxos.insert(*output_pointer, vto.value);
+                log::debug!(
+                    "Found a new unspent output for {}. Total found so far: {}",
+                    own_pkh,
+                    own_utxos.len()
+                );
+            },
+            |_| (),
+        );
+        log::info!(
+            "Found and indexed a total of {} unspent outputs for {}",
+            own_utxos.len(),
+            own_pkh
+        );
+        self.chain_state.own_utxos = own_utxos;
+
+        // Delete any saved copies of the old chain state to avoid accidentally persisting a forked
+        // state
+        self.chain_state_snapshot.clear();
+        // Time to set the `highest_persisted_superblock` to the latest consolidated superblock
+        self.chain_state_snapshot.highest_persisted_superblock =
+            self.get_superblock_beacon().checkpoint;
+
+        // Important: persist the new chain state right away
+        self.persist_chain_state(None);
+
+        // Finally, we let the sessions manager know about the new chain tip
+        SessionsManager::from_registry().do_send(SetLastBeacon {
+            beacon: LastBeacon {
+                highest_block_checkpoint: self.get_chain_beacon(),
+                highest_superblock_checkpoint: self.get_superblock_beacon(),
+            },
+        });
+
+        self.mut_drop_import();
 
         Box::pin(futures::future::ok(()))
     }
@@ -703,29 +793,30 @@ impl ChainManager {
                 log::info!("Importing chain snapshot now. After importing, the node should be synced up to superblock #{}.", chain_info.highest_superblock_checkpoint.checkpoint);
             }
 
-            // Time to try to import superblocks
+            // Import superblocks
             let superblocks = import
                 .superblocks
                 .await
                 .map_err(|e| ImportError::AtSuperblocks(Box::new(e)))?;
 
-            // Time to try to import blocks
+            // Import blocks in batches
             let block_batches = import
                 .blocks
-                .await
                 .map_err(|e| ImportError::AtBlocks(Box::new(e)))?;
 
             Ok((chain_state, superblocks, block_batches))
         };
 
         Box::pin(fut.into_actor(self).and_then(
-            |(_chain_state, superblocks, blocks_batches), act, ctx| {
-                ChainManager::process_superblocks_fut(superblocks, act, ctx).and_then(
-                    |_, act, ctx| {
-                        ChainManager::process_blocks_batches_fut(blocks_batches, act, ctx)
-                    },
-                )
-                // TODO: process chain state
+            |(chain_state, superblocks, blocks_batches), act, ctx| {
+                act.process_superblocks_fut(ctx, superblocks)
+                    .and_then(|_, act, ctx| act.process_blocks_batches_fut(ctx, blocks_batches))
+                    .and_then(move |_, act, _ctx| act.process_chain_state_fut(chain_state))
+                    .and_then(|_, _, _| {
+                        log::info!("Successfully finished importing snapshot!");
+
+                        futures::future::ok(())
+                    })
             },
         ))
     }

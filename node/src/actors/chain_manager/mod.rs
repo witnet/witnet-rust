@@ -43,7 +43,7 @@ use actix::{
 use ansi_term::Color::{Purple, White, Yellow};
 use derive_more::{Display, Error};
 use failure::Fail;
-use futures::future::{try_join_all, BoxFuture, FutureExt};
+use futures::future::{try_join_all, FutureExt};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
@@ -317,46 +317,23 @@ impl ChainManager {
             Ok(superblocks)
         });
 
-        // A future for reading and deserializing blocks from multiple files
+        // A vector of futures for reading and deserializing blocks from multiple files
         let blocks_path = file_name_compose(path.clone(), Some("blocks_batch_*".into()));
-        let blocks = Box::pin(async move {
-            let path_display = blocks_path.display().to_string();
-
-            let mut iterators = Vec::new();
-            for entry in
-                glob(&path_display).map_err(|_| ImportError::FileRead { path: path_display })?
-            {
-                if let Ok(entry) = entry {
-                    let batch_path = PathBuf::from(entry);
-                    let path_display = batch_path.display().to_string();
-                    let iterator = {
-                        let batch: Vec<_> = deserialize_from_file(&batch_path).map_err(
-                            |e: ImportError| match e {
-                                ImportError::Bincode(_) => ImportError::Deserialize {
-                                    path: path_display.clone(),
-                                },
-                                ImportError::Io(_) => ImportError::FileRead {
-                                    path: path_display.clone(),
-                                },
-                                e => e,
-                            },
-                        )?;
-
-                        log::info!(
-                            "Successfully read {} blocks from file {}",
-                            batch.len(),
-                            path_display
-                        );
-
-                        Ok(batch)
-                    };
-
-                    iterators.push(iterator);
+        let path_display = blocks_path.display().to_string();
+        let blocks = match glob(&path_display) {
+            Ok(entries) => {
+                let mut blocks = Vec::new();
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let batch_path = PathBuf::from(entry);
+                        let fut = make_fut(batch_path);
+                        blocks.push(fut);
+                    }
                 }
+                Ok(blocks)
             }
-
-            Ok(iterators.into_iter())
-        });
+            Err(_) => Err(ImportError::FileRead { path: path_display }),
+        };
 
         let import = ChainImport {
             blocks,
@@ -366,6 +343,39 @@ impl ChainManager {
 
         self.with_import(import, force)
     }
+}
+
+fn make_fut(
+    batch_path: PathBuf,
+) -> Pin<
+    Box<
+        (dyn futures_util::Future<
+            Output = Result<Vec<witnet_data_structures::chain::Block>, ImportError>,
+        > + std::marker::Send
+             + 'static),
+    >,
+> {
+    Box::pin(async move {
+        let path_display = batch_path.display().to_string();
+        let batch: Vec<_> =
+            deserialize_from_file(&batch_path).map_err(|e: ImportError| match e {
+                ImportError::Bincode(_) => ImportError::Deserialize {
+                    path: path_display.clone(),
+                },
+                ImportError::Io(_) => ImportError::FileRead {
+                    path: path_display.clone(),
+                },
+                e => e,
+            })?;
+
+        log::info!(
+            "Successfully read {} blocks from file {}",
+            batch.len(),
+            path_display
+        );
+
+        Ok(batch)
+    })
 }
 
 impl Drop for ChainManager {
