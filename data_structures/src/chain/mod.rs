@@ -13,11 +13,13 @@ use std::{
     fmt::Write as _,
     ops::{AddAssign, SubAssign},
     str::FromStr,
+    vec::IntoIter,
 };
 
 use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use failure::Fail;
+use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
 use partial_struct::PartialStruct;
 use serde::{Deserialize, Serialize};
@@ -3323,16 +3325,18 @@ impl ChainState {
     }
 }
 
-/// Unifies `ChainState` with whatever other data structure that is needed for chain
-/// state portability, i.e., copying state from one node to another.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ChainExport {
-    /// The full history of blocks.
-    pub blocks: Vec<Block>,
+/// Unifies a future of `ChainState` with promises for whatever other data structures that are
+/// needed for chain state portability, i.e., copying the whole blockchain from one node to another.
+pub struct ChainImport<E>
+where
+    E: std::error::Error,
+{
+    /// The full history of blocks, accumulated in batches.
+    pub blocks: BoxFuture<'static, Result<IntoIter<Result<Vec<Block>, E>>, E>>,
     /// The chain state itself.
-    pub chain_state: ChainState,
+    pub chain_state: BoxFuture<'static, Result<ChainState, E>>,
     /// The full history of superblocks.
-    pub superblocks: Vec<SuperBlock>,
+    pub superblocks: BoxFuture<'static, Result<Vec<SuperBlock>, E>>,
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to

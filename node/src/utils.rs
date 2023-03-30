@@ -143,6 +143,16 @@ pub enum Force<T> {
 
 impl<T> Force<T> {
     #[inline]
+    /// Creates a new non-forced `Force` value with forced if specified.
+    pub fn new(value: T, force: bool) -> Force<T> {
+        if force {
+            Self::Forced(value)
+        } else {
+            Self::Some(value)
+        }
+    }
+
+    #[inline]
     /// Wraps a value in a `Force` with the same degree of force than an existing `Force`.
     pub fn same<V>(&self, value: V) -> Force<V> {
         match self {
@@ -206,9 +216,10 @@ where
 }
 
 /// Efficiently read data from the file system as it gets decoded on the fly using `bincode`.
-pub fn deserialize_from_file<D>(path: &PathBuf) -> Result<D, failure::Error>
+pub fn deserialize_from_file<D, E>(path: &PathBuf) -> Result<D, E>
 where
     D: serde::de::DeserializeOwned,
+    E: From<std::io::Error> + From<bincode::Error>,
 {
     // Read file, deserialize and return
     let file = File::open(path)?;

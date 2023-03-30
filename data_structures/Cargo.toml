@@ -15,6 +15,7 @@ cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/
 chrono = "0.4.10"
 ethereum-types = "0.12.1"
 failure = "0.1.8"
+futures = "0.3.27"
 hex = "0.4.1"
 itertools = "0.8.2"
 lazy_static = "1.4.0"

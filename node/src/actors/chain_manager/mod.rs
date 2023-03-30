@@ -41,8 +41,10 @@ use actix::{
     SystemService, WrapFuture,
 };
 use ansi_term::Color::{Purple, White, Yellow};
+use derive_more::{Display, Error};
 use failure::Fail;
-use futures::future::{try_join_all, FutureExt};
+use futures::future::{try_join_all, BoxFuture, FutureExt};
+use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
 use witnet_config::{
@@ -53,14 +55,13 @@ use witnet_config::{
     },
 };
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::ChainExport;
 use witnet_data_structures::{
     chain::{
         penalize_factor,
         priority::{Priorities, PriorityEngine, PriorityVisitor},
         reputation_issuance,
         tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
-        Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainInfo, ChainState,
+        Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainImport, ChainInfo, ChainState,
         CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo, DataRequestOutput,
         DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
         NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, StateMachine,
@@ -102,7 +103,7 @@ use crate::{
         storage_keys,
     },
     signature_mngr, storage_mngr,
-    utils::{stop_system_if_panicking, Force},
+    utils::{deserialize_from_file, file_name_compose, stop_system_if_panicking, Force},
 };
 
 mod actor;
@@ -170,7 +171,7 @@ pub struct SyncTarget {
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
 /// ChainManager actor
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct ChainManager {
     /// Blockchain state data structure
     chain_state: ChainState,
@@ -242,7 +243,7 @@ pub struct ChainManager {
     /// Transaction priority engine
     priority_engine: PriorityEngine,
     /// Chain snapshot to be imported
-    import: Force<ChainExport>,
+    import: Force<ChainImport<ImportError>>,
 }
 
 impl ChainManager {
@@ -254,7 +255,7 @@ impl ChainManager {
     /// Put a chain export into the `import` field.
     ///
     /// This is only done if the chain to import is ahead of our own, or the `--force` flag is set.
-    fn with_import(mut self, import: ChainExport, force: bool) -> Self {
+    fn with_import(mut self, import: ChainImport<ImportError>, force: bool) -> Self {
         self.import = match force {
             true => Force::Forced(import),
             false => Force::Some(import),
@@ -266,29 +267,104 @@ impl ChainManager {
     /// Try to read and load a chain snapshot from the filesystem.
     ///
     /// This method is intentionally best-effort.
-    fn with_import_from_path(mut self, path: PathBuf, force: bool) -> Self {
-        let path_clone = path.clone();
-        let path_display = path_clone.display();
-        log::debug!("Trying to read chain snapshot from file {}", path_display);
+    fn with_import_from_path(self, path: PathBuf, force: bool) -> Self {
+        // A future for reading and deserializing the chain state from a single file
+        let chain_state_path = path.clone();
+        let chain_state = Box::pin(async move {
+            let path_display = chain_state_path.display().to_string();
+            log::debug!("Trying to read chain state from file {}", path_display);
 
-        if let Ok(bytes) = std::fs::read(path) {
-            if let Ok(import) = bincode::deserialize(&bytes) {
-                log::info!(
-                    "Successfully read chain snapshot from file {}",
-                    path_display
-                );
-                self = self.with_import(import, force);
-            } else {
-                log::error!(
-                    "Failed to deserialize a chain snapshot file from {}",
-                    path_display
-                )
+            // Open file, create reader, and decode using bincode
+            let chain_state =
+                deserialize_from_file(&chain_state_path).map_err(|e: ImportError| match e {
+                    ImportError::Bincode(_) => ImportError::Deserialize {
+                        path: path_display.clone(),
+                    },
+                    ImportError::Io(_) => ImportError::FileRead {
+                        path: path_display.clone(),
+                    },
+                    e => e,
+                })?;
+
+            Ok(chain_state)
+        });
+
+        // A future for reading and deserializing superblocks from a single file
+        let superblocks_path = file_name_compose(path.clone(), Some("superblocks".into()));
+        let superblocks = Box::pin(async move {
+            // Derive superblocks file path from the base path
+            let path_display = superblocks_path.display().to_string();
+            log::debug!("Trying to read superblocks file at {}", path_display);
+
+            // Open file, create reader, and decode using bincode
+            let superblocks: Vec<_> =
+                deserialize_from_file(&superblocks_path).map_err(|e: ImportError| match e {
+                    ImportError::Bincode(_) => ImportError::Deserialize {
+                        path: path_display.clone(),
+                    },
+                    ImportError::Io(_) => ImportError::FileRead {
+                        path: path_display.clone(),
+                    },
+                    e => e,
+                })?;
+
+            log::info!(
+                "Successfully read {} superblocks from file {}",
+                superblocks.len(),
+                path_display
+            );
+
+            Ok(superblocks)
+        });
+
+        // A future for reading and deserializing blocks from multiple files
+        let blocks_path = file_name_compose(path.clone(), Some("blocks_batch_*".into()));
+        let blocks = Box::pin(async move {
+            let path_display = blocks_path.display().to_string();
+
+            let mut iterators = Vec::new();
+            for entry in
+                glob(&path_display).map_err(|_| ImportError::FileRead { path: path_display })?
+            {
+                if let Ok(entry) = entry {
+                    let batch_path = PathBuf::from(entry);
+                    let path_display = batch_path.display().to_string();
+                    let iterator = {
+                        let batch: Vec<_> = deserialize_from_file(&batch_path).map_err(
+                            |e: ImportError| match e {
+                                ImportError::Bincode(_) => ImportError::Deserialize {
+                                    path: path_display.clone(),
+                                },
+                                ImportError::Io(_) => ImportError::FileRead {
+                                    path: path_display.clone(),
+                                },
+                                e => e,
+                            },
+                        )?;
+
+                        log::info!(
+                            "Successfully read {} blocks from file {}",
+                            batch.len(),
+                            path_display
+                        );
+
+                        Ok(batch)
+                    };
+
+                    iterators.push(iterator);
+                }
             }
-        } else {
-            log::error!("Could not load chain snapshot file from {}", path_display);
-        }
 
-        self
+            Ok(iterators.into_iter())
+        });
+
+        let import = ChainImport {
+            blocks,
+            chain_state,
+            superblocks,
+        };
+
+        self.with_import(import, force)
     }
 }
 
@@ -2449,6 +2525,42 @@ impl ChainManager {
         }
 
         v
+    }
+}
+
+#[derive(Debug, Display, Error)]
+enum ImportError {
+    #[display(fmt = "Error importing blocks")]
+    AtBlocks(Box<Self>),
+    #[display(fmt = "Error importing chain state")]
+    AtChainState(Box<Self>),
+    #[display(fmt = "Error importing superblocks")]
+    AtSuperblocks(Box<Self>),
+    #[display(fmt = "bincode error")]
+    Bincode(bincode::Error),
+    #[display(
+        fmt = "The imported chain is ahead of our local chain ({} > {})",
+        imported,
+        local
+    )]
+    ChainTip { imported: u32, local: u32 },
+    #[display(fmt = "Error deserializing file at {}", path)]
+    Deserialize { path: String },
+    #[display(fmt = "Error reading file at {}", path)]
+    FileRead { path: String },
+    #[display(fmt = "std::io error")]
+    Io(std::io::Error),
+}
+
+impl From<std::io::Error> for ImportError {
+    fn from(value: std::io::Error) -> Self {
+        ImportError::Io(value)
+    }
+}
+
+impl From<bincode::Error> for ImportError {
+    fn from(value: bincode::Error) -> Self {
+        ImportError::Bincode(value)
     }
 }
 

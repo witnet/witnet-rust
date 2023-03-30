@@ -1,11 +1,15 @@
-use std::{pin::Pin, str::FromStr, time::Duration};
+use std::{pin::Pin, str::FromStr, time::Duration, vec::IntoIter};
 
 use actix::prelude::*;
+use actix::{ActorTryFutureExt, WrapFuture};
+
+use futures::future::BoxFuture;
+use futures_util::{FutureExt, StreamExt, TryFutureExt};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{
-        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo, PublicKeyHash,
-        ReputationEngine, StateMachine,
+        Block, ChainImport, ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF,
+        GenesisBlockInfo, PublicKeyHash, ReputationEngine, SuperBlock,
     },
     data_request::DataRequestPool,
     get_environment,
@@ -18,7 +22,7 @@ use witnet_util::timestamp::pretty_print;
 
 use crate::{
     actors::{
-        chain_manager::{handlers::EveryEpochPayload, ChainManager},
+        chain_manager::{handlers::EveryEpochPayload, ChainManager, ImportError},
         epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
         messages::{
             AddBlocks, GetEpoch, GetEpochConstants, SetLastBeacon, StoreInventoryItem, Subscribe,
@@ -598,10 +602,158 @@ impl ChainManager {
             .wait(ctx);
     }
 
+    fn process_superblocks_fut(
+        superblocks: Vec<SuperBlock>,
+        act: &mut Self,
+        _ctx: &mut Context<Self>,
+    ) -> ResponseActFuture<Self, Result<(), ImportError>> {
+        // Write superblocks into storage
+        let superblocks_count = superblocks.len();
+        log::info!("Importing {} superblocks into storage", superblocks_count);
+        for (i, superblock) in superblocks.into_iter().enumerate() {
+            if i % 10_000 == 0 {
+                log::info!(
+                    "Writing superblock #{} ({}/{})",
+                    superblock.index,
+                    i,
+                    superblocks_count
+                );
+            } else {
+                log::debug!(
+                    "Writing superblock #{} ({}/{})",
+                    superblock.index,
+                    i,
+                    superblocks_count
+                );
+            }
+            act.notify_superblock_consolidation(superblock);
+        }
+
+        Box::pin(futures::future::ok(()))
+    }
+
+    fn process_blocks_batch_fut(
+        blocks: Vec<Block>,
+        act: &mut Self,
+        ctx: &mut Context<Self>,
+    ) -> ResponseActFuture<Self, Result<usize, ImportError>> {
+        let items = blocks
+            .into_iter()
+            .map(Box::new)
+            .map(StoreInventoryItem::Block)
+            .collect::<Vec<_>>();
+
+        let count = items.len();
+        act.persist_items(ctx, items);
+
+        Box::pin(futures::future::ok(count))
+    }
+
+    fn process_blocks_batches_fut(
+        iter: IntoIter<Result<Vec<Block>, ImportError>>,
+        act: &mut Self,
+        ctx: &mut Context<Self>,
+    ) -> ResponseActFuture<Self, Result<(), ImportError>> {
+        for (i, batch) in iter.enumerate() {
+            log::info!("Processing blocks batch #{}", i);
+            if let Ok(blocks) = batch {
+                ChainManager::process_blocks_batch_fut(blocks, act, ctx).map_ok(|count, _, _| {
+                    log::info!("Succesfully processed {} blocks from batch #{}", count, i)
+                });
+            } else {
+                return Box::pin(futures::future::err(batch.unwrap_err()));
+            }
+        }
+
+        Box::pin(futures::future::ok(()))
+    }
+
+    fn process_import_fut(
+        &mut self,
+        import: ChainImport<ImportError>,
+        force: bool,
+    ) -> ResponseActFuture<Self, Result<(), ImportError>> {
+        // Perform all synchronous stuff upfront
+        let local_checkpoint = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .map(|chain_info| chain_info.highest_superblock_checkpoint.checkpoint);
+
+        // Wrap all asynchronous stuff into a future
+        let fut = async move {
+            let chain_state = import
+                .chain_state
+                .await
+                .map_err(|e| ImportError::AtChainState(Box::new(e)))?;
+
+            // Only run the import if the imported chain is ahead of our own, or the force flag is set
+            let imported_checkpoint = chain_state
+                .chain_info
+                .as_ref()
+                .map(|chain_info| chain_info.highest_superblock_checkpoint.checkpoint);
+
+            if imported_checkpoint <= local_checkpoint && !force {
+                let (imported, local) = (imported_checkpoint.unwrap(), local_checkpoint.unwrap());
+
+                return Err(ImportError::ChainTip { imported, local });
+            }
+
+            if let Some(chain_info) = &chain_state.chain_info {
+                log::info!("Importing chain snapshot now. After importing, the node should be synced up to superblock #{}.", chain_info.highest_superblock_checkpoint.checkpoint);
+            }
+
+            // Time to try to import superblocks
+            let superblocks = import
+                .superblocks
+                .await
+                .map_err(|e| ImportError::AtSuperblocks(Box::new(e)))?;
+
+            // Time to try to import blocks
+            let block_batches = import
+                .blocks
+                .await
+                .map_err(|e| ImportError::AtBlocks(Box::new(e)))?;
+
+            Ok((chain_state, superblocks, block_batches))
+        };
+
+        Box::pin(fut.into_actor(self).and_then(
+            |(_chain_state, superblocks, blocks_batches), act, ctx| {
+                ChainManager::process_superblocks_fut(superblocks, act, ctx).and_then(
+                    |_, act, ctx| {
+                        ChainManager::process_blocks_batches_fut(blocks_batches, act, ctx)
+                    },
+                )
+                // TODO: process chain state
+            },
+        ))
+    }
+
     /// Load all the data from the `import` field into their corresponding locations, and persist
     /// when necessary.
-    fn process_import(&mut self, ctx: &mut Context<ChainManager>) {
-        // Only run the import if the imported chain is ahead of our own, or the force flag is set
+    fn process_import(&mut self, ctx: &mut Context<Self>) {
+        // Early escape if no import is set
+        let (import, force) = match self.import.take() {
+            Force::Forced(import) => (import, true),
+            Force::Some(import) => (import, false),
+            Force::None => {
+                // Without nothing to import, do nothing.
+                return;
+            }
+        };
+
+        let fut = self
+            .process_import_fut(import, force)
+            .map(|res, _act, _ctx| {
+                if let Err(err) = res {
+                    log::error!("{}", err);
+                }
+            });
+
+        ctx.wait(fut);
+
+        /*// Only run the import if the imported chain is ahead of our own, or the force flag is set
         let import = match self.import.take() {
             Force::Forced(import) => import,
             Force::Some(import) => {
@@ -624,8 +776,6 @@ impl ChainManager {
 
                     return;
                 }
-
-                import
             }
             Force::None => {
                 // Without nothing to import, do nothing.
@@ -714,7 +864,7 @@ impl ChainManager {
 
         log::info!("Finished importing the chain snapshot!");
 
-        self.mut_drop_import()
+        self.mut_drop_import()*/
     }
 
     /// Put some basic information into the scope of the telemetry service (Sentry)
