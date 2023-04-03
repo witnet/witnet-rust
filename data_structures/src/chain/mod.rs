@@ -18,7 +18,7 @@ use std::{
 use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use failure::Fail;
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, stream::BoxStream};
 use ordered_float::OrderedFloat;
 use partial_struct::PartialStruct;
 use serde::{Deserialize, Serialize};

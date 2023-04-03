@@ -43,7 +43,10 @@ use actix::{
 use ansi_term::Color::{Purple, White, Yellow};
 use derive_more::{Display, Error};
 use failure::Fail;
-use futures::future::{try_join_all, FutureExt};
+use futures::{
+    future::{try_join_all, FutureExt},
+    stream::{StreamExt, TryStreamExt},
+};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
@@ -309,7 +312,7 @@ impl ChainManager {
                 })?;
 
             log::info!(
-                "Successfully read {} superblocks from file {}",
+                "Read {} superblocks from file {}",
                 superblocks.len(),
                 path_display
             );
@@ -326,7 +329,7 @@ impl ChainManager {
                 for entry in entries {
                     if let Ok(entry) = entry {
                         let batch_path = PathBuf::from(entry);
-                        let fut = make_fut(batch_path);
+                        let fut = futurize_batch_read(batch_path);
                         blocks.push(fut);
                     }
                 }
@@ -345,7 +348,7 @@ impl ChainManager {
     }
 }
 
-fn make_fut(
+fn futurize_batch_read(
     batch_path: PathBuf,
 ) -> Pin<
     Box<
@@ -369,7 +372,7 @@ fn make_fut(
             })?;
 
         log::info!(
-            "Successfully read {} blocks from file {}",
+            "Read {} blocks from file {}",
             batch.len(),
             path_display
         );
@@ -591,14 +594,14 @@ impl ChainManager {
     }
 
     /// Method to Send items to Inventory Manager
-    fn persist_items(&self, ctx: &mut Context<Self>, items: Vec<StoreInventoryItem>) {
+    fn persist_items(&self, _ctx: &mut Context<Self>, items: Vec<StoreInventoryItem>) -> ResponseActFuture<Self, Result<(), failure::Error>> {
         // Get InventoryManager address
         let inventory_manager_addr = InventoryManager::from_registry();
 
         // Persist block into storage through InventoryManager. `AsyncContext::wait` registers
         // future within context, but context waits until this future resolves
         // before processing any other events.
-        inventory_manager_addr
+        Box::pin(inventory_manager_addr
             .send(AddItems { items })
             .into_actor(self)
             .then(|res, _act, _ctx| {
@@ -607,9 +610,8 @@ impl ChainManager {
                     log::error!("Unsuccessful communication with InventoryManager: {}", e);
                 }
 
-                actix::fut::ready(())
-            })
-            .wait(ctx)
+                actix::fut::ok(())
+            }))
     }
 
     /// Method to persist a Data Request into the Storage

@@ -23,6 +23,7 @@ itertools = "0.8.2"
 jsonrpc-core = "15.1.0"
 jsonrpc-pubsub = "15.1.0"
 log = "0.4.8"
+num = "0.4.0"
 rand = "0.7.3"
 pin-project-lite = "0.2"
 sentry = { version = "0.29.3", features = ["log"], optional = true }

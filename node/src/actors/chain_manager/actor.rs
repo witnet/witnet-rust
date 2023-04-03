@@ -2,8 +2,10 @@ use std::{pin::Pin, str::FromStr, time::Duration};
 
 use actix::prelude::*;
 use actix::{ActorTryFutureExt, ContextFutureSpawner, WrapFuture};
-
-use futures::future::BoxFuture;
+use futures::{
+    future::BoxFuture,
+    stream::{BoxStream, StreamExt, TryStreamExt},
+};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{
@@ -612,14 +614,14 @@ impl ChainManager {
         for (i, superblock) in superblocks.into_iter().enumerate() {
             if i % 10_000 == 0 {
                 log::info!(
-                    "Writing superblock #{} ({}/{})",
+                    "Persisting superblock #{} ({}/{})",
                     superblock.index,
                     i,
                     superblocks_count
                 );
             } else {
                 log::debug!(
-                    "Writing superblock #{} ({}/{})",
+                    "Persisting superblock #{} ({}/{})",
                     superblock.index,
                     i,
                     superblocks_count
@@ -646,10 +648,10 @@ impl ChainManager {
         let count = items.len();
 
         // Persist the inventory items
-        self.persist_items(ctx, items);
+        let fut = self.persist_items(ctx, items).map(move |_, _, _| Ok(count));
 
         // Return how many blocks where processed
-        Box::pin(futures::future::ok(count))
+        Box::pin(fut)
     }
 
     /// Process multiple block batches efficiently by decoding and loading on the fly.
@@ -658,31 +660,28 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         batches: Vec<BoxFuture<'static, Result<Vec<Block>, ImportError>>>,
     ) -> ResponseActFuture<Self, Result<(), ImportError>> {
-        // Enumerate the batches so that we can keep track of progress
-        let batches = batches.into_iter().enumerate();
         let batches_count = batches.len();
+        let stream = futures::stream::iter(batches.into_iter().enumerate());
+        let stream = actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), act, ctx| {
+            log::info!("Reading blocks batch {} out of {}", i + 1, batches_count);
+            actix::fut::wrap_future::<_, Self>(fut).and_then(move |blocks, act, ctx| {
+                log::info!("Processing blocks batch {} out of {}. This may take several minutes...", i + 1, batches_count);
+                act.process_blocks_batch_fut(ctx, blocks)
+                    .and_then(move |count, _, _| {
+                        log::info!(
+                            "Imported {} blocks from batch {} out of {}",
+                            count,
+                            i + 1,
+                            batches_count
+                        );
 
-        // Process each batch in series (parallelization would take too much memory here)
-        for (i, batch) in batches {
-            let fut = async move { batch.await };
-            let fut = fut
-                .into_actor(self)
-                .and_then(move |blocks, act, ctx| {
-                    log::info!("Processing blocks batch #{} out of {}", i, batches_count);
+                        futures::future::ok::<_, ImportError>(())
+                    })
+            })
+        });
+        let fut = stream.finish().map(|_, _, _| Ok(()));
 
-                    act.process_blocks_batch_fut(ctx, blocks)
-                })
-                .and_then(move |count, _, _| {
-                    log::info!("Imported {} blocks from batch #{}", count, i);
-
-                    futures::future::ok(())
-                })
-                .map(|_, _, _| ());
-
-            ctx.wait(fut);
-        }
-
-        Box::pin(futures::future::ok(()))
+        Box::pin(fut)
     }
 
     fn process_chain_state_fut(
@@ -704,7 +703,7 @@ impl ChainManager {
             .migrate_old_unspent_outputs_pool_to_db(
                 &mut self.chain_state.unspent_outputs_pool_old_migration_db,
                 |i, total| {
-                    if i % 10_000 == 0 {
+                    if i % 100_000 == 0 {
                         log::info!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
                     } else {
                         log::debug!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
@@ -800,11 +799,11 @@ impl ChainManager {
                 .map_err(|e| ImportError::AtSuperblocks(Box::new(e)))?;
 
             // Import blocks in batches
-            let block_batches = import
+            let blocks_batches = import
                 .blocks
                 .map_err(|e| ImportError::AtBlocks(Box::new(e)))?;
 
-            Ok((chain_state, superblocks, block_batches))
+            Ok((chain_state, superblocks, blocks_batches))
         };
 
         Box::pin(fut.into_actor(self).and_then(
@@ -843,119 +842,6 @@ impl ChainManager {
             });
 
         ctx.wait(fut);
-
-        /*// Only run the import if the imported chain is ahead of our own, or the force flag is set
-        let import = match self.import.take() {
-            Force::Forced(import) => import,
-            Force::Some(import) => {
-                let imported_checkpoint = import
-                    .chain_state
-                    .chain_info
-                    .as_ref()
-                    .map(|chain_info| chain_info.highest_superblock_checkpoint.checkpoint);
-                let local_checkpoint = self
-                    .chain_state
-                    .chain_info
-                    .as_ref()
-                    .map(|chain_info| chain_info.highest_superblock_checkpoint.checkpoint);
-
-                // Do not import if our own chain is ahead of the imported chain
-                if imported_checkpoint <= local_checkpoint {
-                    if let (Some(imported), Some(local)) = (imported_checkpoint, local_checkpoint) {
-                        log::warn!("Skipping chain import because the latest superblock in the imported chain is older than the one in our local chain ({} < {})", imported, local);
-                    }
-
-                    return;
-                }
-            }
-            Force::None => {
-                // Without nothing to import, do nothing.
-                return;
-            }
-        };
-
-        if let Some(chain_info) = &import.chain_state.chain_info {
-            log::info!("Importing chain snapshot now. After importing, the node will be synced up to superblock #{}.", chain_info.highest_superblock_checkpoint.checkpoint);
-        }
-
-        // TODO: try to optimize with rayon
-        // Import blocks
-        log::info!("Importing {} blocks into storage", import.blocks.len());
-        let items = import
-            .blocks
-            .into_iter()
-            .map(Box::new)
-            .map(StoreInventoryItem::Block)
-            .collect();
-        self.persist_items(ctx, items);
-
-        // TODO: try to optimize with rayon
-        // Import superblocks
-        let superblocks_count = import.superblocks.len();
-        log::info!("Importing {} superblocks into storage", superblocks_count);
-        for (i, superblock) in import.superblocks.into_iter().enumerate() {
-            if i % 10_000 == 0 {
-                log::info!(
-                    "Writing superblock #{} ({}/{})",
-                    superblock.index,
-                    i,
-                    superblocks_count
-                );
-            } else {
-                log::debug!(
-                    "Writing superblock #{} ({}/{})",
-                    superblock.index,
-                    i,
-                    superblocks_count
-                );
-            }
-            self.notify_superblock_consolidation(superblock);
-        }
-
-        // Reuse the existing UTXO database: simply wipe it and insert the new stuff later
-        let mut old_utxos = self.chain_state.unspent_outputs_pool.clone();
-        let drop_count = old_utxos.delete_all_from_db();
-        log::info!("Dropped {} UTXOs from persistent UTXO set", drop_count);
-        // This is exactly where the chain state is replaced
-        self.chain_state = import.chain_state;
-        self.chain_state.unspent_outputs_pool = old_utxos;
-        self.sm_state = StateMachine::WaitingConsensus;
-
-        // Migrate the UTXO set from its export/import format into its persistent form
-        self.chain_state
-            .unspent_outputs_pool
-            .migrate_old_unspent_outputs_pool_to_db(
-                &mut self.chain_state.unspent_outputs_pool_old_migration_db,
-                |i, total| {
-                    if i % 10_000 == 0 {
-                        log::info!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
-                    } else {
-                        log::debug!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
-                    }
-                },
-            );
-
-        // Delete any saved copies of the old chain state to avoid accidentally persisting a forked
-        // state
-        self.chain_state_snapshot.clear();
-        // Time to set the `highest_persisted_superblock` to the latest consolidated superblock
-        self.chain_state_snapshot.highest_persisted_superblock =
-            self.get_superblock_beacon().checkpoint;
-
-        // Important: persist the new chain state right away
-        self.persist_chain_state(None);
-
-        // Finally, we let the sessions manager know about the new chain tip
-        SessionsManager::from_registry().do_send(SetLastBeacon {
-            beacon: LastBeacon {
-                highest_block_checkpoint: self.get_chain_beacon(),
-                highest_superblock_checkpoint: self.get_superblock_beacon(),
-            },
-        });
-
-        log::info!("Finished importing the chain snapshot!");
-
-        self.mut_drop_import()*/
     }
 
     /// Put some basic information into the scope of the telemetry service (Sentry)
