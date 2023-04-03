@@ -1,6 +1,4 @@
-use actix::{Actor, ActorFuture, ResponseActFuture, System};
-use std::sync::RwLock;
-use std::task::{Context, Poll};
+use actix::{Actor, ActorFuture, System};
 use std::{
     collections::HashMap,
     fs::File,

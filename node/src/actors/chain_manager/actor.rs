@@ -4,7 +4,6 @@ use actix::prelude::*;
 use actix::{ActorTryFutureExt, ContextFutureSpawner, WrapFuture};
 use futures::{
     future::BoxFuture,
-    stream::{BoxStream, StreamExt, TryStreamExt},
 };
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
@@ -605,7 +604,6 @@ impl ChainManager {
 
     fn process_superblocks_fut(
         &mut self,
-        _ctx: &mut Context<Self>,
         superblocks: Vec<SuperBlock>,
     ) -> ResponseActFuture<Self, Result<(), ImportError>> {
         // Write superblocks into storage
@@ -636,7 +634,6 @@ impl ChainManager {
     /// Process the blocks found inside a single batch by persisting them as inventory items.
     fn process_blocks_batch_fut(
         &mut self,
-        ctx: &mut Context<Self>,
         blocks: Vec<Block>,
     ) -> ResponseActFuture<Self, Result<usize, ImportError>> {
         // Build inventory items from a vector of blocks
@@ -648,7 +645,7 @@ impl ChainManager {
         let count = items.len();
 
         // Persist the inventory items
-        let fut = self.persist_items(ctx, items).map(move |_, _, _| Ok(count));
+        let fut = self.persist_items(items).map(move |_, _, _| Ok(count));
 
         // Return how many blocks where processed
         Box::pin(fut)
@@ -657,16 +654,15 @@ impl ChainManager {
     /// Process multiple block batches efficiently by decoding and loading on the fly.
     fn process_blocks_batches_fut(
         &mut self,
-        ctx: &mut Context<Self>,
         batches: Vec<BoxFuture<'static, Result<Vec<Block>, ImportError>>>,
     ) -> ResponseActFuture<Self, Result<(), ImportError>> {
         let batches_count = batches.len();
         let stream = futures::stream::iter(batches.into_iter().enumerate());
-        let stream = actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), act, ctx| {
+        let stream = actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), act, _ctx| {
             log::info!("Reading blocks batch {} out of {}", i + 1, batches_count);
-            actix::fut::wrap_future::<_, Self>(fut).and_then(move |blocks, act, ctx| {
+            actix::fut::wrap_future::<_, Self>(fut).and_then(move |blocks, act, _ctx| {
                 log::info!("Processing blocks batch {} out of {}. This may take several minutes...", i + 1, batches_count);
-                act.process_blocks_batch_fut(ctx, blocks)
+                act.process_blocks_batch_fut(blocks)
                     .and_then(move |count, _, _| {
                         log::info!(
                             "Imported {} blocks from batch {} out of {}",
@@ -807,9 +803,9 @@ impl ChainManager {
         };
 
         Box::pin(fut.into_actor(self).and_then(
-            |(chain_state, superblocks, blocks_batches), act, ctx| {
-                act.process_superblocks_fut(ctx, superblocks)
-                    .and_then(|_, act, ctx| act.process_blocks_batches_fut(ctx, blocks_batches))
+            |(chain_state, superblocks, blocks_batches), act, _ctx| {
+                act.process_superblocks_fut(superblocks)
+                    .and_then(|_, act, _ctx| act.process_blocks_batches_fut(blocks_batches))
                     .and_then(move |_, act, _ctx| act.process_chain_state_fut(chain_state))
                     .and_then(|_, _, _| {
                         log::info!("Successfully finished importing snapshot!");

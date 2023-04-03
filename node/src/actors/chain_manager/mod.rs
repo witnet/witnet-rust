@@ -594,7 +594,7 @@ impl ChainManager {
     }
 
     /// Method to Send items to Inventory Manager
-    fn persist_items(&self, _ctx: &mut Context<Self>, items: Vec<StoreInventoryItem>) -> ResponseActFuture<Self, Result<(), failure::Error>> {
+    fn persist_items(&self, items: Vec<StoreInventoryItem>) -> ResponseActFuture<Self, Result<(), failure::Error>> {
         // Get InventoryManager address
         let inventory_manager_addr = InventoryManager::from_registry();
 
@@ -605,12 +605,15 @@ impl ChainManager {
             .send(AddItems { items })
             .into_actor(self)
             .then(|res, _act, _ctx| {
-                if let Err(e) = res {
-                    // Error when sending message
-                    log::error!("Unsuccessful communication with InventoryManager: {}", e);
-                }
+                match res {
+                    Ok(_) => actix::fut::ok(()),
+                    Err(e) => {
+                        // Error when sending message
+                        log::error!("Unsuccessful communication with InventoryManager: {}", e);
 
-                actix::fut::ok(())
+                        actix::fut::err(e.into())
+                    }
+                }
             }))
     }
 
@@ -877,7 +880,7 @@ impl ChainManager {
             to_persist.push(StoreInventoryItem::Block(Box::new(block)));
         }
 
-        self.persist_items(ctx, to_persist);
+        ctx.wait(self.persist_items(to_persist).map(|_,_,_| ()));
     }
 
     fn consolidate_block(
@@ -1010,10 +1013,9 @@ impl ChainManager {
                         }
 
                         if !resynchronizing {
-                            self.persist_items(
-                                ctx,
+                            ctx.wait(self.persist_items(
                                 vec![StoreInventoryItem::Block(Box::new(block))],
-                            );
+                            ).map(|_,_,_| ()));
                         }
                     }
                     StateMachine::Synchronizing => {
@@ -1068,10 +1070,9 @@ impl ChainManager {
                         // is not on the main chain. To fix this we could remove forked blocks when
                         // a reorganization is detected.
                         if !resynchronizing {
-                            self.persist_items(
-                                ctx,
+                            ctx.wait(self.persist_items(
                                 vec![StoreInventoryItem::Block(Box::new(block.clone()))],
-                            );
+                            ).map(|_,_,_| ()));
                         }
 
                         // Send notification to JsonRpcServer
@@ -2551,7 +2552,7 @@ enum ImportError {
     #[display(fmt = "bincode error")]
     Bincode(bincode::Error),
     #[display(
-        fmt = "The imported chain is ahead of our local chain ({} > {})",
+        fmt = "The chain to be imported is behind our local chain ({} > {})",
         imported,
         local
     )]
