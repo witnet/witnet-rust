@@ -657,7 +657,12 @@ impl ChainManager {
         batches: Vec<BoxFuture<'static, Result<Vec<Block>, ImportError>>>,
     ) -> ResponseActFuture<Self, Result<(), ImportError>> {
         let batches_count = batches.len();
+        // A stream is created from the vector of batch-reading futures, then the stream is
+        // processed sequentially, and only once the stream is finished, the returned future is
+        // eventually resolved too.
+        // First we build a native stream that wraps an iterator over the futures.
         let stream = futures::stream::iter(batches.into_iter().enumerate());
+        // Then we wrap the stream into Actix magic, so that the actor state can be mutated.
         let stream = actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), act, _ctx| {
             log::info!("Reading blocks batch {} out of {}", i + 1, batches_count);
             actix::fut::wrap_future::<_, Self>(fut).and_then(move |blocks, act, _ctx| {
@@ -675,9 +680,10 @@ impl ChainManager {
                     })
             })
         });
-        let fut = stream.finish().map(|_, _, _| Ok(()));
 
-        Box::pin(fut)
+        // Return a synthetic future that only resolves once we are done processing every each of
+        // the futures that were bundled into the stream above
+        Box::pin(stream.finish().map(|_, _, _| Ok(())))
     }
 
     fn process_chain_state_fut(
@@ -804,6 +810,7 @@ impl ChainManager {
 
         Box::pin(fut.into_actor(self).and_then(
             |(chain_state, superblocks, blocks_batches), act, _ctx| {
+                // Process superblocks, then process blocks, then finally mutate chain state
                 act.process_superblocks_fut(superblocks)
                     .and_then(|_, act, _ctx| act.process_blocks_batches_fut(blocks_batches))
                     .and_then(move |_, act, _ctx| act.process_chain_state_fut(chain_state))

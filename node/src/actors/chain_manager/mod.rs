@@ -36,10 +36,7 @@ use std::{
     time::Duration,
 };
 
-use actix::{
-    prelude::*, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Supervised,
-    SystemService, WrapFuture,
-};
+use actix::{prelude::*, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Supervised, SystemService, WrapFuture, ActorTryFutureExt};
 use ansi_term::Color::{Purple, White, Yellow};
 use derive_more::{Display, Error};
 use failure::Fail;
@@ -598,22 +595,18 @@ impl ChainManager {
         // Get InventoryManager address
         let inventory_manager_addr = InventoryManager::from_registry();
 
-        // Persist block into storage through InventoryManager. `AsyncContext::wait` registers
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
+        // Persist block into storage through InventoryManager.
         Box::pin(inventory_manager_addr
             .send(AddItems { items })
             .into_actor(self)
-            .then(|res, _act, _ctx| {
-                match res {
-                    Ok(_) => actix::fut::ok(()),
-                    Err(e) => {
-                        // Error when sending message
-                        log::error!("Unsuccessful communication with InventoryManager: {}", e);
+            .map_ok(|_, _, _| {
+                // Upon success, ignore any response and simply let the future resolve
+            })
+            .map_err(|err, _, _| {
+                // Error when sending message
+                log::error!("Unsuccessful communication with InventoryManager: {}", err);
 
-                        actix::fut::err(e.into())
-                    }
-                }
+                err.into()
             }))
     }
 
