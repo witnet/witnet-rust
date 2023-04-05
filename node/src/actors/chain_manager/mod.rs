@@ -25,7 +25,6 @@
 //! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
-use std::path::PathBuf;
 use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
@@ -35,15 +34,13 @@ use std::{
     pin::Pin,
     time::Duration,
 };
+use std::path::PathBuf;
 
-use actix::{prelude::*, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Supervised, SystemService, WrapFuture, ActorTryFutureExt};
+use actix::{ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner, prelude::*, Supervised, SystemService, WrapFuture};
 use ansi_term::Color::{Purple, White, Yellow};
 use derive_more::{Display, Error};
 use failure::Fail;
-use futures::{
-    future::{try_join_all, FutureExt},
-    stream::{StreamExt, TryStreamExt},
-};
+use futures::future::{FutureExt, try_join_all};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
@@ -57,24 +54,24 @@ use witnet_config::{
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
-        penalize_factor,
-        priority::{Priorities, PriorityEngine, PriorityVisitor},
-        reputation_issuance,
-        tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
-        Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainImport, ChainInfo, ChainState,
-        CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo, DataRequestOutput,
-        DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
-        NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, StateMachine,
-        SuperBlock, SuperBlockVote, TransactionsPool,
+        Alpha,
+        AltKeys,
+        Block,
+        BlockHeader,
+        Bn256PublicKey, ChainImport, ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo,
+        DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
+        Hashable, InventoryEntry, InventoryItem, NodeStats, penalize_factor, priority::{Priorities, PriorityEngine, PriorityVisitor}, PublicKeyHash,
+        Reputation, reputation_issuance, ReputationEngine, SignaturesToVerify, StateMachine, SuperBlock,
+        SuperBlockVote, tapi::{ActiveWips, after_second_hard_fork, current_active_wips, in_emergency_period}, TransactionsPool,
     },
     data_request::DataRequestPool,
     get_environment,
     radon_report::{RadonReport, ReportContext},
-    superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
+    superblock::{AddSuperBlockVote, ARSIdentities, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
     types::{
-        visitor::{StatefulVisitor, Visitor},
         LastBeacon,
+        visitor::{StatefulVisitor, Visitor},
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
@@ -103,7 +100,7 @@ use crate::{
         storage_keys,
     },
     signature_mngr, storage_mngr,
-    utils::{deserialize_from_file, file_name_compose, stop_system_if_panicking, Force},
+    utils::{deserialize_from_file, file_name_compose, Force, stop_system_if_panicking},
 };
 
 mod actor;
@@ -3315,7 +3312,7 @@ mod tests {
     use std::sync::Arc;
 
     use witnet_config::{
-        config::{consensus_constants_from_partial, Config, StorageBackend},
+        config::{Config, consensus_constants_from_partial, StorageBackend},
         defaults::Testnet,
     };
     use witnet_crypto::{
@@ -3341,7 +3338,7 @@ mod tests {
 
     use crate::{
         config_mngr,
-        utils::{test_actix_system, ActorFutureToNormalFuture},
+        utils::{ActorFutureToNormalFuture, test_actix_system},
     };
 
     use super::*;

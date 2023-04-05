@@ -663,7 +663,7 @@ impl ChainManager {
         // First we build a native stream that wraps an iterator over the futures.
         let stream = futures::stream::iter(batches.into_iter().enumerate());
         // Then we wrap the stream into Actix magic, so that the actor state can be mutated.
-        let stream = actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), act, _ctx| {
+        let stream = actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), _act, _ctx| {
             log::info!("Reading blocks batch {} out of {}", i + 1, batches_count);
             actix::fut::wrap_future::<_, Self>(fut).and_then(move |blocks, act, _ctx| {
                 log::info!("Processing blocks batch {} out of {}. This may take several minutes...", i + 1, batches_count);

@@ -1872,6 +1872,7 @@ impl Handler<SnapshotExport> for ChainManager {
                 let mut chain_state = self.chain_state.clone();
                 chain_state.unspent_outputs_pool_old_migration_db =
                     OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
+                chain_state.own_utxos = Default::default();
 
                 let fut = async move {
                     // Collect superblocks from inventory and write them into file system
