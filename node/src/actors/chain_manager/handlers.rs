@@ -1839,14 +1839,6 @@ impl Handler<SnapshotExport> for ChainManager {
         SnapshotExport { path }: SnapshotExport,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        #[inline]
-        fn log_info<T>(msg: T)
-        where
-            T: std::fmt::Display,
-        {
-            log::info!("[SnapshotExport] {}", msg)
-        }
-
         let fut = match self.sm_state {
             StateMachine::Synced => {
                 let chain_info = self.chain_state.chain_info.clone().unwrap_or_default();
@@ -1859,16 +1851,16 @@ impl Handler<SnapshotExport> for ChainManager {
                     environment, checkpoint
                 ));
                 let base_path_display = base_path.display().to_string();
-                log_info(format!(
+                log::info!(
                     "Snapshot will be created and written into {}",
                     base_path_display
-                ));
+                );
 
                 // Copy the chain state and bundle UTXO set into it
                 // TODO: Avoid double-cloning and having the UTXO set twice, by rather constructing
                 //  a new chain state with the cloned pieces
                 // TODO: try to optimize using rayon parallelization
-                log_info("Cloning chain state and UTXO set...");
+                log::info!("Cloning chain state and UTXO set...");
                 let mut chain_state = self.chain_state.clone();
                 chain_state.unspent_outputs_pool_old_migration_db =
                     OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
@@ -1876,11 +1868,11 @@ impl Handler<SnapshotExport> for ChainManager {
 
                 let fut = async move {
                     // Collect superblocks from inventory and write them into file system
-                    log_info("Fetching all superblocks...");
+                    log::info!("Fetching all superblocks...");
                     let superblocks = InventoryManager::get_all_superblocks().await?;
-                    log_info("Done fetching all superblocks...");
+                    log::info!("Done fetching all superblocks...");
                     let path = file_name_compose(base_path.clone(), Some("superblocks".into()));
-                    log_info(format!("Exporting all superblocks into {}", path.display()));
+                    log::info!("Exporting all superblocks into {}", path.display());
                     serialize_to_file(&superblocks, &path)?;
 
                     // Collect blocks from inventory and write them into the file system
@@ -1888,20 +1880,24 @@ impl Handler<SnapshotExport> for ChainManager {
                     // footprint
                     let batch_size = 50_000;
                     let total_blocks = chain_state.block_chain.len();
-                    log_info(format!(
+                    log::info!(
                         "Starting to fetch all {} blocks in chunks of {} blocks...",
-                        total_blocks, batch_size
-                    ));
+                        total_blocks,
+                        batch_size
+                    );
                     let mut i = 0;
                     let mut futs = Vec::new();
                     let batches = chain_state.block_chain.iter().chunks(batch_size);
                     for batch in &batches {
                         let from = i * batch_size;
                         let to = total_blocks.min(i * batch_size + batch_size - 1);
-                        log_info(format!(
+                        log::info!(
                             "Starting to fetch blocks batch #{} ({} to {} out of {})",
-                            i, from, to, total_blocks
-                        ));
+                            i,
+                            from,
+                            to,
+                            total_blocks
+                        );
                         let path = file_name_compose(
                             base_path.clone(),
                             Some(format!("blocks_batch_{:0>4}", i)),
@@ -1911,19 +1907,22 @@ impl Handler<SnapshotExport> for ChainManager {
                         let fut = async move {
                             let batch =
                                 InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
-                            log_info(format!(
+                            log::info!(
                                 "Successfully fetched blocks batch #{} ({} to {} out of {})",
-                                i, from, to, total_blocks
-                            ));
-                            log_info(format!(
+                                i,
+                                from,
+                                to,
+                                total_blocks
+                            );
+                            log::info!(
                                 "Blocks batch #{} ({} to {} out of {}) is now being written into {}",
                                 i, from, to, total_blocks, path.display()
-                            ));
+                            );
                             serialize_to_file(&batch, &path)?;
-                            log_info(format!(
+                            log::info!(
                                 "Successfully exported blocks batch #{} ({} to {} out of {}) into {}",
                                 i, from, to, total_blocks, path.display()
-                            ));
+                            );
 
                             Result::<(), failure::Error>::Ok(())
                         };
@@ -1938,21 +1937,19 @@ impl Handler<SnapshotExport> for ChainManager {
                         .buffer_unordered(4)
                         .collect::<Vec<_>>()
                         .await;
-                    log_info(format!(
+                    log::info!(
                         "Succesfully exported all {} blocks in chunks of {} blocks...",
-                        total_blocks, batch_size
-                    ));
+                        total_blocks,
+                        batch_size
+                    );
 
                     // Finally serialize and write the chain state itself
-                    log_info(format!(
-                        "Exporting chain state it into {}",
-                        base_path_display
-                    ));
+                    log::info!("Exporting chain state it into {}", base_path_display);
                     serialize_to_file(&chain_state, &base_path)?;
-                    log_info(format!(
+                    log::info!(
                         "Success! Finished exporting chain snapshot into {}",
                         base_path_display
-                    ));
+                    );
 
                     // Return the path of the exported chain state
                     Ok(base_path_display)

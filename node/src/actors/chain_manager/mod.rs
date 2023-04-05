@@ -25,6 +25,7 @@
 //! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
+use std::path::PathBuf;
 use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
@@ -34,13 +35,15 @@ use std::{
     pin::Pin,
     time::Duration,
 };
-use std::path::PathBuf;
 
-use actix::{ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner, prelude::*, Supervised, SystemService, WrapFuture};
+use actix::{
+    prelude::*, ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner,
+    Supervised, SystemService, WrapFuture,
+};
 use ansi_term::Color::{Purple, White, Yellow};
 use derive_more::{Display, Error};
 use failure::Fail;
-use futures::future::{FutureExt, try_join_all};
+use futures::future::{try_join_all, FutureExt};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
@@ -54,24 +57,24 @@ use witnet_config::{
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
-        Alpha,
-        AltKeys,
-        Block,
-        BlockHeader,
-        Bn256PublicKey, ChainImport, ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo,
-        DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
-        Hashable, InventoryEntry, InventoryItem, NodeStats, penalize_factor, priority::{Priorities, PriorityEngine, PriorityVisitor}, PublicKeyHash,
-        Reputation, reputation_issuance, ReputationEngine, SignaturesToVerify, StateMachine, SuperBlock,
-        SuperBlockVote, tapi::{ActiveWips, after_second_hard_fork, current_active_wips, in_emergency_period}, TransactionsPool,
+        penalize_factor,
+        priority::{Priorities, PriorityEngine, PriorityVisitor},
+        reputation_issuance,
+        tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
+        Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainImport, ChainInfo, ChainState,
+        CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo, DataRequestOutput,
+        DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
+        NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, StateMachine,
+        SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
     get_environment,
     radon_report::{RadonReport, ReportContext},
-    superblock::{AddSuperBlockVote, ARSIdentities, SuperBlockConsensus},
+    superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{TallyTransaction, Transaction},
     types::{
-        LastBeacon,
         visitor::{StatefulVisitor, Visitor},
+        LastBeacon,
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
@@ -100,7 +103,7 @@ use crate::{
         storage_keys,
     },
     signature_mngr, storage_mngr,
-    utils::{deserialize_from_file, file_name_compose, Force, stop_system_if_panicking},
+    utils::{deserialize_from_file, file_name_compose, stop_system_if_panicking, Force},
 };
 
 mod actor;
@@ -365,11 +368,7 @@ fn futurize_batch_read(
                 e => e,
             })?;
 
-        log::info!(
-            "Read {} blocks from file {}",
-            batch.len(),
-            path_display
-        );
+        log::info!("Read {} blocks from file {}", batch.len(), path_display);
 
         Ok(batch)
     })
@@ -588,23 +587,28 @@ impl ChainManager {
     }
 
     /// Method to Send items to Inventory Manager
-    fn persist_items(&self, items: Vec<StoreInventoryItem>) -> ResponseActFuture<Self, Result<(), failure::Error>> {
+    fn persist_items(
+        &self,
+        items: Vec<StoreInventoryItem>,
+    ) -> ResponseActFuture<Self, Result<(), failure::Error>> {
         // Get InventoryManager address
         let inventory_manager_addr = InventoryManager::from_registry();
 
         // Persist block into storage through InventoryManager.
-        Box::pin(inventory_manager_addr
-            .send(AddItems { items })
-            .into_actor(self)
-            .map_ok(|_, _, _| {
-                // Upon success, ignore any response and simply let the future resolve
-            })
-            .map_err(|err, _, _| {
-                // Error when sending message
-                log::error!("Unsuccessful communication with InventoryManager: {}", err);
+        Box::pin(
+            inventory_manager_addr
+                .send(AddItems { items })
+                .into_actor(self)
+                .map_ok(|_, _, _| {
+                    // Upon success, ignore any response and simply let the future resolve
+                })
+                .map_err(|err, _, _| {
+                    // Error when sending message
+                    log::error!("Unsuccessful communication with InventoryManager: {}", err);
 
-                err.into()
-            }))
+                    err.into()
+                }),
+        )
     }
 
     /// Method to persist a Data Request into the Storage
@@ -870,7 +874,7 @@ impl ChainManager {
             to_persist.push(StoreInventoryItem::Block(Box::new(block)));
         }
 
-        ctx.wait(self.persist_items(to_persist).map(|_,_,_| ()));
+        ctx.wait(self.persist_items(to_persist).map(|_, _, _| ()));
     }
 
     fn consolidate_block(
@@ -1003,9 +1007,12 @@ impl ChainManager {
                         }
 
                         if !resynchronizing {
-                            ctx.wait(self.persist_items(
-                                vec![StoreInventoryItem::Block(Box::new(block))],
-                            ).map(|_,_,_| ()));
+                            ctx.wait(
+                                self.persist_items(vec![StoreInventoryItem::Block(Box::new(
+                                    block,
+                                ))])
+                                .map(|_, _, _| ()),
+                            );
                         }
                     }
                     StateMachine::Synchronizing => {
@@ -1060,9 +1067,12 @@ impl ChainManager {
                         // is not on the main chain. To fix this we could remove forked blocks when
                         // a reorganization is detected.
                         if !resynchronizing {
-                            ctx.wait(self.persist_items(
-                                vec![StoreInventoryItem::Block(Box::new(block.clone()))],
-                            ).map(|_,_,_| ()));
+                            ctx.wait(
+                                self.persist_items(vec![StoreInventoryItem::Block(Box::new(
+                                    block.clone(),
+                                ))])
+                                .map(|_, _, _| ()),
+                            );
                         }
 
                         // Send notification to JsonRpcServer
@@ -3312,7 +3322,7 @@ mod tests {
     use std::sync::Arc;
 
     use witnet_config::{
-        config::{Config, consensus_constants_from_partial, StorageBackend},
+        config::{consensus_constants_from_partial, Config, StorageBackend},
         defaults::Testnet,
     };
     use witnet_crypto::{
@@ -3338,7 +3348,7 @@ mod tests {
 
     use crate::{
         config_mngr,
-        utils::{ActorFutureToNormalFuture, test_actix_system},
+        utils::{test_actix_system, ActorFutureToNormalFuture},
     };
 
     use super::*;

@@ -2,9 +2,7 @@ use std::{pin::Pin, str::FromStr, time::Duration};
 
 use actix::prelude::*;
 use actix::{ActorTryFutureExt, ContextFutureSpawner, WrapFuture};
-use futures::{
-    future::BoxFuture,
-};
+use futures::future::BoxFuture;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{
@@ -663,23 +661,28 @@ impl ChainManager {
         // First we build a native stream that wraps an iterator over the futures.
         let stream = futures::stream::iter(batches.into_iter().enumerate());
         // Then we wrap the stream into Actix magic, so that the actor state can be mutated.
-        let stream = actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), _act, _ctx| {
-            log::info!("Reading blocks batch {} out of {}", i + 1, batches_count);
-            actix::fut::wrap_future::<_, Self>(fut).and_then(move |blocks, act, _ctx| {
-                log::info!("Processing blocks batch {} out of {}. This may take several minutes...", i + 1, batches_count);
-                act.process_blocks_batch_fut(blocks)
-                    .and_then(move |count, _, _| {
-                        log::info!(
-                            "Imported {} blocks from batch {} out of {}",
-                            count,
-                            i + 1,
-                            batches_count
-                        );
+        let stream =
+            actix::fut::wrap_stream::<_, Self>(stream).then(move |(i, fut), _act, _ctx| {
+                log::info!("Reading blocks batch {} out of {}", i + 1, batches_count);
+                actix::fut::wrap_future::<_, Self>(fut).and_then(move |blocks, act, _ctx| {
+                    log::info!(
+                        "Processing blocks batch {} out of {}. This may take several minutes...",
+                        i + 1,
+                        batches_count
+                    );
+                    act.process_blocks_batch_fut(blocks)
+                        .and_then(move |count, _, _| {
+                            log::info!(
+                                "Imported {} blocks from batch {} out of {}",
+                                count,
+                                i + 1,
+                                batches_count
+                            );
 
-                        futures::future::ok::<_, ImportError>(())
-                    })
-            })
-        });
+                            futures::future::ok::<_, ImportError>(())
+                        })
+                })
+            });
 
         // Return a synthetic future that only resolves once we are done processing every each of
         // the futures that were bundled into the stream above
