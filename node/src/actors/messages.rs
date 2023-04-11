@@ -39,15 +39,18 @@ use witnet_p2p::{
 };
 use witnet_rad::{error::RadError, types::RadonTypes};
 
-use super::{
-    chain_manager::{ChainManagerError, MAX_BLOCKS_SYNC},
-    connections_manager::resolver::ResolverError,
-    epoch_manager::{
-        AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
+use crate::{
+    actors::{
+        chain_manager::{ChainManagerError, MAX_BLOCKS_SYNC},
+        connections_manager::resolver::ResolverError,
+        epoch_manager::{
+            AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
+        },
+        inventory_manager::InventoryManagerError,
+        rad_manager::RadManager,
+        session::Session,
     },
-    inventory_manager::InventoryManagerError,
-    rad_manager::RadManager,
-    session::Session,
+    utils::Force,
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -405,7 +408,7 @@ impl Message for Rewind {
 /// Create and export a snapshot of the current chain state.
 pub struct SnapshotExport {
     /// The output path where the snapshot file should be written to.
-    pub path: PathBuf,
+    pub path: Force<PathBuf>,
 }
 
 impl Message for SnapshotExport {

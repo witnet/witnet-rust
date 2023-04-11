@@ -244,6 +244,8 @@ pub struct ChainManager {
     priority_engine: PriorityEngine,
     /// Chain snapshot to be imported
     import: Force<ChainImport<ImportError>>,
+    /// Signals that a chain snapshot export is due.
+    export: Force<PathBuf>,
 }
 
 impl ChainManager {
@@ -252,12 +254,19 @@ impl ChainManager {
         self.import = Force::None;
     }
 
+    /// Order a chain snapshot export upon starting.
+    fn with_export(mut self, export: Force<PathBuf>) -> Self {
+        self.export = export;
+
+        self
+    }
+
     /// Put a chain export into the `import` field.
     ///
     /// This is only done if the chain to import is ahead of our own, or the `--force` flag is set.
     fn with_import(mut self, import: ChainImport<ImportError>, force: bool) -> Self {
         self.import = match force {
-            true => Force::Forced(import),
+            true => Force::All(import),
             false => Force::Some(import),
         };
 
@@ -383,11 +392,13 @@ impl Drop for ChainManager {
 
 impl WithNodeOps for ChainManager {
     fn with_node_ops(self, ops: NodeOps) -> Self {
-        match ops.snapshot_import() {
-            Force::Forced(path) => self.with_import_from_path(path, true),
+        let cm = match ops.snapshot_import() {
+            Force::All(path) => self.with_import_from_path(path, true),
             Force::Some(path) => self.with_import_from_path(path, false),
             Force::None => self,
-        }
+        };
+
+        cm.with_export(ops.snapshot_export())
     }
 }
 
@@ -2552,7 +2563,7 @@ enum ImportError {
     #[display(fmt = "bincode error")]
     Bincode(bincode::Error),
     #[display(
-        fmt = "The chain to be imported is behind our local chain ({} > {})",
+        fmt = "The chain to be imported is behind our local chain ({} > {}). If you still want to import it, use the `force` flag.",
         imported,
         local
     )]

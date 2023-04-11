@@ -92,6 +92,8 @@ pub fn close(system: &System) {
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum NodeOp {
     /// Import a chain snapshot from a file.
+    SnapshotExport(Force<PathBuf>),
+    /// Import a chain snapshot from a file.
     SnapshotImport(Force<PathBuf>),
 }
 
@@ -105,27 +107,36 @@ impl NodeOps {
         (*ops).insert(op);
     }
 
-    /// Clear the list of operations.
-    pub fn clear(&mut self) -> Self {
-        Self::new()
+    /// Tell whether the list of operations contains some operation in particular.
+    pub fn contains<F, T>(&self, f: F) -> Option<T>
+    where
+        F: FnMut(&NodeOp) -> Option<T>,
+        T: Clone,
+    {
+        self.0.read().unwrap().iter().find_map(f)
     }
 
     /// Instantiate a new list of operations.
     pub fn new() -> Self {
-        Self(Default::default())
+        Self(Arc::new(RwLock::new(HashSet::new())))
+    }
+
+    /// Tell whether the list of operations contains a chain snapshot export operation.
+    pub fn snapshot_export(&self) -> Force<PathBuf> {
+        self.contains(|op| match op {
+            NodeOp::SnapshotExport(path) => Some(path.clone()),
+            _ => None,
+        })
+        .into()
     }
 
     /// Tell whether the list of operations contains a chain snapshot import operation.
     pub fn snapshot_import(&self) -> Force<PathBuf> {
-        self.0
-            .read()
-            .unwrap()
-            .iter()
-            .find_map(|op| match op {
-                NodeOp::SnapshotImport(path) => Some(path),
-            })
-            .cloned()
-            .into()
+        self.contains(|op| match op {
+            NodeOp::SnapshotImport(path) => Some(path.clone()),
+            _ => None,
+        })
+        .into()
     }
 }
 
@@ -141,6 +152,20 @@ pub trait WithNodeOps {
 mod test {
     use super::*;
     #[test]
+    fn test_nodeops_snapshot_export() {
+        let mut ops = NodeOps::new();
+        assert_eq!(ops.snapshot_export(), Force::None);
+
+        let path = PathBuf::from("./whatever.bin");
+        ops.add(NodeOp::SnapshotExport(Force::Some(path.clone())));
+        assert_eq!(ops.snapshot_export(), Force::Some(path.clone()));
+
+        ops = NodeOps::new();
+        ops.add(NodeOp::SnapshotExport(Force::All(path.clone())));
+        assert_eq!(ops.snapshot_export(), Force::All(path));
+    }
+
+    #[test]
     fn test_nodeops_snapshot_import() {
         let mut ops = NodeOps::new();
         assert_eq!(ops.snapshot_import(), Force::None);
@@ -149,8 +174,8 @@ mod test {
         ops.add(NodeOp::SnapshotImport(Force::Some(path.clone())));
         assert_eq!(ops.snapshot_import(), Force::Some(path.clone()));
 
-        ops.clear();
-        ops.add(NodeOp::SnapshotImport(Force::Forced(path.clone())));
-        assert_eq!(ops.snapshot_import(), Force::Forced(path));
+        ops = NodeOps::new();
+        ops.add(NodeOp::SnapshotImport(Force::All(path.clone())));
+        assert_eq!(ops.snapshot_import(), Force::All(path));
     }
 }

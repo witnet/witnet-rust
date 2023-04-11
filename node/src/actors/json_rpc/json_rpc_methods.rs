@@ -27,27 +27,26 @@ use witnet_data_structures::{
     vrf::VrfMessage,
 };
 
-use crate::actors::messages::GetSupplyInfo;
 use crate::{
     actors::{
         chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
+        json_rpc::Subscriptions,
         messages::{
             AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, DropAllPeers,
             EstimatePriority, GetBalance, GetBlocksEpochRange, GetConsolidatedPeers,
             GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
             GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
-            GetNodeStats, GetReputation, GetSignalingInfo, GetState, GetUtxoInfo, InitializePeers,
-            IsConfirmedBlock, Rewind, SnapshotExport,
+            GetNodeStats, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo,
+            InitializePeers, IsConfirmedBlock, Rewind, SnapshotExport,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
     },
     config_mngr, signature_mngr,
+    utils::Force,
 };
-
-use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
@@ -1784,7 +1783,19 @@ pub async fn priority() -> JsonRpcResult {
 #[derive(Deserialize)]
 pub struct SnapshotExportParams {
     /// The path where the chain state snapshot should be written to.
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
+    /// Whether to force the export regardless of the synchronization status.
+    pub force: Option<bool>,
+}
+
+impl From<SnapshotExportParams> for Force<PathBuf> {
+    fn from(params: SnapshotExportParams) -> Self {
+        match (params.path, params.force) {
+            (Some(path), Some(true)) => Force::All(path),
+            (Some(path), _) => Force::Some(path),
+            _ => Force::Some(witnet_config::dirs::data_dir()),
+        }
+    }
 }
 
 /// Export a snapshot of the current chain state.
@@ -1795,10 +1806,7 @@ pub async fn snapshot_export(
     params: Result<SnapshotExportParams, jsonrpc_core::Error>,
 ) -> JsonRpcResult {
     // Use path from parameters if provided, otherwise try to guess path from configuration
-    let path = match params {
-        Ok(params) => params.path,
-        Err(e) => witnet_config::dirs::find_config().ok_or(e)?,
-    };
+    let path = Force::from(params?);
 
     // Tell the chain manager to create and export the snapshot
     let chain_manager = ChainManager::from_registry();

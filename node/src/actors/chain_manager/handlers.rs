@@ -6,9 +6,8 @@ use std::{
     time::Duration,
 };
 
-use actix::{fut::WrapFuture, prelude::*, ActorFutureExt};
-use futures::{future::Either, stream::StreamExt};
-use itertools::Itertools;
+use actix::{prelude::*, ActorFutureExt, WrapFuture};
+use futures::future::Either;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
@@ -19,7 +18,7 @@ use witnet_data_structures::{
     transaction::{DRTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
-    utxo_pool::{get_utxo_info, OldUnspentOutputsPool, UtxoInfo},
+    utxo_pool::{get_utxo_info, UtxoInfo},
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
@@ -27,7 +26,6 @@ use witnet_validations::validations::{block_reward, total_block_reward, validate
 use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
-        inventory_manager::InventoryManager,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
@@ -41,7 +39,7 @@ use crate::{
         sessions_manager::SessionsManager,
     },
     config_mngr, signature_mngr, storage_mngr,
-    utils::{file_name_compose, mode_consensus, serialize_to_file},
+    utils::mode_consensus,
 };
 
 use super::{ChainManager, ChainManagerError, StateMachine, SyncTarget};
@@ -1839,133 +1837,8 @@ impl Handler<SnapshotExport> for ChainManager {
         SnapshotExport { path }: SnapshotExport,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let fut = match self.sm_state {
-            StateMachine::Synced => {
-                let chain_info = self.chain_state.chain_info.clone().unwrap_or_default();
-                let environment = chain_info.environment;
-                let checkpoint = chain_info.highest_block_checkpoint.checkpoint;
-
-                // Compose the path of the file to write the snapshot to, and create the file
-                let base_path = path.join(format!(
-                    "witnet_chain_snapshot_{}_{}.bin",
-                    environment, checkpoint
-                ));
-                let base_path_display = base_path.display().to_string();
-                log::info!(
-                    "Snapshot will be created and written into {}",
-                    base_path_display
-                );
-
-                // Copy the chain state and bundle UTXO set into it
-                // TODO: Avoid double-cloning and having the UTXO set twice, by rather constructing
-                //  a new chain state with the cloned pieces
-                // TODO: try to optimize using rayon parallelization
-                log::info!("Cloning chain state and UTXO set...");
-                let mut chain_state = self.chain_state.clone();
-                chain_state.unspent_outputs_pool_old_migration_db =
-                    OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
-                chain_state.own_utxos = Default::default();
-
-                let fut = async move {
-                    // Collect superblocks from inventory and write them into file system
-                    log::info!("Fetching all superblocks...");
-                    let superblocks = InventoryManager::get_all_superblocks().await?;
-                    log::info!("Done fetching all superblocks...");
-                    let path = file_name_compose(base_path.clone(), Some("superblocks".into()));
-                    log::info!("Exporting all superblocks into {}", path.display());
-                    serialize_to_file(&superblocks, &path)?;
-
-                    // Collect blocks from inventory and write them into the file system
-                    // This is done in batches for the sake of performance and reduced memory
-                    // footprint
-                    let batch_size = 50_000;
-                    let total_blocks = chain_state.block_chain.len();
-                    log::info!(
-                        "Starting to fetch all {} blocks in chunks of {} blocks...",
-                        total_blocks,
-                        batch_size
-                    );
-                    let mut i = 0;
-                    let mut futs = Vec::new();
-                    let batches = chain_state.block_chain.iter().chunks(batch_size);
-                    for batch in &batches {
-                        let from = i * batch_size;
-                        let to = total_blocks.min(i * batch_size + batch_size - 1);
-                        log::info!(
-                            "Starting to fetch blocks batch #{} ({} to {} out of {})",
-                            i,
-                            from,
-                            to,
-                            total_blocks
-                        );
-                        let path = file_name_compose(
-                            base_path.clone(),
-                            Some(format!("blocks_batch_{:0>4}", i)),
-                        );
-                        let hashes = batch.map(|(_epoch, hash)| hash.clone()).collect::<Vec<_>>();
-
-                        let fut = async move {
-                            let batch =
-                                InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
-                            log::info!(
-                                "Successfully fetched blocks batch #{} ({} to {} out of {})",
-                                i,
-                                from,
-                                to,
-                                total_blocks
-                            );
-                            log::info!(
-                                "Blocks batch #{} ({} to {} out of {}) is now being written into {}",
-                                i, from, to, total_blocks, path.display()
-                            );
-                            serialize_to_file(&batch, &path)?;
-                            log::info!(
-                                "Successfully exported blocks batch #{} ({} to {} out of {}) into {}",
-                                i, from, to, total_blocks, path.display()
-                            );
-
-                            Result::<(), failure::Error>::Ok(())
-                        };
-
-                        futs.push(fut);
-                        i += 1;
-                    }
-
-                    // Blocks batches are processed concurrently, in no particular order, with a
-                    // limit of 4 at once
-                    futures::stream::iter(futs)
-                        .buffer_unordered(4)
-                        .collect::<Vec<_>>()
-                        .await;
-                    log::info!(
-                        "Succesfully exported all {} blocks in chunks of {} blocks...",
-                        total_blocks,
-                        batch_size
-                    );
-
-                    // Finally serialize and write the chain state itself
-                    log::info!("Exporting chain state it into {}", base_path_display);
-                    serialize_to_file(&chain_state, &base_path)?;
-                    log::info!(
-                        "Success! Finished exporting chain snapshot into {}",
-                        base_path_display
-                    );
-
-                    // Return the path of the exported chain state
-                    Ok(base_path_display)
-                };
-
-                Either::Left(
-                    fut.into_actor(self)
-                        .and_then(|response, _act, _ctx| actix::fut::ok(response)),
-                )
-            }
-            current_state => Either::Right(actix::fut::err(
-                ChainManagerError::NotSynced { current_state }.into(),
-            )),
-        };
-
-        Box::pin(fut)
+        let fut = Self::static_snapshot_export(self.sm_state, self.chain_state.clone(), path);
+        Box::pin(actix::fut::wrap_future(fut))
     }
 }
 

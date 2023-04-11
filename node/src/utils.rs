@@ -133,11 +133,11 @@ where
 /// Similar to an `Option`, but has a third case that signals the forced nature of some value.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Force<T> {
-    /// A forced value.
-    Forced(T),
-    /// A regular value.
+    /// A forced value ("all force!").
+    All(T),
+    /// A regular value ("some force").
     Some(T),
-    /// No value.
+    /// No value ("no force").
     None,
 }
 
@@ -146,7 +146,7 @@ impl<T> Force<T> {
     /// Creates a new non-forced `Force` value with forced if specified.
     pub fn new(value: T, force: bool) -> Force<T> {
         if force {
-            Self::Forced(value)
+            Self::All(value)
         } else {
             Self::Some(value)
         }
@@ -156,7 +156,7 @@ impl<T> Force<T> {
     /// Wraps a value in a `Force` with the same degree of force than an existing `Force`.
     pub fn same<V>(&self, value: V) -> Force<V> {
         match self {
-            Force::Forced(_) => Force::Forced(value),
+            Force::All(_) => Force::All(value),
             Force::Some(_) => Force::Some(value),
             Force::None => Force::None,
         }

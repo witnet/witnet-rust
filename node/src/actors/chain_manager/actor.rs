@@ -1,8 +1,10 @@
-use std::{pin::Pin, str::FromStr, time::Duration};
+use std::{path::PathBuf, pin::Pin, str::FromStr, time::Duration};
 
 use actix::prelude::*;
 use actix::{ActorTryFutureExt, ContextFutureSpawner, WrapFuture};
 use futures::future::BoxFuture;
+use futures_util::StreamExt;
+use itertools::Itertools;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{
@@ -13,23 +15,27 @@ use witnet_data_structures::{
     get_environment,
     superblock::SuperBlockState,
     types::LastBeacon,
-    utxo_pool::{OwnUnspentOutputsPool, UtxoWriteBatch},
+    utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
 };
 use witnet_util::timestamp::pretty_print;
 
 use crate::{
     actors::{
-        chain_manager::{handlers::EveryEpochPayload, ChainManager, ImportError},
+        chain_manager::{
+            handlers::EveryEpochPayload, ChainManager, ChainManagerError, ImportError,
+        },
         epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
+        inventory_manager::InventoryManager,
         messages::{
-            AddBlocks, GetEpoch, GetEpochConstants, SetLastBeacon, StoreInventoryItem, Subscribe,
+            AddBlocks, GetEpoch, GetEpochConstants, SetLastBeacon, SnapshotExport,
+            StoreInventoryItem, Subscribe,
         },
         sessions_manager::SessionsManager,
         storage_keys,
     },
     config_mngr, signature_mngr, storage_mngr,
-    utils::Force,
+    utils::{file_name_compose, serialize_to_file, Force},
 };
 
 /// Implement Actor trait for `ChainManager`
@@ -45,11 +51,16 @@ impl Actor for ChainManager {
 
         ctx.wait(
             self.initialize_from_storage_fut(false)
-                .map(|_res, act, ctx| {
+                .and_then(|_res, act, _ctx| {
                     // If we are importing a chain snapshot, it is time to load and store all the relevant data,
                     // before the actor starts to communicate with any other actors
-                    act.process_import(ctx);
-                }),
+                    act.snapshot_import().map_err(|_, _, _| ())
+                })
+                .then(|_res, act, _ctx| {
+                    // Export chain snapshot if requested to do so
+                    act.snapshot_export().map_err(|_, _, _| ())
+                })
+                .map(|_, _, _| ()),
         );
 
         self.subscribe_to_epoch_manager(ctx);
@@ -502,6 +513,145 @@ impl ChainManager {
         }
     }
 
+    /// Actor-aware wrapper around `static_snapshot_export`.
+    pub fn snapshot_export(&mut self) -> ResponseActFuture<Self, Result<String, failure::Error>> {
+        Box::pin(actix::fut::wrap_future(Self::static_snapshot_export(
+            self.sm_state,
+            self.chain_state.clone(),
+            self.export.take(),
+        )))
+    }
+
+    /// Main business logic for exporting chain snapshots.
+    pub async fn static_snapshot_export(
+        state_machine: StateMachine,
+        chain_state: ChainState,
+        path: Force<PathBuf>,
+    ) -> <SnapshotExport as Message>::Result {
+        match (state_machine, path) {
+            // Only proceed to export if the node is synced or the export has been forced
+            (StateMachine::Synced, Force::Some(path)) | (_, Force::All(path)) => {
+                let chain_info = chain_state.chain_info.clone().unwrap_or_default();
+                let environment = chain_info.environment;
+                let checkpoint = chain_info.highest_block_checkpoint.checkpoint;
+
+                // Compose the path of the file to write the snapshot to, and create the file
+                let base_path = path.join(format!(
+                    "witnet_chain_snapshot_{}_{}.bin",
+                    environment, checkpoint
+                ));
+                let base_path_display = base_path.display().to_string();
+                log::info!(
+                    "Snapshot will be created and written into {}",
+                    base_path_display
+                );
+
+                // Copy the chain state and bundle UTXO set into it
+                // TODO: Avoid double-cloning and having the UTXO set twice, by rather constructing
+                //  a new chain state with the cloned pieces
+                log::info!("Cloning chain state and UTXO set...");
+                let mut chain_state = chain_state;
+                chain_state.unspent_outputs_pool_old_migration_db =
+                    OldUnspentOutputsPool::from(chain_state.unspent_outputs_pool.clone());
+                chain_state.own_utxos = Default::default();
+
+                // Collect superblocks from inventory and write them into file system
+                log::info!("Fetching all superblocks...");
+                let superblocks = InventoryManager::get_all_superblocks().await?;
+                log::info!("Done fetching all superblocks...");
+                let path = file_name_compose(base_path.clone(), Some("superblocks".into()));
+                log::info!("Exporting all superblocks into {}", path.display());
+                serialize_to_file(&superblocks, &path)?;
+
+                // Collect blocks from inventory and write them into the file system
+                // This is done in batches for the sake of performance and reduced memory
+                // footprint
+                let batch_size = 50_000;
+                let total_blocks = chain_state.block_chain.len();
+                log::info!(
+                    "Starting to fetch all {} blocks in chunks of {} blocks...",
+                    total_blocks,
+                    batch_size
+                );
+                let mut i = 0;
+                let mut futs = Vec::new();
+                let batches = chain_state.block_chain.iter().chunks(batch_size);
+                for batch in &batches {
+                    let from = i * batch_size;
+                    let to = total_blocks.min(i * batch_size + batch_size - 1);
+                    let path = file_name_compose(
+                        base_path.clone(),
+                        Some(format!("blocks_batch_{:0>4}", i)),
+                    );
+                    let hashes = batch.map(|(_epoch, hash)| hash.clone()).collect::<Vec<_>>();
+
+                    let fut =
+                        async move {
+                            log::info!(
+                                "Starting to fetch blocks batch #{} ({} to {} out of {})",
+                                i,
+                                from,
+                                to,
+                                total_blocks
+                            );
+                            let batch =
+                                InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
+                            log::info!(
+                                "Successfully fetched blocks batch #{} ({} to {} out of {})",
+                                i,
+                                from,
+                                to,
+                                total_blocks
+                            );
+                            log::info!(
+                            "Blocks batch #{} ({} to {} out of {}) is now being written into {}",
+                            i, from, to, total_blocks, path.display()
+                        );
+                            serialize_to_file(&batch, &path)?;
+                            log::info!(
+                            "Successfully exported blocks batch #{} ({} to {} out of {}) into {}",
+                            i, from, to, total_blocks, path.display()
+                        );
+
+                            Result::<(), failure::Error>::Ok(())
+                        };
+
+                    futs.push(fut);
+                    i += 1;
+                }
+
+                // Blocks batches are processed concurrently, in no particular order, with a
+                // limit of 4 at once
+                futures::stream::iter(futs)
+                    .buffer_unordered(4)
+                    .collect::<Vec<_>>()
+                    .await;
+                log::info!(
+                    "Succesfully exported all {} blocks in chunks of {} blocks...",
+                    total_blocks,
+                    batch_size
+                );
+
+                // Finally serialize and write the chain state itself
+                log::info!("Exporting chain state it into {}", base_path_display);
+                serialize_to_file(&chain_state, &base_path)?;
+                log::info!(
+                    "Success! Finished exporting chain snapshot into {}",
+                    base_path_display
+                );
+
+                // Return the path of the exported chain state
+                Ok(base_path_display)
+            }
+            // Fail if not synced or not forced
+            (current_state, _) => {
+                log::error!("Cannot export a chain snapshot while the node is not in Synced state. If you still want to export it, use the `force` flag.");
+
+                Err(ChainManagerError::NotSynced { current_state }.into())
+            }
+        }
+    }
+
     /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs
     fn subscribe_to_epoch_manager(&mut self, ctx: &mut Context<ChainManager>) {
         // Get EpochManager address from registry
@@ -762,7 +912,7 @@ impl ChainManager {
         Box::pin(futures::future::ok(()))
     }
 
-    fn process_import_fut(
+    fn snapshot_import_fut(
         &mut self,
         import: ChainImport<ImportError>,
         force: bool,
@@ -828,26 +978,27 @@ impl ChainManager {
 
     /// Load all the data from the `import` field into their corresponding locations, and persist
     /// when necessary.
-    fn process_import(&mut self, ctx: &mut Context<Self>) {
+    fn snapshot_import(&mut self) -> ResponseActFuture<Self, Result<(), ImportError>> {
         // Early escape if no import is set
         let (import, force) = match self.import.take() {
-            Force::Forced(import) => (import, true),
+            Force::All(import) => (import, true),
             Force::Some(import) => (import, false),
             Force::None => {
                 // Without nothing to import, do nothing.
-                return;
+                return Box::pin(actix::fut::wrap_future(futures::future::ok(())));
             }
         };
 
-        let fut = self
-            .process_import_fut(import, force)
-            .map(|res, _act, _ctx| {
-                if let Err(err) = res {
-                    log::error!("{}", err);
-                }
-            });
+        Box::pin(
+            self.snapshot_import_fut(import, force)
+                .map(|res, _act, _ctx| {
+                    if let Err(err) = &res {
+                        log::error!("{}", err);
+                    }
 
-        ctx.wait(fut);
+                    res
+                }),
+        )
     }
 
     /// Put some basic information into the scope of the telemetry service (Sentry)

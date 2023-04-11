@@ -194,9 +194,17 @@ pub fn exec_cmd(
 
             // Collect required node operations from parameters
             let mut ops = node::actors::node::NodeOps::new();
+            if let Some(path) = params.snapshot_export {
+                let path = if params.force {
+                    node::utils::Force::All(path)
+                } else {
+                    node::utils::Force::Some(path)
+                };
+                ops.add(node::actors::node::NodeOp::SnapshotExport(path));
+            }
             if let Some(path) = params.snapshot_import {
                 let path = if params.force {
-                    node::utils::Force::Forced(path)
+                    node::utils::Force::All(path)
                 } else {
                     node::utils::Force::Some(path)
                 };
@@ -762,7 +770,10 @@ pub struct ConfigParams {
     /// Path to file that contains the master key to import
     #[structopt(long = "master-key-import")]
     master_key_import: Option<PathBuf>,
-    /// Path to a file that contains a chain state snapshot
+    /// Path to a directory where to export a chain snapshot
+    #[structopt(long = "snapshot-export")]
+    snapshot_export: Option<PathBuf>,
+    /// Path to a file that contains a chain snapshot
     #[structopt(long = "snapshot-import")]
     snapshot_import: Option<PathBuf>,
     /// Indicate whether other operations must be executed regardless of pre-checks.
