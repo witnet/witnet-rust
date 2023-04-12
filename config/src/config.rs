@@ -283,18 +283,13 @@ pub struct Witnessing {
 }
 
 /// Available storage backends
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum StorageBackend {
     #[serde(rename = "hashmap")]
     HashMap,
+    #[default]
     #[serde(rename = "rocksdb")]
     RocksDB,
-}
-
-impl Default for StorageBackend {
-    fn default() -> Self {
-        StorageBackend::RocksDB
-    }
 }
 
 /// Storage-specific configuration

@@ -81,9 +81,10 @@ pub struct ChainInfo {
 }
 
 /// State machine for the synchronization status of a Witnet node
-#[derive(Copy, Clone, Deserialize, Debug, Eq, PartialEq, Serialize)]
+#[derive(Copy, Clone, Default, Deserialize, Debug, Eq, PartialEq, Serialize)]
 pub enum StateMachine {
     /// First state, ChainManager is waiting for reaching  consensus between its peers
+    #[default]
     WaitingConsensus,
     /// Second state, ChainManager synchronization process
     Synchronizing,
@@ -93,12 +94,6 @@ pub enum StateMachine {
     /// Fourth state, `ChainManager` can consolidate block candidates, propose its own
     /// candidates (mining) and participate in resolving data requests (witnessing).
     Synced,
-}
-
-impl Default for StateMachine {
-    fn default() -> Self {
-        StateMachine::WaitingConsensus
-    }
 }
 
 /// Node synchronization status
@@ -114,9 +109,10 @@ pub struct SyncStatus {
 
 /// Possible values for the "environment" configuration param.
 // The variants are explicitly tagged so that bincode serialization does not break
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Environment {
     /// "mainnet" environment
+    #[default]
     #[serde(rename = "mainnet")]
     Mainnet = 0,
     /// "testnet" environment
@@ -125,12 +121,6 @@ pub enum Environment {
     /// "development" environment
     #[serde(rename = "development")]
     Development = 2,
-}
-
-impl Default for Environment {
-    fn default() -> Environment {
-        Environment::Mainnet
-    }
 }
 
 impl fmt::Display for Environment {
@@ -1640,9 +1630,10 @@ impl Hashable for Bn256Signature {
 }
 
 /// Retrieval type
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub enum RADType {
     /// Unknown
+    #[default]
     #[serde(rename = "Unknown")]
     Unknown,
     /// HTTP GET request
@@ -1662,14 +1653,8 @@ impl RADType {
     }
 }
 
-impl Default for RADType {
-    fn default() -> Self {
-        RADType::Unknown
-    }
-}
-
 /// RAD request data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest", crate = "crate")]
 pub struct RADRequest {
     /// Commitments for this request will not be accepted in any block proposed for an epoch
@@ -3226,20 +3211,15 @@ pub fn calculate_backup_witnesses(witnesses: u16, commit_round: u16) -> u16 {
 }
 
 /// Data request current stage
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub enum DataRequestStage {
     /// Expecting commitments for data request
+    #[default]
     COMMIT,
     /// Expecting reveals to previously published commitments
     REVEAL,
     /// Expecting tally to be included in block
     TALLY,
-}
-
-impl Default for DataRequestStage {
-    fn default() -> Self {
-        DataRequestStage::COMMIT
-    }
 }
 
 pub type Blockchain = BTreeMap<Epoch, Hash>;
