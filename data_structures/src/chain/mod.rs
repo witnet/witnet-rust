@@ -3324,6 +3324,9 @@ impl ChainState {
     }
 }
 
+/// A boxed and pinned future that resolves to a vector of stuff.
+type CollectionGenerator<T, E> = BoxFuture<'static, Result<Vec<T>, E>>;
+
 /// Unifies a future of `ChainState` with promises for whatever other data structures that are
 /// needed for chain state portability, i.e., copying the whole blockchain from one node to another.
 pub struct ChainImport<E>
@@ -3331,11 +3334,11 @@ where
     E: std::error::Error,
 {
     /// The full history of blocks, accumulated in batches.
-    pub blocks: Result<Vec<BoxFuture<'static, Result<Vec<Block>, E>>>, E>,
+    pub blocks: Result<Vec<CollectionGenerator<Block, E>>, E>,
     /// The chain state itself.
     pub chain_state: BoxFuture<'static, Result<ChainState, E>>,
     /// The full history of superblocks.
-    pub superblocks: BoxFuture<'static, Result<Vec<SuperBlock>, E>>,
+    pub superblocks: CollectionGenerator<SuperBlock, E>,
 }
 
 /// Alternative public key mapping: maps each secp256k1 public key hash to

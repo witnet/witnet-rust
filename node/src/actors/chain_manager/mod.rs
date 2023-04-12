@@ -327,17 +327,14 @@ impl ChainManager {
         });
 
         // A vector of futures for reading and deserializing blocks from multiple files
-        let blocks_path = file_name_compose(path.clone(), Some("blocks_batch_*".into()));
+        let blocks_path = file_name_compose(path, Some("blocks_batch_*".into()));
         let path_display = blocks_path.display().to_string();
         let blocks = match glob(&path_display) {
             Ok(entries) => {
                 let mut blocks = Vec::new();
-                for entry in entries {
-                    if let Ok(entry) = entry {
-                        let batch_path = PathBuf::from(entry);
-                        let fut = futurize_batch_read(batch_path);
-                        blocks.push(fut);
-                    }
+                for batch_path in entries.flatten() {
+                    let fut = futurize_batch_read(batch_path);
+                    blocks.push(fut);
                 }
                 Ok(blocks)
             }

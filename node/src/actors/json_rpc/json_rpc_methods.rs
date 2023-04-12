@@ -2188,6 +2188,8 @@ mod tests {
             all_methods_vec,
             vec![
                 "addPeers",
+                "chainExport",
+                "chainImport",
                 "clearPeers",
                 "createVRF",
                 "dataRequestReport",

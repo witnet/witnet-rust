@@ -118,11 +118,6 @@ impl NodeOps {
         self.0.read().unwrap().iter().find_map(f)
     }
 
-    /// Instantiate a new list of operations.
-    pub fn new() -> Self {
-        Self(Arc::new(RwLock::new(HashSet::new())))
-    }
-
     /// Tell whether the list of operations contains a chain snapshot export operation.
     pub fn snapshot_export(&self) -> Force<PathBuf> {
         self.contains(|op| match op {
@@ -142,6 +137,12 @@ impl NodeOps {
     }
 }
 
+impl Default for NodeOps {
+    fn default() -> Self {
+        Self(Arc::new(RwLock::new(HashSet::new())))
+    }
+}
+
 /// Trait defining the behavior of stuff that can take `NodeOps` into account.
 ///
 /// This is meant to be implemented by the node actors.
@@ -155,28 +156,28 @@ mod test {
     use super::*;
     #[test]
     fn test_nodeops_snapshot_export() {
-        let mut ops = NodeOps::new();
+        let mut ops = NodeOps::default();
         assert_eq!(ops.snapshot_export(), Force::None);
 
         let path = PathBuf::from("./whatever.bin");
         ops.add(NodeOp::SnapshotExport(Force::Some(path.clone())));
         assert_eq!(ops.snapshot_export(), Force::Some(path.clone()));
 
-        ops = NodeOps::new();
+        ops = NodeOps::default();
         ops.add(NodeOp::SnapshotExport(Force::All(path.clone())));
         assert_eq!(ops.snapshot_export(), Force::All(path));
     }
 
     #[test]
     fn test_nodeops_snapshot_import() {
-        let mut ops = NodeOps::new();
+        let mut ops = NodeOps::default();
         assert_eq!(ops.snapshot_import(), Force::None);
 
         let path = PathBuf::from("./whatever.bin");
         ops.add(NodeOp::SnapshotImport(Force::Some(path.clone())));
         assert_eq!(ops.snapshot_import(), Force::Some(path.clone()));
 
-        ops = NodeOps::new();
+        ops = NodeOps::default();
         ops.add(NodeOp::SnapshotImport(Force::All(path.clone())));
         assert_eq!(ops.snapshot_import(), Force::All(path));
     }

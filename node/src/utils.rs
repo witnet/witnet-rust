@@ -5,7 +5,7 @@ use std::{
     future::Future,
     hash::Hash,
     io::BufReader,
-    path::PathBuf,
+    path::{Path, PathBuf},
     pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -238,12 +238,12 @@ pub fn file_name_compose(mut path: PathBuf, suffix: Option<String>) -> PathBuf {
 }
 
 /// Efficiently write data into the file system as it gets encoded on the fly using `bincode`.
-pub fn serialize_to_file<D>(data: &D, path: &PathBuf) -> Result<(), failure::Error>
+pub fn serialize_to_file<D>(data: &D, path: &Path) -> Result<(), failure::Error>
 where
     D: serde::Serialize,
 {
     // Create file, serialize and write
-    let file = witnet_util::files::create_file(path.clone())?;
+    let file = witnet_util::files::create_file(path)?;
     let writer = std::io::BufWriter::new(file);
     bincode::serialize_into(writer, data)?;
 

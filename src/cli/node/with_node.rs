@@ -193,7 +193,7 @@ pub fn exec_cmd(
             config.connections.known_peers.extend(params.known_peers);
 
             // Collect required node operations from parameters
-            let mut ops = node::actors::node::NodeOps::new();
+            let mut ops = node::actors::node::NodeOps::default();
             if let Some(path) = params.snapshot_export {
                 let path = if params.force {
                     node::utils::Force::All(path)

@@ -577,17 +577,16 @@ impl ChainManager {
                     total_blocks,
                     batch_size
                 );
-                let mut i = 0;
                 let mut futs = Vec::new();
                 let batches = chain_state.block_chain.iter().chunks(batch_size);
-                for batch in &batches {
+                for (i, batch) in (&batches).into_iter().enumerate() {
                     let from = i * batch_size;
                     let to = total_blocks.min(i * batch_size + batch_size - 1);
                     let path = file_name_compose(
                         base_path.clone(),
                         Some(format!("blocks_batch_{:0>4}", i)),
                     );
-                    let hashes = batch.map(|(_epoch, hash)| hash.clone()).collect::<Vec<_>>();
+                    let hashes = batch.map(|(_epoch, hash)| *hash).collect::<Vec<_>>();
 
                     let fut =
                         async move {
@@ -621,7 +620,6 @@ impl ChainManager {
                         };
 
                     futs.push(fut);
-                    i += 1;
                 }
 
                 // Blocks batches are processed concurrently, in no particular order, with a
@@ -872,7 +870,7 @@ impl ChainManager {
 
         // Find and index our own UTXOs from the UTXO set
         let mut own_utxos = OwnUnspentOutputsPool::new();
-        let own_pkh = self.own_pkh.unwrap().clone();
+        let own_pkh = self.own_pkh.unwrap();
         log::info!("Trying to find and index unspent outputs for {}", own_pkh);
         self.chain_state.unspent_outputs_pool.visit_with_pkh(
             own_pkh,
