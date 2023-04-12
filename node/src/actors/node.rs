@@ -58,7 +58,9 @@ pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), fail
         SystemRegistry::set(epoch_manager_addr);
 
         // Start ChainManager actor
-        let chain_manager_addr = ChainManager::default().with_node_ops(ops).start();
+        let mut cm = ChainManager::default();
+        cm.put_node_ops(ops);
+        let chain_manager_addr = cm.start();
         SystemRegistry::set(chain_manager_addr);
 
         // Start InventoryManager actor
@@ -143,9 +145,9 @@ impl NodeOps {
 /// Trait defining the behavior of stuff that can take `NodeOps` into account.
 ///
 /// This is meant to be implemented by the node actors.
-pub trait WithNodeOps {
+pub trait PutNodeOps {
     /// Provide an instance of the implementor that has somehow processed the `NodeOps` data.
-    fn with_node_ops(self, ops: NodeOps) -> Self;
+    fn put_node_ops(&mut self, ops: NodeOps);
 }
 
 #[cfg(test)]

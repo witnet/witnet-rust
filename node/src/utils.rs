@@ -142,8 +142,17 @@ pub enum Force<T> {
 }
 
 impl<T> Force<T> {
+    /// Tells whether the `Force` has some non-`None` degree of force.
     #[inline]
+    pub fn has_force(&self) -> bool {
+        match self {
+            Force::All(_) | Force::Some(_) => true,
+            Force::None => false,
+        }
+    }
+
     /// Creates a new non-forced `Force` value with forced if specified.
+    #[inline]
     pub fn new(value: T, force: bool) -> Force<T> {
         if force {
             Self::All(value)
@@ -152,8 +161,17 @@ impl<T> Force<T> {
         }
     }
 
+    /// If a `Force` is `None`, return a different given `Force`, otherwise, return the original.
     #[inline]
+    pub fn or(self, value: Force<T>) -> Force<T> {
+        match self {
+            Force::None => value,
+            other => other,
+        }
+    }
+
     /// Wraps a value in a `Force` with the same degree of force than an existing `Force`.
+    #[inline]
     pub fn same<V>(&self, value: V) -> Force<V> {
         match self {
             Force::All(_) => Force::All(value),
@@ -162,10 +180,27 @@ impl<T> Force<T> {
         }
     }
 
-    #[inline]
     /// Equivalent to `Option::take`.
+    #[inline]
     pub fn take(&mut self) -> Force<T> {
         std::mem::replace(self, Self::None)
+    }
+
+    /// Access the inner value directly, together with a flag signaling the use of all force.
+    #[inline]
+    pub fn unwrap(self) -> (T, bool) {
+        match self {
+            Force::All(value) => (value, true),
+            Force::Some(value) => (value, false),
+            Force::None => panic!("Unwrapped a Force::None"),
+        }
+    }
+
+    /// Access the inner value directly, or a given `Force` value if the original was `None`,
+    /// together with a flag signaling the use of all force.
+    #[inline]
+    pub fn unwrap_or(self, value: Force<T>) -> (T, bool) {
+        self.or(value).unwrap()
     }
 }
 

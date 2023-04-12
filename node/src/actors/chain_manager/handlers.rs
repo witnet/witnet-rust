@@ -34,7 +34,7 @@ use crate::{
             GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
             GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
             SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport,
-            TryMineBlock,
+            SnapshotImport, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1838,10 +1838,26 @@ impl Handler<SnapshotExport> for ChainManager {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         let fut = Self::static_snapshot_export(self.sm_state, self.chain_state.clone(), path);
+
         Box::pin(actix::fut::wrap_future(fut))
     }
 }
 
+impl Handler<SnapshotImport> for ChainManager {
+    type Result = ResponseActFuture<Self, <SnapshotImport as Message>::Result>;
+
+    fn handle(
+        &mut self,
+        SnapshotImport { path }: SnapshotImport,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
+        // Put the import info into place, and trigger the import
+        self.put_import_from_path(path);
+        let fut = self.snapshot_import();
+
+        Box::pin(fut)
+    }
+}
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockBatches<T> {
     TargetNotReached(Vec<T>),

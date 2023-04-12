@@ -97,7 +97,7 @@ use crate::{
             SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
             SetLastBeacon, SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
         },
-        node::{NodeOps, WithNodeOps},
+        node::{NodeOps, PutNodeOps},
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
         storage_keys,
@@ -250,33 +250,33 @@ pub struct ChainManager {
 
 impl ChainManager {
     /// Drop the value of the `import` field.
-    fn mut_drop_import(&mut self) {
+    fn drop_import(&mut self) {
         self.import = Force::None;
     }
 
     /// Order a chain snapshot export upon starting.
-    fn with_export(mut self, export: Force<PathBuf>) -> Self {
+    fn put_export(&mut self, export: Force<PathBuf>) {
         self.export = export;
-
-        self
     }
 
     /// Put a chain export into the `import` field.
-    ///
-    /// This is only done if the chain to import is ahead of our own, or the `--force` flag is set.
-    fn with_import(mut self, import: ChainImport<ImportError>, force: bool) -> Self {
-        self.import = match force {
-            true => Force::All(import),
-            false => Force::Some(import),
-        };
-
-        self
+    fn put_import(&mut self, import: Force<ChainImport<ImportError>>) {
+        self.import = import;
     }
 
-    /// Try to read and load a chain snapshot from the filesystem.
+    /// Try to read and load a chain snapshot from the filesystem into a ChainManager.
     ///
     /// This method is intentionally best-effort.
-    fn with_import_from_path(self, path: PathBuf, force: bool) -> Self {
+    pub fn put_import_from_path(&mut self, path: Force<PathBuf>) {
+        // Deconstruct path and force degree, and abort if there's no path
+        let (path, force) = match path {
+            Force::All(path) => (path, true),
+            Force::Some(path) => (path, false),
+            Force::None => {
+                return;
+            }
+        };
+
         // A future for reading and deserializing the chain state from a single file
         let chain_state_path = path.clone();
         let chain_state = Box::pin(async move {
@@ -344,13 +344,16 @@ impl ChainManager {
             Err(_) => Err(ImportError::FileRead { path: path_display }),
         };
 
-        let import = ChainImport {
-            blocks,
-            chain_state,
-            superblocks,
-        };
+        let import = Force::new(
+            ChainImport {
+                blocks,
+                chain_state,
+                superblocks,
+            },
+            force,
+        );
 
-        self.with_import(import, force)
+        self.put_import(import);
     }
 }
 
@@ -390,15 +393,10 @@ impl Drop for ChainManager {
     }
 }
 
-impl WithNodeOps for ChainManager {
-    fn with_node_ops(self, ops: NodeOps) -> Self {
-        let cm = match ops.snapshot_import() {
-            Force::All(path) => self.with_import_from_path(path, true),
-            Force::Some(path) => self.with_import_from_path(path, false),
-            Force::None => self,
-        };
-
-        cm.with_export(ops.snapshot_export())
+impl PutNodeOps for ChainManager {
+    fn put_node_ops(&mut self, ops: NodeOps) {
+        self.put_import_from_path(ops.snapshot_import());
+        self.put_export(ops.snapshot_export());
     }
 }
 
@@ -2552,26 +2550,48 @@ impl ChainManager {
     }
 }
 
+/// The different errors that can occur while loading a chain snapshot.
 #[derive(Debug, Display, Error)]
-enum ImportError {
+pub enum ImportError {
+    /// An error while importing blocks. A more specific error is contained within.
     #[display(fmt = "Error importing blocks")]
     AtBlocks(Box<Self>),
+    /// An error while importing chain state. A more specific error is contained within.
     #[display(fmt = "Error importing chain state")]
     AtChainState(Box<Self>),
+    /// An error while importing superblocks. A more specific error is contained within.
     #[display(fmt = "Error importing superblocks")]
     AtSuperblocks(Box<Self>),
+    /// A (de)serialization error.
     #[display(fmt = "bincode error")]
     Bincode(bincode::Error),
+    /// The chain to be imported is behind our local chain.
+    ///
+    /// This error can be defeated by using the `force` flag.
     #[display(
         fmt = "The chain to be imported is behind our local chain ({} > {}). If you still want to import it, use the `force` flag.",
         imported,
         local
     )]
-    ChainTip { imported: u32, local: u32 },
+    ChainTip {
+        /// The epoch of the imported chain tip.
+        imported: Epoch,
+        /// The local chain tip.
+        local: Epoch,
+    },
+    /// A file cannot be deserialized.
     #[display(fmt = "Error deserializing file at {}", path)]
-    Deserialize { path: String },
+    Deserialize {
+        /// The path of the file that cannot be deserialized.
+        path: String,
+    },
+    /// A file cannot be read.
     #[display(fmt = "Error reading file at {}", path)]
-    FileRead { path: String },
+    FileRead {
+        /// The path of the file that cannot be read.
+        path: String,
+    },
+    /// Any kind of I/O error.
     #[display(fmt = "std::io error")]
     Io(std::io::Error),
 }

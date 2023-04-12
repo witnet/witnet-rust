@@ -39,7 +39,7 @@ use crate::{
             GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
             GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
             GetNodeStats, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo,
-            InitializePeers, IsConfirmedBlock, Rewind, SnapshotExport,
+            InitializePeers, IsConfirmedBlock, Rewind, SnapshotExport, SnapshotImport,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -243,13 +243,20 @@ pub fn jsonrpc_io_handler(
             |params| rewind(params.parse()),
         )))
     });
-    // This method is private to prevent DoS attacks, because it is CPU intensive.
-    io.add_method("snapshotExport", move |params| {
+    io.add_method("chainExport", move |params| {
         Compat::new(Box::pin(call_if_authorized(
             enable_sensitive_methods,
-            "snapshotExport",
+            "chainExport",
             params,
             |params| snapshot_export(params.parse()),
+        )))
+    });
+    io.add_method("chainImport", move |params| {
+        Compat::new(Box::pin(call_if_authorized(
+            enable_sensitive_methods,
+            "chainImport",
+            params,
+            |params| snapshot_import(params.parse()),
         )))
     });
 
@@ -1779,8 +1786,8 @@ pub async fn priority() -> JsonRpcResult {
     serde_json::to_value(estimate).map_err(internal_error_s)
 }
 
-/// Parameters of snapshotExport
-#[derive(Deserialize)]
+/// Parameters of snapshot_export
+#[derive(Debug, Deserialize)]
 pub struct SnapshotExportParams {
     /// The path where the chain state snapshot should be written to.
     pub path: Option<PathBuf>,
@@ -1793,6 +1800,7 @@ impl From<SnapshotExportParams> for Force<PathBuf> {
         match (params.path, params.force) {
             (Some(path), Some(true)) => Force::All(path),
             (Some(path), _) => Force::Some(path),
+            (_, Some(true)) => Force::All(witnet_config::dirs::data_dir()),
             _ => Force::Some(witnet_config::dirs::data_dir()),
         }
     }
@@ -1811,6 +1819,42 @@ pub async fn snapshot_export(
     // Tell the chain manager to create and export the snapshot
     let chain_manager = ChainManager::from_registry();
     let actor_response = chain_manager.send(SnapshotExport { path }).await;
+    let response = actor_response
+        .map_err(internal_error_s)?
+        .map_err(internal_error_s)?;
+
+    // Write the response back (the path to the snapshot file)
+    serde_json::to_value(response).map_err(internal_error_s)
+}
+
+/// Parameters of snapshot_import
+#[derive(Debug, Deserialize)]
+pub struct SnapshotImportParams {
+    /// The path to the chain state snapshot file.
+    pub path: Option<PathBuf>,
+    /// Whether to force the import regardless of the synchronization status.
+    pub force: Option<bool>,
+}
+
+impl From<SnapshotImportParams> for Force<PathBuf> {
+    fn from(SnapshotImportParams { path, force }: SnapshotImportParams) -> Self {
+        Self::from(SnapshotExportParams { path, force })
+    }
+}
+
+/// Import a snapshot of the chain state from the file system.
+///
+/// This method is intended for fast syncing nodes from snapshot files that can downloaded over
+/// HTTP, FTP, Torrent or IPFS.
+pub async fn snapshot_import(
+    params: Result<SnapshotImportParams, jsonrpc_core::Error>,
+) -> JsonRpcResult {
+    // Use path from parameters if provided, otherwise try to guess path from configuration
+    let path = Force::from(params?);
+
+    // Tell the chain manager to create and export the snapshot
+    let chain_manager = ChainManager::from_registry();
+    let actor_response = chain_manager.send(SnapshotImport { path }).await;
     let response = actor_response
         .map_err(internal_error_s)?
         .map_err(internal_error_s)?;

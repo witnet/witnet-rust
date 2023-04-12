@@ -2,7 +2,7 @@ use std::{path::PathBuf, pin::Pin, str::FromStr, time::Duration};
 
 use actix::prelude::*;
 use actix::{ActorTryFutureExt, ContextFutureSpawner, WrapFuture};
-use futures::future::BoxFuture;
+use futures::future::{BoxFuture, Either};
 use futures_util::StreamExt;
 use itertools::Itertools;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
@@ -58,7 +58,11 @@ impl Actor for ChainManager {
                 })
                 .then(|_res, act, _ctx| {
                     // Export chain snapshot if requested to do so
-                    act.snapshot_export().map_err(|_, _, _| ())
+                    if act.export.has_force() {
+                        Either::Left(act.snapshot_export().map_err(|_, _, _| ()))
+                    } else {
+                        Either::Right(actix::fut::err(()))
+                    }
                 })
                 .map(|_, _, _| ()),
         );
@@ -842,7 +846,7 @@ impl ChainManager {
     fn process_chain_state_fut(
         &mut self,
         chain_state: ChainState,
-    ) -> ResponseActFuture<Self, Result<(), ImportError>> {
+    ) -> ResponseActFuture<Self, Result<CheckpointBeacon, ImportError>> {
         // Reuse the existing UTXO database: simply wipe it and insert the new stuff later
         let mut old_utxos = self.chain_state.unspent_outputs_pool.clone();
         let drop_count = old_utxos.delete_all_from_db();
@@ -900,23 +904,25 @@ impl ChainManager {
         self.persist_chain_state(None);
 
         // Finally, we let the sessions manager know about the new chain tip
+        let highest_block_checkpoint = self.get_chain_beacon();
+        let highest_superblock_checkpoint = self.get_superblock_beacon();
         SessionsManager::from_registry().do_send(SetLastBeacon {
             beacon: LastBeacon {
-                highest_block_checkpoint: self.get_chain_beacon(),
-                highest_superblock_checkpoint: self.get_superblock_beacon(),
+                highest_block_checkpoint,
+                highest_superblock_checkpoint,
             },
         });
 
-        self.mut_drop_import();
+        self.drop_import();
 
-        Box::pin(futures::future::ok(()))
+        Box::pin(futures::future::ok(highest_block_checkpoint))
     }
 
     fn snapshot_import_fut(
         &mut self,
         import: ChainImport<ImportError>,
         force: bool,
-    ) -> ResponseActFuture<Self, Result<(), ImportError>> {
+    ) -> ResponseActFuture<Self, Result<CheckpointBeacon, ImportError>> {
         // Perform all synchronous stuff upfront
         let local_checkpoint = self
             .chain_state
@@ -967,10 +973,10 @@ impl ChainManager {
                 act.process_superblocks_fut(superblocks)
                     .and_then(|_, act, _ctx| act.process_blocks_batches_fut(blocks_batches))
                     .and_then(move |_, act, _ctx| act.process_chain_state_fut(chain_state))
-                    .and_then(|_, _, _| {
+                    .and_then(|epoch, _, _| {
                         log::info!("Successfully finished importing snapshot!");
 
-                        futures::future::ok(())
+                        futures::future::ok(epoch)
                     })
             },
         ))
@@ -978,14 +984,17 @@ impl ChainManager {
 
     /// Load all the data from the `import` field into their corresponding locations, and persist
     /// when necessary.
-    fn snapshot_import(&mut self) -> ResponseActFuture<Self, Result<(), ImportError>> {
+    pub fn snapshot_import(
+        &mut self,
+    ) -> ResponseActFuture<Self, Result<CheckpointBeacon, ImportError>> {
         // Early escape if no import is set
         let (import, force) = match self.import.take() {
             Force::All(import) => (import, true),
             Force::Some(import) => (import, false),
             Force::None => {
                 // Without nothing to import, do nothing.
-                return Box::pin(actix::fut::wrap_future(futures::future::ok(())));
+                let beacon = self.get_chain_beacon();
+                return Box::pin(actix::fut::wrap_future(futures::future::ok(beacon)));
             }
         };
 

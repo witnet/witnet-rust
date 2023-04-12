@@ -41,7 +41,7 @@ use witnet_rad::{error::RadError, types::RadonTypes};
 
 use crate::{
     actors::{
-        chain_manager::{ChainManagerError, MAX_BLOCKS_SYNC},
+        chain_manager::{ChainManagerError, ImportError, MAX_BLOCKS_SYNC},
         connections_manager::resolver::ResolverError,
         epoch_manager::{
             AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
@@ -413,6 +413,16 @@ pub struct SnapshotExport {
 
 impl Message for SnapshotExport {
     type Result = Result<String, failure::Error>;
+}
+
+/// Create and export a snapshot of the current chain state.
+pub struct SnapshotImport {
+    /// The path to the snapshot file to read.
+    pub path: Force<PathBuf>,
+}
+
+impl Message for SnapshotImport {
+    type Result = Result<CheckpointBeacon, ImportError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
