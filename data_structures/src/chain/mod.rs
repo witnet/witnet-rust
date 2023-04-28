@@ -81,7 +81,7 @@ pub struct ChainInfo {
 }
 
 /// State machine for the synchronization status of a Witnet node
-#[derive(Copy, Clone, Default, Deserialize, Debug, Default, Eq, PartialEq, Serialize)]
+#[derive(Copy, Clone, Default, Deserialize, Debug, Eq, PartialEq, Serialize)]
 pub enum StateMachine {
     /// First state, ChainManager is waiting for reaching  consensus between its peers
     #[default]
@@ -1630,7 +1630,7 @@ impl Hashable for Bn256Signature {
 }
 
 /// Retrieval type
-#[derive(Debug, Default, Eq, PartialEq, Clone, Default, Serialize, Deserialize, Hash)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub enum RADType {
     /// Unknown
     #[default]

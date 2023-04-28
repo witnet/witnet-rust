@@ -283,7 +283,7 @@ pub struct Witnessing {
 }
 
 /// Available storage backends
-#[derive(Debug, Default, Deserialize, Serialize, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum StorageBackend {
     #[serde(rename = "hashmap")]
     HashMap,
