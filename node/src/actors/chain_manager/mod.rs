@@ -71,7 +71,7 @@ use witnet_data_structures::{
     get_environment,
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
-    transaction::{TallyTransaction, Transaction},
+    transaction::{RevealTransaction, TallyTransaction, Transaction},
     types::{
         visitor::{StatefulVisitor, Visitor},
         LastBeacon,
@@ -229,7 +229,7 @@ pub struct ChainManager {
     /// List of superblock votes received while we are synchronizing
     temp_superblock_votes: HashSet<SuperBlockVote>,
     /// Commits and reveals to process later
-    temp_commits_and_reveals: Vec<Transaction>,
+    temp_reveals: Vec<RevealTransaction>,
     /// Value transfers and data requests to process later
     temp_vts_and_drs: VecDeque<Transaction>,
     /// Maximum number of recovered transactions to include by epoch
@@ -1405,7 +1405,10 @@ impl ChainManager {
                     .unwrap();
 
                 if timestamp_now > timestamp_mining {
-                    self.temp_commits_and_reveals.push(msg.transaction);
+                    // Only reveals are saved since commits which arrive too late will be invalid in the next epoch
+                    if let Transaction::Reveal(reveal) = &msg.transaction {
+                        self.temp_reveals.push(reveal.clone());
+                    }
                     return Box::pin(actix::fut::ok(()));
                 }
             }

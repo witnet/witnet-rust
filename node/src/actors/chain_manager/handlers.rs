@@ -221,11 +221,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             }
         }
 
-        // After block consolidation, commits and reveals that arrive in an incorrect moment
+        // After block consolidation, reveals that arrived in an incorrect moment
         // are processed now
-        for transaction in self.temp_commits_and_reveals.drain(..) {
+        for reveal in self.temp_reveals.drain(..) {
             ctx.notify(AddTransaction {
-                transaction,
+                transaction: Transaction::Reveal(reveal),
                 broadcast_flag: true,
             });
         }
