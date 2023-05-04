@@ -272,17 +272,6 @@ impl TapiEngine {
             }
         }
 
-        // Reset the active WIPs to those statically defined in `wip_info()` and only enables those
-        // that have been marked as `old_wips` above, thus forgetting about accidentally enabled
-        // WIPs, and WIPs that are no longer under signaling.
-        let mut truly_active = wip_info();
-        for (name, epoch) in &self.wip_activation {
-            if old_wips.contains(name) {
-                truly_active.insert(name.clone(), *epoch);
-            }
-        }
-        self.wip_activation = truly_active;
-
         (min_epoch, old_wips)
     }
 
