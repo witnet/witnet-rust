@@ -874,8 +874,8 @@ impl ChainManager {
         log::info!("Trying to find and index unspent outputs for {}", own_pkh);
         self.chain_state.unspent_outputs_pool.visit_with_pkh(
             own_pkh,
-            |(output_pointer, (vto, _))| {
-                own_utxos.insert(*output_pointer, vto.value);
+            |(output_pointer, _)| {
+                own_utxos.insert(*output_pointer, 0);
                 log::debug!(
                     "Found a new unspent output for {}. Total found so far: {}",
                     own_pkh,
