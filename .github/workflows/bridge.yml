@@ -4,12 +4,19 @@ on:
   workflow_run:
     workflows: ["Release Tag"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force execution of this action'
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   Bridge:
     runs-on: ubuntu-latest
     environment: tags
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || inputs.force }}
     steps:
       - uses: actions/checkout@v3
 
