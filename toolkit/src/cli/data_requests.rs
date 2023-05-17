@@ -27,7 +27,7 @@ pub(crate) fn decode_from_args(
             .map_err(Error::SolidityFileCantRead)?;
 
         let pb_bytes = extract_pb_bytes_from_solidity(&contents)?;
-        witnet_toolkit::data_requests::decode_from_pb_bytes(&pb_bytes)
+        witnet_toolkit::data_requests::decode_dro_from_pb_bytes(&pb_bytes)
     } else {
         Err(Error::DataRequestNoBytes)
     }
