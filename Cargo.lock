@@ -5396,7 +5396,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "1.6.2"
+version = "1.6.3"
 dependencies = [
  "ansi_term",
  "bytecount",
@@ -5443,7 +5443,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "1.6.2"
+version = "1.6.3"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -5507,7 +5507,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "1.6.2"
+version = "1.6.3"
 dependencies = [
  "bech32",
  "bencher",
@@ -5573,7 +5573,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "1.6.2"
+version = "1.6.3"
 dependencies = [
  "actix",
  "ansi_term",
@@ -5679,7 +5679,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "1.6.2"
+version = "1.6.3"
 dependencies = [
  "failure",
  "hex",
@@ -5722,7 +5722,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "1.6.2"
+version = "1.6.3"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
