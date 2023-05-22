@@ -19,16 +19,13 @@ const MAX_DEPTH: u8 = 20;
 const DEFAULT_THOUSANDS_SEPARATOR: &str = ",";
 const DEFAULT_DECIMAL_SEPARATOR: &str = ".";
 
+/// Parse `RadonTypes` from a JSON-encoded `RadonString`.
 pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
-    match json::parse(&input.value()) {
-        Ok(json_value) => {
-            let value = json_to_cbor(&json_value);
-            RadonTypes::try_from(value)
-        }
-        Err(json_error) => Err(RadError::JsonParse {
-            description: json_error.to_string(),
-        }),
-    }
+    let json_value = json::parse(&input.value()).map_err(|err| RadError::JsonParse {
+        description: err.to_string(),
+    })?;
+
+    RadonTypes::try_from(json_value)
 }
 
 pub fn parse_json_map(input: &RadonString) -> Result<RadonMap, RadError> {
@@ -280,39 +277,6 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
             }
         })
         .unwrap_or(Ok(temp_def))
-}
-
-/// Converts a JSON value (`json::JsonValue`) into a CBOR value (`serde_cbor::value::Value`).
-/// Some conversions are totally straightforward, but some others  need some more logic (e.g.
-/// telling apart integers from floats).
-#[allow(clippy::cast_possible_truncation)]
-fn json_to_cbor(value: &json::JsonValue) -> Value {
-    match value {
-        json::JsonValue::Array(value) => Value::Array(value.iter().map(json_to_cbor).collect()),
-        json::JsonValue::Object(value) => {
-            let entries = value
-                .iter()
-                .map(|(key, value)| (Value::Text(String::from(key)), json_to_cbor(value)))
-                .collect();
-            Value::Map(entries)
-        }
-        json::JsonValue::Short(value) => Value::Text(String::from(value.as_str())),
-        json::JsonValue::Number(value) => {
-            let (_, _, exponent) = value.as_parts();
-            let floating = f64::from(*value);
-            // Cast the float into an integer if it has no fractional part and its value will fit
-            // into the range of `i128` (38 is the biggest power of 10 that `i128` can safely hold)
-            if floating.fract() == 0.0 && exponent.unsigned_abs() < 38 {
-                // This cast is assumed to be safe as per the previous guard
-                Value::Integer(floating as i128)
-            } else {
-                Value::Float(floating)
-            }
-        }
-        json::JsonValue::String(value) => Value::Text(String::from(value.as_str())),
-        json::JsonValue::Boolean(b) => Value::Bool(*b),
-        json::JsonValue::Null => Value::Null,
-    }
 }
 
 /// Replace thousands and decimals separators in a `String`.
@@ -1168,48 +1132,48 @@ mod tests {
     }
 
     #[test]
-    fn test_json_numbers_to_cbor_numbers() {
+    fn test_json_numbers_to_radon_numbers() {
         use json::{number::Number, JsonValue};
 
         let json = JsonValue::Number(Number::from(2.0));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Integer(2);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonInteger::from(2).into();
+        assert_eq!(resulting_radon, expected_radon);
 
         let json = JsonValue::Number(Number::from(20.0));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Integer(20);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonInteger::from(20).into();
+        assert_eq!(resulting_radon, expected_radon);
 
         let json = JsonValue::Number(Number::from(2_000.0));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Integer(2_000);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonInteger::from(2_000).into();
+        assert_eq!(resulting_radon, expected_radon);
 
         let json = JsonValue::Number(Number::from(2_000_000.0));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Integer(2_000_000);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonInteger::from(2_000_000).into();
+        assert_eq!(resulting_radon, expected_radon);
 
         let json = JsonValue::Number(Number::from(std::f64::consts::PI));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Float(std::f64::consts::PI);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonFloat::from(std::f64::consts::PI).into();
+        assert_eq!(resulting_radon, expected_radon);
 
         let json = JsonValue::Number(Number::from(1e100));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Float(1e100);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonFloat::from(1e100).into();
+        assert_eq!(resulting_radon, expected_radon);
 
         let json = JsonValue::Number(Number::from(4.0));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Integer(4);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonInteger::from(4).into();
+        assert_eq!(resulting_radon, expected_radon);
 
         let json = JsonValue::Number(Number::from(4.1));
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Float(4.1);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let expected_radon = RadonFloat::from(4.1).into();
+        assert_eq!(resulting_radon, expected_radon);
     }
 
     #[test]
@@ -1227,30 +1191,15 @@ mod tests {
         // This number is rounded to exactly 0.0 when converted to f64
         assert_eq!(json.as_f64().unwrap(), 0.0);
 
-        // Convert to CBOR
-        let resulting_cbor = json_to_cbor(&json);
+        // Convert to RadonTypes
+        let resulting_radon = RadonTypes::try_from(json).unwrap();
 
         // This exponent is too small to fit in a f64, so expected_f64 is equal to 0.0
         let expected_f64 = 0.1E-99999;
         assert_eq!(expected_f64, 0.0);
         // And the expected CBOR value is a float, not an integer
-        let expected_cbor = serde_cbor::Value::Float(expected_f64);
-        assert_eq!(resulting_cbor, expected_cbor);
-    }
-
-    #[test]
-    fn test_json_numbers_to_cbor_booleans() {
-        use json::JsonValue;
-
-        let json = JsonValue::Boolean(false);
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Bool(false);
-        assert_eq!(resulting_cbor, expected_cbor);
-
-        let json = JsonValue::Boolean(true);
-        let resulting_cbor = json_to_cbor(&json);
-        let expected_cbor = serde_cbor::Value::Bool(true);
-        assert_eq!(resulting_cbor, expected_cbor);
+        let expected_radon = RadonFloat::from(expected_f64).into();
+        assert_eq!(resulting_radon, expected_radon);
     }
 
     #[test]
