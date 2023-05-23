@@ -5,6 +5,7 @@ use std::{
 };
 
 use serde_cbor::value::{from_value, Value};
+use serde_json::Value as JsonValue;
 
 use crate::{
     error::RadError,
@@ -21,9 +22,10 @@ const DEFAULT_DECIMAL_SEPARATOR: &str = ".";
 
 /// Parse `RadonTypes` from a JSON-encoded `RadonString`.
 pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
-    let json_value = json::parse(&input.value()).map_err(|err| RadError::JsonParse {
-        description: err.to_string(),
-    })?;
+    let json_value: JsonValue =
+        serde_json::from_str(&input.value()).map_err(|err| RadError::JsonParse {
+            description: err.to_string(),
+        })?;
 
     RadonTypes::try_from(json_value)
 }
@@ -532,7 +534,7 @@ mod tests {
         let output = parse_json_map(&invalid_json).unwrap_err();
 
         let expected_err = RadError::JsonParse {
-            description: "Unexpected character: } at (1:13)".to_string(),
+            description: "expected value at line 1 column 13".to_string(),
         };
         assert_eq!(output, expected_err);
 
@@ -580,7 +582,7 @@ mod tests {
         let output = parse_json_array(&invalid_json).unwrap_err();
 
         let expected_err = RadError::JsonParse {
-            description: "Unexpected character: } at (1:13)".to_string(),
+            description: "expected value at line 1 column 13".to_string(),
         };
         assert_eq!(output, expected_err);
 
@@ -1133,44 +1135,44 @@ mod tests {
 
     #[test]
     fn test_json_numbers_to_radon_numbers() {
-        use json::{number::Number, JsonValue};
+        use serde_json::{value::Number, Value as JsonValue};
 
-        let json = JsonValue::Number(Number::from(2.0));
+        let json = JsonValue::Number(Number::from_f64(2.0).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonInteger::from(2).into();
         assert_eq!(resulting_radon, expected_radon);
 
-        let json = JsonValue::Number(Number::from(20.0));
+        let json = JsonValue::Number(Number::from_f64(20.0).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonInteger::from(20).into();
         assert_eq!(resulting_radon, expected_radon);
 
-        let json = JsonValue::Number(Number::from(2_000.0));
+        let json = JsonValue::Number(Number::from_f64(2_000.0).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonInteger::from(2_000).into();
         assert_eq!(resulting_radon, expected_radon);
 
-        let json = JsonValue::Number(Number::from(2_000_000.0));
+        let json = JsonValue::Number(Number::from_f64(2_000_000.0).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonInteger::from(2_000_000).into();
         assert_eq!(resulting_radon, expected_radon);
 
-        let json = JsonValue::Number(Number::from(std::f64::consts::PI));
+        let json = JsonValue::Number(Number::from_f64(std::f64::consts::PI).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonFloat::from(std::f64::consts::PI).into();
         assert_eq!(resulting_radon, expected_radon);
 
-        let json = JsonValue::Number(Number::from(1e100));
+        let json = JsonValue::Number(Number::from_f64(1e100).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonFloat::from(1e100).into();
         assert_eq!(resulting_radon, expected_radon);
 
-        let json = JsonValue::Number(Number::from(4.0));
+        let json = JsonValue::Number(Number::from_f64(4.0).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonInteger::from(4).into();
         assert_eq!(resulting_radon, expected_radon);
 
-        let json = JsonValue::Number(Number::from(4.1));
+        let json = JsonValue::Number(Number::from_f64(4.1).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();
         let expected_radon = RadonFloat::from(4.1).into();
         assert_eq!(resulting_radon, expected_radon);
@@ -1183,16 +1185,12 @@ mod tests {
         // does not cause any overflows
 
         // Parse the number using json::parse because otherwise it is just converted to 0.0
-        let json = json::parse("0.1E-99999").unwrap();
-        // The exponent is too small to fit in a i16, so the json library saturates the value to
-        // i16::MIN:
-        let (sign, mantissa, exponent) = json.as_number().unwrap().as_parts();
-        assert_eq!((sign, mantissa, exponent), (true, 1, i16::MIN));
+        let number: serde_json::Number = serde_json::from_str("0.1E-99999").unwrap();
         // This number is rounded to exactly 0.0 when converted to f64
-        assert_eq!(json.as_f64().unwrap(), 0.0);
+        assert_eq!(number.as_f64().unwrap(), 0.0);
 
         // Convert to RadonTypes
-        let resulting_radon = RadonTypes::try_from(json).unwrap();
+        let resulting_radon = RadonTypes::try_from(JsonValue::Number(number)).unwrap();
 
         // This exponent is too small to fit in a f64, so expected_f64 is equal to 0.0
         let expected_f64 = 0.1E-99999;

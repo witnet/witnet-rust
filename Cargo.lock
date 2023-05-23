@@ -2118,12 +2118,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "json"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "078e285eafdfb6c4b434e0d31e8cfcb5115b651496faca5749b88fafd4f23bfd"
-
-[[package]]
 name = "jsonrpc-core"
 version = "10.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5803,7 +5797,6 @@ dependencies = [
  "hex",
  "http",
  "if_rust_version",
- "json",
  "log 0.4.19",
  "minidom",
  "num_enum",
@@ -5811,6 +5804,7 @@ dependencies = [
  "rand 0.7.3",
  "serde",
  "serde_cbor",
+ "serde_json",
  "url",
  "witnet_config",
  "witnet_crypto",

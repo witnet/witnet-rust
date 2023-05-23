@@ -15,14 +15,14 @@ if_rust_version = "1.0.0"
 # the http crate is used to perform additional validations before passing arguments to the surf http client
 # the version of http must be kept in sync with the version used by surf
 http = "0.2.1"
-json = "0.12.1"
 log = "0.4.8"
 minidom = { git = "https://github.com/witnet/xmpp-rs", rev = "bc8a33ff5da95ee4039ad7ee3376c100d9e35c74" }
 num_enum = "0.4.2"
 ordered-float = "3.0"
 rand = "0.7.3"
 serde = "1.0.111"
-serde_cbor = "0.11.1"
+serde_cbor = "0.11.2"
+serde_json = "1.0.96"
 # the url crate is used to perform additional validations before passing arguments to the surf http client
 # the version of url must be kept in sync with the version used by surf in the `witnet_net` crate
 url = "2.1.1"

@@ -4,11 +4,10 @@ use std::{
     fmt, panic,
 };
 
-use json::JsonValue;
-
 use cbor::value::Value as CborValue;
 use serde::{Serialize, Serializer};
 use serde_cbor::{to_vec, Value};
+use serde_json::Value as JsonValue;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{tapi::ActiveWips, Hash},
@@ -471,22 +470,31 @@ impl TryFrom<JsonValue> for RadonTypes {
                 from: "JsonValue::Null",
                 to: "RadonTypes",
             }),
-            JsonValue::Short(short) => Ok(RadonString::from(short.as_str()).into()),
-            JsonValue::String(string) => Ok(RadonString::from(string).into()),
+            JsonValue::Bool(boolean) => Ok(RadonBoolean::from(boolean).into()),
             JsonValue::Number(number) => {
-                let (positive, mantissa, exponent) = number.as_parts();
-                let floating = f64::from(number);
-                // Cast the float into an integer if it has no fractional part and its value will fit
-                // into the range of `i128` (38 is the biggest power of 10 that `i128` can safely hold)
-                if floating.fract() == 0.0 && exponent >= 0 && exponent.unsigned_abs() < 38 {
-                    let abs = i128::from(mantissa) * 10i128.pow(exponent.unsigned_abs().into());
-                    Ok(RadonInteger::from(if positive { abs } else { -abs }).into())
+                if number.is_i64() {
+                    Ok(RadonInteger::from(i128::from(number.as_i64().expect("i64"))).into())
+                } else if number.is_u64() {
+                    Ok(RadonInteger::from(i128::from(number.as_u64().expect("u64"))).into())
                 } else {
-                    // All other numbers will be treated as a float
-                    Ok(RadonFloat::from(floating).into())
+                    // Floats that can be safely represented as i128 are converted
+                    let floating = number.as_f64().expect("f64");
+                    if floating.is_normal() && floating.fract() == 0.0 && floating.log10() < 38.0 {
+                        Ok(RadonInteger::from(floating as i128).into())
+                    } else {
+                        Ok(RadonFloat::from(floating).into())
+                    }
                 }
             }
-            JsonValue::Boolean(boolean) => Ok(RadonBoolean::from(boolean).into()),
+            JsonValue::String(string) => Ok(RadonString::from(string).into()),
+            JsonValue::Array(array) => Ok(RadonArray::from(
+                array
+                    .into_iter()
+                    // Skip null values
+                    .filter_map(|value| RadonTypes::try_from(value).ok())
+                    .collect::<Vec<_>>(),
+            )
+            .into()),
             JsonValue::Object(object) => Ok(RadonMap::from(
                 object
                     .iter()
@@ -497,14 +505,6 @@ impl TryFrom<JsonValue> for RadonTypes {
                             .ok()
                     })
                     .collect::<BTreeMap<_, _>>(),
-            )
-            .into()),
-            JsonValue::Array(array) => Ok(RadonArray::from(
-                array
-                    .into_iter()
-                    // Skip null values
-                    .filter_map(|value| RadonTypes::try_from(value).ok())
-                    .collect::<Vec<_>>(),
             )
             .into()),
         }
@@ -695,14 +695,6 @@ mod tests {
     }
 
     #[test]
-    fn test_json_short_to_radon_types() {
-        let text = "Short";
-        let json_value = JsonValue::Short(unsafe { json::short::Short::from_slice(text) });
-        let radon_types = RadonTypes::try_from(json_value).unwrap();
-        assert_eq!(radon_types, RadonString::from(text).into());
-    }
-
-    #[test]
     fn test_json_string_to_radon_types() {
         let text = "This is a proper string because it contains more than 30 characters";
         let json_value = JsonValue::String(text.into());
@@ -712,83 +704,68 @@ mod tests {
 
     #[test]
     fn test_json_number_to_radon_types() {
-        let json_value = JsonValue::Number(json::number::Number::from(u8::MAX));
+        let json_value = JsonValue::Number(serde_json::Number::from(u8::MAX));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(radon_types, RadonInteger::from(i128::from(u8::MAX)).into());
 
-        let json_value = JsonValue::Number(json::number::Number::from(u16::MAX));
+        let json_value = JsonValue::Number(serde_json::Number::from(u16::MAX));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(radon_types, RadonInteger::from(i128::from(u16::MAX)).into());
 
-        let json_value = JsonValue::Number(json::number::Number::from(u32::MAX));
+        let json_value = JsonValue::Number(serde_json::Number::from(u32::MAX));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(radon_types, RadonInteger::from(i128::from(u32::MAX)).into());
 
         // Not using u64::MAX because of precision loss
-        let json_value = JsonValue::Number(json::number::Number::from(u64::MAX / 100));
+        let json_value = JsonValue::Number(serde_json::Number::from(u64::MAX / 100));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(
             radon_types,
             RadonInteger::from(i128::from(u64::MAX / 100)).into()
         );
 
-        // `Number::from` won't take negative numbers, so these are using a workaround
-        let json_value = JsonValue::Number(-json::number::Number::from(i8::MAX));
+        let json_value = JsonValue::Number(serde_json::Number::from(i8::MIN));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
-        assert_eq!(
-            radon_types,
-            RadonInteger::from(i128::from(i8::MIN + 1)).into()
-        );
+        assert_eq!(radon_types, RadonInteger::from(i128::from(i8::MIN)).into());
 
-        let json_value = JsonValue::Number(-json::number::Number::from(i16::MAX));
+        let json_value = JsonValue::Number(serde_json::Number::from(i16::MIN));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
-        assert_eq!(
-            radon_types,
-            RadonInteger::from(i128::from(i16::MIN + 1)).into()
-        );
+        assert_eq!(radon_types, RadonInteger::from(i128::from(i16::MIN)).into());
 
-        let json_value = JsonValue::Number(-json::number::Number::from(i32::MAX));
+        let json_value = JsonValue::Number(serde_json::Number::from(i32::MIN));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
-        assert_eq!(
-            radon_types,
-            RadonInteger::from(i128::from(i32::MIN + 1)).into()
-        );
+        assert_eq!(radon_types, RadonInteger::from(i128::from(i32::MIN)).into());
 
-        let json_value = JsonValue::Number(-json::number::Number::from(i64::MAX));
+        let json_value = JsonValue::Number(serde_json::Number::from(i64::MIN));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
-        assert_eq!(
-            radon_types,
-            RadonInteger::from(i128::from(i64::MIN + 1)).into()
-        );
+        assert_eq!(radon_types, RadonInteger::from(i128::from(i64::MIN)).into());
 
-        let json_value = JsonValue::Number(json::number::Number::from(std::f64::consts::PI));
+        let json_value =
+            JsonValue::Number(serde_json::Number::from_f64(std::f64::consts::PI).unwrap());
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(radon_types, RadonFloat::from(std::f64::consts::PI).into());
 
-        let json_value = JsonValue::Number(-json::number::Number::from(std::f64::consts::PI));
+        let json_value =
+            JsonValue::Number(serde_json::Number::from_f64(-std::f64::consts::PI).unwrap());
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(radon_types, RadonFloat::from(-std::f64::consts::PI).into());
-
-        let json_value = JsonValue::Number(json::number::Number::from(f64::NAN));
-        let radon_types = RadonTypes::try_from(json_value).unwrap();
-        assert_eq!(radon_types, RadonFloat::from(f64::NAN).into());
     }
 
     #[test]
     fn test_json_boolean_to_radon_types() {
-        let json_value = JsonValue::Boolean(true);
+        let json_value = JsonValue::Bool(true);
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(radon_types, RadonBoolean::from(true).into());
 
-        let json_value = JsonValue::Boolean(false);
+        let json_value = JsonValue::Bool(false);
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(radon_types, RadonBoolean::from(false).into());
     }
 
     #[test]
     fn test_json_object_to_radon_types() {
-        let data = Vec::from([("foo", "bar"), ("fee", "beer")]);
-        let json_value = JsonValue::Object(json::object::Object::from_iter(data.iter().cloned()));
+        let data = Vec::from([("foo".into(), "bar".into()), ("fee".into(), "beer".into())]);
+        let json_value = JsonValue::Object(serde_json::Map::from_iter(data.iter().cloned()));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
         assert_eq!(
             radon_types,
@@ -803,7 +780,7 @@ mod tests {
     #[test]
     fn test_json_array_to_radon_types() {
         let json_value = JsonValue::Array(Vec::from([
-            JsonValue::Boolean(true),
+            JsonValue::Bool(true),
             JsonValue::String("awesomeness".into()),
         ]));
         let radon_types = RadonTypes::try_from(json_value).unwrap();
