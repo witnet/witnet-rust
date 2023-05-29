@@ -180,7 +180,18 @@ impl Handler<DrReporterMsg> for DrReporter {
             }
 
             // TODO: max_gas_price is the same for all batches, it could be calculated per-batch
-            let mut report_gas_price = get_max_gas_price(&msg, &wrb_contract).await;
+            // We don't want to proceed with reporting if there's no way to fetch the report gas
+            // price from the WRB.
+            let mut report_gas_price = match get_max_gas_price(&msg, &wrb_contract).await {
+                Some(x) => x,
+                None => {
+                    log::error!("Error reading report gas price");
+
+                    return;
+                }
+            };
+            // We don't want to proceed with reporting if there's no way to fetch the gas price
+            // from the provider or gateway.
             let network_gas_price = match eth.gas_price().await {
                 Ok(x) => x,
                 Err(e) => {
@@ -375,10 +386,10 @@ async fn read_resolved_request_from_contract(
     None
 }
 
-async fn get_max_gas_price(msg: &DrReporterMsg, wrb_contract: &Contract<Http>) -> U256 {
+async fn get_max_gas_price(msg: &DrReporterMsg, wrb_contract: &Contract<Http>) -> Option<U256> {
     // The gas price of the report transaction should equal the maximum gas price paid
     // by any of the requests being solved here
-    let mut max_gas_price: U256 = U256::from(0u8);
+    let mut max_gas_price: Option<U256> = None;
     for report in &msg.reports {
         // Read gas price
         let dr_gas_price: Result<U256, web3::contract::Error> = wrb_contract
@@ -392,7 +403,10 @@ async fn get_max_gas_price(msg: &DrReporterMsg, wrb_contract: &Contract<Http>) -
             .await;
         match dr_gas_price {
             Ok(dr_gas_price) => {
-                max_gas_price = std::cmp::max(max_gas_price, dr_gas_price);
+                max_gas_price = match max_gas_price {
+                    None => Some(dr_gas_price),
+                    Some(prev) => Some(std::cmp::max(prev, dr_gas_price)),
+                }
             }
             Err(e) => {
                 log::error!("[{}] ReadGasPrice {:?}", report.dr_id, e);
@@ -517,6 +531,11 @@ fn u256_saturating_mul_f64(a: U256, b: f64) -> U256 {
         "u256_mul_f64 only supports positive floating point values, got {}",
         b
     );
+
+    // Prevent doing any further calculations if we're multiplying zero by something else.
+    if a == U256::zero() || b == 0.0 {
+        return U256::zero();
+    }
 
     // Binary search a value x such that x / a == b
     let mut lo = U256::from(0);
