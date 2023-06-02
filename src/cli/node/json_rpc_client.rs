@@ -38,7 +38,7 @@ use witnet_data_structures::{
 };
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
-    json_rpc::json_rpc_methods::{
+    json_rpc::api::{
         AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
     },
     messages::{BuildDrt, BuildVtt, GetReputationResult, SignalingInfo},

@@ -20,8 +20,8 @@ futures-util = { version = "0.3.4", features = ["compat"] }
 glob = "0.3.1"
 hex = "0.4.3"
 itertools = "0.8.2"
-jsonrpc-core = "15.1.0"
-jsonrpc-pubsub = "15.1.0"
+jsonrpc-core = "18.0.0"
+jsonrpc-pubsub = "18.0.0"
 log = "0.4.8"
 num = "0.4.0"
 rand = "0.7.3"
@@ -32,6 +32,7 @@ serde_json = "1.0.47"
 tokio = { version = "1.0.1", features = ["io-util", "net", "time", "sync"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 trust-dns-resolver = { version = "0.20.0" , default-features = false, features = ["tokio-runtime", "system-config"] }
+witty-jsonrpc = { version = "0.1.2", features = ["with_actix"] }
 
 witnet_config = { path = "../config" }
 witnet_crypto = { path = "../crypto", features = ["with-serde"] }

@@ -1,7 +1,5 @@
-mod connection;
 /// JSON-RPC methods
-pub mod json_rpc_methods;
-mod newline_codec;
+pub mod api;
 mod server;
 
 pub use self::server::JsonRpcServer;
@@ -12,7 +10,7 @@ use std::sync::{Arc, Mutex};
 pub type Subscriptions = Arc<
     Mutex<
         HashMap<
-            &'static str,
+            String,
             HashMap<jsonrpc_pubsub::SubscriptionId, (jsonrpc_pubsub::Sink, jsonrpc_core::Value)>,
         >,
     >,
