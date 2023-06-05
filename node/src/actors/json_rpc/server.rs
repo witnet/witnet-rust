@@ -55,6 +55,7 @@ impl JsonRpcServer {
                     &mut server,
                     config.jsonrpc.enable_sensitive_methods,
                     subscriptions,
+                    &None,
                 );
 
                 // Add HTTP transport

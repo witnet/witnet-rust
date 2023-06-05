@@ -76,74 +76,73 @@ where
 }
 
 /// Attach the regular JSON-RPC methods to a multi-transport server.
-pub fn attach_regular_methods<H>(server: &mut impl witty_jsonrpc::server::ActixServer<H>)
-where
+pub fn attach_regular_methods<H>(
+    server: &mut impl witty_jsonrpc::server::ActixServer<H>,
+    system: &Option<actix::System>,
+) where
     H: witty_jsonrpc::handler::Handler,
 {
-    // Obtain the actix System in which the methods will be executed
-    let system = actix::System::current();
-
-    server.add_actix_method(&system, "inventory", |params: Params| {
+    server.add_actix_method(system, "inventory", |params: Params| {
         Box::pin(inventory(params.parse()))
     });
-    server.add_actix_method(&system, "getBlockChain", |params: Params| {
+    server.add_actix_method(system, "getBlockChain", |params: Params| {
         Box::pin(get_block_chain(params.parse()))
     });
-    server.add_actix_method(&system, "getBlock", |params: Params| {
+    server.add_actix_method(system, "getBlock", |params: Params| {
         Box::pin(get_block(params))
     });
-    server.add_actix_method(&system, "getTransaction", |params: Params| {
+    server.add_actix_method(system, "getTransaction", |params: Params| {
         Box::pin(get_transaction(params.parse()))
     });
-    server.add_actix_method(&system, "syncStatus", |_params: Params| Box::pin(status()));
-    server.add_actix_method(&system, "dataRequestReport", |params: Params| {
+    server.add_actix_method(system, "syncStatus", |_params: Params| Box::pin(status()));
+    server.add_actix_method(system, "dataRequestReport", |params: Params| {
         Box::pin(data_request_report(params.parse()))
     });
-    server.add_actix_method(&system, "getBalance", |params: Params| {
+    server.add_actix_method(system, "getBalance", |params: Params| {
         Box::pin(get_balance(params))
     });
-    server.add_actix_method(&system, "getReputation", |params: Params| {
+    server.add_actix_method(system, "getReputation", |params: Params| {
         Box::pin(get_reputation(params.parse(), false))
     });
-    server.add_actix_method(&system, "getReputationAll", |_params: Params| {
+    server.add_actix_method(system, "getReputationAll", |_params: Params| {
         Box::pin(get_reputation(Ok((PublicKeyHash::default(),)), true))
     });
-    server.add_actix_method(&system, "getSupplyInfo", |_params: Params| {
+    server.add_actix_method(system, "getSupplyInfo", |_params: Params| {
         Box::pin(get_supply_info())
     });
-    server.add_actix_method(&system, "peers", |_params: Params| Box::pin(peers()));
-    server.add_actix_method(&system, "knownPeers", |_params: Params| {
+    server.add_actix_method(system, "peers", |_params: Params| Box::pin(peers()));
+    server.add_actix_method(system, "knownPeers", |_params: Params| {
         Box::pin(known_peers())
     });
-    server.add_actix_method(&system, "nodeStats", |_params: Params| {
-        Box::pin(node_stats())
-    });
-    server.add_actix_method(&system, "getMempool", |params: Params| {
+    server.add_actix_method(
+        system,
+        "nodeStats",
+        |_params: Params| Box::pin(node_stats()),
+    );
+    server.add_actix_method(system, "getMempool", |params: Params| {
         Box::pin(get_mempool(params.parse()))
     });
-    server.add_actix_method(&system, "getConsensusConstants", |params: Params| {
+    server.add_actix_method(system, "getConsensusConstants", |params: Params| {
         Box::pin(get_consensus_constants(params.parse()))
     });
-    server.add_actix_method(&system, "getSuperblock", |params: Params| {
+    server.add_actix_method(system, "getSuperblock", |params: Params| {
         Box::pin(get_superblock(params.parse()))
     });
-    server.add_actix_method(&system, "signalingInfo", |params: Params| {
+    server.add_actix_method(system, "signalingInfo", |params: Params| {
         Box::pin(signaling_info(params.parse()))
     });
-    server.add_actix_method(&system, "priority", |_params: Params| Box::pin(priority()));
+    server.add_actix_method(system, "priority", |_params: Params| Box::pin(priority()));
 }
 
 /// Attach the sensitive JSON-RPC methods to a multi-transport server.
 pub fn attach_sensitive_methods<H>(
     server: &mut impl witty_jsonrpc::server::ActixServer<H>,
     enable_sensitive_methods: bool,
+    system: &Option<actix::System>,
 ) where
     H: witty_jsonrpc::handler::Handler,
 {
-    // Obtain the actix System in which the methods will be executed
-    let system = actix::System::current();
-
-    server.add_actix_method(&system, "sendRequest", move |params| {
+    server.add_actix_method(system, "sendRequest", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "sendRequest",
@@ -151,7 +150,7 @@ pub fn attach_sensitive_methods<H>(
             |params| send_request(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "tryRequest", move |params| {
+    server.add_actix_method(system, "tryRequest", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "tryRequest",
@@ -159,7 +158,7 @@ pub fn attach_sensitive_methods<H>(
             |params| try_request(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "sendValue", move |params| {
+    server.add_actix_method(system, "sendValue", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "sendValue",
@@ -167,7 +166,7 @@ pub fn attach_sensitive_methods<H>(
             |params| send_value(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "getPublicKey", move |params| {
+    server.add_actix_method(system, "getPublicKey", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "getPublicKey",
@@ -175,7 +174,7 @@ pub fn attach_sensitive_methods<H>(
             |_params| get_public_key(),
         ))
     });
-    server.add_actix_method(&system, "getPkh", move |params| {
+    server.add_actix_method(system, "getPkh", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "getPkh",
@@ -183,7 +182,7 @@ pub fn attach_sensitive_methods<H>(
             |_params| get_pkh(),
         ))
     });
-    server.add_actix_method(&system, "getUtxoInfo", move |params| {
+    server.add_actix_method(system, "getUtxoInfo", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "getUtxoInfo",
@@ -191,7 +190,7 @@ pub fn attach_sensitive_methods<H>(
             |params| get_utxo_info(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "sign", move |params| {
+    server.add_actix_method(system, "sign", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "sign",
@@ -199,7 +198,7 @@ pub fn attach_sensitive_methods<H>(
             |params| sign_data(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "createVRF", move |params| {
+    server.add_actix_method(system, "createVRF", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "createVRF",
@@ -207,7 +206,7 @@ pub fn attach_sensitive_methods<H>(
             |params| create_vrf(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "masterKeyExport", move |params| {
+    server.add_actix_method(system, "masterKeyExport", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "masterKeyExport",
@@ -215,7 +214,7 @@ pub fn attach_sensitive_methods<H>(
             |_params| master_key_export(),
         ))
     });
-    server.add_actix_method(&system, "addPeers", move |params| {
+    server.add_actix_method(system, "addPeers", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "addPeers",
@@ -223,7 +222,7 @@ pub fn attach_sensitive_methods<H>(
             |params| add_peers(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "clearPeers", move |params| {
+    server.add_actix_method(system, "clearPeers", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "clearPeers",
@@ -231,7 +230,7 @@ pub fn attach_sensitive_methods<H>(
             |_params| clear_peers(),
         ))
     });
-    server.add_actix_method(&system, "initializePeers", move |params| {
+    server.add_actix_method(system, "initializePeers", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "initializePeers",
@@ -239,7 +238,7 @@ pub fn attach_sensitive_methods<H>(
             |_params| initialize_peers(),
         ))
     });
-    server.add_actix_method(&system, "rewind", move |params| {
+    server.add_actix_method(system, "rewind", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "rewind",
@@ -247,7 +246,7 @@ pub fn attach_sensitive_methods<H>(
             |params| rewind(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "chainExport", move |params| {
+    server.add_actix_method(system, "chainExport", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "chainExport",
@@ -255,7 +254,7 @@ pub fn attach_sensitive_methods<H>(
             |params| snapshot_export(params.parse()),
         ))
     });
-    server.add_actix_method(&system, "chainImport", move |params| {
+    server.add_actix_method(system, "chainImport", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
             "chainImport",
@@ -289,11 +288,10 @@ fn extract_topic_and_params(params: Params) -> Result<(String, Value), Error> {
 pub fn attach_subscriptions<H>(
     server: &mut impl witty_jsonrpc::server::ActixServer<H>,
     subscriptions: Subscriptions,
+    system: &Option<actix::System>,
 ) where
     H: witty_jsonrpc::handler::Handler,
 {
-    // Obtain the actix System in which the subscriptions will be executed
-    let system = actix::System::current();
     // Atomic counter that keeps track of the next subscriber ID
     let atomic_counter = AtomicUsize::new(1);
 
@@ -339,7 +337,7 @@ pub fn attach_subscriptions<H>(
                     log::error!("Failed to acquire lock on subscriptions Arc");
                     subscriber
                         .reject(internal_error_s(
-                            "Failed to acquire lock on subscriptions Arc",
+                            "failed to acquire lock on subscriptions Arc",
                         ))
                         .ok();
                 };
@@ -357,13 +355,13 @@ pub fn attach_subscriptions<H>(
                         other => {
                             // If the topic is unknown, reject the subscription
                             log::error!(
-                                "Got a subscription request for an unsupported topic: {}",
+                                "got a subscription request for an unsupported topic: {}",
                                 other
                             );
 
                             subscriber
                                 .reject(Error::invalid_params_with_details(
-                                    "Unknown subscription topic",
+                                    "unknown subscription topic",
                                     other,
                                 ))
                                 .ok();
@@ -382,7 +380,7 @@ pub fn attach_subscriptions<H>(
     let unsubscribe_arc = Arc::new(
         move |id: SubscriptionId, meta: Option<H::Metadata>| -> BoxFuture<JsonRpcResult> {
             log::debug!(
-                "Called unsubscribe method for id {:?} with meta {:?}",
+                "called unsubscribe method for id {:?} with meta {:?}",
                 id,
                 meta
             );
@@ -410,7 +408,7 @@ pub fn attach_subscriptions<H>(
     );
 
     server.add_actix_subscription(
-        &system,
+        system,
         "witnet_subscription",
         ("witnet_subscribe", subscribe_arc),
         ("witnet_unsubscribe", unsubscribe_arc),
@@ -423,12 +421,13 @@ pub fn attach_api<H>(
     server: &mut impl witty_jsonrpc::server::ActixServer<H>,
     enable_sensitive_methods: bool,
     subscriptions: Subscriptions,
+    system: &Option<actix::System>,
 ) where
     H: witty_jsonrpc::handler::Handler,
 {
-    attach_regular_methods(server);
-    attach_sensitive_methods(server, enable_sensitive_methods);
-    attach_subscriptions(server, subscriptions);
+    attach_regular_methods(server, system);
+    attach_sensitive_methods(server, enable_sensitive_methods, system);
+    attach_subscriptions(server, subscriptions, system);
 }
 
 fn internal_error<T: std::fmt::Debug>(e: T) -> jsonrpc_core::Error {
@@ -1924,14 +1923,12 @@ mod tests {
     #[test]
     fn empty_string_parse_error() {
         // An empty message should return a parse error
-        let system = actix::System::new();
-        system.run().unwrap();
         let empty_string = "";
         let parse_error =
             r#"{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}"#
                 .to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
         let response = server.handle_request_sync(empty_string, Default::default());
         assert_eq!(response, Some(parse_error));
     }
@@ -1939,8 +1936,6 @@ mod tests {
     #[test]
     fn inventory_method() {
         // The expected behaviour of the inventory method
-        let system = actix::System::new();
-        system.run().unwrap();
         use witnet_data_structures::chain::*;
         let block = block_example();
 
@@ -1954,7 +1949,7 @@ mod tests {
         // Expected result: true
         let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"MailboxError(Mailbox has closed)"},"id":1}"#.to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
         let response = server.handle_request_sync(&msg, Default::default());
         assert_eq!(response, Some(expected));
     }
@@ -1962,12 +1957,10 @@ mod tests {
     #[test]
     fn inventory_invalid_params() {
         // What happens when the inventory method is called with an invalid parameter?
-        let system = actix::System::new();
-        system.run().unwrap();
         let msg = r#"{"jsonrpc":"2.0","method":"inventory","params":{ "header": 0 },"id":1}"#;
         let expected = r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params: unknown variant `header`, expected one of"#.to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
         let response = server.handle_request_sync(msg, Default::default());
         // Compare only the first N characters
         let response =
@@ -1978,14 +1971,12 @@ mod tests {
     #[test]
     fn inventory_unimplemented_type() {
         // What happens when the inventory method is called with an unimplemented type?
-        let system = actix::System::new();
-        system.run().unwrap();
         let msg = r#"{"jsonrpc":"2.0","method":"inventory","params":{ "error": null },"id":1}"#;
         let expected =
             r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Item type not implemented"},"id":1}"#
                 .to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
         let response = server.handle_request_sync(msg, Default::default());
         assert_eq!(response, Some(expected));
     }
@@ -1994,30 +1985,22 @@ mod tests {
     fn inventory_block() {
         // Check that the inventory method accepts blocks
         use witnet_data_structures::chain::*;
-        let system = actix::System::new();
-        let _addr = system.block_on(async {
-            let block = block_example();
-            let inv_elem = InventoryItem::Block(block);
-            let msg = format!(
-                r#"{{"jsonrpc":"2.0","method":"inventory","params":{},"id":1}}"#,
-                serde_json::to_string(&inv_elem).unwrap()
-            );
-            let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"MailboxError(Mailbox has closed)"},"id":1}"#.to_string();
-            let mut server = WittyMultiServer::new();
-            attach_api(&mut server, true, Subscriptions::default());
-            let response = server.handle_request_sync(&msg, Default::default());
-            assert_eq!(response, Some(expected));
-        });
-
-        system.run().unwrap();
-
+        let block = block_example();
+        let inv_elem = InventoryItem::Block(block);
+        let msg = format!(
+            r#"{{"jsonrpc":"2.0","method":"inventory","params":{},"id":1}}"#,
+            serde_json::to_string(&inv_elem).unwrap()
+        );
+        let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"MailboxError(Mailbox has closed)"},"id":1}"#.to_string();
+        let mut server = WittyMultiServer::new();
+        attach_api(&mut server, true, Subscriptions::default(), &None);
+        let response = server.handle_request_sync(&msg, Default::default());
+        assert_eq!(response, Some(expected));
     }
 
     #[test]
     fn get_block_chain_abs_overflow() {
         // Ensure that the get_block_chain method does not panic when passed i64::MIN as argument
-        let system = actix::System::new();
-        system.run().unwrap();
         let params = GetBlockChainParams {
             epoch: i64::MIN,
             limit: 1,
@@ -2028,7 +2011,7 @@ mod tests {
         );
         let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"Epoch out of bounds: -9223372036854775808 must be between -4294967295 and 4294967295 inclusive"},"id":1}"#.to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
         let response = server.handle_request_sync(&msg, Default::default());
         assert_eq!(response, Some(expected));
 
@@ -2047,58 +2030,51 @@ mod tests {
 
     #[test]
     fn subscribe_invalid_method() {
-        let system = actix::System::new();
-        system.run().unwrap();
         // Try to subscribe to a non-existent subscription?
         let msg = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["asdf"],"id":1}"#;
         let expected =
-            r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Unknown subscription method: asdf"},"id":1}"#
+            r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid parameters: unknown subscription topic","data":"\"asdf\""},"id":1}"#
                 .to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
-        let response = server.handle_request_sync(msg, Default::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
+        let response = server.handle_request_sync(msg, Session::mock());
         assert_eq!(response, Some(expected));
     }
 
     #[test]
     fn subscribe_new_blocks() {
-        let system = actix::System::new();
-        system.run().unwrap();
         // Subscribe to new blocks gives us a SubscriptionId
         let msg = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["blocks"],"id":1}"#;
         let expected = r#"{"jsonrpc":"2.0","result":"1","id":1}"#.to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
-        let response = server.handle_request_sync(msg, Default::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
+        let response = server.handle_request_sync(msg, Session::mock());
         assert_eq!(response, Some(expected));
     }
 
     #[test]
     fn unsubscribe_returns_true() {
-        let system = actix::System::new();
-        system.run().unwrap();
         // Check that unsubscribe returns true
         let msg2 = r#"{"jsonrpc":"2.0","method":"witnet_unsubscribe","params":["1"],"id":1}"#;
         let expected2 = r#"{"jsonrpc":"2.0","result":true,"id":1}"#.to_string();
         // But first, subscribe to blocks
         let msg1 = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["blocks"],"id":1}"#;
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
-        let _response1 = server.handle_request_sync(msg1, Default::default());
-        let response2 = server.handle_request_sync(msg2, Default::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
+        let meta = Session::mock();
+        let _response1 = server.handle_request_sync(msg1, meta.clone());
+        let response2 = server.handle_request_sync(msg2, meta);
         assert_eq!(response2, Some(expected2));
     }
 
     #[test]
     fn unsubscribe_can_fail() {
-        let system = actix::System::new();
-        system.run().unwrap();
         // Check that unsubscribe returns false when unsubscribing to a non-existent subscription
         let msg = r#"{"jsonrpc":"2.0","method":"witnet_unsubscribe","params":["999"],"id":1}"#;
-        let expected = r#"{"jsonrpc":"2.0","result":false,"id":1}"#.to_string();
+        let expected = r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid subscription id."},"id":1}"#.to_string();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Subscriptions::default());
-        let response = server.handle_request_sync(msg, Default::default());
+        attach_api(&mut server, true, Subscriptions::default(), &None);
+        let response = server.handle_request_sync(msg, Session::mock());
         assert_eq!(response, Some(expected));
     }
 
@@ -2202,10 +2178,8 @@ mod tests {
         // This test will break when adding or removing JSON-RPC methods.
         // When adding a new method, please make sure to mark it as sensitive if that's the case.
         // Removing a method means breaking the API and should be avoided.
-        let system = actix::System::new();
-        system.run().unwrap();
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, true, Default::default());
+        attach_api(&mut server, true, Default::default(), &None);
         let api = server.describe_api();
         let all_methods = api.iter().map(String::as_str).collect::<BTreeSet<_>>();
         let all_methods_vec = all_methods.iter().copied().collect::<Vec<_>>();
@@ -2251,7 +2225,7 @@ mod tests {
         );
 
         let mut server = WittyMultiServer::new();
-        attach_api(&mut server, false, Default::default());
+        attach_api(&mut server, false, Default::default(), &None);
         let api = server.describe_api();
         let sensitive_methods = api.iter().map(String::as_str).collect::<BTreeSet<&str>>();
 
