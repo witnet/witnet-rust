@@ -25,7 +25,9 @@ pub trait Defaults {
     }
 
     /// Default server addr
-    fn connections_server_addr(&self) -> SocketAddr;
+    fn connections_server_addr(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
+    }
 
     /// Default inbound limit for connections: `128`
     fn connections_inbound_limit(&self) -> u16 {
@@ -43,7 +45,9 @@ pub trait Defaults {
     }
 
     /// Default path for the database
-    fn storage_db_path(&self) -> PathBuf;
+    fn storage_db_path(&self) -> PathBuf {
+        PathBuf::from(".witnet")
+    }
 
     /// Do not keep utxos in memory by default
     fn storage_utxos_in_memory(&self) -> bool {
@@ -201,8 +205,23 @@ pub trait Defaults {
         true
     }
 
-    /// Default JSON-RPC server addr
-    fn jsonrpc_server_address(&self) -> SocketAddr;
+    /// Default JSON-RPC HTTP server addr
+    fn jsonrpc_http_address(&self) -> Option<SocketAddr> {
+        None
+    }
+
+    /// Default JSON-RPC TCP server addr
+    fn jsonrpc_tcp_address(&self) -> Option<SocketAddr> {
+        Some(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            21338,
+        ))
+    }
+
+    /// Default JSON-RPC Websockets server addr
+    fn jsonrpc_ws_address(&self) -> Option<SocketAddr> {
+        None
+    }
 
     /// JSON-RPC sensitive methods enabled by default
     fn jsonrpc_enable_sensitive_methods(&self) -> bool {
@@ -477,18 +496,6 @@ pub struct Mainnet;
 pub struct Testnet;
 
 impl Defaults for Development {
-    fn connections_server_addr(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
-    }
-
-    fn jsonrpc_server_address(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21338)
-    }
-
-    fn storage_db_path(&self) -> PathBuf {
-        PathBuf::from(".witnet")
-    }
-
     fn connections_bootstrap_peers_period(&self) -> Duration {
         Duration::from_secs(15)
     }
@@ -508,18 +515,6 @@ impl Defaults for Development {
 }
 
 impl Defaults for Mainnet {
-    fn connections_server_addr(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11337)
-    }
-
-    fn jsonrpc_server_address(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11338)
-    }
-
-    fn storage_db_path(&self) -> PathBuf {
-        PathBuf::from(".witnet")
-    }
-
     fn connections_bootstrap_peers_period(&self) -> Duration {
         Duration::from_secs(15)
     }
@@ -531,18 +526,6 @@ impl Defaults for Mainnet {
 }
 
 impl Defaults for Testnet {
-    fn connections_server_addr(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
-    }
-
-    fn jsonrpc_server_address(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21338)
-    }
-
-    fn storage_db_path(&self) -> PathBuf {
-        PathBuf::from(".witnet")
-    }
-
     fn connections_bootstrap_peers_period(&self) -> Duration {
         Duration::from_secs(15)
     }

@@ -18,6 +18,8 @@ pub fn exec_cmd(
     config_path: Option<PathBuf>,
     mut config: Config,
 ) -> Result<(), failure::Error> {
+    let default_jsonrpc = config.jsonrpc.tcp_address.unwrap();
+
     match command {
         Command::Claim {
             node,
@@ -38,19 +40,17 @@ pub fn exec_cmd(
                 (_, Some(path)) => Some(path),
             };
             rpc::claim(
-                node.unwrap_or(config.jsonrpc.server_address),
+                node.unwrap_or(default_jsonrpc),
                 identifier,
                 write_to_path.as_deref(),
             )
         }
-        Command::GetBlock { node, hash } => {
-            rpc::get_block(node.unwrap_or(config.jsonrpc.server_address), hash)
-        }
+        Command::GetBlock { node, hash } => rpc::get_block(node.unwrap_or(default_jsonrpc), hash),
         Command::GetTransaction { node, hash } => {
-            rpc::get_transaction(node.unwrap_or(config.jsonrpc.server_address), hash)
+            rpc::get_transaction(node.unwrap_or(default_jsonrpc), hash)
         }
         Command::BlockChain { node, epoch, limit } => {
-            rpc::get_blockchain(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
+            rpc::get_blockchain(node.unwrap_or(default_jsonrpc), epoch, limit)
         }
         Command::GetBalance {
             node,
@@ -58,37 +58,26 @@ pub fn exec_cmd(
             simple,
         } => {
             let address = address.map(|x| x.parse()).transpose()?;
-            rpc::get_balance(
-                node.unwrap_or(config.jsonrpc.server_address),
-                address,
-                simple,
-            )
+            rpc::get_balance(node.unwrap_or(default_jsonrpc), address, simple)
         }
-        Command::GetSupplyInfo { node } => {
-            rpc::get_supply_info(node.unwrap_or(config.jsonrpc.server_address))
-        }
-        Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
+        Command::GetSupplyInfo { node } => rpc::get_supply_info(node.unwrap_or(default_jsonrpc)),
+        Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(default_jsonrpc)),
         Command::GetUtxoInfo { node, long, pkh } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
-            rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address), long, pkh)
+            rpc::get_utxo_info(node.unwrap_or(default_jsonrpc), long, pkh)
         }
         Command::GetReputation { node, address, all } => {
             let address = address.map(|x| x.parse()).transpose()?;
-            rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), address, all)
+            rpc::get_reputation(node.unwrap_or(default_jsonrpc), address, all)
         }
         Command::GetMiners {
             node,
             start,
             end,
             csv,
-        } => rpc::get_miners(
-            node.unwrap_or(config.jsonrpc.server_address),
-            start,
-            end,
-            csv,
-        ),
+        } => rpc::get_miners(node.unwrap_or(default_jsonrpc), start, end, csv),
         Command::Output { node, pointer } => {
-            rpc::get_output(node.unwrap_or(config.jsonrpc.server_address), pointer)
+            rpc::get_output(node.unwrap_or(default_jsonrpc), pointer)
         }
         Command::Send {
             node,
@@ -98,7 +87,7 @@ pub fn exec_cmd(
             time_lock,
             dry_run,
         } => rpc::send_vtt(
-            node.unwrap_or(config.jsonrpc.server_address),
+            node.unwrap_or(default_jsonrpc),
             Some(address.parse()?),
             value,
             None,
@@ -119,7 +108,7 @@ pub fn exec_cmd(
             let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == 0 { None } else { Some(size) };
             rpc::send_vtt(
-                node.unwrap_or(config.jsonrpc.server_address),
+                node.unwrap_or(default_jsonrpc),
                 address,
                 value,
                 size,
@@ -141,7 +130,7 @@ pub fn exec_cmd(
             let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == Some(0) { None } else { size };
             rpc::send_vtt(
-                node.unwrap_or(config.jsonrpc.server_address),
+                node.unwrap_or(default_jsonrpc),
                 address,
                 value,
                 size,
@@ -157,12 +146,12 @@ pub fn exec_cmd(
             fee,
             dry_run,
         } => rpc::send_dr(
-            node.unwrap_or(config.jsonrpc.server_address),
+            node.unwrap_or(default_jsonrpc),
             hex,
             fee.map(Fee::absolute_from_nanowits),
             dry_run,
         ),
-        Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
+        Command::Raw { node } => rpc::raw(node.unwrap_or(default_jsonrpc)),
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
             println!("\n# Config");
@@ -236,10 +225,7 @@ pub fn exec_cmd(
                 // Write to custom path
                 (_, Some(path)) => Some(path),
             };
-            rpc::master_key_export(
-                node.unwrap_or(config.jsonrpc.server_address),
-                write_to_path.as_deref(),
-            )
+            rpc::master_key_export(node.unwrap_or(default_jsonrpc), write_to_path.as_deref())
         }
         Command::DataRequestReport {
             node,
@@ -248,7 +234,7 @@ pub fn exec_cmd(
             print_data_request,
             create_local_tally,
         } => rpc::data_request_report(
-            node.unwrap_or(config.jsonrpc.server_address),
+            node.unwrap_or(default_jsonrpc),
             dr_tx_hash,
             json,
             print_data_request,
@@ -261,37 +247,21 @@ pub fn exec_cmd(
             hex_dr_bytes,
             same_as_dr_tx,
         } => rpc::search_requests(
-            node.unwrap_or(config.jsonrpc.server_address),
+            node.unwrap_or(default_jsonrpc),
             start,
             end,
             hex_dr_bytes,
             same_as_dr_tx,
         ),
-        Command::GetPeers { node } => rpc::get_peers(node.unwrap_or(config.jsonrpc.server_address)),
-        Command::GetKnownPeers { node } => {
-            rpc::get_known_peers(node.unwrap_or(config.jsonrpc.server_address))
-        }
-        Command::GetNodeStats { node } => {
-            rpc::get_node_stats(node.unwrap_or(config.jsonrpc.server_address))
-        }
-        Command::AddPeers { node, peers } => {
-            rpc::add_peers(node.unwrap_or(config.jsonrpc.server_address), peers)
-        }
-        Command::ClearPeers { node } => {
-            rpc::clear_peers(node.unwrap_or(config.jsonrpc.server_address))
-        }
-        Command::InitializePeers { node } => {
-            rpc::initialize_peers(node.unwrap_or(config.jsonrpc.server_address))
-        }
-        Command::Rewind { node, epoch } => {
-            rpc::rewind(node.unwrap_or(config.jsonrpc.server_address), epoch)
-        }
-        Command::SignalingInfo { node } => {
-            rpc::signaling_info(node.unwrap_or(config.jsonrpc.server_address))
-        }
-        Command::Priority { node, json } => {
-            rpc::priority(node.unwrap_or(config.jsonrpc.server_address), json)
-        }
+        Command::GetPeers { node } => rpc::get_peers(node.unwrap_or(default_jsonrpc)),
+        Command::GetKnownPeers { node } => rpc::get_known_peers(node.unwrap_or(default_jsonrpc)),
+        Command::GetNodeStats { node } => rpc::get_node_stats(node.unwrap_or(default_jsonrpc)),
+        Command::AddPeers { node, peers } => rpc::add_peers(node.unwrap_or(default_jsonrpc), peers),
+        Command::ClearPeers { node } => rpc::clear_peers(node.unwrap_or(default_jsonrpc)),
+        Command::InitializePeers { node } => rpc::initialize_peers(node.unwrap_or(default_jsonrpc)),
+        Command::Rewind { node, epoch } => rpc::rewind(node.unwrap_or(default_jsonrpc), epoch),
+        Command::SignalingInfo { node } => rpc::signaling_info(node.unwrap_or(default_jsonrpc)),
+        Command::Priority { node, json } => rpc::priority(node.unwrap_or(default_jsonrpc), json),
     }
 }
 

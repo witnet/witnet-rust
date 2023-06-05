@@ -62,12 +62,17 @@ reject_sybil_inbounds = true
 db_path = ".witnet/storage"
 
 [jsonrpc]
-# Enables or disables the JSON-RPC server. This is needed for using the CLI methods of the node.
+# Enables or disables the JSON-RPC server altogether. This is needed for using the CLI methods of the node.
 enabled = true
-# The address (IP and port) which the JSON-RPC server binds to.
-# WARNING: this should be kept to a local, private address (e.g. 127.0.0.1) to prevent any device in your local network
+# The addresses (IP and port) which the JSON-RPC server binds to.
+# WARNING: these should be kept to a local, private address (e.g. 127.0.0.1) to prevent any device in your local network
 # (and potentially, the internet) from messing with your JSON-RPC server.
-server_address = "127.0.0.1:21338"
+# JSON-RPC over plain TCP (required for CLI usage). Set `enabled` above to `false` to disable.
+tcp_address = "127.0.0.1:21338"
+# JSON-RPC over HTTP. Remove the line to disable it.
+http_address = "127.0.0.1:21339"
+# JSON-RPC over WebSockets. Remove the line to disable it.
+ws_address = "127.0.0.1:21340"
 
 [ntp]
 # Period for checking the local system clock drift against a public NTP server.

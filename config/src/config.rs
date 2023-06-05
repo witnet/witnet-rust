@@ -319,11 +319,18 @@ pub struct Storage {
 pub struct JsonRPC {
     /// Binary flag telling whether to enable the JSON-RPC interface or not
     pub enabled: bool,
-    /// JSON-RPC server address, that is, the socket address (interface ip and
-    /// port) for the JSON-RPC server
-    pub server_address: SocketAddr,
     /// Enable methods not suitable for shared nodes
     pub enable_sensitive_methods: bool,
+    /// JSON-RPC HTTP server address, that is, the socket address (interface ip and port) for the
+    /// JSON-RPC server to listen over HTTP
+    pub http_address: Option<SocketAddr>,
+    /// JSON-RPC TCP server address, that is, the socket address (interface ip and port) for the
+    /// JSON-RPC server to listen over TCP
+    #[partial_struct(serde(alias = "server_address"))]
+    pub tcp_address: Option<SocketAddr>,
+    /// JSON-RPC WebSockets server address, that is, the socket address (interface ip and port) for
+    /// the JSON-RPC server to listen over WebSockets
+    pub ws_address: Option<SocketAddr>,
 }
 
 /// Mining-related configuration
@@ -769,10 +776,18 @@ impl JsonRPC {
                 .enabled
                 .to_owned()
                 .unwrap_or_else(|| defaults.jsonrpc_enabled()),
-            server_address: config
-                .server_address
+            http_address: config
+                .http_address
                 .to_owned()
-                .unwrap_or_else(|| defaults.jsonrpc_server_address()),
+                .unwrap_or_else(|| defaults.jsonrpc_http_address()),
+            tcp_address: config
+                .tcp_address
+                .to_owned()
+                .unwrap_or_else(|| defaults.jsonrpc_tcp_address()),
+            ws_address: config
+                .ws_address
+                .to_owned()
+                .unwrap_or_else(|| defaults.jsonrpc_ws_address()),
             enable_sensitive_methods: config
                 .enable_sensitive_methods
                 .to_owned()
@@ -783,7 +798,9 @@ impl JsonRPC {
     pub fn to_partial(&self) -> PartialJsonRPC {
         PartialJsonRPC {
             enabled: Some(self.enabled),
-            server_address: Some(self.server_address),
+            http_address: Some(self.http_address),
+            tcp_address: Some(self.tcp_address),
+            ws_address: Some(self.ws_address),
             enable_sensitive_methods: Some(self.enable_sensitive_methods),
         }
     }
@@ -1392,7 +1409,7 @@ mod tests {
         let partial_config = PartialJsonRPC::default();
         let config = JsonRPC::from_partial(&partial_config, &Testnet);
 
-        assert_eq!(config.server_address, Testnet.jsonrpc_server_address());
+        assert_eq!(config.tcp_address, Testnet.jsonrpc_tcp_address());
     }
 
     #[test]
@@ -1400,12 +1417,14 @@ mod tests {
         let addr: SocketAddr = "127.0.0.1:4000".parse().unwrap();
         let partial_config = PartialJsonRPC {
             enabled: None,
-            server_address: Some(addr),
             enable_sensitive_methods: None,
+            http_address: None,
+            tcp_address: Some(Some(addr)),
+            ws_address: None,
         };
         let config = JsonRPC::from_partial(&partial_config, &Testnet);
 
-        assert_eq!(config.server_address, addr);
+        assert_eq!(config.tcp_address, Some(addr));
     }
 
     #[test]
@@ -1451,10 +1470,9 @@ mod tests {
             Mainnet.connections_handshake_timeout()
         );
         assert_eq!(config.storage.db_path, Mainnet.storage_db_path());
-        assert_eq!(
-            config.jsonrpc.server_address,
-            Mainnet.jsonrpc_server_address()
-        );
+        assert_eq!(config.jsonrpc.http_address, Mainnet.jsonrpc_http_address());
+        assert_eq!(config.jsonrpc.tcp_address, Mainnet.jsonrpc_tcp_address());
+        assert_eq!(config.jsonrpc.ws_address, Mainnet.jsonrpc_ws_address());
         assert_eq!(
             config.connections.blocks_timeout,
             Mainnet.connections_blocks_timeout()

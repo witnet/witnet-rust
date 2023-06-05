@@ -39,11 +39,16 @@ impl JsonRpcServer {
 
         config_mngr::get()
             .and_then(|config| {
-                let enabled = config.jsonrpc.enabled;
+                let enabled = config.jsonrpc.enabled && config
+                    .jsonrpc
+                    .tcp_address
+                    .or(config.jsonrpc.http_address)
+                    .or(config.jsonrpc.ws_address)
+                    .is_some();
 
-                // Do not start the server if enabled = false
+                // Do not start the server if enabled = false or no transport is configured
                 if !enabled {
-                    log::debug!("JSON-RPC interface explicitly disabled by configuration.");
+                    log::debug!("JSON-RPC interface explicitly disabled by configuration or no address has been configured");
                     return futures::future::ok(None);
                 }
 
@@ -55,27 +60,39 @@ impl JsonRpcServer {
                     &mut server,
                     config.jsonrpc.enable_sensitive_methods,
                     subscriptions,
-                    &None,
+                    &Some(actix::System::current()),
                 );
 
-                // Add HTTP transport
-                server.add_transport(witty_jsonrpc::transports::http::HttpTransport::new(
-                    witty_jsonrpc::transports::http::HttpTransportSettings {
-                        address: String::from("127.0.0.1:9001"),
-                    },
-                ));
-                // Add TCP transport
-                server.add_transport(witty_jsonrpc::transports::tcp::TcpTransport::new(
-                    witty_jsonrpc::transports::tcp::TcpTransportSettings {
-                        address: String::from("127.0.0.1:9002"),
-                    },
-                ));
-                // Add WebSockets transport
-                server.add_transport(witty_jsonrpc::transports::ws::WsTransport::new(
-                    witty_jsonrpc::transports::ws::WsTransportSettings {
-                        address: String::from("127.0.0.1:9003"),
-                    },
-                ));
+                // Add HTTP transport if enabled
+                if let Some(address) = config.jsonrpc.http_address {
+                    let address = address.to_string();
+                    log::info!("HTTP JSON-RPC interface will listen on {}", address);
+                    server.add_transport(witty_jsonrpc::transports::http::HttpTransport::new(
+                        witty_jsonrpc::transports::http::HttpTransportSettings {
+                            address
+                        },
+                    ));
+                }
+                // Add TCP transport if enabled
+                if let Some(address) = config.jsonrpc.tcp_address {
+                    let address = address.to_string();
+                    log::info!("TCP JSON-RPC interface will listen on {}", address);
+                    server.add_transport(witty_jsonrpc::transports::tcp::TcpTransport::new(
+                        witty_jsonrpc::transports::tcp::TcpTransportSettings {
+                            address
+                        },
+                    ));
+                }
+                // Add WebSockets transport if enabled
+                if let Some(address) = config.jsonrpc.ws_address {
+                    let address = address.to_string();
+                    log::info!("WebSockets JSON-RPC interface will listen on {}", address);
+                    server.add_transport(witty_jsonrpc::transports::ws::WsTransport::new(
+                        witty_jsonrpc::transports::ws::WsTransportSettings {
+                            address
+                        },
+                    ));
+                }
 
                 // Finally, try to start listening
                 let server = server.start().ok().map(|_| server);

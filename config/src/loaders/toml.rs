@@ -208,10 +208,10 @@ enabled = false
 
         assert_eq!(empty_config.jsonrpc, PartialJsonRPC::default());
         assert_eq!(
-            config.jsonrpc.server_address,
-            Some("127.0.0.1:1234".parse().unwrap())
+            config.jsonrpc.tcp_address,
+            Some(Some("127.0.0.1:1234".parse().unwrap()))
         );
-        assert_eq!(config_disabled.jsonrpc.enabled, Some(false),);
+        assert_eq!(config_disabled.jsonrpc.tcp_address, None,);
     }
 
     #[test]
