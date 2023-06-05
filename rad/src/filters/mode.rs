@@ -79,14 +79,13 @@ mod tests {
     #[test]
     fn test_filter_mode_integer_one() {
         let input = vec![1];
-        let expected = input.clone();
 
         let mut ctx = ReportContext {
             stage: Stage::Tally(TallyMetaData::default()),
             ..ReportContext::default()
         };
         let output = imode(&input, &mut ctx).unwrap();
-        assert_eq!(output, expected);
+        assert_eq!(output, input);
 
         if let Stage::Tally(metadata) = ctx.stage {
             assert_eq!(metadata.liars, vec![false]);
@@ -164,14 +163,12 @@ mod tests {
     #[test]
     fn test_filter_mode_string_one() {
         let input = vec!["Hello".to_string()];
-        let expected = input.clone();
-
         let mut ctx = ReportContext {
             stage: Stage::Tally(TallyMetaData::default()),
             ..ReportContext::default()
         };
         let output = strmode(&input, &mut ctx).unwrap();
-        assert_eq!(output, expected);
+        assert_eq!(output, input);
 
         if let Stage::Tally(metadata) = ctx.stage {
             assert_eq!(metadata.liars, vec![false]);

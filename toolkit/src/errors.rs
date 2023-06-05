@@ -1,7 +1,7 @@
-///! Crate level errors.
-///
-/// TODO: this can be refactored to separate CLI errors from library errors, which should make it
-///  easier to convert the CLI part into a conditional compile.
+//! Crate level errors.
+//
+// TODO: this can be refactored to separate CLI errors from library errors, which should make it
+//  easier to convert the CLI part into a conditional compile.
 use failure::Fail;
 
 #[derive(Debug, Fail)]

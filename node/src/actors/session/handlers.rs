@@ -1125,12 +1125,11 @@ mod tests {
                 checkpoint: 0,
             },
         };
-        let received_beacon = current_beacon.clone();
         // Before epoch 0, the epoch is set to 0
         let current_epoch = 0;
 
         assert_eq!(
-            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
+            check_beacon_compatibility(&current_beacon, &current_beacon, current_epoch, None),
             Ok(())
         );
     }
@@ -1152,11 +1151,10 @@ mod tests {
                 checkpoint: 0,
             },
         };
-        let received_beacon = current_beacon.clone();
         let current_epoch = 1;
 
         assert_eq!(
-            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
+            check_beacon_compatibility(&current_beacon, &current_beacon, current_epoch, None),
             Ok(()),
         );
     }

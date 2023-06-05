@@ -110,10 +110,9 @@ fn message_get_peers_encode_decode() {
         kind: Command::GetPeers(GetPeers),
         magic: 0,
     };
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
 #[test]
@@ -175,10 +174,9 @@ fn message_get_peer_encode_decode() {
         kind: Command::Peers(Peers { peers: addresses }),
         magic: 0,
     };
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
 #[test]
@@ -210,10 +208,9 @@ fn message_verack_encode_decode() {
         kind: Command::Verack(Verack),
         magic: 0,
     };
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
 #[test]
@@ -343,10 +340,9 @@ fn message_version_encode_decode() {
         }),
         magic: 1,
     };
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
 #[test]
@@ -380,10 +376,9 @@ fn message_block_encode_decode() {
         kind: Command::Block(block_example()),
         magic: 1,
     };
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
 #[test]
@@ -451,11 +446,9 @@ fn message_inv_encode_decode() {
         }),
         magic: 1,
     };
-
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
 #[test]
@@ -524,10 +517,9 @@ fn message_get_data_encode_decode() {
         magic: 1,
     };
 
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
 #[test]
@@ -536,8 +528,7 @@ fn message_transaction_encode_decode() {
         kind: Command::Transaction(transaction_example()),
         magic: 1,
     };
-    let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
 
-    assert_eq!(cloned_msg, Message::from_pb_bytes(&result).unwrap());
+    assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
