@@ -14,7 +14,7 @@ directories-next = "1.0.2"
 failure = "0.1.8"
 log = "0.4.8"
 partial_struct = { path = "../partial_struct" }
-rocksdb = { version = "0.13.0", optional = true }
+rocksdb = { version = "0.21.0", optional = true }
 serde = { version = "1.0.104", features = ["derive"] }
 toml = "0.5.6"
 

@@ -8,7 +8,7 @@ description = "Witnet storage module that conveniently abstracts a key/value API
 
 [dependencies]
 failure = "0.1.8"
-rocksdb = { version = "0.13.0", optional = true }
+rocksdb = { version = "0.21.0", optional = true }
 
 [features]
 rocksdb-backend = ["rocksdb"]

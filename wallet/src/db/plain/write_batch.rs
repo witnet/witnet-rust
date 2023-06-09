@@ -14,7 +14,7 @@ impl WriteBatch for PlainWriteBatch {
     {
         let bytes = bincode::serialize(value.borrow())?;
 
-        self.batch.put(key, bytes)?;
+        self.batch.put(key, bytes);
 
         Ok(())
     }

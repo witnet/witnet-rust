@@ -41,8 +41,11 @@ impl Storage for Backend {
                 self,
                 rocksdb::IteratorMode::From(prefix, rocksdb::Direction::Forward),
             )
-            .take_while(move |(k, _v)| k.starts_with(prefix))
-            .map(|(k, v)| (k.into(), v.into())),
+            .take_while(move |result| match result {
+                Ok((k, _v)) => k.starts_with(prefix),
+                _ => false,
+            })
+            .filter_map(|result| result.ok().map(|(k, v)| (k.into(), v.into()))),
         ))
     }
     /// Atomically write a batch of operations
@@ -52,10 +55,10 @@ impl Storage for Backend {
         for item in batch.batch {
             match item {
                 WriteBatchItem::Put(key, value) => {
-                    rocksdb_batch.put(key, value)?;
+                    rocksdb_batch.put(key, value);
                 }
                 WriteBatchItem::Delete(key) => {
-                    rocksdb_batch.delete(key)?;
+                    rocksdb_batch.delete(key);
                 }
             }
         }

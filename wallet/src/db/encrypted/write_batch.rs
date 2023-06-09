@@ -27,7 +27,7 @@ impl WriteBatch for EncryptedWriteBatch {
         let enc_key = self.engine.encrypt(&prefix_key)?;
         let enc_val = self.engine.encrypt(value.borrow())?;
 
-        self.batch.put(enc_key, enc_val)?;
+        self.batch.put(enc_key, enc_val);
 
         Ok(())
     }
