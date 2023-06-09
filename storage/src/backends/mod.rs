@@ -7,4 +7,4 @@
 pub mod hashmap;
 pub mod nobackend;
 #[cfg(feature = "rocksdb-backend")]
-pub mod rocksdb;
+pub mod rocks;
