@@ -29,6 +29,14 @@ pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), fail
     let witnessing_config =
         validate_witnessing_config::<String, witnet_rad::Uri>(&witnessing_config)?;
 
+    // JSONRPC server is initialized early because of tokio runtimes shenanigans
+    let jsonrpc_runtime = tokio::runtime::Runtime::new().unwrap();
+    let jsonrpc_server =
+        JsonRpcServer::from_config(&config).initialize(jsonrpc_runtime.handle().clone())?;
+    jsonrpc_runtime.block_on(async {
+        log::debug!("INSIDE RUNTIME!");
+    });
+
     // Init actors
     system.block_on(async {
         // Call cb function (register interrupt handlers)
@@ -72,7 +80,7 @@ pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), fail
         SystemRegistry::set(rad_manager_addr);
 
         // Start JSON RPC server
-        let json_rpc_server_addr = JsonRpcServer::default().start();
+        let json_rpc_server_addr = jsonrpc_server.start();
         SystemRegistry::set(json_rpc_server_addr);
     });
 

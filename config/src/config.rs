@@ -314,7 +314,7 @@ pub struct Storage {
 }
 
 /// JsonRPC API configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
+#[derive(PartialStruct, Debug, Clone, Default, PartialEq, Eq)]
 #[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct JsonRPC {
     /// Binary flag telling whether to enable the JSON-RPC interface or not

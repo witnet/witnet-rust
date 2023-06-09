@@ -4,8 +4,10 @@ use std::{
     fmt::Debug,
     net::SocketAddr,
     path::PathBuf,
-    sync::atomic::{AtomicUsize, Ordering},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use actix::MailboxError;
@@ -1914,9 +1916,8 @@ mod mock_actix {
 mod tests {
     use std::collections::BTreeSet;
 
-    use witty_jsonrpc::prelude::*;
-
     use witnet_data_structures::{chain::RADRequest, transaction::*};
+    use witty_jsonrpc::prelude::*;
 
     use super::*;
 

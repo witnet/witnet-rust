@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use actix::prelude::*;
-use futures_util::TryFutureExt;
+use witnet_config::config::{Config, JsonRPC};
 use witty_jsonrpc::prelude::*;
 
 use crate::{
     actors::messages::{BlockNotify, NodeStatusNotify, SuperBlockNotify},
-    config_mngr,
     utils::stop_system_if_panicking,
 };
 
@@ -15,6 +14,7 @@ use super::{SubscriptionResult, Subscriptions};
 /// JSON RPC server
 #[derive(Default)]
 pub struct JsonRpcServer {
+    config: JsonRPC,
     /// A multi-transport JSON-RPC server
     server: Option<WittyMultiServer>,
     /// List of subscriptions
@@ -33,96 +33,95 @@ impl Supervised for JsonRpcServer {}
 impl SystemService for JsonRpcServer {}
 
 impl JsonRpcServer {
+    /// Create a new instance of JsonRpcServer with configuration data in place.
+    pub fn from_config(config: &Config) -> Self {
+        let mut server = Self::default();
+        server.config = config.jsonrpc.clone();
+
+        server
+    }
+
     /// Method to process the configuration received from ConfigManager
-    fn initialize(&mut self, ctx: &mut <Self as Actor>::Context) {
+    pub fn initialize(mut self, runtime: tokio::runtime::Handle) -> Result<Self, failure::Error> {
         let subscriptions = self.subscriptions.clone();
 
-        config_mngr::get()
-            .and_then(|config| {
-                let enabled = config.jsonrpc.enabled && config
-                    .jsonrpc
-                    .tcp_address
-                    .or(config.jsonrpc.http_address)
-                    .or(config.jsonrpc.ws_address)
-                    .is_some();
+        let enabled = self.config.enabled
+            && self
+                .config
+                .tcp_address
+                .or(self.config.http_address)
+                .or(self.config.ws_address)
+                .is_some();
 
-                // Do not start the server if enabled = false or no transport is configured
-                if !enabled {
-                    log::debug!("JSON-RPC interface explicitly disabled by configuration or no address has been configured");
-                    return futures::future::ok(None);
-                }
+        // Do not start the server if enabled = false or no transport is configured
+        if !enabled {
+            log::warn!("JSON-RPC interface explicitly disabled by configuration or no address has been configured");
 
-                // Create multi-transport server
-                let mut server = WittyMultiServer::new();
+            return Ok(self);
+        }
 
-                // Attach JSON-RPC methods and subscriptions
-                super::api::attach_api(
-                    &mut server,
-                    config.jsonrpc.enable_sensitive_methods,
-                    subscriptions,
-                    &Some(actix::System::current()),
-                );
+        // Create multi-transport server
+        let mut server = WittyMultiServer::new().with_runtime(runtime);
 
-                // Add HTTP transport if enabled
-                if let Some(address) = config.jsonrpc.http_address {
-                    let address = address.to_string();
-                    log::info!("HTTP JSON-RPC interface will listen on {}", address);
-                    server.add_transport(witty_jsonrpc::transports::http::HttpTransport::new(
-                        witty_jsonrpc::transports::http::HttpTransportSettings {
-                            address
-                        },
-                    ));
-                }
-                // Add TCP transport if enabled
-                if let Some(address) = config.jsonrpc.tcp_address {
-                    let address = address.to_string();
-                    log::info!("TCP JSON-RPC interface will listen on {}", address);
-                    server.add_transport(witty_jsonrpc::transports::tcp::TcpTransport::new(
-                        witty_jsonrpc::transports::tcp::TcpTransportSettings {
-                            address
-                        },
-                    ));
-                }
-                // Add WebSockets transport if enabled
-                if let Some(address) = config.jsonrpc.ws_address {
-                    let address = address.to_string();
-                    log::info!("WebSockets JSON-RPC interface will listen on {}", address);
-                    server.add_transport(witty_jsonrpc::transports::ws::WsTransport::new(
-                        witty_jsonrpc::transports::ws::WsTransportSettings {
-                            address
-                        },
-                    ));
-                }
+        // Attach JSON-RPC methods and subscriptions
+        super::api::attach_api(
+            &mut server,
+            self.config.enable_sensitive_methods,
+            subscriptions,
+            &Some(actix::System::current()),
+        );
 
-                // Finally, try to start listening
-                let server = server.start().ok().map(|_| server);
+        // Add HTTP transport if enabled
+        if let Some(address) = self.config.http_address {
+            let address = address.to_string();
+            log::info!("HTTP JSON-RPC interface will listen on {}", address);
+            server.add_transport(witty_jsonrpc::transports::http::HttpTransport::new(
+                witty_jsonrpc::transports::http::HttpTransportSettings { address },
+            ));
+        }
+        // Add TCP transport if enabled
+        if let Some(address) = self.config.tcp_address {
+            let address = address.to_string();
+            log::info!("TCP JSON-RPC interface will listen on {}", address);
+            server.add_transport(witty_jsonrpc::transports::tcp::TcpTransport::new(
+                witty_jsonrpc::transports::tcp::TcpTransportSettings { address },
+            ));
+        }
+        // Add WebSockets transport if enabled
+        if let Some(address) = self.config.ws_address {
+            let address = address.to_string();
+            log::info!("WebSockets JSON-RPC interface will listen on {}", address);
+            server.add_transport(witty_jsonrpc::transports::ws::WsTransport::new(
+                witty_jsonrpc::transports::ws::WsTransportSettings { address },
+            ));
+        }
 
-                futures::future::ok(server)
-            })
-            .into_actor(self)
-            .and_then(move |server, act, ctx| {
-                // If the server started successfully, attach it to the actor, otherwise call it a day
-                if server.is_some() {
-                    act.server = server;
-                } else {
-                    ctx.stop();
-                }
+        // Finally, try to start listening.
+        // If it starts successfully, attach it to the actor, otherwise call it a day
+        match server.start() {
+            Ok(_) => {
+                log::info!("JSON-RPC server is now up and running on all configured transports.");
+                self.server = Some(server);
+            }
+            Err(error) => {
+                log::error!("Error trying to start JSON-RPC server: {:?}", error);
 
-                futures::future::ok(())
-            })
-            .map(|_res, _act, _ctx| ())
-            .wait(ctx);
+                return Err(error.into());
+            }
+        }
+
+        Ok(self)
     }
 }
 
 impl Actor for JsonRpcServer {
     type Context = Context<Self>;
 
-    /// Method to be executed when the actor is started
-    fn started(&mut self, ctx: &mut Self::Context) {
-        // Send message to config manager and process its response
-        self.initialize(ctx);
-    }
+    /// Method to be executed when the actor is started.
+    ///
+    /// Because this actor is mostly initiated outside of the context of actix and before anything
+    /// else, we do nothing here.
+    fn started(&mut self, _ctx: &mut Self::Context) {}
 }
 
 impl Handler<BlockNotify> for JsonRpcServer {
