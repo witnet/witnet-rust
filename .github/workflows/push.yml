@@ -8,7 +8,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ROCKSDB_LIB_DIR: /usr/lib/
       RUST_BACKTRACE: 1
       CLIPPY_LINTS: >-
         -D warnings
@@ -20,6 +19,9 @@ jobs:
         -D clippy::checked-conversions
         -A clippy::upper-case-acronyms
         -A clippy::uninlined-format-args
+      ROCKSDB_INCLUDE_DIR: /usr/local/include
+      ROCKSDB_LIB_DIR: /usr/local/lib
+      LD_LIBRARY_PATH: /usr/local/lib
 
     steps:
       - uses: actions/checkout@v1
@@ -61,15 +63,17 @@ jobs:
       - name: Install compilation system dependencies
         run: |
           sudo apt-get update -y -qq
-          sudo apt-get install -y g++-9 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
+          sudo apt-get install -y g++-9 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler
+
+      - name: Compile and install RocksDB
+        run: |
+          git clone https://github.com/facebook/rocksdb.git
+          cd rocksdb
+          git checkout v8.1.1
+          make shared_lib
+          sudo make install-shared
 
       - name: Clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all --all-features -- ${{ env.CLIPPY_LINTS }}
-
-      - name: Clippy2
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
