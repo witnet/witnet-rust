@@ -33,9 +33,6 @@ pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), fail
     let jsonrpc_runtime = tokio::runtime::Runtime::new().unwrap();
     let jsonrpc_server =
         JsonRpcServer::from_config(&config).initialize(jsonrpc_runtime.handle().clone())?;
-    jsonrpc_runtime.block_on(async {
-        log::debug!("INSIDE RUNTIME!");
-    });
 
     // Init actors
     system.block_on(async {
