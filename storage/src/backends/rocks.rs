@@ -34,13 +34,17 @@ impl Storage for Backend {
     }
 
     fn prefix_iterator<'a, 'b: 'a>(&'a self, prefix: &'b [u8]) -> Result<StorageIterator<'a>> {
-        let iterator = Backend::prefix_iterator(self, prefix);
+        let iterator = Backend::prefix_iterator(self, prefix)
+            .filter_map(|result| {
+                result
+                    .ok()
+                    .map(|(k, v)| (Vec::<u8>::from(k), Vec::<u8>::from(v)))
+            })
+            .take_while(|(k, _v)| k.starts_with(prefix));
 
-        Ok(Box::new(iterator.filter_map(|result| match result {
-            Ok((k, v)) => Some((k.into(), v.into())),
-            _ => None,
-        })))
+        Ok(Box::new(iterator))
     }
+
     /// Atomically write a batch of operations
     fn write(&self, batch: WriteBatch) -> Result<()> {
         let mut rocksdb_batch = rocksdb::WriteBatch::default();
