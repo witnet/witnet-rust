@@ -131,7 +131,7 @@ jobs:
 
       # MacOS Build
       - name: Building Macos Binary
-        run: MACOSX_DEPLOYMENT_TARGET=10.12 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
+        run: MACOSX_DEPLOYMENT_TARGET=10.14 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
 
       # Upload Build Releases
       - uses: actions/upload-artifact@v3
