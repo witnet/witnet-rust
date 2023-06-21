@@ -131,8 +131,6 @@ impl EthPoller {
                                         process_posted_request(i.into(), &wrb_contract).await
                                     {
                                         dr_database_addr.do_send(set_dr_info_bridge);
-                                    } else {
-                                        break;
                                     }
                                 }
                                 WitnetQueryStatus::Reported => {
@@ -141,8 +139,6 @@ impl EthPoller {
                                         process_posted_request(i.into(), &wrb_contract).await
                                     {
                                         dr_database_addr.do_send(set_dr_info_bridge);
-                                    } else {
-                                        break;
                                     }
                                 }
                                 WitnetQueryStatus::Deleted => {
