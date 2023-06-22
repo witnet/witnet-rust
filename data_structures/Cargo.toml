@@ -3,7 +3,7 @@ authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "data structures component"
 edition = "2021"
 name = "witnet_data_structures"
-version = "1.6.4"
+version = "1.6.5"
 workspace = ".."
 
 [dependencies]
