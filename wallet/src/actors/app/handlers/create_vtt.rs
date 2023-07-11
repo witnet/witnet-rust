@@ -65,6 +65,8 @@ pub struct CreateVttRequest {
     utxo_strategy: UtxoSelectionStrategy,
     #[serde(default)]
     selected_utxos: HashSet<OutputPointer>,
+    #[serde(default)]
+    preview: bool,
 }
 
 /// Part of CreateVttResponse struct, containing additional data to be displayed in clients
@@ -124,6 +126,7 @@ impl Handler<CreateVttRequest> for app::App {
                 outputs,
                 utxo_strategy: msg.utxo_strategy.clone(),
                 selected_utxos: msg.selected_utxos.iter().map(|x| x.into()).collect(),
+                preview: msg.preview,
             };
 
             act.create_vtt(&msg.session_id, &msg.wallet_id, params)

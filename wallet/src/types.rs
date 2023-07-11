@@ -149,11 +149,13 @@ pub struct VttParams {
     pub outputs: Vec<ValueTransferOutput>,
     pub utxo_strategy: UtxoSelectionStrategy,
     pub selected_utxos: HashSet<model::OutPtr>,
+    pub preview: bool,
 }
 
 pub struct DataReqParams {
     pub fee: Fee,
     pub request: DataRequestOutput,
+    pub preview: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]

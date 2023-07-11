@@ -501,10 +501,14 @@ where
     }
 
     /// Generate an address in the internal keychain (WIP-0001).
-    pub fn gen_internal_address(&self, label: Option<String>) -> Result<Arc<model::Address>> {
+    pub fn gen_internal_address(
+        &self,
+        label: Option<String>,
+        preview: bool,
+    ) -> Result<Arc<model::Address>> {
         let mut state = self.state.write()?;
 
-        self._gen_internal_address(&mut state, label)
+        self._gen_internal_address(&mut state, label, preview)
     }
 
     /// Return a list of the generated external addresses that.
@@ -1082,6 +1086,7 @@ where
             outputs,
             utxo_strategy,
             selected_utxos,
+            preview,
         }: types::VttParams,
     ) -> Result<(model::ExtendedTransaction, AbsoluteFee)> {
         let mut state = self.state.write()?;
@@ -1095,6 +1100,7 @@ where
             fee,
             &utxo_strategy,
             selected_utxos,
+            preview,
         )?;
 
         let pointers_as_inputs = inputs
@@ -1118,14 +1124,18 @@ where
 
     pub fn create_data_req(
         &self,
-        types::DataReqParams { fee, request }: types::DataReqParams,
+        types::DataReqParams {
+            fee,
+            request,
+            preview,
+        }: types::DataReqParams,
     ) -> Result<(model::ExtendedTransaction, AbsoluteFee)> {
         let mut state = self.state.write()?;
         let TransactionComponents {
             fee,
             inputs,
             outputs,
-        } = self.create_dr_transaction_components(&mut state, request.clone(), fee)?;
+        } = self.create_dr_transaction_components(&mut state, request.clone(), fee, preview)?;
 
         let pointers_as_inputs = inputs
             .pointers
@@ -1190,6 +1200,7 @@ where
         fee: Fee,
         utxo_strategy: &UtxoSelectionStrategy,
         selected_utxos: HashSet<model::OutPtr>,
+        preview: bool,
     ) -> Result<TransactionComponents> {
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
@@ -1203,6 +1214,7 @@ where
             utxo_strategy,
             self.params.max_vt_weight,
             selected_utxos,
+            preview,
         )
     }
 
@@ -1211,6 +1223,7 @@ where
         state: &mut State,
         request: DataRequestOutput,
         fee: Fee,
+        preview: bool,
     ) -> Result<TransactionComponents> {
         let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
         let timestamp = u64::try_from(get_timestamp()).unwrap();
@@ -1225,6 +1238,7 @@ where
             &utxo_strategy,
             self.params.max_dr_weight,
             HashSet::default(),
+            preview,
         )
     }
 
@@ -1233,6 +1247,7 @@ where
         &self,
         state: &mut State,
         force_input: Option<Input>,
+        preview: bool,
     ) -> Result<PublicKeyHash> {
         let pkh = if let Some(input) = force_input {
             let forced = input.output_pointer();
@@ -1240,7 +1255,7 @@ where
 
             key_balance.pkh
         } else {
-            self._gen_internal_address(state, None)?.pkh
+            self._gen_internal_address(state, None, preview)?.pkh
         };
 
         Ok(pkh)
@@ -1263,6 +1278,7 @@ where
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
         selected_utxos: HashSet<model::OutPtr>,
+        preview: bool,
     ) -> Result<TransactionComponents> {
         let empty_hashset = HashSet::default();
         let unconfirmed_transactions = if self.params.use_unconfirmed_utxos {
@@ -1298,6 +1314,7 @@ where
         let change_pkh = self.calculate_change_address(
             state,
             dr_output.and_then(|_| inputs.pointers.get(0).cloned().map(Input::new)),
+            preview,
         )?;
 
         let mut outputs = outputs;
@@ -1318,6 +1335,7 @@ where
         &self,
         state: &mut State,
         label: Option<String>,
+        preview: bool,
     ) -> Result<Arc<model::Address>> {
         let keychain = constants::INTERNAL_KEYCHAIN;
         let account = state.account;
@@ -1325,7 +1343,7 @@ where
         let parent_key = &state.keychains[keychain as usize];
 
         let (address, next_index) =
-            self.derive_and_persist_address(label, parent_key, account, keychain, index, true)?;
+            self.derive_and_persist_address(label, parent_key, account, keychain, index, !preview)?;
 
         state.next_internal_index = next_index;
 
@@ -1569,7 +1587,7 @@ where
                 state.transient_external_addresses.remove(&addr.pkh);
             }
             for _ in state.next_internal_index..new_internal_index {
-                let addr = self._gen_internal_address(&mut state, None)?;
+                let addr = self._gen_internal_address(&mut state, None, false)?;
                 state.transient_internal_addresses.remove(&addr.pkh);
             }
 

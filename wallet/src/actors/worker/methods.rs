@@ -352,7 +352,7 @@ impl Worker {
         let address = if external {
             wallet.gen_external_address(label)?
         } else {
-            wallet.gen_internal_address(label)?
+            wallet.gen_internal_address(label, false)?
         };
 
         Ok(address)
