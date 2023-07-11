@@ -33,6 +33,8 @@ pub struct CreateDataReqRequest {
     #[serde(deserialize_with = "deserialize_fee_backwards_compatible")]
     fee: Fee,
     fee_type: Option<FeeType>,
+    #[serde(default)]
+    preview: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,7 +83,11 @@ impl Handler<CreateDataReqRequest> for app::App {
         let fee = fee_compat(msg.fee, msg.fee_type);
 
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
-            let params = types::DataReqParams { request, fee };
+            let params = types::DataReqParams {
+                request,
+                fee,
+                preview: msg.preview,
+            };
 
             slf.create_data_req(&msg.session_id, &msg.wallet_id, params)
                 .map_ok(
