@@ -132,9 +132,9 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
 fn test_list_internal_addresses() {
     let (wallet, _db) = factories::wallet(None);
 
-    let address1 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    let address2 = (*wallet.gen_internal_address(None).unwrap()).clone();
-    let address3 = (*wallet.gen_internal_address(None).unwrap()).clone();
+    let address1 = (*wallet.gen_internal_address(None, false).unwrap()).clone();
+    let address2 = (*wallet.gen_internal_address(None, false).unwrap()).clone();
+    let address3 = (*wallet.gen_internal_address(None, false).unwrap()).clone();
 
     let offset = 0;
     let limit = 10;
@@ -150,9 +150,9 @@ fn test_list_internal_addresses() {
 fn test_list_internal_addresses_paginated() {
     let (wallet, _db) = factories::wallet(None);
 
-    let _ = wallet.gen_internal_address(None).unwrap();
-    let address = (*wallet.gen_internal_address(None).unwrap()).clone();
-    let _ = wallet.gen_internal_address(None).unwrap();
+    let _ = wallet.gen_internal_address(None, false).unwrap();
+    let address = (*wallet.gen_internal_address(None, false).unwrap()).clone();
+    let _ = wallet.gen_internal_address(None, false).unwrap();
 
     let offset = 1;
     let limit = 1;
@@ -185,13 +185,15 @@ fn test_get_address() {
 fn test_gen_internal_address() {
     let (wallet, _db) = factories::wallet(None);
     let label = "address label".to_string();
-    let address = wallet.gen_internal_address(Some(label.clone())).unwrap();
+    let address = wallet
+        .gen_internal_address(Some(label.clone()), false)
+        .unwrap();
 
     assert!(address.address.starts_with("wit"));
     assert_eq!("m/3'/4919'/0'/1/0", &address.path);
     assert_eq!(Some(label), address.info.label);
 
-    let address_no_label = wallet.gen_internal_address(None).unwrap();
+    let address_no_label = wallet.gen_internal_address(None, false).unwrap();
 
     assert_eq!(None, address_no_label.info.label);
 }
@@ -199,12 +201,12 @@ fn test_gen_internal_address() {
 #[test]
 fn test_gen_internal_address_creates_different_addresses() {
     let (wallet, _db) = factories::wallet(None);
-    let address = wallet.gen_internal_address(None).unwrap();
+    let address = wallet.gen_internal_address(None, false).unwrap();
 
     assert_eq!("m/3'/4919'/0'/1/0", &address.path);
     assert_eq!(0, address.index);
 
-    let new_address = wallet.gen_internal_address(None).unwrap();
+    let new_address = wallet.gen_internal_address(None, false).unwrap();
 
     assert_eq!("m/3'/4919'/0'/1/1", &new_address.path);
     assert_eq!(1, new_address.index);
@@ -215,7 +217,7 @@ fn test_gen_internal_address_stores_next_address_index_in_db() {
     let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::INTERNAL_KEYCHAIN;
-    wallet.gen_internal_address(None).unwrap();
+    wallet.gen_internal_address(None, false).unwrap();
 
     assert_eq!(
         1,
@@ -223,7 +225,7 @@ fn test_gen_internal_address_stores_next_address_index_in_db() {
             .unwrap()
     );
 
-    wallet.gen_internal_address(None).unwrap();
+    wallet.gen_internal_address(None, false).unwrap();
 
     assert_eq!(
         2,
@@ -239,7 +241,9 @@ fn test_gen_internal_address_saves_details_in_db() {
     let keychain = constants::INTERNAL_KEYCHAIN;
     let index = 0;
     let label = "address label".to_string();
-    let address = wallet.gen_internal_address(Some(label.clone())).unwrap();
+    let address = wallet
+        .gen_internal_address(Some(label.clone()), false)
+        .unwrap();
 
     assert_eq!(
         address.address,
@@ -269,7 +273,7 @@ fn test_gen_internal_address_associates_pkh_to_account_in_db() {
     let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::INTERNAL_KEYCHAIN;
-    let address = wallet.gen_internal_address(None).unwrap();
+    let address = wallet.gen_internal_address(None, false).unwrap();
     let pkh = &address.pkh;
 
     let path: model::Path = db.get(&keys::pkh(pkh)).unwrap();
@@ -342,6 +346,7 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -398,6 +403,7 @@ fn test_create_transaction_components_without_a_change_address() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -454,6 +460,7 @@ fn test_create_transaction_components_with_a_change_address() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -525,6 +532,7 @@ fn test_create_transaction_components_which_value_overflows() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -589,6 +597,7 @@ fn test_create_vtt_does_not_spend_utxos() {
             }],
             utxo_strategy,
             selected_utxos: HashSet::default(),
+            preview: false,
         })
         .unwrap();
 
@@ -674,7 +683,11 @@ fn test_create_data_request_does_not_spend_utxos() {
 
     let fee = Fee::absolute_from_nanowits(123);
     let (extended, _) = wallet
-        .create_data_req(types::DataReqParams { fee, request })
+        .create_data_req(types::DataReqParams {
+            fee,
+            request,
+            preview: false,
+        })
         .unwrap();
 
     // the extended transaction should actually contain a data request transaction
@@ -1015,6 +1028,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
             }],
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
             selected_utxos: HashSet::default(),
+            preview: false,
         })
         .unwrap();
 
@@ -1138,6 +1152,7 @@ fn test_get_transaction() {
             }],
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
             selected_utxos: HashSet::default(),
+            preview: false,
         })
         .unwrap();
 
@@ -1220,6 +1235,7 @@ fn test_get_transactions() {
             }],
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
             selected_utxos: HashSet::default(),
+            preview: false,
         })
         .unwrap();
 
@@ -1301,6 +1317,7 @@ fn test_create_vtt_with_locked_balance() {
             }],
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
             selected_utxos: HashSet::default(),
+            preview: false,
         })
         .unwrap_err();
 
@@ -1364,6 +1381,7 @@ fn test_create_vtt_with_multiple_outputs() {
             ],
             utxo_strategy: UtxoSelectionStrategy::Random { from: None },
             selected_utxos: HashSet::default(),
+            preview: false,
         })
         .unwrap();
 
@@ -1461,6 +1479,7 @@ fn test_create_vt_components_weighted_fee() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -1533,6 +1552,7 @@ fn test_create_vt_components_weighted_fee_2() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -1600,6 +1620,7 @@ fn test_create_vt_components_weighted_fee_3() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -1692,6 +1713,7 @@ fn test_create_vt_components_weighted_fee_4() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -1781,6 +1803,7 @@ fn test_create_vt_components_weighted_fee_5() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -1876,6 +1899,7 @@ fn test_create_vt_components_weighted_fee_6() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -1920,6 +1944,7 @@ fn test_create_vt_components_weighted_fee_without_outputs() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -1977,6 +2002,7 @@ fn test_create_vt_components_weighted_fee_with_too_large_fee() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -2039,6 +2065,7 @@ fn test_create_vt_weight_too_large() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -2090,7 +2117,7 @@ fn test_create_dr_components_weighted_fee_1() {
     let mut state = wallet.state.write().unwrap();
     let fee = Fee::relative_from_float(1.0);
     let TransactionComponents { inputs, .. } = wallet
-        .create_dr_transaction_components(&mut state, request, fee)
+        .create_dr_transaction_components(&mut state, request, fee, false)
         .unwrap();
 
     assert_eq!(inputs.pointers.len(), 1);
@@ -2137,7 +2164,7 @@ fn test_create_dr_components_weighted_fee_2_not_enough_funds() {
     let mut state = wallet.state.write().unwrap();
     let fee = Fee::relative_from_float(1.0);
     let err = wallet
-        .create_dr_transaction_components(&mut state, request, fee)
+        .create_dr_transaction_components(&mut state, request, fee, false)
         .unwrap_err();
 
     assert!(
@@ -2188,7 +2215,7 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
 
     let fee = Fee::relative_from_float(1.0);
     let TransactionComponents { inputs, .. } = wallet
-        .create_dr_transaction_components(&mut state, request.clone(), fee)
+        .create_dr_transaction_components(&mut state, request.clone(), fee, false)
         .unwrap();
     let weight = calculate_weight(inputs.pointers.len(), 1, Some(&request), u32::MAX).unwrap();
 
@@ -2245,7 +2272,7 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     let mut state_2 = wallet_2.state.write().unwrap();
 
     let TransactionComponents { inputs, .. } = wallet_2
-        .create_dr_transaction_components(&mut state_2, request, fee)
+        .create_dr_transaction_components(&mut state_2, request, fee, false)
         .unwrap();
 
     assert_eq!(inputs.pointers.len(), 3);
@@ -2280,7 +2307,7 @@ fn test_create_dr_components_weighted_fee_without_outputs() {
 
     let fee = Fee::relative_from_float(1.0);
     let err = wallet
-        .create_dr_transaction_components(&mut state, request, fee)
+        .create_dr_transaction_components(&mut state, request, fee, false)
         .unwrap_err();
 
     assert!(
@@ -2333,7 +2360,7 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
     };
     let fee = Fee::relative_from_float(0);
     let err = wallet
-        .create_dr_transaction_components(&mut state, request.clone(), fee)
+        .create_dr_transaction_components(&mut state, request.clone(), fee, false)
         .unwrap_err();
 
     assert_eq!(
@@ -2387,7 +2414,7 @@ fn test_create_dr_components_weighted_fee_fee_too_large() {
 
     let fee = Fee::relative_from_float(f64::MAX / 2.0);
     let err = wallet
-        .create_dr_transaction_components(&mut state, request, fee)
+        .create_dr_transaction_components(&mut state, request, fee, false)
         .unwrap_err();
 
     assert_eq!(
@@ -2461,6 +2488,7 @@ fn test_create_transaction_components_filter_from_address() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -2533,6 +2561,7 @@ fn test_create_transaction_components_filter_from_address_2() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -2605,6 +2634,7 @@ fn test_create_transaction_components_filter_from_address_3() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -2683,6 +2713,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap_err();
 
@@ -2708,6 +2739,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -2786,6 +2818,7 @@ fn test_create_transaction_components_uses_unconfirmed_utxos() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -2856,6 +2889,7 @@ fn test_create_vtt_selecting_utxos() {
             fee,
             &utxo_strategy,
             vec![out_pointer_0].into_iter().collect(),
+            false,
         )
         .unwrap_err();
 
@@ -2875,6 +2909,7 @@ fn test_create_vtt_selecting_utxos() {
             fee,
             &utxo_strategy,
             vec![out_pointer_1].into_iter().collect(),
+            false,
         )
         .unwrap();
 
@@ -2893,6 +2928,7 @@ fn test_create_vtt_selecting_utxos() {
             fee,
             &utxo_strategy,
             HashSet::default(),
+            false,
         )
         .unwrap();
 
@@ -2956,6 +2992,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos_and_selecti
             fee,
             &utxo_strategy,
             vec![pending_outptr].into_iter().collect(),
+            false,
         )
         .unwrap_err();
 
