@@ -512,7 +512,7 @@ mod tests {
             // Start relevant actors
             config_mngr::start(config);
             storage_mngr::start();
-            let inventory_manager = InventoryManager::default().start();
+            let inventory_manager = InventoryManager.start();
 
             // Create first block with value transfer transactions
             let block = build_block_with_vt_transactions(1);

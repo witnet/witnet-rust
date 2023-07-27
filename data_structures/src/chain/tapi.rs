@@ -138,7 +138,7 @@ impl TapiEngine {
             }
         }
         for n in 0..self.bit_tapi_counter.len() {
-            if let Some(mut bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch_to_update) {
+            if let Some(bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch_to_update) {
                 if !self.wip_activation.contains_key(&bit_counter.wip)
                     && !avoid_wip_list.contains(&bit_counter.wip)
                 {
@@ -639,7 +639,7 @@ mod tests {
         assert_eq!(tapi_counter.current_length, 1);
 
         assert_eq!(tapi_counter.get(0, &100).unwrap().votes, 0);
-        let mut votes_counter = tapi_counter.get_mut(0, &100).unwrap();
+        let votes_counter = tapi_counter.get_mut(0, &100).unwrap();
         votes_counter.votes += 1;
         assert_eq!(tapi_counter.get(0, &100).unwrap().votes, 1);
 
