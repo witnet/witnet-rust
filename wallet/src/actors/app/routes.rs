@@ -15,7 +15,7 @@ macro_rules! routes {
         {
             let api_addr = $api.clone();
             $io.add_method($method_jsonrpc, move |params: Params| {
-                log::debug!("Handling request for method: {}", $method_jsonrpc);
+                log::debug!("Handling request for method {}: {:?}", $method_jsonrpc, params);
                 let addr = api_addr.clone();
                 // Try to parse the request params into the actor message
                 let fut03 = future::ready(params.parse::<$actor_msg>())

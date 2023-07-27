@@ -1342,10 +1342,15 @@ where
         let index = state.next_internal_index;
         let parent_key = &state.keychains[keychain as usize];
 
+        // `preview` is negated because it turns into `persist_db`
         let (address, next_index) =
             self.derive_and_persist_address(label, parent_key, account, keychain, index, !preview)?;
 
-        state.next_internal_index = next_index;
+        // Don't advance the internal index if we are simply previewing
+        if !preview {
+            state.next_internal_index = next_index;
+            log::debug!("Internal keychain advanced to index #{next_index}");
+        }
 
         Ok(address)
     }
@@ -1460,6 +1465,18 @@ where
         // This line is needed because of this error:
         // - Cannot borrow `state` as mutable because it is also borrowed as immutable
         let state = &mut *state;
+
+        // Move internal keychain forward if we used a new change address
+        let next = self._gen_internal_address(state, None, true)?;
+        if match &txn.transaction {
+            Transaction::ValueTransfer(vtt) => {
+                vtt.body.outputs.iter().any(|vto| vto.pkh == next.pkh)
+            }
+            Transaction::DataRequest(dr) => dr.body.outputs.iter().any(|vto| vto.pkh == next.pkh),
+            _ => false,
+        } {
+            let _ = self._gen_internal_address(state, None, false);
+        }
 
         // Mark UTXOs as used so we don't double spend
         // Save the timestamp to after which the UTXO can be spent again
