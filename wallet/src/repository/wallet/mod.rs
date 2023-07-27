@@ -1441,7 +1441,7 @@ where
         let mut state = self.state.write()?;
         // This line is needed because of this error:
         // - Cannot borrow `state` as mutable because it is also borrowed as immutable
-        let mut state = &mut *state;
+        let state = &mut *state;
 
         // Mark UTXOs as used so we don't double spend
         // Save the timestamp to after which the UTXO can be spent again

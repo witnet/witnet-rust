@@ -51,7 +51,7 @@ pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), fail
         SystemRegistry::set(peers_manager_addr);
 
         // Start ConnectionsManager actor
-        let connections_manager_addr = ConnectionsManager::default().start();
+        let connections_manager_addr = ConnectionsManager.start();
         SystemRegistry::set(connections_manager_addr);
 
         // Start SessionManager actor
@@ -69,7 +69,7 @@ pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), fail
         SystemRegistry::set(chain_manager_addr);
 
         // Start InventoryManager actor
-        let inventory_manager_addr = InventoryManager::default().start();
+        let inventory_manager_addr = InventoryManager.start();
         SystemRegistry::set(inventory_manager_addr);
 
         // Start RadManager actor

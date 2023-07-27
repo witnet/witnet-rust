@@ -21,7 +21,7 @@ impl Handler<RefreshSessionRequest> for app::App {
     type Result = <RefreshSessionRequest as Message>::Result;
 
     fn handle(&mut self, msg: RefreshSessionRequest, ctx: &mut Self::Context) -> Self::Result {
-        let mut session = self
+        let session = self
             .state
             .sessions
             .get_mut(&msg.session_id)

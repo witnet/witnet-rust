@@ -81,5 +81,5 @@ fn test_partial_attr_partial() {
 
     let p = PartialObj::default();
 
-    assert_eq!(p.f, PartialAnotherObj::default());
+    assert_eq!(p.f, PartialAnotherObj);
 }
