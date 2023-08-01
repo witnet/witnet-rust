@@ -1990,8 +1990,12 @@ where
 
     pub fn export_master_key(&self, password: types::Password) -> Result<String> {
         let state = self.state.read()?;
+        let external_index = state.next_external_index.to_be_bytes();
+        let internal_index = state.next_internal_index.to_be_bytes();
         let (tag, key) = if let Some(master_key) = self.db.get_opt(&keys::master_key())? {
-            let master_key_string = match master_key.to_slip32(&KeyPath::default()) {
+            let indexes = [&external_index[..], &internal_index[..]].concat();
+            let master_key_string = match master_key.to_slip32(&KeyPath::default(), Some(&indexes))
+            {
                 Ok(x) => x,
                 Err(_e) => return Err(Error::KeySerialization),
             };
@@ -1999,12 +2003,14 @@ where
         } else {
             let internal_parent_key = &state.keychains[constants::INTERNAL_KEYCHAIN as usize];
             let external_parent_key = &state.keychains[constants::EXTERNAL_KEYCHAIN as usize];
-            let internal_secret_key = internal_parent_key.to_slip32(&KeyPath::default());
+            let internal_secret_key =
+                internal_parent_key.to_slip32(&KeyPath::default(), Some(&internal_index));
             let mut internal_secret_key_hex = match internal_secret_key {
                 Ok(x) => x,
                 Err(_e) => return Err(Error::KeySerialization),
             };
-            let external_secret_key = external_parent_key.to_slip32(&KeyPath::default());
+            let external_secret_key =
+                external_parent_key.to_slip32(&KeyPath::default(), Some(&external_index));
             let external_secret_key_hex = match external_secret_key {
                 Ok(x) => x,
                 Err(_e) => return Err(Error::KeySerialization),
@@ -2012,11 +2018,11 @@ where
             internal_secret_key_hex.push_str(&external_secret_key_hex);
             ("xprvdouble", internal_secret_key_hex)
         };
-        let encrypted_final_key =
+        let encrypted_key =
             crypto::encrypt_cbc(key.as_ref(), password.as_ref()).map_err(Error::Crypto)?;
-        let final_key =
-            bech32::encode(tag, encrypted_final_key.to_base32()).map_err(Error::Bech32)?;
-        Ok(final_key)
+        let xprv = bech32::encode(tag, encrypted_key.to_base32()).map_err(Error::Bech32)?;
+
+        Ok(xprv)
     }
 }
 

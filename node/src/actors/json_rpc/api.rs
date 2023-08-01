@@ -1425,7 +1425,7 @@ pub async fn master_key_export() -> JsonRpcResult {
             res.map_err(internal_error)
                 .and_then(move |(_extended_pk, extended_sk)| {
                     let master_path = KeyPath::default();
-                    let secret_key_hex = extended_sk.to_slip32(&master_path);
+                    let secret_key_hex = extended_sk.to_slip32(&master_path, None);
                     let secret_key_hex = match secret_key_hex {
                         Ok(x) => x,
                         Err(e) => return Err(internal_error_s(e)),

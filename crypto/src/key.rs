@@ -226,22 +226,24 @@ impl ExtendedSK {
     /// Serialize the key following the SLIP32 spec.
     ///
     /// See https://github.com/satoshilabs/slips/blob/master/slip-0032.md#serialization-format
-    pub fn to_slip32(&self, path: &KeyPath) -> Result<String, KeyError> {
+    pub fn to_slip32(&self, path: &KeyPath, extra_data: Option<&[u8]>) -> Result<String, KeyError> {
         let depth = path.depth();
+        let extra_data = extra_data.unwrap_or_default();
+
+        let capacity = 1    // 1 byte for depth
+            + 4 * depth      // 4 * depth bytes for path
+            + 32             // 32 bytes for chain code
+            + 33             // 33 bytes for 0x00 || private key
+            + extra_data.len();
+        let mut bytes = Protected::new(vec![0; capacity]);
+        let mut slice = bytes.as_mut();
+
         let depth = u8::try_from(depth).map_err(|_| {
             KeyError::Serialization(failure::format_err!(
                 "path depth '{}' is greater than 255",
                 depth,
             ))
         })?;
-
-        let capacity = 1     // 1 byte for depth
-            + 4 * depth      // 4 * depth bytes for path
-            + 32             // 32 bytes for chain code
-            + 33             // 33 bytes for 0x00 || private key
-            ;
-        let mut bytes = Protected::new(vec![0; usize::from(capacity)]);
-        let mut slice = bytes.as_mut();
 
         slice.write_all(&[depth])?;
         for index in path.iter() {
@@ -250,6 +252,7 @@ impl ExtendedSK {
         slice.write_all(self.chain_code.as_ref())?;
         slice.write_all(&[0])?;
         slice.write_all(self.secret().as_ref())?;
+        slice.write_all(extra_data)?;
 
         let encoded = bech32::encode("xprv", bytes.as_ref().to_base32())
             .map_err(KeyError::serialization_err)?;
