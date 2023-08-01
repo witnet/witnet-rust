@@ -88,8 +88,9 @@ impl Worker {
     ) -> Result<String> {
         let (id, default_account, master_key) = match source {
             types::SeedSource::XprvDouble((internal, external)) => {
-                let (external_key, external_path) = ExtendedSK::from_slip32(external.as_ref())
-                    .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
+                let (external_key, external_path, _) =
+                    ExtendedSK::from_slip32(external.as_ref())
+                        .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
                 if !external_path.is_master() {
                     return Err(Error::KeyGen(crypto::Error::InvalidKeyPath(format!(
                         "{}",
@@ -97,8 +98,9 @@ impl Worker {
                     ))));
                 }
 
-                let (internal_key, internal_path) = ExtendedSK::from_slip32(internal.as_ref())
-                    .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
+                let (internal_key, internal_path, _) =
+                    ExtendedSK::from_slip32(internal.as_ref())
+                        .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
 
                 if !internal_path.is_master() {
                     return Err(Error::KeyGen(crypto::Error::InvalidKeyPath(format!(
@@ -243,7 +245,7 @@ impl Worker {
     pub fn check_wallet_seed(&self, seed: types::SeedSource) -> Result<(bool, String)> {
         let id = match seed {
             types::SeedSource::XprvDouble((_, external)) => {
-                let (external_key, _) = ExtendedSK::from_slip32(external.as_ref())
+                let (external_key, _, _) = ExtendedSK::from_slip32(external.as_ref())
                     .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
 
                 crypto::gen_wallet_id(

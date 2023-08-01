@@ -595,7 +595,7 @@ fn master_key_import_from_file(master_key_path: &Path) -> Result<ExtendedSK, fai
     };
 
     match ExtendedSK::from_slip32(ser.trim()) {
-        Ok((extended_master_key, key_path)) => {
+        Ok((extended_master_key, key_path, _)) => {
             if key_path.is_master() {
                 log::info!("Successfully imported master key from file");
                 Ok(extended_master_key)

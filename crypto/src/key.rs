@@ -180,7 +180,7 @@ impl ExtendedSK {
     }
 
     /// Create a new extended secret key from the given slip32-encoded string.
-    pub fn from_slip32(slip32: &str) -> Result<(Self, KeyPath), KeyError> {
+    pub fn from_slip32(slip32: &str) -> Result<(Self, KeyPath, Option<Vec<u8>>), KeyError> {
         let (hrp, data) = bech32::decode(slip32).map_err(KeyError::deserialization_err)?;
 
         if hrp.as_str() != "xprv" {
@@ -195,12 +195,12 @@ impl ExtendedSK {
         let mut cursor = io::Cursor::new(bytes);
         let depth = cursor.read_u8()? as usize;
         let len = depth * 4;
-        let expected_len = len + 66; // 66 = 1 (depth) 32 (chain code) + 33 (private key)
+        let base_len = len + 66; // 66 = 1 (depth) 32 (chain code) + 33 (private key)
 
-        if expected_len != actual_len {
+        if actual_len < base_len {
             return Err(KeyError::Deserialization(failure::format_err!(
-                "invalid data length, expected: {}, got: {}",
-                expected_len,
+                "invalid data length, expected at least {} bytes, got {} bytes",
+                base_len,
                 actual_len
             )));
         }
@@ -217,10 +217,21 @@ impl ExtendedSK {
         let mut secret = Protected::new(vec![0; 32]);
         cursor.read_exact(secret.as_mut())?;
 
+        // If there are bytes yet to read, put them into `extra_data`
+        let extra_len = actual_len - base_len;
+        let extra_data = if extra_len > 0 {
+            let mut extra_data = vec![0; extra_len];
+            cursor.read_exact(extra_data.as_mut())?;
+
+            Some(extra_data)
+        } else {
+            None
+        };
+
         let sk = SK::from_slice(secret.as_ref())?;
         let extended_sk = Self::new(sk, chain_code);
 
-        Ok((extended_sk, path.into()))
+        Ok((extended_sk, path.into(), extra_data))
     }
 
     /// Serialize the key following the SLIP32 spec.

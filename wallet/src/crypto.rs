@@ -49,7 +49,7 @@ pub fn gen_master_key(seed: &str, salt: &[u8], source: &types::SeedSource) -> Re
                 .map_err(Error::Generation)?
         }
         types::SeedSource::Xprv(slip32) => {
-            let (key, path) =
+            let (key, path, _) =
                 ExtendedSK::from_slip32(slip32.as_ref()).map_err(Error::Deserialization)?;
             if !path.is_master() {
                 return Err(Error::InvalidKeyPath(format!("{}", path)));
