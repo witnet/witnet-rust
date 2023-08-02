@@ -237,15 +237,19 @@ impl ExtendedSK {
     /// Serialize the key following the SLIP32 spec.
     ///
     /// See https://github.com/satoshilabs/slips/blob/master/slip-0032.md#serialization-format
-    pub fn to_slip32(&self, path: &KeyPath, extra_data: Option<&[u8]>) -> Result<String, KeyError> {
+    pub fn to_slip32(
+        &self,
+        path: &KeyPath,
+        extra_data: Option<Vec<u8>>,
+    ) -> Result<String, KeyError> {
         let depth = path.depth();
         let extra_data = extra_data.unwrap_or_default();
 
         let capacity = 1    // 1 byte for depth
-            + 4 * depth      // 4 * depth bytes for path
-            + 32             // 32 bytes for chain code
-            + 33             // 33 bytes for 0x00 || private key
-            + extra_data.len();
+            + 4 * depth            // 4 * depth bytes for path
+            + 32                   // 32 bytes for chain code
+            + 33                   // 33 bytes for 0x00 || private key
+            + extra_data.len(); // any arbitrary amount of extra bytes
         let mut bytes = Protected::new(vec![0; capacity]);
         let mut slice = bytes.as_mut();
 
@@ -263,7 +267,7 @@ impl ExtendedSK {
         slice.write_all(self.chain_code.as_ref())?;
         slice.write_all(&[0])?;
         slice.write_all(self.secret().as_ref())?;
-        slice.write_all(extra_data)?;
+        slice.write_all(extra_data.as_ref())?;
 
         let encoded = bech32::encode("xprv", bytes.as_ref().to_base32())
             .map_err(KeyError::serialization_err)?;
@@ -335,7 +339,6 @@ impl From<ExtendedSK> for SK {
 ///
 /// It can be used to derive other HD-Wallets public keys.
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtendedPK {
     /// Public key
     pub key: PK,
@@ -484,6 +487,40 @@ fn get_chain_code_and_secret(
     Ok((chain_code, secret_key))
 }
 
+/// Exports a master key into SLIP-32 format with 2 extra `u32` fields inside the SLIP-32 data
+/// holding the "next index" for the external and internal keychains.
+pub fn slip32_from_master_and_indexes(
+    master_key: ExtendedSK,
+    external_index: u32,
+    internal_index: u32,
+) -> Result<String, KeyError> {
+    let external_index = external_index.to_be_bytes().to_vec();
+    let internal_index = internal_index.to_be_bytes().to_vec();
+
+    let indexes = [&external_index[..], &internal_index[..]].concat();
+
+    master_key.to_slip32(&KeyPath::default(), Some(indexes))
+}
+
+/// Exports the concatenation of the SLIP-32 serialization of the `m_1` and `m_0` keychains, each
+/// with 1 extra `u32` field inside the SLIP-32 data holding their own keychain's "next index".
+pub fn double_slip32_from_keychains_and_indexes(
+    m_0: &ExtendedSK,
+    m_1: &ExtendedSK,
+    external_index: u32,
+    internal_index: u32,
+) -> Result<String, KeyError> {
+    let external_index = external_index.to_be_bytes().to_vec();
+    let internal_index = internal_index.to_be_bytes().to_vec();
+
+    let mut internal_secret_key = m_1.to_slip32(&KeyPath::default(), Some(internal_index))?;
+    let external_secret_key = m_0.to_slip32(&KeyPath::default(), Some(external_index))?;
+
+    internal_secret_key.push_str(&external_secret_key);
+
+    Ok(internal_secret_key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -588,16 +625,34 @@ mod tests {
         let seed = mnemonic.seed(&"".into());
         let master_key = MasterKeyGen::new(&seed).generate().unwrap();
 
-        for (expected, keypath) in slip32_vectors() {
-            let key = master_key.derive(&keypath).unwrap();
-            let xprv = key.to_slip32(&keypath).unwrap();
+        for (expected_xprv, expected_path, expected_extra_data) in slip32_vectors() {
+            let expected_key = master_key.derive(&expected_path).unwrap();
+            let xprv = expected_key
+                .to_slip32(&expected_path, expected_extra_data.clone())
+                .unwrap();
 
-            assert_eq!(expected, xprv);
+            assert_eq!(expected_xprv, xprv);
 
-            let (recovered_key, path) = ExtendedSK::from_slip32(&xprv).unwrap();
+            let (key, path, extra_data) = ExtendedSK::from_slip32(&xprv).unwrap();
 
-            assert_eq!(keypath, path);
-            assert_eq!(key, recovered_key);
+            assert_eq!(expected_path, path);
+            assert_eq!(expected_key, key);
+            assert_eq!(expected_extra_data, extra_data);
         }
+    }
+
+    #[test]
+    fn test_xprvdouble() {
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let mnemonic = bip39::Mnemonic::from_phrase(phrase.into()).unwrap();
+        let seed = mnemonic.seed(&"".into());
+        let master_key = MasterKeyGen::new(&seed).generate().unwrap();
+
+        let m_0 = master_key.derive(&KeyPath::default().index(0)).unwrap();
+        let m_1 = master_key.derive(&KeyPath::default().index(1)).unwrap();
+
+        let double_hex = double_slip32_from_keychains_and_indexes(&m_0, &m_1, 123, 321).unwrap();
+
+        assert_eq!(double_hex, "xprv1qpwy3ytadqutve4wky02clz0nruqwaum2lr4yt3c2zt3nm43u7jeyqxph6hlp3xmnpr8pfqvd8pfg7uax0xh7mn5n3n7rl94ccgcmksjsgqqqq2pwje96dxprv1qrswv5p6cptu7hw8dcrntetd63x3jwewncn3esk5d0r4njvmqg0rcq964zdghhtpch3zh8csvqwc0ywflr7yktaxm7wk35ek7r4s8vrwkcqqqqrm76e6en")
     }
 }
