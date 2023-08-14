@@ -53,9 +53,10 @@ pub struct DrInfoBridge {
 }
 
 /// Data request state
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub enum DrState {
     /// New: the data request has just been posted to the smart contract.
+    #[default]
     New,
     /// Pending: the data request has been created and broadcast to witnet, but it has not been
     /// included in a witnet block yet.
@@ -74,12 +75,6 @@ impl fmt::Display for DrState {
         };
 
         f.write_str(s)
-    }
-}
-
-impl Default for DrState {
-    fn default() -> Self {
-        Self::New
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     actors::dr_database::{
-        DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge, WitnetQueryStatus,
+        DrDatabase, DrInfoBridge, GetLastDrId, SetDrInfoBridge, WitnetQueryStatus,
     },
     config::Config,
 };
@@ -127,18 +127,22 @@ impl EthPoller {
                                 }
                                 WitnetQueryStatus::Posted => {
                                     log::info!("[{}] new dr in wrb", i);
-                                    if let Some(set_dr_info_bridge) =
+                                    if let Ok(set_dr_info_bridge) =
                                         process_posted_request(i.into(), &wrb_contract).await
                                     {
                                         dr_database_addr.do_send(set_dr_info_bridge);
+                                    } else {
+                                        break;
                                     }
                                 }
                                 WitnetQueryStatus::Reported => {
                                     log::debug!("[{}] already reported", i);
-                                    if let Some(set_dr_info_bridge) =
+                                    if let Ok(set_dr_info_bridge) =
                                         process_posted_request(i.into(), &wrb_contract).await
                                     {
                                         dr_database_addr.do_send(set_dr_info_bridge);
+                                    } else {
+                                        break;
                                     }
                                 }
                                 WitnetQueryStatus::Deleted => {
@@ -175,7 +179,7 @@ impl EthPoller {
 async fn process_posted_request(
     query_id: U256,
     wrb_contract: &Contract<web3::transports::Http>,
-) -> Option<SetDrInfoBridge> {
+) -> Result<SetDrInfoBridge, web3::contract::Error> {
     let dr_bytes: Result<Bytes, web3::contract::Error> = wrb_contract
         .query(
             "readRequestBytecode",
@@ -186,20 +190,32 @@ async fn process_posted_request(
         )
         .await;
 
+    // Re-route some errors as success (explanation below)
     match dr_bytes {
-        Ok(dr_bytes) => Some(SetDrInfoBridge(
-            query_id,
-            DrInfoBridge {
-                dr_bytes,
-                dr_state: DrState::New,
-                dr_tx_hash: None,
-                dr_tx_creation_timestamp: None,
-            },
-        )),
+        Ok(dr_bytes) => Ok(dr_bytes),
         Err(err) => {
             log::error!("Fail to read dr bytes from contract: {}", err.to_string());
 
-            None
+            // In some versions of the bridge contracts (those based on
+            // `WitnetRequestBoardTrustableBase`), we may get a revert when trying to fetch the dr
+            // bytes for a deleted query.
+            // If that's the case, we can return a success here, with empty bytes, so that the
+            // request can locally marked as complete, and we can move on.
+            if err.to_string().contains("WitnetRequestBoardTrustableBase") {
+                log::error!("Wait! This is an instance of `WitnetRequestBoardTrustableBase`. Let's assume we got a revert because the dr bytes were deleted, and simply move on.");
+
+                Ok(Default::default())
+            // Otherwise, handle the error normally
+            } else {
+                Err(err)
+            }
         }
-    }
+    // Wrap the dr bytes in a `SetDrInfoBridge` structure
+    }.map(|dr_bytes| SetDrInfoBridge(
+        query_id,
+        DrInfoBridge {
+            dr_bytes,
+            ..Default::default()
+        },
+    ))
 }
