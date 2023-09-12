@@ -251,7 +251,7 @@ lazy_static! {
     };
 }
 
-static CONFIG_HELP: &str = r#"Load configuration from this file. If not specified will try to find a configuration
+static CONFIG_HELP: &str = r"Load configuration from this file. If not specified will try to find a configuration
 in these paths:
 - current path
 - standard configuration path:
@@ -260,7 +260,7 @@ in these paths:
   - C:\Users\<YOUR USER>\AppData\Roaming\witnet\witnet.toml
 - /etc/witnet/witnet.toml if in a *nix platform
 If no configuration is found. The default configuration is used, see `config` subcommand if
-you want to know more about the default config."#;
+you want to know more about the default config.";
 
 #[test]
 #[cfg(all(not(debug_assertions), feature = "telemetry"))]

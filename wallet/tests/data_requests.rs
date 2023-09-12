@@ -36,7 +36,7 @@ fn test_radon_types_json_serialization() {
     assert_eq!(serde_json::to_string(&radon_type).unwrap(), expected_json);
 
     let radon_type = RadonTypes::from(RadonMap::from(
-        vec![(
+        [(
             String::from("foo"),
             RadonTypes::from(RadonString::from("bar")),
         )]

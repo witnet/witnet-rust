@@ -6362,7 +6362,7 @@ fn create_tally_validation_dr_liar() {
         dr_pkh,
         &report,
         vec![rewarded[0], rewarded[1], dr_pkh],
-        vec![rewarded[0], rewarded[1], dr_pkh]
+        [rewarded[0], rewarded[1], dr_pkh]
             .iter()
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),
@@ -6457,7 +6457,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
             slashed[0],
             error_witnesses[0],
         ],
-        vec![
+        [
             rewarded[0],
             rewarded[1],
             rewarded[2],
@@ -6531,7 +6531,7 @@ fn create_tally_validation_4_commits_2_reveals() {
         dr_pkh,
         &report,
         vec![rewarded[0], rewarded[1]],
-        vec![rewarded[0], rewarded[1], slashed[0], slashed[1]]
+        [rewarded[0], rewarded[1], slashed[0], slashed[1]]
             .iter()
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),

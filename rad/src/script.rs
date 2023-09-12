@@ -327,7 +327,7 @@ mod tests {
         let partial_expected = vec![
             input,
             RadonTypes::from(RadonMap::from(
-                vec![
+                [
                     (
                         String::from("base"),
                         RadonTypes::from(RadonString::from("stations")),
@@ -335,7 +335,7 @@ mod tests {
                     (
                         String::from("clouds"),
                         RadonTypes::from(RadonMap::from(
-                            vec![(
+                            [(
                                 String::from("all"),
                                 RadonTypes::from(RadonInteger::from(75)),
                             )]

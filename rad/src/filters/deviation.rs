@@ -608,9 +608,9 @@ mod tests {
 
     #[test]
     fn test_filter_deviation_standard_integer_three_int_sigma() {
-        let input = vec![1, 2, 3];
+        let input = [1, 2, 3];
         let sigmas = 1;
-        let expected = vec![2];
+        let expected = [2];
 
         let input_vec: Vec<RadonTypes> = input
             .iter()

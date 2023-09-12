@@ -514,7 +514,7 @@ impl<'de> Visitor<'de> for RADRetrieveSerializationHelperVersionedVisitor {
             .ok_or_else(|| de::Error::missing_field("db_version"))?;
 
         match db_version {
-            0 | 1 | 2 => {
+            0..=2 => {
                 let kind = match db_version {
                     0 => RADType::Unknown,
                     1 => RADType::HttpGet,

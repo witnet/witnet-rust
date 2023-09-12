@@ -76,9 +76,9 @@ pub struct ConfigParams {
     concurrency: Option<usize>,
 }
 
-static WALLET_DB_HELP: &str = r#"Path to the wallet database. If not specified will use:
+static WALLET_DB_HELP: &str = r"Path to the wallet database. If not specified will use:
 - $XDG_DATA_HOME/witnet/wallet.db in Gnu/Linux
 - $HOME/Libary/Application\ Support/witnet/wallet.db in MacOS
 - {FOLDERID_LocalAppData}/witnet/wallet.db in Windows
 If one of the above directories cannot be determined,
-the current one will be used."#;
+the current one will be used.";

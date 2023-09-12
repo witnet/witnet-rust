@@ -144,13 +144,10 @@ fn p2p_peers_remove_from_new_with_index() {
 
     // Add address
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
-    let src_address = Some(SocketAddr::new(
-        IpAddr::V4(Ipv4Addr::new(168, 0, 0, 12)),
-        8080,
-    ));
-    peers.add_to_new(vec![address], src_address).unwrap();
+    let src_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(168, 0, 0, 12)), 8080);
+    peers.add_to_new(vec![address], Some(src_address)).unwrap();
 
-    let index = peers.new_bucket_index(&address, &src_address.unwrap());
+    let index = peers.new_bucket_index(&address, &src_address);
 
     // Remove address
     assert_eq!(peers.remove_from_new_with_index(&[index]), vec![address]);
