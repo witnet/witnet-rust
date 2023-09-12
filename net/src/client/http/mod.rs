@@ -199,7 +199,18 @@ impl TryFrom<WitnetHttpResponse> for surf::http::Response {
         // Create a surf response and set all the relevant parts
         // Version and headers are currently not used, but they are included here for completion and
         // future readiness.
-        let mut res = surf::http::Response::new(status);
+        let code = status.status.as_u16();
+        let mut res =
+            // Panics are catched here because the `surf` library will do an `.expect()` on the
+            // `Result` coming from `http_types::StatusCode::try_from(u16)`, which is not guaranteed
+            // to be `Ok()` because the status code coming from the remote server could be not
+            // supported by `http_types` itself.
+            std::panic::catch_unwind(|| surf::http::Response::new(status)).map_err(|_| {
+                WitnetHttpError::UnknownStatusCode {
+                    code,
+                    msg: format!("Status code {code} is unknown or unsupported"),
+                }
+            })?;
         res.set_version(Some(surf::http::Version::try_from(version)?));
         res.set_body(surf::Body::from_reader(body_reader, None));
         for (key, value) in headers {
@@ -260,12 +271,18 @@ impl From<isahc::http::StatusCode> for WitnetHttpStatusCode {
 impl TryFrom<WitnetHttpStatusCode> for surf::StatusCode {
     type Error = WitnetHttpError;
 
+    /// Converts a `WitnetHttpStatusCode` into a `surf::StatusCode`.
+    ///
+    /// If possible, unknown status codes in normal HTTP status code ranges (e.g. 1XX, 2XX,
+    /// 3XX, 4XX and 5XX) are mapped to their X00 version, i.e. 522 → 500.
     fn try_from(status: WitnetHttpStatusCode) -> Result<Self, Self::Error> {
         let code = status.status.as_u16();
-        surf::StatusCode::try_from(code).map_err(|err| WitnetHttpError::UnknownStatusCode {
-            code,
-            msg: err.to_string(),
-        })
+        surf::StatusCode::try_from(code)
+            .or_else(|_| surf::StatusCode::try_from(code / 100 * 100))
+            .map_err(|err| WitnetHttpError::UnknownStatusCode {
+                code,
+                msg: err.to_string(),
+            })
     }
 }
 
@@ -343,5 +360,38 @@ impl surf::HttpClient for WitnetHttpClient {
             .map_err(surf::Error::from_display)?;
 
         Ok(res)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unsupported_status_codes_wont_break_the_thing() {
+        // "Benevolent case": unknown status codes in normal HTTP status code ranges (e.g. 1XX, 2XX,
+        // 3XX, 4XX and 5XX) are mapped to their X00 version, i.e. 522 → 500.
+        let isahc_response = isahc::Response::builder()
+            .status(522)
+            .body(isahc::AsyncBody::empty())
+            .unwrap();
+        let wit_response = WitnetHttpResponse::from(isahc_response);
+        let surf_response = surf::http::Response::try_from(wit_response).unwrap();
+
+        assert_eq!(surf_response.status(), 500);
+
+        // "Malicious case": completely made-up status codes should be handled elegantly, and not
+        // panic
+        let isahc_response = isahc::Response::builder()
+            .status(999)
+            .body(isahc::AsyncBody::empty())
+            .unwrap();
+        let wit_response = WitnetHttpResponse::from(isahc_response);
+        let error = surf::http::Response::try_from(wit_response).unwrap_err();
+
+        assert!(matches!(
+            error,
+            WitnetHttpError::UnknownStatusCode { code: 999, .. }
+        ));
     }
 }
