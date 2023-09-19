@@ -1316,7 +1316,7 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
             ));
         };
 
-        simple = false;
+        simple = params.get(1).and_then(Value::as_bool).unwrap_or(false);
     } else {
         let params: GetBalanceParams = params.parse()?;
         pkh = params.pkh;
