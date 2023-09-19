@@ -1774,6 +1774,8 @@ pub async fn get_superblock(params: Result<GetSuperblockBlocksParams, Error>) ->
         Err(e) => Err(internal_error_s(e)),
     }
 }
+/// Get the list of protocol upgrades that are already active and the ones
+/// that are currently being polled for activation signaling
 pub async fn signaling_info() -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
 
