@@ -130,8 +130,8 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "getSuperblock", |params: Params| {
         Box::pin(get_superblock(params.parse()))
     });
-    server.add_actix_method(system, "signalingInfo", |params: Params| {
-        Box::pin(signaling_info(params.parse()))
+    server.add_actix_method(system, "signalingInfo", |_params: Params| {
+        Box::pin(signaling_info())
     });
     server.add_actix_method(system, "priority", |_params: Params| Box::pin(priority()));
 }
@@ -1774,14 +1774,7 @@ pub async fn get_superblock(params: Result<GetSuperblockBlocksParams, Error>) ->
         Err(e) => Err(internal_error_s(e)),
     }
 }
-
-/// Get the blocks that pertain to the superblock index
-pub async fn signaling_info(params: Result<(), Error>) -> JsonRpcResult {
-    match params {
-        Ok(()) => (),
-        Err(e) => return Err(e),
-    };
-
+pub async fn signaling_info() -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
 
     let info = chain_manager_addr
