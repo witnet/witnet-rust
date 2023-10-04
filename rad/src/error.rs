@@ -360,7 +360,7 @@ pub enum RadError {
     EncodeReveal,
     /// Error while parsing HTTP header
     #[fail(
-        display = "Invalid HTTP header: {}. name={:?}, value={:?}",
+        display = "invalid HTTP header: {}. name={:?}, value={:?}",
         error, name, value
     )]
     InvalidHttpHeader {

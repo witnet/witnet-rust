@@ -2,7 +2,7 @@
 
 extern crate witnet_data_structures;
 
-use futures::{AsyncReadExt, executor::block_on, future::join_all};
+use futures::{executor::block_on, future::join_all, AsyncReadExt};
 use serde::Serialize;
 pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
 #[cfg(test)]
@@ -15,8 +15,8 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
     witnessing::WitnessingConfig,
 };
-pub use witnet_net::Uri;
 use witnet_net::client::http::WitnetHttpClient;
+pub use witnet_net::Uri;
 
 use crate::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
@@ -29,9 +29,7 @@ use crate::{
     user_agents::UserAgent,
 };
 use core::convert::From;
-use witnet_net::client::http::{
-    WitnetHttpBody,  WitnetHttpRequest,
-};
+use witnet_net::client::http::{WitnetHttpBody, WitnetHttpRequest};
 
 pub mod conditions;
 pub mod error;
@@ -223,13 +221,13 @@ async fn http_response(
     settings: RadonScriptExecutionSettings,
     client: Option<WitnetHttpClient>,
 ) -> Result<RadonReport<RadonTypes>> {
-    // Validate URL because surf::get panics on invalid URL
-    // It could still panic if surf gets updated and changes their URL parsing library
-    // TODO: this could be removed if we use `surf::RequestBuilder::new(Method::Get, url)` instead of `surf::get(url)`
-    let _valid_url = url::Url::parse(&retrieve.url).map_err(|err| RadError::UrlParseError {
-        inner: err,
-        url: retrieve.url.clone(),
-    })?;
+    // Validate URL to make sure that we handle malformed URLs nicely before they hit any library
+    if let Err(err) = url::Url::parse(&retrieve.url) {
+        Err(RadError::UrlParseError {
+            inner: err,
+            url: retrieve.url.clone(),
+        })?
+    };
 
     // Use the provided HTTP client, or instantiate a new one if none
     let client = match client {
@@ -272,13 +270,16 @@ async fn http_response(
 
         // Add extra_headers from retrieve.headers
         for (name, value) in &retrieve.headers {
+            // Handle invalid header names and values with a specific and friendly error message
+            validate_header(name, value)?;
+
             builder = builder.header(name, value);
         }
 
         // Finally attach the body to complete building the HTTP request
-        builder
-            .body(body)
-            .map_err(|e| RadError::HttpOther { message: e.to_string() })
+        builder.body(body).map_err(|e| RadError::HttpOther {
+            message: e.to_string(),
+        })
     })?;
 
     let response = client
@@ -295,11 +296,15 @@ async fn http_response(
         });
     }
 
+    // If at some point we want to support the retrieval of non-UTF8 data (e.g. raw bytes), this is
+    // where we need to decide how to read the response body
     let (_parts, mut body) = response.into_parts();
-    let mut response_string= String::default();
-    body.read_to_string(&mut response_string).await.map_err(|x| RadError::HttpOther {
-        message: x.to_string(),
-    })?;
+    let mut response_string = String::default();
+    body.read_to_string(&mut response_string)
+        .await
+        .map_err(|x| RadError::HttpOther {
+            message: x.to_string(),
+        })?;
 
     let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
 
@@ -619,6 +624,36 @@ pub fn run_tally(
     );
 
     res.map(RadonReport::into_inner)
+}
+
+/// Centralizes validation of header names and values.
+///
+/// ASCII checks are always run before `try_from` to prevent panics in the `http` library.
+fn validate_header(name: &str, value: &str) -> Result<()> {
+    let mut error_message = None;
+    if name.is_ascii() {
+        if let Err(err) = http::HeaderName::try_from(name) {
+            error_message = Some(err.to_string())
+        } else if value.is_ascii() {
+            if let Err(err) = http::HeaderValue::try_from(value) {
+                error_message = Some(err.to_string())
+            }
+        } else {
+            error_message = Some("invalid HTTP header value".to_string())
+        }
+    } else {
+        error_message = Some("invalid HTTP header name".to_string())
+    };
+
+    if let Some(error_message) = error_message {
+        Err(RadError::InvalidHttpHeader {
+            name: name.to_string(),
+            value: value.to_string(),
+            error: error_message.to_string(),
+        })
+    } else {
+        Ok(())
+    }
 }
 
 /// Provides the `FromFrom` trait and implementations.
@@ -1455,74 +1490,6 @@ mod tests {
         assert_ne!(int, err);
     }
 
-    #[test]
-    fn test_header_correctly_set() {
-        let test_header = UserAgent::random();
-        let req = witnet_net::surf::get("https://httpbin.org/get?page=2")
-            .header("User-Agent", test_header)
-            .build();
-        assert_eq!(
-            req.header("User-Agent")
-                .map(|x| x.iter().map(|x| x.as_str()).collect()),
-            Some(vec![test_header]),
-        );
-    }
-
-    #[test]
-    fn test_user_agent_can_be_overwritten() {
-        let dummy_user_agent = "witnet http client".to_string();
-
-        let retrieve = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://httpbin.org/get?page=2".to_string(),
-            script: vec![128],
-            body: vec![],
-            headers: vec![("User-Agent".to_string(), dummy_user_agent.clone())],
-        };
-
-        let mut context = ReportContext {
-            active_wips: Some(all_wips_active()),
-            ..ReportContext::default()
-        };
-
-        let req = witnet_net::surf::get(&retrieve.url);
-        let req = add_http_headers(req, &retrieve, &mut context).unwrap();
-        let req = req.build();
-        assert_eq!(
-            req.header("User-Agent")
-                .map(|x| x.iter().map(|x| x.as_str()).collect()),
-            Some(vec![dummy_user_agent.as_str()]),
-        );
-    }
-
-    #[test]
-    fn test_repeated_header_uses_last_value() {
-        let retrieve = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://httpbin.org/get?page=2".to_string(),
-            script: vec![128],
-            body: vec![],
-            headers: vec![
-                ("Test-Header".to_string(), "Value1".to_string()),
-                ("Test-Header".to_string(), "Value2".to_string()),
-            ],
-        };
-
-        let mut context = ReportContext {
-            active_wips: Some(all_wips_active()),
-            ..ReportContext::default()
-        };
-
-        let req = witnet_net::surf::get(&retrieve.url);
-        let req = add_http_headers(req, &retrieve, &mut context).unwrap();
-        let req = req.build();
-        assert_eq!(
-            req.header("Test-Header")
-                .map(|x| x.iter().map(|x| x.as_str()).collect()),
-            Some(vec!["Value2"]),
-        );
-    }
-
     /// Test try_data_request with a RNG source
     #[test]
     fn test_try_data_request_rng() {
@@ -1654,7 +1621,7 @@ mod tests {
                     inner: Some(Box::new(RadError::InvalidHttpHeader {
                         name: "key".to_string(),
                         value: "ñ".to_string(),
-                        error: "String slice should be valid ASCII".to_string()
+                        error: "invalid HTTP header value".to_string()
                     })),
                     message: None
                 })
