@@ -2,9 +2,7 @@
 
 extern crate witnet_data_structures;
 
-use std::str::FromStr;
-
-use futures::{executor::block_on, future::join_all};
+use futures::{AsyncReadExt, executor::block_on, future::join_all};
 use serde::Serialize;
 pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
 #[cfg(test)]
@@ -18,13 +16,7 @@ use witnet_data_structures::{
     witnessing::WitnessingConfig,
 };
 pub use witnet_net::Uri;
-use witnet_net::{
-    client::http::WitnetHttpClient,
-    surf::{
-        http::headers::{HeaderName, HeaderValues, ToHeaderValues},
-        RequestBuilder,
-    },
-};
+use witnet_net::client::http::WitnetHttpClient;
 
 use crate::{
     conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
@@ -37,6 +29,9 @@ use crate::{
     user_agents::UserAgent,
 };
 use core::convert::From;
+use witnet_net::client::http::{
+    WitnetHttpBody,  WitnetHttpRequest,
+};
 
 pub mod conditions;
 pub mod error;
@@ -250,24 +245,49 @@ async fn http_response(
                 message: err.to_string(),
             })?
         }
-    }
-    .as_surf_client();
-
-    let request = match retrieve.kind {
-        RADType::HttpGet => client.get(&retrieve.url),
-        RADType::HttpPost => {
-            // The call to `.body` sets the content type header to `application/octet-stream`
-            client.post(&retrieve.url).body(retrieve.body.clone())
-        }
-        _ => panic!(
-            "Called http_response with invalid retrieval kind {:?}",
-            retrieve.kind
-        ),
     };
-    let request = add_http_headers(request, retrieve, context)?;
-    let mut response = request.await.map_err(|x| RadError::HttpOther {
-        message: x.to_string(),
+
+    let request = WitnetHttpRequest::build(|builder| {
+        // Populate the builder and generate the body for different types of retrievals
+        let (builder, body) = match retrieve.kind {
+            RADType::HttpGet => (
+                builder.method("GET").uri(&retrieve.url),
+                WitnetHttpBody::empty(),
+            ),
+            RADType::HttpPost => {
+                // Using `Vec<u8>` as the body sets the content type header to `application/octet-stream`
+                (
+                    builder.method("POST").uri(&retrieve.url),
+                    WitnetHttpBody::from(retrieve.body.clone()),
+                )
+            }
+            _ => panic!(
+                "Called http_response with invalid retrieval kind {:?}",
+                retrieve.kind
+            ),
+        };
+
+        // Add random user agent
+        let mut builder = builder.header("User-Agent", UserAgent::random());
+
+        // Add extra_headers from retrieve.headers
+        for (name, value) in &retrieve.headers {
+            builder = builder.header(name, value);
+        }
+
+        // Finally attach the body to complete building the HTTP request
+        builder
+            .body(body)
+            .map_err(|e| RadError::HttpOther { message: e.to_string() })
     })?;
+
+    let response = client
+        .send(request)
+        .await
+        .map_err(|x| RadError::HttpOther {
+            message: x.to_string(),
+        })?
+        .inner();
 
     if !response.status().is_success() {
         return Err(RadError::HttpStatus {
@@ -275,13 +295,11 @@ async fn http_response(
         });
     }
 
-    let response_string = response
-        // TODO: replace with .body_bytes() and let RADON handle the encoding?
-        .body_string()
-        .await
-        .map_err(|x| RadError::HttpOther {
-            message: x.to_string(),
-        })?;
+    let (_parts, mut body) = response.into_parts();
+    let mut response_string= String::default();
+    body.read_to_string(&mut response_string).await.map_err(|x| RadError::HttpOther {
+        message: x.to_string(),
+    })?;
 
     let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
 
@@ -318,67 +336,6 @@ async fn rng_response(
     }
 
     Ok(RadonReport::from_result(Ok(random_bytes), context))
-}
-
-/// Add HTTP headers from `retrieve.headers` to surf request.
-///
-/// Some notes:
-///
-/// * Overwriting the User-Agent header is allowed.
-/// * Multiple headers with the same key but different value are not supported, the current
-///   implementation will only use the last header.
-/// * All the non-standard headers will be converted to lowercase. Standard headers will use their
-///   standard capitalization, for example: `Content-Type`.
-/// * The HTTP client may reorder the headers: the order can change between consecutive invocations
-///   of the same request
-fn add_http_headers(
-    mut request: RequestBuilder,
-    retrieve: &RADRetrieve,
-    _context: &mut ReportContext<RadonTypes>,
-) -> Result<RequestBuilder> {
-    // Add random user agent
-    request = request.header("User-Agent", UserAgent::random());
-
-    // Add extra_headers from retrieve.headers
-    for (name, value) in &retrieve.headers {
-        // Additional validation because surf does not validate some cases such as:
-        // * header name that contains `:`
-        // * header value that contains `\n`
-        let _name = http::header::HeaderName::from_str(name.as_str()).map_err(|e| {
-            RadError::InvalidHttpHeader {
-                name: name.to_string(),
-                value: value.to_string(),
-                error: e.to_string(),
-            }
-        })?;
-        let _value = http::header::HeaderValue::from_str(value.as_str()).map_err(|e| {
-            RadError::InvalidHttpHeader {
-                name: name.to_string(),
-                value: value.to_string(),
-                error: e.to_string(),
-            }
-        })?;
-
-        // Validate headers using surf to avoid panics
-        let name: HeaderName =
-            HeaderName::from_str(name).map_err(|e| RadError::InvalidHttpHeader {
-                name: name.to_string(),
-                value: value.to_string(),
-                error: e.to_string(),
-            })?;
-        let values: HeaderValues = value
-            .to_header_values()
-            .map_err(|e| RadError::InvalidHttpHeader {
-                name: name.to_string(),
-                value: value.to_string(),
-                error: e.to_string(),
-            })?
-            .collect();
-
-        request = request.header(name, &values);
-    }
-
-    Ok(request)
 }
 
 /// Run retrieval stage of a data request, return `Result<RadonReport>`.

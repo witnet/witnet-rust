@@ -5,6 +5,8 @@ use isahc::prelude::*;
 use async_trait::async_trait;
 use failure::Fail;
 use isahc::config::RedirectPolicy;
+use isahc::http;
+use isahc::http::request::Builder;
 
 /// Maximum number of HTTP redirects to follow
 const MAX_REDIRECTS: u32 = 4;
@@ -13,6 +15,21 @@ const MAX_REDIRECTS: u32 = 4;
 #[derive(Clone, Debug)]
 pub struct WitnetHttpClient {
     client: isahc::HttpClient,
+}
+
+impl WitnetHttpClient {
+    /// Simple wrapper around `isahc::HttpClient::send_async`.
+    pub async fn send(
+        &self,
+        request: WitnetHttpRequest,
+    ) -> Result<WitnetHttpResponse, WitnetHttpError> {
+        Ok(WitnetHttpResponse::from(
+            self.client
+                .send_async(request.req)
+                .await
+                .map_err(|e| WitnetHttpError::HttpRequestError { msg: e.to_string() })?,
+        ))
+    }
 }
 
 /// Errors for WitnetHttpClient and other auxiliary structures in this module.
@@ -106,9 +123,27 @@ impl WitnetHttpClient {
     }
 }
 
+/// Alias for the specific type of body that we use.
+pub type WitnetHttpBody = isahc::AsyncBody;
+/// Alias for our request builder.
+pub type WitnetHttpRequestBuilder = http::request::Builder;
+type Request = http::Request<WitnetHttpBody>;
+
 /// Enables interoperability between `isahc::Request` and `surf::http::Request`.
 pub struct WitnetHttpRequest {
-    req: isahc::Request<isahc::AsyncBody>,
+    req: isahc::Request<WitnetHttpBody>,
+}
+
+impl WitnetHttpRequest {
+    /// Allows creating a `WitnetHttpRequest` using the same API from `http::request::Builder`.
+    pub fn build<F, E>(mut f: F) -> Result<Self, E>
+    where
+        F: FnMut(WitnetHttpRequestBuilder) -> Result<Request, E>,
+    {
+        Ok(Self {
+            req: f(Builder::new())?,
+        })
+    }
 }
 
 impl From<isahc::Request<isahc::AsyncBody>> for WitnetHttpRequest {
@@ -167,6 +202,13 @@ impl WitnetHttpRequest {
 /// Enables interoperability between `isahc::Response` and `surf::http::Response`.
 pub struct WitnetHttpResponse {
     res: isahc::Response<isahc::AsyncBody>,
+}
+
+impl WitnetHttpResponse {
+    /// Simple wrapper around `isahc::Response::status`.
+    pub fn inner(self) -> isahc::Response<isahc::AsyncBody> {
+        self.res
+    }
 }
 
 impl From<isahc::Response<isahc::AsyncBody>> for WitnetHttpResponse {

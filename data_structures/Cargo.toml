@@ -6,6 +6,9 @@ name = "witnet_data_structures"
 version = "1.6.7"
 workspace = ".."
 
+[features]
+rocksdb-backend = ["witnet_storage/rocksdb-backend"]
+
 [dependencies]
 bls-signatures-rs = "0.1.0"
 bech32 = "0.7.2"
@@ -35,7 +38,7 @@ vrf = "0.2.3"
 witnet_crypto = { path = "../crypto" }
 witnet_reputation = { path = "../reputation", features = ["serde"] }
 witnet_protected = { path = "../protected", features = ["serde"] }
-witnet_storage = { path = "../storage", features = ["rocksdb-backend"] }
+witnet_storage = { path = "../storage" }
 witnet_util = { path = "../util" }
 
 [build-dependencies]

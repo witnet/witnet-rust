@@ -6,6 +6,9 @@ edition = "2021"
 workspace = ".."
 description = "RAD component"
 
+[features]
+rocksdb-backend = ["witnet_data_structures/rocksdb-backend"]
+
 [dependencies]
 cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/ldexpf-shim" }
 failure = "0.1.8"
