@@ -30,8 +30,8 @@ use witnet_data_structures::{
     error::{BlockError, DataRequestError, TransactionError},
     radon_report::{RadonReport, ReportContext},
     transaction::{
-        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
-        Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeOutput,
+        StakeTransaction, TallyTransaction, Transaction, VTTransaction,
     },
     transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
     types::visitor::Visitor,
@@ -48,6 +48,10 @@ use witnet_rad::{
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
+
+// TODO: move to a configuration
+const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
+const MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -89,6 +93,28 @@ pub fn dr_transaction_fee(
         .ok_or(TransactionError::OutputValueOverflow)?;
 
     if out_value > in_value {
+        Err(TransactionError::NegativeFee.into())
+    } else {
+        Ok(in_value - out_value)
+    }
+}
+
+/// Returns the fee of a stake transaction.
+///
+/// The fee is the difference between the output and the inputs
+/// of the transaction. The pool parameter is used to find the
+/// outputs pointed by the inputs and that contain the actual
+/// their value.
+pub fn st_transaction_fee(
+    st_tx: &StakeTransaction,
+    utxo_diff: &UtxoDiff<'_>,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
+) -> Result<u64, failure::Error> {
+    let in_value = transaction_inputs_sum(&st_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
+    let out_value = &st_tx.body.output.value;
+
+    if out_value > &in_value {
         Err(TransactionError::NegativeFee.into())
     } else {
         Ok(in_value - out_value)
@@ -338,8 +364,6 @@ pub fn validate_vt_transaction<'a>(
     }
 
     let fee = vt_transaction_fee(vt_tx, utxo_diff, epoch, epoch_constants)?;
-
-    // FIXME(#514): Implement value transfer transaction validation
 
     Ok((
         vt_tx.body.inputs.iter().collect(),
@@ -1089,6 +1113,59 @@ pub fn validate_tally_transaction<'a>(
     Ok((ta_tx.outputs.iter().collect(), tally_extra_fee))
 }
 
+/// Function to validate a stake transaction
+pub fn validate_stake_transaction<'a>(
+    st_tx: &'a StakeTransaction,
+    utxo_diff: &UtxoDiff<'_>,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+) -> Result<
+    (
+        Vec<&'a Input>,
+        &'a StakeOutput,
+        u64,
+        u32,
+        &'a Option<ValueTransferOutput>,
+    ),
+    failure::Error,
+> {
+    // Check that the stake is greater than the min allowed
+    if st_tx.body.output.value < MIN_STAKE_NANOWITS {
+        return Err(TransactionError::MinStakeNotReached {
+            min_stake: MIN_STAKE_NANOWITS,
+            stake: st_tx.body.output.value,
+        }
+        .into());
+    }
+
+    validate_transaction_signature(
+        &st_tx.signatures,
+        &st_tx.body.inputs,
+        st_tx.hash(),
+        utxo_diff,
+        signatures_to_verify,
+    )?;
+
+    // A stake transaction must have at least one input
+    if st_tx.body.inputs.is_empty() {
+        return Err(TransactionError::NoInputs {
+            tx_hash: st_tx.hash(),
+        }
+        .into());
+    }
+
+    let fee = st_transaction_fee(st_tx, utxo_diff, epoch, epoch_constants)?;
+
+    Ok((
+        st_tx.body.inputs.iter().collect(),
+        &st_tx.body.output,
+        fee,
+        st_tx.weight(),
+        &st_tx.body.change,
+    ))
+}
+
 /// Function to validate a block signature
 pub fn validate_block_signature(
     block: &Block,
@@ -1677,6 +1754,82 @@ pub fn validate_block_transactions(
         );
     }
 
+    // validate stake transactions in a block
+    let mut st_mt = ProgressiveMerkleTree::sha256();
+    let mut st_weight: u32 = 0;
+
+    // Check if the block contains more than one stake tx from the same operator
+    for i in 1..block.txns.stake_txns.len() {
+        let found = block.txns.stake_txns[i..].iter().find(|stake_tx| {
+            let stake_tx_aux = &block.txns.stake_txns[i - 1];
+
+            stake_tx.body.output.authorization.public_key
+                == stake_tx_aux.body.output.authorization.public_key
+        });
+
+        // TODO: refactor
+        if found.is_some() {
+            return Err(BlockError::RepeatedStakeOperator {
+                pkh: found
+                    .unwrap()
+                    .body
+                    .output
+                    .authorization
+                    .public_key
+                    .pkh()
+                    .hash(),
+            }
+            .into());
+        }
+    }
+
+    for transaction in &block.txns.stake_txns {
+        let (inputs, _output, fee, weight, change) = validate_stake_transaction(
+            transaction,
+            &utxo_diff,
+            epoch,
+            epoch_constants,
+            signatures_to_verify,
+        )?;
+
+        total_fee += fee;
+
+        // Update st weight
+        let acc_weight = st_weight.saturating_add(weight);
+        if acc_weight > MAX_STAKE_BLOCK_WEIGHT {
+            return Err(BlockError::TotalStakeWeightLimitExceeded {
+                weight: acc_weight,
+                max_weight: MAX_STAKE_BLOCK_WEIGHT,
+            }
+            .into());
+        }
+        st_weight = acc_weight;
+
+        // TODO: refactor
+        if change.is_some() {
+            let mut outputs: Vec<&ValueTransferOutput> = Vec::new();
+            let val = change.clone().unwrap();
+            outputs.push(&val);
+            update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        } else {
+            update_utxo_diff(&mut utxo_diff, inputs, Vec::new(), transaction.hash());
+        }
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        st_mt.push(Sha256(sha));
+
+        // TODO: Move validations to a visitor
+        // // Execute visitor
+        // if let Some(visitor) = &mut visitor {
+        //     let transaction = Transaction::ValueTransfer(transaction.clone());
+        //     visitor.visit(&(transaction, fee, weight));
+        // }
+    }
+
+    let st_hash_merkle_root = st_mt.root();
+
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
         mint_hash: block.txns.mint.hash(),
@@ -1685,6 +1838,7 @@ pub fn validate_block_transactions(
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
         reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
         tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
+        stake_hash_merkle_root: Hash::from(st_hash_merkle_root),
     };
 
     if merkle_roots != block.block_header.merkle_roots {
@@ -1851,6 +2005,14 @@ pub fn validate_new_transaction(
         Transaction::Reveal(tx) => {
             validate_reveal_transaction(tx, data_request_pool, signatures_to_verify)
         }
+        Transaction::Stake(tx) => validate_stake_transaction(
+            tx,
+            &utxo_diff,
+            current_epoch,
+            epoch_constants,
+            signatures_to_verify,
+        )
+        .map(|(_, _, fee, _, _)| fee),
         _ => Err(TransactionError::NotValidTransaction.into()),
     }
 }
@@ -2123,6 +2285,7 @@ pub fn validate_merkle_tree(block: &Block) -> bool {
         commit_hash_merkle_root: merkle_tree_root(&block.txns.commit_txns),
         reveal_hash_merkle_root: merkle_tree_root(&block.txns.reveal_txns),
         tally_hash_merkle_root: merkle_tree_root(&block.txns.tally_txns),
+        stake_hash_merkle_root: merkle_tree_root(&block.txns.stake_txns),
     };
 
     merkle_roots == block.block_header.merkle_roots

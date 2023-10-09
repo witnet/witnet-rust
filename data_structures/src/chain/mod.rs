@@ -46,7 +46,8 @@ use crate::{
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
-        RevealTransaction, TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
+        RevealTransaction, StakeTransaction, TallyTransaction, Transaction, TxInclusionProof,
+        VTTransaction,
     },
     transaction::{
         MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
@@ -416,6 +417,8 @@ pub struct BlockTransactions {
     pub reveal_txns: Vec<RevealTransaction>,
     /// A list of signed tally transactions
     pub tally_txns: Vec<TallyTransaction>,
+    /// A list of signed stake transactions
+    pub stake_txns: Vec<StakeTransaction>,
 }
 
 impl Block {
@@ -444,6 +447,7 @@ impl Block {
             commit_txns: vec![],
             reveal_txns: vec![],
             tally_txns: vec![],
+            stake_txns: vec![],
         };
 
         /// Function to calculate a merkle tree from a transaction vector
@@ -468,6 +472,7 @@ impl Block {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
         };
 
         Block::new(
@@ -682,6 +687,8 @@ pub struct BlockMerkleRoots {
     pub reveal_hash_merkle_root: Hash,
     /// A 256-bit hash based on all of the tally transactions committed to this block
     pub tally_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the stake transactions committed to this block
+    pub stake_hash_merkle_root: Hash,
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -710,6 +717,7 @@ impl BlockMerkleRoots {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
         }
     }
 }
@@ -2242,6 +2250,7 @@ impl TransactionsPool {
             // be impossible for nodes to broadcast these kinds of transactions.
             Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
             Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
+            Transaction::Stake(_mt) => !unimplemented!("contains Stake tx"),
         }
     }
 

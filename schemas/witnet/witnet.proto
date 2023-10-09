@@ -59,6 +59,7 @@ message Block {
             Hash commit_hash_merkle_root = 4;
             Hash reveal_hash_merkle_root = 5;
             Hash tally_hash_merkle_root = 6;
+            Hash stake_hash_merkle_root = 7;
         }
         uint32 signals = 1;
         CheckpointBeacon beacon = 2;
@@ -73,6 +74,7 @@ message Block {
         repeated CommitTransaction commit_txns = 4;
         repeated RevealTransaction reveal_txns = 5;
         repeated TallyTransaction tally_txns = 6;
+        repeated StakeTransaction stake_txns = 7; 
     }
 
     BlockHeader block_header = 1;
@@ -229,6 +231,22 @@ message MintTransaction {
     repeated ValueTransferOutput outputs = 2;
 }
 
+message StakeOutput {
+    uint64 value = 1;
+    KeyedSignature authorization = 2;
+}
+
+message StakeTransactionBody {
+    repeated Input inputs = 1;
+    StakeOutput output = 2;
+    ValueTransferOutput change = 3;
+}
+
+message StakeTransaction {
+    StakeTransactionBody body = 1 ;
+    repeated KeyedSignature signatures = 2;
+}
+
 message Transaction {
     oneof kind {
         VTTransaction ValueTransfer = 1;
@@ -237,6 +255,7 @@ message Transaction {
         RevealTransaction Reveal = 4;
         TallyTransaction Tally = 5;
         MintTransaction Mint = 6;
+        StakeTransaction Stake = 7;
     }
 }
 

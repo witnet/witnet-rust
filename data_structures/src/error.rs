@@ -278,6 +278,15 @@ pub enum TransactionError {
         max_weight: u32,
         dr_output: Box<DataRequestOutput>,
     },
+    /// Stake weight limit exceeded
+    #[fail(
+        display = "Stake ({}) doesn't reach the minimum amount ({})",
+        min_stake, stake
+    )]
+    MinStakeNotReached { min_stake: u64, stake: u64 },
+    /// An stake output with zero value does not make sense
+    #[fail(display = "Transaction {} has a zero value stake output", tx_hash)]
+    ZeroValueStakeOutput { tx_hash: Hash },
     #[fail(
         display = "The reward-to-collateral ratio for this data request is {}, but must be equal or less than {}",
         reward_collateral_ratio, required_reward_collateral_ratio
@@ -401,6 +410,15 @@ pub enum BlockError {
         weight, max_weight
     )]
     TotalDataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Stake weight limit exceeded
+    #[fail(
+        display = "Total weight of Stake Transactions in a block ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    TotalStakeWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Repeated operator Stake
+    #[fail(display = "A single operator is staking more than once: ({}) ", pkh)]
+    RepeatedStakeOperator { pkh: Hash },
     /// Missing expected tallies
     #[fail(
         display = "{} expected tally transactions are missing in block candidate {}",
