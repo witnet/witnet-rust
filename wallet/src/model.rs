@@ -187,6 +187,8 @@ pub enum TransactionData {
     Mint(MintData),
     #[serde(rename = "commit")]
     Commit(VtData),
+    // #[serde(rename = "stake")]
+    // Stake(StakeData),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
