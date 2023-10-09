@@ -13,7 +13,7 @@ use crate::{
     },
     error::TransactionError,
     fee::{AbsoluteFee, Fee},
-    transaction::{DRTransactionBody, VTTransactionBody, INPUT_SIZE},
+    transaction::{DRTransactionBody, StakeTransactionBody, VTTransactionBody, INPUT_SIZE},
     utxo_pool::{
         NodeUtxos, NodeUtxosRef, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff,
         UtxoSelectionStrategy,
@@ -568,6 +568,12 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, T
     }
 
     Ok(total_value)
+}
+
+/// Build stake transaction with the given inputs, stake output and change.
+pub fn build_st() -> Result<StakeTransactionBody, TransactionError> {
+    // TODO: add stake transaction factory logic here
+    !unimplemented!()
 }
 
 #[cfg(test)]

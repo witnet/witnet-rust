@@ -8,7 +8,7 @@ workspace = ".."
 
 [dependencies]
 failure = "0.1.8"
-itertools = "0.8.2"
+itertools = "0.11.0"
 log = "0.4.8"
 url = "2.2.2"
 
