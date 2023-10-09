@@ -1723,6 +1723,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5091,7 +5100,7 @@ dependencies = [
  "failure",
  "futures 0.3.30",
  "hex",
- "itertools",
+ "itertools 0.8.2",
  "lazy_static",
  "log 0.4.20",
  "num-format",
@@ -5207,7 +5216,7 @@ dependencies = [
  "failure",
  "futures 0.3.30",
  "hex",
- "itertools",
+ "itertools 0.8.2",
  "lazy_static",
  "log 0.4.20",
  "num-traits",
@@ -5273,7 +5282,7 @@ dependencies = [
  "futures-util",
  "glob",
  "hex",
- "itertools",
+ "itertools 0.8.2",
  "jsonrpc-core 18.0.0",
  "jsonrpc-pubsub 18.0.0",
  "log 0.4.20",
@@ -5396,7 +5405,7 @@ dependencies = [
  "bencher",
  "failure",
  "hex",
- "itertools",
+ "itertools 0.11.0",
  "log 0.4.20",
  "url",
  "witnet_config",
@@ -5420,7 +5429,7 @@ dependencies = [
  "futures 0.3.30",
  "futures-util",
  "hex",
- "itertools",
+ "itertools 0.8.2",
  "jsonrpc-core 15.1.0",
  "jsonrpc-pubsub 15.1.0",
  "log 0.4.20",
