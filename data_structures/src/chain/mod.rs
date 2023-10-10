@@ -1652,7 +1652,10 @@ pub enum RADType {
 
 impl RADType {
     pub fn is_http(&self) -> bool {
-        matches!(self, RADType::HttpGet | RADType::HttpPost | RADType::HttpHead)
+        matches!(
+            self,
+            RADType::HttpGet | RADType::HttpPost | RADType::HttpHead
+        )
     }
 }
 
@@ -1812,8 +1815,10 @@ impl RADRetrieve {
                     &[Field::Kind, Field::Url, Field::Script],
                     &[Field::Body, Field::Headers],
                 )
-            },
-            RADType::HttpHead => check(&[Field::Kind, Field::Url, Field::Script], &[Field::Headers])
+            }
+            RADType::HttpHead => {
+                check(&[Field::Kind, Field::Url, Field::Script], &[Field::Headers])
+            }
         }
     }
 

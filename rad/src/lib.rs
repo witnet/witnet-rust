@@ -181,12 +181,18 @@ fn headers_response_with_data_report(
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let headers: BTreeMap<String, RadonTypes> = response.split("\r\n").map(|line| {
-       let parts: Vec<&str> = line.split(":").map(|part| part.trim()).collect();
-        // todo: check there are two parts, and two parts only
-        // todo: make sure that values from repeated keys get appended within a RadonArray
-        (String::from(parts[0]), RadonTypes::from(RadonString::from(parts[1])))
-    }).collect();
+    let headers: BTreeMap<String, RadonTypes> = response
+        .split("\r\n")
+        .map(|line| {
+            let parts: Vec<&str> = line.split(":").map(|part| part.trim()).collect();
+            // todo: check there are two parts, and two parts only
+            // todo: make sure that values from repeated keys get appended within a RadonArray
+            (
+                String::from(parts[0]),
+                RadonTypes::from(RadonString::from(parts[1])),
+            )
+        })
+        .collect();
     let input = RadonTypes::from(RadonMap::from(headers));
     let radon_script = unpack_radon_script(&retrieve.script)?;
 
@@ -216,10 +222,10 @@ pub fn run_retrieval_with_data_report(
         RADType::Rng => rng_response_with_data_report(response, context),
         RADType::HttpPost => {
             string_response_with_data_report(retrieve, response, context, settings)
-        },
+        }
         RADType::HttpHead => {
             headers_response_with_data_report(retrieve, response, context, settings)
-        },
+        }
         _ => Err(RadError::UnknownRetrieval),
     }
 }
