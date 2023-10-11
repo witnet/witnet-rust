@@ -184,9 +184,9 @@ fn headers_response_with_data_report(
     let mut headers: BTreeMap<String, Vec<RadonTypes>> = BTreeMap::new();
 
     for line in response.split("\r\n") {
-        if let Some(first_colon_index) = line.find(":") {
+        if let Some(first_colon_index) = line.find(':') {
             // key: trim spaces and lower case all ascii chars left to the first colon character
-            let key = String::from(line[0..first_colon_index].trim().to_ascii_lowercase());
+            let key = line[0..first_colon_index].trim().to_ascii_lowercase();
             // value: trim spaces on the substring after the first colon character
             let value = RadonTypes::from(RadonString::from(line[first_colon_index + 1..].trim()));
             headers.entry(key).or_default().push(value);
@@ -692,7 +692,7 @@ fn validate_header(name: &str, value: &str) -> Result<()> {
         Err(RadError::InvalidHttpHeader {
             name: name.to_string(),
             value: value.to_string(),
-            error: error_message.to_string(),
+            error: error_message,
         })
     } else {
         Ok(())
