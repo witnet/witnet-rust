@@ -181,18 +181,33 @@ fn headers_response_with_data_report(
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let headers: BTreeMap<String, RadonTypes> = response
-        .split("\r\n")
-        .map(|line| {
-            let parts: Vec<&str> = line.split(":").map(|part| part.trim()).collect();
-            // todo: check there are two parts, and two parts only
-            // todo: make sure that values from repeated keys get appended within a RadonArray
-            (
-                String::from(parts[0]),
-                RadonTypes::from(RadonString::from(parts[1])),
-            )
+    let mut headers: BTreeMap<String, Vec<RadonTypes>> = BTreeMap::new();
+
+    for line in response.split("\r\n") {
+        if let Some(first_colon_index) = line.find(":") {
+            // key: trim spaces and lower case all ascii chars left to the first colon character
+            let key = String::from(line[0..first_colon_index].trim().to_ascii_lowercase());
+            // value: trim spaces on the substring after the first colon character
+            let value = RadonTypes::from(RadonString::from(line[first_colon_index + 1..].trim()));
+            headers.entry(key).or_default().push(value);
+        }
+    }
+        
+    let headers: BTreeMap<String, RadonTypes> = BTreeMap::from_iter(
+        headers.iter().map(|(key, value)| {
+            match value.len() {
+                len if len > 1 => (
+                    key.clone(),
+                    RadonTypes::from(RadonArray::from(value.to_vec()))
+                ),
+                _ => (
+                    key.clone(),
+                    value[0].clone()
+                )
+            }
         })
-        .collect();
+    );
+
     let input = RadonTypes::from(RadonMap::from(headers));
     let radon_script = unpack_radon_script(&retrieve.script)?;
 
