@@ -879,6 +879,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_run_http_head_retrieval() {
+        let script_r = Value::Array(vec![
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text("etag".to_string()),
+            ]),
+        ]);
+        let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
+        println!("{:?}", packed_script_r);
+
+        let retrieve = RADRetrieve {
+            kind: RADType::HttpHead,
+            url: "https://witnet.io/_nuxt/img/dragon_reading.a37f8cb.png".to_string(),
+            script: packed_script_r,
+            body: vec![],
+            headers: vec![],
+        };
+        let response = "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 498219\r\nContent-Length: 123456\r\neTag: \"64eca181-79a2b\"\r\n";
+        let result = run_retrieval_with_data(
+            &retrieve,
+            response,
+            RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
+        ).unwrap();
+
+        match result {
+            RadonTypes::String(_) => {}
+            err => panic!("Error in run_retrieval: {:?}", err),
+        }
+    }
+
+    #[test]
     fn test_run_retrieval() {
         let script_r = Value::Array(vec![
             Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
