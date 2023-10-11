@@ -192,21 +192,15 @@ fn headers_response_with_data_report(
             headers.entry(key).or_default().push(value);
         }
     }
-        
-    let headers: BTreeMap<String, RadonTypes> = BTreeMap::from_iter(
-        headers.iter().map(|(key, value)| {
-            match value.len() {
-                len if len > 1 => (
-                    key.clone(),
-                    RadonTypes::from(RadonArray::from(value.to_vec()))
-                ),
-                _ => (
-                    key.clone(),
-                    value[0].clone()
-                )
-            }
-        })
-    );
+
+    let headers: BTreeMap<String, RadonTypes> =
+        BTreeMap::from_iter(headers.iter().map(|(key, value)| match value.len() {
+            len if len > 1 => (
+                key.clone(),
+                RadonTypes::from(RadonArray::from(value.to_vec())),
+            ),
+            _ => (key.clone(), value[0].clone()),
+        }));
 
     let input = RadonTypes::from(RadonMap::from(headers));
     let radon_script = unpack_radon_script(&retrieve.script)?;
@@ -880,12 +874,10 @@ mod tests {
 
     #[test]
     fn test_run_http_head_retrieval() {
-        let script_r = Value::Array(vec![
-            Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGetString as i128),
-                Value::Text("etag".to_string()),
-            ]),
-        ]);
+        let script_r = Value::Array(vec![Value::Array(vec![
+            Value::Integer(RadonOpCodes::MapGetString as i128),
+            Value::Text("etag".to_string()),
+        ])]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
         println!("{:?}", packed_script_r);
 
@@ -902,7 +894,8 @@ mod tests {
             response,
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
-        ).unwrap();
+        )
+        .unwrap();
 
         match result {
             RadonTypes::String(_) => {}
