@@ -302,7 +302,7 @@ async fn http_response(
                     builder.method("POST").uri(&retrieve.url),
                     WitnetHttpBody::from(retrieve.body.clone()),
                 )
-            },
+            }
             RADType::HttpHead => (
                 builder.method("HEAD").uri(&retrieve.url),
                 WitnetHttpBody::empty(),
@@ -1605,6 +1605,58 @@ mod tests {
         } else {
             panic!("No RadonBytes result in a RNG request");
         }
+    }
+
+    #[test]
+    fn test_try_data_request_http_get_non_ascii_header_key() {
+        let script_r = Value::Array(vec![]);
+        let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
+        let body = Vec::from(String::from(""));
+        let headers = vec![("ñ", "value")];
+        let headers = headers
+            .into_iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect();
+        let request = RADRequest {
+            time_lock: 0,
+            retrieve: vec![RADRetrieve {
+                kind: RADType::HttpGet,
+                url: String::from("http://127.0.0.1"),
+                script: packed_script_r,
+                body,
+                headers,
+            }],
+            aggregate: RADAggregate {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+            tally: RADTally {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+        };
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
+        let tally_result = report.tally.into_inner();
+
+        assert_eq!(
+            tally_result,
+            RadonTypes::RadonError(
+                RadonError::try_from(RadError::UnhandledIntercept {
+                    inner: Some(Box::new(RadError::InvalidHttpHeader {
+                        name: "ñ".to_string(),
+                        value: "value".to_string(),
+                        error: "invalid HTTP header name".to_string()
+                    })),
+                    message: None
+                })
+                .unwrap()
+            )
+        );
     }
 
     #[test]
