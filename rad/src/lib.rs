@@ -25,11 +25,10 @@ use crate::{
         create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
         RadonScriptExecutionSettings,
     },
-    types::{array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString, RadonTypes},
+    types::{array::RadonArray, bytes::RadonBytes, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
 use core::convert::From;
-use std::collections::BTreeMap;
 use witnet_net::client::http::{WitnetHttpBody, WitnetHttpRequest};
 
 pub mod conditions;
@@ -174,40 +173,6 @@ fn string_response_with_data_report(
     execute_radon_script(input, &radon_script, context, settings)
 }
 
-/// Handle HTTP-HEAD response with data, and return a `RadonReport`.
-fn headers_response_with_data_report(
-    retrieve: &RADRetrieve,
-    response: &str,
-    context: &mut ReportContext<RadonTypes>,
-    settings: RadonScriptExecutionSettings,
-) -> Result<RadonReport<RadonTypes>> {
-    let mut headers: BTreeMap<String, Vec<RadonTypes>> = BTreeMap::new();
-
-    for line in response.split("\r\n") {
-        if let Some(first_colon_index) = line.find(':') {
-            // key: trim spaces and lower case all ascii chars left to the first colon character
-            let key = line[0..first_colon_index].trim().to_ascii_lowercase();
-            // value: trim spaces on the substring after the first colon character
-            let value = RadonTypes::from(RadonString::from(line[first_colon_index + 1..].trim()));
-            headers.entry(key).or_default().push(value);
-        }
-    }
-
-    let headers: BTreeMap<String, RadonTypes> =
-        BTreeMap::from_iter(headers.iter().map(|(key, value)| match value.len() {
-            len if len > 1 => (
-                key.clone(),
-                RadonTypes::from(RadonArray::from(value.to_vec())),
-            ),
-            _ => (key.clone(), value[0].clone()),
-        }));
-
-    let input = RadonTypes::from(RadonMap::from(headers));
-    let radon_script = unpack_radon_script(&retrieve.script)?;
-
-    execute_radon_script(input, &radon_script, context, settings)
-}
-
 /// Handle Rng response with data report
 fn rng_response_with_data_report(
     response: &str,
@@ -227,14 +192,10 @@ pub fn run_retrieval_with_data_report(
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
-        RADType::HttpGet => string_response_with_data_report(retrieve, response, context, settings),
-        RADType::Rng => rng_response_with_data_report(response, context),
-        RADType::HttpPost => {
+        RADType::HttpGet | RADType::HttpPost | RADType::HttpHead => {
             string_response_with_data_report(retrieve, response, context, settings)
         }
-        RADType::HttpHead => {
-            headers_response_with_data_report(retrieve, response, context, settings)
-        }
+        RADType::Rng => rng_response_with_data_report(response, context),
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -340,13 +301,21 @@ async fn http_response(
 
     // If at some point we want to support the retrieval of non-UTF8 data (e.g. raw bytes), this is
     // where we need to decide how to read the response body
-    let (_parts, mut body) = response.into_parts();
     let mut response_string = String::default();
-    body.read_to_string(&mut response_string)
-        .await
-        .map_err(|x| RadError::HttpOther {
-            message: x.to_string(),
-        })?;
+
+    let (parts, mut body) = response.into_parts();
+    match retrieve.kind {
+        RADType::HttpHead => {
+            response_string = format!("{:?}", parts.headers);
+        }
+        _ => {
+            body.read_to_string(&mut response_string)
+                .await
+                .map_err(|x| RadError::HttpOther {
+                    message: x.to_string(),
+                })?;
+        }
+    }
 
     let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
 
@@ -396,10 +365,10 @@ pub async fn run_retrieval_report(
     context.set_active_wips(active_wips);
 
     match retrieve.kind {
-        RADType::HttpGet => http_response(retrieve, context, settings, client).await,
+        RADType::HttpGet | RADType::HttpHead | RADType::HttpPost => {
+            http_response(retrieve, context, settings, client).await
+        }
         RADType::Rng => rng_response(context, settings).await,
-        RADType::HttpPost => http_response(retrieve, context, settings, client).await,
-        RADType::HttpHead => http_response(retrieve, context, settings, client).await,
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -874,10 +843,13 @@ mod tests {
 
     #[test]
     fn test_run_http_head_retrieval() {
-        let script_r = Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::MapGetString as i128),
-            Value::Text("etag".to_string()),
-        ])]);
+        let script_r = Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text("etag".to_string()),
+            ]),
+        ]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
         println!("{:?}", packed_script_r);
 
@@ -888,7 +860,7 @@ mod tests {
             body: vec![],
             headers: vec![],
         };
-        let response = "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 498219\r\nContent-Length: 123456\r\neTag: \"64eca181-79a2b\"\r\n";
+        let response = r#"{"date": "Wed, 11 Oct 2023 15:18:42 GMT", "content-type": "image/png", "content-length": "498219", "x-origin-cache": "HIT", "last-modified": "Mon, 28 Aug 2023 13:30:41 GMT", "access-control-allow-origin": "*", "etag": "\"64eca181-79a2b\"", "expires": "Wed, 11 Oct 2023 15:28:41 GMT", "cache-control": "max-age=1800", "x-proxy-cache": "MISS", "x-github-request-id": "6750:35DB:BF8211:FEFD2B:652602FA", "via": "1.1 varnish", "x-served-by": "cache-hnd18736-HND", "x-cache": "MISS", "x-cache-hits": "0", "x-timer": "S1696989946.496383,VS0,VE487", "vary": "Accept-Encoding", "x-fastly-request-id": "118bdfd8a926cbdc781bc23079c3dc07a22d2223", "cf-cache-status": "REVALIDATED", "accept-ranges": "bytes", "report-to": "{\"endpoints\":[{\"url\":\"https:\/\/a.nel.cloudflare.com\/report\/v3?s=FlzxKRCYYN4SL0x%2FraG7ugKCqdC%2BeQqVrucvsfeDWf%2F7A0Nv9fv7TYRgU0WL4k1kbZyxt%2B04VjOyv0XK55sF37GEPwXHE%2FdXnoFlWutID762k2ktcX6hUml6oNk%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}", "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}", "strict-transport-security": "max-age=0", "x-content-type-options": "nosniff", "server": "cloudflare", "cf-ray": "814813bf3a73f689-NRT", "alt-svc": "h3=\":443\"; ma=86400"}"#;
         let result = run_retrieval_with_data(
             &retrieve,
             response,
