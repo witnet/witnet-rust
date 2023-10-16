@@ -51,3 +51,7 @@ rand_distr = "0.4.3"
 [[bench]]
 name = "sort_active_identities"
 harness = false
+
+[[bench]]
+name = "staking"
+harness = false

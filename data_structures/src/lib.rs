@@ -72,6 +72,9 @@ mod serialization_helpers;
 /// Provides convenient constants, structs and methods for handling values denominated in Wit.
 pub mod wit;
 
+/// Provides support for segmented protocol capabilities.
+pub mod capabilities;
+
 lazy_static! {
     /// Environment in which we are running: mainnet or testnet.
     /// This is used for Bech32 serialization.
