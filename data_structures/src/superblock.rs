@@ -158,19 +158,25 @@ impl SuperBlockVotesMempool {
     }
 
     fn get_valid_votes_pretty(&self) -> String {
-        let mut s: String = self
-            .votes_on_each_superblock
-            .iter()
-            .map(|(superblock_hash, votes)| {
+        let mut s: String = self.votes_on_each_superblock.iter().fold(
+            String::new(),
+            |mut acc, (superblock_hash, votes)| {
                 let pkhs: Vec<String> = votes
                     .iter()
                     .map(|vote| vote.secp256k1_signature.public_key.pkh())
                     .map(|pkh| pkh.to_string())
                     .collect();
 
-                format!("  {}: {} votes: {:?}\n", superblock_hash, pkhs.len(), pkhs)
-            })
-            .collect();
+                acc.push_str(&format!(
+                    "  {}: {} votes: {:?}\n",
+                    superblock_hash,
+                    pkhs.len(),
+                    pkhs
+                ));
+
+                acc
+            },
+        );
 
         // Remove trailing "\n" if `s` is not empty
         s.pop();
