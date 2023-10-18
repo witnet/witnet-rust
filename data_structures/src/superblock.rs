@@ -163,8 +163,7 @@ impl SuperBlockVotesMempool {
             |mut acc, (superblock_hash, votes)| {
                 let pkhs: Vec<String> = votes
                     .iter()
-                    .map(|vote| vote.secp256k1_signature.public_key.pkh())
-                    .map(|pkh| pkh.to_string())
+                    .map(|vote| vote.secp256k1_signature.public_key.pkh().to_string())
                     .collect();
 
                 acc.push_str(&format!(
