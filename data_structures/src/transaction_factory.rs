@@ -537,9 +537,12 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, T
     Ok(total_value)
 }
 
+/// Build stake transaction with the given inputs, stake output and change.
 pub fn build_st() -> Result<StakeTransactionBody, TransactionError> {
+    // TODO: add stake transaction factory logic here
     !unimplemented!()
 }
+
 #[cfg(test)]
 mod tests {
     use std::{

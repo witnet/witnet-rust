@@ -101,10 +101,7 @@ pub fn dr_transaction_fee(
 
 /// Returns the fee of a stake transaction.
 ///
-/// The fee is the difference between the output and the inputs
-/// of the transaction. The pool parameter is used to find the
-/// outputs pointed by the inputs and that contain the actual
-/// their value.
+/// The fee is the difference between the output and the inputs of the transaction.
 pub fn st_transaction_fee(
     st_tx: &StakeTransaction,
     utxo_diff: &UtxoDiff<'_>,
@@ -112,9 +109,15 @@ pub fn st_transaction_fee(
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(&st_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value = &st_tx.body.output.value;
+    let out_value = &st_tx.body.output.value
+        - &st_tx
+            .body
+            .change
+            .clone()
+            .unwrap_or(Default::default())
+            .value;
 
-    if out_value > &in_value {
+    if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
     } else {
         Ok(in_value - out_value)
@@ -1113,7 +1116,7 @@ pub fn validate_tally_transaction<'a>(
     Ok((ta_tx.outputs.iter().collect(), tally_extra_fee))
 }
 
-/// Function to validate a stake transaction
+/// Function to validate a stake transaction.
 pub fn validate_stake_transaction<'a>(
     st_tx: &'a StakeTransaction,
     utxo_diff: &UtxoDiff<'_>,
@@ -1130,9 +1133,9 @@ pub fn validate_stake_transaction<'a>(
     ),
     failure::Error,
 > {
-    // Check that the stake is greater than the min allowed
+    // Check that the amount of coins to stake is equal or greater than the minimum allowed
     if st_tx.body.output.value < MIN_STAKE_NANOWITS {
-        return Err(TransactionError::MinStakeNotReached {
+        return Err(TransactionError::StakeBelowMinimum {
             min_stake: MIN_STAKE_NANOWITS,
             stake: st_tx.body.output.value,
         }
@@ -1759,28 +1762,20 @@ pub fn validate_block_transactions(
     let mut st_weight: u32 = 0;
 
     // Check if the block contains more than one stake tx from the same operator
-    for i in 1..block.txns.stake_txns.len() {
-        let found = block.txns.stake_txns[i..].iter().find(|stake_tx| {
-            let stake_tx_aux = &block.txns.stake_txns[i - 1];
+    let duplicate = block
+        .txns
+        .stake_txns
+        .clone()
+        .into_iter()
+        .map(|stake_tx| stake_tx.body.output.authorization.public_key)
+        .duplicates()
+        .next();
 
-            stake_tx.body.output.authorization.public_key
-                == stake_tx_aux.body.output.authorization.public_key
-        });
-
-        // TODO: refactor
-        if found.is_some() {
-            return Err(BlockError::RepeatedStakeOperator {
-                pkh: found
-                    .unwrap()
-                    .body
-                    .output
-                    .authorization
-                    .public_key
-                    .pkh()
-                    .hash(),
-            }
-            .into());
+    if duplicate.is_some() {
+        return Err(BlockError::RepeatedStakeOperator {
+            pkh: duplicate.unwrap().pkh(),
         }
+        .into());
     }
 
     for transaction in &block.txns.stake_txns {
@@ -1805,20 +1800,11 @@ pub fn validate_block_transactions(
         }
         st_weight = acc_weight;
 
-        // TODO: refactor
-        if change.is_some() {
-            let mut outputs: Vec<&ValueTransferOutput> = Vec::new();
-            let val = change.clone().unwrap();
-            outputs.push(&val);
-            update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
-        } else {
-            update_utxo_diff(&mut utxo_diff, inputs, Vec::new(), transaction.hash());
-        }
+        let outputs = change.into_iter().collect_vec();
+        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
-        let Hash::SHA256(sha) = txn_hash;
-        st_mt.push(Sha256(sha));
+        st_mt.push(transaction.hash().into());
 
         // TODO: Move validations to a visitor
         // // Execute visitor
