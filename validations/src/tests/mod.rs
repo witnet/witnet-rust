@@ -8457,20 +8457,14 @@ fn st_no_inputs() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
-    // Try to create an stake tx with no inputs
+    // Try to create a stake tx with no inputs
     let st_output = StakeOutput {
         value: MIN_STAKE_NANOWITS + 1,
         authorization: KeyedSignature::default(),
     };
-    // let vto0 = ValueTransferOutput {
-    //     pkh,
-    //     value: 1000,
-    //     time_lock: 0,
-    // };
+
     let st_body = StakeTransactionBody::new(Vec::new(), st_output, None);
     let st_tx = StakeTransaction::new(st_body, vec![]);
-    // let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
-    // let vt_tx = VTTransaction::new(vt_body, vec![]);
     let x = validate_stake_transaction(
         &st_tx,
         &utxo_diff,
@@ -8523,7 +8517,7 @@ fn st_one_input_but_no_signature() {
 }
 
 #[test]
-fn st_min_stake_not_reach() {
+fn st_below_min_stake() {
     let mut signatures_to_verify = vec![];
     let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
@@ -8551,7 +8545,7 @@ fn st_min_stake_not_reach() {
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MinStakeNotReached {
+        TransactionError::StakeBelowMinimum {
             min_stake: MIN_STAKE_NANOWITS,
             stake: 1
         }

@@ -697,6 +697,7 @@ pub struct StakeTransaction {
     pub body: StakeTransactionBody,
     pub signatures: Vec<KeyedSignature>,
 }
+
 impl StakeTransaction {
     // Creates a new stake transaction.
     pub fn new(body: StakeTransactionBody, signatures: Vec<KeyedSignature>) -> Self {
@@ -704,8 +705,8 @@ impl StakeTransaction {
     }
 
     /// Returns the weight of a stake transaction.
-    /// This is the weight that will be used to calculate
-    /// how many transactions can fit inside one block
+    /// This is the weight that will be used to calculate how many transactions can fit inside one
+    /// block
     pub fn weight(&self) -> u32 {
         self.body.weight()
     }
@@ -724,20 +725,6 @@ pub struct StakeTransactionBody {
 }
 
 impl StakeTransactionBody {
-    /// Creates a new stake transaction body.
-    pub fn new(
-        inputs: Vec<Input>,
-        output: StakeOutput,
-        change: Option<ValueTransferOutput>,
-    ) -> Self {
-        StakeTransactionBody {
-            inputs,
-            output,
-            change,
-            hash: MemoHash::new(),
-        }
-    }
-
     /// Stake transaction weight. It is calculated as:
     ///
     /// ```text

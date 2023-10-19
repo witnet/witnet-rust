@@ -239,7 +239,7 @@ message StakeOutput {
 message StakeTransactionBody {
     repeated Input inputs = 1;
     StakeOutput output = 2;
-    ValueTransferOutput change = 3;
+    optional ValueTransferOutput change = 3;
 }
 
 message StakeTransaction {

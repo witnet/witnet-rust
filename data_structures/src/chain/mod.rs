@@ -518,6 +518,7 @@ impl Block {
     pub fn weight(&self) -> u32 {
         self.dr_weight() + self.vt_weight() + self.st_weight()
     }
+
 }
 
 impl BlockTransactions {
@@ -2054,6 +2055,9 @@ pub struct TransactionsPool {
     required_reward_collateral_ratio: u64,
     // Map for unconfirmed transactions
     unconfirmed_transactions: UnconfirmedTransactions,
+    // TODO: refactor to use Rc<WriteLock<PrioritizedStakeTransaction>> or
+    // Arc<Mutex<PrioritizedStakeTransaction>> to prevent the current indirect lookup (having to
+    // first query the index for the hash, and then using the hash to find the actual data)
     st_transactions: HashMap<Hash, PrioritizedStakeTransaction>,
     sorted_st_index: BTreeSet<PrioritizedHash>,
     // Minimum fee required to include a Stake Transaction into a block. We check for this fee in the
@@ -2405,8 +2409,7 @@ impl TransactionsPool {
             .unwrap_or(Ok(false))
     }
 
-    /// Returns `true` if the pool contains a stake
-    /// transaction for the specified hash.
+    /// Returns `true` if the pool contains a stake transaction for the specified hash.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
@@ -2563,6 +2566,7 @@ impl TransactionsPool {
                 for hash in hashes.iter() {
                     self.vt_remove_inner(hash, false);
                     self.dr_remove_inner(hash, false);
+                    self.st_remove_inner(hash, false);
                 }
             }
         }
@@ -2642,7 +2646,7 @@ impl TransactionsPool {
     /// that may try to spend the same UTXOs are also removed.
     /// This should be used to remove transactions that got included in a consolidated block.
     ///
-    /// Returns an `Option` with the value transfer transaction for the specified hash or `None` if not exist.
+    /// Returns an `Option` with the stake transaction for the specified hash or `None` if not exist.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
@@ -2757,13 +2761,12 @@ impl TransactionsPool {
     /// Returns a list of all the removed transactions.
     fn remove_transactions_for_size_limit(&mut self) -> Vec<Transaction> {
         let mut removed_transactions = vec![];
-        // TODO: Don't we have a method that make the following sum??
-        while self.total_vt_weight + self.total_dr_weight + self.total_st_weight > self.weight_limit
+        while self.total_transactions_weight() > self.weight_limit
         {
             // Try to split the memory between value transfer and data requests using the same
             // ratio as the one used in blocks
-            // The ratio of vt to dr in blocks is currently 4:1
-            // TODO: What the criteria to delete st?
+            // The ratio of vt to dr in blocks is currently 1:4
+            // TODO: What the criteria to delete st? It should be 1:8
             #[allow(clippy::cast_precision_loss)]
             let more_vtts_than_drs =
                 self.total_vt_weight as f64 >= self.total_dr_weight as f64 * self.vt_to_dr_factor;
@@ -2898,7 +2901,7 @@ impl TransactionsPool {
                     for input in &st_tx.body.inputs {
                         self.output_pointer_map
                             .entry(input.output_pointer)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(st_tx.hash());
                     }
 
@@ -3102,6 +3105,10 @@ impl TransactionsPool {
         self.clear_reveals();
 
         v
+    }
+
+    pub fn total_transactions_weight (&self) -> u64 {
+        self.total_vt_weight + self.total_dr_weight + self.total_st_weight 
     }
 }
 
