@@ -20,6 +20,7 @@ use crate::{
 pub const INPUT_SIZE: u32 = 133;
 pub const OUTPUT_SIZE: u32 = 36;
 pub const STAKE_OUTPUT_WEIGHT: u32 = 105;
+pub const UNSTAKE_TRANSACTION_WEIGHT: u32 = 153;
 pub const COMMIT_WEIGHT: u32 = 400;
 pub const REVEAL_WEIGHT: u32 = 200;
 pub const TALLY_WEIGHT: u32 = 100;
@@ -133,6 +134,7 @@ pub enum Transaction {
     Tally(TallyTransaction),
     Mint(MintTransaction),
     Stake(StakeTransaction),
+    Unstake(UnstakeTransaction),
 }
 
 impl From<VTTransaction> for Transaction {
@@ -174,6 +176,12 @@ impl From<MintTransaction> for Transaction {
 impl From<StakeTransaction> for Transaction {
     fn from(transaction: StakeTransaction) -> Self {
         Self::Stake(transaction)
+    }
+}
+
+impl From<UnstakeTransaction> for Transaction {
+    fn from(transaction: UnstakeTransaction) -> Self {
+        Self::Unstake(transaction)
     }
 }
 
@@ -792,6 +800,62 @@ impl StakeTransactionBody {
     }
 }
 
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::UnstakeTransaction")]
+pub struct UnstakeTransaction {
+    pub body: UnstakeTransactionBody,
+    pub signature: KeyedSignature,
+}
+impl UnstakeTransaction {
+    // Creates a new unstake transaction.
+    pub fn new(body: UnstakeTransactionBody, signature: KeyedSignature) -> Self {
+        UnstakeTransaction { body, signature }
+    }
+
+    /// Returns the weight of a unstake transaction.
+    /// This is the weight that will be used to calculate
+    /// how many transactions can fit inside one block
+    pub fn weight(&self) -> u32 {
+        self.body.weight()
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::UnstakeTransactionBody")]
+pub struct UnstakeTransactionBody {
+    pub operator: PublicKeyHash,
+    pub withdrawal: ValueTransferOutput,
+
+    #[protobuf_convert(skip)]
+    #[serde(skip)]
+    hash: MemoHash,
+}
+
+impl UnstakeTransactionBody {
+    /// Creates a new stake transaction body.
+    pub fn new(operator: PublicKeyHash, withdrawal: ValueTransferOutput) -> Self {
+        UnstakeTransactionBody {
+            operator,
+            withdrawal,
+            ..Default::default()
+        }
+    }
+
+    pub fn value(&self) -> u64 {
+        self.withdrawal.value
+    }
+
+    /// Stake transaction weight. It is calculated as:
+    ///
+    /// ```text
+    /// ST_weight = 153
+    ///
+    /// ```
+    pub fn weight(&self) -> u32 {
+        UNSTAKE_TRANSACTION_WEIGHT
+    }
+}
+
 impl MemoizedHashable for VTTransactionBody {
     fn hashable_bytes(&self) -> Vec<u8> {
         self.to_pb_bytes().unwrap()
@@ -832,6 +896,15 @@ impl MemoizedHashable for RevealTransactionBody {
     }
 }
 impl MemoizedHashable for StakeTransactionBody {
+    fn hashable_bytes(&self) -> Vec<u8> {
+        self.to_pb_bytes().unwrap()
+    }
+
+    fn memoized_hash(&self) -> &MemoHash {
+        &self.hash
+    }
+}
+impl MemoizedHashable for UnstakeTransactionBody {
     fn hashable_bytes(&self) -> Vec<u8> {
         self.to_pb_bytes().unwrap()
     }
@@ -888,6 +961,11 @@ impl Hashable for StakeTransaction {
         self.body.hash()
     }
 }
+impl Hashable for UnstakeTransaction {
+    fn hash(&self) -> Hash {
+        self.body.hash()
+    }
+}
 
 impl Hashable for Transaction {
     fn hash(&self) -> Hash {
@@ -899,6 +977,7 @@ impl Hashable for Transaction {
             Transaction::Tally(tx) => tx.hash(),
             Transaction::Mint(tx) => tx.hash(),
             Transaction::Stake(tx) => tx.hash(),
+            Transaction::Unstake(tx) => tx.hash(),
         }
     }
 }
