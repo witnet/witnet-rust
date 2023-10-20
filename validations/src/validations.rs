@@ -31,7 +31,7 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeOutput,
-        StakeTransaction, TallyTransaction, Transaction, VTTransaction,
+        StakeTransaction, TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
     transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
     types::visitor::Visitor,
@@ -52,6 +52,8 @@ use witnet_rad::{
 // TODO: move to a configuration
 const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
 const MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
+const MAX_UNSTAKE_BLOCK_WEIGHT: u32 = 5_000;
+const UNSTAKING_DELAY_SECONDS: u32 = 1_209_600;
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -116,6 +118,28 @@ pub fn st_transaction_fee(
             .clone()
             .unwrap_or(Default::default())
             .value;
+
+    if out_value > in_value {
+        Err(TransactionError::NegativeFee.into())
+    } else {
+        Ok(in_value - out_value)
+    }
+}
+
+/// Returns the fee of a unstake transaction.
+///
+/// The fee is the difference between the output and the inputs
+/// of the transaction. The pool parameter is used to find the
+/// outputs pointed by the inputs and that contain the actual
+/// their value.
+pub fn ut_transaction_fee(ut_tx: &UnstakeTransaction) -> Result<u64, failure::Error> {
+    let in_value = ut_tx.body.withdrawal.value;
+    let out_value = ut_tx
+        .body
+        .clone()
+        .change
+        .unwrap_or(Default::default())
+        .value;
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
@@ -1169,6 +1193,80 @@ pub fn validate_stake_transaction<'a>(
     ))
 }
 
+/// Function to validate a unstake transaction
+pub fn validate_unstake_transaction<'a>(
+    ut_tx: &'a UnstakeTransaction,
+    st_tx: &'a StakeTransaction,
+    _utxo_diff: &UtxoDiff<'_>,
+    _epoch: Epoch,
+    _epoch_constants: EpochConstants,
+) -> Result<(u64, u32, &'a Option<ValueTransferOutput>), failure::Error> {
+    // Check if is unstaking more than the total stake
+    let amount_to_unstake = ut_tx.body.withdrawal.value;
+    if amount_to_unstake > st_tx.body.output.value {
+        return Err(TransactionError::UnstakingMoreThanStaked {
+            unstake: MIN_STAKE_NANOWITS,
+            stake: st_tx.body.output.value,
+        }
+        .into());
+    }
+
+    // Check that the stake is greater than the min allowed
+    if amount_to_unstake - st_tx.body.output.value < MIN_STAKE_NANOWITS {
+        return Err(TransactionError::StakeBelowMinimum {
+            min_stake: MIN_STAKE_NANOWITS,
+            stake: st_tx.body.output.value,
+        }
+        .into());
+    }
+
+    // TODO: take the operator from the StakesTracker when implemented
+    let operator = PublicKeyHash::default();
+    // validate unstake_signature
+    validate_unstake_signature(&ut_tx, operator)?;
+
+    // Validate unstake timestamp
+    validate_unstake_timelock(&ut_tx)?;
+
+    // let fee = ut_tx.body.withdrawal.value;
+    let fee = ut_transaction_fee(ut_tx)?;
+    let weight = st_tx.weight();
+    Ok((fee, weight, &ut_tx.body.change))
+}
+
+/// Validate unstake timelock
+pub fn validate_unstake_timelock(ut_tx: &UnstakeTransaction) -> Result<(), failure::Error> {
+    // TODO: is this correct or should we use calculate it from the staking tx epoch?
+    if ut_tx.body.withdrawal.time_lock >= UNSTAKING_DELAY_SECONDS.into() {
+        return Err(TransactionError::InvalidUnstakeTimelock {
+            time_lock: ut_tx.body.withdrawal.time_lock,
+            unstaking_delay_seconds: UNSTAKING_DELAY_SECONDS,
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
+/// Function to validate a unstake authorization
+pub fn validate_unstake_signature<'a>(
+    ut_tx: &'a UnstakeTransaction,
+    operator: PublicKeyHash,
+) -> Result<(), failure::Error> {
+    let ut_tx_pkh = ut_tx.signature.public_key.hash();
+    // TODO: move to variables and use better names
+    if ut_tx_pkh != ut_tx.body.withdrawal.pkh.hash() || ut_tx_pkh != operator.hash() {
+        return Err(TransactionError::InvalidUnstakeSignature {
+            signature: ut_tx_pkh,
+            withdrawal: ut_tx.body.withdrawal.pkh.hash(),
+            operator: operator.hash(),
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
 /// Function to validate a block signature
 pub fn validate_block_signature(
     block: &Block,
@@ -1816,6 +1914,43 @@ pub fn validate_block_transactions(
 
     let st_hash_merkle_root = st_mt.root();
 
+    let mut ut_mt = ProgressiveMerkleTree::sha256();
+    let mut ut_weight: u32 = 0;
+
+    for transaction in &block.txns.unstake_txns {
+        // TODO: get tx, default to compile
+        let st_tx = StakeTransaction::default();
+        let (fee, weight, _change) =
+            validate_unstake_transaction(transaction, &st_tx, &utxo_diff, epoch, epoch_constants)?;
+
+        total_fee += fee;
+
+        // Update ut weight
+        let acc_weight = ut_weight.saturating_add(weight);
+        if acc_weight > MAX_UNSTAKE_BLOCK_WEIGHT {
+            return Err(BlockError::TotalUnstakeWeightLimitExceeded {
+                weight: acc_weight,
+                max_weight: MAX_UNSTAKE_BLOCK_WEIGHT,
+            }
+            .into());
+        }
+        ut_weight = acc_weight;
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        ut_mt.push(Sha256(sha));
+
+        // TODO: Move validations to a visitor
+        // // Execute visitor
+        // if let Some(visitor) = &mut visitor {
+        //     let transaction = Transaction::ValueTransfer(transaction.clone());
+        //     visitor.visit(&(transaction, fee, weight));
+        // }
+    }
+
+    let ut_hash_merkle_root = ut_mt.root();
+
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
         mint_hash: block.txns.mint.hash(),
@@ -1825,6 +1960,7 @@ pub fn validate_block_transactions(
         reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
         tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
         stake_hash_merkle_root: Hash::from(st_hash_merkle_root),
+        unstake_hash_merkle_root: Hash::from(ut_hash_merkle_root),
     };
 
     if merkle_roots != block.block_header.merkle_roots {
@@ -2272,6 +2408,7 @@ pub fn validate_merkle_tree(block: &Block) -> bool {
         reveal_hash_merkle_root: merkle_tree_root(&block.txns.reveal_txns),
         tally_hash_merkle_root: merkle_tree_root(&block.txns.tally_txns),
         stake_hash_merkle_root: merkle_tree_root(&block.txns.stake_txns),
+        unstake_hash_merkle_root: merkle_tree_root(&block.txns.unstake_txns),
     };
 
     merkle_roots == block.block_header.merkle_roots
