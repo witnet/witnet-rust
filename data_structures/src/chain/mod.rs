@@ -47,7 +47,7 @@ use crate::{
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
         RevealTransaction, StakeTransaction, TallyTransaction, Transaction, TxInclusionProof,
-        VTTransaction,
+        UnstakeTransaction, VTTransaction,
     },
     transaction::{
         MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
@@ -419,6 +419,8 @@ pub struct BlockTransactions {
     pub tally_txns: Vec<TallyTransaction>,
     /// A list of signed stake transactions
     pub stake_txns: Vec<StakeTransaction>,
+    /// A list of signed unstake transactions
+    pub unstake_txns: Vec<UnstakeTransaction>,
 }
 
 impl Block {
@@ -448,6 +450,7 @@ impl Block {
             reveal_txns: vec![],
             tally_txns: vec![],
             stake_txns: vec![],
+            unstake_txns: vec![],
         };
 
         /// Function to calculate a merkle tree from a transaction vector
@@ -473,6 +476,7 @@ impl Block {
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
             stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
+            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns),
         };
 
         Block::new(
@@ -515,8 +519,16 @@ impl Block {
         st_weight
     }
 
+    pub fn ut_weight(&self) -> u32 {
+        let mut ut_weight = 0;
+        for ut_txn in self.txns.unstake_txns.iter() {
+            ut_weight += ut_txn.weight();
+        }
+        ut_weight
+    }
+
     pub fn weight(&self) -> u32 {
-        self.dr_weight() + self.vt_weight() + self.st_weight()
+        self.dr_weight() + self.vt_weight() + self.st_weight() + self.ut_weight()
     }
 }
 
@@ -531,6 +543,7 @@ impl BlockTransactions {
             + self.reveal_txns.len()
             + self.tally_txns.len()
             + self.stake_txns.len()
+            + self.unstake_txns.len()
     }
 
     /// Returns true if this block contains no transactions
@@ -543,6 +556,7 @@ impl BlockTransactions {
             && self.reveal_txns.is_empty()
             && self.tally_txns.is_empty()
             && self.stake_txns.is_empty()
+            && self.unstake_txns.is_empty()
     }
 
     /// Get a transaction given the `TransactionPointer`
@@ -579,6 +593,11 @@ impl BlockTransactions {
                 .get(i as usize)
                 .cloned()
                 .map(Transaction::Stake),
+            TransactionPointer::Unstake(i) => self
+                .unstake_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::Unstake),
         }
     }
 
@@ -624,6 +643,11 @@ impl BlockTransactions {
         for (i, tx) in self.stake_txns.iter().enumerate() {
             pointer_to_block.transaction_index =
                 TransactionPointer::Stake(u32::try_from(i).unwrap());
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+        for (i, tx) in self.unstake_txns.iter().enumerate() {
+            pointer_to_block.transaction_index =
+                TransactionPointer::Unstake(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
 
@@ -709,6 +733,8 @@ pub struct BlockMerkleRoots {
     pub tally_hash_merkle_root: Hash,
     /// A 256-bit hash based on all of the stake transactions committed to this block
     pub stake_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the unstake transactions committed to this block
+    pub unstake_hash_merkle_root: Hash,
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -738,6 +764,7 @@ impl BlockMerkleRoots {
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
             stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
+            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns),
         }
     }
 }
@@ -2026,6 +2053,7 @@ type PrioritizedHash = (OrderedFloat<f64>, Hash);
 type PrioritizedVTTransaction = (OrderedFloat<f64>, VTTransaction);
 type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction);
 type PrioritizedStakeTransaction = (OrderedFloat<f64>, StakeTransaction);
+type PrioritizedUnstakeTransaction = (OrderedFloat<f64>, UnstakeTransaction);
 
 #[derive(Debug, Clone, Default)]
 struct UnconfirmedTransactions {
@@ -2084,6 +2112,8 @@ pub struct TransactionsPool {
     total_dr_weight: u64,
     // Total size of all stake transactions inside the pool in weight units
     total_st_weight: u64,
+    // Total size of all unstake transactions inside the pool in weight units
+    total_ut_weight: u64,
     // TransactionsPool size limit in weight units
     weight_limit: u64,
     // Ratio of value transfer transaction to data request transaction that should be in the
@@ -2109,9 +2139,14 @@ pub struct TransactionsPool {
     // first query the index for the hash, and then using the hash to find the actual data)
     st_transactions: HashMap<Hash, PrioritizedStakeTransaction>,
     sorted_st_index: BTreeSet<PrioritizedHash>,
+    ut_transactions: HashMap<Hash, PrioritizedUnstakeTransaction>,
+    sorted_ut_index: BTreeSet<PrioritizedHash>,
     // Minimum fee required to include a Stake Transaction into a block. We check for this fee in the
     // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
     minimum_st_fee: u64,
+    // Minimum fee required to include a Unstake Transaction into a block. We check for this fee in the
+    // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
+    minimum_ut_fee: u64,
 }
 
 impl Default for TransactionsPool {
@@ -2129,6 +2164,7 @@ impl Default for TransactionsPool {
             total_vt_weight: 0,
             total_dr_weight: 0,
             total_st_weight: 0,
+            total_ut_weight: 0,
             // Unlimited by default
             weight_limit: u64::MAX,
             // Try to keep the same amount of value transfer weight and data request weight
@@ -2137,6 +2173,8 @@ impl Default for TransactionsPool {
             minimum_vtt_fee: 0,
             // Default is to include all transactions into the pool and blocks
             minimum_st_fee: 0,
+            // Default is to include all transactions into the pool and blocks
+            minimum_ut_fee: 0,
             // Collateral minimum from consensus constants
             collateral_minimum: 0,
             // Required minimum reward to collateral percentage is defined as a consensus constant
@@ -2144,6 +2182,8 @@ impl Default for TransactionsPool {
             unconfirmed_transactions: Default::default(),
             st_transactions: Default::default(),
             sorted_st_index: Default::default(),
+            ut_transactions: Default::default(),
+            sorted_ut_index: Default::default(),
         }
     }
 }
@@ -2216,6 +2256,7 @@ impl TransactionsPool {
             && self.co_transactions.is_empty()
             && self.re_transactions.is_empty()
             && self.st_transactions.is_empty()
+            && self.ut_transactions.is_empty()
     }
 
     /// Remove all the transactions but keep the allocated memory for reuse.
@@ -2233,15 +2274,19 @@ impl TransactionsPool {
             total_vt_weight,
             total_dr_weight,
             total_st_weight,
+            total_ut_weight,
             weight_limit: _,
             vt_to_dr_factor: _,
             minimum_vtt_fee: _,
             minimum_st_fee: _,
+            minimum_ut_fee: _,
             collateral_minimum: _,
             required_reward_collateral_ratio: _,
             unconfirmed_transactions,
             st_transactions,
             sorted_st_index,
+            ut_transactions,
+            sorted_ut_index,
         } = self;
 
         vt_transactions.clear();
@@ -2256,9 +2301,12 @@ impl TransactionsPool {
         *total_vt_weight = 0;
         *total_dr_weight = 0;
         *total_st_weight = 0;
+        *total_ut_weight = 0;
         unconfirmed_transactions.clear();
         st_transactions.clear();
         sorted_st_index.clear();
+        ut_transactions.clear();
+        sorted_ut_index.clear();
     }
 
     /// Returns the number of value transfer transactions in the pool.
@@ -2324,6 +2372,27 @@ impl TransactionsPool {
         self.st_transactions.len()
     }
 
+    /// Returns the number of unstake transactions in the pool.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, StakeTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::Stake(StakeTransaction::default());
+    ///
+    /// assert_eq!(pool.st_len(), 0);
+    ///
+    /// pool.insert(transaction, 0);
+    ///
+    /// assert_eq!(pool.st_len(), 1);
+    /// ```
+    pub fn ut_len(&self) -> usize {
+        self.ut_transactions.len()
+    }
+
     /// Clear commit transactions in TransactionsPool
     pub fn clear_commits(&mut self) {
         self.co_transactions.clear();
@@ -2365,7 +2434,8 @@ impl TransactionsPool {
             // be impossible for nodes to broadcast these kinds of transactions.
             Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
             Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
-            Transaction::Stake(_mt) => Ok(self.st_contains(&tx_hash)),
+            Transaction::Stake(_st) => Ok(self.st_contains(&tx_hash)),
+            Transaction::Unstake(_ut) => Ok(self.ut_contains(&tx_hash)),
         }
     }
 
@@ -2479,6 +2549,30 @@ impl TransactionsPool {
     /// ```
     pub fn st_contains(&self, key: &Hash) -> bool {
         self.st_transactions.contains_key(key)
+    }
+
+    /// Returns `true` if the pool contains an unstake transaction for the
+    /// specified hash.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    ///
+    /// # Examples:
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
+    /// # use witnet_data_structures::transaction::{Transaction, UnstakeTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::Stake(UnstakeTransaction::default());
+    /// let hash = transaction.hash();
+    /// assert!(!pool.ut_contains(&hash));
+    ///
+    /// pool.insert(transaction, 0);
+    ///
+    /// assert!(pool.t_contains(&hash));
+    /// ```
+    pub fn ut_contains(&self, key: &Hash) -> bool {
+        self.ut_transactions.contains_key(key)
     }
 
     /// Remove a value transfer transaction from the pool and make sure that other transactions
@@ -2725,13 +2819,12 @@ impl TransactionsPool {
         transaction
     }
 
-    /// Remove a stake transaction from the pool but do not remove other transactions that
-    /// may try to spend the same UTXOs.
+    /// Remove a stake from the pool but do not remove other transactions that may try to spend the
+    /// same UTXOs.
     /// This should be used to remove transactions that did not get included in a consolidated
     /// block.
     /// If the transaction did get included in a consolidated block, use `st_remove` instead.
     fn st_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<StakeTransaction> {
-        // TODO: is this taking into account the change and the stake output?
         self.st_transactions
             .remove(key)
             .map(|(weight, transaction)| {
@@ -2740,6 +2833,21 @@ impl TransactionsPool {
                 if !consolidated {
                     self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
                 }
+                transaction
+            })
+    }
+
+    /// Remove an unstake transaction from the pool but do not remove other transactions that
+    /// may try to spend the same UTXOs, because this kind of transactions spend no UTXOs.
+    /// This should be used to remove transactions that did not get included in a consolidated
+    /// block.
+    fn ut_remove_inner(&mut self, key: &Hash) -> Option<UnstakeTransaction> {
+        self.ut_transactions
+            .remove(key)
+            .map(|(weight, transaction)| {
+                self.sorted_ut_index.remove(&(weight, *key));
+                self.total_ut_weight -= u64::from(transaction.weight());
+
                 transaction
             })
     }
@@ -2957,6 +3065,27 @@ impl TransactionsPool {
                     self.sorted_st_index.insert((priority, key));
                 }
             }
+            Transaction::Unstake(ut_tx) => {
+                let weight = f64::from(ut_tx.weight());
+                let priority = OrderedFloat(fee as f64 / weight);
+
+                if fee < self.minimum_ut_fee {
+                    return vec![Transaction::Unstake(ut_tx)];
+                } else {
+                    self.total_st_weight += u64::from(ut_tx.weight());
+
+                    // TODO
+                    // for input in &ut_tx.body.inputs {
+                    //     self.output_pointer_map
+                    //         .entry(input.output_pointer)
+                    //         .or_insert_with(Vec::new)
+                    //         .push(ut_tx.hash());
+                    // }
+
+                    self.ut_transactions.insert(key, (priority, ut_tx));
+                    self.sorted_ut_index.insert((priority, key));
+                }
+            }
             tx => {
                 panic!(
                     "Transaction kind not supported by TransactionsPool: {:?}",
@@ -3012,6 +3141,15 @@ impl TransactionsPool {
             .iter()
             .rev()
             .filter_map(move |(_, h)| self.st_transactions.get(h).map(|(_, t)| t))
+    }
+
+    /// An iterator visiting all the unstake transactions
+    /// in the pool
+    pub fn ut_iter(&self) -> impl Iterator<Item = &UnstakeTransaction> {
+        self.sorted_ut_index
+            .iter()
+            .rev()
+            .filter_map(move |(_, h)| self.ut_transactions.get(h).map(|(_, t)| t))
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -3108,11 +3246,16 @@ impl TransactionsPool {
                 self.re_hash_index
                     .get(hash)
                     .map(|rt| Transaction::Reveal(rt.clone()))
-                    .or_else(|| {
-                        self.st_transactions
-                            .get(hash)
-                            .map(|(_, st)| Transaction::Stake(st.clone()))
-                    })
+            })
+            .or_else(|| {
+                self.st_transactions
+                    .get(hash)
+                    .map(|(_, st)| Transaction::Stake(st.clone()))
+            })
+            .or_else(|| {
+                self.ut_transactions
+                    .get(hash)
+                    .map(|(_, ut)| Transaction::Unstake(ut.clone()))
             })
     }
 
@@ -3140,6 +3283,9 @@ impl TransactionsPool {
                     }
                     Transaction::Stake(_) => {
                         let _x = self.st_remove_inner(&hash, false);
+                    }
+                    Transaction::Unstake(_) => {
+                        let _x = self.ut_remove_inner(&hash);
                     }
                     _ => continue,
                 }
@@ -3253,6 +3399,8 @@ pub enum TransactionPointer {
     Mint,
     // Stake
     Stake(u32),
+    // Unstake
+    Unstake(u32),
 }
 
 /// This is how transactions are stored in the database: hash of the containing block, plus index
