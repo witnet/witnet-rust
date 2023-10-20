@@ -6,6 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::transaction::UnstakeTransactionBody;
 use crate::{
     chain::{
         DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash, StakeOutput,
@@ -21,7 +22,7 @@ use crate::{
     wit::Wit,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CollectedOutputs {
     pub pointers: Vec<OutputPointer>,
     pub resolved: Vec<ValueTransferOutput>,
@@ -79,6 +80,7 @@ impl NodeBalance {
 pub enum TransactionOutputs {
     DataRequest((DataRequestOutput, Option<ValueTransferOutput>)),
     Stake((StakeOutput, Option<ValueTransferOutput>)),
+    Unstake(ValueTransferOutput),
     ValueTransfer(Vec<ValueTransferOutput>),
 }
 
@@ -87,6 +89,7 @@ impl From<TransactionOutputs> for Vec<ValueTransferOutput> {
         match value {
             TransactionOutputs::DataRequest((_, change)) => change.into_iter().collect(),
             TransactionOutputs::Stake((_, change)) => change.into_iter().collect(),
+            TransactionOutputs::Unstake(output) => vec![output],
             TransactionOutputs::ValueTransfer(outputs) => outputs,
         }
     }
@@ -204,6 +207,11 @@ pub trait OutputsCollection {
                 output_value = body.value();
                 current_weight = body.weight();
             }
+            TransactionOutputs::Unstake(withdrawal) => {
+                let body = UnstakeTransactionBody::new(Default::default(), withdrawal);
+                output_value = body.value();
+                current_weight = body.weight();
+            }
             TransactionOutputs::ValueTransfer(outputs) => {
                 let body = VTTransactionBody::new(inputs, outputs);
                 output_value = body.value();
@@ -217,8 +225,12 @@ pub trait OutputsCollection {
                     .checked_add(absolute_fee.as_nanowits())
                     .ok_or(TransactionError::FeeOverflow)?;
 
-                let inputs =
-                    self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
+                // Avoid collecting UTXOs for unstake transactions, which use no inputs
+                let inputs = if let &TransactionOutputs::Unstake(_) = &outputs {
+                    Default::default()
+                } else {
+                    self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?
+                };
 
                 Ok(TransactionInfo {
                     fee: absolute_fee,
@@ -228,9 +240,18 @@ pub trait OutputsCollection {
                 })
             }
             Fee::Relative(priority) => {
+                let absolute_fee = priority.into_absolute(current_weight);
+                if let TransactionOutputs::Unstake(withdrawal) = outputs {
+                    return Ok(TransactionInfo {
+                        fee: absolute_fee,
+                        inputs: Default::default(),
+                        output_value,
+                        outputs: vec![withdrawal],
+                    });
+                }
+
                 let max_iterations = 1 + ((max_weight - current_weight) / INPUT_SIZE);
                 for _i in 0..max_iterations {
-                    let absolute_fee = priority.into_absolute(current_weight);
                     let amount = output_value
                         .checked_add(absolute_fee.as_nanowits())
                         .ok_or(TransactionError::FeeOverflow)?;
@@ -268,6 +289,7 @@ pub trait OutputsCollection {
 
                             body.weight()
                         }
+                        _ => unreachable!(),
                     };
 
                     if new_weight == current_weight {
