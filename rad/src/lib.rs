@@ -851,11 +851,10 @@ mod tests {
             ]),
         ]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
-        println!("{:?}", packed_script_r);
 
         let retrieve = RADRetrieve {
             kind: RADType::HttpHead,
-            url: "https://witnet.io/_nuxt/img/dragon_reading.a37f8cb.png".to_string(),
+            url: "https://en.wikipedia.org/static/images/icons/wikipedia.png".to_string(),
             script: packed_script_r,
             body: vec![],
             headers: vec![],
