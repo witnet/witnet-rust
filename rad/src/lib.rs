@@ -78,7 +78,12 @@ pub fn try_data_request(
             .iter()
             .zip(inputs.iter())
             .map(|(retrieve, input)| {
-                run_retrieval_with_data_report(retrieve, input, &mut retrieval_context, settings)
+                run_retrieval_with_data_report(
+                    retrieve,
+                    RadonTypes::from(RadonString::from(*input)),
+                    &mut retrieval_context,
+                    settings,
+                )
             })
             .collect()
     } else {
@@ -160,42 +165,28 @@ pub fn try_data_request(
     }
 }
 
-/// Handle HTTP-GET and HTTP-POST response with data, and return a `RadonReport`.
-fn string_response_with_data_report(
+/// Execute Radon Script using as input the RadonTypes value deserialized from a retrieval response
+fn handle_response_with_data_report(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: RadonTypes,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let input = RadonTypes::from(RadonString::from(response));
     let radon_script = unpack_radon_script(&retrieve.script)?;
-
-    execute_radon_script(input, &radon_script, context, settings)
-}
-
-/// Handle Rng response with data report
-fn rng_response_with_data_report(
-    response: &str,
-    context: &mut ReportContext<RadonTypes>,
-) -> Result<RadonReport<RadonTypes>> {
-    let response_bytes = response.as_bytes();
-    let result = RadonTypes::from(RadonBytes::from(response_bytes.to_vec()));
-
-    Ok(RadonReport::from_result(Ok(result), context))
+    execute_radon_script(response, &radon_script, context, settings)
 }
 
 /// Run retrieval without performing any external network requests, return `Result<RadonReport>`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: RadonTypes,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
-        RADType::HttpGet | RADType::HttpPost | RADType::HttpHead => {
-            string_response_with_data_report(retrieve, response, context, settings)
+        RADType::HttpGet | RADType::HttpPost | RADType::HttpHead | RADType::Rng => {
+            handle_response_with_data_report(retrieve, response, context, settings)
         }
-        RADType::Rng => rng_response_with_data_report(response, context),
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -203,7 +194,7 @@ pub fn run_retrieval_with_data_report(
 /// Run retrieval without performing any external network requests, return `Result<RadonTypes>`.
 pub fn run_retrieval_with_data(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: RadonTypes,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
 ) -> Result<RadonTypes> {
@@ -299,26 +290,48 @@ async fn http_response(
         });
     }
 
-    // If at some point we want to support the retrieval of non-UTF8 data (e.g. raw bytes), this is
-    // where we need to decide how to read the response body
-    let mut response_string = String::default();
-
     let (parts, mut body) = response.into_parts();
-    match retrieve.kind {
-        RADType::HttpHead => {
-            response_string = format!("{:?}", parts.headers);
+
+    let response: RadonTypes;
+    match parts.headers.get("accept-ranges") {
+        Some(_) => {
+            // http response is a binary stream
+            let mut response_bytes = Vec::<u8>::default();
+            match retrieve.kind {
+                RADType::HttpHead => {
+                    // todo: assert http-head responses should never return binary streams
+                }
+                _ => {
+                    // todo: before reading the response buffer, an error should thrown it was too big
+                    body.read_to_end(&mut response_bytes).await.map_err(|x| {
+                        RadError::HttpOther {
+                            message: x.to_string(),
+                        }
+                    })?;
+                }
+            }
+            response = RadonTypes::from(RadonBytes::from(response_bytes));
         }
         _ => {
-            body.read_to_string(&mut response_string)
-                .await
-                .map_err(|x| RadError::HttpOther {
-                    message: x.to_string(),
-                })?;
+            // response is a string
+            let mut response_string = String::default();
+            match retrieve.kind {
+                RADType::HttpHead => {
+                    response_string = format!("{:?}", parts.headers);
+                }
+                _ => {
+                    body.read_to_string(&mut response_string)
+                        .await
+                        .map_err(|x| RadError::HttpOther {
+                            message: x.to_string(),
+                        })?;
+                }
+            }
+            response = RadonTypes::from(RadonString::from(response_string));
         }
     }
 
-    let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
-
+    let result = handle_response_with_data_report(retrieve, response, context, settings);
     match &result {
         Ok(report) => {
             log::debug!(
@@ -329,7 +342,6 @@ async fn http_response(
         }
         Err(e) => log::debug!("Failed result for source {}: {:?}", retrieve.url, e),
     }
-
     result
 }
 
