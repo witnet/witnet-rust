@@ -1491,6 +1491,7 @@ where
             Transaction::Tally(_) => None,
             Transaction::Mint(_) => None,
             Transaction::Stake(tx) => Some(&tx.body.inputs),
+            Transaction::Unstake(_) => None,
         };
 
         let empty_hashset = HashSet::default();
