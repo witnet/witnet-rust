@@ -1490,6 +1490,7 @@ where
             Transaction::Reveal(_) => None,
             Transaction::Tally(_) => None,
             Transaction::Mint(_) => None,
+            Transaction::Stake(tx) => Some(&tx.body.inputs),
         };
 
         let empty_hashset = HashSet::default();

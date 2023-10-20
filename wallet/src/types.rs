@@ -22,7 +22,7 @@ use witnet_data_structures::{
     fee::Fee,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
-        TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
+        StakeTransaction, TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
     },
     utxo_pool::UtxoSelectionStrategy,
 };
@@ -322,6 +322,7 @@ pub enum TransactionHelper {
     Reveal(RevealTransaction),
     Tally(TallyTransaction),
     Mint(MintTransaction),
+    Stake(StakeTransaction),
 }
 
 impl From<Transaction> for TransactionHelper {
@@ -337,6 +338,7 @@ impl From<Transaction> for TransactionHelper {
             Transaction::Reveal(revealtransaction) => TransactionHelper::Reveal(revealtransaction),
             Transaction::Tally(tallytransaction) => TransactionHelper::Tally(tallytransaction),
             Transaction::Mint(minttransaction) => TransactionHelper::Mint(minttransaction),
+            Transaction::Stake(staketransaction) => TransactionHelper::Stake(staketransaction),
         }
     }
 }
@@ -354,6 +356,7 @@ impl From<TransactionHelper> for Transaction {
             TransactionHelper::Reveal(revealtransaction) => Transaction::Reveal(revealtransaction),
             TransactionHelper::Tally(tallytransaction) => Transaction::Tally(tallytransaction),
             TransactionHelper::Mint(minttransaction) => Transaction::Mint(minttransaction),
+            TransactionHelper::Stake(staketransaction) => Transaction::Stake(staketransaction),
         }
     }
 }

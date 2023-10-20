@@ -47,6 +47,9 @@ mod witnessing;
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
+const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
+const MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
+
 const REQUIRED_REWARD_COLLATERAL_RATIO: u64 =
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
@@ -433,7 +436,7 @@ fn vtt_no_inputs_zero_output() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
-    // Try to create a data request with no inputs
+    // Try to create a value transfer with no inputs
     let pkh = PublicKeyHash::default();
     let vto0 = ValueTransferOutput {
         pkh,
@@ -8446,6 +8449,107 @@ fn tally_error_encode_reveal_wip() {
     )
     .map(|_| ());
     x.unwrap();
+}
+
+#[test]
+fn st_no_inputs() {
+    let utxo_set = UnspentOutputsPool::default();
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+
+    // Try to create a stake tx with no inputs
+    let st_output = StakeOutput {
+        value: MIN_STAKE_NANOWITS + 1,
+        authorization: KeyedSignature::default(),
+    };
+
+    let st_body = StakeTransactionBody::new(Vec::new(), st_output, None);
+    let st_tx = StakeTransaction::new(st_body, vec![]);
+    let x = validate_stake_transaction(
+        &st_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut vec![],
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::NoInputs {
+            tx_hash: st_tx.hash(),
+        }
+    );
+}
+
+#[test]
+fn st_one_input_but_no_signature() {
+    let mut signatures_to_verify = vec![];
+    let utxo_set = UnspentOutputsPool::default();
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(
+        "2222222222222222222222222222222222222222222222222222222222222222:0"
+            .parse()
+            .unwrap(),
+    );
+
+    // No signatures but 1 input
+    let stake_output = StakeOutput {
+        authorization: KeyedSignature::default(),
+        value: MIN_STAKE_NANOWITS + 1,
+    };
+
+    let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
+    let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
+    let x = validate_stake_transaction(
+        &stake_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::MismatchingSignaturesNumber {
+            signatures_n: 0,
+            inputs_n: 1,
+        }
+    );
+}
+
+#[test]
+fn st_below_min_stake() {
+    let mut signatures_to_verify = vec![];
+    let utxo_set = UnspentOutputsPool::default();
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(
+        "2222222222222222222222222222222222222222222222222222222222222222:0"
+            .parse()
+            .unwrap(),
+    );
+
+    // No signatures but 1 input
+    let stake_output = StakeOutput {
+        authorization: KeyedSignature::default(),
+        value: 1,
+    };
+
+    let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
+    let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
+    let x = validate_stake_transaction(
+        &stake_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::StakeBelowMinimum {
+            min_stake: MIN_STAKE_NANOWITS,
+            stake: 1
+        }
+    );
 }
 
 static LAST_VRF_INPUT: &str = "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";

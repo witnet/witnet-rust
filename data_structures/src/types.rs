@@ -75,6 +75,7 @@ impl fmt::Display for Command {
                     Transaction::Reveal(_) => f.write_str("REVEAL_TRANSACTION")?,
                     Transaction::Tally(_) => f.write_str("TALLY_TRANSACTION")?,
                     Transaction::Mint(_) => f.write_str("MINT_TRANSACTION")?,
+                    Transaction::Stake(_) => f.write_str("STAKE_TRANSACTION")?,
                 }
                 write!(f, ": {}", tx.hash())
             }
