@@ -38,6 +38,9 @@ pub mod fee;
 /// Module containing data_request structures
 pub mod data_request;
 
+/// Module containing data structures for the staking functionality
+pub mod staking;
+
 /// Module containing superblock structures
 pub mod superblock;
 
@@ -68,6 +71,9 @@ mod serialization_helpers;
 
 /// Provides convenient constants, structs and methods for handling values denominated in Wit.
 pub mod wit;
+
+/// Provides support for segmented protocol capabilities.
+pub mod capabilities;
 
 lazy_static! {
     /// Environment in which we are running: mainnet or testnet.
