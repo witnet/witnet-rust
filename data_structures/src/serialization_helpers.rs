@@ -360,7 +360,7 @@ struct RADRetrieveSerializationHelperJson {
     /// Body of a HTTP-POST request
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub body: Vec<u8>,
-    /// Extra headers of a HTTP-GET or HTTP-POST request
+    /// Extra headers of a HTTP-GET, HTTP-HEAD or HTTP-POST request
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
 }
@@ -377,7 +377,7 @@ struct RADRetrieveSerializationHelperBincode {
     pub script: Vec<u8>,
     /// Body of a HTTP-POST request
     pub body: Vec<u8>,
-    /// Extra headers of a HTTP-GET or HTTP-POST request
+    /// Extra headers of a HTTP-GET, HTTP-HEAD or HTTP-POST request
     pub headers: Vec<(String, String)>,
 }
 

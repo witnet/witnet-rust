@@ -192,11 +192,10 @@ pub fn run_retrieval_with_data_report(
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
-        RADType::HttpGet => string_response_with_data_report(retrieve, response, context, settings),
-        RADType::Rng => rng_response_with_data_report(response, context),
-        RADType::HttpPost => {
+        RADType::HttpGet | RADType::HttpPost | RADType::HttpHead => {
             string_response_with_data_report(retrieve, response, context, settings)
         }
+        RADType::Rng => rng_response_with_data_report(response, context),
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -214,7 +213,7 @@ pub fn run_retrieval_with_data(
         .map(RadonReport::into_inner)
 }
 
-/// Handle generic HTTP (GET/POST) response
+/// Handle generic HTTP (GET/POST/HEAD) response
 async fn http_response(
     retrieve: &RADRetrieve,
     context: &mut ReportContext<RadonTypes>,
@@ -259,6 +258,10 @@ async fn http_response(
                     WitnetHttpBody::from(retrieve.body.clone()),
                 )
             }
+            RADType::HttpHead => (
+                builder.method("HEAD").uri(&retrieve.url),
+                WitnetHttpBody::empty(),
+            ),
             _ => panic!(
                 "Called http_response with invalid retrieval kind {:?}",
                 retrieve.kind
@@ -298,13 +301,21 @@ async fn http_response(
 
     // If at some point we want to support the retrieval of non-UTF8 data (e.g. raw bytes), this is
     // where we need to decide how to read the response body
-    let (_parts, mut body) = response.into_parts();
     let mut response_string = String::default();
-    body.read_to_string(&mut response_string)
-        .await
-        .map_err(|x| RadError::HttpOther {
-            message: x.to_string(),
-        })?;
+
+    let (parts, mut body) = response.into_parts();
+    match retrieve.kind {
+        RADType::HttpHead => {
+            response_string = format!("{:?}", parts.headers);
+        }
+        _ => {
+            body.read_to_string(&mut response_string)
+                .await
+                .map_err(|x| RadError::HttpOther {
+                    message: x.to_string(),
+                })?;
+        }
+    }
 
     let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
 
@@ -354,9 +365,10 @@ pub async fn run_retrieval_report(
     context.set_active_wips(active_wips);
 
     match retrieve.kind {
-        RADType::HttpGet => http_response(retrieve, context, settings, client).await,
+        RADType::HttpGet | RADType::HttpHead | RADType::HttpPost => {
+            http_response(retrieve, context, settings, client).await
+        }
         RADType::Rng => rng_response(context, settings).await,
-        RADType::HttpPost => http_response(retrieve, context, settings, client).await,
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -649,7 +661,7 @@ fn validate_header(name: &str, value: &str) -> Result<()> {
         Err(RadError::InvalidHttpHeader {
             name: name.to_string(),
             value: value.to_string(),
-            error: error_message.to_string(),
+            error: error_message,
         })
     } else {
         Ok(())
@@ -828,6 +840,39 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn test_run_http_head_retrieval() {
+        let script_r = Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text("etag".to_string()),
+            ]),
+        ]);
+        let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
+
+        let retrieve = RADRetrieve {
+            kind: RADType::HttpHead,
+            url: "https://en.wikipedia.org/static/images/icons/wikipedia.png".to_string(),
+            script: packed_script_r,
+            body: vec![],
+            headers: vec![],
+        };
+        let response = r#"{"date": "Wed, 11 Oct 2023 15:18:42 GMT", "content-type": "image/png", "content-length": "498219", "x-origin-cache": "HIT", "last-modified": "Mon, 28 Aug 2023 13:30:41 GMT", "access-control-allow-origin": "*", "etag": "\"64eca181-79a2b\"", "expires": "Wed, 11 Oct 2023 15:28:41 GMT", "cache-control": "max-age=1800", "x-proxy-cache": "MISS", "x-github-request-id": "6750:35DB:BF8211:FEFD2B:652602FA", "via": "1.1 varnish", "x-served-by": "cache-hnd18736-HND", "x-cache": "MISS", "x-cache-hits": "0", "x-timer": "S1696989946.496383,VS0,VE487", "vary": "Accept-Encoding", "x-fastly-request-id": "118bdfd8a926cbdc781bc23079c3dc07a22d2223", "cf-cache-status": "REVALIDATED", "accept-ranges": "bytes", "report-to": "{\"endpoints\":[{\"url\":\"https:\/\/a.nel.cloudflare.com\/report\/v3?s=FlzxKRCYYN4SL0x%2FraG7ugKCqdC%2BeQqVrucvsfeDWf%2F7A0Nv9fv7TYRgU0WL4k1kbZyxt%2B04VjOyv0XK55sF37GEPwXHE%2FdXnoFlWutID762k2ktcX6hUml6oNk%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}", "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}", "strict-transport-security": "max-age=0", "x-content-type-options": "nosniff", "server": "cloudflare", "cf-ray": "814813bf3a73f689-NRT", "alt-svc": "h3=\":443\"; ma=86400"}"#;
+        let result = run_retrieval_with_data(
+            &retrieve,
+            response,
+            RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
+        )
+        .unwrap();
+
+        match result {
+            RadonTypes::String(_) => {}
+            err => panic!("Error in run_retrieval: {:?}", err),
+        }
+    }
 
     #[test]
     fn test_run_retrieval() {
@@ -1524,6 +1569,58 @@ mod tests {
         } else {
             panic!("No RadonBytes result in a RNG request");
         }
+    }
+
+    #[test]
+    fn test_try_data_request_http_get_non_ascii_header_key() {
+        let script_r = Value::Array(vec![]);
+        let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
+        let body = Vec::from(String::from(""));
+        let headers = vec![("ñ", "value")];
+        let headers = headers
+            .into_iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect();
+        let request = RADRequest {
+            time_lock: 0,
+            retrieve: vec![RADRetrieve {
+                kind: RADType::HttpGet,
+                url: String::from("http://127.0.0.1"),
+                script: packed_script_r,
+                body,
+                headers,
+            }],
+            aggregate: RADAggregate {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+            tally: RADTally {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+        };
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
+        let tally_result = report.tally.into_inner();
+
+        assert_eq!(
+            tally_result,
+            RadonTypes::RadonError(
+                RadonError::try_from(RadError::UnhandledIntercept {
+                    inner: Some(Box::new(RadError::InvalidHttpHeader {
+                        name: "ñ".to_string(),
+                        value: "value".to_string(),
+                        error: "invalid HTTP header name".to_string()
+                    })),
+                    message: None
+                })
+                .unwrap()
+            )
+        );
     }
 
     #[test]
