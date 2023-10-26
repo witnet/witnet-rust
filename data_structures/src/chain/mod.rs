@@ -2690,7 +2690,7 @@ impl TransactionsPool {
                     for input in &vt_tx.body.inputs {
                         self.output_pointer_map
                             .entry(input.output_pointer)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(vt_tx.hash());
                     }
 
@@ -2715,7 +2715,7 @@ impl TransactionsPool {
                     for input in &dr_tx.body.inputs {
                         self.output_pointer_map
                             .entry(input.output_pointer)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(dr_tx.hash());
                     }
 

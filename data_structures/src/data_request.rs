@@ -143,7 +143,7 @@ impl DataRequestPool {
 
         self.data_requests_by_epoch
             .entry(epoch)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(dr_hash);
         self.data_request_pool.insert(dr_hash, dr_state);
 
