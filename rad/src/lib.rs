@@ -13,7 +13,7 @@ use witnet_data_structures::{
         RADAggregate, RADRequest, RADRetrieve, RADTally, RADType,
     },
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
-    witnessing::WitnessingConfig, radon_error::RadonError,
+    witnessing::WitnessingConfig,
 };
 use witnet_net::client::http::WitnetHttpClient;
 pub use witnet_net::Uri;
@@ -298,12 +298,9 @@ async fn http_response(
         let mut response_bytes = Vec::<u8>::default();
         match retrieve.kind {
             RADType::HttpHead => {
-                response = RadonTypes::RadonError(
-                    RadonError::try_from(RadError::BufferIsNotValue { 
-                        description: String::from("Unsupported binary streams from HTTP/HEAD sources") 
-                    })
-                    .unwrap()
-                );
+                return Err(RadError::BufferIsNotValue { 
+                    description: String::from("Unsupported binary streams from HTTP/HEAD sources") 
+                });
             }
             _ => {
                 // todo: before reading the response buffer, an error should be thrown if it was too big
@@ -312,9 +309,9 @@ async fn http_response(
                         message: x.to_string(),
                     }
                 })?;
-                response = RadonTypes::from(RadonBytes::from(response_bytes));
             }
         }
+        response = RadonTypes::from(RadonBytes::from(response_bytes));
     } else {
         // response is a string
         let mut response_string = String::default();
