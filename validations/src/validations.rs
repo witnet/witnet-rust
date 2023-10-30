@@ -15,6 +15,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
 };
+use witnet_data_structures::chain::StakeOutput;
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
@@ -30,8 +31,8 @@ use witnet_data_structures::{
     error::{BlockError, DataRequestError, TransactionError},
     radon_report::{RadonReport, ReportContext},
     transaction::{
-        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeOutput,
-        StakeTransaction, TallyTransaction, Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
+        TallyTransaction, Transaction, VTTransaction,
     },
     transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
     types::visitor::Visitor,
@@ -109,13 +110,7 @@ pub fn st_transaction_fee(
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(&st_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value = &st_tx.body.output.value
-        - &st_tx
-            .body
-            .change
-            .clone()
-            .unwrap_or(Default::default())
-            .value;
+    let out_value = st_tx.body.output.value;
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
@@ -1116,6 +1111,15 @@ pub fn validate_tally_transaction<'a>(
     Ok((ta_tx.outputs.iter().collect(), tally_extra_fee))
 }
 
+/// A type alias for the very complex return type of `fn validate_stake_transaction`.
+pub type ValidatedStakeTransaction<'a> = (
+    Vec<&'a Input>,
+    &'a StakeOutput,
+    u64,
+    u32,
+    &'a Option<ValueTransferOutput>,
+);
+
 /// Function to validate a stake transaction.
 pub fn validate_stake_transaction<'a>(
     st_tx: &'a StakeTransaction,
@@ -1123,23 +1127,13 @@ pub fn validate_stake_transaction<'a>(
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
-) -> Result<
-    (
-        Vec<&'a Input>,
-        &'a StakeOutput,
-        u64,
-        u32,
-        &'a Option<ValueTransferOutput>,
-    ),
-    failure::Error,
-> {
+) -> Result<ValidatedStakeTransaction<'a>, failure::Error> {
     // Check that the amount of coins to stake is equal or greater than the minimum allowed
     if st_tx.body.output.value < MIN_STAKE_NANOWITS {
-        return Err(TransactionError::StakeBelowMinimum {
+        Err(TransactionError::StakeBelowMinimum {
             min_stake: MIN_STAKE_NANOWITS,
             stake: st_tx.body.output.value,
-        }
-        .into());
+        })?;
     }
 
     validate_transaction_signature(
@@ -1152,10 +1146,9 @@ pub fn validate_stake_transaction<'a>(
 
     // A stake transaction must have at least one input
     if st_tx.body.inputs.is_empty() {
-        return Err(TransactionError::NoInputs {
+        Err(TransactionError::NoInputs {
             tx_hash: st_tx.hash(),
-        }
-        .into());
+        })?;
     }
 
     let fee = st_transaction_fee(st_tx, utxo_diff, epoch, epoch_constants)?;
@@ -1799,7 +1792,7 @@ pub fn validate_block_transactions(
         }
         st_weight = acc_weight;
 
-        let outputs = change.into_iter().collect_vec();
+        let outputs = change.iter().collect_vec();
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
         // Add new hash to merkle tree

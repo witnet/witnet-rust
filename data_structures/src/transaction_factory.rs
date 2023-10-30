@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{
-        DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
+        DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash, StakeOutput,
         ValueTransferOutput,
     },
     error::TransactionError,
@@ -71,6 +71,23 @@ impl NodeBalance {
         match self {
             NodeBalance::One { confirmed, .. } => confirmed.map(Wit::from_nanowits),
             NodeBalance::Many(_) => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum TransactionOutputs {
+    DataRequest((DataRequestOutput, Option<ValueTransferOutput>)),
+    Stake((StakeOutput, Option<ValueTransferOutput>)),
+    ValueTransfer(Vec<ValueTransferOutput>),
+}
+
+impl From<TransactionOutputs> for Vec<ValueTransferOutput> {
+    fn from(value: TransactionOutputs) -> Self {
+        match value {
+            TransactionOutputs::DataRequest((_, change)) => change.into_iter().collect(),
+            TransactionOutputs::Stake((_, change)) => change.into_iter().collect(),
+            TransactionOutputs::ValueTransfer(outputs) => outputs,
         }
     }
 }
@@ -157,6 +174,116 @@ pub trait OutputsCollection {
                 available_balance: total_value,
                 transaction_value: amount,
             })
+        }
+    }
+
+    /// Generic inputs/outputs builder: can be used to build any kind of transaction.
+    #[allow(clippy::too_many_arguments)]
+    fn generic_transaction_factory(
+        &mut self,
+        outputs: TransactionOutputs,
+        fee: Fee,
+        timestamp: u64,
+        block_number_limit: Option<u32>,
+        utxo_strategy: &UtxoSelectionStrategy,
+        max_weight: u32,
+    ) -> Result<TransactionInfo, TransactionError> {
+        let output_value;
+        let mut current_weight;
+        let inputs = vec![Input::default()];
+
+        // For the first estimation: 1 input and 1 output more for the change address
+        match outputs.clone() {
+            TransactionOutputs::DataRequest((dr_output, change)) => {
+                let body = DRTransactionBody::new(inputs, dr_output, change.into_iter().collect());
+                output_value = body.value()?;
+                current_weight = body.weight();
+            }
+            TransactionOutputs::Stake((stake_output, change)) => {
+                let body = StakeTransactionBody::new(inputs, stake_output, change);
+                output_value = body.value();
+                current_weight = body.weight();
+            }
+            TransactionOutputs::ValueTransfer(outputs) => {
+                let body = VTTransactionBody::new(inputs, outputs);
+                output_value = body.value();
+                current_weight = body.weight();
+            }
+        };
+
+        match fee {
+            Fee::Absolute(absolute_fee) => {
+                let amount = output_value
+                    .checked_add(absolute_fee.as_nanowits())
+                    .ok_or(TransactionError::FeeOverflow)?;
+
+                let inputs =
+                    self.take_enough_utxos(amount, timestamp, block_number_limit, utxo_strategy)?;
+
+                Ok(TransactionInfo {
+                    fee: absolute_fee,
+                    inputs,
+                    output_value,
+                    outputs: outputs.into(),
+                })
+            }
+            Fee::Relative(priority) => {
+                let max_iterations = 1 + ((max_weight - current_weight) / INPUT_SIZE);
+                for _i in 0..max_iterations {
+                    let absolute_fee = priority.into_absolute(current_weight);
+                    let amount = output_value
+                        .checked_add(absolute_fee.as_nanowits())
+                        .ok_or(TransactionError::FeeOverflow)?;
+
+                    let collected_outputs = self.take_enough_utxos(
+                        amount,
+                        timestamp,
+                        block_number_limit,
+                        utxo_strategy,
+                    )?;
+                    let inputs = collected_outputs
+                        .pointers
+                        .iter()
+                        .cloned()
+                        .map(Input::new)
+                        .collect();
+
+                    let new_weight = match outputs.clone() {
+                        TransactionOutputs::DataRequest((dr_output, change)) => {
+                            let body = DRTransactionBody::new(
+                                inputs,
+                                dr_output,
+                                change.into_iter().collect(),
+                            );
+
+                            body.weight()
+                        }
+                        TransactionOutputs::Stake((stake_output, change)) => {
+                            let body = StakeTransactionBody::new(inputs, stake_output, change);
+
+                            body.weight()
+                        }
+                        TransactionOutputs::ValueTransfer(outputs) => {
+                            let body = VTTransactionBody::new(inputs, outputs);
+
+                            body.weight()
+                        }
+                    };
+
+                    if new_weight == current_weight {
+                        return Ok(TransactionInfo {
+                            fee: absolute_fee,
+                            inputs: collected_outputs,
+                            output_value,
+                            outputs: outputs.into(),
+                        });
+                    } else {
+                        current_weight = new_weight;
+                    }
+                }
+
+                unreachable!("Unexpected exit in build_inputs_outputs method");
+            }
         }
     }
 
@@ -254,7 +381,7 @@ pub fn calculate_weight(
     let outputs = vec![ValueTransferOutput::default(); outputs_count];
 
     let weight = if let Some(dr_output) = dro {
-        let drt = DRTransactionBody::new(inputs, outputs, dr_output.clone());
+        let drt = DRTransactionBody::new(inputs, dr_output.clone(), outputs);
         let dr_weight = drt.weight();
         if dr_weight > max_weight {
             return Err(TransactionError::DataRequestWeightLimitExceeded {
@@ -431,8 +558,8 @@ pub fn build_drt(
 
     Ok(DRTransactionBody::new(
         used_pointers.collect::<Vec<_>>(),
-        outputs,
         dr_output,
+        outputs,
     ))
 }
 
@@ -570,10 +697,65 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, T
     Ok(total_value)
 }
 
-/// Build stake transaction with the given inputs, stake output and change.
-pub fn build_st() -> Result<StakeTransactionBody, TransactionError> {
-    // TODO: add stake transaction factory logic here
-    !unimplemented!()
+/// Build stake transaction from existing UTXOs without a need to specify inputs or change.
+#[allow(clippy::too_many_arguments)]
+pub fn build_st(
+    output: StakeOutput,
+    fee: Fee,
+    own_utxos: &mut OwnUnspentOutputsPool,
+    own_pkh: PublicKeyHash,
+    all_utxos: &UnspentOutputsPool,
+    timestamp: u64,
+    tx_pending_timeout: u64,
+    utxo_strategy: &UtxoSelectionStrategy,
+    max_weight: u32,
+    dry_run: bool,
+) -> Result<StakeTransactionBody, TransactionError> {
+    let mut utxos = NodeUtxos {
+        all_utxos,
+        own_utxos,
+        pkh: own_pkh,
+    };
+
+    let tx_info = utxos.generic_transaction_factory(
+        TransactionOutputs::Stake((output.clone(), None)),
+        fee,
+        timestamp,
+        None,
+        utxo_strategy,
+        max_weight,
+    )?;
+
+    let used_pointers = tx_info.inputs.pointers.iter().cloned().map(Input::new);
+
+    // Mark UTXOs as used so we don't double spend
+    // Save the timestamp after which the transaction will be considered timed out
+    // and the output will become available for spending it again
+    if !dry_run {
+        utxos.set_used_output_pointer(used_pointers.clone(), timestamp + tx_pending_timeout);
+    }
+
+    // Only use a change output if there is value inserted by inputs that is not consumed by outputs
+    // or fees
+    let change_value = tx_info
+        .inputs
+        .total_value
+        .wrapping_sub(tx_info.output_value)
+        .wrapping_sub(tx_info.fee.as_nanowits());
+    let change = if change_value > 0 {
+        Some(ValueTransferOutput {
+            pkh: own_pkh,
+            value: change_value,
+            time_lock: 0,
+        })
+    } else {
+        None
+    };
+
+    let inputs = used_pointers.collect::<Vec<_>>();
+    let body = StakeTransactionBody::new(inputs, output, change);
+
+    Ok(body)
 }
 
 #[cfg(test)]

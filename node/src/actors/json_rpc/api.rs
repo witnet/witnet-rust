@@ -2187,7 +2187,7 @@ mod tests {
         let inputs = vec![value_transfer_input];
 
         Transaction::DataRequest(DRTransaction::new(
-            DRTransactionBody::new(inputs, vec![], data_request_output),
+            DRTransactionBody::new(inputs, data_request_output, vec![]),
             keyed_signatures,
         ))
     }

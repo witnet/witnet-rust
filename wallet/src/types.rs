@@ -416,7 +416,7 @@ impl From<DRTransactionBody> for DRTransactionBodyHelper {
 
 impl From<DRTransactionBodyHelper> for DRTransactionBody {
     fn from(x: DRTransactionBodyHelper) -> Self {
-        DRTransactionBody::new(x.inputs, x.outputs, x.dr_output)
+        DRTransactionBody::new(x.inputs, x.dr_output, x.outputs)
     }
 }
 
