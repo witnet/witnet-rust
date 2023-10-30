@@ -8,8 +8,9 @@ use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 use crate::{
     chain::{
         Block, Bn256PublicKey, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature,
-        PublicKeyHash, ValueTransferOutput,
+        PublicKeyHash, StakeOutput, ValueTransferOutput,
     },
+    error::TransactionError,
     proto::{schema::witnet, ProtobufConvert},
     vrf::DataRequestEligibilityClaim,
 };
@@ -18,7 +19,7 @@ use crate::{
 // https://github.com/witnet/WIPs/blob/master/wip-0007.md
 pub const INPUT_SIZE: u32 = 133;
 pub const OUTPUT_SIZE: u32 = 36;
-pub const STAKE_OUTPUT_SIZE: u32 = 105;
+pub const STAKE_OUTPUT_WEIGHT: u32 = 105;
 pub const COMMIT_WEIGHT: u32 = 400;
 pub const REVEAL_WEIGHT: u32 = 200;
 pub const TALLY_WEIGHT: u32 = 100;
@@ -257,6 +258,14 @@ impl VTTransactionBody {
         }
     }
 
+    pub fn value(&self) -> u64 {
+        self.outputs
+            .iter()
+            .map(ValueTransferOutput::value)
+            .reduce(|acc, value| acc + value)
+            .unwrap_or_default()
+    }
+
     /// Value Transfer transaction weight. It is calculated as:
     ///
     /// ```text
@@ -383,8 +392,8 @@ impl DRTransactionBody {
     /// Creates a new data request transaction body.
     pub fn new(
         inputs: Vec<Input>,
-        outputs: Vec<ValueTransferOutput>,
         dr_output: DataRequestOutput,
+        outputs: Vec<ValueTransferOutput>,
     ) -> Self {
         DRTransactionBody {
             inputs,
@@ -392,6 +401,18 @@ impl DRTransactionBody {
             dr_output,
             hash: MemoHash::new(),
         }
+    }
+
+    pub fn value(&self) -> Result<u64, TransactionError> {
+        let dr_value = self.dr_output.checked_total_value()?;
+        let change_value = self
+            .outputs
+            .iter()
+            .map(ValueTransferOutput::value)
+            .reduce(|acc, value| acc + value)
+            .unwrap_or_default();
+
+        Ok(dr_value + change_value)
     }
 
     /// Data Request Transaction weight. It is calculated as:
@@ -725,6 +746,31 @@ pub struct StakeTransactionBody {
 }
 
 impl StakeTransactionBody {
+    /// Construct a `StakeTransactionBody` from a list of inputs and one `StakeOutput`.
+    pub fn new(
+        inputs: Vec<Input>,
+        output: StakeOutput,
+        change: Option<ValueTransferOutput>,
+    ) -> Self {
+        StakeTransactionBody {
+            inputs,
+            output,
+            change,
+            ..Default::default()
+        }
+    }
+
+    pub fn value(&self) -> u64 {
+        let stake_value = self.output.value;
+        let change_value = &self
+            .change
+            .as_ref()
+            .map(ValueTransferOutput::value)
+            .unwrap_or_default();
+
+        stake_value + change_value
+    }
+
     /// Stake transaction weight. It is calculated as:
     ///
     /// ```text
@@ -742,23 +788,7 @@ impl StakeTransactionBody {
 
         inputs_weight
             .saturating_add(change_weight)
-            .saturating_add(STAKE_OUTPUT_SIZE)
-    }
-}
-
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::StakeOutput")]
-pub struct StakeOutput {
-    pub value: u64,
-    pub authorization: KeyedSignature,
-}
-
-impl StakeOutput {
-    pub fn new(value: u64, authorization: KeyedSignature) -> Self {
-        StakeOutput {
-            value,
-            authorization,
-        }
+            .saturating_add(STAKE_OUTPUT_WEIGHT)
     }
 }
 
@@ -1068,8 +1098,8 @@ mod tests {
         };
         let dr_body = DRTransactionBody::new(
             vec![Input::default()],
-            vec![ValueTransferOutput::default()],
             dro.clone(),
+            vec![ValueTransferOutput::default()],
         );
         let dr_tx = DRTransaction::new(dr_body, vec![KeyedSignature::default()]);
         let dr_weight = INPUT_SIZE + OUTPUT_SIZE + dro.weight();
@@ -1089,8 +1119,8 @@ mod tests {
         };
         let dr_body = DRTransactionBody::new(
             vec![Input::default()],
-            vec![ValueTransferOutput::default()],
             dro.clone(),
+            vec![ValueTransferOutput::default()],
         );
         let dr_tx = DRTransaction::new(dr_body, vec![KeyedSignature::default()]);
         let dr_weight = INPUT_SIZE + OUTPUT_SIZE + dro.weight();

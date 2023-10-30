@@ -100,7 +100,7 @@ fn random_transaction() -> (Transaction, u64) {
     } else {
         let dr_output = random_dr_output();
         Transaction::DataRequest(DRTransaction {
-            body: DRTransactionBody::new(inputs, outputs, dr_output),
+            body: DRTransactionBody::new(inputs, dr_output, outputs),
             signatures: vec![signature; num_inputs],
         })
     };

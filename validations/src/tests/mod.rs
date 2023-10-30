@@ -6,7 +6,10 @@ use std::{
 
 use itertools::Itertools;
 
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
+use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
+};
 use witnet_crypto::{
     secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
     signature::sign,
@@ -47,8 +50,7 @@ mod witnessing;
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
-const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
-const MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
+const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
 
 const REQUIRED_REWARD_COLLATERAL_RATIO: u64 =
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
@@ -1453,7 +1455,7 @@ fn data_request_no_inputs() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![], dr_output, vec![]);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![]);
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -1489,7 +1491,7 @@ fn data_request_no_inputs_but_one_signature() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
     let x = validate_dr_transaction(
@@ -1534,7 +1536,7 @@ fn data_request_one_input_but_no_signature() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
 
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![]);
 
@@ -1579,7 +1581,7 @@ fn data_request_one_input_signatures() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
 
     test_signature_empty_wrong_bad(dr_tx_body, |dr_tx_body, drs| {
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -1625,7 +1627,7 @@ fn data_request_input_double_spend() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![vti; 2], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti; 2], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs; 2]);
     let x = validate_dr_transaction(
@@ -1665,7 +1667,7 @@ fn data_request_input_not_in_utxo() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
     let x = validate_dr_transaction(
@@ -1710,7 +1712,7 @@ fn data_request_input_not_enough_value() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
     let x = validate_dr_transaction(
@@ -1779,7 +1781,7 @@ fn data_request_output_value_overflow() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti0, vti1], dr_output, vec![vto0, vto1]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs; 2]);
     let x = validate_dr_transaction(
@@ -1815,7 +1817,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2213,7 +2215,7 @@ fn data_request_http_post_before_wip_activation() {
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
-        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2281,7 +2283,7 @@ fn data_request_http_get_with_headers_before_wip_activation() {
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
-        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2339,7 +2341,7 @@ fn data_request_parse_xml_before_wip_activation() {
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
-        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2393,7 +2395,7 @@ fn data_request_parse_xml_after_wip_activation() {
         let block_number = 0;
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
-        let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+        let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2429,8 +2431,8 @@ fn dr_validation_weight_limit_exceeded() {
 
     let dr_body = DRTransactionBody::new(
         vec![Input::default()],
-        vec![ValueTransferOutput::default()],
         dro.clone(),
+        vec![ValueTransferOutput::default()],
     );
     let dr_tx = DRTransaction::new(dr_body, vec![]);
     let dr_weight = dr_tx.weight();
@@ -2520,7 +2522,7 @@ fn data_request_miner_fee() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2571,7 +2573,7 @@ fn data_request_miner_fee_with_change() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2622,7 +2624,7 @@ fn data_request_change_to_different_pkh() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2683,7 +2685,7 @@ fn data_request_two_change_outputs() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body =
-        DRTransactionBody::new(vec![vti], vec![change_output_1, change_output_2], dr_output);
+        DRTransactionBody::new(vec![vti], dr_output, vec![change_output_1, change_output_2]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2736,7 +2738,7 @@ fn data_request_miner_fee_with_too_much_change() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2784,7 +2786,7 @@ fn data_request_zero_value_output() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2831,7 +2833,7 @@ fn data_request_reward_collateral_ratio_wip() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2902,7 +2904,7 @@ fn data_request_reward_collateral_ratio_limit() {
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -2933,7 +2935,7 @@ fn data_request_reward_collateral_ratio_limit() {
         ..DataRequestOutput::default()
     };
 
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -3017,7 +3019,7 @@ fn test_commit_with_dr_and_utxo_set(
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
@@ -3078,7 +3080,7 @@ fn test_commit_difficult_proof() {
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
@@ -3167,7 +3169,7 @@ fn test_commit_with_collateral(
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
@@ -3333,7 +3335,7 @@ fn commitment_no_signature() {
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
@@ -3430,7 +3432,7 @@ fn commitment_invalid_proof() {
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
@@ -3500,7 +3502,7 @@ fn commitment_dr_in_reveal_stage() {
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
@@ -3874,7 +3876,7 @@ fn commitment_collateral_zero_is_minimum() {
             collateral: 0,
             ..DataRequestOutput::default()
         };
-        let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+        let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
         let dr_hash = dr_transaction.hash();
@@ -3966,7 +3968,7 @@ fn commitment_timelock() {
             collateral: DEFAULT_COLLATERAL,
             ..DataRequestOutput::default()
         };
-        let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+        let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
         let dr_hash = dr_transaction.hash();
@@ -4065,7 +4067,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_pointer = dr_transaction.hash();
@@ -4184,7 +4186,7 @@ fn reveal_dr_in_commit_stage() {
         collateral: DEFAULT_COLLATERAL,
         ..DataRequestOutput::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_pointer = dr_transaction.hash();
@@ -4315,7 +4317,7 @@ fn reveal_valid_commitment() {
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
-        body: DRTransactionBody::new(vec![], vec![], dr_output),
+        body: DRTransactionBody::new(vec![], dr_output, vec![]),
         signatures: vec![KeyedSignature::default()],
     };
     let dr_pointer = dr_transaction.hash();
@@ -4600,7 +4602,7 @@ fn dr_pool_with_dr_in_tally_all_errors(
     // Create DRTransaction
     let epoch = 0;
     let dr_transaction = DRTransaction {
-        body: DRTransactionBody::new(vec![], vec![], dr_output.clone()),
+        body: DRTransactionBody::new(vec![], dr_output.clone(), vec![]),
         signatures: vec![KeyedSignature {
             signature: Default::default(),
             public_key: dr_public_key.clone(),
@@ -4713,7 +4715,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
     // Create DRTransaction
     let epoch = 0;
     let dr_transaction = DRTransaction {
-        body: DRTransactionBody::new(vec![], vec![], dr_output.clone()),
+        body: DRTransactionBody::new(vec![], dr_output.clone(), vec![]),
         signatures: vec![KeyedSignature {
             signature: Default::default(),
             public_key: dr_public_key.clone(),
@@ -4930,7 +4932,7 @@ fn tally_dr_not_tally_stage() {
         data_request: example_data_request(),
         collateral: DEFAULT_COLLATERAL,
     };
-    let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output.clone());
+    let dr_transaction_body = DRTransactionBody::new(vec![], dr_output.clone(), vec![]);
     let dr_transaction_signature = sign_tx(PRIV_KEY_2, &dr_transaction_body);
     let dr_transaction = DRTransaction::new(dr_transaction_body, vec![dr_transaction_signature]);
     let dr_pointer = dr_transaction.hash();
@@ -5228,7 +5230,7 @@ fn generic_tally_test_inner(
     // Create DRTransaction
     let epoch = 0;
     let dr_transaction = DRTransaction {
-        body: DRTransactionBody::new(vec![], vec![], dr_output),
+        body: DRTransactionBody::new(vec![], dr_output, vec![]),
         signatures: vec![KeyedSignature {
             signature: Default::default(),
             public_key: dr_public_key.clone(),
@@ -8483,7 +8485,7 @@ fn st_no_inputs() {
         authorization: KeyedSignature::default(),
     };
 
-    let st_body = StakeTransactionBody::new(Vec::new(), st_output, None);
+    let st_body = StakeTransactionBody::new(vec![], st_output, None);
     let st_tx = StakeTransaction::new(st_body, vec![]);
     let x = validate_stake_transaction(
         &st_tx,
@@ -9222,7 +9224,7 @@ fn block_duplicated_commits() {
         data_request: example_data_request(),
         collateral: DEFAULT_COLLATERAL,
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
@@ -9315,7 +9317,7 @@ fn block_duplicated_reveals() {
         data_request: example_data_request(),
         collateral: DEFAULT_COLLATERAL,
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
@@ -9484,7 +9486,7 @@ fn block_before_and_after_hard_fork() {
         data_request: example_data_request_before_wip19(),
         collateral: DEFAULT_COLLATERAL,
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dro.clone());
+    let dr_body = DRTransactionBody::new(vec![], dro.clone(), vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
@@ -9499,7 +9501,7 @@ fn block_before_and_after_hard_fork() {
     };
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
-    let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dro);
+    let dr_tx_body = DRTransactionBody::new(vec![vti], dro, vec![]);
     let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -10047,7 +10049,7 @@ fn block_add_drt() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
-            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -10083,7 +10085,7 @@ fn block_add_2_drt_same_input() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
-            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_tx1 = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -10103,7 +10105,7 @@ fn block_add_2_drt_same_input() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
-            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_tx2 = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -10144,7 +10146,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
-            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0], dr_output);
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
         let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
         let dr_tx = DRTransaction::new(dr_tx_body, vec![drs]);
 
@@ -10630,7 +10632,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             collateral: DEFAULT_COLLATERAL,
             ..DataRequestOutput::default()
         };
-        let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+        let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
         let dr_hash = dr_transaction.hash();
@@ -11022,12 +11024,12 @@ fn validate_dr_weight_overflow() {
         let dr_value = dro.checked_total_value().unwrap();
 
         let dr_body =
-            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], dro.clone(), vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
         assert_eq!(dr_tx.weight(), 1589);
 
-        let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
+        let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], dro, vec![]);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
         assert_eq!(dr_tx2.weight(), 1589);
@@ -11064,7 +11066,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
         let dr_value = dro.checked_total_value().unwrap();
 
         let dr_body =
-            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], dro.clone(), vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
 
@@ -11103,12 +11105,12 @@ fn validate_dr_weight_valid() {
         let dr_value = dro.checked_total_value().unwrap();
 
         let dr_body =
-            DRTransactionBody::new(vec![Input::new(output1_pointer)], vec![], dro.clone());
+            DRTransactionBody::new(vec![Input::new(output1_pointer)], dro.clone(), vec![]);
         let drs = sign_tx(PRIV_KEY_1, &dr_body);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
         assert_eq!(dr_tx.weight(), 1589);
 
-        let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], vec![], dro);
+        let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], dro, vec![]);
         let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
         assert_eq!(dr_tx2.weight(), 1589);
