@@ -518,7 +518,6 @@ impl Block {
     pub fn weight(&self) -> u32 {
         self.dr_weight() + self.vt_weight() + self.st_weight()
     }
-
 }
 
 impl BlockTransactions {
@@ -1370,6 +1369,18 @@ pub struct ValueTransferOutput {
     pub time_lock: u64,
 }
 
+impl ValueTransferOutput {
+    #[inline]
+    pub fn value(&self) -> u64 {
+        self.value
+    }
+
+    #[inline]
+    pub fn weight(&self) -> u32 {
+        OUTPUT_SIZE
+    }
+}
+
 /// Data request output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput")]
@@ -1433,6 +1444,44 @@ impl DataRequestOutput {
         commits_weight
             .saturating_add(reveals_weight)
             .saturating_add(tally_weight)
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::StakeOutput")]
+pub struct StakeOutput {
+    pub value: u64,
+    pub authorization: KeyedSignature,
+}
+
+impl StakeOutput {
+    #[inline]
+    pub fn weight(&self) -> u32 {
+        crate::transaction::STAKE_OUTPUT_WEIGHT
+    }
+}
+
+pub enum Output {
+    DataRequest(DataRequestOutput),
+    Stake(StakeOutput),
+    ValueTransfer(ValueTransferOutput),
+}
+
+impl Output {
+    pub fn value(&self) -> Result<u64, TransactionError> {
+        match self {
+            Output::DataRequest(output) => output.checked_total_value(),
+            Output::Stake(output) => Ok(output.value),
+            Output::ValueTransfer(output) => Ok(output.value),
+        }
+    }
+
+    pub fn weight(&self) -> u32 {
+        match self {
+            Output::DataRequest(output) => output.weight(),
+            Output::Stake(output) => output.weight(),
+            Output::ValueTransfer(output) => output.weight(),
+        }
     }
 }
 
@@ -2762,8 +2811,7 @@ impl TransactionsPool {
     /// Returns a list of all the removed transactions.
     fn remove_transactions_for_size_limit(&mut self) -> Vec<Transaction> {
         let mut removed_transactions = vec![];
-        while self.total_transactions_weight() > self.weight_limit
-        {
+        while self.total_transactions_weight() > self.weight_limit {
             // Try to split the memory between value transfer and data requests using the same
             // ratio as the one used in blocks
             // The ratio of vt to dr in blocks is currently 1:4
@@ -3108,8 +3156,8 @@ impl TransactionsPool {
         v
     }
 
-    pub fn total_transactions_weight (&self) -> u64 {
-        self.total_vt_weight + self.total_dr_weight + self.total_st_weight 
+    pub fn total_transactions_weight(&self) -> u64 {
+        self.total_vt_weight + self.total_dr_weight + self.total_st_weight
     }
 }
 
@@ -4219,7 +4267,7 @@ pub fn transaction_example() -> Transaction {
     let outputs = vec![value_transfer_output];
 
     Transaction::DataRequest(DRTransaction::new(
-        DRTransactionBody::new(inputs, outputs, data_request_output),
+        DRTransactionBody::new(inputs, data_request_output, outputs),
         keyed_signature,
     ))
 }
@@ -4323,7 +4371,7 @@ mod tests {
             .iter()
             .map(|input| {
                 DRTransaction::new(
-                    DRTransactionBody::new(vec![*input], vec![], DataRequestOutput::default()),
+                    DRTransactionBody::new(vec![*input], DataRequestOutput::default(), vec![]),
                     vec![],
                 )
             })
@@ -4797,14 +4845,14 @@ mod tests {
         );
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input], DataRequestOutput::default(), vec![]),
             vec![],
         );
         let dr_2 = DRTransaction::new(
             DRTransactionBody::new(
                 vec![input],
-                vec![ValueTransferOutput::default()],
                 DataRequestOutput::default(),
+                vec![ValueTransferOutput::default()],
             ),
             vec![],
         );
@@ -4874,14 +4922,14 @@ mod tests {
         );
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input], DataRequestOutput::default(), vec![]),
             vec![],
         );
         let dr_2 = DRTransaction::new(
             DRTransactionBody::new(
                 vec![input2],
-                vec![ValueTransferOutput::default()],
                 DataRequestOutput::default(),
+                vec![ValueTransferOutput::default()],
             ),
             vec![],
         );
@@ -4975,11 +5023,11 @@ mod tests {
         assert_ne!(input0, input1);
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input0], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input0], DataRequestOutput::default(), vec![]),
             vec![],
         );
         let dr_2 = DRTransaction::new(
-            DRTransactionBody::new(vec![input0, input1], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input0, input1], DataRequestOutput::default(), vec![]),
             vec![],
         );
 
@@ -5041,7 +5089,7 @@ mod tests {
     fn transactions_pool_malleability_dr() {
         let input = Input::default();
         let mut dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input], DataRequestOutput::default(), vec![]),
             vec![KeyedSignature::default()],
         );
         // Add dummy signature, but pretend it is valid
@@ -5236,12 +5284,12 @@ mod tests {
             Transaction::DataRequest(DRTransaction::new(
                 DRTransactionBody::new(
                     vec![Input::default()],
+                    DataRequestOutput::default(),
                     vec![ValueTransferOutput {
                         pkh: Default::default(),
                         value: i,
                         time_lock: 0,
                     }],
-                    DataRequestOutput::default(),
                 ),
                 vec![],
             ))
@@ -5479,7 +5527,7 @@ mod tests {
             witnesses: 1,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5517,7 +5565,7 @@ mod tests {
             commit_and_reveal_fee: 501,
             ..Default::default()
         };
-        let drb1 = DRTransactionBody::new(vec![], vec![], dro1);
+        let drb1 = DRTransactionBody::new(vec![], dro1, vec![]);
         let drt1 = DRTransaction::new(
             drb1,
             vec![KeyedSignature {
@@ -5532,7 +5580,7 @@ mod tests {
             commit_and_reveal_fee: 100,
             ..Default::default()
         };
-        let drb2 = DRTransactionBody::new(vec![], vec![], dro2);
+        let drb2 = DRTransactionBody::new(vec![], dro2, vec![]);
         let drt2 = DRTransaction::new(
             drb2,
             vec![KeyedSignature {
@@ -5547,7 +5595,7 @@ mod tests {
             commit_and_reveal_fee: 500,
             ..Default::default()
         };
-        let drb3 = DRTransactionBody::new(vec![], vec![], dro3);
+        let drb3 = DRTransactionBody::new(vec![], dro3, vec![]);
         let drt3 = DRTransaction::new(
             drb3,
             vec![KeyedSignature {
@@ -5639,7 +5687,7 @@ mod tests {
             witnesses: 2,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5679,7 +5727,7 @@ mod tests {
             witnesses: 1,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5718,7 +5766,7 @@ mod tests {
             witnesses: 1,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5756,7 +5804,7 @@ mod tests {
             witnesses: 2,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5794,7 +5842,7 @@ mod tests {
             witnesses: 2,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {

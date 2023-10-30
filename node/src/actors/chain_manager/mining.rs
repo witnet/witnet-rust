@@ -951,7 +951,7 @@ pub fn build_block(
         witnesses: 1,
         ..DataRequestOutput::default()
     };
-    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
+    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], dro, vec![]).weight();
     for dr_tx in transactions_pool.dr_iter() {
         let transaction_weight = dr_tx.weight();
         let transaction_fee = match dr_transaction_fee(dr_tx, &utxo_diff, epoch, epoch_constants) {
@@ -1451,9 +1451,9 @@ mod tests {
         let mut dr3 = dr1.clone();
         dr3.witnesses = 3;
 
-        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
-        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
-        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), dr1, vec![]);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), dr2, vec![]);
+        let dr_body_one_output3 = DRTransactionBody::new(input, dr3, vec![]);
 
         // Build sample transactions
         let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
@@ -1547,9 +1547,9 @@ mod tests {
         let mut dr3 = dr1.clone();
         dr3.commit_and_reveal_fee = 3;
 
-        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
-        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
-        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), dr1, vec![]);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), dr2, vec![]);
+        let dr_body_one_output3 = DRTransactionBody::new(input, dr3, vec![]);
 
         // Build sample transactions
         let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);

@@ -40,7 +40,7 @@ fn example_dr(id: usize) -> DRTransaction {
         witness_reward: id as u64,
         ..Default::default()
     };
-    let dr_body = DRTransactionBody::new(vec![], vec![], dr_output);
+    let dr_body = DRTransactionBody::new(vec![], dr_output, vec![]);
 
     DRTransaction::new(dr_body, vec![])
 }
