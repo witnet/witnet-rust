@@ -1144,7 +1144,7 @@ where
             .map(Input::new)
             .collect_vec();
 
-        let body = DRTransactionBody::new(pointers_as_inputs.clone(), outputs, request);
+        let body = DRTransactionBody::new(pointers_as_inputs.clone(), request, outputs);
         let sign_data = body.hash();
         let signatures =
             self.create_signatures_from_inputs(pointers_as_inputs, sign_data, &mut state);
