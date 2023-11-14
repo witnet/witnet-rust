@@ -29,7 +29,7 @@ pub enum RadonOpCodes {
     // Array operator codes (start at 0x10)
     ArrayCount = 0x10,
     ArrayFilter = 0x11,
-    //    ArrayFlatten = 0x12,
+    ArrayJoin = 0x12,
     ArrayGetArray = 0x13,
     ArrayGetBoolean = 0x14,
     ArrayGetBytes = 0x15,
@@ -106,6 +106,9 @@ pub enum RadonOpCodes {
     StringParseXMLMap = 0x78,
     StringToLowerCase = 0x79,
     StringToUpperCase = 0x7A,
+    StringReplace = 0x7B,
+    StringSlice = 0x7C,
+    StringSplit = 0x7D,
 }
 
 impl fmt::Display for RadonOpCodes {

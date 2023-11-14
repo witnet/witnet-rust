@@ -3720,6 +3720,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "slicestring"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da7b0ad4ee74da25b3ff80bc5aa633bf8b1e0bbaf577c6f44529a26ad2d9df75"
+
+[[package]]
 name = "sluice"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4958,7 +4964,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "ansi_term",
  "bytecount",
@@ -5005,7 +5011,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -5069,7 +5075,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "bech32",
  "bencher",
@@ -5134,7 +5140,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "actix",
  "ansi_term",
@@ -5198,7 +5204,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_rad"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "cbor-codec",
  "failure",
@@ -5211,9 +5217,11 @@ dependencies = [
  "num_enum",
  "ordered-float",
  "rand 0.7.3",
+ "regex",
  "serde",
  "serde_cbor",
  "serde_json",
+ "slicestring",
  "url",
  "witnet_config",
  "witnet_crypto",
@@ -5241,7 +5249,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "failure",
  "hex",
@@ -5284,7 +5292,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "actix",
  "async-jsonrpc-client",

@@ -431,6 +431,10 @@ impl RadError {
         }
 
         Ok(RadonError::new(match kind {
+            RadonErrors::BufferIsNotValue => {
+                let (description,) = deserialize_args(error_args)?;
+                RadError::BufferIsNotValue { description }
+            }
             RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
             RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
             RadonErrors::Overflow => RadError::Overflow,
@@ -574,6 +578,7 @@ impl RadError {
     pub fn try_into_error_code(&self) -> Result<RadonErrors, RadError> {
         Ok(match self {
             RadError::Unknown => RadonErrors::Unknown,
+            RadError::BufferIsNotValue { .. } => RadonErrors::BufferIsNotValue,
             RadError::SourceScriptNotCBOR => RadonErrors::SourceScriptNotCBOR,
             RadError::SourceScriptNotArray => RadonErrors::SourceScriptNotArray,
             RadError::SourceScriptNotRADON => RadonErrors::SourceScriptNotRADON,
