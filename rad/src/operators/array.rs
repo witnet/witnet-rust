@@ -109,6 +109,40 @@ fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonString,
     )))
 }
 
+pub fn join(
+    input: &RadonArray,
+    args: &[Value]
+) -> Result<RadonTypes, RadError> {
+    // Join not applicable if the input array is not homogeneous
+    if !input.is_homogeneous() {
+        return Err(RadError::UnsupportedOpNonHomogeneous {
+            operator: "ArrayJoin".to_string(),
+        });
+    }
+    let separator = if args.len() > 0 {
+        from_value::<String>(args[0].to_owned()).unwrap_or_default()
+    } else {
+        String::from("")
+    };
+    match input.value().first()  {
+        Some(RadonTypes::String(_)) => {
+            let string_list: Vec<String> = input.value().into_iter().map(|item| 
+                RadonString::try_from(item).unwrap_or_default().value()
+            ).collect();
+            Ok(RadonTypes::from(RadonString::from(string_list.join(separator.as_str()))))
+        Some(first_item) => {
+            return Err(RadError::UnsupportedOperator { 
+                input_type: first_item.radon_type_name().to_string(),
+                operator: "ArrayJoin".to_string(), 
+                args: Some(args.to_vec())
+            });
+        }
+        _ => {
+            return Err(RadError::EmptyArray)
+        }
+    }
+}
+
 pub fn map(
     input: &RadonArray,
     args: &[Value],
