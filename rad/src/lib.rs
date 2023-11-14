@@ -293,24 +293,16 @@ async fn http_response(
     let (parts, mut body) = response.into_parts();
 
     let response: RadonTypes;
-    if parts.headers.contains_key("accept-ranges") {
+    if retrieve.kind != RADType::HttpHead && parts.headers.contains_key("accept-ranges") {
         // http response is a binary stream
         let mut response_bytes = Vec::<u8>::default();
-        match retrieve.kind {
-            RADType::HttpHead => {
-                return Err(RadError::BufferIsNotValue { 
-                    description: String::from("Unsupported binary streams from HTTP/HEAD sources") 
-                });
+
+        // todo: before reading the response buffer, an error should be thrown if it was too big
+        body.read_to_end(&mut response_bytes).await.map_err(|x| {
+            RadError::HttpOther {
+                message: x.to_string(),
             }
-            _ => {
-                // todo: before reading the response buffer, an error should be thrown if it was too big
-                body.read_to_end(&mut response_bytes).await.map_err(|x| {
-                    RadError::HttpOther {
-                        message: x.to_string(),
-                    }
-                })?;
-            }
-        }
+        })?;
         response = RadonTypes::from(RadonBytes::from(response_bytes));
     } else {
         // response is a string
