@@ -7,6 +7,8 @@ use std::{
 use serde_cbor::value::{from_value, Value};
 use serde_json::Value as JsonValue;
 
+use regex::Regex;
+
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
@@ -222,6 +224,17 @@ pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError
     let hex_string = hex::encode(digest);
 
     Ok(RadonString::from(hex_string))
+}
+
+pub fn string_replace(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "StringReplace".to_string(),
+        args: args.to_vec(),
+    };
+    let regex = RadonString::try_from(args.first().ok_or_else(wrong_args)?.to_owned())?;
+    let replacement = RadonString::try_from(args.get(1).ok_or_else(wrong_args)?.to_owned())?;
+    Ok(RadonString::from(input.value().as_str().replace(regex.value().as_str(), replacement.value().as_str())))
 }
 
 pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, RadError> {

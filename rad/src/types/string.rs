@@ -143,6 +143,9 @@ impl Operable for RadonString {
             (RadonOpCodes::StringParseXMLMap, None) => string_operators::parse_xml_map(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            (RadonOpCodes::StringReplace, Some(args)) => {
+                string_operators::string_replace(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
+            }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_STRING_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
