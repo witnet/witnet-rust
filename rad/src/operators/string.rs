@@ -7,6 +7,7 @@ use std::{
 use serde_cbor::value::{from_value, Value};
 use serde_json::Value as JsonValue;
 
+use slicestring::Slice;
 use regex::Regex;
 
 use crate::{
@@ -235,6 +236,27 @@ pub fn string_replace(input: &RadonString, args: &[Value]) -> Result<RadonString
     let regex = RadonString::try_from(args.first().ok_or_else(wrong_args)?.to_owned())?;
     let replacement = RadonString::try_from(args.get(1).ok_or_else(wrong_args)?.to_owned())?;
     Ok(RadonString::from(input.value().as_str().replace(regex.value().as_str(), replacement.value().as_str())))
+}
+
+pub fn string_slice(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "StringSlice".to_string(),
+        args: args.to_vec(),
+    };
+    let mut end_index: usize = input.value().len();
+    match args.len() {
+        2 => {
+            let start_index = from_value::<i64>(args[0].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
+            end_index = from_value::<i64>(args[1].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
+            Ok(RadonString::from(input.value().as_str().slice(start_index..end_index)))
+        }
+        1 => {
+            let start_index = from_value::<i64>(args[0].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
+            Ok(RadonString::from(input.value().as_str().slice(start_index..end_index)))
+        }
+        _ => Err(wrong_args())
+    }
 }
 
 pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, RadError> {
