@@ -149,6 +149,9 @@ impl Operable for RadonString {
             (RadonOpCodes::StringSlice, Some(args)) => {
                 string_operators::string_slice(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
             }
+            (RadonOpCodes::StringSplit, Some(args)) => {
+                string_operators::string_split(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
+            }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_STRING_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

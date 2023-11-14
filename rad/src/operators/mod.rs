@@ -108,6 +108,7 @@ pub enum RadonOpCodes {
     StringToUpperCase = 0x7A,
     StringReplace = 0x7B,
     StringSlice = 0x7C,
+    StringSplit = 0x7D,
 }
 
 impl fmt::Display for RadonOpCodes {

@@ -3720,6 +3720,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "slicestring"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da7b0ad4ee74da25b3ff80bc5aa633bf8b1e0bbaf577c6f44529a26ad2d9df75"
+
+[[package]]
 name = "sluice"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5211,9 +5217,11 @@ dependencies = [
  "num_enum",
  "ordered-float",
  "rand 0.7.3",
+ "regex",
  "serde",
  "serde_cbor",
  "serde_json",
+ "slicestring",
  "url",
  "witnet_config",
  "witnet_crypto",

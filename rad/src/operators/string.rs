@@ -259,10 +259,21 @@ pub fn string_slice(input: &RadonString, args: &[Value]) -> Result<RadonString, 
     }
 }
 
+pub fn string_split(input: &RadonString, args: &[Value]) -> Result<RadonArray, RadError> {
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "StringSplit".to_string(),
+        args: args.to_vec(),
+    };
+    let pattern = RadonString::try_from(args.first().ok_or_else(wrong_args)?.to_owned())?;
+    let parts: Vec<RadonTypes> = Regex::new(pattern.value().as_str()).unwrap().split(input.value().as_str()).map(|part| RadonTypes::from(RadonString::from(part))).collect();
+    Ok(RadonArray::from(parts))
+}
+
 pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
-        operator: "String match".to_string(),
+        operator: "StringMatch".to_string(),
         args: args.to_vec(),
     };
 
