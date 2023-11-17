@@ -68,6 +68,15 @@ impl std::ops::Add for Wit {
     }
 }
 
+impl std::ops::Sub for Wit {
+    type Output = Self;
+
+    #[inline]
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.nanowits() - rhs.nanowits())
+    }
+}
+
 impl num_traits::Zero for Wit {
     #[inline]
     fn zero() -> Self {

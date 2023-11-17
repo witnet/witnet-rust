@@ -1,11 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
-    fmt,
-    fmt::Debug,
+    fmt::{self, Debug, Formatter},
     marker::Send,
     net::SocketAddr,
     ops::{Bound, RangeBounds},
     path::PathBuf,
+    str::FromStr,
     time::Duration,
 };
 
@@ -13,16 +13,17 @@ use actix::{
     dev::{MessageResponse, OneshotSender, ToEnvelope},
     Actor, Addr, Handler, Message,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tokio::net::TcpStream;
+
 use witnet_data_structures::{
     chain::{
         priority::PrioritiesEstimate,
         tapi::{ActiveWips, BitVotesCounter},
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash, RADRequest,
-        RADTally, Reputation, StateMachine, SuperBlock, SuperBlockVote, SupplyInfo,
-        ValueTransferOutput,
+        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash,
+        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StateMachine, SuperBlock,
+        SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
@@ -255,11 +256,106 @@ impl Message for GetDataRequestInfo {
     type Result = Result<DataRequestInfo, failure::Error>;
 }
 
+/// Tells the `getBalance` method whether to get the balance of all addresses, one provided address,
+/// or our own.
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub enum GetBalanceTarget {
+    /// Get balance for all addresses in the network.
+    #[default]
+    All,
+    /// Get balance for a specific address.
+    Address(PublicKeyHash),
+    /// Get balance for our own address.
+    Own,
+}
+
+impl GetBalanceTarget {
+    /// Obtain a `GetBalanceTarget::Own` from a `GetBalanceTarget::Pkh` that contains our own
+    /// address.
+    pub fn resolve_own(self, own_pkh: PublicKeyHash) -> Self {
+        if self == GetBalanceTarget::Address(own_pkh) {
+            GetBalanceTarget::Own
+        } else {
+            self
+        }
+    }
+}
+
+impl From<Option<PublicKeyHash>> for GetBalanceTarget {
+    /// Provides a convenient way to derive a `GetBalanceTarget` from an optional address parameter.
+    fn from(address: Option<PublicKeyHash>) -> Self {
+        if let Some(address) = address {
+            GetBalanceTarget::Address(address)
+        } else {
+            GetBalanceTarget::Own
+        }
+    }
+}
+
+impl FromStr for GetBalanceTarget {
+    type Err = PublicKeyHashParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "all" => GetBalanceTarget::All,
+            "own" => GetBalanceTarget::Own,
+            address => {
+                let env = witnet_data_structures::get_environment();
+                let address = PublicKeyHash::from_bech32(env, address)?;
+                GetBalanceTarget::Address(address)
+            }
+        })
+    }
+}
+
+struct GetBalanceTargetVisitor;
+
+impl<'de> serde::de::Visitor<'de> for GetBalanceTargetVisitor {
+    type Value = GetBalanceTarget;
+
+    fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a string, either containing `all`, `own` or a Bech32 address")
+    }
+
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Self::Value::from_str(s).map_err(|e| E::custom(e))
+    }
+}
+impl<'de> Deserialize<'de> for GetBalanceTarget {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(GetBalanceTargetVisitor)
+    }
+}
+
+impl serde::ser::Serialize for GetBalanceTarget {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let string = match self {
+            GetBalanceTarget::All => "all".into(),
+            GetBalanceTarget::Address(address) => {
+                let env = witnet_data_structures::get_environment();
+                address.bech32(env)
+            }
+            GetBalanceTarget::Own => "own".into(),
+        };
+
+        serializer.serialize_str(&string)
+    }
+}
+
 /// Get Balance
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GetBalance {
     /// Public key hash
-    pub pkh: PublicKeyHash,
+    pub target: GetBalanceTarget,
     /// Distinguish between fetching a simple balance or fetching confirmed and unconfirmed balance
     pub simple: bool,
 }

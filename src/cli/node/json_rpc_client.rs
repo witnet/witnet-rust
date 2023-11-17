@@ -38,10 +38,8 @@ use witnet_data_structures::{
 };
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
-    json_rpc::api::{
-        AddrType, GetBalanceParams, GetBlockChainParams, GetTransactionOutput, PeersResult,
-    },
-    messages::{BuildDrt, BuildVtt, GetReputationResult, SignalingInfo},
+    json_rpc::api::{AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult},
+    messages::{BuildDrt, BuildVtt, GetBalanceTarget, GetReputationResult, SignalingInfo},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{files::create_private_file, timestamp::pretty_print};
@@ -191,56 +189,69 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
 
 pub fn get_balance(
     addr: SocketAddr,
-    pkh: Option<PublicKeyHash>,
+    target: GetBalanceTarget,
     simple: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
-    let pkh = match pkh {
-        Some(pkh) => pkh,
-        None => {
-            log::info!("No pkh specified, will default to node pkh");
-            let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
-            let response = send_request(&mut stream, request)?;
-            let node_pkh = parse_response::<PublicKeyHash>(&response)?;
-            log::info!("Node pkh: {}", node_pkh);
-
-            node_pkh
-        }
-    };
-
-    let params = GetBalanceParams { pkh, simple };
+    if let GetBalanceTarget::Own = target {
+        log::info!("No pkh specified, will default to node pkh");
+        let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
+        let response = send_request(&mut stream, request)?;
+        let node_pkh = parse_response::<PublicKeyHash>(&response)?;
+        log::info!("Node pkh: {}", node_pkh);
+    }
 
     let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "getBalance", "params": {}, "id": "1"}}"#,
-        serde_json::to_string(&params).unwrap()
+        r#"{{"jsonrpc": "2.0","method": "getBalance", "params": [{}, {}], "id": "1"}}"#,
+        serde_json::to_string(&target).unwrap(),
+        serde_json::to_string(&simple).unwrap(),
     );
     log::info!("{}", request);
     let response = send_request(&mut stream, &request)?;
     log::info!("{}", response);
 
-    let amount = parse_response::<NodeBalance>(&response)?;
-    if simple {
-        println!("Balance:   {} wits", Wit::from_nanowits(amount.total));
-    } else {
-        println!(
-            "Confirmed balance:   {} wits\n\
-            Pending balance:     {} wits",
-            Wit::from_nanowits(amount.confirmed.unwrap()),
-            wit_difference_to_string(amount.confirmed.unwrap(), amount.total)
-        );
+    let balances = parse_response::<NodeBalance>(&response)?;
+    let list: Vec<_> = match balances {
+        one @ NodeBalance::One { .. } => vec![(None, one)].into_iter().collect(),
+        NodeBalance::Many(many) => many
+            .into_iter()
+            .map(|(key, val)| (Some(key), val))
+            .collect(),
+    };
+
+    for (address, balance) in list {
+        if let Some(address) = address {
+            println!(
+                "== {} ==",
+                address.bech32(witnet_data_structures::get_environment())
+            );
+        }
+
+        if simple {
+            println!("Balance:   {} wits", balance.get_total().unwrap());
+        } else {
+            let total = balance.get_total().unwrap();
+            let confirmed = balance.get_confirmed().unwrap_or(total);
+            let pending = wit_difference_to_string(confirmed, total);
+            println!(
+                "Confirmed balance:   {} wits\n\
+                 Pending balance:     {} wits",
+                confirmed, pending
+            );
+        }
     }
 
     Ok(())
 }
 
 // Check if the pending balance is positive or negative
-fn wit_difference_to_string(confirmed: u64, total: u64) -> String {
+fn wit_difference_to_string(confirmed: Wit, total: Wit) -> String {
     if total >= confirmed {
-        Wit::from_nanowits(total - confirmed).to_string()
+        (total - confirmed).to_string()
     } else {
         let mut neg = String::from("-");
-        neg.push_str(&Wit::from_nanowits(confirmed - total).to_string());
+        neg.push_str(&(confirmed - total).to_string());
         neg
     }
 }

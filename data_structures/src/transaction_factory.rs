@@ -1,4 +1,8 @@
-use std::{collections::HashSet, convert::TryFrom};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+    ops::AddAssign,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -33,13 +37,42 @@ pub struct TransactionInfo {
     pub outputs: Vec<ValueTransferOutput>,
 }
 
-// Structure that the includes the confirmed and pending balance of a node
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NodeBalance {
-    /// Total amount of a node's funds after last confirmed superblock
-    pub confirmed: Option<u64>,
-    /// Total amount of node's funds after last block
-    pub total: u64,
+// Structure that includes the confirmed and pending balance of a node
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum NodeBalance {
+    One {
+        /// Total amount of a node's funds after last confirmed superblock
+        confirmed: Option<u64>,
+        /// Total amount of node's funds after last block
+        total: u64,
+    },
+    Many(HashMap<PublicKeyHash, NodeBalance>),
+}
+
+impl NodeBalance {
+    pub fn add_value(&mut self, value: u64) {
+        match self {
+            NodeBalance::One { total, .. } => {
+                total.add_assign(value);
+            }
+            NodeBalance::Many(_) => {}
+        }
+    }
+
+    pub fn get_total(&self) -> Option<Wit> {
+        match self {
+            NodeBalance::One { total, .. } => Some(Wit::from_nanowits(*total)),
+            NodeBalance::Many(_) => None,
+        }
+    }
+
+    pub fn get_confirmed(&self) -> Option<Wit> {
+        match self {
+            NodeBalance::One { confirmed, .. } => confirmed.map(Wit::from_nanowits),
+            NodeBalance::Many(_) => None,
+        }
+    }
 }
 
 /// Abstraction that facilitates the creation of new transactions from a set of unspent outputs.
@@ -271,12 +304,12 @@ pub fn get_total_balance(
     );
 
     if simple {
-        NodeBalance {
+        NodeBalance::One {
             confirmed: None,
             total,
         }
     } else {
-        NodeBalance {
+        NodeBalance::One {
             confirmed: Some(confirmed),
             total,
         }
@@ -1498,7 +1531,7 @@ mod tests {
         // If the utxo set from the storage is None it should set the confirmed balance to 0
         assert_eq!(
             get_total_balance(&all_utxos, own_pkh, false),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: Some(0),
                 total: 1000,
             }
@@ -1506,7 +1539,7 @@ mod tests {
         // When using simple balance, both balances should be 1000
         assert_eq!(
             get_total_balance(&all_utxos, own_pkh, true),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: None,
                 total: 1000,
             }
@@ -1516,7 +1549,7 @@ mod tests {
         // Assert the balance is 1000 when the superblock is confirmed
         assert_eq!(
             get_total_balance(&all_utxos, own_pkh, false),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: Some(1000),
                 total: 1000,
             }
@@ -1524,7 +1557,7 @@ mod tests {
         // Assert the balance is 1000 when the superblock is confirmed when using simple balance
         assert_eq!(
             get_total_balance(&all_utxos, own_pkh, true),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: None,
                 total: 1000,
             }
@@ -1542,7 +1575,7 @@ mod tests {
         // Assert the balance is 900 after paying 100 to Bob
         assert_eq!(
             get_total_balance(&all_utxos_2, own_pkh, false),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: Some(1000),
                 total: 900,
             }
@@ -1550,7 +1583,7 @@ mod tests {
         // Assert both balances are 900 after paying 100 to Bob when using simple balance
         assert_eq!(
             get_total_balance(&all_utxos_2, own_pkh, true),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: None,
                 total: 900,
             }
@@ -1558,7 +1591,7 @@ mod tests {
         // Assert Bob's balance is 100
         assert_eq!(
             get_total_balance(&all_utxos_2, bob_pkh, false),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: Some(0),
                 total: 100,
             }
@@ -1566,7 +1599,7 @@ mod tests {
         // Assert both of Bob's balance are 100 when using simple balance
         assert_eq!(
             get_total_balance(&all_utxos_2, bob_pkh, true),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: None,
                 total: 100,
             }
@@ -1580,7 +1613,7 @@ mod tests {
         // Assert the balance is 1500 after receiving 600
         assert_eq!(
             get_total_balance(&all_utxos_3, own_pkh, false),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: Some(900),
                 total: 1500,
             }
@@ -1588,7 +1621,7 @@ mod tests {
         // Assert both balances are 1500 after receiving 600 when using simple balance
         assert_eq!(
             get_total_balance(&all_utxos_3, own_pkh, true),
-            NodeBalance {
+            NodeBalance::One {
                 confirmed: None,
                 total: 1500,
             }

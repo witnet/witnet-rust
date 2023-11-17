@@ -10,6 +10,7 @@ use structopt::StructOpt;
 use witnet_config::config::Config;
 use witnet_data_structures::{chain::Epoch, fee::Fee};
 use witnet_node as node;
+use witnet_node::actors::messages::GetBalanceTarget;
 
 use super::json_rpc_client as rpc;
 
@@ -56,9 +57,15 @@ pub fn exec_cmd(
             node,
             address,
             simple,
+            all,
         } => {
             let address = address.map(|x| x.parse()).transpose()?;
-            rpc::get_balance(node.unwrap_or(default_jsonrpc), address, simple)
+            let target = if all {
+                GetBalanceTarget::All
+            } else {
+                address.into()
+            };
+            rpc::get_balance(node.unwrap_or(default_jsonrpc), target, simple)
         }
         Command::GetSupplyInfo { node } => rpc::get_supply_info(node.unwrap_or(default_jsonrpc)),
         Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(default_jsonrpc)),
@@ -389,6 +396,10 @@ pub enum Command {
         /// Fetch and print only the simple balance
         #[structopt(long = "simple")]
         simple: bool,
+        /// Tells the command to return the balance for all the addresses in the network.
+        /// If set, this overrides `address`.
+        #[structopt(short = "a", long = "all")]
+        all: bool,
     },
     #[structopt(
         name = "supply",

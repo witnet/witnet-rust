@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     convert::{TryFrom, TryInto},
     future,
     net::SocketAddr,
@@ -8,11 +8,12 @@ use std::{
 
 use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
+
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
-        Hashable, NodeStats, SuperBlockVote, SupplyInfo,
+        Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -29,12 +30,12 @@ use crate::{
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
             AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
-            GetBalance, GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
-            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetReputation,
-            GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport,
-            SnapshotImport, TryMineBlock,
+            GetBalance, GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo,
+            GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool, GetMempoolResult,
+            GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo, GetState,
+            GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
+            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
+            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1396,7 +1397,7 @@ impl Handler<GetBalance> for ChainManager {
 
     fn handle(
         &mut self,
-        GetBalance { pkh, simple }: GetBalance,
+        GetBalance { target, simple }: GetBalance,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -1406,24 +1407,54 @@ impl Handler<GetBalance> for ChainManager {
             .into());
         }
 
-        if simple && Some(pkh) == self.own_pkh {
-            // Calculate balance using OwnUnspentOutputsPool, which is much faster but only works
-            // when using the node pkh, and does only return unconfirmed balance.
-            let total = self
-                .chain_state
-                .own_utxos
-                .get_balance(&self.chain_state.unspent_outputs_pool);
-            return Ok(NodeBalance {
-                confirmed: None,
-                total,
-            });
-        }
+        let own_pkh = self.own_pkh.unwrap_or_default();
+        let target = target.resolve_own(own_pkh);
 
-        Ok(transaction_factory::get_total_balance(
-            &self.chain_state.unspent_outputs_pool,
-            pkh,
-            simple,
-        ))
+        let balance = match target {
+            GetBalanceTarget::All => {
+                let mut balances: HashMap<PublicKeyHash, NodeBalance> = HashMap::new();
+
+                for (_output_pointer, (vto, _)) in self.chain_state.unspent_outputs_pool.iter() {
+                    balances
+                        .entry(vto.pkh)
+                        .or_insert(NodeBalance::One {
+                            total: 0,
+                            confirmed: None,
+                        })
+                        .add_value(vto.value);
+                }
+
+                NodeBalance::Many(balances)
+            }
+            GetBalanceTarget::Own => {
+                if simple {
+                    // Calculate balance using OwnUnspentOutputsPool, which is much faster but only works
+                    // when using the node pkh, and does only return unconfirmed balance.
+                    let total = self
+                        .chain_state
+                        .own_utxos
+                        .get_balance(&self.chain_state.unspent_outputs_pool);
+
+                    NodeBalance::One {
+                        confirmed: None,
+                        total,
+                    }
+                } else {
+                    transaction_factory::get_total_balance(
+                        &self.chain_state.unspent_outputs_pool,
+                        own_pkh,
+                        simple,
+                    )
+                }
+            }
+            GetBalanceTarget::Address(pkh) => transaction_factory::get_total_balance(
+                &self.chain_state.unspent_outputs_pool,
+                pkh,
+                simple,
+            ),
+        };
+
+        Ok(balance)
     }
 }
 

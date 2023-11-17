@@ -4,6 +4,7 @@ use std::{
     fmt::Debug,
     net::SocketAddr,
     path::PathBuf,
+    str::FromStr,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -37,11 +38,12 @@ use crate::{
         json_rpc::Subscriptions,
         messages::{
             AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, DropAllPeers,
-            EstimatePriority, GetBalance, GetBlocksEpochRange, GetConsolidatedPeers,
-            GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
-            GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
-            GetNodeStats, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo,
-            InitializePeers, IsConfirmedBlock, Rewind, SnapshotExport, SnapshotImport,
+            EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
+            GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
+            GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
+            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
+            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
+            SnapshotExport, SnapshotImport,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -662,7 +664,7 @@ pub async fn get_block_chain(params: Result<Option<GetBlockChainParams>, Error>)
 {"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb", false]}
 */
 pub async fn get_block(params: Params) -> Result<Value, Error> {
-    let (block_hash, include_txns_hashes): (Hash, bool);
+    let (block_hash, include_txns_metadata): (Hash, bool);
 
     // Handle parameters as an array with a first obligatory hash field plus an optional bool field
     if let Params::Array(params) = params {
@@ -680,8 +682,8 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
         };
 
         match params.get(1) {
-            None => include_txns_hashes = true,
-            Some(Value::Bool(ith)) => include_txns_hashes = *ith,
+            None => include_txns_metadata = true,
+            Some(Value::Bool(ith)) => include_txns_metadata = *ith,
             Some(_) => {
                 return Err(Error::invalid_params(
                     "Second argument of `get_block` must have type `Bool`",
@@ -732,7 +734,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
             // Only include the `txns_hashes` field if explicitly requested, as hash
             // operations are quite expensive, and transactions read from storage cannot
             // benefit from hash memoization
-            let txns_hashes = if include_txns_hashes {
+            let txns_hashes = if include_txns_metadata {
                 let vtt_hashes: Vec<_> = output
                     .txns
                     .value_transfer_txns
@@ -771,6 +773,28 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     "commit" : ct_hashes,
                     "reveal" : rt_hashes,
                     "tally" : tt_hashes
+                }))
+            } else {
+                None
+            };
+
+            // Only include the `txns_weights` field if explicitly requested
+            let txns_weights = if include_txns_metadata {
+                let vtt_weights: Vec<_> = output
+                    .txns
+                    .value_transfer_txns
+                    .iter()
+                    .map(|txn| txn.weight())
+                    .collect();
+                let drt_weights: Vec<_> = output
+                    .txns
+                    .data_request_txns
+                    .iter()
+                    .map(|txn| txn.weight())
+                    .collect();
+                Some(serde_json::json!({
+                    "value_transfer" : vtt_weights,
+                    "data_request" : drt_weights,
                 }))
             } else {
                 None
@@ -822,6 +846,13 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     .as_object_mut()
                     .expect("The result of getBlock should be an object")
                     .insert("txns_hashes".to_string(), txns_hashes);
+            }
+            // See explanation above about optional `txns_weights` field
+            if let Some(txns_weights) = txns_weights {
+                value
+                    .as_object_mut()
+                    .expect("The result of getBlock should be an object")
+                    .insert("txns_weights".to_string(), txns_weights);
             }
 
             value
@@ -1287,29 +1318,40 @@ pub async fn data_request_report(params: Result<(Hash,), Error>) -> JsonRpcResul
         .await
 }
 
-/// Params of getBlockChain method
+/// Params of getBalance method
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct GetBalanceParams {
-    /// Public key hash
-    pub pkh: PublicKeyHash,
-    /// Distinguish between fetching a simple balance or fetching confirmed and unconfirmed balance
+    /// Query the balance of a specific address. If not provided, will default to our own address,
+    /// unless `all` is set.
+    #[serde(default)] // default to None
+    pub pkh: Option<PublicKeyHash>,
+    /// Distinguish between fetching a simple balance or fetching confirmed and unconfirmed balance.
     #[serde(default)] // default to false
     pub simple: bool,
+    /// Query the balance of all the existing addresses.
+    #[serde(default)] // default to false
+    pub all: bool,
+}
+
+/// Easily derive the target of the getBalance command from its arguments.
+impl From<GetBalanceParams> for GetBalanceTarget {
+    fn from(params: GetBalanceParams) -> Self {
+        if params.all {
+            GetBalanceTarget::All
+        } else {
+            params.pkh.into()
+        }
+    }
 }
 
 /// Get balance
 pub async fn get_balance(params: Params) -> JsonRpcResult {
-    let (pkh, simple): (PublicKeyHash, bool);
+    let (target, simple): (GetBalanceTarget, bool);
 
     // Handle parameters as an array with a first obligatory PublicKeyHash field plus an optional bool field
     if let Params::Array(params) = params {
-        if let Some(Value::String(public_key)) = params.get(0) {
-            match public_key.parse() {
-                Ok(public_key) => pkh = public_key,
-                Err(e) => {
-                    return Err(internal_error(e));
-                }
-            }
+        if let Some(Value::String(target_param)) = params.get(0) {
+            target = GetBalanceTarget::from_str(target_param).map_err(internal_error)?;
         } else {
             return Err(Error::invalid_params(
                 "First argument of `get_balance` must have type `PublicKeyHash`",
@@ -1319,14 +1361,14 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
         simple = params.get(1).and_then(Value::as_bool).unwrap_or(false);
     } else {
         let params: GetBalanceParams = params.parse()?;
-        pkh = params.pkh;
         simple = params.simple;
+        target = params.into();
     };
 
     let chain_manager_addr = ChainManager::from_registry();
 
     chain_manager_addr
-        .send(GetBalance { pkh, simple })
+        .send(GetBalance { target, simple })
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|dr_info| match dr_info {
@@ -1911,8 +1953,9 @@ mod mock_actix {
 mod tests {
     use std::collections::BTreeSet;
 
-    use witnet_data_structures::{chain::RADRequest, transaction::*};
     use witty_jsonrpc::prelude::*;
+
+    use witnet_data_structures::{chain::RADRequest, transaction::*};
 
     use super::*;
 
