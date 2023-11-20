@@ -47,6 +47,7 @@ use futures::future::{try_join_all, FutureExt};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
+
 use witnet_config::{
     config::Tapi,
     defaults::{
@@ -69,6 +70,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment,
+    proto::versioning::ProtocolVersion,
     radon_report::{RadonReport, ReportContext},
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{RevealTransaction, TallyTransaction, Transaction},
@@ -1913,6 +1915,9 @@ impl ChainManager {
                     &act.chain_state.alt_keys,
                     sync_superblock,
                     block_epoch,
+                    // TODO: read from the right place so that this can react to the protocol
+                    //  version change during the 2.0 transition
+                    ProtocolVersion::Legacy,
                 );
 
                 // Put the local superblock into chain state
