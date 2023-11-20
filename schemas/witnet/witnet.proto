@@ -2,6 +2,28 @@ syntax = "proto3";
 
 package witnet;
 
+message LegacyMessage {
+    message LegacyCommand {
+        oneof kind {
+            Version Version = 1;
+            Verack Verack = 2;
+            GetPeers GetPeers = 3;
+            Peers Peers = 4;
+            LegacyBlock Block = 5;
+            InventoryAnnouncement InventoryAnnouncement = 6;
+            InventoryRequest InventoryRequest = 7;
+            LastBeacon LastBeacon = 8;
+            Transaction Transaction = 9;
+            SuperBlockVote SuperBlockVote = 10;
+            SuperBlock SuperBlock = 11;
+        }
+    }
+
+    // uint32 is not a fixed-size 32 bit integer: it uses variable length encoding
+    uint32 magic = 1;
+    LegacyCommand kind = 2;
+}
+
 message Message {
     message Command {
         oneof kind {
@@ -47,10 +69,42 @@ message Peers {
     repeated Address peers = 1;
 }
 
-message Block {
-    message BlockEligibilityClaim {
-        VrfProof proof = 1;
+message BlockEligibilityClaim {
+    VrfProof proof = 1;
+}
+
+message LegacyBlock {
+    message LegacyBlockHeader {
+        message LegacyBlockMerkleRoots {
+            Hash mint_hash = 1;
+            Hash vt_hash_merkle_root = 2;
+            Hash dr_hash_merkle_root = 3;
+            Hash commit_hash_merkle_root = 4;
+            Hash reveal_hash_merkle_root = 5;
+            Hash tally_hash_merkle_root = 6;
+        }
+
+        uint32 signals = 1;
+        CheckpointBeacon beacon = 2;
+        LegacyBlockMerkleRoots merkle_roots = 3;
+        BlockEligibilityClaim proof = 4;
+        Bn256PublicKey bn256_public_key = 5;
     }
+    message LegacyBlockTransactions {
+        MintTransaction mint = 1;
+        repeated VTTransaction value_transfer_txns = 2;
+        repeated DRTransaction data_request_txns = 3;
+        repeated CommitTransaction commit_txns = 4;
+        repeated RevealTransaction reveal_txns = 5;
+        repeated TallyTransaction tally_txns = 6;
+    }
+
+    LegacyBlockHeader block_header = 1;
+    KeyedSignature block_sig = 2;
+    LegacyBlockTransactions txns = 3;
+}
+
+message Block {
     message BlockHeader {
         message BlockMerkleRoots {
             Hash mint_hash = 1;
@@ -75,8 +129,8 @@ message Block {
         repeated CommitTransaction commit_txns = 4;
         repeated RevealTransaction reveal_txns = 5;
         repeated TallyTransaction tally_txns = 6;
-        repeated StakeTransaction stake_txns = 7; 
-        repeated UnstakeTransaction unstake_txns = 8; 
+        repeated StakeTransaction stake_txns = 7;
+        repeated UnstakeTransaction unstake_txns = 8;
     }
 
     BlockHeader block_header = 1;
