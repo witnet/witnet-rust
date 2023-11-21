@@ -1,11 +1,3 @@
-use crate::{
-    chain::{
-        tapi::{after_second_hard_fork, in_emergency_period},
-        AltKeys, BlockHeader, Bn256PublicKey, CheckpointBeacon, Epoch, Hash, Hashable,
-        PublicKeyHash, SuperBlock, SuperBlockVote,
-    },
-    get_environment,
-};
 use std::{
     collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -13,10 +5,18 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::proto::versioning::{ProtocolVersion, VersionedHashable};
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     merkle::merkle_tree_root as crypto_merkle_tree_root,
+};
+
+use crate::{
+    chain::{
+        tapi::{after_second_hard_fork, in_emergency_period},
+        AltKeys, BlockHeader, Bn256PublicKey, CheckpointBeacon, Epoch, Hash, Hashable,
+        PublicKeyHash, SuperBlock, SuperBlockVote,
+    },
+    get_environment,
 };
 
 /// Possible result of SuperBlockState::add_vote
@@ -418,7 +418,6 @@ impl SuperBlockState {
         alt_keys: &AltKeys,
         sync_superblock: Option<SuperBlock>,
         block_epoch: Epoch,
-        protocol_version: ProtocolVersion,
     ) -> SuperBlock {
         let key_leaves = hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(alt_keys));
 
@@ -470,14 +469,13 @@ impl SuperBlockState {
                 superblock_index,
                 last_block_in_previous_superblock,
                 self.signing_committee.len() as u32,
-                ProtocolVersion::Legacy,
             )
         };
 
         // update the superblock_beacon
         self.current_superblock_beacon = CheckpointBeacon {
             checkpoint: superblock_index,
-            hash_prev_block: superblock.versioned_hash(protocol_version),
+            hash_prev_block: superblock.hash(),
         };
 
         let old_votes = self.votes_mempool.clear_and_remove_votes();
@@ -676,7 +674,6 @@ pub fn mining_build_superblock(
     index: u32,
     last_block_in_previous_superblock: Hash,
     signing_committee_length: u32,
-    protocol_version: ProtocolVersion,
 ) -> SuperBlock {
     let last_block = block_headers.last();
     match last_block {
@@ -702,7 +699,7 @@ pub fn mining_build_superblock(
             )
         }
         Some(last_block_header) => {
-            let last_block_hash = last_block_header.versioned_hash(protocol_version);
+            let last_block_hash = last_block_header.hash();
             let merkle_drs: Vec<Hash> = block_headers
                 .iter()
                 .map(|b| b.merkle_roots.dr_hash_merkle_root)
@@ -715,13 +712,7 @@ pub fn mining_build_superblock(
             let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
             let blocks: Vec<_> = block_headers
                 .iter()
-                .map(|b| {
-                    format!(
-                        "#{}: {}",
-                        b.beacon.checkpoint,
-                        b.versioned_hash(protocol_version)
-                    )
-                })
+                .map(|b| format!("#{}: {}", b.beacon.checkpoint, b.hash()))
                 .collect();
             log::trace!(
                 "Created superblock #{} with hash_prev_block {}, ARS {}, signing_committee_length: {}, blocks {:?}",
@@ -764,19 +755,22 @@ pub fn hash_merkle_tree_root(hashes: &[Hash]) -> Hash {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use itertools::Itertools;
+
+    use witnet_crypto::hash::{calculate_sha256, EMPTY_SHA256};
+
     use crate::{
         chain::{BlockMerkleRoots, Bn256SecretKey, CheckpointBeacon, PublicKey, Signature},
+        proto::versioning::{ProtocolVersion, VersionedHashable},
         vrf::BlockEligibilityClaim,
     };
-    use itertools::Itertools;
-    use witnet_crypto::hash::{calculate_sha256, EMPTY_SHA256};
+
+    use super::*;
 
     #[test]
     fn test_superblock_creation_no_blocks() {
         let default_hash = Hash::default();
-        let superblock =
-            mining_build_superblock(&[], &[], 0, default_hash, 0, ProtocolVersion::Legacy);
+        let superblock = mining_build_superblock(&[], &[], 0, default_hash, 0);
 
         let expected = SuperBlock::new(
             0,
@@ -829,19 +823,12 @@ mod tests {
             default_hash,
             dr_merkle_root_1,
             0,
-            block.versioned_hash(ProtocolVersion::Legacy),
+            block.versioned_hash(ProtocolVersion::V1_6),
             default_hash,
             tally_merkle_root_1,
         );
 
-        let superblock = mining_build_superblock(
-            &[block],
-            &[default_hash],
-            0,
-            default_hash,
-            1,
-            ProtocolVersion::Legacy,
-        );
+        let superblock = mining_build_superblock(&[block], &[default_hash], 0, default_hash, 1);
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -904,19 +891,13 @@ mod tests {
             default_hash,
             expected_superblock_dr_root,
             0,
-            block_2.versioned_hash(ProtocolVersion::Legacy),
+            block_2.versioned_hash(ProtocolVersion::V1_6),
             default_hash,
             expected_superblock_tally_root,
         );
 
-        let superblock = mining_build_superblock(
-            &[block_1, block_2],
-            &[default_hash],
-            0,
-            default_hash,
-            1,
-            ProtocolVersion::Legacy,
-        );
+        let superblock =
+            mining_build_superblock(&[block_1, block_2], &[default_hash], 0, default_hash, 1);
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -977,7 +958,6 @@ mod tests {
             &AltKeys::default(),
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let mut v0 = SuperBlockVote::new_unsigned(sb1.hash(), 1);
 
@@ -1032,7 +1012,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let v1 = SuperBlockVote::new_unsigned(sb1.hash(), 0);
         assert_eq!(
@@ -1063,7 +1042,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_superblock = SuperBlock::new(
@@ -1118,7 +1096,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_second_superblock = SuperBlock::new(
@@ -1143,7 +1120,6 @@ mod tests {
                 &alt_keys,
                 None,
                 1,
-                ProtocolVersion::Legacy,
             ),
             expected_second_superblock
         );
@@ -1188,7 +1164,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         // After building a new superblock the cache is invalidated but the previous ARS is still empty
         assert_eq!(
@@ -1206,7 +1181,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let v1 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 1);
         assert_eq!(
@@ -1251,7 +1225,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
@@ -1265,7 +1238,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 1 contains only identity p1, so only its vote will be
@@ -1279,7 +1251,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
         v1.secp256k1_signature.public_key = p1.clone();
@@ -1316,7 +1287,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
@@ -1330,7 +1300,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let mut v2 = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
@@ -1348,7 +1317,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
         v1.secp256k1_signature.public_key = p1;
@@ -1382,7 +1350,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
@@ -1396,7 +1363,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 1 contains only identity p1, so only its vote will be
@@ -1410,7 +1376,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
         v1.secp256k1_signature.public_key = p1.clone();
@@ -1448,7 +1413,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
@@ -1462,7 +1426,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 1 contains only identity p1, so only its vote will be
@@ -1476,7 +1439,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
         v1.secp256k1_signature.public_key = p1;
@@ -1543,7 +1505,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3) = create_votes(sb0.hash(), 0);
         assert_eq!(
@@ -1570,7 +1531,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3) = create_votes(sb1.hash(), 1);
         assert_eq!(
@@ -1597,7 +1557,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3) = create_votes(sb2.hash(), 2);
         assert_eq!(sbs.add_vote(&v1, 2), AddSuperBlockVote::ValidWithSameHash);
@@ -1621,7 +1580,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3) = create_votes(sb3.hash(), 3);
         assert_eq!(
@@ -1645,7 +1603,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3) = create_votes(sb4.hash(), 4);
         assert_eq!(
@@ -1704,7 +1661,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3, v4) = create_votes(sb0.hash(), 0);
         assert_eq!(
@@ -1736,7 +1692,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, _v2, v3, v4) = create_votes(sb1.hash(), 1);
         let mut v2 = SuperBlockVote::new_unsigned(
@@ -1766,7 +1721,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let mut v1 = SuperBlockVote::new_unsigned(sb2.hash(), 5);
@@ -1834,7 +1788,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3, v4) = create_votes(sb0.hash(), 0);
         assert_eq!(
@@ -1864,7 +1817,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3, v4) = create_votes(sb1.hash(), 1);
         assert_eq!(sbs.add_vote(&v1, 1), AddSuperBlockVote::ValidWithSameHash);
@@ -1901,7 +1853,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         let (v1, v2, v3, v4) = create_votes(sb2.hash(), 2);
         assert_eq!(sbs.add_vote(&v1, 2), AddSuperBlockVote::ValidWithSameHash);
@@ -1952,7 +1903,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_sb2 = mining_build_superblock(
@@ -1961,7 +1911,6 @@ mod tests {
             1,
             genesis_hash,
             3,
-            ProtocolVersion::Legacy,
         );
         let sb2_hash = expected_sb2.hash();
 
@@ -1982,7 +1931,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         assert_eq!(sb2, expected_sb2);
         let mut hh: HashMap<_, Vec<_>> = HashMap::new();
@@ -2008,7 +1956,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         // votes_on_each_superblock are cleared when the local superblock changes
         assert_eq!(sbs.votes_mempool.get_valid_votes(), HashMap::new());
@@ -2045,7 +1992,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         // superblock with index 1
         let sb2 = sbs.build_superblock(
@@ -2057,7 +2003,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_sb2 = mining_build_superblock(
@@ -2066,7 +2011,6 @@ mod tests {
             1,
             genesis_hash,
             2,
-            ProtocolVersion::Legacy,
         );
 
         assert_eq!(sb2, expected_sb2);
@@ -2124,7 +2068,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         assert_eq!(sbs.add_vote(&v0, 9), AddSuperBlockVote::MaybeValid);
@@ -2154,7 +2097,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let _sb2 = sbs.build_superblock(
@@ -2166,7 +2108,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         assert_eq!(
@@ -2211,7 +2152,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         // superblock with index 1
         let sb2 = sbs.build_superblock(
@@ -2223,7 +2163,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_sb2 = mining_build_superblock(
@@ -2232,7 +2171,6 @@ mod tests {
             1,
             genesis_hash,
             2,
-            ProtocolVersion::Legacy,
         );
 
         assert_eq!(sb2, expected_sb2);
@@ -2294,7 +2232,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         sbs.ars_previous_identities = ars_identities.clone();
         let committee_size = 4;
@@ -2340,7 +2277,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // Signing committee size of 2 has been included
@@ -2355,7 +2291,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // SB2_A is different to SB1 and a signing committee size of 3 has been included
@@ -2371,7 +2306,6 @@ mod tests {
             &alt_keys,
             Some(sb1.clone()),
             1,
-            ProtocolVersion::Legacy,
         );
 
         // SB2_B is equal to SB1 and a signing committee size of 2 has been included
@@ -2417,7 +2351,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         sbs.ars_previous_identities = ars_identities;
         let committee_size = 4;
@@ -2463,7 +2396,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
         sbs.ars_previous_identities = ars_identities.clone();
         let committee_size = 2;
@@ -2725,7 +2657,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 0 is empty, so none of the superblock votes for index 1
@@ -2739,7 +2670,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // The ARS included in superblock 1 contains only identity p1, so only its vote will be
@@ -2753,7 +2683,6 @@ mod tests {
             &alt_keys,
             None,
             1,
-            ProtocolVersion::Legacy,
         );
 
         // 2 valid votes and 3 missing votes -> Unknown

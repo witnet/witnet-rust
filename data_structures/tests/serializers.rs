@@ -418,17 +418,15 @@ fn message_block_to_bytes() {
     };
 
     let expected_buf: Vec<u8> = EXAMPLE_BLOCK_VECTOR_LEGACY.to_vec();
-    let result: Vec<u8> = msg.to_versioned_pb_bytes(ProtocolVersion::Legacy).unwrap();
+    let result: Vec<u8> = msg.to_versioned_pb_bytes(ProtocolVersion::V1_6).unwrap();
     assert_eq!(result, expected_buf);
 
     let expected_buf: Vec<u8> = EXAMPLE_BLOCK_VECTOR_TRANSITION.to_vec();
-    let result: Vec<u8> = msg
-        .to_versioned_pb_bytes(ProtocolVersion::Transition)
-        .unwrap();
+    let result: Vec<u8> = msg.to_versioned_pb_bytes(ProtocolVersion::V1_7).unwrap();
     assert_eq!(result, expected_buf);
 
     let expected_buf: Vec<u8> = EXAMPLE_BLOCK_VECTOR_FINAL.to_vec();
-    let result: Vec<u8> = msg.to_versioned_pb_bytes(ProtocolVersion::Final).unwrap();
+    let result: Vec<u8> = msg.to_versioned_pb_bytes(ProtocolVersion::V2_0).unwrap();
     assert_eq!(result, expected_buf);
 }
 
