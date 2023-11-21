@@ -22,13 +22,14 @@ use witnet_data_structures::{
         tapi::{ActiveWips, BitVotesCounter},
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash,
-        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StateMachine, SuperBlock,
-        SuperBlockVote, SupplyInfo, ValueTransferOutput,
+        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StakeOutput, StateMachine,
+        SuperBlock, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
     transaction::{
-        CommitTransaction, DRTransaction, RevealTransaction, Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
+        VTTransaction,
     },
     transaction_factory::NodeBalance,
     types::LastBeacon,
@@ -218,6 +219,26 @@ pub struct BuildVtt {
 
 impl Message for BuildVtt {
     type Result = Result<VTTransaction, failure::Error>;
+}
+
+/// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildStake {
+    /// List of `ValueTransferOutput`s
+    pub stake_output: StakeOutput,
+    /// Fee
+    #[serde(default)]
+    pub fee: Fee,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+impl Message for BuildStake {
+    type Result = Result<StakeTransaction, failure::Error>;
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`
