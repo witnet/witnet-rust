@@ -36,11 +36,8 @@ use crate::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
         TransactionError,
     },
-    get_environment,
-    proto::{
-        versioning::{ProtocolVersion, VersionedHashable},
-        ProtobufConvert,
-    },
+    get_environment, get_protocol_version,
+    proto::{versioning::Versioned, ProtobufConvert},
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
@@ -536,7 +533,7 @@ impl Block {
     }
 
     pub fn is_genesis(&self, genesis: &Hash) -> bool {
-        self.versioned_hash(ProtocolVersion::Legacy).eq(genesis)
+        self.hash().eq(genesis)
     }
 }
 
@@ -671,7 +668,9 @@ impl Hashable for BlockHeader {
 
 impl MemoizedHashable for Block {
     fn hashable_bytes(&self) -> Vec<u8> {
-        self.block_header.to_pb_bytes().unwrap()
+        self.block_header
+            .to_versioned_pb_bytes(get_protocol_version())
+            .unwrap()
     }
 
     fn memoized_hash(&self) -> &MemoHash {
@@ -4573,19 +4572,17 @@ mod tests {
         let block = block_example();
         let expected = "70e15ac70bb00f49c7a593b2423f722dca187bbae53dc2f22647063b17608c01";
         assert_eq!(
-            block.versioned_hash(ProtocolVersion::Legacy).to_string(),
+            block.versioned_hash(ProtocolVersion::V1_6).to_string(),
             expected
         );
         let expected = "29ef68357a5c861b9dbe043d351a28472ca450edcda25de4c9b80a4560a28c0f";
         assert_eq!(
-            block
-                .versioned_hash(ProtocolVersion::Transition)
-                .to_string(),
+            block.versioned_hash(ProtocolVersion::V1_7).to_string(),
             expected
         );
         let expected = "29ef68357a5c861b9dbe043d351a28472ca450edcda25de4c9b80a4560a28c0f";
         assert_eq!(
-            block.versioned_hash(ProtocolVersion::Final).to_string(),
+            block.versioned_hash(ProtocolVersion::V2_0).to_string(),
             expected
         );
     }
@@ -6659,7 +6656,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_indices = vec![0, 2, 2];
@@ -6714,7 +6710,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
@@ -6750,7 +6745,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let result = sb.dr_proof_of_inclusion(&[b1, b2], &dr_txs[2]);
@@ -6761,14 +6755,7 @@ mod tests {
     fn test_dr_merkle_root_no_block() {
         let dr_txs = build_test_dr_txs(3);
 
-        let sb = mining_build_superblock(
-            &[],
-            &[Hash::default()],
-            1,
-            Hash::default(),
-            1,
-            ProtocolVersion::Legacy,
-        );
+        let sb = mining_build_superblock(&[], &[Hash::default()], 1, Hash::default(), 1);
 
         let result = sb.dr_proof_of_inclusion(&[], &dr_txs[2]);
         assert!(result.is_none());
@@ -6794,7 +6781,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_indices = vec![0, 2];
@@ -6833,7 +6819,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_indices = vec![0, 2, 2];
@@ -6896,7 +6881,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
@@ -6932,7 +6916,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let result = sb.tally_proof_of_inclusion(&[b1, b2], &tally_txs[2]);
@@ -6964,7 +6947,6 @@ mod tests {
             1,
             Hash::default(),
             1,
-            ProtocolVersion::Legacy,
         );
 
         let expected_indices = vec![0, 2, 2];
