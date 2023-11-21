@@ -6,6 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
+
 use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
@@ -1591,7 +1592,7 @@ pub fn validate_block_transactions(
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
-    let is_genesis = block.hash() == consensus_constants.genesis_hash;
+    let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
     let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
 
     // Init total fee
