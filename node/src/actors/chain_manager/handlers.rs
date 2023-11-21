@@ -967,11 +967,17 @@ impl Handler<PeersBeacons> for ChainManager {
                         },
                         _,
                     )) => {
-                        self.sync_target = Some(SyncTarget {
+                        let target = SyncTarget {
                             block: consensus_beacon,
                             superblock: superblock_consensus,
-                        });
-                        log::debug!("Sync target {:?}", self.sync_target);
+                        };
+                        self.sync_target = Some(target);
+                        log::info!(
+                            "Synchronization target has been set ({}: {})",
+                            target.block.checkpoint,
+                            target.block.hash_prev_block
+                        );
+                        log::debug!("{:#?}", target);
 
                         let our_beacon = self.get_chain_beacon();
                         log::debug!(
@@ -997,13 +1003,18 @@ impl Handler<PeersBeacons> for ChainManager {
                         {
                             // Fork case
                             log::warn!(
-                                "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                                "[CONSENSUS]: The local chain is apparently forked.\n\
+                                We are on {:?} but the network is on {:?}.\n\
+                                The node will automatically try to recover from this forked situation by restoring the chain state from the storage.",
                                 our_beacon,
                                 consensus_beacon
                             );
 
                             self.initialize_from_storage(ctx);
-                            log::info!("Restored chain state from storage");
+                            log::info!(
+                                "The chain state has been restored from storage.\n\
+                            Now the node will try to resynchronize."
+                            );
 
                             StateMachine::WaitingConsensus
                         } else {

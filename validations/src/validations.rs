@@ -29,6 +29,8 @@ use witnet_data_structures::{
         calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
+    get_protocol_version,
+    proto::versioning::ProtocolVersion,
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
@@ -1318,6 +1320,8 @@ pub fn validate_block_signature(
     let signature = keyed_signature.signature.clone().try_into()?;
     let public_key = keyed_signature.public_key.clone().try_into()?;
 
+    // TODO: take into account block epoch to decide protocol version (with regards to data
+    //  structures and hashing)
     let Hash::SHA256(message) = block.hash();
 
     add_secp_block_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
@@ -1887,6 +1891,8 @@ pub fn validate_block_transactions(
         );
     }
 
+    // TODO skip all staking logic if protocol version is legacy
+
     // validate stake transactions in a block
     let mut st_mt = ProgressiveMerkleTree::sha256();
     let mut st_weight: u32 = 0;
@@ -1943,8 +1949,6 @@ pub fn validate_block_transactions(
         // }
     }
 
-    let st_hash_merkle_root = st_mt.root();
-
     let mut ut_mt = ProgressiveMerkleTree::sha256();
     let mut ut_weight: u32 = 0;
 
@@ -1980,7 +1984,12 @@ pub fn validate_block_transactions(
         // }
     }
 
-    let ut_hash_merkle_root = ut_mt.root();
+    // Nullify roots for legacy protocol version
+    // TODO skip all staking logic if protocol version is legacy
+    let (st_root, ut_root) = match get_protocol_version() {
+        ProtocolVersion::V1_6 => Default::default(),
+        _ => (Hash::from(st_mt.root()), Hash::from(ut_mt.root())),
+    };
 
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
@@ -1990,8 +1999,8 @@ pub fn validate_block_transactions(
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
         reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
         tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
-        stake_hash_merkle_root: Hash::from(st_hash_merkle_root),
-        unstake_hash_merkle_root: Hash::from(ut_hash_merkle_root),
+        stake_hash_merkle_root: st_root,
+        unstake_hash_merkle_root: ut_root,
     };
 
     if merkle_roots != block.block_header.merkle_roots {
