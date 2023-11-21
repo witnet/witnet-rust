@@ -37,8 +37,8 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
         messages::{
-            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, DropAllPeers,
-            EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
+            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildStake, BuildVtt, ClearPeers,
+            DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
             GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
             GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
             GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
@@ -264,6 +264,14 @@ pub fn attach_sensitive_methods<H>(
             "chainImport",
             params,
             |params| snapshot_import(params.parse()),
+        ))
+    });
+    server.add_actix_method(system, "stake", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "stake",
+            params,
+            |params| stake(params.parse()),
         ))
     });
 }
@@ -1920,6 +1928,36 @@ pub async fn snapshot_import(params: Result<SnapshotImportParams, Error>) -> Jso
 
     // Write the response back (the path to the snapshot file)
     serde_json::to_value(response).map_err(internal_error_s)
+}
+/// Build a stake transaction
+pub async fn stake(params: Result<BuildStake, Error>) -> JsonRpcResult {
+    log::debug!("Creating stake transaction from JSON-RPC.");
+
+    match params {
+        Ok(msg) => {
+            ChainManager::from_registry()
+                .send(msg)
+                .map(|res| match res {
+                    Ok(Ok(hash)) => match serde_json::to_value(hash) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Ok(Err(e)) => {
+                        let err = internal_error_s(e);
+                        Err(err)
+                    }
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        Err(err)
+                    }
+                })
+                .await
+        }
+        Err(err) => Err(err),
+    }
 }
 
 #[cfg(test)]
