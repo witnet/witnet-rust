@@ -1,9 +1,3 @@
-/// Keeps track of priority being used by transactions included in recent blocks, and provides
-/// methods for estimating sensible priority values for future transactions.
-pub mod priority;
-/// Contains all TAPI related structures and business logic
-pub mod tapi;
-
 use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
@@ -20,8 +14,9 @@ use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use failure::Fail;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
-use partial_struct::PartialStruct;
 use serde::{Deserialize, Serialize};
+
+use partial_struct::PartialStruct;
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::ExtendedSK,
@@ -42,7 +37,10 @@ use crate::{
         TransactionError,
     },
     get_environment,
-    proto::{schema::witnet, ProtobufConvert},
+    proto::{
+        versioning::{ProtocolVersion, VersionedHashable},
+        ProtobufConvert,
+    },
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
@@ -55,6 +53,12 @@ use crate::{
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
+
+/// Keeps track of priority being used by transactions included in recent blocks, and provides
+/// methods for estimating sensible priority values for future transactions.
+pub mod priority;
+/// Contains all TAPI related structures and business logic
+pub mod tapi;
 
 /// Define how the different structures should be hashed.
 pub trait Hashable {
@@ -157,7 +161,7 @@ impl Environment {
     PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize, ProtobufConvert, Default,
 )]
 #[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
-#[protobuf_convert(pb = "witnet::ConsensusConstants")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::ConsensusConstants")]
 pub struct ConsensusConstants {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
     pub checkpoint_zero_timestamp: i64,
@@ -360,7 +364,7 @@ impl GenesisBlockInfo {
 #[derive(
     Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
 )]
-#[protobuf_convert(pb = "witnet::CheckpointBeacon")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::CheckpointBeacon")]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointBeacon {
     /// The serial number for an epoch
@@ -373,7 +377,7 @@ pub struct CheckpointBeacon {
 #[derive(
     Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
 )]
-#[protobuf_convert(pb = "witnet::CheckpointVRF")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::CheckpointVRF")]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointVRF {
     /// The serial number for an epoch
@@ -387,7 +391,7 @@ pub type Epoch = u32;
 
 /// Block data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::Block")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block")]
 pub struct Block {
     /// The header of the block
     pub block_header: BlockHeader,
@@ -403,7 +407,7 @@ pub struct Block {
 
 /// Block transactions
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::Block_BlockTransactions")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockTransactions")]
 pub struct BlockTransactions {
     /// Mint transaction,
     pub mint: MintTransaction,
@@ -529,6 +533,10 @@ impl Block {
 
     pub fn weight(&self) -> u32 {
         self.dr_weight() + self.vt_weight() + self.st_weight() + self.ut_weight()
+    }
+
+    pub fn is_genesis(&self, genesis: &Hash) -> bool {
+        self.versioned_hash(ProtocolVersion::Legacy).eq(genesis)
     }
 }
 
@@ -701,7 +709,7 @@ impl Hashable for PublicKey {
 
 /// Block header structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::Block_BlockHeader")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockHeader")]
 pub struct BlockHeader {
     /// 32 bits for binary signaling new witnet protocol improvements.
     /// See [WIP-0014](https://github.com/witnet/WIPs/blob/master/wip-0014.md) for more info.
@@ -717,7 +725,7 @@ pub struct BlockHeader {
 }
 /// Block merkle tree roots
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::Block_BlockHeader_BlockMerkleRoots")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockHeader_BlockMerkleRoots")]
 pub struct BlockMerkleRoots {
     /// A 256-bit hash based on the mint transaction committed to this block
     pub mint_hash: Hash,
@@ -775,7 +783,7 @@ impl BlockMerkleRoots {
 /// This is needed to ensure that the security and trustlessness properties of Witnet will
 /// be relayed to bridges with other block chains.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, ProtobufConvert, Serialize)]
-#[protobuf_convert(pb = "witnet::SuperBlock")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::SuperBlock")]
 pub struct SuperBlock {
     /// Number of signing committee members,
     pub signing_committee_length: u32,
@@ -908,7 +916,7 @@ impl SuperBlock {
 
 /// Superblock votes as sent through the network
 #[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert, Serialize, Deserialize)]
-#[protobuf_convert(pb = "witnet::SuperBlockVote")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::SuperBlockVote")]
 pub struct SuperBlockVote {
     /// BN256 signature of `superblock_index` and `superblock_hash`
     pub bn256_signature: Bn256Signature,
@@ -966,7 +974,7 @@ impl SuperBlockVote {
 
 /// Digital signatures structure (based on supported cryptosystems)
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Signature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Signature")]
 pub enum Signature {
     /// ECDSA over secp256k1
     Secp256k1(Secp256k1Signature),
@@ -1002,7 +1010,7 @@ impl Signature {
 
 /// ECDSA (over secp256k1) signature
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Secp256k1Signature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Secp256k1Signature")]
 pub struct Secp256k1Signature {
     /// The signature serialized in DER
     pub der: Vec<u8>,
@@ -1094,7 +1102,7 @@ impl From<ExtendedSecretKey> for ExtendedSK {
 
 /// Hash
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Hash")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Hash")]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
@@ -1224,7 +1232,7 @@ pub type SHA256 = [u8; 32];
 ///
 /// It is the first 20 bytes of the SHA256 hash of the PublicKey.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, ProtobufConvert, Ord, PartialOrd)]
-#[protobuf_convert(pb = "witnet::PublicKeyHash")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::PublicKeyHash")]
 pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],
 }
@@ -1362,7 +1370,7 @@ impl PublicKeyHash {
 #[derive(
     Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, ProtobufConvert, Hash,
 )]
-#[protobuf_convert(pb = "witnet::Input")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Input")]
 pub struct Input {
     output_pointer: OutputPointer,
 }
@@ -1384,7 +1392,7 @@ impl Input {
 
 /// Value transfer output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::ValueTransferOutput")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::ValueTransferOutput")]
 pub struct ValueTransferOutput {
     /// Address that will receive the value
     pub pkh: PublicKeyHash,
@@ -1410,7 +1418,7 @@ impl ValueTransferOutput {
 
 /// Data request output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::DataRequestOutput")]
 pub struct DataRequestOutput {
     /// Data request structure
     pub data_request: RADRequest,
@@ -1475,7 +1483,7 @@ impl DataRequestOutput {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::StakeOutput")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::StakeOutput")]
 pub struct StakeOutput {
     pub value: u64,
     pub authorization: KeyedSignature,
@@ -1541,7 +1549,7 @@ pub struct SupplyInfo {
 
 /// Keyed signature data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::KeyedSignature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::KeyedSignature")]
 pub struct KeyedSignature {
     /// Signature
     pub signature: Signature,
@@ -1616,7 +1624,7 @@ pub struct ExtendedSecretKey {
 
 /// BN256 public key
 #[derive(Debug, Eq, PartialEq, Hash, Default, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Bn256PublicKey")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256PublicKey")]
 pub struct Bn256PublicKey {
     /// Compressed form of a BN256 public key
     pub public_key: Vec<u8>,
@@ -1635,7 +1643,7 @@ pub struct Bn256SecretKey {
 
 /// BN256 signature
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Bn256Signature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256Signature")]
 pub struct Bn256Signature {
     /// Signature
     pub signature: Vec<u8>,
@@ -1643,7 +1651,7 @@ pub struct Bn256Signature {
 
 /// BN256 signature and public key
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Bn256KeyedSignature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256KeyedSignature")]
 pub struct Bn256KeyedSignature {
     /// Signature
     pub signature: Bn256Signature,
@@ -1760,7 +1768,10 @@ impl RADType {
 
 /// RAD request data structure
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest", crate = "crate")]
+#[protobuf_convert(
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest",
+    crate = "crate"
+)]
 pub struct RADRequest {
     /// Commitments for this request will not be accepted in any block proposed for an epoch
     /// whose opening timestamp predates the specified time lock. This effectively prevents
@@ -1794,7 +1805,7 @@ impl RADRequest {
 /// Retrieve script and source
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::DataRequestOutput_RADRequest_RADRetrieve",
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADRetrieve",
     crate = "crate"
 )]
 pub struct RADRetrieve {
@@ -1971,7 +1982,10 @@ impl RADRetrieve {
 
 /// Filter stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADFilter", crate = "crate")]
+#[protobuf_convert(
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADFilter",
+    crate = "crate"
+)]
 pub struct RADFilter {
     /// `RadonFilters` code
     pub op: u32,
@@ -1992,7 +2006,7 @@ impl RADFilter {
 /// Aggregate stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::DataRequestOutput_RADRequest_RADAggregate",
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADAggregate",
     crate = "crate"
 )]
 pub struct RADAggregate {
@@ -2018,7 +2032,10 @@ impl RADAggregate {
 
 /// Tally stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADTally", crate = "crate")]
+#[protobuf_convert(
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADTally",
+    crate = "crate"
+)]
 pub struct RADTally {
     /// List of filters to be applied in sequence
     pub filters: Vec<RADFilter>,
@@ -3309,7 +3326,7 @@ impl TransactionsPool {
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
 #[derive(Default, Hash, Copy, Clone, Eq, PartialEq, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::OutputPointer")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::OutputPointer")]
 pub struct OutputPointer {
     /// Transaction identifier
     pub transaction_id: Hash,
@@ -3372,7 +3389,7 @@ impl PartialOrd for OutputPointer {
 
 /// Inventory entry data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::InventoryEntry")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::InventoryEntry")]
 pub enum InventoryEntry {
     /// Transaction
     Tx(Hash),
