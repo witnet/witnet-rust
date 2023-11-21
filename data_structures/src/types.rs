@@ -53,7 +53,7 @@ impl fmt::Display for Command {
             Command::Version(_) => f.write_str("VERSION"),
             Command::Block(block) => write!(
                 f,
-                "BLOCK: #{}: {}",
+                "BLOCK #{}: {}",
                 block.block_header.beacon.checkpoint,
                 block.hash()
             ),
@@ -64,7 +64,7 @@ impl fmt::Display for Command {
                 highest_superblock_checkpoint: s,
             }) => write!(
                 f,
-                "LAST_BEACON: Block: #{}: {} Superblock: #{}: {}",
+                "LAST_BEACON Block: #{}: {} Superblock: #{}: {}",
                 h.checkpoint, h.hash_prev_block, s.checkpoint, s.hash_prev_block
             ),
             Command::Transaction(tx) => {
