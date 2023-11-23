@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType,
-        StateMachine, SyncStatus,
+        tapi::ActiveWips, Block, DataRequestOutput, Environment, Epoch, Hash, Hashable,
+        PublicKeyHash, RADType, StateMachine, SyncStatus,
     },
     transaction::Transaction,
     vrf::VrfMessage,
@@ -37,13 +37,13 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
         messages::{
-            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildStake, BuildVtt, ClearPeers,
-            DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
-            GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
-            GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
-            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
-            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
-            SnapshotExport, SnapshotImport,
+            AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
+            BuildVtt, ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget,
+            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
+            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
+            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation,
+            GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
+            IsConfirmedBlock, Rewind, SnapshotExport, SnapshotImport,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -272,6 +272,14 @@ pub fn attach_sensitive_methods<H>(
             "stake",
             params,
             |params| stake(params.parse()),
+        ))
+    });
+    server.add_actix_method(system, "authorizeStake", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "authorizeStake",
+            params,
+            |params| authorize_stake(params.parse()),
         ))
     });
 }
@@ -1960,6 +1968,38 @@ pub async fn stake(params: Result<BuildStake, Error>) -> JsonRpcResult {
     }
 }
 
+/// Create a stake authorization for the given address.
+///
+/// The output of this method is a required argument to call the Stake method.
+/* test
+{"jsonrpc": "2.0","method": "authorizeStake", "params": {"withdrawer":"wit000000000000000...1"}, "id": "1"}
+*/
+pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcResult {
+    print!("Inside authorize_stake");
+    log::debug!("Creating an authorization stake from JSON-RPC.");
+    match params {
+        Ok(msg) => {
+            let pkh = PublicKeyHash::from_bech32(Environment::Mainnet, &msg.withdrawer).unwrap();
+            let mut data = [0u8; witnet_crypto::secp256k1::constants::MESSAGE_SIZE];
+            data[0..20].clone_from_slice(pkh.as_ref());
+
+            signature_mngr::sign_data(data)
+                .map(|res| {
+                    res.map_err(internal_error)
+                        .and_then(|ks| match serde_json::to_value(ks) {
+                            Ok(value) => Ok(value),
+                            Err(e) => {
+                                let err = internal_error_s(e);
+                                Err(err)
+                            }
+                        })
+                })
+                .await
+        }
+        Err(err) => Err(err),
+    }
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -2264,6 +2304,7 @@ mod tests {
             all_methods_vec,
             vec![
                 "addPeers",
+                "authorizeStake",
                 "chainExport",
                 "chainImport",
                 "clearPeers",
@@ -2294,6 +2335,7 @@ mod tests {
                 "sendValue",
                 "sign",
                 "signalingInfo",
+                "stake",
                 "syncStatus",
                 "tryRequest",
                 "witnet_subscribe",
@@ -2312,6 +2354,7 @@ mod tests {
 
         let expected_sensitive_methods = vec![
             "addPeers",
+            "authorizeStake",
             "clearPeers",
             "createVRF",
             "getPkh",
@@ -2324,6 +2367,7 @@ mod tests {
             "sendValue",
             "sign",
             "tryRequest",
+            "stake",
         ];
 
         for method_name in expected_sensitive_methods {
@@ -2337,5 +2381,25 @@ mod tests {
 
             assert_eq!(response.unwrap(), error_msg);
         }
+    }
+
+    #[test]
+    fn generate_stake_authorization() {
+        // {"jsonrpc":"1.0","method":"authorizeStake","params":{"withdrawer": "wit16dvdn4ypw9jmpgvu8w7vzch5qx79kgjkacrusj"},"id":1}
+        // Check that the inventory method accepts blocks
+        use witnet_data_structures::chain::*;
+        let params = AuthorizeStake {
+            withdrawer: String::from("wit16dvdn4ypw9jmpgvu8w7vzch5qx79kgjkacrusj"),
+        };
+        let msg = format!(
+            r#"{{"jsonrpc":"2.0","method":"authorizeStake","params":{},"id":1}}"#,
+            serde_json::to_string(&params).unwrap()
+        );
+        let expected = r#"{"jsonrpc":"2.0","result":{"public_key":{"bytes":[100,244,90,52,4,0,184,230,184,217,70,145,28,225,23,238,66,52,106,254,213,237,201,152,171,126,231,92,31,241,251,102],"compressed":3},"signature":{"Secp256k1":{"der":[48,69,2,33,0,240,5,92,61,31,222,226,164,208,51,115,183,140,129,73,163,46,44,170,95,91,239,105,246,220,204,231,198,61,82,158,223,2,32,123,85,76,252,227,110,106,69,170,135,36,180,166,6,212,42,73,191,203,226,101,28,147,75,242,168,197,11,95,83,206,38]}}},"id":"1"} "#.to_string();
+        let mut server = WittyMultiServer::new();
+        // TODO; create a system with a signature manager attached
+        attach_api(&mut server, true, Subscriptions::default(), &None);
+        let response = server.handle_request_sync(&msg, Default::default());
+        assert_eq!(response, Some(expected));
     }
 }

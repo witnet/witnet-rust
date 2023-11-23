@@ -241,6 +241,18 @@ impl Message for BuildStake {
     type Result = Result<StakeTransaction, failure::Error>;
 }
 
+/// Builds an `AuthorizeStake`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AuthorizeStake {
+    /// Address that can withdraw the stake
+    // #[serde(default)]
+    pub withdrawer: String,
+}
+
+impl Message for AuthorizeStake {
+    type Result = Result<String, failure::Error>;
+}
+
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildDrt {

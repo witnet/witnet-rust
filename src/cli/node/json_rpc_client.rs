@@ -1,3 +1,10 @@
+use ansi_term::Color::{Purple, Red, White, Yellow};
+use failure::{bail, Fail};
+use itertools::Itertools;
+use num_format::{Locale, ToFormattedString};
+use prettytable::{row, Table};
+use qrcode::render::unicode;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -8,13 +15,6 @@ use std::{
     path::Path,
     str::FromStr,
 };
-
-use ansi_term::Color::{Purple, Red, White, Yellow};
-use failure::{bail, Fail};
-use itertools::Itertools;
-use num_format::{Locale, ToFormattedString};
-use prettytable::{row, Table};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
     hash::calculate_sha256,
@@ -25,12 +25,12 @@ use witnet_data_structures::{
         priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
         tapi::{current_active_wips, ActiveWips},
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
-        Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
-        SupplyInfo, SyncStatus, ValueTransferOutput,
+        Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StakeOutput,
+        StateMachine, SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     fee::Fee,
     proto::ProtobufConvert,
-    transaction::{DRTransaction, Transaction, VTTransaction},
+    transaction::{DRTransaction, StakeTransaction, Transaction, VTTransaction},
     transaction_factory::NodeBalance,
     types::SequentialId,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
@@ -39,7 +39,10 @@ use witnet_data_structures::{
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult},
-    messages::{BuildDrt, BuildVtt, GetBalanceTarget, GetReputationResult, SignalingInfo},
+    messages::{
+        AuthorizeStake, BuildDrt, BuildStake, BuildVtt, GetBalanceTarget, GetReputationResult,
+        SignalingInfo,
+    },
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{files::create_private_file, timestamp::pretty_print};
@@ -851,6 +854,164 @@ pub fn send_dr(
 
         println!("{}", response);
     }
+
+    Ok(())
+}
+
+pub fn send_st(
+    addr: SocketAddr,
+    value: u64,
+    withdrawer: String,
+    fee: Option<Fee>,
+    sorted_bigger: Option<bool>,
+    dry_run: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let mut id = SequentialId::initialize(1u8);
+
+    let authorize_stake_params = AuthorizeStake {
+        withdrawer,
+    };
+    
+    let (authorization, (_, _response)): (KeyedSignature, _) =
+        issue_method("authorizeStake", Some(authorize_stake_params), &mut stream, id.next())?;
+
+    let stake_output = StakeOutput {
+        value,
+        authorization,
+    };
+
+    // Prepare for fee estimation if no fee value was specified
+    let (fee, estimate) = unwrap_fee_or_estimate_priority(fee, &mut stream, &mut id)?;
+
+    let utxo_strategy = match sorted_bigger {
+        Some(true) => UtxoSelectionStrategy::BigFirst { from: None },
+        Some(false) => UtxoSelectionStrategy::SmallFirst { from: None },
+        None => UtxoSelectionStrategy::Random { from: None },
+    };
+
+    let mut build_stake_params = BuildStake {
+        stake_output,
+        fee,
+        utxo_strategy,
+        dry_run,
+    };
+
+    // If no fee was specified, we first need to do a dry run for each of the priority tiers to
+    // find out the actual transaction weight (as different priorities will affect the number
+    // of inputs being used, and thus also the weight).
+    if let Some(PrioritiesEstimate {
+        vtt_stinky,
+        vtt_low,
+        vtt_medium,
+        vtt_high,
+        vtt_opulent,
+        ..
+    }) = estimate
+    {
+        let priorities = vec![
+            (vtt_stinky, "Stinky"),
+            (vtt_low, "Low"),
+            (vtt_medium, "Medium"),
+            (vtt_high, "High"),
+            (vtt_opulent, "Opulent"),
+        ];
+        let mut estimates = vec![];
+        let mut fee;
+
+        // Iterative algorithm for transaction weight discovery. It calculates the fees for this
+        // transaction assuming that it has the minimum weight, and then repeats the estimation
+        // using the actual weight of the latest created transaction, until the weight stabilizes
+        // or after 5 rounds.
+        for (
+            PriorityEstimate {
+                priority,
+                time_to_block,
+            },
+            label,
+        ) in priorities
+        {
+            // The minimum ST size is N*133+M*36+105` where `N` is the number of `inputs`, and `M`
+            // is 0 or 1 depending on whether a `change` output is used
+            let mut weight = 238u32;
+            let mut rounds = 0u8;
+            // Iterative algorithm for weight discovery
+            loop {
+                // Calculate fee for current priority and weight
+                fee = Fee::absolute_from_wit(priority.derive_fee_wit(weight));
+
+                // Create and dry run a Stake transaction using that fee
+                let dry_params = BuildStake {
+                    fee,
+                    dry_run: true,
+                    ..build_stake_params.clone()
+                };
+                let (dry_st, ..): (StakeTransaction, _) =
+                    issue_method("stake", Some(dry_params), &mut stream, id.next())?;
+                let dry_weight = dry_st.weight();
+
+                // We retry up to 5 times, or until the weight is stable
+                if rounds > 5 || dry_weight == weight {
+                    break;
+                }
+
+                weight = dry_weight;
+                rounds += 1;
+            }
+
+            estimates.push((label, priority, fee, time_to_block));
+        }
+
+        // We are ready to compose the params for the actual transaction.
+        build_stake_params.fee = prompt_user_for_priority_selection(estimates)?;
+    }
+
+    // Finally ask the node to create the transaction with the chosen fee.
+    let (_st, (request, response)): (StakeTransaction, _) =
+        issue_method("stake", Some(build_stake_params), &mut stream, id.next())?;
+
+    // On dry run mode, print the request, otherwise, print the response.
+    // This is kept like this strictly for backwards compatibility.
+    // TODO: wouldn't it be better to always print the response or both?
+    if dry_run {
+        println!("{}", request);
+    } else {
+        println!("{}", response);
+    }
+
+    Ok(())
+}
+
+pub fn authorize_st(addr: SocketAddr, withdrawer: String) -> Result<(), failure::Error> {
+    // TODO: validate withdrawer
+    PublicKeyHash::from_bech32(Environment::Mainnet, &withdrawer)?;
+
+    let mut stream = start_client(addr)?;
+    let mut id = SequentialId::initialize(1u8);
+
+    let params = AuthorizeStake {
+        withdrawer: withdrawer,
+    };
+    let (authorization, (_, response)): (KeyedSignature, _) =
+        issue_method("authorizeStake", Some(params), &mut stream, id.next())?;
+
+    println!("{}", response);
+
+    let auth_bytes = authorization.signature.to_bytes().unwrap();
+    let auth_string = hex::encode(auth_bytes);
+
+    let auth_qr = qrcode::QrCode::new(auth_bytes).unwrap();
+    let auth_ascii = auth_qr
+        .render::<unicode::Dense1x2>()
+        .quiet_zone(true)
+        .dark_color(unicode::Dense1x2::Light)
+        .light_color(unicode::Dense1x2::Dark)
+        .build();
+
+    println!(
+        "Authorization code:\n{}\nQR code for myWitWallet:\n{}",
+        auth_string, auth_ascii
+    );
 
     Ok(())
 }
@@ -1849,7 +2010,7 @@ where
         id.unwrap_or(1)
     );
     let response = send_request(stream, &request)?;
-
+    log::error!("REQUEST: {}", request);
     parse_response::<O>(&response).map(|output| (output, (request, response)))
 }
 

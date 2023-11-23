@@ -269,6 +269,23 @@ pub fn exec_cmd(
         Command::Rewind { node, epoch } => rpc::rewind(node.unwrap_or(default_jsonrpc), epoch),
         Command::SignalingInfo { node } => rpc::signaling_info(node.unwrap_or(default_jsonrpc)),
         Command::Priority { node, json } => rpc::priority(node.unwrap_or(default_jsonrpc), json),
+        Command::Stake {
+            node,
+            value,
+            withdrawer,
+            fee,
+            dry_run,
+        } => rpc::send_st(
+            node.unwrap_or(default_jsonrpc),
+            value,
+            withdrawer,
+            fee.map(Fee::absolute_from_nanowits),
+            None,
+            dry_run,
+        ),
+        Command::AuthorizeStake { node, withdrawer } => {
+            rpc::authorize_st(node.unwrap_or(default_jsonrpc), withdrawer)
+        }
     }
 }
 
@@ -729,6 +746,33 @@ pub enum Command {
         node: Option<SocketAddr>,
         #[structopt(long = "json", help = "Show output in JSON format")]
         json: bool,
+    },
+    #[structopt(name = "stake", about = "Create a stake transaction")]
+    Stake {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Withdrawer
+        #[structopt(long = "withdrawer")]
+        withdrawer: String,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: Option<u64>,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+    #[structopt(name = "authorizeStake", about = "Create an stake authorization")]
+    AuthorizeStake {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Withdrawer address
+        #[structopt(long = "withdrawer")]
+        withdrawer: String,
     },
 }
 
