@@ -8,8 +8,10 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
-use bech32::ToBase32;
 use state::State;
+use witnet_crypto::key::{
+    double_slip32_from_keychains_and_indexes, slip32_from_master_and_indexes,
+};
 use witnet_crypto::{
     hash::calculate_sha256,
     key::{ExtendedPK, ExtendedSK, KeyPath, PK},
@@ -35,8 +37,9 @@ use witnet_data_structures::{
 use witnet_rad::{error::RadError, types::RadonTypes};
 use witnet_util::timestamp::get_timestamp;
 
+use crate::crypto::bech32_encrypt;
 use crate::{
-    constants, crypto,
+    constants,
     db::{Database, WriteBatch as _},
     model,
     params::Params,
@@ -1988,35 +1991,51 @@ where
             && state.transient_external_addresses.is_empty()))
     }
 
+    /// Export the master key of a wallet, encrypted with AES-CBC and serialized with bech32.
+    ///
+    /// When possible, uses the SLIP-32 spec to encode the master key in its extended form and
+    /// also bundles the next index to be used for each keychain as 2 extra `u32` fields in the
+    /// SLIP-32 data.
+    ///
+    /// If the master key was not stored (e.g. legacy wallets), uses the concatenation of the
+    /// SLIP-32 serialization of the separate keychains, each with its own single `u32` field in the
+    /// SLIP-32 data.
     pub fn export_master_key(&self, password: types::Password) -> Result<String> {
         let state = self.state.read()?;
+
+        // If we have the master key, use the SLIP-32 serialization of it
         let (tag, key) = if let Some(master_key) = self.db.get_opt(&keys::master_key())? {
-            let master_key_string = match master_key.to_slip32(&KeyPath::default()) {
-                Ok(x) => x,
-                Err(_e) => return Err(Error::KeySerialization),
-            };
-            ("xprv", master_key_string)
+            let slip32 = slip32_from_master_and_indexes(
+                master_key,
+                state.next_external_index,
+                state.next_internal_index,
+            )
+            .map_err(crate::crypto::Error::Serialization)
+            .map_err(Error::Crypto)?;
+
+            ("xprv", slip32)
+        // Otherwise, let's go "double mode" and use the concatenation of the SLIP-32 of each
+        // keychain
         } else {
-            let internal_parent_key = &state.keychains[constants::INTERNAL_KEYCHAIN as usize];
-            let external_parent_key = &state.keychains[constants::EXTERNAL_KEYCHAIN as usize];
-            let internal_secret_key = internal_parent_key.to_slip32(&KeyPath::default());
-            let mut internal_secret_key_hex = match internal_secret_key {
-                Ok(x) => x,
-                Err(_e) => return Err(Error::KeySerialization),
-            };
-            let external_secret_key = external_parent_key.to_slip32(&KeyPath::default());
-            let external_secret_key_hex = match external_secret_key {
-                Ok(x) => x,
-                Err(_e) => return Err(Error::KeySerialization),
-            };
-            internal_secret_key_hex.push_str(&external_secret_key_hex);
-            ("xprvdouble", internal_secret_key_hex)
+            let m_0 = &state.keychains[constants::EXTERNAL_KEYCHAIN as usize];
+            let m_1 = &state.keychains[constants::INTERNAL_KEYCHAIN as usize];
+            let double_hex = double_slip32_from_keychains_and_indexes(
+                m_0,
+                m_1,
+                state.next_external_index,
+                state.next_internal_index,
+            )
+            .map_err(crate::crypto::Error::Serialization)
+            .map_err(Error::Crypto)?;
+
+            ("xprvdouble", double_hex)
         };
-        let encrypted_final_key =
-            crypto::encrypt_cbc(key.as_ref(), password.as_ref()).map_err(Error::Crypto)?;
-        let final_key =
-            bech32::encode(tag, encrypted_final_key.to_base32()).map_err(Error::Bech32)?;
-        Ok(final_key)
+
+        // Finally, encrypt using AES-CBC and the given password; and serialize into bech32 using
+        // "xprv" as the tag
+        let xprv = bech32_encrypt(tag, &key, password.as_ref()).map_err(Error::Crypto)?;
+
+        Ok(xprv)
     }
 }
 
@@ -2283,79 +2302,4 @@ where
 
         Ok(state.utxo_set.clone())
     }
-}
-
-#[test]
-fn test_get_tx_ranges_inner_range() {
-    let local_total = 10;
-    let pending_total = 10;
-    let db_total = 10;
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(5, 4, local_total, pending_total, db_total);
-    assert_eq!(local_range, Some(1..5));
-    assert_eq!(pending_range, None);
-    assert_eq!(db_range, None);
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(15, 4, local_total, pending_total, db_total);
-    assert_eq!(local_range, None);
-    assert_eq!(pending_range, Some(1..5));
-    assert_eq!(db_range, None);
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(25, 4, local_total, pending_total, db_total);
-    assert_eq!(local_range, None);
-    assert_eq!(pending_range, None);
-    assert_eq!(db_range, Some(1..5));
-}
-
-#[test]
-fn test_get_tx_ranges_overlap() {
-    let local_total = 10;
-    let pending_total = 10;
-    let db_total = 10;
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(5, 10, local_total, pending_total, db_total);
-    assert_eq!(local_range, Some(0..5));
-    assert_eq!(pending_range, Some(5..10));
-    assert_eq!(db_range, None);
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(15, 10, local_total, pending_total, db_total);
-    assert_eq!(local_range, None);
-    assert_eq!(pending_range, Some(0..5));
-    assert_eq!(db_range, Some(5..10));
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(5, 20, local_total, pending_total, db_total);
-    assert_eq!(local_range, Some(0..5));
-    assert_eq!(pending_range, Some(0..10));
-    assert_eq!(db_range, Some(5..10));
-}
-
-#[test]
-fn test_get_tx_ranges_exceed() {
-    let local_total = 10;
-    let pending_total = 10;
-    let db_total = 10;
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(5, 40, local_total, pending_total, db_total);
-    assert_eq!(local_range, Some(0..5));
-    assert_eq!(pending_range, Some(0..10));
-    assert_eq!(db_range, Some(0..10));
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(15, 40, local_total, pending_total, db_total);
-    assert_eq!(local_range, None);
-    assert_eq!(pending_range, Some(0..5));
-    assert_eq!(db_range, Some(0..10));
-
-    let (local_range, pending_range, db_range) =
-        calculate_transaction_ranges(25, 40, local_total, pending_total, db_total);
-    assert_eq!(local_range, None);
-    assert_eq!(pending_range, None);
-    assert_eq!(db_range, Some(0..5));
 }

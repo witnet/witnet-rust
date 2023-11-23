@@ -108,51 +108,87 @@ pub const TREZOR_MNEMONICS: &[(&str, &str)] = &[
 /// abandon abandon abandon abandon abandon abandon about
 ///
 /// See: https://github.com/satoshilabs/slips/blob/master/slip-0032.md#test-vectors
-pub fn slip32_vectors() -> Vec<(&'static str, KeyPath)> {
+pub fn slip32_vectors() -> Vec<(&'static str, KeyPath, Option<Vec<u8>>)> {
     vec![
         (
             "xprv1qpujxsyd4hfu0dtwa524vac84e09mjsgnh5h9crl8wrqg58z5wmsuqqcxlqmar3fjhkprndzkpnp2xlze76g4hu7g7c4r4r2m2e6y8xlvu566tn6",
             KeyPath::default(),
+            None,
         ),
         (
             "xprv1qyqqqqqqurn9qwkq2l84m3mwqu672mw5f5vnkt57yuwv94rtcavunxczrc7qpw4gn29a6cw9ug4e7yrqrkrerj0cl39jlfkln45dxdhsavpmqm4krfqykk",
-            KeyPath::default().index(0)
+            KeyPath::default().index(0),
+            None,
         ),
         (
             "xprv1qyqqqqqpt3yfzltg8zmxdt43r6k8cnuclqrh0x6hcafzuwzsjuv7av085kfqpsd74lcvfkucgec2grrfc228h8fne4lkuayuvlsledwxzxxa5y5zefalyg",
-            KeyPath::default().index(1)
+            KeyPath::default().index(1),
+            None,
         ),
         (
             "xprv1qxqqqqqq78qr7hlewyyfzt74vasa87k63pu7g9e6hfzlzrdyh0v5k8zfw9sqpsyv7vcejeyzcpkm85jel7vmujlhpquzf4f3sh3nry0w0n4jh7t0jhc039",
-            KeyPath::default().hardened(0)
+            KeyPath::default().hardened(0),
+            None,
         ),
         (
             "xprv1qxqqqqqpg0xyhjjecen2taujv52gzfvq9mfva3rd78zu4rn2qkx6k5j6w0csq0hs9lznqqr59zgleyz93w57mjpk8k837fn7xf43q7r3p37mxn095hysnx",
-            KeyPath::default().hardened(1)
+            KeyPath::default().hardened(1),
+            None,
         ),
         (
             "xprv1qwqqqqpvsqqqqqyqqqqqq0dyhsvs5f5qzywnr7klmjg972nldnnhcmcsnyv3zme984p5g5seqrlxftuztddhs42vxw3gkgcgtlqg9a53k0r39nqafenwzvef0k585enml6g",
-            KeyPath::default().hardened(44).hardened(0).hardened(0)
+            KeyPath::default().hardened(44).hardened(0).hardened(0),
+            None,
         ),
         (
             "xprv1qwqqqqpvsqqqqqyqqqqqz2t3lgkmpl6ad8skdfqxsya28k0dp8z2mtpwpn3n2g7633tqna85qzy9th76xllxvwllcqfkvxzsfc7t6lveyy6xp880vxguw2fnn4wx2mhtjy8",
-            KeyPath::default().hardened(44).hardened(0).hardened(1)
+            KeyPath::default().hardened(44).hardened(0).hardened(1),
+            None,
         ),
         (
             "xprv1qwqqqqpvsqqqqq5qqqqqpp5u2pz7tlrcjert40x3jcd3qx7rre6lu5xl3fv9c7dsth9q436cqzvre5gd352pvzcshxjtkceq062c2p22xyekr82hk782n4d2xprdysp4gxc",
-            KeyPath::default().hardened(44).hardened(2).hardened(0)
+            KeyPath::default().hardened(44).hardened(2).hardened(0),
+            None,
         ),
         (
             "xprv1qwqqqqp3sqqqqqyqqqqqqm42udj6urs2p24cgvjule7dwmpmjzgrt7yfulflrwz84xs8jlktqzyq65t490dyryrq0cretzxn7ezdj6l6qdzxhn5neh0a50z2n8r7vumvllf",
-            KeyPath::default().hardened(49).hardened(0).hardened(0)
+            KeyPath::default().hardened(49).hardened(0).hardened(0),
+            None,
         ),
         (
             "xprv1qwqqqqp3sqqqqq5qqqqqqeahu8w9cu9fx5zzrrx0grz844rdf2wgtqvkxakwp6zn4jnmupycqr8jytxzuztsf8lzefmxymqecln68muhrv0kgx2htz4neqeyv070gg6dcn7",
-            KeyPath::default().hardened(49).hardened(2).hardened(0)
+            KeyPath::default().hardened(49).hardened(2).hardened(0),
+            None,
         ),
         (
             "xprv1qwqqqqz5sqqqqqyqqqqqqjjn5z4jrwwujkrfcn5j59s3jnsrcrhnlagpftrf9apnc3m9fy8uqrs57f6dzm9qmygrrwvtzcnpspsaqwfslgup4ak5et6ykqvpn2mdggeaxrp",
-            KeyPath::default().hardened(84).hardened(0).hardened(0)
-        )
+            KeyPath::default().hardened(84).hardened(0).hardened(0),
+            None,
+        ),
+        (
+            "xprv1qpujxsyd4hfu0dtwa524vac84e09mjsgnh5h9crl8wrqg58z5wmsuqqcxlqmar3fjhkprndzkpnp2xlze76g4hu7g7c4r4r2m2e6y8xlvllsrvlvcr",
+            KeyPath::default(),
+            Some(vec![255]),
+        ),
+        (
+            "xprv1qpujxsyd4hfu0dtwa524vac84e09mjsgnh5h9crl8wrqg58z5wmsuqqcxlqmar3fjhkprndzkpnp2xlze76g4hu7g7c4r4r2m2e6y8xlvuqqqqqqqqqqqqqs0qn8x",
+            KeyPath::default(),
+            Some(vec![0; 8]),
+        ),
+        (
+            "xprv1qpujxsyd4hfu0dtwa524vac84e09mjsgnh5h9crl8wrqg58z5wmsuqqcxlqmar3fjhkprndzkpnp2xlze76g4hu7g7c4r4r2m2e6y8xlvuqsyqcyq5rqwzqf37gqu5",
+            KeyPath::default(),
+            Some(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ),
+        (
+            "xprv1qpujxsyd4hfu0dtwa524vac84e09mjsgnh5h9crl8wrqg58z5wmsuqqcxlqmar3fjhkprndzkpnp2xlze76g4hu7g7c4r4r2m2e6y8xlvaqyjr7mxq83mn",
+            KeyPath::default(),
+            Some(core::f32::consts::PI.to_be_bytes().into()),
+        ),
+        (
+            "xprv1qpujxsyd4hfu0dtwa524vac84e09mjsgnh5h9crl8wrqg58z5wmsuqqcxlqmar3fjhkprndzkpnp2xlze76g4hu7g7c4r4r2m2e6y8xlvaqqjg0m23zz6xqh2eujk",
+            KeyPath::default(),
+            Some(core::f64::consts::PI.to_be_bytes().into()),
+        ),
     ]
 }

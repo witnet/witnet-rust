@@ -1,5 +1,12 @@
 use std::{collections::HashMap, iter::FromIterator as _, mem};
 
+use witnet_crypto::{
+    key::{
+        double_slip32_from_keychains_and_indexes, slip32_from_master_and_indexes, KeyPath,
+        MasterKeyGen,
+    },
+    mnemonic::Mnemonic,
+};
 use witnet_data_structures::{
     chain::Hashable, transaction::VTTransaction, transaction_factory::calculate_weight,
 };
@@ -9,6 +16,108 @@ use crate::{db::HashMapDb, repository::wallet::tests::factories::vtt_from_body, 
 use super::*;
 
 mod factories;
+
+#[test]
+fn test_get_tx_ranges_inner_range() {
+    let local_total = 10;
+    let pending_total = 10;
+    let db_total = 10;
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 4, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(1..5));
+    assert_eq!(pending_range, None);
+    assert_eq!(db_range, None);
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(15, 4, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, Some(1..5));
+    assert_eq!(db_range, None);
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(25, 4, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, None);
+    assert_eq!(db_range, Some(1..5));
+}
+
+#[test]
+fn test_get_tx_ranges_overlap() {
+    let local_total = 10;
+    let pending_total = 10;
+    let db_total = 10;
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 10, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(0..5));
+    assert_eq!(pending_range, Some(5..10));
+    assert_eq!(db_range, None);
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(15, 10, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, Some(0..5));
+    assert_eq!(db_range, Some(5..10));
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 20, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(0..5));
+    assert_eq!(pending_range, Some(0..10));
+    assert_eq!(db_range, Some(5..10));
+}
+
+#[test]
+fn test_get_tx_ranges_exceed() {
+    let local_total = 10;
+    let pending_total = 10;
+    let db_total = 10;
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(5, 40, local_total, pending_total, db_total);
+    assert_eq!(local_range, Some(0..5));
+    assert_eq!(pending_range, Some(0..10));
+    assert_eq!(db_range, Some(0..10));
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(15, 40, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, Some(0..5));
+    assert_eq!(db_range, Some(0..10));
+
+    let (local_range, pending_range, db_range) =
+        calculate_transaction_ranges(25, 40, local_total, pending_total, db_total);
+    assert_eq!(local_range, None);
+    assert_eq!(pending_range, None);
+    assert_eq!(db_range, Some(0..5));
+}
+
+#[test]
+fn test_bech32_export_master() {
+    let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let mnemonic = Mnemonic::from_phrase(phrase.into()).unwrap();
+    let seed = mnemonic.seed(&"".into());
+    let master_key = MasterKeyGen::new(&seed).generate().unwrap();
+
+    let slip32 = slip32_from_master_and_indexes(master_key, 123, 321).unwrap();
+
+    assert_eq!(slip32, "xprv1qpujxsyd4hfu0dtwa524vac84e09mjsgnh5h9crl8wrqg58z5wmsuqqcxlqmar3fjhkprndzkpnp2xlze76g4hu7g7c4r4r2m2e6y8xlvuqqqqrmqqqqzsgrtdzdt");
+}
+
+#[test]
+fn test_bech32_export_legacy() {
+    let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let mnemonic = Mnemonic::from_phrase(phrase.into()).unwrap();
+    let seed = mnemonic.seed(&"".into());
+    let master_key = MasterKeyGen::new(&seed).generate().unwrap();
+
+    let m_0 = master_key.derive(&KeyPath::default().index(0)).unwrap();
+    let m_1 = master_key.derive(&KeyPath::default().index(1)).unwrap();
+
+    let double_hex = double_slip32_from_keychains_and_indexes(&m_0, &m_1, 123, 321).unwrap();
+
+    assert_eq!(double_hex, "xprv1qpwy3ytadqutve4wky02clz0nruqwaum2lr4yt3c2zt3nm43u7jeyqxph6hlp3xmnpr8pfqvd8pfg7uax0xh7mn5n3n7rl94ccgcmksjsgqqqq2pwje96dxprv1qrswv5p6cptu7hw8dcrntetd63x3jwewncn3esk5d0r4njvmqg0rcq964zdghhtpch3zh8csvqwc0ywflr7yktaxm7wk35ek7r4s8vrwkcqqqqrm76e6en");
+}
 
 #[test]
 fn test_wallet_public_data() {

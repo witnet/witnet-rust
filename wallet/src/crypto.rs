@@ -1,3 +1,4 @@
+use bech32::ToBase32;
 use failure::Fail;
 
 use witnet_crypto::{
@@ -22,6 +23,9 @@ pub enum Error {
     /// The deserialization of the master key failed.
     #[fail(display = "Deserialization of key failed: {}", _0)]
     Deserialization(#[cause] KeyError),
+    /// The serialization of the master key failed.
+    #[fail(display = "Serialization of key failed: {}", _0)]
+    Serialization(#[cause] KeyError),
     /// The key path of the slip32-serialized key is not of a master key.
     #[fail(
         display = "Imported key is not a master key according to its path: {}",
@@ -30,6 +34,8 @@ pub enum Error {
     InvalidKeyPath(String),
     #[fail(display = "The AES encryption/decryption failed: {}", _0)]
     Aes(#[cause] cipher::Error),
+    #[fail(display = "The Bech32 (de)serialization failed: {}", _0)]
+    Bech32(#[cause] bech32::Error),
 }
 
 /// Result type for cryptographic operations that can fail.
@@ -49,7 +55,7 @@ pub fn gen_master_key(seed: &str, salt: &[u8], source: &types::SeedSource) -> Re
                 .map_err(Error::Generation)?
         }
         types::SeedSource::Xprv(slip32) => {
-            let (key, path) =
+            let (key, path, _) =
                 ExtendedSK::from_slip32(slip32.as_ref()).map_err(Error::Deserialization)?;
             if !path.is_master() {
                 return Err(Error::InvalidKeyPath(format!("{}", path)));
@@ -141,4 +147,12 @@ pub fn decrypt_cbc(ciphertext: &[u8], password: &[u8]) -> Result<Vec<u8>> {
     let plaintext = cipher::decrypt_aes_cbc(&secret, &true_ciphertext, &iv).map_err(Error::Aes)?;
 
     Ok(plaintext)
+}
+
+/// Encrypts a key using AES-CBC and serializes it with bech32.
+pub fn bech32_encrypt(tag: &str, key: &str, password: &str) -> Result<String> {
+    let encrypted_key = encrypt_cbc(key.as_bytes(), password.as_bytes())?;
+    let output = bech32::encode(tag, encrypted_key.to_base32()).map_err(Error::Bech32)?;
+
+    Ok(output)
 }
