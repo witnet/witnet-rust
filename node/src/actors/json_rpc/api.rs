@@ -19,12 +19,11 @@ use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
-
-use witnet_crypto::key::KeyPath;
+use witnet_crypto::{key::KeyPath, secp256k1::ecdsa::Signature};
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType,
-        StateMachine, SyncStatus,
+        tapi::ActiveWips, Block, DataRequestOutput, Environment, Epoch, Hash, Hashable,
+        KeyedSignature, PublicKey, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
     },
     transaction::Transaction,
     vrf::VrfMessage,
@@ -37,13 +36,14 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
         messages::{
-            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildStake, BuildVtt, ClearPeers,
-            DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
-            GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
-            GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
-            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
-            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
-            SnapshotExport, SnapshotImport,
+            AddCandidates, AddPeers, AddTransaction, AuthorizationParams, AuthorizeStake, BuildDrt,
+            BuildStake, BuildStakeParams, BuildVtt, ClearPeers, DropAllPeers, EstimatePriority,
+            GetBalance, GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers,
+            GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
+            GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
+            GetNodeStats, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo,
+            InitializePeers, IsConfirmedBlock, Rewind, SnapshotExport, SnapshotImport,
+            StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -272,6 +272,15 @@ pub fn attach_sensitive_methods<H>(
             "stake",
             params,
             |params| stake(params.parse()),
+        ))
+    });
+
+    server.add_actix_method(system, "authorizeStake", move |params: Params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "authorizeStake",
+            params,
+            |params| authorize_stake(params.parse()),
         ))
     });
 }
@@ -1930,13 +1939,63 @@ pub async fn snapshot_import(params: Result<SnapshotImportParams, Error>) -> Jso
     serde_json::to_value(response).map_err(internal_error_s)
 }
 /// Build a stake transaction
-pub async fn stake(params: Result<BuildStake, Error>) -> JsonRpcResult {
+pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
     log::debug!("Creating stake transaction from JSON-RPC.");
 
     match params {
         Ok(msg) => {
+            let withdrawer = match msg.withdrawer {
+                Some(withdrawer) => withdrawer,
+                None => {
+                    let pk = signature_mngr::public_key()
+                        .map(|res| {
+                            res.map_err(internal_error)
+                                .map(|pk| pk.pkh().bech32(Environment::Mainnet))
+                        })
+                        .await;
+
+                    pk.unwrap()
+                }
+            };
+
+            let authorization: AuthorizationParams = match msg.authorization {
+                Some(authorization) => authorization,
+                None => {
+                    let mut data = [0u8; witnet_crypto::secp256k1::constants::MESSAGE_SIZE];
+                    data[0..20].clone_from_slice(withdrawer.as_ref());
+
+                    let keyed_signature = signature_mngr::sign_data(data)
+                        .map(|res| res.map_err(internal_error))
+                        .await
+                        .unwrap();
+
+                    AuthorizationParams {
+                        authorization: hex::encode(keyed_signature.signature.to_bytes().unwrap()),
+                        public_key: hex::encode(keyed_signature.public_key.to_bytes()),
+                    }
+                }
+            };
+
+            let signature = Signature::from_str(&authorization.authorization).unwrap();
+            let authorization = KeyedSignature {
+                signature: signature.into(),
+                // TODO: https://docs.rs/secp256k1/0.22.2/secp256k1/struct.Secp256k1.html#method.recover_ecdsa
+                // public_key: signature.recover_ecdsa(withdrawer, signature)
+                public_key: PublicKey::from_str(&authorization.public_key),
+            };
+
+            let build_stake = BuildStake {
+                dry_run: msg.dry_run,
+                fee: msg.fee,
+                utxo_strategy: msg.utxo_strategy,
+                stake_output: StakeOutput {
+                    authorization,
+                    value: msg.value,
+                },
+            };
+
             ChainManager::from_registry()
-                .send(msg)
+                .send(build_stake)
                 .map(|res| match res {
                     Ok(Ok(hash)) => match serde_json::to_value(hash) {
                         Ok(x) => Ok(x),
@@ -1953,6 +2012,58 @@ pub async fn stake(params: Result<BuildStake, Error>) -> JsonRpcResult {
                         let err = internal_error_s(e);
                         Err(err)
                     }
+                })
+                .await
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Create a stake authorization for the given address.
+///
+/// The output of this method is a required argument to call the Stake method.
+/* test
+{"jsonrpc": "2.0","method": "authorizeStake", "params": {"withdrawer":"wit1lkzl4a365fvrr604pwqzykxugpglkrp5ekj0k0"}, "id": "1"}
+*/
+pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcResult {
+    print!("Inside authorize_stake");
+    log::debug!("Creating an authorization stake from JSON-RPC.");
+    match params {
+        Ok(msg) => {
+            let mut withdrawer = msg.withdrawer;
+            if withdrawer.is_none() {
+                let pk = signature_mngr::public_key()
+                    .map(|res| {
+                        res.map_err(internal_error)
+                            .map(|pk| pk.pkh().bech32(Environment::Mainnet))
+                    })
+                    .await;
+                withdrawer = Some(pk.unwrap());
+            }
+            // FIXME: we could use directly the pk calculated above in one case
+            let pkh =
+                PublicKeyHash::from_bech32(Environment::Mainnet, &withdrawer.clone().unwrap())
+                    .unwrap();
+            let mut data = [0u8; witnet_crypto::secp256k1::constants::MESSAGE_SIZE];
+            data[0..20].clone_from_slice(pkh.as_ref());
+
+            signature_mngr::sign_data(data)
+                .map(|res| {
+                    res.map_err(internal_error).and_then(|ks| {
+                        let a = StakeAuthorization {
+                            withdrawer: withdrawer.unwrap(),
+                            signature: hex::encode(ks.signature.to_bytes().unwrap()),
+                            public_key: hex::encode(ks.public_key.to_bytes()),
+                        };
+
+                        match serde_json::to_value(a) {
+                            Ok(value) => Ok(value),
+                            Err(e) => {
+                                let err = internal_error_s(e);
+                                Err(err)
+                            }
+                        }
+                    })
                 })
                 .await
         }
@@ -2264,6 +2375,7 @@ mod tests {
             all_methods_vec,
             vec![
                 "addPeers",
+                "authorizeStake",
                 "chainExport",
                 "chainImport",
                 "clearPeers",
@@ -2294,6 +2406,7 @@ mod tests {
                 "sendValue",
                 "sign",
                 "signalingInfo",
+                "stake",
                 "syncStatus",
                 "tryRequest",
                 "witnet_subscribe",
@@ -2312,6 +2425,7 @@ mod tests {
 
         let expected_sensitive_methods = vec![
             "addPeers",
+            "authorizeStake",
             "clearPeers",
             "createVRF",
             "getPkh",
@@ -2324,6 +2438,7 @@ mod tests {
             "sendValue",
             "sign",
             "tryRequest",
+            "stake",
         ];
 
         for method_name in expected_sensitive_methods {
