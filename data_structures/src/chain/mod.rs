@@ -41,8 +41,11 @@ use crate::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
         TransactionError,
     },
-    get_environment, get_protocol_version,
-    proto::{versioning::Versioned, ProtobufConvert},
+    get_environment,
+    proto::{
+        versioning::{ProtocolVersion, Versioned},
+        ProtobufConvert,
+    },
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
@@ -674,7 +677,7 @@ impl Hashable for BlockHeader {
 impl MemoizedHashable for Block {
     fn hashable_bytes(&self) -> Vec<u8> {
         self.block_header
-            .to_versioned_pb_bytes(get_protocol_version())
+            .to_versioned_pb_bytes(ProtocolVersion::guess())
             .unwrap()
     }
 
@@ -4621,12 +4624,12 @@ mod tests {
         let block = block_example();
         let expected = "70e15ac70bb00f49c7a593b2423f722dca187bbae53dc2f22647063b17608c01";
         assert_eq!(
-            block.versioned_hash(ProtocolVersion::V1_6).to_string(),
+            block.versioned_hash(ProtocolVersion::V1_7).to_string(),
             expected
         );
         let expected = "29ef68357a5c861b9dbe043d351a28472ca450edcda25de4c9b80a4560a28c0f";
         assert_eq!(
-            block.versioned_hash(ProtocolVersion::V1_7).to_string(),
+            block.versioned_hash(ProtocolVersion::V1_8).to_string(),
             expected
         );
         let expected = "29ef68357a5c861b9dbe043d351a28472ca450edcda25de4c9b80a4560a28c0f";
