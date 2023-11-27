@@ -13,9 +13,12 @@
 #[macro_use]
 extern crate protobuf_convert;
 
-use crate::{chain::Environment, proto::versioning::ProtocolVersion};
-use lazy_static::lazy_static;
 use std::sync::RwLock;
+
+use lazy_static::lazy_static;
+
+use crate::{chain::{Environment, Epoch}, proto::versioning::ProtocolVersion};
+use crate::proto::versioning::ProtocolInfo;
 
 /// Module containing functions to generate Witnet's protocol messages
 pub mod builders;
@@ -84,7 +87,7 @@ lazy_static! {
     static ref ENVIRONMENT: RwLock<Environment> = RwLock::new(Environment::Mainnet);
     /// Protocol version that we are running.
     /// default to legacy for now — it's the v2 bootstrapping module's responsibility to upgrade it.
-    static ref PROTOCOL_VERSION: RwLock<ProtocolVersion> = RwLock::new(ProtocolVersion::V1_6);
+    static ref PROTOCOL: RwLock<ProtocolInfo> = RwLock::new(ProtocolInfo::default());
 }
 
 /// Environment in which we are running: mainnet or testnet.
@@ -118,31 +121,30 @@ pub fn set_environment(environment: Environment) {
 }
 
 /// Protocol version that we are running.
-pub fn get_protocol_version() -> ProtocolVersion {
+pub fn get_protocol_version(epoch: Option<Epoch>) -> ProtocolVersion {
     // This unwrap is safe as long as the lock is not poisoned.
     // The lock can only become poisoned when a writer panics.
-    // The only writer is the one used in `set_environment`, which should only
-    // be used during initialization.
-    *PROTOCOL_VERSION.read().unwrap()
+    let protocol_info = PROTOCOL.read().unwrap();
+
+    if let Some(epoch) = epoch {
+        protocol_info.all_versions.version_for_epoch(epoch)
+    } else {
+        *protocol_info.current_version
+    }
+}
+
+pub fn register_protocol_version(epoch: Epoch, protocol_version: ProtocolVersion) {
+    // This unwrap is safe as long as the lock is not poisoned.
+    // The lock can only become poisoned when a writer panics.
+    let mut protocol_info = PROTOCOL.write().unwrap();
+    *protocol_info.register(epoch, protocol_version);
 }
 
 /// Set the protocol version that we are running.
-/// This function should only be called once during initialization.
-// Changing the environment in tests is not supported, as it can cause spurious failures:
-// multiple tests can run in parallel and some tests might fail when the environment changes.
-// But if you need to change the environment in some test, just create a separate thread-local
-// variable and mock get and set.
-#[cfg(not(test))]
+/// #[cfg(not(test))]
 pub fn set_protocol_version(protocol_version: ProtocolVersion) {
-    match PROTOCOL_VERSION.write() {
-        Ok(mut x) => {
-            *x = protocol_version;
-            log::debug!("Protocol version set to {}", protocol_version);
-        }
-        Err(e) => {
-            log::error!("Failed to set protocol version: {}", e);
-        }
-    }
+    let mut protocol = PROTOCOL.write().unwrap();
+    *protocol.current_version = protocol_version;
 }
 
 #[cfg(test)]
@@ -161,6 +163,6 @@ mod tests {
         // If this default changes before the transition to V2 is complete, almost everything will
         // break because data structures change schema and, serialization changes and hash
         // derivation breaks too
-        assert_eq!(get_protocol_version(), ProtocolVersion::V1_6);
+        assert_eq!(get_protocol_version(), ProtocolVersion::V1_7);
     }
 }

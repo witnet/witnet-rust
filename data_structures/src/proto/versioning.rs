@@ -1,11 +1,14 @@
 use failure::{Error, Fail};
 use protobuf::Message as _;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fmt::Formatter;
 
+use crate::chain::Epoch;
 use crate::proto::schema::witnet::SuperBlock;
 use crate::{
     chain::Hash,
+    get_protocol_version,
     proto::{
         schema::witnet::{
             Block, Block_BlockHeader, Block_BlockHeader_BlockMerkleRoots, Block_BlockTransactions,
@@ -20,21 +23,64 @@ use crate::{
     types::Message,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug)]
+pub struct ProtocolInfo {
+    pub current_version: ProtocolVersion,
+    pub all_versions: VersionsMap,
+}
+
+impl ProtocolInfo {
+    pub fn register(&mut self, epoch: Epoch, version: ProtocolVersion) {
+        self.all_versions.register(epoch, version)
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct VersionsMap {
+    efv: HashMap<ProtocolVersion, Epoch>,
+    vfe: BTreeMap<Epoch, ProtocolVersion>,
+}
+
+impl VersionsMap {
+    pub fn register(&mut self, epoch: Epoch, version: ProtocolVersion) {
+        self.efv.insert(version, epoch);
+        self.vfe.insert(epoch, version);
+    }
+
+    pub fn version_for_epoch(&self, queried_epoch: Epoch) -> ProtocolVersion {
+        *self
+            .vfe
+            .iter()
+            .rev()
+            .find(|(epoch, _)| **epoch < queried_epoch)
+            .map(|(_, version)| version)
+            .unwrap_or_default()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum ProtocolVersion {
     /// The original Witnet protocol.
-    V1_6,
-    /// The transitional protocol based on 1.x but with staking enabled.
+    // TODO: update this default once 2.0 is completely active
+    #[default]
     V1_7,
+    /// The transitional protocol based on 1.x but with staking enabled.
+    V1_8,
     /// The final Witnet 2.0 protocol.
     V2_0,
+}
+
+impl ProtocolVersion {
+    pub fn guess() -> Self {
+        get_protocol_version(None)
+    }
 }
 
 impl fmt::Display for ProtocolVersion {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let s = match self {
-            ProtocolVersion::V1_6 => "v1.6 (legacy)",
-            ProtocolVersion::V1_7 => "v1.7 (transitional)",
+            ProtocolVersion::V1_7 => "v1.7 (legacy)",
+            ProtocolVersion::V1_8 => "v1.8 (transitional)",
             ProtocolVersion::V2_0 => "v2.0 (final)",
         };
 
@@ -113,9 +159,9 @@ impl Versioned for crate::chain::BlockMerkleRoots {
 
         let versioned: Box<dyn protobuf::Message> = match version {
             // Legacy merkle roots need to get rearranged
-            V1_6 => Box::new(Self::LegacyType::from(pb)),
+            V1_7 => Box::new(Self::LegacyType::from(pb)),
             // Transition merkle roots need no transformation
-            V1_7 => Box::new(pb),
+            V1_8 => Box::new(pb),
             // Final merkle roots need to drop the mint hash
             V2_0 => {
                 pb.set_mint_hash(Default::default());
@@ -141,9 +187,9 @@ impl Versioned for crate::chain::BlockHeader {
 
         let versioned: Box<dyn protobuf::Message> = match version {
             // Legacy block headers need to be rearranged
-            V1_6 => Box::new(Self::LegacyType::from(pb)),
+            V1_7 => Box::new(Self::LegacyType::from(pb)),
             // All other block headers need no transformation
-            V1_7 | V2_0 => Box::new(pb),
+            V1_8 | V2_0 => Box::new(pb),
         };
 
         Ok(versioned)
@@ -187,8 +233,8 @@ impl Versioned for Message {
         let pb = self.to_pb();
 
         let versioned: Box<dyn protobuf::Message> = match version {
-            V1_6 => Box::new(Self::LegacyType::from(pb)),
-            V1_7 | V2_0 => Box::new(pb),
+            V1_7 => Box::new(Self::LegacyType::from(pb)),
+            V1_8 | V2_0 => Box::new(pb),
         };
 
         Ok(versioned)
