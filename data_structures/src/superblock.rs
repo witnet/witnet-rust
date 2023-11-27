@@ -17,6 +17,7 @@ use crate::{
         PublicKeyHash, SuperBlock, SuperBlockVote,
     },
     get_environment,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
 };
 
 /// Possible result of SuperBlockState::add_vote
@@ -269,11 +270,15 @@ impl SuperBlockState {
 
             AddSuperBlockVote::DoubleVote
         } else {
-            let is_same_hash =
-                sbv.superblock_hash == self.current_superblock_beacon.hash_prev_block;
+            let theirs = sbv.superblock_hash;
+            let ours = self.current_superblock_beacon.hash_prev_block;
+            let votes_for_our_tip = theirs == ours;
+
+            log::debug!("Superblock vote comparison:\n(theirs): {theirs}\n(ours): {ours}");
+
             self.votes_mempool.insert_vote(sbv);
 
-            if is_same_hash {
+            if votes_for_our_tip {
                 AddSuperBlockVote::ValidWithSameHash
             } else {
                 AddSuperBlockVote::ValidButDifferentHash
@@ -699,7 +704,7 @@ pub fn mining_build_superblock(
             )
         }
         Some(last_block_header) => {
-            let last_block_hash = last_block_header.hash();
+            let last_block_hash = last_block_header.versioned_hash(ProtocolVersion::guess());
             let merkle_drs: Vec<Hash> = block_headers
                 .iter()
                 .map(|b| b.merkle_roots.dr_hash_merkle_root)
