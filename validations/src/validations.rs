@@ -29,7 +29,6 @@ use witnet_data_structures::{
         calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
-    get_protocol_version,
     proto::versioning::ProtocolVersion,
     radon_report::{RadonReport, ReportContext},
     transaction::{
@@ -1982,7 +1981,7 @@ pub fn validate_block_transactions(
 
     // Nullify roots for legacy protocol version
     // TODO skip all staking logic if protocol version is legacy
-    let (st_root, ut_root) = match get_protocol_version() {
+    let (st_root, ut_root) = match ProtocolVersion::guess() {
         ProtocolVersion::V1_6 => Default::default(),
         _ => (Hash::from(st_mt.root()), Hash::from(ut_mt.root())),
     };

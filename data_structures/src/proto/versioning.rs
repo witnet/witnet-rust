@@ -6,6 +6,7 @@ use std::fmt::Formatter;
 use crate::proto::schema::witnet::SuperBlock;
 use crate::{
     chain::Hash,
+    get_protocol_version,
     proto::{
         schema::witnet::{
             Block, Block_BlockHeader, Block_BlockHeader_BlockMerkleRoots, Block_BlockTransactions,
@@ -28,6 +29,12 @@ pub enum ProtocolVersion {
     V1_7,
     /// The final Witnet 2.0 protocol.
     V2_0,
+}
+
+impl ProtocolVersion {
+    pub fn guess() -> Self {
+        get_protocol_version()
+    }
 }
 
 impl fmt::Display for ProtocolVersion {

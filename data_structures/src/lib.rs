@@ -161,6 +161,6 @@ mod tests {
         // If this default changes before the transition to V2 is complete, almost everything will
         // break because data structures change schema and, serialization changes and hash
         // derivation breaks too
-        assert_eq!(get_protocol_version(), ProtocolVersion::V1_6);
+        assert_eq!(ProtocolVersion::guess(), ProtocolVersion::V1_6);
     }
 }

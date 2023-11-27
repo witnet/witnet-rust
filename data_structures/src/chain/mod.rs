@@ -36,8 +36,11 @@ use crate::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
         TransactionError,
     },
-    get_environment, get_protocol_version,
-    proto::{versioning::Versioned, ProtobufConvert},
+    get_environment,
+    proto::{
+        versioning::{ProtocolVersion, Versioned},
+        ProtobufConvert,
+    },
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
@@ -669,7 +672,7 @@ impl Hashable for BlockHeader {
 impl MemoizedHashable for Block {
     fn hashable_bytes(&self) -> Vec<u8> {
         self.block_header
-            .to_versioned_pb_bytes(get_protocol_version())
+            .to_versioned_pb_bytes(ProtocolVersion::guess())
             .unwrap()
     }
 
