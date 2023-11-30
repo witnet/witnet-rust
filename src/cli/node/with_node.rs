@@ -757,7 +757,9 @@ pub enum Command {
         value: u64,
         /// Withdrawer
         #[structopt(long = "withdrawer")]
-        withdrawer: String,
+        // make it also optional in jsonrcp
+        // see get balance in main
+        withdrawer: Option<String>,
         /// Fee
         #[structopt(long = "fee")]
         fee: Option<u64>,
@@ -772,7 +774,7 @@ pub enum Command {
         node: Option<SocketAddr>,
         /// Withdrawer address
         #[structopt(long = "withdrawer")]
-        withdrawer: String,
+        withdrawer: Option<String>,
     },
 }
 

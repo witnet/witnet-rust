@@ -241,15 +241,64 @@ impl Message for BuildStake {
     type Result = Result<StakeTransaction, failure::Error>;
 }
 
+///
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AuthorizationParams {
+    ///
+    pub public_key: String,
+    ///
+    pub authorization: String,
+}
+
+/// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildStakeParams {
+    ///
+    pub authorization: Option<AuthorizationParams>,
+    /// List of `ValueTransferOutput`s
+    pub value: u64,
+    /// Withdrawer
+    pub withdrawer: Option<String>,
+    /// Fee
+    #[serde(default)]
+    pub fee: Fee,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+// impl Message for BuildStake {
+//     type Result = Result<StakeTransaction, failure::Error>;
+// }
+
 /// Builds an `AuthorizeStake`
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AuthorizeStake {
     /// Address that can withdraw the stake
-    // #[serde(default)]
-    pub withdrawer: String,
+    #[serde(default)]
+    pub withdrawer: Option<String>,
 }
 
 impl Message for AuthorizeStake {
+    type Result = Result<String, failure::Error>;
+}
+
+/// Builds an `StakeAuthorization`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StakeAuthorization {
+    /// Address that can withdraw the stake
+    // #[serde(default)]
+    pub withdrawer: String,
+    ///
+    pub signature: String,
+    ///
+    pub public_key: String,
+}
+
+impl Message for StakeAuthorization {
     type Result = Result<String, failure::Error>;
 }
 

@@ -25,8 +25,8 @@ use witnet_data_structures::{
         priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
         tapi::{current_active_wips, ActiveWips},
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
-        Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StakeOutput,
-        StateMachine, SupplyInfo, SyncStatus, ValueTransferOutput,
+        Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
+        SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     fee::Fee,
     proto::ProtobufConvert,
@@ -40,8 +40,8 @@ use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult},
     messages::{
-        AuthorizeStake, BuildDrt, BuildStake, BuildVtt, GetBalanceTarget, GetReputationResult,
-        SignalingInfo,
+        AuthorizationParams, AuthorizeStake, BuildDrt, BuildStakeParams, BuildVtt,
+        GetBalanceTarget, GetReputationResult, SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -861,7 +861,7 @@ pub fn send_dr(
 pub fn send_st(
     addr: SocketAddr,
     value: u64,
-    withdrawer: String,
+    withdrawer: Option<String>,
     fee: Option<Fee>,
     sorted_bigger: Option<bool>,
     dry_run: bool,
@@ -869,17 +869,14 @@ pub fn send_st(
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
 
-    let authorize_stake_params = AuthorizeStake {
-        withdrawer,
-    };
-    
-    let (authorization, (_, _response)): (KeyedSignature, _) =
-        issue_method("authorizeStake", Some(authorize_stake_params), &mut stream, id.next())?;
+    let authorize_stake_params = AuthorizeStake { withdrawer };
 
-    let stake_output = StakeOutput {
-        value,
-        authorization,
-    };
+    let (stake_authorization, (_, _response)): (StakeAuthorization, _) = issue_method(
+        "authorizeStake",
+        Some(authorize_stake_params),
+        &mut stream,
+        id.next(),
+    )?;
 
     // Prepare for fee estimation if no fee value was specified
     let (fee, estimate) = unwrap_fee_or_estimate_priority(fee, &mut stream, &mut id)?;
@@ -890,8 +887,13 @@ pub fn send_st(
         None => UtxoSelectionStrategy::Random { from: None },
     };
 
-    let mut build_stake_params = BuildStake {
-        stake_output,
+    let mut build_stake_params = BuildStakeParams {
+        authorization: Some(AuthorizationParams {
+            authorization: stake_authorization.signature,
+            public_key: stake_authorization.public_key,
+        }),
+        withdrawer: Some(stake_authorization.withdrawer),
+        value,
         fee,
         utxo_strategy,
         dry_run,
@@ -941,7 +943,7 @@ pub fn send_st(
                 fee = Fee::absolute_from_wit(priority.derive_fee_wit(weight));
 
                 // Create and dry run a Stake transaction using that fee
-                let dry_params = BuildStake {
+                let dry_params = BuildStakeParams {
                     fee,
                     dry_run: true,
                     ..build_stake_params.clone()
@@ -982,25 +984,28 @@ pub fn send_st(
     Ok(())
 }
 
-pub fn authorize_st(addr: SocketAddr, withdrawer: String) -> Result<(), failure::Error> {
-    // TODO: validate withdrawer
-    PublicKeyHash::from_bech32(Environment::Mainnet, &withdrawer)?;
+pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), failure::Error> {
+    if withdrawer.is_some() {
+        // validate withdrawer
+        PublicKeyHash::from_bech32(Environment::Mainnet, &withdrawer.clone().unwrap())?;
+    }
 
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
 
-    let params = AuthorizeStake {
-        withdrawer: withdrawer,
-    };
-    let (authorization, (_, response)): (KeyedSignature, _) =
+    let params = AuthorizeStake { withdrawer };
+    let (authorization, (_, response)): (StakeAuthorization, _) =
         issue_method("authorizeStake", Some(params), &mut stream, id.next())?;
 
     println!("{}", response);
 
-    let auth_bytes = authorization.signature.to_bytes().unwrap();
-    let auth_string = hex::encode(auth_bytes);
+    let mut str = authorization.signature.clone();
+    str.push_str(":");
+    str.push_str(&authorization.public_key);
 
-    let auth_qr = qrcode::QrCode::new(auth_bytes).unwrap();
+    println!("2 STRING {str}");
+
+    let auth_qr = qrcode::QrCode::new(str).unwrap();
     let auth_ascii = auth_qr
         .render::<unicode::Dense1x2>()
         .quiet_zone(true)
@@ -1009,8 +1014,8 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: String) -> Result<(), failure:
         .build();
 
     println!(
-        "Authorization code:\n{}\nQR code for myWitWallet:\n{}",
-        auth_string, auth_ascii
+        "Authorization code:\n{}PublicKey code:\n{}\nQR code for myWitWallet:\n{}",
+        authorization.signature, authorization.public_key, auth_ascii
     );
 
     Ok(())
@@ -2010,7 +2015,6 @@ where
         id.unwrap_or(1)
     );
     let response = send_request(stream, &request)?;
-    log::error!("REQUEST: {}", request);
     parse_response::<O>(&response).map(|output| (output, (request, response)))
 }
 
