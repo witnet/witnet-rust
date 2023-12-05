@@ -241,23 +241,26 @@ impl Message for BuildStake {
     type Result = Result<StakeTransaction, failure::Error>;
 }
 
-///
+/// Authorization formatted as strings
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AuthorizationParams {
-    ///
+    /// Authorization public key
     pub public_key: String,
-    ///
+    /// Authorization signature
     pub authorization: String,
 }
 
 /// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildStakeParams {
-    ///
+    /// Authorization signature and public key
+    #[serde(default)]
     pub authorization: Option<AuthorizationParams>,
     /// List of `ValueTransferOutput`s
+    #[serde(default)]
     pub value: u64,
     /// Withdrawer
+    #[serde(default)]
     pub withdrawer: Option<String>,
     /// Fee
     #[serde(default)]
@@ -290,11 +293,10 @@ impl Message for AuthorizeStake {
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct StakeAuthorization {
     /// Address that can withdraw the stake
-    // #[serde(default)]
     pub withdrawer: String,
-    ///
+    /// Signature of the withdrawer 
     pub signature: String,
-    ///
+    /// Public key related with signature
     pub public_key: String,
 }
 
