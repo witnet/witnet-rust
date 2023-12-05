@@ -1000,7 +1000,7 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
     println!("{}", response);
 
     let mut str = authorization.signature.clone();
-    str.push_str(":");
+    str.push(':');
     str.push_str(&authorization.public_key);
 
     println!("2 STRING {str}");

@@ -1965,7 +1965,7 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
                     data[0..20].clone_from_slice(withdrawer.as_ref());
 
                     let keyed_signature = signature_mngr::sign_data(data)
-                        .map(|res| res.map_err(internal_error).and_then(|ks| Ok(ks)))
+                        .map(|res| res.map_err(internal_error))
                         .await
                         .unwrap();
 
@@ -1984,7 +1984,7 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
 
             let signature = Signature::from_str(&authorization.authorization).unwrap();
             let authorization = KeyedSignature {
-                signature: signature.clone().into(),
+                signature: signature.into(),
                 // TODO: https://docs.rs/secp256k1/0.22.2/secp256k1/struct.Secp256k1.html#method.recover_ecdsa
                 // public_key: signature.recover_ecdsa(withdrawer, signature)
                 public_key: PublicKey::from_bytes(array_bytes),
