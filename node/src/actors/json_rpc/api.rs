@@ -2459,30 +2459,4 @@ mod tests {
             assert_eq!(response.unwrap(), error_msg);
         }
     }
-
-    // #[test]
-    // fn generate_stake_authorization() {
-    //     use actix::System;
-    //     // {"jsonrpc":"1.0","method":"authorizeStake","params":{"withdrawer": "wit16dvdn4ypw9jmpgvu8w7vzch5qx79kgjkacrusj"},"id":1}
-    //     // Check that the inventory method accepts blocks
-    //     // use witnet_data_structures::chain::*;
-    //     let params = AuthorizeStake {
-    //         withdrawer: String::from("wit16dvdn4ypw9jmpgvu8w7vzch5qx79kgjkacrusj"),
-    //     };
-    //     let msg = format!(
-    //         r#"{{"jsonrpc":"2.0","method":"authorizeStake","params":{},"id":1}}"#,
-    //         serde_json::to_string(&params).unwrap()
-    //     );
-    //     let expected = r#"{"jsonrpc":"2.0","result":{"public_key":"compressed":3},"signature":{"Secp256k1":{"der":[48,69,2,33,0,240,5,92,61,31,222,226,164,208,51,115,183,140,129,73,163,46,44,170,95,91,239,105,246,220,204,231,198,61,82,158,223,2,32,123,85,76,252,227,110,106,69,170,135,36,180,166,6,212,42,73,191,203,226,101,28,147,75,242,168,197,11,95,83,206,38]}}},"id":"1"} "#.to_string();
-    //     let mut server = WittyMultiServer::new();
-    //     let system = System::new();
-    //     system.block_on(async {
-    //         signature_mngr::start();
-    //         let sys = actix::System::current();
-    //         attach_api(&mut server, true, Subscriptions::default(), &Some(sys));
-    //         let response = server.handle_request_sync(&msg, Default::default());
-    //         assert_eq!(response, Some(expected));
-    //     });
-    //     let _ = system.run();
-    // }
 }
