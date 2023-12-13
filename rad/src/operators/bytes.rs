@@ -1,10 +1,11 @@
+use base64::Engine;
 use serde_cbor::value::{from_value, Value};
 use std::convert::TryFrom;
 
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
-    types::{bytes::RadonBytes, string::RadonString, RadonType},
+    types::{bytes::{RadonBytes, RadonBytesEncoding}, string::RadonString, integer::RadonInteger, RadonType},
 };
 
 pub fn as_integer(input: &RadonBytes) -> Result<RadonInteger, RadError> {
@@ -60,14 +61,44 @@ pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError>
         Err(wrong_args())
     }
 }
+
+pub fn stringify(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonString, RadError> {
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "Stringify".to_string(),
+        args: args.to_owned().unwrap_or(Vec::<Value>::default()).to_vec(),
+    };
+    let mut bytes_encoding = RadonBytesEncoding::Hex;
+    match args {
+        Some(args) => {
+            if args.len() > 0 {
+                let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+                let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
+                bytes_encoding = RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
+            }
+        }
+        _ => ()
+    }
+    match bytes_encoding {
+        RadonBytesEncoding::Hex => {
+            RadonString::try_from(Value::Text(hex::encode(input.value())))
+        }
+        RadonBytesEncoding::Base64 => {
+            RadonString::try_from(Value::Text(base64::engine::general_purpose::STANDARD.encode(input.value())))
+        }
+    }
+    
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_bytes_to_string() {
+    fn test_bytes_stringify() {
         let input = RadonBytes::from(vec![0x01, 0x02, 0x03]);
-        let output = to_string(&input).unwrap().value();
+        let valid_args = Some(vec![Value::from(0x00)]);
+        let output = stringify(&input, &valid_args).unwrap().value();
 
         let valid_expected = "010203".to_string();
 
