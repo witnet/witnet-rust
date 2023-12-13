@@ -6,7 +6,7 @@ use crate::{
     error::RadError,
     types::{
         boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, string::RadonString,
-        RadonType,
+        RadonType, bytes::RadonBytes,
     },
 };
 
@@ -18,6 +18,20 @@ pub fn absolute(input: &RadonInteger) -> Result<RadonInteger, RadError> {
     } else {
         Err(RadError::Overflow)
     }
+}
+
+pub fn to_bytes(input: RadonInteger) -> Result<RadonBytes, RadError> {
+    let mut bytes_array = [0u8; 16];
+    bytes_array.copy_from_slice(&input.value().to_be_bytes());
+    let mut leading_zeros = 0;
+    for i in 0..bytes_array.len() {
+        if bytes_array[i] != 0u8 {
+            break
+        } else {
+            leading_zeros += 1;
+        }
+    }
+    Ok(RadonBytes::from(bytes_array[leading_zeros..].to_vec()))
 }
 
 pub fn to_float(input: RadonInteger) -> Result<RadonFloat, RadError> {

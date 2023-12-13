@@ -63,6 +63,7 @@ pub enum RadonOpCodes {
     IntegerMultiply = 0x47,
     IntegerNegate = 0x48,
     IntegerPower = 0x49,
+    IntegerToBytes = 0x4A,
     IntegerToFloat = 0x41,
     IntegerToString = 0x42,
     //    IntegerSum = 0x4B,
