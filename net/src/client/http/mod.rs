@@ -151,7 +151,7 @@ pub struct WitnetHttpResponse {
 
 impl WitnetHttpResponse {
     #[inline]
-    /// Simple wrapper around `isahc::Response::status`.
+    /// Simple wrapper around `isahc::Response`.
     pub fn inner(self) -> isahc::Response<isahc::AsyncBody> {
         self.res
     }

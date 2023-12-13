@@ -78,7 +78,12 @@ pub fn try_data_request(
             .iter()
             .zip(inputs.iter())
             .map(|(retrieve, input)| {
-                run_retrieval_with_data_report(retrieve, input, &mut retrieval_context, settings)
+                run_retrieval_with_data_report(
+                    retrieve,
+                    RadonTypes::from(RadonString::from(*input)),
+                    &mut retrieval_context,
+                    settings,
+                )
             })
             .collect()
     } else {
@@ -160,42 +165,27 @@ pub fn try_data_request(
     }
 }
 
-/// Handle HTTP-GET and HTTP-POST response with data, and return a `RadonReport`.
-fn string_response_with_data_report(
+/// Execute Radon Script using as input the RadonTypes value deserialized from a retrieval response
+fn handle_response_with_data_report(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: RadonTypes,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let input = RadonTypes::from(RadonString::from(response));
     let radon_script = unpack_radon_script(&retrieve.script)?;
-
-    execute_radon_script(input, &radon_script, context, settings)
-}
-
-/// Handle Rng response with data report
-fn rng_response_with_data_report(
-    response: &str,
-    context: &mut ReportContext<RadonTypes>,
-) -> Result<RadonReport<RadonTypes>> {
-    let response_bytes = response.as_bytes();
-    let result = RadonTypes::from(RadonBytes::from(response_bytes.to_vec()));
-
-    Ok(RadonReport::from_result(Ok(result), context))
+    execute_radon_script(response, &radon_script, context, settings)
 }
 
 /// Run retrieval without performing any external network requests, return `Result<RadonReport>`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: RadonTypes,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
-        RADType::HttpGet => string_response_with_data_report(retrieve, response, context, settings),
-        RADType::Rng => rng_response_with_data_report(response, context),
-        RADType::HttpPost => {
-            string_response_with_data_report(retrieve, response, context, settings)
+        RADType::HttpGet | RADType::HttpPost | RADType::HttpHead | RADType::Rng => {
+            handle_response_with_data_report(retrieve, response, context, settings)
         }
         _ => Err(RadError::UnknownRetrieval),
     }
@@ -204,7 +194,7 @@ pub fn run_retrieval_with_data_report(
 /// Run retrieval without performing any external network requests, return `Result<RadonTypes>`.
 pub fn run_retrieval_with_data(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: RadonTypes,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
 ) -> Result<RadonTypes> {
@@ -214,7 +204,7 @@ pub fn run_retrieval_with_data(
         .map(RadonReport::into_inner)
 }
 
-/// Handle generic HTTP (GET/POST) response
+/// Handle generic HTTP (GET/POST/HEAD) response
 async fn http_response(
     retrieve: &RADRetrieve,
     context: &mut ReportContext<RadonTypes>,
@@ -259,6 +249,10 @@ async fn http_response(
                     WitnetHttpBody::from(retrieve.body.clone()),
                 )
             }
+            RADType::HttpHead => (
+                builder.method("HEAD").uri(&retrieve.url),
+                WitnetHttpBody::empty(),
+            ),
             _ => panic!(
                 "Called http_response with invalid retrieval kind {:?}",
                 retrieve.kind
@@ -296,18 +290,39 @@ async fn http_response(
         });
     }
 
-    // If at some point we want to support the retrieval of non-UTF8 data (e.g. raw bytes), this is
-    // where we need to decide how to read the response body
-    let (_parts, mut body) = response.into_parts();
-    let mut response_string = String::default();
-    body.read_to_string(&mut response_string)
-        .await
-        .map_err(|x| RadError::HttpOther {
-            message: x.to_string(),
+    let (parts, mut body) = response.into_parts();
+
+    let response: RadonTypes;
+    if retrieve.kind != RADType::HttpHead && parts.headers.contains_key("accept-ranges") {
+        // http response is a binary stream
+        let mut response_bytes = Vec::<u8>::default();
+
+        // todo: before reading the response buffer, an error should be thrown if it was too big
+        body.read_to_end(&mut response_bytes).await.map_err(|x| {
+            RadError::HttpOther {
+                message: x.to_string(),
+            }
         })?;
+        response = RadonTypes::from(RadonBytes::from(response_bytes));
+    } else {
+        // response is a string
+        let mut response_string = String::default();
+        match retrieve.kind {
+            RADType::HttpHead => {
+                response_string = format!("{:?}", parts.headers);
+            }
+            _ => {
+                body.read_to_string(&mut response_string)
+                    .await
+                    .map_err(|x| RadError::HttpOther {
+                        message: x.to_string(),
+                    })?;
+            }
+        }
+        response = RadonTypes::from(RadonString::from(response_string));
+    }
 
-    let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
-
+    let result = handle_response_with_data_report(retrieve, response, context, settings);
     match &result {
         Ok(report) => {
             log::debug!(
@@ -318,7 +333,6 @@ async fn http_response(
         }
         Err(e) => log::debug!("Failed result for source {}: {:?}", retrieve.url, e),
     }
-
     result
 }
 
@@ -354,9 +368,10 @@ pub async fn run_retrieval_report(
     context.set_active_wips(active_wips);
 
     match retrieve.kind {
-        RADType::HttpGet => http_response(retrieve, context, settings, client).await,
+        RADType::HttpGet | RADType::HttpHead | RADType::HttpPost => {
+            http_response(retrieve, context, settings, client).await
+        }
         RADType::Rng => rng_response(context, settings).await,
-        RADType::HttpPost => http_response(retrieve, context, settings, client).await,
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -649,7 +664,7 @@ fn validate_header(name: &str, value: &str) -> Result<()> {
         Err(RadError::InvalidHttpHeader {
             name: name.to_string(),
             value: value.to_string(),
-            error: error_message.to_string(),
+            error: error_message,
         })
     } else {
         Ok(())
@@ -830,6 +845,39 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_run_http_head_retrieval() {
+        let script_r = Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text("etag".to_string()),
+            ]),
+        ]);
+        let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
+
+        let retrieve = RADRetrieve {
+            kind: RADType::HttpHead,
+            url: "https://en.wikipedia.org/static/images/icons/wikipedia.png".to_string(),
+            script: packed_script_r,
+            body: vec![],
+            headers: vec![],
+        };
+        let response_string = r#"{"date": "Wed, 11 Oct 2023 15:18:42 GMT", "content-type": "image/png", "content-length": "498219", "x-origin-cache": "HIT", "last-modified": "Mon, 28 Aug 2023 13:30:41 GMT", "access-control-allow-origin": "*", "etag": "\"64eca181-79a2b\"", "expires": "Wed, 11 Oct 2023 15:28:41 GMT", "cache-control": "max-age=1800", "x-proxy-cache": "MISS", "x-github-request-id": "6750:35DB:BF8211:FEFD2B:652602FA", "via": "1.1 varnish", "x-served-by": "cache-hnd18736-HND", "x-cache": "MISS", "x-cache-hits": "0", "x-timer": "S1696989946.496383,VS0,VE487", "vary": "Accept-Encoding", "x-fastly-request-id": "118bdfd8a926cbdc781bc23079c3dc07a22d2223", "cf-cache-status": "REVALIDATED", "accept-ranges": "bytes", "report-to": "{\"endpoints\":[{\"url\":\"https:\/\/a.nel.cloudflare.com\/report\/v3?s=FlzxKRCYYN4SL0x%2FraG7ugKCqdC%2BeQqVrucvsfeDWf%2F7A0Nv9fv7TYRgU0WL4k1kbZyxt%2B04VjOyv0XK55sF37GEPwXHE%2FdXnoFlWutID762k2ktcX6hUml6oNk%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}", "nel": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}", "strict-transport-security": "max-age=0", "x-content-type-options": "nosniff", "server": "cloudflare", "cf-ray": "814813bf3a73f689-NRT", "alt-svc": "h3=\":443\"; ma=86400"}"#;
+        let result = run_retrieval_with_data(
+            &retrieve,
+            RadonTypes::from(RadonString::from(response_string)),
+            RadonScriptExecutionSettings::disable_all(),
+            current_active_wips(),
+        )
+        .unwrap();
+
+        match result {
+            RadonTypes::String(_) => {}
+            err => panic!("Error in run_retrieval: {:?}", err),
+        }
+    }
+
+    #[test]
     fn test_run_retrieval() {
         let script_r = Value::Array(vec![
             Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
@@ -851,11 +899,10 @@ mod tests {
             body: vec![],
             headers: vec![],
         };
-        let response = r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":500,"main":"Rain","description":"light rain","icon":"10d"}],"base":"stations","main":{"temp":17.59,"pressure":1022,"humidity":67,"temp_min":15,"temp_max":20},"visibility":10000,"wind":{"speed":3.6,"deg":260},"rain":{"1h":0.51},"clouds":{"all":20},"dt":1567501321,"sys":{"type":1,"id":1275,"message":0.0089,"country":"DE","sunrise":1567484402,"sunset":1567533129},"timezone":7200,"id":2950159,"name":"Berlin","cod":200}"#;
-
+        let response_string = r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":500,"main":"Rain","description":"light rain","icon":"10d"}],"base":"stations","main":{"temp":17.59,"pressure":1022,"humidity":67,"temp_min":15,"temp_max":20},"visibility":10000,"wind":{"speed":3.6,"deg":260},"rain":{"1h":0.51},"clouds":{"all":20},"dt":1567501321,"sys":{"type":1,"id":1275,"message":0.0089,"country":"DE","sunrise":1567484402,"sunset":1567533129},"timezone":7200,"id":2950159,"name":"Berlin","cod":200}"#;
         let result = run_retrieval_with_data(
             &retrieve,
-            response,
+            RadonTypes::from(RadonString::from(response_string)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -910,7 +957,7 @@ mod tests {
             body: vec![],
             headers: vec![],
         };
-        let response = "84";
+        let response_string = "84";
         let expected = RadonTypes::Float(RadonFloat::from(84));
 
         let aggregate = RADAggregate {
@@ -925,7 +972,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            RadonTypes::from(RadonString::from(response_string)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -948,7 +995,7 @@ mod tests {
             body: vec![],
             headers: vec![],
         };
-        let response = "307";
+        let response_string = "307";
         let expected = RadonTypes::Float(RadonFloat::from(307));
 
         let aggregate = RADAggregate {
@@ -962,7 +1009,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            RadonTypes::from(RadonString::from(response_string)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1001,7 +1048,7 @@ mod tests {
             headers: vec![],
         };
         // This response was modified because the original was about 100KB.
-        let response = r#"[{"estacion_nombre":"Pza. de España","estacion_numero":4,"fecha":"03092019","hora0":{"estado":"Pasado","valor":"00008"}}]"#;
+        let response_string = r#"[{"estacion_nombre":"Pza. de España","estacion_numero":4,"fecha":"03092019","hora0":{"estado":"Pasado","valor":"00008"}}]"#;
         let expected = RadonTypes::Float(RadonFloat::from(8));
 
         let aggregate = RADAggregate {
@@ -1015,7 +1062,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            RadonTypes::from(RadonString::from(response_string)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1045,7 +1092,7 @@ mod tests {
             body: vec![],
             headers: vec![],
         };
-        let response = r#"{"PSOE":123,"PP":66,"Cs":57,"UP":42,"VOX":24,"ERC-SOBIRANISTES":15,"JxCAT-JUNTS":7,"PNV":6,"EH Bildu":4,"CCa-PNC":2,"NA+":2,"COMPROMÍS 2019":1,"PRC":1,"PACMA":0,"FRONT REPUBLICÀ":0,"BNG":0,"RECORTES CERO-GV":0,"NCa":0,"PACT":0,"ARA-MES-ESQUERRA":0,"GBAI":0,"PUM+J":0,"EN MAREA":0,"PCTE":0,"EL PI":0,"AxSI":0,"PCOE":0,"PCPE":0,"AVANT ADELANTE LOS VERDES":0,"EB":0,"CpM":0,"SOMOS REGIÓN":0,"PCPA":0,"PH":0,"UIG-SOM-CUIDES":0,"ERPV":0,"IZQP":0,"PCPC":0,"AHORA CANARIAS":0,"CxG":0,"PPSO":0,"CNV":0,"PREPAL":0,"C.Ex-C.R.Ex-P.R.Ex":0,"PR+":0,"P-LIB":0,"CILU-LINARES":0,"ANDECHA ASTUR":0,"JF":0,"PYLN":0,"FIA":0,"FE de las JONS":0,"SOLIDARIA":0,"F8":0,"DPL":0,"UNIÓN REGIONALISTA":0,"centrados":0,"DP":0,"VOU":0,"PDSJE-UDEC":0,"IZAR":0,"RISA":0,"C 21":0,"+MAS+":0,"UDT":0}"#;
+        let response_string = r#"{"PSOE":123,"PP":66,"Cs":57,"UP":42,"VOX":24,"ERC-SOBIRANISTES":15,"JxCAT-JUNTS":7,"PNV":6,"EH Bildu":4,"CCa-PNC":2,"NA+":2,"COMPROMÍS 2019":1,"PRC":1,"PACMA":0,"FRONT REPUBLICÀ":0,"BNG":0,"RECORTES CERO-GV":0,"NCa":0,"PACT":0,"ARA-MES-ESQUERRA":0,"GBAI":0,"PUM+J":0,"EN MAREA":0,"PCTE":0,"EL PI":0,"AxSI":0,"PCOE":0,"PCPE":0,"AVANT ADELANTE LOS VERDES":0,"EB":0,"CpM":0,"SOMOS REGIÓN":0,"PCPA":0,"PH":0,"UIG-SOM-CUIDES":0,"ERPV":0,"IZQP":0,"PCPC":0,"AHORA CANARIAS":0,"CxG":0,"PPSO":0,"CNV":0,"PREPAL":0,"C.Ex-C.R.Ex-P.R.Ex":0,"PR+":0,"P-LIB":0,"CILU-LINARES":0,"ANDECHA ASTUR":0,"JF":0,"PYLN":0,"FIA":0,"FE de las JONS":0,"SOLIDARIA":0,"F8":0,"DPL":0,"UNIÓN REGIONALISTA":0,"centrados":0,"DP":0,"VOU":0,"PDSJE-UDEC":0,"IZAR":0,"RISA":0,"C 21":0,"+MAS+":0,"UDT":0}"#;
         let expected = RadonTypes::Float(RadonFloat::from(123));
 
         let aggregate = RADAggregate {
@@ -1059,7 +1106,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            RadonTypes::from(RadonString::from(response_string)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1100,10 +1147,10 @@ mod tests {
             body: vec![],
             headers: vec![],
         };
-        let response = r#"{"event":{"homeTeam":{"name":"Ryazan-VDV","slug":"ryazan-vdv","gender":"F","national":false,"id":171120,"shortName":"Ryazan-VDV","subTeams":[]},"awayTeam":{"name":"Olympique Lyonnais","slug":"olympique-lyonnais","gender":"F","national":false,"id":26245,"shortName":"Lyon","subTeams":[]},"homeScore":{"current":0,"display":0,"period1":0,"normaltime":0},"awayScore":{"current":9,"display":9,"period1":5,"normaltime":9}}}"#;
+        let response_string = r#"{"event":{"homeTeam":{"name":"Ryazan-VDV","slug":"ryazan-vdv","gender":"F","national":false,"id":171120,"shortName":"Ryazan-VDV","subTeams":[]},"awayTeam":{"name":"Olympique Lyonnais","slug":"olympique-lyonnais","gender":"F","national":false,"id":26245,"shortName":"Lyon","subTeams":[]},"homeScore":{"current":0,"display":0,"period1":0,"normaltime":0},"awayScore":{"current":9,"display":9,"period1":5,"normaltime":9}}}"#;
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            RadonTypes::from(RadonString::from(response_string)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1524,6 +1571,58 @@ mod tests {
         } else {
             panic!("No RadonBytes result in a RNG request");
         }
+    }
+
+    #[test]
+    fn test_try_data_request_http_get_non_ascii_header_key() {
+        let script_r = Value::Array(vec![]);
+        let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
+        let body = Vec::from(String::from(""));
+        let headers = vec![("ñ", "value")];
+        let headers = headers
+            .into_iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect();
+        let request = RADRequest {
+            time_lock: 0,
+            retrieve: vec![RADRetrieve {
+                kind: RADType::HttpGet,
+                url: String::from("http://127.0.0.1"),
+                script: packed_script_r,
+                body,
+                headers,
+            }],
+            aggregate: RADAggregate {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+            tally: RADTally {
+                filters: vec![],
+                reducer: RadonReducers::Mode as u32,
+            },
+        };
+        let report = try_data_request(
+            &request,
+            RadonScriptExecutionSettings::enable_all(),
+            None,
+            None,
+        );
+        let tally_result = report.tally.into_inner();
+
+        assert_eq!(
+            tally_result,
+            RadonTypes::RadonError(
+                RadonError::try_from(RadError::UnhandledIntercept {
+                    inner: Some(Box::new(RadError::InvalidHttpHeader {
+                        name: "ñ".to_string(),
+                        value: "value".to_string(),
+                        error: "invalid HTTP header name".to_string()
+                    })),
+                    message: None
+                })
+                .unwrap()
+            )
+        );
     }
 
     #[test]
