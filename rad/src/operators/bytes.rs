@@ -7,8 +7,17 @@ use crate::{
     types::{bytes::RadonBytes, string::RadonString, RadonType},
 };
 
-pub fn to_string(input: &RadonBytes) -> Result<RadonString, RadError> {
-    RadonString::try_from(Value::Text(hex::encode(input.value())))
+pub fn as_integer(input: &RadonBytes) -> Result<RadonInteger, RadError> {
+    let input_value_len = input.value().len();
+    match input_value_len {
+        1..=16 => {
+            let mut bytes_array = [0u8; 16];
+            bytes_array[16 - input_value_len ..].copy_from_slice(&input.value());
+            Ok(RadonInteger::from(i128::from_be_bytes(bytes_array)))
+        }
+        17.. => Err(RadError::ParseInt { message: "Input buffer too big".to_string() }),
+        _ => Err(RadError::EmptyArray)
+    }    
 }
 
 pub fn hash(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError> {
@@ -26,6 +35,30 @@ pub fn hash(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError> 
     let digest = hash_functions::hash(input.value().as_slice(), hash_function_code)?;
 
     Ok(RadonBytes::from(digest))
+}
+
+pub fn length(input: &RadonBytes) -> RadonInteger {
+    RadonInteger::from(input.value().len() as i128)
+}
+
+pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError> {
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "BytesSlice".to_string(),
+        args: args.to_vec(),
+    };
+    let end_index = input.value().len();
+    if end_index > 0 {
+        let start_index = from_value::<i64>(args[0].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
+        let mut slice = input.value().as_slice().split_at(start_index).1.to_vec();
+        if args.len() == 2 {
+            let end_index = from_value::<i64>(args[1].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
+            slice.truncate(end_index - start_index);
+        }
+        Ok(RadonBytes::from(slice))
+    } else {
+        Err(wrong_args())
+    }
 }
 #[cfg(test)]
 mod tests {

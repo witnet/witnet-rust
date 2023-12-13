@@ -84,7 +84,7 @@ impl Operable for RadonBytes {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::BytesAsString, None) => bytes_operators::to_string(self)
+            (RadonOpCodes::BytesAsInteger, None) => bytes_operators::as_integer(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::BytesHash, Some(args)) => bytes_operators::hash(self, args.as_slice())
