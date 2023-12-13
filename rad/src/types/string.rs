@@ -108,6 +108,9 @@ impl Operable for RadonString {
             (RadonOpCodes::StringAsBoolean, None) => string_operators::as_bool(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            (RadonOpCodes::StringAsBytes, args) => string_operators::as_bytes(self, args)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (RadonOpCodes::StringAsFloat, args) => if wip0024 {
                 string_operators::as_float(self, args)
             } else {
@@ -122,38 +125,35 @@ impl Operable for RadonString {
             }
             .map(RadonTypes::from)
             .map_err(Into::into),
-            (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::StringLength, None) => {
+                    Ok(RadonTypes::from(string_operators::length(self)))
+                }
+            (RadonOpCodes::StringMatch, Some(args)) => {
+                string_operators::string_match(self, args.as_slice()).map(RadonTypes::from)
+            }
             (RadonOpCodes::StringParseJSONArray, None) => string_operators::parse_json_array(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::StringParseJSONMap, None) => string_operators::parse_json_map(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
-            (RadonOpCodes::StringMatch, Some(args)) => {
-                string_operators::string_match(self, args.as_slice()).map(RadonTypes::from)
-            }
-            (RadonOpCodes::StringLength, None) => {
-                Ok(RadonTypes::from(string_operators::length(self)))
-            }
+            (RadonOpCodes::StringParseXMLMap, None) => string_operators::parse_xml_map(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (RadonOpCodes::StringToLowerCase, None) => {
                 Ok(RadonTypes::from(string_operators::to_lowercase(self)))
             }
             (RadonOpCodes::StringToUpperCase, None) => {
                 Ok(RadonTypes::from(string_operators::to_uppercase(self)))
             }
-            (RadonOpCodes::StringParseXMLMap, None) => string_operators::parse_xml_map(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
             (RadonOpCodes::StringReplace, Some(args)) => {
-                string_operators::string_replace(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
+                string_operators::replace(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
             }
             (RadonOpCodes::StringSlice, Some(args)) => {
-                string_operators::string_slice(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
+                string_operators::slice(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
             }
             (RadonOpCodes::StringSplit, Some(args)) => {
-                string_operators::string_split(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
+                string_operators::split(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_STRING_TYPE_NAME.to_string(),

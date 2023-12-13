@@ -4,6 +4,7 @@ use std::{
     str::FromStr,
 };
 
+use base64::Engine;
 use serde_cbor::value::{from_value, Value};
 use serde_json::Value as JsonValue;
 
@@ -14,7 +15,7 @@ use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
     types::{
-        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
+        array::RadonArray, boolean::RadonBoolean, bytes::{RadonBytes, RadonBytesEncoding}, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
     },
 };
@@ -29,6 +30,53 @@ pub fn as_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
         .map(RadonBoolean::from)
         .map_err(Into::into)
 }
+
+pub fn as_bytes(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonBytes, RadError> {
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "AsBytes".to_string(),
+        args: args.to_owned().unwrap_or(Vec::<Value>::default()).to_vec(),
+    };
+    let mut input_string = input.value();
+    if input_string.starts_with("0x") {
+        input_string = input_string.slice(2..);
+    }
+    if input_string.len() % 2 != 0 {
+        input_string.insert(0, '0');
+    }
+    let mut bytes_encoding = RadonBytesEncoding::Hex;
+    match args {
+        Some(args) => {
+            if args.len() > 0 {
+                let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+                let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
+                bytes_encoding = RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
+            }
+        }
+        _ => ()
+    }
+    match bytes_encoding {
+        RadonBytesEncoding::Hex => {
+            Ok(RadonBytes::from(
+                hex::decode(input_string.as_str())
+                .map_err(|_err| RadError::Decode {
+                    from: "RadonString",
+                    to: "RadonBytes",
+                })?
+            ))  
+        }
+        RadonBytesEncoding::Base64 => {
+            Ok(RadonBytes::from(
+                base64::engine::general_purpose::STANDARD.decode(input.value())
+                .map_err(|_err| RadError::Decode { 
+                    from: "RadonString", 
+                    to: "RadonBytes" 
+                })?
+            ))
+        }
+    }
+}
+
 /// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
 /// a valid floating point number.
 pub fn as_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
@@ -777,7 +825,7 @@ mod tests {
         let rad_float = RadonBoolean::from(false);
         let rad_string: RadonString = RadonString::from("false");
 
-        assert_eq!(to_bool(&rad_string).unwrap(), rad_float);
+        assert_eq!(as_bool(&rad_string).unwrap(), rad_float);
     }
 
     #[test]

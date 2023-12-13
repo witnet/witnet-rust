@@ -10,6 +10,7 @@ description = "RAD component"
 rocksdb-backend = ["witnet_data_structures/rocksdb-backend"]
 
 [dependencies]
+base64 = "0.21.5"
 cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/ldexpf-shim" }
 failure = "0.1.8"
 futures = "0.3.4"
