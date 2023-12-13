@@ -105,12 +105,6 @@ impl Operable for RadonInteger {
             (RadonOpCodes::IntegerAbsolute, None) => integer_operators::absolute(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
-            (RadonOpCodes::IntegerAsFloat, None) => integer_operators::to_float(self.clone())
-                .map(RadonTypes::from)
-                .map_err(Into::into),
-            (RadonOpCodes::IntegerAsString, None) => integer_operators::to_string(self.clone())
-                .map(RadonTypes::from)
-                .map_err(Into::into),
             (RadonOpCodes::IntegerGreaterThan, Some(args)) => {
                 integer_operators::greater_than(self, args).map(Into::into)
             }
@@ -129,6 +123,12 @@ impl Operable for RadonInteger {
             (RadonOpCodes::IntegerPower, Some(args)) => {
                 integer_operators::power(self, args.as_slice()).map(Into::into)
             }
+            (RadonOpCodes::IntegerToFloat, None) => integer_operators::to_float(self.clone())
+                .map(RadonTypes::from)
+                .map_err(Into::into),
+            (RadonOpCodes::IntegerToString, None) => integer_operators::to_string(self.clone())
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_INTEGER_TYPE_NAME.to_string(),

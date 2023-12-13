@@ -44,41 +44,40 @@ pub enum RadonOpCodes {
     //    ArrayTake = 0x1E,
     ///////////////////////////////////////////////////////////////////////
     // Boolean operator codes (start at 0x20)
-    BooleanAsString = 0x20,
     //    BooleanMatch = 0x21,
     BooleanNegate = 0x22,
+    BooleanToString = 0x20,
     ///////////////////////////////////////////////////////////////////////
-    // Bytes operator codes (start at 0x30)
-    BytesAsString = 0x30,
+    // Bytes operator codes (start at 0x30)   
     BytesHash = 0x31,
+    BytesLength = 0x34,
+    BytesSlice = 0x3C,
+    BytesStringify = 0x30,
     ///////////////////////////////////////////////////////////////////////
     // Integer operator codes (start at 0x40)
     IntegerAbsolute = 0x40,
-    IntegerAsFloat = 0x41,
-    IntegerAsString = 0x42,
     IntegerGreaterThan = 0x43,
     IntegerLessThan = 0x44,
-    //    IntegerMatch = 0x45,
     IntegerModulo = 0x46,
     IntegerMultiply = 0x47,
     IntegerNegate = 0x48,
     IntegerPower = 0x49,
-    //    IntegerReciprocal = 0x4A,
+    IntegerToFloat = 0x41,
+    IntegerToString = 0x42,
     //    IntegerSum = 0x4B,
     ///////////////////////////////////////////////////////////////////////
     // Float operator codes (start at 0x50)
     FloatAbsolute = 0x50,
-    FloatAsString = 0x51,
     FloatCeiling = 0x52,
-    FloatGreaterThan = 0x53,
     FloatFloor = 0x54,
+    FloatGreaterThan = 0x53,
     FloatLessThan = 0x55,
     FloatModulo = 0x56,
     FloatMultiply = 0x57,
     FloatNegate = 0x58,
     FloatPower = 0x59,
-    //    FloatReciprocal = 0x5A,
     FloatRound = 0x5B,
+    FloatToString = 0x51,
     //    FloatSum = 0x5C,
     FloatTruncate = 0x5D,
     ///////////////////////////////////////////////////////////////////////
@@ -104,11 +103,11 @@ pub enum RadonOpCodes {
     StringParseJSONArray = 0x76,
     StringParseJSONMap = 0x77,
     StringParseXMLMap = 0x78,
-    StringToLowerCase = 0x79,
-    StringToUpperCase = 0x7A,
     StringReplace = 0x7B,
     StringSlice = 0x7C,
     StringSplit = 0x7D,
+    StringToLowerCase = 0x79,
+    StringToUpperCase = 0x7A,
 }
 
 impl fmt::Display for RadonOpCodes {

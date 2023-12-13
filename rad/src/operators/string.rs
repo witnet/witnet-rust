@@ -23,6 +23,71 @@ const MAX_DEPTH: u8 = 20;
 const DEFAULT_THOUSANDS_SEPARATOR: &str = ",";
 const DEFAULT_DECIMAL_SEPARATOR: &str = ".";
 
+pub fn as_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
+    let str_value = radon_trim(input);
+    bool::from_str(&str_value)
+        .map(RadonBoolean::from)
+        .map_err(Into::into)
+}
+/// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
+/// a valid floating point number.
+pub fn as_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
+    f64::from_str(&as_numeric_string(
+        input,
+        args.as_deref().unwrap_or_default(),
+    ))
+    .map(RadonFloat::from)
+    .map_err(Into::into)
+}
+
+/// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
+/// a valid integer number.
+pub fn as_integer(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonInteger, RadError> {
+    i128::from_str(&as_numeric_string(
+        input,
+        args.as_deref().unwrap_or_default(),
+    ))
+    .map(RadonInteger::from)
+    .map_err(Into::into)
+}
+
+/// Converts a `RadonString` into a `String` containing a numeric value, provided that the input
+/// string actually represents a valid number.
+pub fn as_numeric_string(input: &RadonString, args: &[Value]) -> String {
+    let str_value = radon_trim(input);
+    let (thousands_separator, decimal_separator) = read_separators_from_args(args);
+
+    replace_separators(str_value, thousands_separator, decimal_separator)
+}
+
+pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonString::radon_type_name(),
+        operator: "Hash".to_string(),
+        args: args.to_vec(),
+    };
+
+    let input_string = input.value();
+    let input_bytes = input_string.as_bytes();
+
+    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let hash_function_integer = from_value::<u8>(arg).map_err(|_| wrong_args())?;
+    let hash_function_code =
+        RadonHashFunctions::try_from(hash_function_integer).map_err(|_| wrong_args())?;
+
+    let digest = hash_functions::hash(input_bytes, hash_function_code)?;
+    let hex_string = hex::encode(digest);
+
+    Ok(RadonString::from(hex_string))
+}
+
+pub fn length(input: &RadonString) -> RadonInteger {
+    RadonInteger::from(input.value().len() as i128)
+}
+
 /// Parse `RadonTypes` from a JSON-encoded `RadonString`.
 pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     let json_value: JsonValue =
@@ -153,81 +218,8 @@ pub fn radon_trim(input: &RadonString) -> String {
     }
 }
 
-pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
-    let str_value = radon_trim(input);
-    bool::from_str(&str_value)
-        .map(RadonBoolean::from)
-        .map_err(Into::into)
-}
 
-/// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
-/// a valid floating point number.
-pub fn as_float(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonFloat, RadError> {
-    f64::from_str(&as_numeric_string(
-        input,
-        args.as_deref().unwrap_or_default(),
-    ))
-    .map(RadonFloat::from)
-    .map_err(Into::into)
-}
-
-/// Converts a `RadonString` into a `RadonFloat`, provided that the input string actually represents
-/// a valid integer number.
-pub fn as_integer(
-    input: &RadonString,
-    args: &Option<Vec<Value>>,
-) -> Result<RadonInteger, RadError> {
-    i128::from_str(&as_numeric_string(
-        input,
-        args.as_deref().unwrap_or_default(),
-    ))
-    .map(RadonInteger::from)
-    .map_err(Into::into)
-}
-
-/// Converts a `RadonString` into a `String` containing a numeric value, provided that the input
-/// string actually represents a valid number.
-pub fn as_numeric_string(input: &RadonString, args: &[Value]) -> String {
-    let str_value = radon_trim(input);
-    let (thousands_separator, decimal_separator) = read_separators_from_args(args);
-
-    replace_separators(str_value, thousands_separator, decimal_separator)
-}
-
-pub fn length(input: &RadonString) -> RadonInteger {
-    RadonInteger::from(input.value().len() as i128)
-}
-
-pub fn to_lowercase(input: &RadonString) -> RadonString {
-    RadonString::from(input.value().as_str().to_lowercase())
-}
-
-pub fn to_uppercase(input: &RadonString) -> RadonString {
-    RadonString::from(input.value().as_str().to_uppercase())
-}
-
-pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
-    let wrong_args = || RadError::WrongArguments {
-        input_type: RadonString::radon_type_name(),
-        operator: "Hash".to_string(),
-        args: args.to_vec(),
-    };
-
-    let input_string = input.value();
-    let input_bytes = input_string.as_bytes();
-
-    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
-    let hash_function_integer = from_value::<u8>(arg).map_err(|_| wrong_args())?;
-    let hash_function_code =
-        RadonHashFunctions::try_from(hash_function_integer).map_err(|_| wrong_args())?;
-
-    let digest = hash_functions::hash(input_bytes, hash_function_code)?;
-    let hex_string = hex::encode(digest);
-
-    Ok(RadonString::from(hex_string))
-}
-
-pub fn string_replace(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
+pub fn replace(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
     let wrong_args = || RadError::WrongArguments { 
         input_type: RadonString::radon_type_name(),
         operator: "StringReplace".to_string(),
@@ -238,7 +230,7 @@ pub fn string_replace(input: &RadonString, args: &[Value]) -> Result<RadonString
     Ok(RadonString::from(input.value().as_str().replace(regex.value().as_str(), replacement.value().as_str())))
 }
 
-pub fn string_slice(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
+pub fn slice(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
     let wrong_args = || RadError::WrongArguments { 
         input_type: RadonString::radon_type_name(),
         operator: "StringSlice".to_string(),
@@ -259,7 +251,7 @@ pub fn string_slice(input: &RadonString, args: &[Value]) -> Result<RadonString, 
     }
 }
 
-pub fn string_split(input: &RadonString, args: &[Value]) -> Result<RadonArray, RadError> {
+pub fn split(input: &RadonString, args: &[Value]) -> Result<RadonArray, RadError> {
     let wrong_args = || RadError::WrongArguments { 
         input_type: RadonString::radon_type_name(),
         operator: "StringSplit".to_string(),
@@ -325,6 +317,14 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
             }
         })
         .unwrap_or(Ok(temp_def))
+}
+
+pub fn to_lowercase(input: &RadonString) -> RadonString {
+    RadonString::from(input.value().as_str().to_lowercase())
+}
+
+pub fn to_uppercase(input: &RadonString) -> RadonString {
+    RadonString::from(input.value().as_str().to_uppercase())
 }
 
 /// Replace thousands and decimals separators in a `String`.

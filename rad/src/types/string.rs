@@ -105,6 +105,9 @@ impl Operable for RadonString {
 
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
+            (RadonOpCodes::StringAsBoolean, None) => string_operators::as_bool(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (RadonOpCodes::StringAsFloat, args) => if wip0024 {
                 string_operators::as_float(self, args)
             } else {

@@ -90,6 +90,14 @@ impl Operable for RadonBytes {
             (RadonOpCodes::BytesHash, Some(args)) => bytes_operators::hash(self, args.as_slice())
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            (RadonOpCodes::BytesLength, None) => {
+                Ok(RadonTypes::from(bytes_operators::length(self)))
+            }
+            (RadonOpCodes::BytesSlice, Some(args)) => {
+                bytes_operators::slice(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
+            },
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_BYTES_TYPE_NAME.to_string(),
