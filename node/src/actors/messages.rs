@@ -22,13 +22,14 @@ use witnet_data_structures::{
         tapi::{ActiveWips, BitVotesCounter},
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash,
-        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StateMachine, SuperBlock,
-        SuperBlockVote, SupplyInfo, ValueTransferOutput,
+        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StakeOutput, StateMachine,
+        SuperBlock, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
     transaction::{
-        CommitTransaction, DRTransaction, RevealTransaction, Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
+        VTTransaction,
     },
     transaction_factory::NodeBalance,
     types::LastBeacon,
@@ -218,6 +219,89 @@ pub struct BuildVtt {
 
 impl Message for BuildVtt {
     type Result = Result<VTTransaction, failure::Error>;
+}
+
+/// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildStake {
+    /// List of `ValueTransferOutput`s
+    pub stake_output: StakeOutput,
+    /// Fee
+    #[serde(default)]
+    pub fee: Fee,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+impl Message for BuildStake {
+    type Result = Result<StakeTransaction, failure::Error>;
+}
+
+/// Authorization formatted as strings
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AuthorizationParams {
+    /// Authorization public key
+    pub public_key: String,
+    /// Authorization signature
+    pub authorization: String,
+}
+
+/// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildStakeParams {
+    /// Authorization signature and public key
+    #[serde(default)]
+    pub authorization: Option<AuthorizationParams>,
+    /// List of `ValueTransferOutput`s
+    #[serde(default)]
+    pub value: u64,
+    /// Withdrawer
+    #[serde(default)]
+    pub withdrawer: Option<String>,
+    /// Fee
+    #[serde(default)]
+    pub fee: Fee,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+// impl Message for BuildStake {
+//     type Result = Result<StakeTransaction, failure::Error>;
+// }
+
+/// Builds an `AuthorizeStake`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AuthorizeStake {
+    /// Address that can withdraw the stake
+    #[serde(default)]
+    pub withdrawer: Option<String>,
+}
+
+impl Message for AuthorizeStake {
+    type Result = Result<String, failure::Error>;
+}
+
+/// Builds an `StakeAuthorization`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StakeAuthorization {
+    /// Address that can withdraw the stake
+    pub withdrawer: String,
+    /// Signature of the withdrawer
+    pub signature: String,
+    /// Public key related with signature
+    pub public_key: String,
+}
+
+impl Message for StakeAuthorization {
+    type Result = Result<String, failure::Error>;
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`

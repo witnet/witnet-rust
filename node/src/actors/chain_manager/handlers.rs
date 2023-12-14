@@ -9,14 +9,17 @@ use std::{
 use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
 
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
+use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
+};
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
         Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
-    transaction::{DRTransaction, Transaction, VTTransaction},
+    transaction::{DRTransaction, StakeTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
@@ -29,13 +32,14 @@ use crate::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
-            GetBalance, GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo,
-            GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool, GetMempoolResult,
-            GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo, GetState,
-            GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
-            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
-            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
+            AddTransaction, Broadcast, BuildDrt, BuildStake, BuildVtt, EpochNotification,
+            EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
+            GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
+            GetMempoolResult, GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo,
+            GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock,
+            PeersBeacons, ReputationStats, Rewind, SendLastBeacon, SessionUnitResult,
+            SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport,
+            TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1278,6 +1282,70 @@ impl Handler<BuildVtt> for ChainManager {
                         }
                         Err(e) => {
                             log::error!("Failed to sign value transfer transaction: {}", e);
+                            Either::Right(actix::fut::result(Err(e)))
+                        }
+                    });
+
+                Box::pin(fut)
+            }
+        }
+    }
+}
+
+impl Handler<BuildStake> for ChainManager {
+    type Result = ResponseActFuture<Self, <BuildStake as Message>::Result>;
+
+    fn handle(&mut self, msg: BuildStake, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Box::pin(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
+        }
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+        match transaction_factory::build_st(
+            msg.stake_output,
+            msg.fee,
+            &mut self.chain_state.own_utxos,
+            self.own_pkh.unwrap(),
+            &self.chain_state.unspent_outputs_pool,
+            timestamp,
+            self.tx_pending_timeout,
+            &msg.utxo_strategy,
+            PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+            msg.dry_run,
+        ) {
+            Err(e) => {
+                log::error!("Error when building stake transaction: {}", e);
+                Box::pin(actix::fut::err(e.into()))
+            }
+            Ok(st) => {
+                let fut = signature_mngr::sign_transaction(&st, st.inputs.len())
+                    .into_actor(self)
+                    .then(move |s, act, _ctx| match s {
+                        Ok(signatures) => {
+                            let st = StakeTransaction::new(st, signatures);
+
+                            if msg.dry_run {
+                                Either::Right(actix::fut::result(Ok(st)))
+                            } else {
+                                let transaction = Transaction::Stake(st.clone());
+                                Either::Left(
+                                    act.add_transaction(
+                                        AddTransaction {
+                                            transaction,
+                                            broadcast_flag: true,
+                                        },
+                                        get_timestamp(),
+                                    )
+                                    .map_ok(move |_, _, _| st),
+                                )
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to sign stake transaction: {}", e);
                             Either::Right(actix::fut::result(Err(e)))
                         }
                     });
