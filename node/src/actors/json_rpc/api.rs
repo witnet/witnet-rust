@@ -1976,18 +1976,12 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
                 }
             };
 
-            // TODO: move to tryinto
-            let mut pk = hex::decode(authorization.public_key).unwrap();
-            pk.resize(33, 0);
-            let mut array_bytes = [0u8; 33];
-            array_bytes.copy_from_slice(&pk[..33]);
-
             let signature = Signature::from_str(&authorization.authorization).unwrap();
             let authorization = KeyedSignature {
                 signature: signature.into(),
                 // TODO: https://docs.rs/secp256k1/0.22.2/secp256k1/struct.Secp256k1.html#method.recover_ecdsa
                 // public_key: signature.recover_ecdsa(withdrawer, signature)
-                public_key: PublicKey::from_bytes(array_bytes),
+                public_key: PublicKey::from_str(&authorization.public_key),
             };
 
             let build_stake = BuildStake {

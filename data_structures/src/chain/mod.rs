@@ -1597,6 +1597,15 @@ impl PublicKey {
         }
     }
 
+    pub fn from_str(serialized: &str) -> Self {
+        let mut pk = hex::decode(serialized).unwrap();
+        pk.resize(33, 0);
+        let mut array_bytes = [0u8; 33];
+        array_bytes.copy_from_slice(&pk[..33]);
+
+        Self::from_bytes(array_bytes)
+    }
+
     /// Returns the PublicKeyHash related to the PublicKey
     pub fn pkh(&self) -> PublicKeyHash {
         PublicKeyHash::from_public_key(self)

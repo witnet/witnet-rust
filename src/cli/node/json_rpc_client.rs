@@ -1003,8 +1003,6 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
     str.push(':');
     str.push_str(&authorization.public_key);
 
-    println!("2 STRING {str}");
-
     let auth_qr = qrcode::QrCode::new(str).unwrap();
     let auth_ascii = auth_qr
         .render::<unicode::Dense1x2>()
@@ -1014,7 +1012,7 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
         .build();
 
     println!(
-        "Authorization code:\n{}PublicKey code:\n{}\nQR code for myWitWallet:\n{}",
+        "Authorization code:\n{}\nPublicKey code:\n{}\nQR code for myWitWallet:\n{}",
         authorization.signature, authorization.public_key, auth_ascii
     );
 

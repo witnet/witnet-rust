@@ -294,7 +294,7 @@ impl Message for AuthorizeStake {
 pub struct StakeAuthorization {
     /// Address that can withdraw the stake
     pub withdrawer: String,
-    /// Signature of the withdrawer 
+    /// Signature of the withdrawer
     pub signature: String,
     /// Public key related with signature
     pub public_key: String,
