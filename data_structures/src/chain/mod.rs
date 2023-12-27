@@ -2097,7 +2097,8 @@ impl TransactionsPool {
 
     /// Set the collateral minimum from consensus constants
     pub fn set_collateral_minimum(&mut self, collateral_minimum: u64) {
-        self.collateral_minimum = collateral_minimum;
+        // The 20x factor accounts for the transitional collateral minimum enforced during the transition to 2.0
+        self.collateral_minimum = 20 * collateral_minimum;
     }
 
     /// Set the required reward to collateral percentage (consensus constant) to include a data request
