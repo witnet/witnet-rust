@@ -659,11 +659,11 @@ where
 
 /// Returns true if the number of votes is enough to achieve 2/3 consensus.
 ///
-/// The number of votes needed must be strictly greater than 2/3 of the number of identities.
+/// The number of votes needed must be greater than 2/3 of the number of identities.
 pub fn two_thirds_consensus(votes: usize, identities: usize) -> bool {
     let required_votes = identities * 2 / 3;
 
-    votes > required_votes
+    votes >= required_votes
 }
 
 /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.

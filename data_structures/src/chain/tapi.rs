@@ -35,6 +35,17 @@ const THIRD_EMERGENCY_COMMITTEE: [&str; 7] = [
     "wit1wl200uau9zp072ps0wfpq74kd0a65uhd5c4dfk",
 ];
 
+/// Committee for superblock indices from 224_244 until activation of 2.0
+/// (approx. from Dec 26 2023 @ 07:30pm UTC onwards)
+const FOURTH_EMERGENCY_COMMITTEE: [&str; 6] = [
+    "wit1c0ucz2u9hwgqflkn4xjeyxtla9tqp0sderzkjr",
+    "wit1drcpu0xc2akfcqn8r69vw70pj8fzjhjypdcfsq",
+    "wit1drcpu3x42y5vp7w3pe203xrwpnth2pnt6c0dm9",
+    "wit1llz4vw9mszjqud5pqavf84208entwz73lxekzm",
+    "wit1nawuk8f2hckz6ct9wlzg95fhg3kyjzlrrd99qz",
+    "wit1sp8xnclrhm4j5lrzxwnxerdetzsjqw88kwr05f",
+];
+
 /// 22 January 2021 @ 09:00:00 UTC
 pub const FIRST_HARD_FORK: Epoch = 192000;
 /// 28 April 2021 @ 9:00:00 UTC
@@ -439,6 +450,17 @@ pub fn in_emergency_period(
     {
         Some(
             THIRD_EMERGENCY_COMMITTEE
+                .iter()
+                .map(|address| {
+                    address
+                        .parse()
+                        .expect("Malformed address in emergency committee")
+                })
+                .collect(),
+        )
+    } else if Environment::Mainnet == environment && superblock_index > 224_300 {
+        Some(
+            FOURTH_EMERGENCY_COMMITTEE
                 .iter()
                 .map(|address| {
                     address
