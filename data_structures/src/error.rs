@@ -259,6 +259,16 @@ pub enum TransactionError {
         output_pkh: PublicKeyHash,
         proof_pkh: PublicKeyHash,
     },
+    /// The committer does not satisfy the qualification requirements introduced for the 2.0 transition
+    #[fail(
+        display = "Unqualified committer: {}. Required balance: {}, current balance: {}",
+        committer, required, current
+    )]
+    UnqualifiedCommitter {
+        committer: PublicKeyHash,
+        required: u64,
+        current: u64,
+    },
     /// More than one output for the collateral change
     #[fail(display = "More than one output for the collateral change")]
     SeveralCommitOutputs,

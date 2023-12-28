@@ -762,6 +762,10 @@ impl<'a> UtxoDiff<'a> {
                 }
             })
     }
+
+    pub fn get_utxo_set(&self) -> &'a UnspentOutputsPool {
+        self.utxo_set
+    }
 }
 
 /// Old version of Unspent Outputs Pool

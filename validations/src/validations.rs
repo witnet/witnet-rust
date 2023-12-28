@@ -37,6 +37,7 @@ use witnet_data_structures::{
     types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
+    wit::NANOWITS_PER_WIT,
 };
 use witnet_rad::{
     conditions::{
@@ -101,6 +102,7 @@ pub fn dr_transaction_fee(
 /// and the inputs of the transaction. The pool parameter is used to find the
 /// outputs pointed by the inputs and that contain the actual
 /// their value.
+#[allow(clippy::too_many_arguments)]
 pub fn validate_commit_collateral(
     co_tx: &CommitTransaction,
     utxo_diff: &UtxoDiff<'_>,
@@ -109,11 +111,13 @@ pub fn validate_commit_collateral(
     required_collateral: u64,
     block_number: u32,
     collateral_age: u32,
+    superblock_period: u16,
 ) -> Result<(), failure::Error> {
     let block_number_limit = block_number.saturating_sub(collateral_age);
     let commit_pkh = co_tx.body.proof.proof.pkh();
     let mut in_value: u64 = 0;
     let mut seen_output_pointers = HashSet::with_capacity(co_tx.body.collateral.len());
+    let qualification_requirement = 100 * NANOWITS_PER_WIT;
 
     for input in &co_tx.body.collateral {
         let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
@@ -121,6 +125,36 @@ pub fn validate_commit_collateral(
                 output: *input.output_pointer(),
             }
         })?;
+
+        // Special requirement for facilitating the 2.0 transition.
+        // Every committer is required to have a total balance of at least 100 wits.
+        // This works independently from the minimum collateral requirement.
+        if epoch > 2_245_000 {
+            let committer = vt_output.pkh;
+            let mut balance = 0;
+            utxo_diff.get_utxo_set().visit_with_pkh(
+                committer,
+                |_| (),
+                |(output_pointer, (vto, _))| {
+                    let utxo_block_number =
+                        utxo_diff.included_in_block_number(output_pointer).unwrap();
+                    if utxo_block_number
+                        < block_number.saturating_sub((2 * superblock_period).into())
+                    {
+                        balance += vto.value
+                    }
+                },
+            );
+
+            if balance < qualification_requirement {
+                return Err(TransactionError::UnqualifiedCommitter {
+                    committer,
+                    required: qualification_requirement,
+                    current: balance,
+                }
+                .into());
+            }
+        }
 
         // The inputs used as collateral do not need any additional signatures
         // as long as the commit transaction is signed by the same public key
@@ -549,6 +583,7 @@ pub fn validate_commit_transaction(
     block_number: u32,
     minimum_reppoe_difficulty: u32,
     active_wips: &ActiveWips,
+    superblock_period: u16,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -597,6 +632,7 @@ pub fn validate_commit_transaction(
         required_collateral,
         block_number,
         collateral_age,
+        superblock_period,
     )?;
 
     // commit time_lock was disabled in the first hard fork
@@ -1483,6 +1519,7 @@ pub fn validate_block_transactions(
             block_number,
             consensus_constants.minimum_difficulty,
             active_wips,
+            consensus_constants.superblock_period,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -1806,6 +1843,7 @@ pub fn validate_new_transaction(
     minimum_reppoe_difficulty: u32,
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
+    superblock_period: u16,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
 
@@ -1846,6 +1884,7 @@ pub fn validate_new_transaction(
             block_number,
             minimum_reppoe_difficulty,
             active_wips,
+            superblock_period,
         )
         .map(|(_, _, fee)| fee),
         Transaction::Reveal(tx) => {
