@@ -51,7 +51,7 @@ pub trait Defaults {
 
     /// Do not keep utxos in memory by default
     fn storage_utxos_in_memory(&self) -> bool {
-        false
+        true
     }
 
     /// Unlimited number of open files by default
