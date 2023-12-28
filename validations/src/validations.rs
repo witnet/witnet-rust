@@ -37,6 +37,7 @@ use witnet_data_structures::{
     types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
+    wit::NANOWITS_PER_WIT,
 };
 use witnet_rad::{
     conditions::{
@@ -114,6 +115,7 @@ pub fn validate_commit_collateral(
     let commit_pkh = co_tx.body.proof.proof.pkh();
     let mut in_value: u64 = 0;
     let mut seen_output_pointers = HashSet::with_capacity(co_tx.body.collateral.len());
+    let qualification_requirement = 100 * NANOWITS_PER_WIT;
 
     for input in &co_tx.body.collateral {
         let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
@@ -121,6 +123,27 @@ pub fn validate_commit_collateral(
                 output: *input.output_pointer(),
             }
         })?;
+
+        // Special requirement for facilitating the 2.0 transition.
+        // Every committer is required to have a total balance of at least 100 wits.
+        // This works independently from the minimum collateral requirement.
+        if epoch > 2_245_000 {
+            let committer = vt_output.pkh;
+            let mut balance = 0;
+            utxo_diff.get_utxo_set().visit_with_pkh(
+                committer,
+                |(_, (_, value))| balance += *value as u64,
+                |_| (),
+            );
+
+            if balance < qualification_requirement {
+                return Err(TransactionError::UnqualifiedCommitter {
+                    required: qualification_requirement,
+                    current: balance,
+                }
+                .into());
+            }
+        }
 
         // The inputs used as collateral do not need any additional signatures
         // as long as the commit transaction is signed by the same public key
