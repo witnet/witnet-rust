@@ -2549,6 +2549,18 @@ impl ChainManager {
 
         v
     }
+
+    /// Update own utxos as that is necessary when importing a new master key
+    fn update_own_utxos(&mut self) {
+        log::info!("Updating own UTXO's for {}", self.own_pkh.unwrap());
+
+        self.chain_state.own_utxos.drain();
+        for (output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter() {
+            if value_transfer_output.0.pkh == self.own_pkh.unwrap() {
+                self.chain_state.own_utxos.insert(output_pointer, 0);
+            }
+        }
+    }
 }
 
 /// The different errors that can occur while loading a chain snapshot.

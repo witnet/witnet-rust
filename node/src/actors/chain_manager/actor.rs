@@ -418,6 +418,7 @@ impl ChainManager {
                     },
                 });
 
+                act.update_own_utxos();
             });
 
         Box::pin(fut)
