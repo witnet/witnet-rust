@@ -497,12 +497,16 @@ impl Actor for SignatureManagerAdapter {
 
         async move {
             let config = config_mngr::get().await?;
-            let master_key_from_file = if let Some(master_key_path) = &config.storage.master_key_import_path {
-                master_key_import_from_file(master_key_path).map(Some)
-            } else {
-                Ok(None)
-            }?;
-            let master_key_from_storage: Option<ExtendedSK> = storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY).await?.map(Into::into);
+            let master_key_from_file =
+                if let Some(master_key_path) = &config.storage.master_key_import_path {
+                    master_key_import_from_file(master_key_path).map(Some)
+                } else {
+                    Ok(None)
+                }?;
+            let master_key_from_storage: Option<ExtendedSK> =
+                storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY)
+                    .await?
+                    .map(Into::into);
 
             let master_key = match (master_key_from_file, master_key_from_storage) {
                 // Didn't ask to import master key and no master key in storage:
@@ -513,23 +517,28 @@ impl Actor for SignatureManagerAdapter {
                 (None, Some(from_storage)) => Ok(from_storage),
                 (Some(from_file), None) => {
                     // Save the key into the storage
-                    persist_master_key(from_file.clone()).await.map(|()| from_file)
-                },
+                    persist_master_key(from_file.clone())
+                        .await
+                        .map(|()| from_file)
+                }
                 // There is a master key in storage and imported:
                 (Some(from_file), Some(_from_storage)) => {
                     // Save the key into the storage
-                    persist_master_key(from_file.clone()).await.map(|()| from_file.clone())
+                    persist_master_key(from_file.clone())
+                        .await
+                        .map(|()| from_file.clone())
                 }
             }?;
 
             crypto.send(SetKey(master_key)).await?
-        }.into_actor(self)
-            .map_err(|err, _act, _ctx| {
-                log::error!("Failed to configure master key: {}", err);
-                System::current().stop_with_code(1);
-            })
-            .map(|_res: Result<(), ()>, _act, _ctx| ())
-             .wait(ctx);
+        }
+        .into_actor(self)
+        .map_err(|err, _act, _ctx| {
+            log::error!("Failed to configure master key: {}", err);
+            System::current().stop_with_code(1);
+        })
+        .map(|_res: Result<(), ()>, _act, _ctx| ())
+        .wait(ctx);
 
         let crypto = self.crypto.clone();
         async move {
