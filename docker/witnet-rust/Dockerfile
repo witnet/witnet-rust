@@ -24,7 +24,7 @@ EXPOSE 21338
 EXPOSE 11212
 
 # Run the install script
-RUN ["chmod", "+x", "./downloader.sh", "./ip_detector.sh", "./migrator.sh", "./runner.sh", "./executer.sh"]
+RUN ["chmod", "+x", "./downloader.sh", "./ip_detector.sh", "./migrator.sh", "./runner.sh", "./executer.sh", "./grinch-recovery.sh"]
 RUN ["./downloader.sh"]
 
 # Set entry point (always gets executed)
