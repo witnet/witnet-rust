@@ -2555,7 +2555,8 @@ impl ChainManager {
         log::info!("Updating own UTXO's for {}", self.own_pkh.unwrap());
 
         self.chain_state.own_utxos.drain();
-        for (output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter() {
+        for (output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter()
+        {
             if value_transfer_output.0.pkh == self.own_pkh.unwrap() {
                 self.chain_state.own_utxos.insert(output_pointer, 0);
             }

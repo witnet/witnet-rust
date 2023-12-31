@@ -136,8 +136,11 @@ pub fn validate_commit_collateral(
                 committer,
                 |_| (),
                 |(output_pointer, (vto, _))| {
-                    let utxo_block_number = utxo_diff.included_in_block_number(output_pointer).unwrap();
-                    if utxo_block_number < block_number.saturating_sub((2 * superblock_period).into()) {
+                    let utxo_block_number =
+                        utxo_diff.included_in_block_number(output_pointer).unwrap();
+                    if utxo_block_number
+                        < block_number.saturating_sub((2 * superblock_period).into())
+                    {
                         balance += vto.value
                     }
                 },
