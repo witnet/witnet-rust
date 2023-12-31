@@ -2,7 +2,8 @@
 
 WITNET_BINARY=${1:-./witnet}
 WITNET_CONFIG_FILE=${2:-./witnet.toml}
-WITNET_CONFIG_DIR=$(realpath $WITNET_CONFIG_FILE | sed -r 's/(\/[^\/]+){1}$//g');
+WITNET_CONFIG_DIR=$(realpath $WITNET_CONFIG_FILE | sed -r 's/(\/[^\/]+){1}$//g')
+RUN_FILE=$(realpath "$WITNET_CONFIG_DIR/grinch_run_file")
 
 RECOVERY_BANNER="
                        __..._
@@ -53,7 +54,7 @@ RECOVERY_BANNER="
 ╚══════════════════════════════════════════════════════════╝
 "
 
-KNOWN_PEERS='\n    "18.116.131.252:21337",\n    "71.205.215.52:21337",\n    "95.111.234.78:21337",\n    "173.249.3.178:21337",\n    "173.249.8.65:21337",\n'
+KNOWN_PEERS='\n    "3.139.145.178:21337",\n    "18.116.131.252:21337",\n    "71.205.215.52:21337",\n    "95.111.234.78:21337",\n    "173.249.3.178:21337",\n    "173.249.8.65:21337",\n'
 
 # Just a pretty logging helper
 function log {
@@ -79,10 +80,16 @@ function eta {
   fi
 }
 
+function succeed {
+  touch "$RUN_FILE"
+  log "Cheer up, dude. It’s Christmas."
+  exit 0
+}
+
 # This script can be skipped by setting environment variable SKIP_GRINCH_RECOVERY to "true"
 if [[ "$SKIP_GRINCH_RECOVERY" == "true" ]]; then
   log "Skipping GRINCH recovery"
-  exit 0
+  succeed
 fi
 
 # Make sure the arguments make sense
@@ -97,13 +104,22 @@ fi
 
 # Skip recovery if it has been performed before
 # Recovery can be forced with "FORCE_GRINCH_RECOVERY=true"
-RUN_FILE=$(realpath "$WITNET_CONFIG_DIR/grinch_run_file")
 if [[ ! "$FORCE_GRINCH_RECOVERY" == "true" ]]; then
   if [ -f "$RUN_FILE" ]; then
     log "The local node is probably in a health state already, as the recovery script was executed successfully before"
-    exit 0
+    succeed
   fi
 fi
+
+# Update peers in configuration file
+log "Updating known_peers in configuration file at $WITNET_CONFIG_FILE"
+sed -ziE "s/known_peers\s*=\s*\[.*\n\]/known_peers = [$KNOWN_PEERS]/g" "$WITNET_CONFIG_FILE" &&
+log "Successfully updated known_peers in configuration file" ||
+log "ERROR: Failed to update known_peers in configuration file at $WITNET_CONFIG_FILE"
+log "Updating outbound_limit in configuration file at $WITNET_CONFIG_FILE"
+sed -ziE "s/outbound_limit\s*=\s*8/outbound_limit = 3/g" "$WITNET_CONFIG_FILE" &&
+log "Successfully updated outbound_limit in configuration file" ||
+log "ERROR: Failed to update outbound_limit in configuration file at $WITNET_CONFIG_FILE"
 
 # Read configuration (e.g. node server address) from config file
 log "Using configuration file at $WITNET_CONFIG_FILE"
@@ -129,18 +145,16 @@ do true; done
 # Check whether the local witnet node is below GRINCH "safe checkpoint" (#2242439)
 if ! $WITNET_BINARY node blockchain --epoch 2242439 --limit 1 2>&1 | grep -q "block for epoch"; then
   log "The local witnet node at $HOST seems to be syncing blocks prior to the GRINCH incident. No recovery action is needed"
-  touch "$RUN_FILE"
-  exit 0
+  succeed
+fi
+# Check whether the local witnet node is on the leading chain, and if so, skip recovery
+if $WITNET_BINARY node blockchain --epoch 2249490 --limit 2 2>&1 | grep -q '#2249490 had digest 912165ac34'; then
+  log "The local witnet node at $HOST seems to be on the leading chain. No recovery action is needed"
+  succeed
 fi
 
 # There is no way back, recovery is needed
 echo "$RECOVERY_BANNER"
-
-# Update known peers in configuration file
-log "Updating known_peers in configuration file at $WITNET_CONFIG_FILE"
-sed -ziE "s/known_peers\s*=\s*\[\n.*\\,\n\]/known_peers = [$KNOWN_PEERS]/g"  "$WITNET_CONFIG_FILE" &&
-log "Successfully updated known_peers in configuration file" ||
-log "ERROR: Failed to update known_peers in configuration file at $WITNET_CONFIG_FILE"
 
 # Rewind local chain back to the GRINCH "safe checkpoint" (#2242439)
 log "Triggering rewind of local block chain back to epoch #2242439"
@@ -160,7 +174,6 @@ while true
   STATS=$($WITNET_BINARY node nodeStats 2>&1)
   if echo "$STATS" | grep -q "synchronized"; then
     log "Successfully finished rewinding and synchronizing!"
-    touch "$RUN_FILE"
     break
   else
     NOW=$(date +%s)
@@ -170,3 +183,5 @@ while true
     sleep 30
   fi
 do true; done
+
+succeed
