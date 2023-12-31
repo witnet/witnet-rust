@@ -1448,6 +1448,7 @@ impl ChainManager {
                 chain_info.consensus_constants.minimum_difficulty,
                 required_reward_collateral_ratio,
                 &active_wips,
+                chain_info.consensus_constants.superblock_period,
             ))
             .into_actor(self)
             .and_then(|fee, act, _ctx| {

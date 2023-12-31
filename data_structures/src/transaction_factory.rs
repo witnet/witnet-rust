@@ -452,7 +452,7 @@ pub fn check_commit_collateral(
         own_utxos,
         pkh: own_pkh,
     };
-    utxos
+    let can_collateralize = utxos
         .build_inputs_outputs(
             vec![],
             None,
@@ -462,7 +462,20 @@ pub fn check_commit_collateral(
             &UtxoSelectionStrategy::SmallFirst { from: None },
             u32::MAX,
         )
-        .is_ok()
+        .is_ok();
+    let can_qualify = utxos
+        .build_inputs_outputs(
+            vec![],
+            None,
+            Fee::absolute_from_wit(Wit::from_wits(100)),
+            timestamp,
+            None,
+            &UtxoSelectionStrategy::SmallFirst { from: None },
+            u32::MAX,
+        )
+        .is_ok();
+
+    can_collateralize && can_qualify
 }
 
 /// Build inputs and outputs to be used as the collateral in a CommitTransaction
