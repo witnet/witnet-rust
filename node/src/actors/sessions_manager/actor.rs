@@ -55,7 +55,7 @@ impl Actor for SessionsManager {
                     .unwrap_or_default();
 
                 act.sessions
-                    .set_magic_number(config.consensus_constants.get_magic());
+                    .set_magic_number(10700u16);
 
                 // The peers bootstrapping process begins upon SessionsManager's start
                 act.bootstrap_peers(ctx, bootstrap_peers_period);
