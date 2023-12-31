@@ -4,7 +4,7 @@
 //! initialized with a key, can be used repeatedly to sign data with
 //! that key.
 use actix::prelude::*;
-use failure::{bail, format_err};
+use failure::bail;
 use futures::Future;
 use futures_util::FutureExt;
 
@@ -516,28 +516,9 @@ impl Actor for SignatureManagerAdapter {
                     persist_master_key(from_file.clone()).await.map(|()| from_file)
                 },
                 // There is a master key in storage and imported:
-                (Some(from_file), Some(from_storage)) => {
-                    if from_file == from_storage {
-                        // If they are equal, use that master key
-                        Ok(from_file)
-                    } else {
-                        // Else, throw error to avoid overwriting the old master key in storage
-                        let node_public_key = ExtendedPK::from_secret_key(&from_storage);
-                        let node_pkh = PublicKey::from(node_public_key.key).pkh();
-
-                        let imported_public_key = ExtendedPK::from_secret_key(&from_file);
-                        let imported_pkh = PublicKey::from(imported_public_key.key).pkh();
-
-                        Err(format_err!(
-                            "Tried to overwrite node master key with a different one.\n\
-                             Node pkh:     {}\n\
-                             Imported pkh: {}\n\
-                             \n\
-                             In order to import a different master key, you first need to export the current master key and delete the storage",
-                             node_pkh,
-                             imported_pkh,
-                        ))
-                    }
+                (Some(from_file), Some(_from_storage)) => {
+                    // Save the key into the storage
+                    persist_master_key(from_file.clone()).await.map(|()| from_file.clone())
                 }
             }?;
 
