@@ -1,9 +1,3 @@
-/// Keeps track of priority being used by transactions included in recent blocks, and provides
-/// methods for estimating sensible priority values for future transactions.
-pub mod priority;
-/// Contains all TAPI related structures and business logic
-pub mod tapi;
-
 use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
@@ -20,8 +14,9 @@ use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use failure::Fail;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
-use partial_struct::PartialStruct;
 use serde::{Deserialize, Serialize};
+
+use partial_struct::PartialStruct;
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::ExtendedSK,
@@ -42,11 +37,15 @@ use crate::{
         TransactionError,
     },
     get_environment,
-    proto::{schema::witnet, ProtobufConvert},
+    proto::{
+        versioning::{ProtocolVersion, Versioned},
+        ProtobufConvert,
+    },
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
-        RevealTransaction, TallyTransaction, Transaction, TxInclusionProof, VTTransaction,
+        RevealTransaction, StakeTransaction, TallyTransaction, Transaction, TxInclusionProof,
+        UnstakeTransaction, VTTransaction,
     },
     transaction::{
         MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
@@ -54,6 +53,12 @@ use crate::{
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
+
+/// Keeps track of priority being used by transactions included in recent blocks, and provides
+/// methods for estimating sensible priority values for future transactions.
+pub mod priority;
+/// Contains all TAPI related structures and business logic
+pub mod tapi;
 
 /// Define how the different structures should be hashed.
 pub trait Hashable {
@@ -156,7 +161,7 @@ impl Environment {
     PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize, ProtobufConvert, Default,
 )]
 #[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
-#[protobuf_convert(pb = "witnet::ConsensusConstants")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::ConsensusConstants")]
 pub struct ConsensusConstants {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
     pub checkpoint_zero_timestamp: i64,
@@ -359,7 +364,7 @@ impl GenesisBlockInfo {
 #[derive(
     Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
 )]
-#[protobuf_convert(pb = "witnet::CheckpointBeacon")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::CheckpointBeacon")]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointBeacon {
     /// The serial number for an epoch
@@ -372,7 +377,7 @@ pub struct CheckpointBeacon {
 #[derive(
     Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
 )]
-#[protobuf_convert(pb = "witnet::CheckpointVRF")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::CheckpointVRF")]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointVRF {
     /// The serial number for an epoch
@@ -386,7 +391,7 @@ pub type Epoch = u32;
 
 /// Block data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::Block")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block")]
 pub struct Block {
     /// The header of the block
     pub block_header: BlockHeader,
@@ -402,7 +407,7 @@ pub struct Block {
 
 /// Block transactions
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::Block_BlockTransactions")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockTransactions")]
 pub struct BlockTransactions {
     /// Mint transaction,
     pub mint: MintTransaction,
@@ -416,6 +421,10 @@ pub struct BlockTransactions {
     pub reveal_txns: Vec<RevealTransaction>,
     /// A list of signed tally transactions
     pub tally_txns: Vec<TallyTransaction>,
+    /// A list of signed stake transactions
+    pub stake_txns: Vec<StakeTransaction>,
+    /// A list of signed unstake transactions
+    pub unstake_txns: Vec<UnstakeTransaction>,
 }
 
 impl Block {
@@ -444,6 +453,8 @@ impl Block {
             commit_txns: vec![],
             reveal_txns: vec![],
             tally_txns: vec![],
+            stake_txns: vec![],
+            unstake_txns: vec![],
         };
 
         /// Function to calculate a merkle tree from a transaction vector
@@ -468,6 +479,8 @@ impl Block {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
+            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns),
         };
 
         Block::new(
@@ -502,8 +515,28 @@ impl Block {
         vt_weight
     }
 
+    pub fn st_weight(&self) -> u32 {
+        let mut st_weight = 0;
+        for st_txn in self.txns.stake_txns.iter() {
+            st_weight += st_txn.weight();
+        }
+        st_weight
+    }
+
+    pub fn ut_weight(&self) -> u32 {
+        let mut ut_weight = 0;
+        for ut_txn in self.txns.unstake_txns.iter() {
+            ut_weight += ut_txn.weight();
+        }
+        ut_weight
+    }
+
     pub fn weight(&self) -> u32 {
-        self.dr_weight() + self.vt_weight()
+        self.dr_weight() + self.vt_weight() + self.st_weight() + self.ut_weight()
+    }
+
+    pub fn is_genesis(&self, genesis: &Hash) -> bool {
+        self.hash().eq(genesis)
     }
 }
 
@@ -517,6 +550,8 @@ impl BlockTransactions {
             + self.commit_txns.len()
             + self.reveal_txns.len()
             + self.tally_txns.len()
+            + self.stake_txns.len()
+            + self.unstake_txns.len()
     }
 
     /// Returns true if this block contains no transactions
@@ -528,6 +563,8 @@ impl BlockTransactions {
             && self.commit_txns.is_empty()
             && self.reveal_txns.is_empty()
             && self.tally_txns.is_empty()
+            && self.stake_txns.is_empty()
+            && self.unstake_txns.is_empty()
     }
 
     /// Get a transaction given the `TransactionPointer`
@@ -559,6 +596,16 @@ impl BlockTransactions {
                 .get(i as usize)
                 .cloned()
                 .map(Transaction::Tally),
+            TransactionPointer::Stake(i) => self
+                .stake_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::Stake),
+            TransactionPointer::Unstake(i) => self
+                .unstake_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::Unstake),
         }
     }
 
@@ -601,6 +648,16 @@ impl BlockTransactions {
                 TransactionPointer::Tally(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
+        for (i, tx) in self.stake_txns.iter().enumerate() {
+            pointer_to_block.transaction_index =
+                TransactionPointer::Stake(u32::try_from(i).unwrap());
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+        for (i, tx) in self.unstake_txns.iter().enumerate() {
+            pointer_to_block.transaction_index =
+                TransactionPointer::Unstake(u32::try_from(i).unwrap());
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
 
         items_to_add
     }
@@ -614,7 +671,9 @@ impl Hashable for BlockHeader {
 
 impl MemoizedHashable for Block {
     fn hashable_bytes(&self) -> Vec<u8> {
-        self.block_header.to_pb_bytes().unwrap()
+        self.block_header
+            .to_versioned_pb_bytes(ProtocolVersion::guess())
+            .unwrap()
     }
 
     fn memoized_hash(&self) -> &MemoHash {
@@ -652,7 +711,7 @@ impl Hashable for PublicKey {
 
 /// Block header structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::Block_BlockHeader")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockHeader")]
 pub struct BlockHeader {
     /// 32 bits for binary signaling new witnet protocol improvements.
     /// See [WIP-0014](https://github.com/witnet/WIPs/blob/master/wip-0014.md) for more info.
@@ -668,7 +727,7 @@ pub struct BlockHeader {
 }
 /// Block merkle tree roots
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::Block_BlockHeader_BlockMerkleRoots")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockHeader_BlockMerkleRoots")]
 pub struct BlockMerkleRoots {
     /// A 256-bit hash based on the mint transaction committed to this block
     pub mint_hash: Hash,
@@ -682,6 +741,10 @@ pub struct BlockMerkleRoots {
     pub reveal_hash_merkle_root: Hash,
     /// A 256-bit hash based on all of the tally transactions committed to this block
     pub tally_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the stake transactions committed to this block
+    pub stake_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the unstake transactions committed to this block
+    pub unstake_hash_merkle_root: Hash,
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -710,6 +773,8 @@ impl BlockMerkleRoots {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
+            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns),
         }
     }
 }
@@ -720,7 +785,7 @@ impl BlockMerkleRoots {
 /// This is needed to ensure that the security and trustlessness properties of Witnet will
 /// be relayed to bridges with other block chains.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, ProtobufConvert, Serialize)]
-#[protobuf_convert(pb = "witnet::SuperBlock")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::SuperBlock")]
 pub struct SuperBlock {
     /// Number of signing committee members,
     pub signing_committee_length: u32,
@@ -853,7 +918,7 @@ impl SuperBlock {
 
 /// Superblock votes as sent through the network
 #[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert, Serialize, Deserialize)]
-#[protobuf_convert(pb = "witnet::SuperBlockVote")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::SuperBlockVote")]
 pub struct SuperBlockVote {
     /// BN256 signature of `superblock_index` and `superblock_hash`
     pub bn256_signature: Bn256Signature,
@@ -911,7 +976,7 @@ impl SuperBlockVote {
 
 /// Digital signatures structure (based on supported cryptosystems)
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Signature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Signature")]
 pub enum Signature {
     /// ECDSA over secp256k1
     Secp256k1(Secp256k1Signature),
@@ -947,7 +1012,7 @@ impl Signature {
 
 /// ECDSA (over secp256k1) signature
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Secp256k1Signature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Secp256k1Signature")]
 pub struct Secp256k1Signature {
     /// The signature serialized in DER
     pub der: Vec<u8>,
@@ -1039,7 +1104,7 @@ impl From<ExtendedSecretKey> for ExtendedSK {
 
 /// Hash
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Hash")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Hash")]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
@@ -1169,7 +1234,7 @@ pub type SHA256 = [u8; 32];
 ///
 /// It is the first 20 bytes of the SHA256 hash of the PublicKey.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, ProtobufConvert, Ord, PartialOrd)]
-#[protobuf_convert(pb = "witnet::PublicKeyHash")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::PublicKeyHash")]
 pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],
 }
@@ -1307,7 +1372,7 @@ impl PublicKeyHash {
 #[derive(
     Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, ProtobufConvert, Hash,
 )]
-#[protobuf_convert(pb = "witnet::Input")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Input")]
 pub struct Input {
     output_pointer: OutputPointer,
 }
@@ -1329,7 +1394,7 @@ impl Input {
 
 /// Value transfer output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::ValueTransferOutput")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::ValueTransferOutput")]
 pub struct ValueTransferOutput {
     /// Address that will receive the value
     pub pkh: PublicKeyHash,
@@ -1341,9 +1406,21 @@ pub struct ValueTransferOutput {
     pub time_lock: u64,
 }
 
+impl ValueTransferOutput {
+    #[inline]
+    pub fn value(&self) -> u64 {
+        self.value
+    }
+
+    #[inline]
+    pub fn weight(&self) -> u32 {
+        OUTPUT_SIZE
+    }
+}
+
 /// Data request output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::DataRequestOutput")]
 pub struct DataRequestOutput {
     /// Data request structure
     pub data_request: RADRequest,
@@ -1407,6 +1484,44 @@ impl DataRequestOutput {
     }
 }
 
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::StakeOutput")]
+pub struct StakeOutput {
+    pub value: u64,
+    pub authorization: KeyedSignature,
+}
+
+impl StakeOutput {
+    #[inline]
+    pub fn weight(&self) -> u32 {
+        crate::transaction::STAKE_OUTPUT_WEIGHT
+    }
+}
+
+pub enum Output {
+    DataRequest(DataRequestOutput),
+    Stake(StakeOutput),
+    ValueTransfer(ValueTransferOutput),
+}
+
+impl Output {
+    pub fn value(&self) -> Result<u64, TransactionError> {
+        match self {
+            Output::DataRequest(output) => output.checked_total_value(),
+            Output::Stake(output) => Ok(output.value),
+            Output::ValueTransfer(output) => Ok(output.value),
+        }
+    }
+
+    pub fn weight(&self) -> u32 {
+        match self {
+            Output::DataRequest(output) => output.weight(),
+            Output::Stake(output) => output.weight(),
+            Output::ValueTransfer(output) => output.weight(),
+        }
+    }
+}
+
 /// Information about the total supply
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SupplyInfo {
@@ -1436,7 +1551,7 @@ pub struct SupplyInfo {
 
 /// Keyed signature data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::KeyedSignature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::KeyedSignature")]
 pub struct KeyedSignature {
     /// Signature
     pub signature: Signature,
@@ -1511,7 +1626,7 @@ pub struct ExtendedSecretKey {
 
 /// BN256 public key
 #[derive(Debug, Eq, PartialEq, Hash, Default, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Bn256PublicKey")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256PublicKey")]
 pub struct Bn256PublicKey {
     /// Compressed form of a BN256 public key
     pub public_key: Vec<u8>,
@@ -1530,7 +1645,7 @@ pub struct Bn256SecretKey {
 
 /// BN256 signature
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Bn256Signature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256Signature")]
 pub struct Bn256Signature {
     /// Signature
     pub signature: Vec<u8>,
@@ -1538,7 +1653,7 @@ pub struct Bn256Signature {
 
 /// BN256 signature and public key
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Bn256KeyedSignature")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256KeyedSignature")]
 pub struct Bn256KeyedSignature {
     /// Signature
     pub signature: Bn256Signature,
@@ -1655,7 +1770,10 @@ impl RADType {
 
 /// RAD request data structure
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest", crate = "crate")]
+#[protobuf_convert(
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest",
+    crate = "crate"
+)]
 pub struct RADRequest {
     /// Commitments for this request will not be accepted in any block proposed for an epoch
     /// whose opening timestamp predates the specified time lock. This effectively prevents
@@ -1689,7 +1807,7 @@ impl RADRequest {
 /// Retrieve script and source
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::DataRequestOutput_RADRequest_RADRetrieve",
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADRetrieve",
     crate = "crate"
 )]
 pub struct RADRetrieve {
@@ -1866,7 +1984,10 @@ impl RADRetrieve {
 
 /// Filter stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADFilter", crate = "crate")]
+#[protobuf_convert(
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADFilter",
+    crate = "crate"
+)]
 pub struct RADFilter {
     /// `RadonFilters` code
     pub op: u32,
@@ -1887,7 +2008,7 @@ impl RADFilter {
 /// Aggregate stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::DataRequestOutput_RADRequest_RADAggregate",
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADAggregate",
     crate = "crate"
 )]
 pub struct RADAggregate {
@@ -1913,7 +2034,10 @@ impl RADAggregate {
 
 /// Tally stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADTally", crate = "crate")]
+#[protobuf_convert(
+    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADTally",
+    crate = "crate"
+)]
 pub struct RADTally {
     /// List of filters to be applied in sequence
     pub filters: Vec<RADFilter>,
@@ -1947,6 +2071,8 @@ impl From<RADAggregate> for RADTally {
 type PrioritizedHash = (OrderedFloat<f64>, Hash);
 type PrioritizedVTTransaction = (OrderedFloat<f64>, VTTransaction);
 type PrioritizedDRTransaction = (OrderedFloat<f64>, DRTransaction);
+type PrioritizedStakeTransaction = (OrderedFloat<f64>, StakeTransaction);
+type PrioritizedUnstakeTransaction = (OrderedFloat<f64>, UnstakeTransaction);
 
 #[derive(Debug, Clone, Default)]
 struct UnconfirmedTransactions {
@@ -2003,6 +2129,10 @@ pub struct TransactionsPool {
     total_vt_weight: u64,
     // Total size of all data request transactions inside the pool in weight units
     total_dr_weight: u64,
+    // Total size of all stake transactions inside the pool in weight units
+    total_st_weight: u64,
+    // Total size of all unstake transactions inside the pool in weight units
+    total_ut_weight: u64,
     // TransactionsPool size limit in weight units
     weight_limit: u64,
     // Ratio of value transfer transaction to data request transaction that should be in the
@@ -2023,6 +2153,19 @@ pub struct TransactionsPool {
     required_reward_collateral_ratio: u64,
     // Map for unconfirmed transactions
     unconfirmed_transactions: UnconfirmedTransactions,
+    // TODO: refactor to use Rc<WriteLock<PrioritizedStakeTransaction>> or
+    // Arc<Mutex<PrioritizedStakeTransaction>> to prevent the current indirect lookup (having to
+    // first query the index for the hash, and then using the hash to find the actual data)
+    st_transactions: HashMap<Hash, PrioritizedStakeTransaction>,
+    sorted_st_index: BTreeSet<PrioritizedHash>,
+    ut_transactions: HashMap<Hash, PrioritizedUnstakeTransaction>,
+    sorted_ut_index: BTreeSet<PrioritizedHash>,
+    // Minimum fee required to include a Stake Transaction into a block. We check for this fee in the
+    // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
+    minimum_st_fee: u64,
+    // Minimum fee required to include a Unstake Transaction into a block. We check for this fee in the
+    // TransactionPool so we can choose not to insert a transaction we will not mine anyway.
+    minimum_ut_fee: u64,
 }
 
 impl Default for TransactionsPool {
@@ -2039,17 +2182,27 @@ impl Default for TransactionsPool {
             output_pointer_map: Default::default(),
             total_vt_weight: 0,
             total_dr_weight: 0,
+            total_st_weight: 0,
+            total_ut_weight: 0,
             // Unlimited by default
             weight_limit: u64::MAX,
             // Try to keep the same amount of value transfer weight and data request weight
             vt_to_dr_factor: 1.0,
             // Default is to include all transactions into the pool and blocks
             minimum_vtt_fee: 0,
+            // Default is to include all transactions into the pool and blocks
+            minimum_st_fee: 0,
+            // Default is to include all transactions into the pool and blocks
+            minimum_ut_fee: 0,
             // Collateral minimum from consensus constants
             collateral_minimum: 0,
             // Required minimum reward to collateral percentage is defined as a consensus constant
             required_reward_collateral_ratio: u64::MAX,
             unconfirmed_transactions: Default::default(),
+            st_transactions: Default::default(),
+            sorted_st_index: Default::default(),
+            ut_transactions: Default::default(),
+            sorted_ut_index: Default::default(),
         }
     }
 }
@@ -2082,7 +2235,7 @@ impl TransactionsPool {
     ) -> Vec<Transaction> {
         self.weight_limit = weight_limit;
         self.vt_to_dr_factor = vt_to_dr_factor;
-
+        // TODO: take into account stake tx
         self.remove_transactions_for_size_limit()
     }
 
@@ -2122,6 +2275,8 @@ impl TransactionsPool {
             && self.dr_transactions.is_empty()
             && self.co_transactions.is_empty()
             && self.re_transactions.is_empty()
+            && self.st_transactions.is_empty()
+            && self.ut_transactions.is_empty()
     }
 
     /// Remove all the transactions but keep the allocated memory for reuse.
@@ -2138,12 +2293,20 @@ impl TransactionsPool {
             output_pointer_map,
             total_vt_weight,
             total_dr_weight,
+            total_st_weight,
+            total_ut_weight,
             weight_limit: _,
             vt_to_dr_factor: _,
             minimum_vtt_fee: _,
+            minimum_st_fee: _,
+            minimum_ut_fee: _,
             collateral_minimum: _,
             required_reward_collateral_ratio: _,
             unconfirmed_transactions,
+            st_transactions,
+            sorted_st_index,
+            ut_transactions,
+            sorted_ut_index,
         } = self;
 
         vt_transactions.clear();
@@ -2157,7 +2320,13 @@ impl TransactionsPool {
         output_pointer_map.clear();
         *total_vt_weight = 0;
         *total_dr_weight = 0;
+        *total_st_weight = 0;
+        *total_ut_weight = 0;
         unconfirmed_transactions.clear();
+        st_transactions.clear();
+        sorted_st_index.clear();
+        ut_transactions.clear();
+        sorted_ut_index.clear();
     }
 
     /// Returns the number of value transfer transactions in the pool.
@@ -2202,6 +2371,48 @@ impl TransactionsPool {
         self.dr_transactions.len()
     }
 
+    /// Returns the number of stake transactions in the pool.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, StakeTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::Stake(StakeTransaction::default());
+    ///
+    /// assert_eq!(pool.st_len(), 0);
+    ///
+    /// pool.insert(transaction, 0);
+    ///
+    /// assert_eq!(pool.st_len(), 1);
+    /// ```
+    pub fn st_len(&self) -> usize {
+        self.st_transactions.len()
+    }
+
+    /// Returns the number of unstake transactions in the pool.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, StakeTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::Stake(StakeTransaction::default());
+    ///
+    /// assert_eq!(pool.st_len(), 0);
+    ///
+    /// pool.insert(transaction, 0);
+    ///
+    /// assert_eq!(pool.st_len(), 1);
+    /// ```
+    pub fn ut_len(&self) -> usize {
+        self.ut_transactions.len()
+    }
+
     /// Clear commit transactions in TransactionsPool
     pub fn clear_commits(&mut self) {
         self.co_transactions.clear();
@@ -2243,6 +2454,8 @@ impl TransactionsPool {
             // be impossible for nodes to broadcast these kinds of transactions.
             Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
             Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
+            Transaction::Stake(_st) => Ok(self.st_contains(&tx_hash)),
+            Transaction::Unstake(_ut) => Ok(self.ut_contains(&tx_hash)),
         }
     }
 
@@ -2333,6 +2546,53 @@ impl TransactionsPool {
                 }
             })
             .unwrap_or(Ok(false))
+    }
+
+    /// Returns `true` if the pool contains a stake transaction for the specified hash.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    ///
+    /// # Examples:
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
+    /// # use witnet_data_structures::transaction::{Transaction, StakeTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::Stake(StakeTransaction::default());
+    /// let hash = transaction.hash();
+    /// assert!(!pool.st_contains(&hash));
+    ///
+    /// pool.insert(transaction, 0);
+    ///
+    /// assert!(pool.t_contains(&hash));
+    /// ```
+    pub fn st_contains(&self, key: &Hash) -> bool {
+        self.st_transactions.contains_key(key)
+    }
+
+    /// Returns `true` if the pool contains an unstake transaction for the
+    /// specified hash.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    ///
+    /// # Examples:
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
+    /// # use witnet_data_structures::transaction::{Transaction, UnstakeTransaction};
+    /// let mut pool = TransactionsPool::new();
+    ///
+    /// let transaction = Transaction::Stake(UnstakeTransaction::default());
+    /// let hash = transaction.hash();
+    /// assert!(!pool.ut_contains(&hash));
+    ///
+    /// pool.insert(transaction, 0);
+    ///
+    /// assert!(pool.t_contains(&hash));
+    /// ```
+    pub fn ut_contains(&self, key: &Hash) -> bool {
+        self.ut_transactions.contains_key(key)
     }
 
     /// Remove a value transfer transaction from the pool and make sure that other transactions
@@ -2469,6 +2729,7 @@ impl TransactionsPool {
                 for hash in hashes.iter() {
                     self.vt_remove_inner(hash, false);
                     self.dr_remove_inner(hash, false);
+                    self.st_remove_inner(hash, false);
                 }
             }
         }
@@ -2544,6 +2805,73 @@ impl TransactionsPool {
         (commits_vector, total_fee, dr_pointer_vec)
     }
 
+    /// Remove a stake transaction from the pool and make sure that other transactions
+    /// that may try to spend the same UTXOs are also removed.
+    /// This should be used to remove transactions that got included in a consolidated block.
+    ///
+    /// Returns an `Option` with the stake transaction for the specified hash or `None` if not exist.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    ///
+    /// # Examples:
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
+    /// # use witnet_data_structures::transaction::{Transaction, StakeTransaction};
+    /// let mut pool = TransactionsPool::new();
+    /// let vt_transaction = StakeTransaction::default();
+    /// let transaction = Transaction::Stake(st_transaction.clone());
+    /// pool.insert(transaction.clone(),0);
+    ///
+    /// assert!(pool.st_contains(&transaction.hash()));
+    ///
+    /// let op_transaction_removed = pool.st_remove(&st_transaction);
+    ///
+    /// assert_eq!(Some(st_transaction), op_transaction_removed);
+    /// assert!(!pool.st_contains(&transaction.hash()));
+    /// ```
+    pub fn st_remove(&mut self, tx: &StakeTransaction) -> Option<StakeTransaction> {
+        let key = tx.hash();
+        let transaction = self.st_remove_inner(&key, true);
+
+        self.remove_inputs(&tx.body.inputs);
+
+        transaction
+    }
+
+    /// Remove a stake from the pool but do not remove other transactions that may try to spend the
+    /// same UTXOs.
+    /// This should be used to remove transactions that did not get included in a consolidated
+    /// block.
+    /// If the transaction did get included in a consolidated block, use `st_remove` instead.
+    fn st_remove_inner(&mut self, key: &Hash, consolidated: bool) -> Option<StakeTransaction> {
+        self.st_transactions
+            .remove(key)
+            .map(|(weight, transaction)| {
+                self.sorted_st_index.remove(&(weight, *key));
+                self.total_st_weight -= u64::from(transaction.weight());
+                if !consolidated {
+                    self.remove_tx_from_output_pointer_map(key, &transaction.body.inputs);
+                }
+                transaction
+            })
+    }
+
+    /// Remove an unstake transaction from the pool but do not remove other transactions that
+    /// may try to spend the same UTXOs, because this kind of transactions spend no UTXOs.
+    /// This should be used to remove transactions that did not get included in a consolidated
+    /// block.
+    fn ut_remove_inner(&mut self, key: &Hash) -> Option<UnstakeTransaction> {
+        self.ut_transactions
+            .remove(key)
+            .map(|(weight, transaction)| {
+                self.sorted_ut_index.remove(&(weight, *key));
+                self.total_ut_weight -= u64::from(transaction.weight());
+
+                transaction
+            })
+    }
+
     /// Returns a tuple with a vector of reveal transactions and the value
     /// of all the fees obtained with those reveals
     pub fn get_reveals(&self, dr_pool: &DataRequestPool) -> (Vec<&RevealTransaction>, u64) {
@@ -2610,11 +2938,11 @@ impl TransactionsPool {
     /// Returns a list of all the removed transactions.
     fn remove_transactions_for_size_limit(&mut self) -> Vec<Transaction> {
         let mut removed_transactions = vec![];
-
-        while self.total_vt_weight + self.total_dr_weight > self.weight_limit {
+        while self.total_transactions_weight() > self.weight_limit {
             // Try to split the memory between value transfer and data requests using the same
             // ratio as the one used in blocks
-            // The ratio of vt to dr in blocks is currently 4:1
+            // The ratio of vt to dr in blocks is currently 1:4
+            // TODO: What the criteria to delete st? It should be 1:8
             #[allow(clippy::cast_precision_loss)]
             let more_vtts_than_drs =
                 self.total_vt_weight as f64 >= self.total_dr_weight as f64 * self.vt_to_dr_factor;
@@ -2737,6 +3065,47 @@ impl TransactionsPool {
                     .or_default()
                     .insert(pkh, tx_hash);
             }
+            Transaction::Stake(st_tx) => {
+                let weight = f64::from(st_tx.weight());
+                let priority = OrderedFloat(fee as f64 / weight);
+
+                if fee < self.minimum_st_fee {
+                    return vec![Transaction::Stake(st_tx)];
+                } else {
+                    self.total_st_weight += u64::from(st_tx.weight());
+
+                    for input in &st_tx.body.inputs {
+                        self.output_pointer_map
+                            .entry(input.output_pointer)
+                            .or_default()
+                            .push(st_tx.hash());
+                    }
+
+                    self.st_transactions.insert(key, (priority, st_tx));
+                    self.sorted_st_index.insert((priority, key));
+                }
+            }
+            Transaction::Unstake(ut_tx) => {
+                let weight = f64::from(ut_tx.weight());
+                let priority = OrderedFloat(fee as f64 / weight);
+
+                if fee < self.minimum_ut_fee {
+                    return vec![Transaction::Unstake(ut_tx)];
+                } else {
+                    self.total_st_weight += u64::from(ut_tx.weight());
+
+                    // TODO
+                    // for input in &ut_tx.body.inputs {
+                    //     self.output_pointer_map
+                    //         .entry(input.output_pointer)
+                    //         .or_insert_with(Vec::new)
+                    //         .push(ut_tx.hash());
+                    // }
+
+                    self.ut_transactions.insert(key, (priority, ut_tx));
+                    self.sorted_ut_index.insert((priority, key));
+                }
+            }
             tx => {
                 panic!(
                     "Transaction kind not supported by TransactionsPool: {:?}",
@@ -2785,6 +3154,24 @@ impl TransactionsPool {
             .filter_map(move |(_, h)| self.dr_transactions.get(h).map(|(_, t)| t))
     }
 
+    /// An iterator visiting all the stake transactions
+    /// in the pool
+    pub fn st_iter(&self) -> impl Iterator<Item = &StakeTransaction> {
+        self.sorted_st_index
+            .iter()
+            .rev()
+            .filter_map(move |(_, h)| self.st_transactions.get(h).map(|(_, t)| t))
+    }
+
+    /// An iterator visiting all the unstake transactions
+    /// in the pool
+    pub fn ut_iter(&self) -> impl Iterator<Item = &UnstakeTransaction> {
+        self.sorted_ut_index
+            .iter()
+            .rev()
+            .filter_map(move |(_, h)| self.ut_transactions.get(h).map(|(_, t)| t))
+    }
+
     /// Returns a reference to the value corresponding to the key.
     ///
     /// Examples:
@@ -2803,6 +3190,7 @@ impl TransactionsPool {
     ///
     /// assert!(pool.vt_get(&hash).is_some());
     /// ```
+    // TODO: dead code
     pub fn vt_get(&self, key: &Hash) -> Option<&VTTransaction> {
         self.vt_transactions
             .get(key)
@@ -2836,6 +3224,7 @@ impl TransactionsPool {
     /// pool.vt_retain(|tx| tx.body.outputs.len()>0);
     /// assert_eq!(pool.vt_len(), 1);
     /// ```
+    // TODO: dead code
     pub fn vt_retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&VTTransaction) -> bool,
@@ -2878,6 +3267,16 @@ impl TransactionsPool {
                     .get(hash)
                     .map(|rt| Transaction::Reveal(rt.clone()))
             })
+            .or_else(|| {
+                self.st_transactions
+                    .get(hash)
+                    .map(|(_, st)| Transaction::Stake(st.clone()))
+            })
+            .or_else(|| {
+                self.ut_transactions
+                    .get(hash)
+                    .map(|(_, ut)| Transaction::Unstake(ut.clone()))
+            })
     }
 
     /// Update unconfirmed transactions
@@ -2902,6 +3301,12 @@ impl TransactionsPool {
                     Transaction::DataRequest(_) => {
                         let _x = self.dr_remove_inner(&hash, false);
                     }
+                    Transaction::Stake(_) => {
+                        let _x = self.st_remove_inner(&hash, false);
+                    }
+                    Transaction::Unstake(_) => {
+                        let _x = self.ut_remove_inner(&hash);
+                    }
                     _ => continue,
                 }
 
@@ -2915,12 +3320,16 @@ impl TransactionsPool {
 
         v
     }
+
+    pub fn total_transactions_weight(&self) -> u64 {
+        self.total_vt_weight + self.total_dr_weight + self.total_st_weight
+    }
 }
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
 #[derive(Default, Hash, Copy, Clone, Eq, PartialEq, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::OutputPointer")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::OutputPointer")]
 pub struct OutputPointer {
     /// Transaction identifier
     pub transaction_id: Hash,
@@ -2983,7 +3392,7 @@ impl PartialOrd for OutputPointer {
 
 /// Inventory entry data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::InventoryEntry")]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::InventoryEntry")]
 pub enum InventoryEntry {
     /// Transaction
     Tx(Hash),
@@ -3008,6 +3417,10 @@ pub enum TransactionPointer {
     Tally(u32),
     /// Mint
     Mint,
+    // Stake
+    Stake(u32),
+    // Unstake
+    Unstake(u32),
 }
 
 /// This is how transactions are stored in the database: hash of the containing block, plus index
@@ -4021,7 +4434,7 @@ pub fn transaction_example() -> Transaction {
     let outputs = vec![value_transfer_output];
 
     Transaction::DataRequest(DRTransaction::new(
-        DRTransactionBody::new(inputs, outputs, data_request_output),
+        DRTransactionBody::new(inputs, data_request_output, outputs),
         keyed_signature,
     ))
 }
@@ -4052,6 +4465,7 @@ mod tests {
     };
 
     use crate::{
+        proto::versioning::{ProtocolVersion, VersionedHashable},
         superblock::{mining_build_superblock, ARSIdentities},
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
@@ -4125,7 +4539,7 @@ mod tests {
             .iter()
             .map(|input| {
                 DRTransaction::new(
-                    DRTransactionBody::new(vec![*input], vec![], DataRequestOutput::default()),
+                    DRTransactionBody::new(vec![*input], DataRequestOutput::default(), vec![]),
                     vec![],
                 )
             })
@@ -4160,7 +4574,20 @@ mod tests {
     fn test_block_hashable_trait() {
         let block = block_example();
         let expected = "70e15ac70bb00f49c7a593b2423f722dca187bbae53dc2f22647063b17608c01";
-        assert_eq!(block.hash().to_string(), expected);
+        assert_eq!(
+            block.versioned_hash(ProtocolVersion::V1_6).to_string(),
+            expected
+        );
+        let expected = "29ef68357a5c861b9dbe043d351a28472ca450edcda25de4c9b80a4560a28c0f";
+        assert_eq!(
+            block.versioned_hash(ProtocolVersion::V1_7).to_string(),
+            expected
+        );
+        let expected = "29ef68357a5c861b9dbe043d351a28472ca450edcda25de4c9b80a4560a28c0f";
+        assert_eq!(
+            block.versioned_hash(ProtocolVersion::V2_0).to_string(),
+            expected
+        );
     }
 
     #[test]
@@ -4599,14 +5026,14 @@ mod tests {
         );
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input], DataRequestOutput::default(), vec![]),
             vec![],
         );
         let dr_2 = DRTransaction::new(
             DRTransactionBody::new(
                 vec![input],
-                vec![ValueTransferOutput::default()],
                 DataRequestOutput::default(),
+                vec![ValueTransferOutput::default()],
             ),
             vec![],
         );
@@ -4676,14 +5103,14 @@ mod tests {
         );
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input], DataRequestOutput::default(), vec![]),
             vec![],
         );
         let dr_2 = DRTransaction::new(
             DRTransactionBody::new(
                 vec![input2],
-                vec![ValueTransferOutput::default()],
                 DataRequestOutput::default(),
+                vec![ValueTransferOutput::default()],
             ),
             vec![],
         );
@@ -4777,11 +5204,11 @@ mod tests {
         assert_ne!(input0, input1);
 
         let dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input0], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input0], DataRequestOutput::default(), vec![]),
             vec![],
         );
         let dr_2 = DRTransaction::new(
-            DRTransactionBody::new(vec![input0, input1], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input0, input1], DataRequestOutput::default(), vec![]),
             vec![],
         );
 
@@ -4843,7 +5270,7 @@ mod tests {
     fn transactions_pool_malleability_dr() {
         let input = Input::default();
         let mut dr_1 = DRTransaction::new(
-            DRTransactionBody::new(vec![input], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![input], DataRequestOutput::default(), vec![]),
             vec![KeyedSignature::default()],
         );
         // Add dummy signature, but pretend it is valid
@@ -5038,12 +5465,12 @@ mod tests {
             Transaction::DataRequest(DRTransaction::new(
                 DRTransactionBody::new(
                     vec![Input::default()],
+                    DataRequestOutput::default(),
                     vec![ValueTransferOutput {
                         pkh: Default::default(),
                         value: i,
                         time_lock: 0,
                     }],
-                    DataRequestOutput::default(),
                 ),
                 vec![],
             ))
@@ -5281,7 +5708,7 @@ mod tests {
             witnesses: 1,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5319,7 +5746,7 @@ mod tests {
             commit_and_reveal_fee: 501,
             ..Default::default()
         };
-        let drb1 = DRTransactionBody::new(vec![], vec![], dro1);
+        let drb1 = DRTransactionBody::new(vec![], dro1, vec![]);
         let drt1 = DRTransaction::new(
             drb1,
             vec![KeyedSignature {
@@ -5334,7 +5761,7 @@ mod tests {
             commit_and_reveal_fee: 100,
             ..Default::default()
         };
-        let drb2 = DRTransactionBody::new(vec![], vec![], dro2);
+        let drb2 = DRTransactionBody::new(vec![], dro2, vec![]);
         let drt2 = DRTransaction::new(
             drb2,
             vec![KeyedSignature {
@@ -5349,7 +5776,7 @@ mod tests {
             commit_and_reveal_fee: 500,
             ..Default::default()
         };
-        let drb3 = DRTransactionBody::new(vec![], vec![], dro3);
+        let drb3 = DRTransactionBody::new(vec![], dro3, vec![]);
         let drt3 = DRTransaction::new(
             drb3,
             vec![KeyedSignature {
@@ -5441,7 +5868,7 @@ mod tests {
             witnesses: 2,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5481,7 +5908,7 @@ mod tests {
             witnesses: 1,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5520,7 +5947,7 @@ mod tests {
             witnesses: 1,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5558,7 +5985,7 @@ mod tests {
             witnesses: 2,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {
@@ -5596,7 +6023,7 @@ mod tests {
             witnesses: 2,
             ..Default::default()
         };
-        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drb = DRTransactionBody::new(vec![], dro, vec![]);
         let drt = DRTransaction::new(
             drb,
             vec![KeyedSignature {

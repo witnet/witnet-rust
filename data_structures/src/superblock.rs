@@ -1,11 +1,3 @@
-use crate::{
-    chain::{
-        tapi::{after_second_hard_fork, in_emergency_period},
-        AltKeys, BlockHeader, Bn256PublicKey, CheckpointBeacon, Epoch, Hash, Hashable,
-        PublicKeyHash, SuperBlock, SuperBlockVote,
-    },
-    get_environment,
-};
 use std::{
     collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -16,6 +8,16 @@ use serde::{Deserialize, Serialize};
 use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     merkle::merkle_tree_root as crypto_merkle_tree_root,
+};
+
+use crate::{
+    chain::{
+        tapi::{after_second_hard_fork, in_emergency_period},
+        AltKeys, BlockHeader, Bn256PublicKey, CheckpointBeacon, Epoch, Hash, Hashable,
+        PublicKeyHash, SuperBlock, SuperBlockVote,
+    },
+    get_environment,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
 };
 
 /// Possible result of SuperBlockState::add_vote
@@ -268,11 +270,15 @@ impl SuperBlockState {
 
             AddSuperBlockVote::DoubleVote
         } else {
-            let is_same_hash =
-                sbv.superblock_hash == self.current_superblock_beacon.hash_prev_block;
+            let theirs = sbv.superblock_hash;
+            let ours = self.current_superblock_beacon.hash_prev_block;
+            let votes_for_our_tip = theirs == ours;
+
+            log::debug!("Superblock vote comparison:\n(theirs): {theirs}\n(ours): {ours}");
+
             self.votes_mempool.insert_vote(sbv);
 
-            if is_same_hash {
+            if votes_for_our_tip {
                 AddSuperBlockVote::ValidWithSameHash
             } else {
                 AddSuperBlockVote::ValidButDifferentHash
@@ -698,7 +704,7 @@ pub fn mining_build_superblock(
             )
         }
         Some(last_block_header) => {
-            let last_block_hash = last_block_header.hash();
+            let last_block_hash = last_block_header.versioned_hash(ProtocolVersion::guess());
             let merkle_drs: Vec<Hash> = block_headers
                 .iter()
                 .map(|b| b.merkle_roots.dr_hash_merkle_root)
@@ -754,13 +760,17 @@ pub fn hash_merkle_tree_root(hashes: &[Hash]) -> Hash {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use itertools::Itertools;
+
+    use witnet_crypto::hash::{calculate_sha256, EMPTY_SHA256};
+
     use crate::{
         chain::{BlockMerkleRoots, Bn256SecretKey, CheckpointBeacon, PublicKey, Signature},
+        proto::versioning::{ProtocolVersion, VersionedHashable},
         vrf::BlockEligibilityClaim,
     };
-    use itertools::Itertools;
-    use witnet_crypto::hash::{calculate_sha256, EMPTY_SHA256};
+
+    use super::*;
 
     #[test]
     fn test_superblock_creation_no_blocks() {
@@ -806,6 +816,8 @@ mod tests {
                 commit_hash_merkle_root: default_hash,
                 reveal_hash_merkle_root: default_hash,
                 tally_hash_merkle_root: tally_merkle_root_1,
+                stake_hash_merkle_root: default_hash,
+                unstake_hash_merkle_root: default_hash,
             },
             proof: default_proof,
             bn256_public_key: None,
@@ -816,7 +828,7 @@ mod tests {
             default_hash,
             dr_merkle_root_1,
             0,
-            block.hash(),
+            block.versioned_hash(ProtocolVersion::V1_6),
             default_hash,
             tally_merkle_root_1,
         );
@@ -855,6 +867,8 @@ mod tests {
                 commit_hash_merkle_root: default_hash,
                 reveal_hash_merkle_root: default_hash,
                 tally_hash_merkle_root: tally_merkle_root_1,
+                stake_hash_merkle_root: default_hash,
+                unstake_hash_merkle_root: default_hash,
             },
             proof: default_proof.clone(),
             bn256_public_key: None,
@@ -870,6 +884,8 @@ mod tests {
                 commit_hash_merkle_root: default_hash,
                 reveal_hash_merkle_root: default_hash,
                 tally_hash_merkle_root: tally_merkle_root_2,
+                stake_hash_merkle_root: default_hash,
+                unstake_hash_merkle_root: default_hash,
             },
             proof: default_proof,
             bn256_public_key: None,
@@ -880,7 +896,7 @@ mod tests {
             default_hash,
             expected_superblock_dr_root,
             0,
-            block_2.hash(),
+            block_2.versioned_hash(ProtocolVersion::V1_6),
             default_hash,
             expected_superblock_tally_root,
         );
@@ -1108,7 +1124,7 @@ mod tests {
                 genesis_hash,
                 &alt_keys,
                 None,
-                1
+                1,
             ),
             expected_second_superblock
         );

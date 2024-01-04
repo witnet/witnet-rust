@@ -339,7 +339,7 @@ impl Handler<AddBlocks> for ChainManager {
                         return Box::pin(actix::fut::err(()));
                     }
 
-                    if let Some(block) = msg.blocks.get(0) {
+                    if let Some(block) = msg.blocks.first() {
                         let chain_tip = act.get_chain_beacon();
                         if block.block_header.beacon.checkpoint > chain_tip.checkpoint
                             && block.block_header.beacon.hash_prev_block != chain_tip.hash_prev_block
@@ -740,7 +740,7 @@ impl PeersBeacons {
                 // TODO: is it possible to receive more than outbound_limit beacons?
                 // (it shouldn't be possible)
                 assert!(self.pb.len() <= outbound_limit as usize, "Received more beacons than the outbound_limit. Check the code for race conditions.");
-                usize::try_from(outbound_limit).unwrap() - self.pb.len()
+                usize::from(outbound_limit) - self.pb.len()
             })
             // The outbound limit is set when the SessionsManager actor is initialized, so here it
             // cannot be None. But if it is None, set num_missing_peers to 0 in order to calculate
@@ -967,11 +967,17 @@ impl Handler<PeersBeacons> for ChainManager {
                         },
                         _,
                     )) => {
-                        self.sync_target = Some(SyncTarget {
+                        let target = SyncTarget {
                             block: consensus_beacon,
                             superblock: superblock_consensus,
-                        });
-                        log::debug!("Sync target {:?}", self.sync_target);
+                        };
+                        self.sync_target = Some(target);
+                        log::info!(
+                            "Synchronization target has been set ({}: {})",
+                            target.block.checkpoint,
+                            target.block.hash_prev_block
+                        );
+                        log::debug!("{:#?}", target);
 
                         let our_beacon = self.get_chain_beacon();
                         log::debug!(
@@ -997,13 +1003,18 @@ impl Handler<PeersBeacons> for ChainManager {
                         {
                             // Fork case
                             log::warn!(
-                                "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                                "[CONSENSUS]: The local chain is apparently forked.\n\
+                                We are on {:?} but the network is on {:?}.\n\
+                                The node will automatically try to recover from this forked situation by restoring the chain state from the storage.",
                                 our_beacon,
                                 consensus_beacon
                             );
 
                             self.initialize_from_storage(ctx);
-                            log::info!("Restored chain state from storage");
+                            log::info!(
+                                "The chain state has been restored from storage.\n\
+                            Now the node will try to resynchronize."
+                            );
 
                             StateMachine::WaitingConsensus
                         } else {

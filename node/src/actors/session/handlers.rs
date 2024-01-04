@@ -14,7 +14,7 @@ use witnet_data_structures::{
         Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, SuperBlock,
         SuperBlockVote,
     },
-    proto::ProtobufConvert,
+    proto::versioning::Versioned,
     transaction::Transaction,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
@@ -22,8 +22,8 @@ use witnet_data_structures::{
     },
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
+use witnet_util::timestamp::get_timestamp;
 
-use super::Session;
 use crate::actors::{
     chain_manager::ChainManager,
     inventory_manager::InventoryManager,
@@ -39,7 +39,7 @@ use crate::actors::{
     sessions_manager::SessionsManager,
 };
 
-use witnet_util::timestamp::get_timestamp;
+use super::Session;
 
 #[derive(Debug, Eq, Fail, PartialEq)]
 enum HandshakeError {
@@ -133,7 +133,7 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
         }
 
         let bytes = res.unwrap();
-        let result = WitnetMessage::from_pb_bytes(&bytes);
+        let result = WitnetMessage::from_versioned_pb_bytes(&bytes);
 
         match result {
             Err(err) => {
@@ -1105,8 +1105,9 @@ fn process_superblock_vote(_session: &mut Session, superblock_vote: SuperBlockVo
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use witnet_data_structures::chain::Hash;
+
+    use super::*;
 
     #[test]
     fn handshake_bootstrap_before_epoch_zero() {

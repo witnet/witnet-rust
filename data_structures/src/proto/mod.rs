@@ -8,6 +8,7 @@ use std::convert::TryFrom;
 use std::fmt::Debug;
 
 pub mod schema;
+pub mod versioning;
 
 /// Used for establishing correspondence between rust struct
 /// and protobuf rust struct

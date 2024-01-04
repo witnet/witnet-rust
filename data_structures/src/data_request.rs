@@ -742,7 +742,7 @@ mod tests {
             ..DataRequestInfo::default()
         };
         let dr_transaction = DRTransaction::new(
-            DRTransactionBody::new(vec![Input::default()], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![Input::default()], DataRequestOutput::default(), vec![]),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();
@@ -777,7 +777,7 @@ mod tests {
             ..DataRequestOutput::default()
         };
         let dr_transaction = DRTransaction::new(
-            DRTransactionBody::new(vec![Input::default()], vec![], dr_output),
+            DRTransactionBody::new(vec![Input::default()], dr_output, vec![]),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();
@@ -812,7 +812,7 @@ mod tests {
             ..DataRequestOutput::default()
         };
         let dr_transaction = DRTransaction::new(
-            DRTransactionBody::new(vec![Input::default()], vec![], dr_output),
+            DRTransactionBody::new(vec![Input::default()], dr_output, vec![]),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();

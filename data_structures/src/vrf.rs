@@ -122,7 +122,7 @@ impl VrfMessage {
 
 /// Block mining eligibility claim
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::Block_BlockEligibilityClaim")]
+#[protobuf_convert(pb = "witnet::BlockEligibilityClaim")]
 pub struct BlockEligibilityClaim {
     /// A Verifiable Random Function proof of the eligibility for a given epoch and public key
     pub proof: VrfProof,

@@ -1144,7 +1144,7 @@ where
             .map(Input::new)
             .collect_vec();
 
-        let body = DRTransactionBody::new(pointers_as_inputs.clone(), outputs, request);
+        let body = DRTransactionBody::new(pointers_as_inputs.clone(), request, outputs);
         let sign_data = body.hash();
         let signatures =
             self.create_signatures_from_inputs(pointers_as_inputs, sign_data, &mut state);
@@ -1313,7 +1313,7 @@ where
         // For any other transaction type, a fresh address is generated in the internal keychain.
         let change_pkh = self.calculate_change_address(
             state,
-            dr_output.and_then(|_| inputs.pointers.get(0).cloned().map(Input::new)),
+            dr_output.and_then(|_| inputs.pointers.first().cloned().map(Input::new)),
             preview,
         )?;
 
@@ -1490,6 +1490,8 @@ where
             Transaction::Reveal(_) => None,
             Transaction::Tally(_) => None,
             Transaction::Mint(_) => None,
+            Transaction::Stake(tx) => Some(&tx.body.inputs),
+            Transaction::Unstake(_) => None,
         };
 
         let empty_hashset = HashSet::default();

@@ -29,7 +29,7 @@ use std::path::PathBuf;
 use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
-    convert::{TryFrom, TryInto},
+    convert::TryFrom,
     future,
     net::SocketAddr,
     pin::Pin,
@@ -47,6 +47,7 @@ use futures::future::{try_join_all, FutureExt};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
+
 use witnet_config::{
     config::Tapi,
     defaults::{
@@ -725,8 +726,9 @@ impl ChainManager {
                 || block.block_header.beacon.checkpoint == current_epoch + 1)
             {
                 log::debug!(
-                    "Ignoring received block #{} because its beacon is too old",
-                    block.block_header.beacon.checkpoint
+                    "Ignoring received block candidate because its beacon shows an old epoch ({}). The current epoch is {}.",
+                    block.block_header.beacon.checkpoint,
+                    current_epoch,
                 );
 
                 return;
@@ -3350,7 +3352,7 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
     // Assume that all the required witnesses will report the same value
     let reported_values: Result<Vec<RadonTypes>, _> =
-        vec![aggregation_result; dr.witnesses.try_into()?]
+        vec![aggregation_result; dr.witnesses.into()]
             .into_iter()
             .map(RadonTypes::try_from)
             .collect();

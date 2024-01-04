@@ -91,8 +91,8 @@ impl TryInto<Value> for RadonMap {
             .try_fold(
                 BTreeMap::<Value, Value>::new(),
                 |mut map, (key, radon_types)| {
-                    if let (Ok(key), Ok(value)) = (
-                        Value::try_from(key.to_string()),
+                    if let (key, Ok(value)) = (
+                        Value::from(key.to_string()),
                         Value::try_from(radon_types.clone()),
                     ) {
                         map.insert(key, value);

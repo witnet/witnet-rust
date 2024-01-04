@@ -149,7 +149,7 @@ impl Worker {
                 let gen_fut = self.get_block_chain(0, -confirm_superblock_period);
                 let gen_res: Vec<ChainEntry> = futures::executor::block_on(gen_fut)?;
                 let gen_entry = gen_res
-                    .get(0)
+                    .first()
                     .expect("It should always found a superconsolidated block");
                 let get_gen_future = self.get_block(gen_entry.1.clone());
                 let (block, _confirmed) = futures::executor::block_on(get_gen_future)?;
@@ -173,7 +173,7 @@ impl Worker {
                     2,
                 );
                 let gen_res: Vec<ChainEntry> = futures::executor::block_on(gen_fut)?;
-                let gen_entry = gen_res.get(0).expect(
+                let gen_entry = gen_res.first().expect(
                     "It should always find a last consolidated block for a any epoch number",
                 );
                 let get_gen_future = self.get_block(gen_entry.1.clone());
@@ -771,7 +771,7 @@ impl Worker {
             let gen_fut = self.get_block_chain(0, 1);
             let gen_res: Vec<ChainEntry> = futures::executor::block_on(gen_fut)?;
             let gen_entry = gen_res
-                .get(0)
+                .first()
                 .expect("A Witnet chain should always have a genesis block");
 
             let get_gen_future = self.get_block(gen_entry.1.clone());
@@ -794,7 +794,7 @@ impl Worker {
         let tip_res: Vec<ChainEntry> = futures::executor::block_on(tip_fut)?;
         let tip = CheckpointBeacon::try_from(
             tip_res
-                .get(0)
+                .first()
                 .expect("A Witnet chain should always have at least one block"),
         )
         .expect("A Witnet node should present block hashes as 64 hexadecimal characters");

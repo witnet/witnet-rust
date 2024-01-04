@@ -8,8 +8,9 @@ use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 use crate::{
     chain::{
         Block, Bn256PublicKey, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature,
-        PublicKeyHash, ValueTransferOutput,
+        PublicKeyHash, StakeOutput, ValueTransferOutput,
     },
+    error::TransactionError,
     proto::{schema::witnet, ProtobufConvert},
     vrf::DataRequestEligibilityClaim,
 };
@@ -18,6 +19,8 @@ use crate::{
 // https://github.com/witnet/WIPs/blob/master/wip-0007.md
 pub const INPUT_SIZE: u32 = 133;
 pub const OUTPUT_SIZE: u32 = 36;
+pub const STAKE_OUTPUT_WEIGHT: u32 = 105;
+pub const UNSTAKE_TRANSACTION_WEIGHT: u32 = 153;
 pub const COMMIT_WEIGHT: u32 = 400;
 pub const REVEAL_WEIGHT: u32 = 200;
 pub const TALLY_WEIGHT: u32 = 100;
@@ -130,6 +133,8 @@ pub enum Transaction {
     Reveal(RevealTransaction),
     Tally(TallyTransaction),
     Mint(MintTransaction),
+    Stake(StakeTransaction),
+    Unstake(UnstakeTransaction),
 }
 
 impl From<VTTransaction> for Transaction {
@@ -165,6 +170,18 @@ impl From<TallyTransaction> for Transaction {
 impl From<MintTransaction> for Transaction {
     fn from(transaction: MintTransaction) -> Self {
         Self::Mint(transaction)
+    }
+}
+
+impl From<StakeTransaction> for Transaction {
+    fn from(transaction: StakeTransaction) -> Self {
+        Self::Stake(transaction)
+    }
+}
+
+impl From<UnstakeTransaction> for Transaction {
+    fn from(transaction: UnstakeTransaction) -> Self {
+        Self::Unstake(transaction)
     }
 }
 
@@ -247,6 +264,14 @@ impl VTTransactionBody {
             outputs,
             hash: MemoHash::new(),
         }
+    }
+
+    pub fn value(&self) -> u64 {
+        self.outputs
+            .iter()
+            .map(ValueTransferOutput::value)
+            .reduce(|acc, value| acc + value)
+            .unwrap_or_default()
     }
 
     /// Value Transfer transaction weight. It is calculated as:
@@ -375,8 +400,8 @@ impl DRTransactionBody {
     /// Creates a new data request transaction body.
     pub fn new(
         inputs: Vec<Input>,
-        outputs: Vec<ValueTransferOutput>,
         dr_output: DataRequestOutput,
+        outputs: Vec<ValueTransferOutput>,
     ) -> Self {
         DRTransactionBody {
             inputs,
@@ -384,6 +409,18 @@ impl DRTransactionBody {
             dr_output,
             hash: MemoHash::new(),
         }
+    }
+
+    pub fn value(&self) -> Result<u64, TransactionError> {
+        let dr_value = self.dr_output.checked_total_value()?;
+        let change_value = self
+            .outputs
+            .iter()
+            .map(ValueTransferOutput::value)
+            .reduce(|acc, value| acc + value)
+            .unwrap_or_default();
+
+        Ok(dr_value + change_value)
     }
 
     /// Data Request Transaction weight. It is calculated as:
@@ -683,6 +720,142 @@ impl MintTransaction {
     }
 }
 
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::StakeTransaction")]
+pub struct StakeTransaction {
+    pub body: StakeTransactionBody,
+    pub signatures: Vec<KeyedSignature>,
+}
+
+impl StakeTransaction {
+    // Creates a new stake transaction.
+    pub fn new(body: StakeTransactionBody, signatures: Vec<KeyedSignature>) -> Self {
+        StakeTransaction { body, signatures }
+    }
+
+    /// Returns the weight of a stake transaction.
+    /// This is the weight that will be used to calculate how many transactions can fit inside one
+    /// block
+    pub fn weight(&self) -> u32 {
+        self.body.weight()
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::StakeTransactionBody")]
+pub struct StakeTransactionBody {
+    pub inputs: Vec<Input>,
+    pub output: StakeOutput,
+    pub change: Option<ValueTransferOutput>,
+
+    #[protobuf_convert(skip)]
+    #[serde(skip)]
+    hash: MemoHash,
+}
+
+impl StakeTransactionBody {
+    /// Construct a `StakeTransactionBody` from a list of inputs and one `StakeOutput`.
+    pub fn new(
+        inputs: Vec<Input>,
+        output: StakeOutput,
+        change: Option<ValueTransferOutput>,
+    ) -> Self {
+        StakeTransactionBody {
+            inputs,
+            output,
+            change,
+            ..Default::default()
+        }
+    }
+
+    pub fn value(&self) -> u64 {
+        let stake_value = self.output.value;
+        let change_value = &self
+            .change
+            .as_ref()
+            .map(ValueTransferOutput::value)
+            .unwrap_or_default();
+
+        stake_value + change_value
+    }
+
+    /// Stake transaction weight. It is calculated as:
+    ///
+    /// ```text
+    /// ST_weight = N*INPUT_SIZE+M*OUTPUT_SIZE+STAKE_OUTPUT
+    ///
+    /// ```
+    pub fn weight(&self) -> u32 {
+        let inputs_len = u32::try_from(self.inputs.len()).unwrap_or(u32::MAX);
+        let inputs_weight = inputs_len.saturating_mul(INPUT_SIZE);
+        let change_weight = if self.change.is_some() {
+            OUTPUT_SIZE
+        } else {
+            0
+        };
+
+        inputs_weight
+            .saturating_add(change_weight)
+            .saturating_add(STAKE_OUTPUT_WEIGHT)
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::UnstakeTransaction")]
+pub struct UnstakeTransaction {
+    pub body: UnstakeTransactionBody,
+    pub signature: KeyedSignature,
+}
+impl UnstakeTransaction {
+    // Creates a new unstake transaction.
+    pub fn new(body: UnstakeTransactionBody, signature: KeyedSignature) -> Self {
+        UnstakeTransaction { body, signature }
+    }
+
+    /// Returns the weight of a unstake transaction.
+    /// This is the weight that will be used to calculate
+    /// how many transactions can fit inside one block
+    pub fn weight(&self) -> u32 {
+        self.body.weight()
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[protobuf_convert(pb = "witnet::UnstakeTransactionBody")]
+pub struct UnstakeTransactionBody {
+    pub operator: PublicKeyHash,
+    pub withdrawal: ValueTransferOutput,
+
+    #[protobuf_convert(skip)]
+    #[serde(skip)]
+    hash: MemoHash,
+}
+
+impl UnstakeTransactionBody {
+    /// Creates a new stake transaction body.
+    pub fn new(operator: PublicKeyHash, withdrawal: ValueTransferOutput) -> Self {
+        UnstakeTransactionBody {
+            operator,
+            withdrawal,
+            ..Default::default()
+        }
+    }
+
+    pub fn value(&self) -> u64 {
+        self.withdrawal.value
+    }
+
+    /// Stake transaction weight. It is calculated as:
+    ///
+    /// ```text
+    /// ST_weight = 153
+    ///
+    /// ```
+    pub fn weight(&self) -> u32 {
+        UNSTAKE_TRANSACTION_WEIGHT
+    }
+}
+
 impl MemoizedHashable for VTTransactionBody {
     fn hashable_bytes(&self) -> Vec<u8> {
         self.to_pb_bytes().unwrap()
@@ -714,6 +887,24 @@ impl MemoizedHashable for CommitTransactionBody {
     }
 }
 impl MemoizedHashable for RevealTransactionBody {
+    fn hashable_bytes(&self) -> Vec<u8> {
+        self.to_pb_bytes().unwrap()
+    }
+
+    fn memoized_hash(&self) -> &MemoHash {
+        &self.hash
+    }
+}
+impl MemoizedHashable for StakeTransactionBody {
+    fn hashable_bytes(&self) -> Vec<u8> {
+        self.to_pb_bytes().unwrap()
+    }
+
+    fn memoized_hash(&self) -> &MemoHash {
+        &self.hash
+    }
+}
+impl MemoizedHashable for UnstakeTransactionBody {
     fn hashable_bytes(&self) -> Vec<u8> {
         self.to_pb_bytes().unwrap()
     }
@@ -765,6 +956,17 @@ impl Hashable for RevealTransaction {
     }
 }
 
+impl Hashable for StakeTransaction {
+    fn hash(&self) -> Hash {
+        self.body.hash()
+    }
+}
+impl Hashable for UnstakeTransaction {
+    fn hash(&self) -> Hash {
+        self.body.hash()
+    }
+}
+
 impl Hashable for Transaction {
     fn hash(&self) -> Hash {
         match self {
@@ -774,6 +976,8 @@ impl Hashable for Transaction {
             Transaction::Reveal(tx) => tx.hash(),
             Transaction::Tally(tx) => tx.hash(),
             Transaction::Mint(tx) => tx.hash(),
+            Transaction::Stake(tx) => tx.hash(),
+            Transaction::Unstake(tx) => tx.hash(),
         }
     }
 }
@@ -973,8 +1177,8 @@ mod tests {
         };
         let dr_body = DRTransactionBody::new(
             vec![Input::default()],
-            vec![ValueTransferOutput::default()],
             dro.clone(),
+            vec![ValueTransferOutput::default()],
         );
         let dr_tx = DRTransaction::new(dr_body, vec![KeyedSignature::default()]);
         let dr_weight = INPUT_SIZE + OUTPUT_SIZE + dro.weight();
@@ -994,8 +1198,8 @@ mod tests {
         };
         let dr_body = DRTransactionBody::new(
             vec![Input::default()],
-            vec![ValueTransferOutput::default()],
             dro.clone(),
+            vec![ValueTransferOutput::default()],
         );
         let dr_tx = DRTransaction::new(dr_body, vec![KeyedSignature::default()]);
         let dr_weight = INPUT_SIZE + OUTPUT_SIZE + dro.weight();

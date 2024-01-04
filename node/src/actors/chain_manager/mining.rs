@@ -839,6 +839,10 @@ pub fn build_block(
     let mut value_transfer_txns = Vec::new();
     let mut data_request_txns = Vec::new();
     let mut tally_txns = Vec::new();
+    // TODO: handle stake tx
+    let stake_txns = Vec::new();
+    // TODO: handle unstake tx
+    let unstake_txns = Vec::new();
 
     let min_vt_weight =
         VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()])
@@ -949,7 +953,7 @@ pub fn build_block(
         witnesses: 1,
         ..DataRequestOutput::default()
     };
-    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
+    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], dro, vec![]).weight();
     for dr_tx in transactions_pool.dr_iter() {
         let transaction_weight = dr_tx.weight();
         let transaction_fee = match dr_transaction_fee(dr_tx, &utxo_diff, epoch, epoch_constants) {
@@ -1000,6 +1004,8 @@ pub fn build_block(
     let commit_hash_merkle_root = merkle_tree_root(&commit_txns);
     let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
     let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
+    let stake_hash_merkle_root = merkle_tree_root(&stake_txns);
+    let unstake_hash_merkle_root = merkle_tree_root(&unstake_txns);
     let merkle_roots = BlockMerkleRoots {
         mint_hash: mint.hash(),
         vt_hash_merkle_root,
@@ -1007,6 +1013,8 @@ pub fn build_block(
         commit_hash_merkle_root,
         reveal_hash_merkle_root,
         tally_hash_merkle_root,
+        stake_hash_merkle_root,
+        unstake_hash_merkle_root,
     };
 
     let block_header = BlockHeader {
@@ -1024,6 +1032,8 @@ pub fn build_block(
         commit_txns,
         reveal_txns,
         tally_txns,
+        stake_txns,
+        unstake_txns,
     };
 
     (block_header, txns)
@@ -1202,7 +1212,7 @@ mod tests {
         // Validate block signature
         let mut signatures_to_verify = vec![];
         assert!(validate_block_signature(&block, &mut signatures_to_verify).is_ok());
-        assert!(verify_signatures(signatures_to_verify, vrf).is_ok());
+        matches!(verify_signatures(signatures_to_verify, vrf), Ok(_));
     }
 
     static MILLION_TX_OUTPUT: &str =
@@ -1446,9 +1456,9 @@ mod tests {
         let mut dr3 = dr1.clone();
         dr3.witnesses = 3;
 
-        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
-        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
-        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), dr1, vec![]);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), dr2, vec![]);
+        let dr_body_one_output3 = DRTransactionBody::new(input, dr3, vec![]);
 
         // Build sample transactions
         let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
@@ -1542,9 +1552,9 @@ mod tests {
         let mut dr3 = dr1.clone();
         dr3.commit_and_reveal_fee = 3;
 
-        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
-        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
-        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), dr1, vec![]);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), dr2, vec![]);
+        let dr_body_one_output3 = DRTransactionBody::new(input, dr3, vec![]);
 
         // Build sample transactions
         let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
