@@ -22,7 +22,12 @@ use witnet_crypto::{
     key::ExtendedSK,
     merkle::merkle_tree_root as crypto_merkle_tree_root,
     secp256k1::{
-        ecdsa::Signature as Secp256k1_Signature, PublicKey as Secp256k1_PublicKey,
+        self,
+        PublicKey as Secp256k1_PublicKey,
+        ecdsa::{
+            RecoverableSignature, RecoveryId,
+            Signature as Secp256k1_Signature,
+        },
         SecretKey as Secp256k1_SecretKey,
     },
 };
@@ -30,7 +35,7 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
-    chain::{tapi::TapiEngine, Signature::Secp256k1},
+    chain::{Signature::Secp256k1, tapi::TapiEngine},
     data_request::{calculate_reward_collateral_ratio, DataRequestPool},
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
@@ -45,7 +50,7 @@ use crate::{
         UnstakeTransaction, VTTransaction,
     },
     transaction::{
-        MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
+        BETA, COMMIT_WEIGHT, MemoHash, MemoizedHashable, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
     },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
@@ -1236,6 +1241,15 @@ pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],
 }
 
+impl PublicKeyHash {
+    pub fn as_secp256k1_msg(&self) -> [u8; secp256k1::constants::MESSAGE_SIZE] {
+        let mut msg = [0u8; secp256k1::constants::MESSAGE_SIZE];
+        msg[0..20].clone_from_slice(self.as_ref());
+
+        msg
+    }
+}
+
 impl AsRef<[u8]> for PublicKeyHash {
     fn as_ref(&self) -> &[u8] {
         self.hash.as_ref()
@@ -1556,6 +1570,33 @@ pub struct KeyedSignature {
     pub public_key: PublicKey,
 }
 
+impl KeyedSignature {
+    pub fn from_recoverable_hex(string: &str, msg: &[u8]) -> Self {
+        let bytes = hex::decode(string).unwrap();
+
+        Self::from_recoverable_slice(&bytes, msg)
+    }
+    pub fn from_recoverable(recoverable: &RecoverableSignature, message: &[u8]) -> Self {
+        let msg = secp256k1::Message::from_slice(message).unwrap();
+        let signature = recoverable.to_standard();
+        let public_key = recoverable.recover(&msg).unwrap();
+
+        KeyedSignature {
+            signature: signature.into(),
+            public_key: public_key.into(),
+        }
+    }
+
+    // Recovers a keyed signature from its serialized form and a known message.
+    pub fn from_recoverable_slice(compact: &[u8], message: &[u8]) -> Self {
+        let recid = RecoveryId::from_i32(0).unwrap();
+        let recoverable =
+            secp256k1::ecdsa::RecoverableSignature::from_compact(compact, recid).unwrap();
+
+        Self::from_recoverable(&recoverable, message)
+    }
+}
+
 /// Public Key data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize)]
 pub struct PublicKey {
@@ -1597,18 +1638,17 @@ impl PublicKey {
         }
     }
 
-    pub fn from_str(serialized: &str) -> Self {
-        let mut pk = hex::decode(serialized).unwrap();
-        pk.resize(33, 0);
-        let mut array_bytes = [0u8; 33];
-        array_bytes.copy_from_slice(&pk[..33]);
-
-        Self::from_bytes(array_bytes)
-    }
-
     /// Returns the PublicKeyHash related to the PublicKey
     pub fn pkh(&self) -> PublicKeyHash {
         PublicKeyHash::from_public_key(self)
+    }
+}
+
+impl std::str::FromStr for PublicKey {
+    type Err = Secp256k1ConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from_slice(s.as_bytes())
     }
 }
 
@@ -4465,14 +4505,14 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use witnet_crypto::{
-        merkle::{merkle_tree_root, InclusionProof},
+        merkle::{InclusionProof, merkle_tree_root},
         secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
         signature::sign,
     };
 
     use crate::{
         proto::versioning::{ProtocolVersion, VersionedHashable},
-        superblock::{mining_build_superblock, ARSIdentities},
+        superblock::{ARSIdentities, mining_build_superblock},
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
 

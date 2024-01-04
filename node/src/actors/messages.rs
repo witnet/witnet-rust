@@ -9,21 +9,19 @@ use std::{
     time::Duration,
 };
 
-use actix::{
-    dev::{MessageResponse, OneshotSender, ToEnvelope},
-    Actor, Addr, Handler, Message,
-};
+use actix::{Actor, Addr, dev::{MessageResponse, OneshotSender, ToEnvelope}, Handler, Message};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tokio::net::TcpStream;
 
+use witnet_crypto::secp256k1::ecdsa::{RecoverableSignature, RecoveryId};
 use witnet_data_structures::{
     chain::{
-        priority::PrioritiesEstimate,
-        tapi::{ActiveWips, BitVotesCounter},
-        Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash,
-        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StakeOutput, StateMachine,
-        SuperBlock, SuperBlockVote, SupplyInfo, ValueTransferOutput,
+        Block,
+        CheckpointBeacon,
+        DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash, InventoryEntry, InventoryItem,
+        KeyedSignature, NodeStats, PointerToBlock, priority::PrioritiesEstimate, PublicKeyHash, PublicKeyHashParseError,
+        RADRequest, RADTally, Reputation, StakeOutput, StateMachine, SuperBlock,
+        SuperBlockVote, SupplyInfo, tapi::{ActiveWips, BitVotesCounter}, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
@@ -241,27 +239,18 @@ impl Message for BuildStake {
     type Result = Result<StakeTransaction, failure::Error>;
 }
 
-/// Authorization formatted as strings
-#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AuthorizationParams {
-    /// Authorization public key
-    pub public_key: String,
-    /// Authorization signature
-    pub authorization: String,
-}
-
 /// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
-#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildStakeParams {
     /// Authorization signature and public key
     #[serde(default)]
-    pub authorization: Option<AuthorizationParams>,
+    pub authorization: Option<MagicEither<String, KeyedSignature>>,
     /// List of `ValueTransferOutput`s
     #[serde(default)]
     pub value: u64,
     /// Withdrawer
     #[serde(default)]
-    pub withdrawer: Option<String>,
+    pub withdrawer: Option<MagicEither<String, PublicKeyHash>>,
     /// Fee
     #[serde(default)]
     pub fee: Fee,
@@ -272,10 +261,6 @@ pub struct BuildStakeParams {
     #[serde(default)]
     pub dry_run: bool,
 }
-
-// impl Message for BuildStake {
-//     type Result = Result<StakeTransaction, failure::Error>;
-// }
 
 /// Builds an `AuthorizeStake`
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
@@ -293,11 +278,9 @@ impl Message for AuthorizeStake {
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct StakeAuthorization {
     /// Address that can withdraw the stake
-    pub withdrawer: String,
-    /// Signature of the withdrawer
-    pub signature: String,
-    /// Public key related with signature
-    pub public_key: String,
+    pub withdrawer: PublicKeyHash,
+    /// A node's signature of a withdrawer's address
+    pub signature: KeyedSignature,
 }
 
 impl Message for StakeAuthorization {
@@ -1363,4 +1346,32 @@ pub struct EstimatePriority;
 
 impl Message for EstimatePriority {
     type Result = Result<PrioritiesEstimate, failure::Error>;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+/// A value that can either be L, R, where an R can always be obtained through the `do_magic` method.
+pub enum MagicEither<L, R> {
+    /// A first variant.
+    Left(L),
+    /// A second variant.
+    Right(R),
+}
+
+impl<L, R> MagicEither<L, R> {
+    /// Obtain an R value, even if this was an instance of L.
+    pub fn do_magic<F>(self, trick: F) -> R where F: Fn(L) -> R {
+        match self {
+            Self::Left(l) => trick(l),
+            Self::Right(r) => r,
+        }
+    }
+
+    /// Fallible version of `do_magic`.
+    pub fn try_do_magic<F, E>(self, trick: F) -> Result<R, E> where F: Fn(L) -> Result<R, E> {
+        match self {
+            Self::Left(l) => trick(l),
+            Self::Right(r) => Ok(r),
+        }
+    }
 }
