@@ -39,7 +39,6 @@ pub use gen_mnemonic::*;
 pub use get::*;
 pub use get_addresses::*;
 pub use get_balance::*;
-pub use get_transaction::*;
 pub use get_transactions::*;
 pub use get_utxo_info::*;
 pub use handle_block::*;

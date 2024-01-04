@@ -29,7 +29,7 @@ use std::path::PathBuf;
 use std::{
     cmp::{max, min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
-    convert::{TryFrom, TryInto},
+    convert::TryFrom,
     future,
     net::SocketAddr,
     pin::Pin,
@@ -3352,7 +3352,7 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Err
 
     // Assume that all the required witnesses will report the same value
     let reported_values: Result<Vec<RadonTypes>, _> =
-        vec![aggregation_result; dr.witnesses.try_into()?]
+        vec![aggregation_result; dr.witnesses.into()]
             .into_iter()
             .map(RadonTypes::try_from)
             .collect();

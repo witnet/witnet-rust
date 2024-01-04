@@ -1313,7 +1313,7 @@ where
         // For any other transaction type, a fresh address is generated in the internal keychain.
         let change_pkh = self.calculate_change_address(
             state,
-            dr_output.and_then(|_| inputs.pointers.get(0).cloned().map(Input::new)),
+            dr_output.and_then(|_| inputs.pointers.first().cloned().map(Input::new)),
             preview,
         )?;
 
