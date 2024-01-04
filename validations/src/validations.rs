@@ -469,7 +469,7 @@ pub fn validate_dr_transaction<'a>(
 
     let fee = dr_transaction_fee(dr_tx, utxo_diff, epoch, epoch_constants)?;
 
-    if let Some(dr_output) = dr_tx.body.outputs.get(0) {
+    if let Some(dr_output) = dr_tx.body.outputs.first() {
         // A value transfer output cannot have zero value
         if dr_output.value == 0 {
             return Err(TransactionError::ZeroValueOutput {
@@ -1240,7 +1240,7 @@ pub fn validate_commit_reveal_signature<'a>(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<&'a KeyedSignature, failure::Error> {
     let tx_keyed_signature = signatures
-        .get(0)
+        .first()
         .ok_or(TransactionError::SignatureNotFound)?;
 
     // Commitments and reveals should only have one signature

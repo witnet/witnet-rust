@@ -46,7 +46,6 @@ pub use get_utxo_info::*;
 pub use get_wallet_infos::*;
 pub use lock_wallet::*;
 pub use next_subscription_id::*;
-pub use node_notification::*;
 pub use refresh_session::*;
 pub use resync::*;
 pub use run_rad_req::*;

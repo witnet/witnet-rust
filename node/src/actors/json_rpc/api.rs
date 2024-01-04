@@ -668,7 +668,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
 
     // Handle parameters as an array with a first obligatory hash field plus an optional bool field
     if let Params::Array(params) = params {
-        if let Some(Value::String(hash)) = params.get(0) {
+        if let Some(Value::String(hash)) = params.first() {
             match hash.parse() {
                 Ok(hash) => block_hash = hash,
                 Err(e) => {
@@ -1350,7 +1350,7 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
 
     // Handle parameters as an array with a first obligatory PublicKeyHash field plus an optional bool field
     if let Params::Array(params) = params {
-        if let Some(Value::String(target_param)) = params.get(0) {
+        if let Some(Value::String(target_param)) = params.first() {
             target = GetBalanceTarget::from_str(target_param).map_err(internal_error)?;
         } else {
             return Err(Error::invalid_params(

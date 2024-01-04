@@ -339,7 +339,7 @@ impl Handler<AddBlocks> for ChainManager {
                         return Box::pin(actix::fut::err(()));
                     }
 
-                    if let Some(block) = msg.blocks.get(0) {
+                    if let Some(block) = msg.blocks.first() {
                         let chain_tip = act.get_chain_beacon();
                         if block.block_header.beacon.checkpoint > chain_tip.checkpoint
                             && block.block_header.beacon.hash_prev_block != chain_tip.hash_prev_block
@@ -740,7 +740,7 @@ impl PeersBeacons {
                 // TODO: is it possible to receive more than outbound_limit beacons?
                 // (it shouldn't be possible)
                 assert!(self.pb.len() <= outbound_limit as usize, "Received more beacons than the outbound_limit. Check the code for race conditions.");
-                usize::try_from(outbound_limit).unwrap() - self.pb.len()
+                usize::from(outbound_limit) - self.pb.len()
             })
             // The outbound limit is set when the SessionsManager actor is initialized, so here it
             // cannot be None. But if it is None, set num_missing_peers to 0 in order to calculate

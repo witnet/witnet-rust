@@ -167,7 +167,7 @@ pub fn filter(
 
     let unknown_filter = |code| RadError::UnknownFilter { code };
 
-    let first_arg = args.get(0).ok_or_else(wrong_args)?;
+    let first_arg = args.first().ok_or_else(wrong_args)?;
     match first_arg {
         Value::Array(_arg) => {
             let subscript_err = |e| RadError::Subscript {
