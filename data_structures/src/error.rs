@@ -288,6 +288,40 @@ pub enum TransactionError {
         max_weight: u32,
         dr_output: Box<DataRequestOutput>,
     },
+    /// Stake amount below minimum
+    #[fail(
+        display = "The amount of coins in stake ({}) is less than the minimum allowed ({})",
+        min_stake, stake
+    )]
+    StakeBelowMinimum { min_stake: u64, stake: u64 },
+    /// Unstaking more than the total staked
+    #[fail(
+        display = "Unstaking ({}) more than the total staked ({})",
+        unstake, stake
+    )]
+    UnstakingMoreThanStaked { stake: u64, unstake: u64 },
+    /// An stake output with zero value does not make sense
+    #[fail(display = "Transaction {} has a zero value stake output", tx_hash)]
+    ZeroValueStakeOutput { tx_hash: Hash },
+    /// Invalid unstake signature
+    #[fail(
+        display = "Invalid unstake signature: ({}), withdrawal ({}), operator ({})",
+        signature, withdrawal, operator
+    )]
+    InvalidUnstakeSignature {
+        signature: Hash,
+        withdrawal: Hash,
+        operator: Hash,
+    },
+    /// Invalid unstake time_lock
+    #[fail(
+        display = "The unstake timelock: ({}) is lower than the minimum unstaking delay ({})",
+        time_lock, unstaking_delay_seconds
+    )]
+    InvalidUnstakeTimelock {
+        time_lock: u64,
+        unstaking_delay_seconds: u32,
+    },
     #[fail(
         display = "The reward-to-collateral ratio for this data request is {}, but must be equal or less than {}",
         reward_collateral_ratio, required_reward_collateral_ratio
@@ -411,6 +445,24 @@ pub enum BlockError {
         weight, max_weight
     )]
     TotalDataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Stake weight limit exceeded by a block candidate
+    #[fail(
+        display = "Total weight of Stake Transactions in a block ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    TotalStakeWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Unstake weight limit exceeded
+    #[fail(
+        display = "Total weight of Unstake Transactions in a block ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    TotalUnstakeWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Repeated operator Stake
+    #[fail(
+        display = "A single operator is receiving stake more than once in a block: ({}) ",
+        pkh
+    )]
+    RepeatedStakeOperator { pkh: PublicKeyHash },
     /// Missing expected tallies
     #[fail(
         display = "{} expected tally transactions are missing in block candidate {}",
