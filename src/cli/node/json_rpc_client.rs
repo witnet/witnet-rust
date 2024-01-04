@@ -40,10 +40,11 @@ use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult},
     messages::{
-        AuthorizationParams, AuthorizeStake, BuildDrt, BuildStakeParams, BuildVtt,
+        AuthorizeStake, BuildDrt, BuildStakeParams, BuildVtt,
         GetBalanceTarget, GetReputationResult, SignalingInfo, StakeAuthorization,
     },
 };
+use witnet_node::actors::messages::MagicEither;
 use witnet_rad::types::RadonTypes;
 use witnet_util::{files::create_private_file, timestamp::pretty_print};
 use witnet_validations::validations::{
@@ -888,11 +889,8 @@ pub fn send_st(
     };
 
     let mut build_stake_params = BuildStakeParams {
-        authorization: Some(AuthorizationParams {
-            authorization: stake_authorization.signature,
-            public_key: stake_authorization.public_key,
-        }),
-        withdrawer: Some(stake_authorization.withdrawer),
+        authorization: Some(MagicEither::Right(stake_authorization.signature)),
+        withdrawer:  Some(MagicEither::Right(stake_authorization.withdrawer)),
         value,
         fee,
         utxo_strategy,
@@ -985,25 +983,17 @@ pub fn send_st(
 }
 
 pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), failure::Error> {
-    if withdrawer.is_some() {
-        // validate withdrawer
-        PublicKeyHash::from_bech32(Environment::Mainnet, &withdrawer.clone().unwrap())?;
-    }
-
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
 
     let params = AuthorizeStake { withdrawer };
-    let (authorization, (_, response)): (StakeAuthorization, _) =
+    let (authorization, (_, _response)): (StakeAuthorization, _) =
         issue_method("authorizeStake", Some(params), &mut stream, id.next())?;
 
-    println!("{}", response);
+    let auth_bytes = authorization.signature.signature.to_bytes()?;
+    let auth_string = hex::encode(auth_bytes);
 
-    let mut str = authorization.signature.clone();
-    str.push(':');
-    str.push_str(&authorization.public_key);
-
-    let auth_qr = qrcode::QrCode::new(str).unwrap();
+    let auth_qr = qrcode::QrCode::new(&auth_string)?;
     let auth_ascii = auth_qr
         .render::<unicode::Dense1x2>()
         .quiet_zone(true)
@@ -1012,8 +1002,8 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
         .build();
 
     println!(
-        "Authorization code:\n{}\nPublicKey code:\n{}\nQR code for myWitWallet:\n{}",
-        authorization.signature, authorization.public_key, auth_ascii
+        "Authorization code:\n{}\nQR code for myWitWallet:\n{}",
+        auth_string, auth_ascii
     );
 
     Ok(())
