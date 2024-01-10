@@ -170,6 +170,7 @@ impl Operable for RadonArray {
             (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(self, args, context),
             (RadonOpCodes::ArrayReduce, Some(args)) => array_operators::reduce(self, args, context),
             (RadonOpCodes::ArraySort, Some(args)) => array_operators::sort(self, args, context),
+            (RadonOpCodes::ArrayPick, Some(args)) => array_operators::pick(self, args, context),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_ARRAY_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

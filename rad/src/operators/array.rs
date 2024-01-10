@@ -255,6 +255,52 @@ pub fn filter(
     }
 }
 
+pub fn pick(
+    input: &RadonArray,
+    args: &[Value],
+    _context: &mut ReportContext<RadonTypes>
+) -> Result<RadonTypes, RadError> {
+    let not_found = |index: usize| RadError::ArrayIndexOutOfBounds {
+        index: i32::try_from(index).unwrap(),
+    };
+
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonArray::radon_type_name(),
+        operator: "Pick".to_string(),
+        args: args.to_vec(),
+    };
+
+    let mut indexes = vec![];
+    if args.len() > 1 {
+        return Err(wrong_args());
+    } else {
+        let first_arg = args.get(0).ok_or_else(wrong_args)?;
+        match first_arg {
+            Value::Array(values) => {
+                for value in values.iter() {
+                    let index = from_value::<usize>(value.clone()).map_err(|_| wrong_args())?;
+                    indexes.push(index);
+                }
+            }
+            Value::Integer(_) => {
+                let index = from_value::<usize>(first_arg.clone()).map_err(|_| wrong_args())?;
+                indexes.push(index);
+            }
+            _ => return Err(wrong_args())
+        };
+    }
+
+    let mut output_vec: Vec<RadonTypes> = vec![];
+    for index in indexes {
+        if let Some(value) = input.value().get(index) {
+            output_vec.push(value.clone());
+        } else {
+            return Err(not_found(index));
+        }
+    }
+    Ok(RadonTypes::from(RadonArray::from(output_vec)))
+}
+
 pub fn sort(
     input: &RadonArray,
     args: &[Value],

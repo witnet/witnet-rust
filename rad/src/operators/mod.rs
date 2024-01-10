@@ -41,7 +41,7 @@ pub enum RadonOpCodes {
     ArrayReduce = 0x1B,
     //    ArraySome = 0x1C,
     ArraySort = 0x1D,
-    //    ArrayTake = 0x1E,
+    ArrayPick = 0x1E,
     ///////////////////////////////////////////////////////////////////////
     // Boolean operator codes (start at 0x20)
     //    BooleanMatch = 0x21,
