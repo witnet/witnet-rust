@@ -1,18 +1,17 @@
 use std::{
     clone::Clone,
-    convert::{TryFrom, TryInto},
-    iter,
+    convert::{TryFrom, TryInto}
 };
 
 use serde_cbor::value::{from_value, Value};
-use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage};
+use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
     filters::{self, RadonFilters},
-    operators::{string, RadonOpCodes},
+    operators::string,
     reducers::{self, RadonReducers},
-    script::{execute_radon_script, unpack_subscript, RadonCall, RadonScriptExecutionSettings},
+    script::{execute_radon_script, unpack_subscript, RadonScriptExecutionSettings, partial_results_extract},
     types::{array::RadonArray, integer::RadonInteger, string::RadonString, RadonType, RadonTypes},
 };
 
@@ -379,27 +378,6 @@ pub fn sort(
     Ok(RadonArray::from(result).into())
 }
 
-fn partial_results_extract(
-    subscript: &[RadonCall],
-    reports: &[RadonReport<RadonTypes>],
-    context: &mut ReportContext<RadonTypes>,
-) {
-    if let Stage::Retrieval(metadata) = &mut context.stage {
-        metadata.subscript_partial_results.push(subscript.iter().chain(iter::once(&(RadonOpCodes::Fail, None))).enumerate().map(|(index, _)|
-            reports
-                .iter()
-                .map(|report|
-                report.partial_results
-                    .as_ref()
-                    .expect("Execution reports from applying subscripts are expected to contain partial results")
-                    .get(index)
-                    .expect("Execution reports from applying same subscript on multiple values should contain the same number of partial results")
-                    .clone()
-            ).collect::<Vec<RadonTypes>>()
-        ).collect::<Vec<Vec<RadonTypes>>>());
-    }
-}
-
 pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
     let mut v = vec![];
     let mut prev_len = None;
@@ -486,7 +464,7 @@ pub mod legacy {
 mod tests {
     use std::collections::BTreeMap;
 
-    use witnet_data_structures::radon_report::RetrievalMetadata;
+    use witnet_data_structures::radon_report::{RetrievalMetadata, Stage};
 
     use crate::{
         error::RadError,
@@ -494,7 +472,7 @@ mod tests {
             Operable,
             RadonOpCodes::{
                 IntegerGreaterThan, IntegerMultiply, MapGetBoolean, MapGetFloat, MapGetInteger,
-                MapGetString,
+                MapGetString, self,
             },
         },
         types::{
