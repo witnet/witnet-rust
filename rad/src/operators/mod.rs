@@ -84,7 +84,7 @@ pub enum RadonOpCodes {
     FloatTruncate = 0x5D,
     ///////////////////////////////////////////////////////////////////////
     // Map operator codes (start at 0x60)
-    //    MapEntries = 0x60,
+    MapStringify = 0x60,
     MapGetArray = 0x61,
     MapGetBoolean = 0x62,
     MapGetBytes = 0x63,
