@@ -96,6 +96,7 @@ pub enum RadonOpCodes {
     MapValues = 0x69,
     //MapEntries = 0x6A,
     MapAlter = 0x6B,
+    MapPick = 0x6E,
     ///////////////////////////////////////////////////////////////////////
     // String operator codes (start at 0x70)
     StringAsBoolean = 0x70,
