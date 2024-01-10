@@ -118,7 +118,7 @@ pub fn join(
             operator: "ArrayJoin".to_string(),
         });
     }
-    let separator = if args.len() > 0 {
+    let separator = if !args.is_empty() {
         from_value::<String>(args[0].to_owned()).unwrap_or_default()
     } else {
         String::from("")
@@ -131,14 +131,14 @@ pub fn join(
             Ok(RadonTypes::from(RadonString::from(string_list.join(separator.as_str()))))
         }
         Some(first_item) => {
-            return Err(RadError::UnsupportedOperator { 
+            Err(RadError::UnsupportedOperator { 
                 input_type: first_item.radon_type_name().to_string(),
                 operator: "ArrayJoin".to_string(), 
                 args: Some(args.to_vec())
-            });
+            })
         }
         _ => {
-            return Err(RadError::EmptyArray)
+            Err(RadError::EmptyArray)
         }
     }
 }

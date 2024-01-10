@@ -37,7 +37,7 @@ pub fn as_bytes(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonB
     let wrong_args = || RadError::WrongArguments { 
         input_type: RadonString::radon_type_name(),
         operator: "AsBytes".to_string(),
-        args: args.to_owned().unwrap_or(Vec::<Value>::default()).to_vec(),
+        args: args.to_owned().unwrap_or_default().to_vec(),
     };
     let mut input_string = input.value();
     if input_string.starts_with("0x") {
@@ -49,7 +49,7 @@ pub fn as_bytes(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonB
     let mut bytes_encoding = RadonBytesEncoding::Hex;
     match args {
         Some(args) => {
-            if args.len() > 0 {
+            if !args.is_empty() {
                 let arg = args.first().ok_or_else(wrong_args)?.to_owned();
                 let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
                 bytes_encoding = RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
@@ -203,7 +203,7 @@ pub fn parse_json_array(input: &RadonString, args: &Option<Vec<Value>>) -> Resul
                             description: err.to_string(),
                         })?;
                     let mut subitems: Vec<RadonTypes> = selector.find(&json_input)
-                        .map(|item| into_radon_types(item))
+                        .map(into_radon_types)
                         .collect();
                     if subitems.len() > 1 {
                         items.insert(items.len(), RadonArray::from(subitems).into());
@@ -222,7 +222,7 @@ pub fn parse_json_array(input: &RadonString, args: &Option<Vec<Value>>) -> Resul
                     description: err.to_string(),
                 })?;
             let items: Vec<RadonTypes> = selector.find(&json_input)
-                .map(|item| into_radon_types(item))
+                .map(into_radon_types)
                 .collect();
             Ok(RadonArray::from(items))
         }
@@ -254,7 +254,7 @@ fn into_radon_types(value: &serde_json::Value) -> RadonTypes {
         serde_json::Value::Array(values) => {
             let items: Vec<RadonTypes> = values
                 .iter()
-                .map(|item| into_radon_types(item))
+                .map(into_radon_types)
                 .collect();
             RadonTypes::from(RadonArray::from(items))
         }

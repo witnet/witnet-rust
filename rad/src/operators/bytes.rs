@@ -66,12 +66,12 @@ pub fn stringify(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonS
     let wrong_args = || RadError::WrongArguments { 
         input_type: RadonString::radon_type_name(),
         operator: "Stringify".to_string(),
-        args: args.to_owned().unwrap_or(Vec::<Value>::default()).to_vec(),
+        args: args.to_owned().unwrap_or_default().to_vec(),
     };
     let mut bytes_encoding = RadonBytesEncoding::Hex;
     match args {
         Some(args) => {
-            if args.len() > 0 {
+            if !args.is_empty() {
                 let arg = args.first().ok_or_else(wrong_args)?.to_owned();
                 let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
                 bytes_encoding = RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
