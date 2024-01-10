@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    fs,
-};
+use std::{collections::HashMap, convert::TryFrom, fs};
 
 use serde::{Deserialize, Serialize};
 
@@ -84,11 +80,10 @@ fn run_dr_locally_with_data(
     log::info!("Aggregation result: {:?}", aggregation_result);
 
     // Assume that all the required witnesses will report the same value
-    let reported_values: Result<Vec<RadonTypes>, _> =
-        vec![aggregation_result; dr.witnesses.try_into().unwrap()]
-            .into_iter()
-            .map(RadonTypes::try_from)
-            .collect();
+    let reported_values: Result<Vec<RadonTypes>, _> = vec![aggregation_result; dr.witnesses.into()]
+        .into_iter()
+        .map(RadonTypes::try_from)
+        .collect();
     log::info!("Running tally with values {:?}", reported_values);
     let tally_result =
         witnet_rad::run_tally(reported_values?, &dr.data_request.tally, &all_wips_active())?;

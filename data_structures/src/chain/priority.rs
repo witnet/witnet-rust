@@ -852,7 +852,7 @@ mod tests {
         let input = priorities_factory(10usize, 0.0..=100.0, None);
         let engine = PriorityEngine::from_vec_with_capacity(input.clone(), 5);
 
-        assert_eq!(engine.get(0), input.get(0));
+        assert_eq!(engine.get(0), input.first());
         assert_eq!(engine.get(1), input.get(1));
         assert_eq!(engine.get(2), input.get(2));
         assert_eq!(engine.get(3), input.get(3));

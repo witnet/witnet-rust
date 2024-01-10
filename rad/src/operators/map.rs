@@ -116,7 +116,7 @@ pub mod legacy {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, convert::TryFrom};
+    use std::collections::BTreeMap;
 
     use crate::{
         operators::{Operable, RadonOpCodes},
@@ -131,7 +131,7 @@ mod tests {
     fn test_map_get() {
         let key = "Zero";
         let value = RadonTypes::Integer(RadonInteger::from(0));
-        let args = vec![Value::try_from(String::from(key)).unwrap()];
+        let args = vec![Value::from(String::from(key))];
 
         let mut map = BTreeMap::new();
         map.insert(key.to_string(), value.clone());
