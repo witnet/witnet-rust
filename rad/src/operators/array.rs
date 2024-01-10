@@ -129,6 +129,7 @@ pub fn join(
                 RadonString::try_from(item).unwrap_or_default().value()
             ).collect();
             Ok(RadonTypes::from(RadonString::from(string_list.join(separator.as_str()))))
+        }
         Some(first_item) => {
             return Err(RadError::UnsupportedOperator { 
                 input_type: first_item.radon_type_name().to_string(),
