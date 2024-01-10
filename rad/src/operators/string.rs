@@ -7,9 +7,11 @@ use std::{
 use base64::Engine;
 use serde_cbor::value::{from_value, Value};
 use serde_json::Value as JsonValue;
+use jsonpath::Selector;
 
 use slicestring::Slice;
 use regex::Regex;
+use witnet_data_structures::radon_error::RadonError;
 
 use crate::{
     error::RadError,
@@ -142,18 +144,42 @@ pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
         serde_json::from_str(&input.value()).map_err(|err| RadError::JsonParse {
             description: err.to_string(),
         })?;
-
     RadonTypes::try_from(json_value)
 }
 
-pub fn parse_json_map(input: &RadonString) -> Result<RadonMap, RadError> {
-    let item = parse_json(input)?;
-    item.try_into()
-}
+pub fn parse_json_map(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonMap, RadError> {
+    let not_found = |json_path: &str| RadError::JsonPathNotFound { 
+        path: String::from(json_path) 
+    };
 
-pub fn parse_json_array(input: &RadonString) -> Result<RadonArray, RadError> {
-    let item = parse_json(input)?;
-    item.try_into()
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "ParseJsonMap".to_string(),
+        args: args.to_owned().unwrap_or_default(),
+    };
+
+    let json_input: JsonValue = serde_json::from_str(&input.value())
+        .map_err(|err| RadError::JsonParse {
+                description: err.to_string(),
+    })?;
+    
+    match args.to_owned().unwrap_or_default().get(0) {
+        Some(Value::Text(json_path)) => {
+            let selector = Selector::new(json_path.as_str())
+                .map_err(|err| RadError::JsonPathParse {
+                    description: err.to_string(),
+                })?;
+            let item = selector.find(&json_input)
+                .next()
+                .ok_or_else(|| not_found(json_path.as_str()))?;
+            RadonTypes::try_from(item.to_owned())?.try_into()
+        },
+        None => {
+            RadonTypes::try_from(json_input)?.try_into()
+        },
+        _ => Err(wrong_args())
+    }
+
 }
 
 fn add_children(
