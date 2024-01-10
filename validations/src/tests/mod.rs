@@ -2972,6 +2972,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let block_number = 0;
     let minimum_reppoe_difficulty = 1;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let superblock_period = 1;
 
     validate_commit_transaction(
         c_tx,
@@ -2987,6 +2988,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         block_number,
         minimum_reppoe_difficulty,
         &current_active_wips(),
+        superblock_period,
     )
     .map(|_| ())
 }
@@ -3003,6 +3005,7 @@ fn test_commit_with_dr_and_utxo_set(
     let collateral_minimum = 1;
     let collateral_age = 1;
     let minimum_reppoe_difficulty = 1;
+    let superblock_period = 1;
 
     let mut dr_pool = DataRequestPool::default();
     let vrf_input = CheckpointVRF::default();
@@ -3041,6 +3044,7 @@ fn test_commit_with_dr_and_utxo_set(
         block_number,
         minimum_reppoe_difficulty,
         &current_active_wips(),
+        superblock_period,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -3115,6 +3119,7 @@ fn test_commit_difficult_proof() {
     let active_wips = ActiveWips::default();
 
     let mut signatures_to_verify = vec![];
+    let superblock_period = 8;
     let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
@@ -3129,6 +3134,7 @@ fn test_commit_difficult_proof() {
         block_number,
         minimum_reppoe_difficulty,
         &active_wips,
+        superblock_period,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -3191,6 +3197,8 @@ fn test_commit_with_collateral(
     let cs = sign_tx(PRIV_KEY_1, &cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
+    let superblock_period = 1;
+
     validate_commit_transaction(
         &c_tx,
         &dr_pool,
@@ -3205,6 +3213,7 @@ fn test_commit_with_collateral(
         block_number,
         minimum_reppoe_difficulty,
         &current_active_wips(),
+        superblock_period,
     )
     .map(|_| ())
 }
@@ -3436,6 +3445,8 @@ fn commitment_invalid_proof() {
     let c_tx = CommitTransaction::new(cb, vec![cs]);
     let mut signatures_to_verify = vec![];
 
+    let superblock_period = 1;
+
     let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
@@ -3450,6 +3461,7 @@ fn commitment_invalid_proof() {
         block_number,
         minimum_reppoe_difficulty,
         &current_active_wips(),
+        superblock_period,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -3512,6 +3524,8 @@ fn commitment_dr_in_reveal_stage() {
     dr_pool.update_data_request_stages();
     let mut signatures_to_verify = vec![];
 
+    let superblock_period = 1;
+
     let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
@@ -3526,6 +3540,7 @@ fn commitment_dr_in_reveal_stage() {
         block_number,
         minimum_reppoe_difficulty,
         &current_active_wips(),
+        superblock_period,
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -3897,6 +3912,8 @@ fn commitment_collateral_zero_is_minimum() {
         let cs = sign_tx(PRIV_KEY_1, &cb);
         let c_tx = CommitTransaction::new(cb, vec![cs]);
 
+        let superblock_period = 1;
+
         validate_commit_transaction(
             &c_tx,
             &dr_pool,
@@ -3911,6 +3928,7 @@ fn commitment_collateral_zero_is_minimum() {
             block_number,
             minimum_reppoe_difficulty,
             &current_active_wips(),
+            superblock_period,
         )
         .map(|_| ())
     };
@@ -3988,6 +4006,7 @@ fn commitment_timelock() {
         let active_wips = active_wips_from_mainnet(epoch);
 
         let mut signatures_to_verify = vec![];
+        let superblock_period = 1;
         validate_commit_transaction(
             &c_tx,
             &dr_pool,
@@ -4002,6 +4021,7 @@ fn commitment_timelock() {
             block_number,
             minimum_reppoe_difficulty,
             &active_wips,
+            superblock_period,
         )
         .map(|_| ())?;
 
