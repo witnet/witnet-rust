@@ -5,7 +5,12 @@ use std::convert::TryFrom;
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
-    types::{bytes::{RadonBytes, RadonBytesEncoding}, string::RadonString, integer::RadonInteger, RadonType},
+    types::{
+        bytes::{RadonBytes, RadonBytesEncoding},
+        integer::RadonInteger,
+        string::RadonString,
+        RadonType,
+    },
 };
 
 pub fn as_integer(input: &RadonBytes) -> Result<RadonInteger, RadError> {
@@ -13,12 +18,14 @@ pub fn as_integer(input: &RadonBytes) -> Result<RadonInteger, RadError> {
     match input_value_len {
         1..=16 => {
             let mut bytes_array = [0u8; 16];
-            bytes_array[16 - input_value_len ..].copy_from_slice(&input.value());
+            bytes_array[16 - input_value_len..].copy_from_slice(&input.value());
             Ok(RadonInteger::from(i128::from_be_bytes(bytes_array)))
         }
-        17.. => Err(RadError::ParseInt { message: "Input buffer too big".to_string() }),
-        _ => Err(RadError::EmptyArray)
-    }    
+        17.. => Err(RadError::ParseInt {
+            message: "Input buffer too big".to_string(),
+        }),
+        _ => Err(RadError::EmptyArray),
+    }
 }
 
 pub fn hash(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError> {
@@ -43,17 +50,21 @@ pub fn length(input: &RadonBytes) -> RadonInteger {
 }
 
 pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "BytesSlice".to_string(),
         args: args.to_vec(),
     };
     let end_index = input.value().len();
     if end_index > 0 {
-        let start_index = from_value::<i64>(args[0].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
+        let start_index = from_value::<i64>(args[0].clone())
+            .unwrap_or_default()
+            .rem_euclid(end_index as i64) as usize;
         let mut slice = input.value().as_slice().split_at(start_index).1.to_vec();
         if args.len() == 2 {
-            let end_index = from_value::<i64>(args[1].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
+            let end_index = from_value::<i64>(args[1].clone())
+                .unwrap_or_default()
+                .rem_euclid(end_index as i64) as usize;
             slice.truncate(end_index - start_index);
         }
         Ok(RadonBytes::from(slice))
@@ -63,7 +74,7 @@ pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError>
 }
 
 pub fn stringify(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonString, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "Stringify".to_string(),
         args: args.to_owned().unwrap_or_default().to_vec(),
@@ -74,20 +85,18 @@ pub fn stringify(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonS
             if !args.is_empty() {
                 let arg = args.first().ok_or_else(wrong_args)?.to_owned();
                 let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
-                bytes_encoding = RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
+                bytes_encoding =
+                    RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
             }
         }
-        _ => ()
+        _ => (),
     }
     match bytes_encoding {
-        RadonBytesEncoding::Hex => {
-            RadonString::try_from(Value::Text(hex::encode(input.value())))
-        }
-        RadonBytesEncoding::Base64 => {
-            RadonString::try_from(Value::Text(base64::engine::general_purpose::STANDARD.encode(input.value())))
-        }
+        RadonBytesEncoding::Hex => RadonString::try_from(Value::Text(hex::encode(input.value()))),
+        RadonBytesEncoding::Base64 => RadonString::try_from(Value::Text(
+            base64::engine::general_purpose::STANDARD.encode(input.value()),
+        )),
     }
-    
 }
 
 #[cfg(test)]

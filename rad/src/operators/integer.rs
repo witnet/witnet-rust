@@ -5,8 +5,8 @@ use serde_cbor::value::{from_value, Value};
 use crate::{
     error::RadError,
     types::{
-        boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, string::RadonString,
-        RadonType, bytes::RadonBytes,
+        boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
+        string::RadonString, RadonType,
     },
 };
 
@@ -26,7 +26,7 @@ pub fn to_bytes(input: RadonInteger) -> Result<RadonBytes, RadError> {
     let mut leading_zeros = 0;
     for i in 0..bytes_array.len() {
         if bytes_array[i] != 0u8 {
-            break
+            break;
         } else {
             leading_zeros += 1;
         }

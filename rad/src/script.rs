@@ -1,8 +1,4 @@
-use std::{
-    clone::Clone,
-    convert::TryFrom,
-    iter,
-};
+use std::{clone::Clone, convert::TryFrom, iter};
 
 use serde_cbor::{
     self as cbor,

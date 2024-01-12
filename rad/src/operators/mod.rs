@@ -48,7 +48,7 @@ pub enum RadonOpCodes {
     BooleanNegate = 0x22,
     BooleanToString = 0x20,
     ///////////////////////////////////////////////////////////////////////
-    // Bytes operator codes (start at 0x30)   
+    // Bytes operator codes (start at 0x30)
     BytesAsInteger = 0x32,
     BytesHash = 0x31,
     BytesLength = 0x34,

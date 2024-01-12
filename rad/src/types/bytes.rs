@@ -104,9 +104,9 @@ impl Operable for RadonBytes {
             (RadonOpCodes::BytesLength, None) => {
                 Ok(RadonTypes::from(bytes_operators::length(self)))
             }
-            (RadonOpCodes::BytesSlice, Some(args)) => {
-                bytes_operators::slice(self, args.as_slice()).map(RadonTypes::from).map_err(Into::into)
-            },
+            (RadonOpCodes::BytesSlice, Some(args)) => bytes_operators::slice(self, args.as_slice())
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (RadonOpCodes::BytesStringify, args) => bytes_operators::stringify(self, args)
                 .map(RadonTypes::from)
                 .map_err(Into::into),

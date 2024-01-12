@@ -413,7 +413,10 @@ impl RadError {
                     })
                 }
             }
-            None => Err(RadError::DecodeRadonErrorEmptyArray),
+            None => {
+                println!("None");
+                Err(RadError::DecodeRadonErrorEmptyArray)
+            }
         }
     }
 

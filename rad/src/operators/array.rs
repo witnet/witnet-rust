@@ -1,6 +1,6 @@
 use std::{
     clone::Clone,
-    convert::{TryFrom, TryInto}
+    convert::{TryFrom, TryInto},
 };
 
 use serde_cbor::value::{from_value, Value};
@@ -11,7 +11,10 @@ use crate::{
     filters::{self, RadonFilters},
     operators::string,
     reducers::{self, RadonReducers},
-    script::{execute_radon_script, unpack_subscript, RadonScriptExecutionSettings, partial_results_extract},
+    script::{
+        execute_radon_script, partial_results_extract, unpack_subscript,
+        RadonScriptExecutionSettings,
+    },
     types::{array::RadonArray, integer::RadonInteger, string::RadonString, RadonType, RadonTypes},
 };
 
@@ -108,10 +111,7 @@ fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonString,
     )))
 }
 
-pub fn join(
-    input: &RadonArray,
-    args: &[Value]
-) -> Result<RadonTypes, RadError> {
+pub fn join(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     // Join not applicable if the input array is not homogeneous
     if !input.is_homogeneous() {
         return Err(RadError::UnsupportedOpNonHomogeneous {
@@ -140,6 +140,17 @@ pub fn join(
         _ => {
             Err(RadError::EmptyArray)
         }
+                .value()
+                .into_iter()
+                .map(|item| RadonString::try_from(item).unwrap_or_default().value())
+                .collect();
+            Ok(RadonTypes::from(RadonString::from(
+                string_list.join(separator.as_str()),
+            )))
+            operator: "ArrayJoin".to_string(),
+            args: Some(args.to_vec()),
+        }),
+        _ => Err(RadError::EmptyArray),
     }
 }
 
@@ -258,7 +269,7 @@ pub fn filter(
 pub fn pick(
     input: &RadonArray,
     args: &[Value],
-    _context: &mut ReportContext<RadonTypes>
+    _context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonTypes, RadError> {
     let not_found = |index: usize| RadError::ArrayIndexOutOfBounds {
         index: i32::try_from(index).unwrap(),
@@ -286,7 +297,7 @@ pub fn pick(
                 let index = from_value::<usize>(first_arg.clone()).map_err(|_| wrong_args())?;
                 indexes.push(index);
             }
-            _ => return Err(wrong_args())
+            _ => return Err(wrong_args()),
         };
     }
 
@@ -472,8 +483,8 @@ mod tests {
         operators::{
             Operable,
             RadonOpCodes::{
-                IntegerGreaterThan, IntegerMultiply, MapGetBoolean, MapGetFloat, MapGetInteger,
-                MapGetString, self,
+                self, IntegerGreaterThan, IntegerMultiply, MapGetBoolean, MapGetFloat,
+                MapGetInteger, MapGetString,
             },
         },
         types::{

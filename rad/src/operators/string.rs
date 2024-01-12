@@ -5,20 +5,26 @@ use std::{
 };
 
 use base64::Engine;
+use jsonpath::Selector;
 use serde_cbor::value::{from_value, Value};
 use serde_json::Value as JsonValue;
-use jsonpath::Selector;
 
-use slicestring::Slice;
 use regex::Regex;
+use slicestring::Slice;
 use witnet_data_structures::radon_error::RadonError;
 
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
     types::{
-        array::RadonArray, boolean::RadonBoolean, bytes::{RadonBytes, RadonBytesEncoding}, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
+        array::RadonArray,
+        boolean::RadonBoolean,
+        bytes::{RadonBytes, RadonBytesEncoding},
+        float::RadonFloat,
+        integer::RadonInteger,
+        map::RadonMap,
+        string::RadonString,
+        RadonType, RadonTypes,
     },
 };
 
@@ -34,7 +40,7 @@ pub fn as_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
 }
 
 pub fn as_bytes(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonBytes, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "AsBytes".to_string(),
         args: args.to_owned().unwrap_or_default().to_vec(),
@@ -52,30 +58,27 @@ pub fn as_bytes(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonB
             if !args.is_empty() {
                 let arg = args.first().ok_or_else(wrong_args)?.to_owned();
                 let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
-                bytes_encoding = RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
+                bytes_encoding =
+                    RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
             }
         }
-        _ => ()
+        _ => (),
     }
     match bytes_encoding {
-        RadonBytesEncoding::Hex => {
-            Ok(RadonBytes::from(
-                hex::decode(input_string.as_str())
+        RadonBytesEncoding::Hex => Ok(RadonBytes::from(
+            hex::decode(input_string.as_str()).map_err(|_err| RadError::Decode {
+                from: "RadonString",
+                to: "RadonBytes",
+            })?,
+        )),
+        RadonBytesEncoding::Base64 => Ok(RadonBytes::from(
+            base64::engine::general_purpose::STANDARD
+                .decode(input.value())
                 .map_err(|_err| RadError::Decode {
                     from: "RadonString",
                     to: "RadonBytes",
-                })?
-            ))  
-        }
-        RadonBytesEncoding::Base64 => {
-            Ok(RadonBytes::from(
-                base64::engine::general_purpose::STANDARD.decode(input.value())
-                .map_err(|_err| RadError::Decode { 
-                    from: "RadonString", 
-                    to: "RadonBytes" 
-                })?
-            ))
-        }
+                })?,
+        )),
     }
 }
 
@@ -147,64 +150,69 @@ pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     RadonTypes::try_from(json_value)
 }
 
-pub fn parse_json_map(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonMap, RadError> {
-    let not_found = |json_path: &str| RadError::JsonPathNotFound { 
-        path: String::from(json_path) 
+pub fn parse_json_map(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonMap, RadError> {
+    let not_found = |json_path: &str| RadError::JsonPathNotFound {
+        path: String::from(json_path),
     };
 
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "ParseJsonMap".to_string(),
         args: args.to_owned().unwrap_or_default(),
     };
 
-    let json_input: JsonValue = serde_json::from_str(&input.value())
-        .map_err(|err| RadError::JsonParse {
-                description: err.to_string(),
-    })?;
-    
+    let json_input: JsonValue =
+        serde_json::from_str(&input.value()).map_err(|err| RadError::JsonParse {
+            description: err.to_string(),
+        })?;
+
     match args.to_owned().unwrap_or_default().get(0) {
         Some(Value::Text(json_path)) => {
-            let selector = Selector::new(json_path.as_str())
-                .map_err(|err| RadError::JsonPathParse {
+            let selector =
+                Selector::new(json_path.as_str()).map_err(|err| RadError::JsonPathParse {
                     description: err.to_string(),
                 })?;
-            let item = selector.find(&json_input)
+            let item = selector
+                .find(&json_input)
                 .next()
                 .ok_or_else(|| not_found(json_path.as_str()))?;
             RadonTypes::try_from(item.to_owned())?.try_into()
-        },
-        None => {
-            RadonTypes::try_from(json_input)?.try_into()
-        },
-        _ => Err(wrong_args())
+        }
+        None => RadonTypes::try_from(json_input)?.try_into(),
+        _ => Err(wrong_args()),
     }
 }
 
-pub fn parse_json_array(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonArray, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+pub fn parse_json_array(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonArray, RadError> {
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "ParseJsonArray".to_string(),
         args: args.to_owned().unwrap_or_default(),
     };
 
-    let json_input: JsonValue = serde_json::from_str(&input.value())
-        .map_err(|err| RadError::JsonParse {
-                description: err.to_string(),
-    })?;
+    let json_input: JsonValue =
+        serde_json::from_str(&input.value()).map_err(|err| RadError::JsonParse {
+            description: err.to_string(),
+        })?;
 
     match args.to_owned().unwrap_or_default().get(0) {
         Some(Value::Array(values)) => {
             let mut items: Vec<RadonTypes> = vec![];
             for path in values {
                 if let Value::Text(json_path) = path {
-                    let selector = Selector::new(json_path.as_str())
-                        .map_err(|err| RadError::JsonPathParse { 
+                    let selector = Selector::new(json_path.as_str()).map_err(|err| {
+                        RadError::JsonPathParse {
                             description: err.to_string(),
-                        })?;
-                    let mut subitems: Vec<RadonTypes> = selector.find(&json_input)
-                        .map(into_radon_types)
-                        .collect();
+                        }
+                    })?;
+                    let mut subitems: Vec<RadonTypes> =
+                        selector.find(&json_input).map(into_radon_types).collect();
                     if subitems.len() > 1 {
                         items.insert(items.len(), RadonArray::from(subitems).into());
                     } else {
@@ -217,19 +225,15 @@ pub fn parse_json_array(input: &RadonString, args: &Option<Vec<Value>>) -> Resul
             Ok(RadonArray::from(items))
         }
         Some(Value::Text(json_path)) => {
-            let selector = Selector::new(json_path.as_str())
-                .map_err(|err| RadError::JsonPathParse {
+            let selector =
+                Selector::new(json_path.as_str()).map_err(|err| RadError::JsonPathParse {
                     description: err.to_string(),
                 })?;
-            let items: Vec<RadonTypes> = selector.find(&json_input)
-                .map(into_radon_types)
-                .collect();
+            let items: Vec<RadonTypes> = selector.find(&json_input).map(into_radon_types).collect();
             Ok(RadonArray::from(items))
         }
-        None => {
-            RadonTypes::try_from(json_input)?.try_into()
-        }
-        _ => Err(wrong_args())
+        None => RadonTypes::try_from(json_input)?.try_into(),
+        _ => Err(wrong_args()),
     }
 }
 
@@ -239,9 +243,11 @@ fn into_radon_types(value: &serde_json::Value) -> RadonTypes {
             if value.is_f64() {
                 RadonTypes::from(RadonFloat::from(value.as_f64().unwrap_or_default()))
             } else {
-                RadonTypes::from(RadonInteger::from(value.as_i64().unwrap_or_default() as i128))
+                RadonTypes::from(RadonInteger::from(
+                    value.as_i64().unwrap_or_default() as i128
+                ))
             }
-        },
+        }
         serde_json::Value::Bool(value) => RadonTypes::from(RadonBoolean::from(*value)),
         serde_json::Value::String(value) => RadonTypes::from(RadonString::from(value.clone())),
         serde_json::Value::Object(entries) => {
@@ -252,13 +258,12 @@ fn into_radon_types(value: &serde_json::Value) -> RadonTypes {
             RadonTypes::from(RadonMap::from(object))
         }
         serde_json::Value::Array(values) => {
-            let items: Vec<RadonTypes> = values
-                .iter()
-                .map(into_radon_types)
-                .collect();
+            let items: Vec<RadonTypes> = values.iter().map(into_radon_types).collect();
             RadonTypes::from(RadonArray::from(items))
         }
-        _ => RadonTypes::from(RadonError::new(RadError::JsonParse { description: value.to_string() }))
+        _ => RadonTypes::from(RadonError::new(RadError::JsonParse {
+            description: value.to_string(),
+        })),
     }
 }
 
@@ -372,20 +377,22 @@ pub fn radon_trim(input: &RadonString) -> String {
     }
 }
 
-
 pub fn replace(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "StringReplace".to_string(),
         args: args.to_vec(),
     };
     let regex = RadonString::try_from(args.first().ok_or_else(wrong_args)?.to_owned())?;
     let replacement = RadonString::try_from(args.get(1).ok_or_else(wrong_args)?.to_owned())?;
-    Ok(RadonString::from(input.value().as_str().replace(regex.value().as_str(), replacement.value().as_str())))
+    Ok(RadonString::from(input.value().as_str().replace(
+        regex.value().as_str(),
+        replacement.value().as_str(),
+    )))
 }
 
 pub fn slice(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "StringSlice".to_string(),
         args: args.to_vec(),
@@ -393,26 +400,40 @@ pub fn slice(input: &RadonString, args: &[Value]) -> Result<RadonString, RadErro
     let mut end_index: usize = input.value().len();
     match args.len() {
         2 => {
-            let start_index = from_value::<i64>(args[0].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
-            end_index = from_value::<i64>(args[1].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
-            Ok(RadonString::from(input.value().as_str().slice(start_index..end_index)))
+            let start_index = from_value::<i64>(args[0].clone())
+                .unwrap_or_default()
+                .rem_euclid(end_index as i64) as usize;
+            end_index = from_value::<i64>(args[1].clone())
+                .unwrap_or_default()
+                .rem_euclid(end_index as i64) as usize;
+            Ok(RadonString::from(
+                input.value().as_str().slice(start_index..end_index),
+            ))
         }
         1 => {
-            let start_index = from_value::<i64>(args[0].clone()).unwrap_or_default().rem_euclid(end_index as i64) as usize;
-            Ok(RadonString::from(input.value().as_str().slice(start_index..end_index)))
+            let start_index = from_value::<i64>(args[0].clone())
+                .unwrap_or_default()
+                .rem_euclid(end_index as i64) as usize;
+            Ok(RadonString::from(
+                input.value().as_str().slice(start_index..end_index),
+            ))
         }
-        _ => Err(wrong_args())
+        _ => Err(wrong_args()),
     }
 }
 
 pub fn split(input: &RadonString, args: &[Value]) -> Result<RadonArray, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "StringSplit".to_string(),
         args: args.to_vec(),
     };
     let pattern = RadonString::try_from(args.first().ok_or_else(wrong_args)?.to_owned())?;
-    let parts: Vec<RadonTypes> = Regex::new(pattern.value().as_str()).unwrap().split(input.value().as_str()).map(|part| RadonTypes::from(RadonString::from(part))).collect();
+    let parts: Vec<RadonTypes> = Regex::new(pattern.value().as_str())
+        .unwrap()
+        .split(input.value().as_str())
+        .map(|part| RadonTypes::from(RadonString::from(part)))
+        .collect();
     Ok(RadonArray::from(parts))
 }
 
