@@ -1,18 +1,20 @@
 use std::{
     clone::Clone,
     convert::{TryFrom, TryInto},
-    iter,
 };
 
 use serde_cbor::value::{from_value, Value};
-use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage};
+use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
     filters::{self, RadonFilters},
-    operators::{string, RadonOpCodes},
+    operators::string,
     reducers::{self, RadonReducers},
-    script::{execute_radon_script, unpack_subscript, RadonCall, RadonScriptExecutionSettings},
+    script::{
+        execute_radon_script, partial_results_extract, unpack_subscript,
+        RadonScriptExecutionSettings,
+    },
     types::{array::RadonArray, integer::RadonInteger, string::RadonString, RadonType, RadonTypes},
 };
 
@@ -107,6 +109,38 @@ fn get_numeric_string(input: &RadonArray, args: &[Value]) -> Result<RadonString,
         thousands_separator,
         decimal_separator,
     )))
+}
+
+pub fn join(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+    // Join not applicable if the input array is not homogeneous
+    if !input.is_homogeneous() {
+        return Err(RadError::UnsupportedOpNonHomogeneous {
+            operator: "ArrayJoin".to_string(),
+        });
+    }
+    let separator = if !args.is_empty() {
+        from_value::<String>(args[0].to_owned()).unwrap_or_default()
+    } else {
+        String::from("")
+    };
+    match input.value().first() {
+        Some(RadonTypes::String(_)) => {
+            let string_list: Vec<String> = input
+                .value()
+                .into_iter()
+                .map(|item| RadonString::try_from(item).unwrap_or_default().value())
+                .collect();
+            Ok(RadonTypes::from(RadonString::from(
+                string_list.join(separator.as_str()),
+            )))
+        }
+        Some(first_item) => Err(RadError::UnsupportedOperator {
+            input_type: first_item.radon_type_name().to_string(),
+            operator: "ArrayJoin".to_string(),
+            args: Some(args.to_vec()),
+        }),
+        _ => Err(RadError::EmptyArray),
+    }
 }
 
 pub fn map(
@@ -221,6 +255,52 @@ pub fn filter(
     }
 }
 
+pub fn pick(
+    input: &RadonArray,
+    args: &[Value],
+    _context: &mut ReportContext<RadonTypes>,
+) -> Result<RadonTypes, RadError> {
+    let not_found = |index: usize| RadError::ArrayIndexOutOfBounds {
+        index: i32::try_from(index).unwrap(),
+    };
+
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonArray::radon_type_name(),
+        operator: "Pick".to_string(),
+        args: args.to_vec(),
+    };
+
+    let mut indexes = vec![];
+    if args.len() > 1 {
+        return Err(wrong_args());
+    } else {
+        let first_arg = args.get(0).ok_or_else(wrong_args)?;
+        match first_arg {
+            Value::Array(values) => {
+                for value in values.iter() {
+                    let index = from_value::<usize>(value.clone()).map_err(|_| wrong_args())?;
+                    indexes.push(index);
+                }
+            }
+            Value::Integer(_) => {
+                let index = from_value::<usize>(first_arg.clone()).map_err(|_| wrong_args())?;
+                indexes.push(index);
+            }
+            _ => return Err(wrong_args()),
+        };
+    }
+
+    let mut output_vec: Vec<RadonTypes> = vec![];
+    for index in indexes {
+        if let Some(value) = input.value().get(index) {
+            output_vec.push(value.clone());
+        } else {
+            return Err(not_found(index));
+        }
+    }
+    Ok(RadonTypes::from(RadonArray::from(output_vec)))
+}
+
 pub fn sort(
     input: &RadonArray,
     args: &[Value],
@@ -297,27 +377,6 @@ pub fn sort(
     let result: Vec<_> = tuple_array.into_iter().map(|(a, _)| a.clone()).collect();
 
     Ok(RadonArray::from(result).into())
-}
-
-fn partial_results_extract(
-    subscript: &[RadonCall],
-    reports: &[RadonReport<RadonTypes>],
-    context: &mut ReportContext<RadonTypes>,
-) {
-    if let Stage::Retrieval(metadata) = &mut context.stage {
-        metadata.subscript_partial_results.push(subscript.iter().chain(iter::once(&(RadonOpCodes::Fail, None))).enumerate().map(|(index, _)|
-            reports
-                .iter()
-                .map(|report|
-                report.partial_results
-                    .as_ref()
-                    .expect("Execution reports from applying subscripts are expected to contain partial results")
-                    .get(index)
-                    .expect("Execution reports from applying same subscript on multiple values should contain the same number of partial results")
-                    .clone()
-            ).collect::<Vec<RadonTypes>>()
-        ).collect::<Vec<Vec<RadonTypes>>>());
-    }
 }
 
 pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
@@ -406,15 +465,15 @@ pub mod legacy {
 mod tests {
     use std::collections::BTreeMap;
 
-    use witnet_data_structures::radon_report::RetrievalMetadata;
+    use witnet_data_structures::radon_report::{RetrievalMetadata, Stage};
 
     use crate::{
         error::RadError,
         operators::{
             Operable,
             RadonOpCodes::{
-                IntegerGreaterThan, IntegerMultiply, MapGetBoolean, MapGetFloat, MapGetInteger,
-                MapGetString,
+                self, IntegerGreaterThan, IntegerMultiply, MapGetBoolean, MapGetFloat,
+                MapGetInteger, MapGetString,
             },
         },
         types::{

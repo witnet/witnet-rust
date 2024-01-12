@@ -147,7 +147,7 @@ name = "async-jsonrpc-client"
 version = "0.1.0"
 source = "git+https://github.com/witnet/async-jsonrpc-client?branch=fix-tcp-leak#600a2d696af265511868f77c01e448c1d678650e"
 dependencies = [
- "error-chain",
+ "error-chain 0.12.4",
  "futures 0.1.31",
  "jsonrpc-core 10.1.0",
  "log 0.4.19",
@@ -242,9 +242,9 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
-version = "0.21.2"
+version = "0.21.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
+checksum = "35636a1494ede3b646cc98f74f8e62c773a38a659ebc777a2cf26b9b74171df9"
 
 [[package]]
 name = "bech32"
@@ -927,6 +927,15 @@ checksum = "aa68f1b12764fab894d2755d2518754e71b4fd80ecfb822714a1206c2aab39bf"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "error-chain"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff511d5dc435d703f4971bc399647c9bc38e20cb41452e3b9feb4765419ed3f3"
+dependencies = [
+ "backtrace",
 ]
 
 [[package]]
@@ -1751,6 +1760,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5f195fe497f702db0f318b07fdd68edb16955aed830df8363d837542f8f935a"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "jsonpath"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8061db09019f1879ba586685694fe18279f597b1b3a9dd308f35e596be6cdf7d"
+dependencies = [
+ "error-chain 0.11.0",
+ "pest",
+ "pest_derive",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2745,6 +2767,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
 
 [[package]]
+name = "pest"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fce5d8b5cc33983fc74f78ad552b5522ab41442c4ca91606e4236eb4b5ceefc"
+
+[[package]]
+name = "pest_derive"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca3294f437119209b084c797604295f40227cffa35c57220b1e99a6ff3bf8ee4"
+dependencies = [
+ "pest",
+ "quote 0.3.15",
+ "syn 0.11.11",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2967,6 +3006,12 @@ checksum = "8533f14c8382aaad0d592c812ac3b826162128b65662331e1127b45c3d18536b"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "quote"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a6e920b65c65f10b2ae65c831a81a073a89edd28c7cce89475bff467ab4167a"
 
 [[package]]
 name = "quote"
@@ -3252,7 +3297,7 @@ version = "0.11.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cde824a14b7c14f85caff81225f411faacc04a2013f41670f41443742b1c1c55"
 dependencies = [
- "base64 0.21.2",
+ "base64 0.21.5",
  "bytes 1.4.0",
  "encoding_rs",
  "futures-core",
@@ -3720,6 +3765,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "slicestring"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da7b0ad4ee74da25b3ff80bc5aa633bf8b1e0bbaf577c6f44529a26ad2d9df75"
+
+[[package]]
 name = "sluice"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3822,6 +3873,17 @@ checksum = "2d67a5a62ba6e01cb2192ff309324cb4875d0c451d55fe2319433abe7a05a8ee"
 
 [[package]]
 name = "syn"
+version = "0.11.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3b891b9015c88c576343b9b3e41c2c11a51c219ef067b264bd9c8aa9b441dad"
+dependencies = [
+ "quote 0.3.15",
+ "synom",
+ "unicode-xid 0.0.4",
+]
+
+[[package]]
+name = "syn"
 version = "0.15.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ca4b3b69a77cbe1ffc9e198781b7acb0c7365a883670e8f1c1bc66fba79a5c5"
@@ -3851,6 +3913,15 @@ dependencies = [
  "proc-macro2 1.0.60",
  "quote 1.0.28",
  "unicode-ident",
+]
+
+[[package]]
+name = "synom"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a393066ed9010ebaed60b9eafa373d4b1baac186dd7e008555b0f702b51945b6"
+dependencies = [
+ "unicode-xid 0.0.4",
 ]
 
 [[package]]
@@ -4468,6 +4539,12 @@ checksum = "c0edd1e5b14653f783770bce4a4dabb4a5108a5370a5f5d8cfe8710c361f6c8b"
 
 [[package]]
 name = "unicode-xid"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c1f860d7d29cf02cb2f3f359fd35991af3d30bac52c57d265a3c461074cb4dc"
+
+[[package]]
+name = "unicode-xid"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc72304796d0818e357ead4e000d19c9c174ab23dc11093ac919054d20a6a7fc"
@@ -4490,7 +4567,7 @@ version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b11c96ac7ee530603dcdf68ed1557050f374ce55a5a07193ebf8cbc9f8927e9"
 dependencies = [
- "base64 0.21.2",
+ "base64 0.21.5",
  "log 0.4.19",
  "native-tls",
  "once_cell",
@@ -4958,7 +5035,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "ansi_term",
  "bytecount",
@@ -5005,7 +5082,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -5069,7 +5146,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "bech32",
  "bencher",
@@ -5134,7 +5211,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "actix",
  "ansi_term",
@@ -5198,22 +5275,26 @@ dependencies = [
 
 [[package]]
 name = "witnet_rad"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
+ "base64 0.21.5",
  "cbor-codec",
  "failure",
  "futures 0.3.28",
  "hex",
  "http",
  "if_rust_version",
+ "jsonpath",
  "log 0.4.19",
  "minidom",
  "num_enum",
  "ordered-float",
  "rand 0.7.3",
+ "regex",
  "serde",
  "serde_cbor",
  "serde_json",
+ "slicestring",
  "url",
  "witnet_config",
  "witnet_crypto",
@@ -5241,7 +5322,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "failure",
  "hex",
@@ -5284,7 +5365,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "1.6.7"
+version = "2.0.0"
 dependencies = [
  "actix",
  "async-jsonrpc-client",

@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{clone::Clone, convert::TryFrom, iter};
 
 use serde_cbor::{
     self as cbor,
@@ -280,6 +280,27 @@ pub fn create_radon_script_from_filters_and_reducer(
     Ok(radoncall_vec)
 }
 
+pub fn partial_results_extract(
+    subscript: &[RadonCall],
+    reports: &[RadonReport<RadonTypes>],
+    context: &mut ReportContext<RadonTypes>,
+) {
+    if let Stage::Retrieval(metadata) = &mut context.stage {
+        metadata.subscript_partial_results.push(subscript.iter().chain(iter::once(&(RadonOpCodes::Fail, None))).enumerate().map(|(index, _)|
+            reports
+                .iter()
+                .map(|report|
+                report.partial_results
+                    .as_ref()
+                    .expect("Execution reports from applying subscripts are expected to contain partial results")
+                    .get(index)
+                    .expect("Execution reports from applying same subscript on multiple values should contain the same number of partial results")
+                    .clone()
+            ).collect::<Vec<RadonTypes>>()
+        ).collect::<Vec<Vec<RadonTypes>>>());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -299,7 +320,7 @@ mod tests {
             r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#,
         ));
         let script = vec![
-            (RadonOpCodes::StringParseJSONMap, None),
+            (RadonOpCodes::StringParseJSONMap, Some(vec![])),
             (
                 RadonOpCodes::MapGetMap,
                 Some(vec![Value::Text(String::from("main"))]),

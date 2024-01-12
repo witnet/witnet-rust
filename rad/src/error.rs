@@ -38,6 +38,15 @@ pub enum RadError {
         description
     )]
     JsonParse { description: String },
+    /// The given JSON path is not present in a JSON-stringified object
+    #[fail(display = "Failed to find JSON path `{}` from RadonString", path)]
+    JsonPathNotFound { path: String },
+    /// Failed to parse a JSON path selector from a string value
+    #[fail(
+        display = "Failed to parse a JSON path from a string value: {:?}",
+        description
+    )]
+    JsonPathParse { description: String },
     /// Failed to parse an object from a XML buffer
     #[fail(
         display = "Failed to parse an object from a XML buffer: {:?}",
@@ -404,7 +413,10 @@ impl RadError {
                     })
                 }
             }
-            None => Err(RadError::DecodeRadonErrorEmptyArray),
+            None => {
+                println!("None");
+                Err(RadError::DecodeRadonErrorEmptyArray)
+            }
         }
     }
 
@@ -431,6 +443,10 @@ impl RadError {
         }
 
         Ok(RadonError::new(match kind {
+            RadonErrors::BufferIsNotValue => {
+                let (description,) = deserialize_args(error_args)?;
+                RadError::BufferIsNotValue { description }
+            }
             RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
             RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
             RadonErrors::Overflow => RadError::Overflow,
@@ -548,6 +564,7 @@ impl RadError {
                 };
                 Some(serialize_args((message,))?)
             }
+            RadError::BufferIsNotValue { description } => Some(serialize_args((description,))?),
             _ => None,
         };
 
@@ -574,6 +591,7 @@ impl RadError {
     pub fn try_into_error_code(&self) -> Result<RadonErrors, RadError> {
         Ok(match self {
             RadError::Unknown => RadonErrors::Unknown,
+            RadError::BufferIsNotValue { .. } => RadonErrors::BufferIsNotValue,
             RadError::SourceScriptNotCBOR => RadonErrors::SourceScriptNotCBOR,
             RadError::SourceScriptNotArray => RadonErrors::SourceScriptNotArray,
             RadError::SourceScriptNotRADON => RadonErrors::SourceScriptNotRADON,
@@ -752,6 +770,9 @@ mod tests {
             RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept {
                 inner: None,
                 message: Some("Only the message field is serialized".to_string()),
+            },
+            RadonErrors::BufferIsNotValue => RadError::BufferIsNotValue {
+                description: "Buffer is no value".to_string(),
             },
             // If this panics after adding a new `RadonTypes`, add a new example above
             _ => panic!("No example for {:?}", radon_errors),
