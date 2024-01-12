@@ -123,23 +123,9 @@ pub fn join(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> 
     } else {
         String::from("")
     };
-    match input.value().first()  {
+    match input.value().first() {
         Some(RadonTypes::String(_)) => {
-            let string_list: Vec<String> = input.value().into_iter().map(|item| 
-                RadonString::try_from(item).unwrap_or_default().value()
-            ).collect();
-            Ok(RadonTypes::from(RadonString::from(string_list.join(separator.as_str()))))
-        }
-        Some(first_item) => {
-            Err(RadError::UnsupportedOperator { 
-                input_type: first_item.radon_type_name().to_string(),
-                operator: "ArrayJoin".to_string(), 
-                args: Some(args.to_vec())
-            })
-        }
-        _ => {
-            Err(RadError::EmptyArray)
-        }
+            let string_list: Vec<String> = input
                 .value()
                 .into_iter()
                 .map(|item| RadonString::try_from(item).unwrap_or_default().value())
@@ -147,6 +133,9 @@ pub fn join(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> 
             Ok(RadonTypes::from(RadonString::from(
                 string_list.join(separator.as_str()),
             )))
+        }
+        Some(first_item) => Err(RadError::UnsupportedOperator {
+            input_type: first_item.radon_type_name().to_string(),
             operator: "ArrayJoin".to_string(),
             args: Some(args.to_vec()),
         }),

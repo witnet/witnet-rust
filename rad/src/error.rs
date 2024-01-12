@@ -564,6 +564,7 @@ impl RadError {
                 };
                 Some(serialize_args((message,))?)
             }
+            RadError::BufferIsNotValue { description } => Some(serialize_args((description,))?),
             _ => None,
         };
 
@@ -769,6 +770,9 @@ mod tests {
             RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept {
                 inner: None,
                 message: Some("Only the message field is serialized".to_string()),
+            },
+            RadonErrors::BufferIsNotValue => RadError::BufferIsNotValue {
+                description: "Buffer is no value".to_string(),
             },
             // If this panics after adding a new `RadonTypes`, add a new example above
             _ => panic!("No example for {:?}", radon_errors),
