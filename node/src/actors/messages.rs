@@ -9,19 +9,21 @@ use std::{
     time::Duration,
 };
 
-use actix::{Actor, Addr, dev::{MessageResponse, OneshotSender, ToEnvelope}, Handler, Message};
+use actix::{
+    dev::{MessageResponse, OneshotSender, ToEnvelope},
+    Actor, Addr, Handler, Message,
+};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tokio::net::TcpStream;
 
-use witnet_crypto::secp256k1::ecdsa::{RecoverableSignature, RecoveryId};
 use witnet_data_structures::{
     chain::{
-        Block,
-        CheckpointBeacon,
-        DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash, InventoryEntry, InventoryItem,
-        KeyedSignature, NodeStats, PointerToBlock, priority::PrioritiesEstimate, PublicKeyHash, PublicKeyHashParseError,
-        RADRequest, RADTally, Reputation, StakeOutput, StateMachine, SuperBlock,
-        SuperBlockVote, SupplyInfo, tapi::{ActiveWips, BitVotesCounter}, ValueTransferOutput,
+        priority::PrioritiesEstimate,
+        tapi::{ActiveWips, BitVotesCounter},
+        Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
+        InventoryEntry, InventoryItem, KeyedSignature, NodeStats, PointerToBlock, PublicKeyHash,
+        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StakeOutput, StateMachine,
+        SuperBlock, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
@@ -222,7 +224,7 @@ impl Message for BuildVtt {
 /// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildStake {
-    /// List of `ValueTransferOutput`s
+    /// One instance of `StakeOutput`
     pub stake_output: StakeOutput,
     /// Fee
     #[serde(default)]
@@ -260,6 +262,22 @@ pub struct BuildStakeParams {
     /// Construct the transaction but do not broadcast it
     #[serde(default)]
     pub dry_run: bool,
+}
+
+/// The response to a `BuildStake` message. It gives important feedback about the addresses that will be involved in a
+/// stake transactions, subject to review and confirmation from the user.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct BuildStakeResponse {
+    /// A stake transaction that has been created as a response to a `BuildStake` message.
+    pub transaction: StakeTransaction,
+    /// The addresses of the staker. These are the addresses used in the stake transaction inputs.
+    pub staker: Vec<PublicKeyHash>,
+    /// The address of the validator. This shall be the address of the node that will operate this stake on behalf of
+    /// the staker.
+    pub validator: PublicKeyHash,
+    /// The address of the withdrawer. This shall be the an address controlled by the staker. When unstaking, the
+    /// staked principal plus any yield will only be spendable by this address.
+    pub withdrawer: PublicKeyHash,
 }
 
 /// Builds an `AuthorizeStake`
@@ -1360,7 +1378,10 @@ pub enum MagicEither<L, R> {
 
 impl<L, R> MagicEither<L, R> {
     /// Obtain an R value, even if this was an instance of L.
-    pub fn do_magic<F>(self, trick: F) -> R where F: Fn(L) -> R {
+    pub fn do_magic<F>(self, trick: F) -> R
+    where
+        F: Fn(L) -> R,
+    {
         match self {
             Self::Left(l) => trick(l),
             Self::Right(r) => r,
@@ -1368,7 +1389,10 @@ impl<L, R> MagicEither<L, R> {
     }
 
     /// Fallible version of `do_magic`.
-    pub fn try_do_magic<F, E>(self, trick: F) -> Result<R, E> where F: Fn(L) -> Result<R, E> {
+    pub fn try_do_magic<F, E>(self, trick: F) -> Result<R, E>
+    where
+        F: Fn(L) -> Result<R, E>,
+    {
         match self {
             Self::Left(l) => trick(l),
             Self::Right(r) => Ok(r),

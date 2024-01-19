@@ -682,8 +682,6 @@ impl ChainManager {
                 block_epoch: block.block_header.beacon.checkpoint,
             };
 
-            println!("1");
-
             let mut transaction_visitor = PriorityVisitor::default();
 
             let utxo_diff = process_validations(
@@ -703,14 +701,12 @@ impl ChainManager {
                 Some(&mut transaction_visitor),
             )?;
 
-            println!("2");
             // Extract the collected priorities from the internal state of the visitor
             let priorities = transaction_visitor.take_state();
 
             // Persist block and update ChainState
             self.consolidate_block(ctx, block, utxo_diff, priorities, resynchronizing);
 
-            println!("3");
             Ok(())
         } else {
             Err(ChainManagerError::ChainNotReady.into())
@@ -2778,7 +2774,6 @@ pub fn process_validations(
     active_wips: &ActiveWips,
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
 ) -> Result<Diff, failure::Error> {
-    println!("pv1");
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
         validate_block(
@@ -2793,7 +2788,7 @@ pub fn process_validations(
         )?;
         verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
-    println!("pv2");
+
     let mut signatures_to_verify = vec![];
     let utxo_dif = validate_block_transactions(
         utxo_set,
@@ -2808,11 +2803,11 @@ pub fn process_validations(
         active_wips,
         transaction_visitor,
     )?;
-    println!("pv3");
+
     if !resynchronizing {
         verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
-    println!("pv4");
+
     Ok(utxo_dif)
 }
 

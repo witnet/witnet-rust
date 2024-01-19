@@ -291,12 +291,12 @@ pub enum TransactionError {
     /// Stake amount below minimum
     #[fail(
         display = "The amount of coins in stake ({}) is less than the minimum allowed ({})",
-        min_stake, stake
+        stake, min_stake
     )]
     StakeBelowMinimum { min_stake: u64, stake: u64 },
     /// Unstaking more than the total staked
     #[fail(
-        display = "Unstaking ({}) more than the total staked ({})",
+        display = "Tried to unstake more coins than the current stake ({} > {})",
         unstake, stake
     )]
     UnstakingMoreThanStaked { stake: u64, unstake: u64 },

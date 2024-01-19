@@ -1296,7 +1296,7 @@ impl Handler<BuildStake> for ChainManager {
     type Result = ResponseActFuture<Self, <BuildStake as Message>::Result>;
 
     fn handle(&mut self, msg: BuildStake, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
+        if !msg.dry_run && self.sm_state != StateMachine::Synced {
             return Box::pin(actix::fut::err(
                 ChainManagerError::NotSynced {
                     current_state: self.sm_state,

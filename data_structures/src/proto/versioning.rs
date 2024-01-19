@@ -23,7 +23,7 @@ use crate::{
     types::Message,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ProtocolInfo {
     pub current_version: ProtocolVersion,
     pub all_versions: VersionsMap,
@@ -48,12 +48,12 @@ impl VersionsMap {
     }
 
     pub fn version_for_epoch(&self, queried_epoch: Epoch) -> ProtocolVersion {
-        *self
-            .vfe
+        self.vfe
             .iter()
             .rev()
-            .find(|(epoch, _)| **epoch < queried_epoch)
+            .find(|(epoch, _)| **epoch <= queried_epoch)
             .map(|(_, version)| version)
+            .copied()
             .unwrap_or_default()
     }
 }

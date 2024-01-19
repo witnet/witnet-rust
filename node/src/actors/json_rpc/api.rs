@@ -19,6 +19,7 @@ use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
+
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
@@ -38,12 +39,13 @@ use crate::{
         json_rpc::Subscriptions,
         messages::{
             AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
-            BuildStakeParams, BuildVtt, ClearPeers, DropAllPeers, EstimatePriority, GetBalance,
-            GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo,
-            GetEpoch, GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock,
-            GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats,
-            GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
-            IsConfirmedBlock, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
+            BuildStakeParams, BuildStakeResponse, BuildVtt, ClearPeers, DropAllPeers,
+            EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
+            GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
+            GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
+            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
+            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
+            SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -1942,14 +1944,26 @@ pub async fn snapshot_import(params: Result<SnapshotImportParams, Error>) -> Jso
 pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
+    let validator;
 
     // If a withdrawer address is not specified, default to local node address
+    let withdrawer_was_provided = params.withdrawer.is_some();
     let withdrawer = if let Some(address) = params.withdrawer {
-        address.try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str)).unwrap()
+        let address = address
+            .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))
+            .map_err(internal_error)?;
+        log::debug!("[STAKE] A withdrawer address was provided: {}", address);
+
+        address
     } else {
         let pk = signature_mngr::public_key().await.unwrap();
+        let address = PublicKeyHash::from_public_key(&pk);
+        log::debug!(
+            "[STAKE] No withdrawer address was provided, using the node's own address: {}",
+            address
+        );
 
-        PublicKeyHash::from_public_key(&pk)
+        address
     };
 
     // This is the actual message that gets signed as part of the authorization
@@ -1957,12 +1971,34 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
 
     // If no authorization message is provided, generate a new one using the withdrawer address
     let authorization = if let Some(signature) = params.authorization {
-        signature.do_magic(|hex_str| KeyedSignature::from_recoverable_hex(&hex_str, &msg))
+        // TODO: change to `try_do_magic` once `from_recoverable_hex` is made safe
+        let signature =
+            signature.do_magic(|hex_str| KeyedSignature::from_recoverable_hex(&hex_str, &msg));
+        validator = PublicKeyHash::from_public_key(&signature.public_key);
+        log::debug!(
+            "[STAKE] A stake authorization was provided, and it was signed by validator {}",
+            validator
+        );
+
+        // Avoid the risky situation where an authorization is provided, but it's authorizing a 3rd-party withdrawer
+        // without stating the withdrawer address explicitly. Why is this risky? Because the validator address is
+        // derived from the authorization itself using ECDSA recovery. If the withdrawer used here does not match the
+        // one that was authorized, the resulting stake will not only be non-withdrawable, but also not operable by the
+        // validator, because the ECDSA recovery will recover the wrong public key.
+        if !withdrawer_was_provided && withdrawer != validator {
+            return Err(internal_error_s("The provided authorization is signed by a third party but no withdrawer address was provided. Please provide a withdrawer address."));
+        }
+
+        signature
     } else {
-        signature_mngr::sign_data(msg)
+        let signature = signature_mngr::sign_data(msg)
             .map(|res| res.map_err(internal_error))
             .await
-            .unwrap()
+            .map_err(internal_error)?;
+        validator = PublicKeyHash::from_public_key(&signature.public_key);
+        log::debug!("[STAKE] No stake authorization was provided, producing one using the node's own address: {}", validator);
+
+        signature
     };
 
     // Construct a BuildStake message that we can relay to the ChainManager for creation of the Stake transaction
@@ -1979,13 +2015,30 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
     ChainManager::from_registry()
         .send(build_stake)
         .map(|res| match res {
-            Ok(Ok(hash)) => match serde_json::to_value(hash) {
-                Ok(x) => Ok(x),
-                Err(e) => {
-                    let err = internal_error_s(e);
-                    Err(err)
+            Ok(Ok(transaction)) => {
+                // In the event that this is a dry run, we want to inject some additional information into the
+                // response, so that the user can confirm the facts surrounding the stake transaction before
+                // submitting it
+                if params.dry_run {
+                    let staker = transaction
+                        .signatures
+                        .iter()
+                        .cloned()
+                        .map(|signature| signature.public_key.pkh())
+                        .collect();
+
+                    let bsr = BuildStakeResponse {
+                        transaction,
+                        staker,
+                        validator,
+                        withdrawer,
+                    };
+
+                    serde_json::to_value(bsr).map_err(|e| internal_error(e))
+                } else {
+                    serde_json::to_value(transaction).map_err(|e| internal_error(e))
                 }
-            },
+            }
             Ok(Err(e)) => {
                 let err = internal_error_s(e);
                 Err(err)

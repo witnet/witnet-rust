@@ -1212,7 +1212,7 @@ mod tests {
         // Validate block signature
         let mut signatures_to_verify = vec![];
         assert!(validate_block_signature(&block, &mut signatures_to_verify).is_ok());
-        matches!(verify_signatures(signatures_to_verify, vrf), Ok(_));
+        assert!(verify_signatures(signatures_to_verify, vrf).is_ok());
     }
 
     static MILLION_TX_OUTPUT: &str =
