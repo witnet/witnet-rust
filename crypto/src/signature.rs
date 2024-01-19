@@ -12,14 +12,14 @@ pub type PublicKey = secp256k1::PublicKey;
 /// secure hash function, otherwise this function is not secure.
 /// - Returns an Error if data is not a 32-byte array
 pub fn sign(secret_key: SecretKey, data: &[u8]) -> Result<Signature, Error> {
-    let msg = Message::from_slice(data)?;
+    let msg = Message::from_digest_slice(data)?;
 
     Ok(secret_key.sign_ecdsa(msg))
 }
 /// Verify signature with a provided public key.
 /// - Returns an Error if data is not a 32-byte array
 pub fn verify(public_key: &PublicKey, data: &[u8], sig: &Signature) -> Result<(), Error> {
-    let msg = Message::from_slice(data)?;
+    let msg = Message::from_digest_slice(data)?;
 
     sig.verify(&msg, public_key)
 }

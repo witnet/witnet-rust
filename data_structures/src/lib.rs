@@ -17,8 +17,11 @@ use std::sync::RwLock;
 
 use lazy_static::lazy_static;
 
-use crate::{chain::{Environment, Epoch}, proto::versioning::ProtocolVersion};
 use crate::proto::versioning::ProtocolInfo;
+use crate::{
+    chain::{Environment, Epoch},
+    proto::versioning::ProtocolVersion,
+};
 
 /// Module containing functions to generate Witnet's protocol messages
 pub mod builders;
@@ -129,7 +132,7 @@ pub fn get_protocol_version(epoch: Option<Epoch>) -> ProtocolVersion {
     if let Some(epoch) = epoch {
         protocol_info.all_versions.version_for_epoch(epoch)
     } else {
-        *protocol_info.current_version
+        protocol_info.current_version
     }
 }
 
@@ -137,14 +140,14 @@ pub fn register_protocol_version(epoch: Epoch, protocol_version: ProtocolVersion
     // This unwrap is safe as long as the lock is not poisoned.
     // The lock can only become poisoned when a writer panics.
     let mut protocol_info = PROTOCOL.write().unwrap();
-    *protocol_info.register(epoch, protocol_version);
+    protocol_info.register(epoch, protocol_version);
 }
 
 /// Set the protocol version that we are running.
 /// #[cfg(not(test))]
 pub fn set_protocol_version(protocol_version: ProtocolVersion) {
     let mut protocol = PROTOCOL.write().unwrap();
-    *protocol.current_version = protocol_version;
+    protocol.current_version = protocol_version;
 }
 
 #[cfg(test)]
@@ -159,10 +162,36 @@ mod tests {
     }
 
     #[test]
-    fn default_protocol_version() {
+    fn protocol_versions() {
         // If this default changes before the transition to V2 is complete, almost everything will
         // break because data structures change schema and, serialization changes and hash
         // derivation breaks too
-        assert_eq!(get_protocol_version(), ProtocolVersion::V1_7);
+        let version = get_protocol_version(None);
+        assert_eq!(version, ProtocolVersion::V1_7);
+
+        // Register the different protocol versions
+        register_protocol_version(100, ProtocolVersion::V1_7);
+        register_protocol_version(200, ProtocolVersion::V1_8);
+        register_protocol_version(300, ProtocolVersion::V2_0);
+
+        // The initial protocol version should be the default one
+        let version = get_protocol_version(Some(0));
+        assert_eq!(version, ProtocolVersion::V1_7);
+
+        // Right after the
+        let version = get_protocol_version(Some(100));
+        assert_eq!(version, ProtocolVersion::V1_7);
+        let version = get_protocol_version(Some(200));
+        assert_eq!(version, ProtocolVersion::V1_8);
+        let version = get_protocol_version(Some(300));
+        assert_eq!(version, ProtocolVersion::V2_0);
+
+        let version = get_protocol_version(None);
+        assert_eq!(version, ProtocolVersion::V1_7);
+
+        set_protocol_version(ProtocolVersion::V2_0);
+
+        let version = get_protocol_version(None);
+        assert_eq!(version, ProtocolVersion::V2_0);
     }
 }

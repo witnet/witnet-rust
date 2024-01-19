@@ -10,7 +10,7 @@ use structopt::StructOpt;
 use witnet_config::config::Config;
 use witnet_data_structures::{chain::Epoch, fee::Fee};
 use witnet_node as node;
-use witnet_node::actors::messages::GetBalanceTarget;
+use witnet_node::actors::messages::{GetBalanceTarget, MagicEither};
 
 use super::json_rpc_client as rpc;
 
@@ -272,15 +272,19 @@ pub fn exec_cmd(
         Command::Stake {
             node,
             value,
+            authorization,
             withdrawer,
             fee,
+            require_confirmation,
             dry_run,
         } => rpc::send_st(
             node.unwrap_or(default_jsonrpc),
             value,
-            withdrawer,
+            authorization.map(MagicEither::Left),
+            withdrawer.map(MagicEither::Left),
             fee.map(Fee::absolute_from_nanowits),
             None,
+            require_confirmation,
             dry_run,
         ),
         Command::AuthorizeStake { node, withdrawer } => {
@@ -755,14 +759,19 @@ pub enum Command {
         /// Value
         #[structopt(long = "value")]
         value: u64,
+        /// Stake authorization code (the withdrawer address, signed by the validator node)
+        #[structopt(long = "authorization")]
+        authorization: Option<String>,
         /// Withdrawer
         #[structopt(long = "withdrawer")]
-        // make it also optional in jsonrcp
-        // see get balance in main
         withdrawer: Option<String>,
         /// Fee
         #[structopt(long = "fee")]
         fee: Option<u64>,
+        /// If unset or set to true, the command is interactive and prompts for user confirmation.
+        /// If set to false, skip confirmation and complete the command without user confirmation.
+        #[structopt(long = "require_confirmation")]
+        require_confirmation: Option<bool>,
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,

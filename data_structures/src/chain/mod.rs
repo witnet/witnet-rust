@@ -11,6 +11,7 @@ use std::{
 
 use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
+use ethereum_types::U256;
 use failure::Fail;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
@@ -23,19 +24,15 @@ use witnet_crypto::{
     merkle::merkle_tree_root as crypto_merkle_tree_root,
     secp256k1::{
         self,
-        PublicKey as Secp256k1_PublicKey,
-        ecdsa::{
-            RecoverableSignature, RecoveryId,
-            Signature as Secp256k1_Signature,
-        },
-        SecretKey as Secp256k1_SecretKey,
+        ecdsa::{RecoverableSignature, RecoveryId, Signature as Secp256k1_Signature},
+        PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
     },
 };
 use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
-    chain::{Signature::Secp256k1, tapi::TapiEngine},
+    chain::{tapi::TapiEngine, Signature::Secp256k1},
     data_request::{calculate_reward_collateral_ratio, DataRequestPool},
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
@@ -53,7 +50,7 @@ use crate::{
         UnstakeTransaction, VTTransaction,
     },
     transaction::{
-        BETA, COMMIT_WEIGHT, MemoHash, MemoizedHashable, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
+        MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
     },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
@@ -1188,8 +1185,6 @@ impl Hash {
     ///
     /// If n is 0 because of a division by zero.
     pub fn div_mod(&self, n: u64) -> (Hash, u64) {
-        use ethereum_types::U256;
-
         let hash_u256 = U256::from_big_endian(self.as_ref());
         let n_u256 = U256::from(n);
         let (d, m) = hash_u256.div_mod(n_u256);
@@ -1575,12 +1570,14 @@ pub struct KeyedSignature {
 
 impl KeyedSignature {
     pub fn from_recoverable_hex(string: &str, msg: &[u8]) -> Self {
+        // FIXME: make this safe by using a `Result` instead of unwrapping
         let bytes = hex::decode(string).unwrap();
 
         Self::from_recoverable_slice(&bytes, msg)
     }
     pub fn from_recoverable(recoverable: &RecoverableSignature, message: &[u8]) -> Self {
-        let msg = secp256k1::Message::from_slice(message).unwrap();
+        // FIXME: make this safe by using a `Result` instead of unwrapping
+        let msg = secp256k1::Message::from_digest_slice(message).unwrap();
         let signature = recoverable.to_standard();
         let public_key = recoverable.recover(&msg).unwrap();
 
@@ -1592,11 +1589,30 @@ impl KeyedSignature {
 
     // Recovers a keyed signature from its serialized form and a known message.
     pub fn from_recoverable_slice(compact: &[u8], message: &[u8]) -> Self {
-        let recid = RecoveryId::from_i32(0).unwrap();
-        let recoverable =
-            secp256k1::ecdsa::RecoverableSignature::from_compact(compact, recid).unwrap();
+        // FIXME: make this safe by using a `Result` instead of unwrapping
+        let recid = RecoveryId::from_i32(compact[0] as i32).unwrap();
+        let recoverable = RecoverableSignature::from_compact(&compact[1..], recid).unwrap();
 
         Self::from_recoverable(&recoverable, message)
+    }
+
+    /// Serializes a `KeyedSignature` into a compact encoding form that contains the public key recovery ID as a prefix.
+    pub fn to_recoverable_bytes(self, message: &[u8]) -> [u8; 65] {
+        // FIXME: make this safe by using a `Result` instead of unwrapping
+        let mut recoverable_bytes = [0; 65];
+        recoverable_bytes[1..].clone_from_slice(&self.signature.to_bytes().unwrap());
+
+        for i in 0..4 {
+            recoverable_bytes[0] = i;
+
+            let recovered = KeyedSignature::from_recoverable_slice(&recoverable_bytes, message);
+
+            if recovered.public_key == self.public_key {
+                break;
+            }
+        }
+
+        recoverable_bytes
     }
 }
 
@@ -4508,14 +4524,14 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use witnet_crypto::{
-        merkle::{InclusionProof, merkle_tree_root},
+        merkle::{merkle_tree_root, InclusionProof},
         secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
         signature::sign,
     };
 
     use crate::{
         proto::versioning::{ProtocolVersion, VersionedHashable},
-        superblock::{ARSIdentities, mining_build_superblock},
+        superblock::{mining_build_superblock, ARSIdentities},
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
 

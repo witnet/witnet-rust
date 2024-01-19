@@ -29,6 +29,7 @@ use witnet_data_structures::{
         calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
+    get_protocol_version,
     proto::versioning::ProtocolVersion,
     radon_report::{RadonReport, ReportContext},
     transaction::{
@@ -1601,7 +1602,6 @@ pub fn validate_block_transactions(
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
     let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
-    println!("vbt1");
     // Init total fee
     let mut total_fee = 0;
     // When validating genesis block, keep track of total value created
@@ -1618,7 +1618,6 @@ pub fn validate_block_transactions(
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
     let mut vt_weight: u32 = 0;
-    println!("vbt2");
 
     for transaction in &block.txns.value_transfer_txns {
         let (inputs, outputs, fee, weight) = if is_genesis {
@@ -1671,7 +1670,6 @@ pub fn validate_block_transactions(
     }
     let vt_hash_merkle_root = vt_mt.root();
 
-    println!("vbt3");
     // Validate commit transactions in a block
     let mut co_mt = ProgressiveMerkleTree::sha256();
     let mut commits_number = HashMap::new();
@@ -1682,7 +1680,6 @@ pub fn validate_block_transactions(
     } else {
         consensus_constants.collateral_age
     };
-    println!("vbt4");
     for transaction in &block.txns.commit_txns {
         let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
             transaction,
@@ -1724,7 +1721,6 @@ pub fn validate_block_transactions(
     }
     let co_hash_merkle_root = co_mt.root();
 
-    println!("vbt5");
     // Validate commits number and add commit fees
     for WitnessesCount { current, target } in commits_number.values() {
         if current != target {
@@ -1736,7 +1732,6 @@ pub fn validate_block_transactions(
         }
     }
 
-    println!("vbt6");
     // Validate reveal transactions in a block
     let mut re_mt = ProgressiveMerkleTree::sha256();
     let mut reveal_hs = HashSet::with_capacity(block.txns.reveal_txns.len());
@@ -1758,7 +1753,6 @@ pub fn validate_block_transactions(
         re_mt.push(Sha256(sha));
     }
     let re_hash_merkle_root = re_mt.root();
-    println!("vbt7");
 
     // Validate tally transactions in a block
     let mut ta_mt = ProgressiveMerkleTree::sha256();
@@ -1801,7 +1795,6 @@ pub fn validate_block_transactions(
         ta_mt.push(Sha256(sha));
     }
     let ta_hash_merkle_root = ta_mt.root();
-    println!("vbt8");
 
     // All data requests for which we expected tally transactions should have been removed
     // upon creation of the tallies. If not, block is invalid due to missing expected tallies
@@ -1812,7 +1805,6 @@ pub fn validate_block_transactions(
         }
         .into());
     }
-    println!("vbt9");
 
     let mut dr_weight: u32 = 0;
     if active_wips.wip_0008() {
@@ -1833,7 +1825,6 @@ pub fn validate_block_transactions(
             }
         }
     }
-    println!("vbt10");
 
     // Validate data request transactions in a block
     let mut dr_mt = ProgressiveMerkleTree::sha256();
@@ -1880,7 +1871,6 @@ pub fn validate_block_transactions(
     }
     let dr_hash_merkle_root = dr_mt.root();
 
-    println!("vbt11");
     if !is_genesis {
         // Validate mint
         validate_mint_transaction(
@@ -1899,211 +1889,109 @@ pub fn validate_block_transactions(
             block.txns.mint.hash(),
         );
     }
-    println!("vbt12");
 
-    // TODO skip all staking logic if protocol version is legacy
+    let protocol_version = get_protocol_version(Some(epoch));
+    let (st_root, ut_root) = if protocol_version != ProtocolVersion::V1_7 {
+        // validate stake transactions in a block
+        let mut st_mt = ProgressiveMerkleTree::sha256();
+        let mut st_weight: u32 = 0;
 
-    // validate stake transactions in a block
-    let mut st_mt = ProgressiveMerkleTree::sha256();
-    let mut st_weight: u32 = 0;
+        // Check if the block contains more than one stake tx from the same operator
+        let duplicate = block
+            .txns
+            .stake_txns
+            .iter()
+            .map(|stake_tx| &stake_tx.body.output.authorization.public_key)
+            .duplicates()
+            .next();
 
-    // Check if the block contains more than one stake tx from the same operator
-    let duplicate = block
-        .txns
-        .stake_txns
-        .iter()
-        .map(|stake_tx| &stake_tx.body.output.authorization.public_key)
-        .duplicates()
-        .next();
-
-    println!("vbt13");
-
-    if let Some(duplicate) = duplicate {
-        return Err(BlockError::RepeatedStakeOperator {
-            pkh: duplicate.pkh(),
-        }
-        .into());
-    }
-    println!("vbt14");
-
-    for transaction in &block.txns.stake_txns {
-        let (inputs, _output, fee, weight, change) = validate_stake_transaction(
-            transaction,
-            &utxo_diff,
-            epoch,
-            epoch_constants,
-            signatures_to_verify,
-        )?;
-
-        total_fee += fee;
-
-        // Update st weight
-        let acc_weight = st_weight.saturating_add(weight);
-        if acc_weight > MAX_STAKE_BLOCK_WEIGHT {
-            return Err(BlockError::TotalStakeWeightLimitExceeded {
-                weight: acc_weight,
-                max_weight: MAX_STAKE_BLOCK_WEIGHT,
+        if let Some(duplicate) = duplicate {
+            return Err(BlockError::RepeatedStakeOperator {
+                pkh: duplicate.pkh(),
             }
             .into());
         }
-        st_weight = acc_weight;
 
-        let outputs = change.iter().collect_vec();
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        for transaction in &block.txns.stake_txns {
+            let (inputs, _output, fee, weight, change) = validate_stake_transaction(
+                transaction,
+                &utxo_diff,
+                epoch,
+                epoch_constants,
+                signatures_to_verify,
+            )?;
 
-        // Add new hash to merkle tree
-        st_mt.push(transaction.hash().into());
+            total_fee += fee;
 
-        // TODO: Move validations to a visitor
-        // // Execute visitor
-        // if let Some(visitor) = &mut visitor {
-        //     let transaction = Transaction::ValueTransfer(transaction.clone());
-        //     visitor.visit(&(transaction, fee, weight));
-        // }
-    }
-    println!("vbt15");
-
-    let mut ut_mt = ProgressiveMerkleTree::sha256();
-    let mut ut_weight: u32 = 0;
-
-    for transaction in &block.txns.unstake_txns {
-        // TODO: get tx, default to compile
-        let st_tx = StakeTransaction::default();
-        let (fee, weight) =
-            validate_unstake_transaction(transaction, &st_tx, &utxo_diff, epoch, epoch_constants)?;
-
-        total_fee += fee;
-
-        // Update ut weight
-        let acc_weight = ut_weight.saturating_add(weight);
-        if acc_weight > MAX_UNSTAKE_BLOCK_WEIGHT {
-            return Err(BlockError::TotalUnstakeWeightLimitExceeded {
-                weight: acc_weight,
-                max_weight: MAX_UNSTAKE_BLOCK_WEIGHT,
+            // Update st weight
+            let acc_weight = st_weight.saturating_add(weight);
+            if acc_weight > MAX_STAKE_BLOCK_WEIGHT {
+                return Err(BlockError::TotalStakeWeightLimitExceeded {
+                    weight: acc_weight,
+                    max_weight: MAX_STAKE_BLOCK_WEIGHT,
+                }
+                .into());
             }
-            .into());
+            st_weight = acc_weight;
+
+            let outputs = change.iter().collect_vec();
+            update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+
+            // Add new hash to merkle tree
+            st_mt.push(transaction.hash().into());
+
+            // TODO: Move validations to a visitor
+            // // Execute visitor
+            // if let Some(visitor) = &mut visitor {
+            //     let transaction = Transaction::ValueTransfer(transaction.clone());
+            //     visitor.visit(&(transaction, fee, weight));
+            // }
         }
-        ut_weight = acc_weight;
 
-        // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
-        let Hash::SHA256(sha) = txn_hash;
-        ut_mt.push(Sha256(sha));
+        let mut ut_mt = ProgressiveMerkleTree::sha256();
+        let mut ut_weight: u32 = 0;
 
-        // TODO: Move validations to a visitor
-        // // Execute visitor
-        // if let Some(visitor) = &mut visitor {
-        //     let transaction = Transaction::ValueTransfer(transaction.clone());
-        //     visitor.visit(&(transaction, fee, weight));
-        // }
-    }
-    println!("vbt16");
+        for transaction in &block.txns.unstake_txns {
+            // TODO: get tx, default to compile
+            let st_tx = StakeTransaction::default();
+            let (fee, weight) = validate_unstake_transaction(
+                transaction,
+                &st_tx,
+                &utxo_diff,
+                epoch,
+                epoch_constants,
+            )?;
 
-    // Nullify roots for legacy protocol version
-    // TODO skip all staking logic if protocol version is legacy
-    let (st_root, ut_root) = match get_protocol_version() {
-        ProtocolVersion::V1_7 => Default::default(),
-        _ => (Hash::from(st_mt.root()), Hash::from(ut_mt.root())),
-    };
+            total_fee += fee;
 
-    // TODO skip all staking logic if protocol version is legacy
-
-    // validate stake transactions in a block
-    let mut st_mt = ProgressiveMerkleTree::sha256();
-    let mut st_weight: u32 = 0;
-
-    // Check if the block contains more than one stake tx from the same operator
-    let duplicate = block
-        .txns
-        .stake_txns
-        .iter()
-        .map(|stake_tx| &stake_tx.body.output.authorization.public_key)
-        .duplicates()
-        .next();
-
-    if let Some(duplicate) = duplicate {
-        return Err(BlockError::RepeatedStakeOperator {
-            pkh: duplicate.pkh(),
-        }
-        .into());
-    }
-
-    for transaction in &block.txns.stake_txns {
-        let (inputs, _output, fee, weight, change) = validate_stake_transaction(
-            transaction,
-            &utxo_diff,
-            epoch,
-            epoch_constants,
-            signatures_to_verify,
-        )?;
-
-        total_fee += fee;
-
-        // Update st weight
-        let acc_weight = st_weight.saturating_add(weight);
-        if acc_weight > MAX_STAKE_BLOCK_WEIGHT {
-            return Err(BlockError::TotalStakeWeightLimitExceeded {
-                weight: acc_weight,
-                max_weight: MAX_STAKE_BLOCK_WEIGHT,
+            // Update ut weight
+            let acc_weight = ut_weight.saturating_add(weight);
+            if acc_weight > MAX_UNSTAKE_BLOCK_WEIGHT {
+                return Err(BlockError::TotalUnstakeWeightLimitExceeded {
+                    weight: acc_weight,
+                    max_weight: MAX_UNSTAKE_BLOCK_WEIGHT,
+                }
+                .into());
             }
-            .into());
+            ut_weight = acc_weight;
+
+            // Add new hash to merkle tree
+            let txn_hash = transaction.hash();
+            let Hash::SHA256(sha) = txn_hash;
+            ut_mt.push(Sha256(sha));
+
+            // TODO: Move validations to a visitor
+            // // Execute visitor
+            // if let Some(visitor) = &mut visitor {
+            //     let transaction = Transaction::ValueTransfer(transaction.clone());
+            //     visitor.visit(&(transaction, fee, weight));
+            // }
         }
-        st_weight = acc_weight;
 
-        let outputs = change.iter().collect_vec();
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
-
-        // Add new hash to merkle tree
-        st_mt.push(transaction.hash().into());
-
-        // TODO: Move validations to a visitor
-        // // Execute visitor
-        // if let Some(visitor) = &mut visitor {
-        //     let transaction = Transaction::ValueTransfer(transaction.clone());
-        //     visitor.visit(&(transaction, fee, weight));
-        // }
-    }
-
-    let mut ut_mt = ProgressiveMerkleTree::sha256();
-    let mut ut_weight: u32 = 0;
-
-    for transaction in &block.txns.unstake_txns {
-        // TODO: get tx, default to compile
-        let st_tx = StakeTransaction::default();
-        let (fee, weight) =
-            validate_unstake_transaction(transaction, &st_tx, &utxo_diff, epoch, epoch_constants)?;
-
-        total_fee += fee;
-
-        // Update ut weight
-        let acc_weight = ut_weight.saturating_add(weight);
-        if acc_weight > MAX_UNSTAKE_BLOCK_WEIGHT {
-            return Err(BlockError::TotalUnstakeWeightLimitExceeded {
-                weight: acc_weight,
-                max_weight: MAX_UNSTAKE_BLOCK_WEIGHT,
-            }
-            .into());
-        }
-        ut_weight = acc_weight;
-
-        // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
-        let Hash::SHA256(sha) = txn_hash;
-        ut_mt.push(Sha256(sha));
-
-        // TODO: Move validations to a visitor
-        // // Execute visitor
-        // if let Some(visitor) = &mut visitor {
-        //     let transaction = Transaction::ValueTransfer(transaction.clone());
-        //     visitor.visit(&(transaction, fee, weight));
-        // }
-    }
-
-    // Nullify roots for legacy protocol version
-    // TODO skip all staking logic if protocol version is legacy
-    let (st_root, ut_root) = match ProtocolVersion::guess() {
-        ProtocolVersion::V1_6 => Default::default(),
-        _ => (Hash::from(st_mt.root()), Hash::from(ut_mt.root())),
+        (Hash::from(st_mt.root()), Hash::from(ut_mt.root()))
+    } else {
+        // Nullify stake and unstake merkle roots for the legacy protocol version
+        Default::default()
     };
 
     // Validate Merkle Root
@@ -2117,7 +2005,6 @@ pub fn validate_block_transactions(
         stake_hash_merkle_root: st_root,
         unstake_hash_merkle_root: ut_root,
     };
-    println!("vbt17");
 
     if merkle_roots != block.block_header.merkle_roots {
         println!(
