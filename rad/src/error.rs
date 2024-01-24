@@ -167,15 +167,6 @@ pub enum RadError {
         description
     )]
     JsonParse { description: String },
-    /// Failed to parse a JSON path selector from a string value
-    #[fail(
-        display = "Failed to parse a JSON path from a string value: {:?}",
-        description
-    )]
-    JsonPathParse { description: String },
-    /// The given JSON path is not present in a JSON-stringified object
-    #[fail(display = "Failed to find JSON path `{}` from RadonString", path)]
-    JsonPathNotFound { path: String },
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     #[fail(display = "The reveal was not serialized correctly")]
     MalformedReveal,
@@ -283,12 +274,6 @@ pub enum RadError {
     /// The given retrieval code is unknown
     #[fail(display = "Retrieval code is unknown")]
     UnknownRetrieval,    
-    /// The given encoding schema is not implemented
-    #[fail(
-        display = "Encoding schema #{} not implemented",
-        schema
-    )]
-    UnsupportedEncodingSchema { schema: usize },
     /// The given filter is not implemented for the type of the input Array
     #[fail(
         display = "Filter `{}` is not implemented for Array `{:?}`",
@@ -408,13 +393,6 @@ pub enum RadError {
         subcode
     )]
     MalformedResponses { subcode: u8 },
-
-    /// Size of serialized tally result exceeds allowance:
-    #[fail(
-        display = "Tally result size exceeded allowance (actual: {}, allowance: {})", 
-        actual, allowance
-    )]
-    OversizedTallyResult { actual: usize, allowance: usize },
     
     /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
     #[fail(
@@ -452,7 +430,6 @@ impl RadError {
 
             RadError::CircumstantialFailure { .. }
                 | RadError::ArrayIndexOutOfBounds { .. }
-                | RadError::JsonPathNotFound { .. }
                 | RadError::HttpStatus { .. }
                 | RadError::MapKeyNotFound { .. }
                 | RadError::ModeTie { .. }
@@ -476,7 +453,6 @@ impl RadError {
                 | RadError::InvalidHttpBody { .. } 
                 | RadError::InvalidHttpHeader { .. }
                 | RadError::InvalidScript { .. }
-                | RadError::JsonPathParse { .. }
                 | RadError::NoOperatorInCompoundCall
                 | RadError::NotIntegerOperator
                 | RadError::NotNaturalOperator { .. }
@@ -490,7 +466,6 @@ impl RadError {
                 | RadError::UnknownOperator { .. }
                 | RadError::UnknownReducer { .. }
                 | RadError::UnknownRetrieval { .. }
-                | RadError::UnsupportedEncodingSchema { .. } 
                 | RadError::UnsupportedFilter { .. }
                 | RadError::UnsupportedFilterInAT { .. }
                 | RadError::UnsupportedHashFunction { .. }
@@ -527,9 +502,6 @@ impl RadError {
                 | RadError::XmlParseOverflow 
             => {
                 RadonErrors::MalformedResponses
-            }
-            RadError::OversizedTallyResult { .. } => {
-                RadonErrors::OversizedTallyResult
             }
             RadError::Subscript { inner, .. } => {
                 inner.into_error_code()
@@ -603,7 +575,6 @@ impl RadError {
             RadError::InvalidHttpBody { .. } => RadonErrors::SourceRequestBody,
             RadError::InvalidHttpHeader { .. } => RadonErrors::SourceRequestHeaders,
             RadError::JsonParse { .. } 
-                | RadError::JsonPathParse { .. }
                 | RadError::XmlParse { .. }
                 | RadError::ParseBool { .. } 
                 | RadError::ParseFloat { .. }
@@ -611,7 +582,6 @@ impl RadError {
             => {
                 RadonErrors::Parse
             }
-            RadError::JsonPathNotFound { .. } => RadonErrors::JsonPathNotFound,
             RadError::MalformedDataRequest { subcode } => {
                 RadonErrors::try_from(*subcode).unwrap_or_default()
             }
@@ -713,7 +683,6 @@ impl RadError {
                 match self {
                     RadError::ArrayIndexOutOfBounds { index } => Some(legacy::serialize_args((subcode, index,))?),
                     RadError::CircumstantialFailure { subcode, args } => Some(legacy::serialize_args((subcode, args))?),
-                    RadError::JsonPathNotFound { path } => Some(legacy::serialize_args((subcode, path,))?),
                     RadError::HttpStatus { status_code } => Some(legacy::serialize_args((subcode, status_code,))?),
                     RadError::MapKeyNotFound { key } => Some(legacy::serialize_args((subcode, key,))?),
                     RadError::TallyExecution { inner, message } => {
@@ -745,14 +714,6 @@ impl RadError {
 
             RadonErrors::MalformedDataRequest | RadonErrors::MalformedResponses => {
                 Some(legacy::serialize_args((subcode, ))?)
-            }
-
-            RadonErrors::OversizedTallyResult => {
-                if let RadError::OversizedTallyResult { actual, allowance } = self {
-                    Some(legacy::serialize_args((actual, allowance,))?)
-                } else {
-                    None
-                }
             }
 
             _ => {
@@ -840,11 +801,6 @@ impl RadError {
             RadonErrors::MalformedResponses => {
                 let (subcode, ) = legacy::deserialize_args(error_args)?;
                 RadError::MalformedResponses { subcode }
-            }
-
-            RadonErrors::OversizedTallyResult => {
-                let (actual, allowance,) = legacy::deserialize_args(error_args)?;
-                RadError::OversizedTallyResult { actual, allowance}
             }
             
             _ => {
@@ -1215,9 +1171,6 @@ mod tests {
             RadonErrors::ArrayIndexOutOfBounds => RadError::ArrayIndexOutOfBounds { index: 2 },
             RadonErrors::MapKeyNotFound => RadError::MapKeyNotFound {
                 key: String::from("value"),
-            },
-            RadonErrors::JsonPathNotFound => RadError::JsonPathNotFound { 
-                path: String::from("*.*") 
             },
             RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept {
                 inner: None,

@@ -51,8 +51,6 @@ pub enum RadonErrors {
     UnsupportedReducer = 0x23,
     /// Some Radon request type is not currently supported.
     UnsupportedRequestType = 0x24,
-    /// Some Radon encoding function is not currently supported.
-    UnsupportedEncodingFunction = 0x25,
     /// Wrong number (or type) of arguments were passed to some Radon operator.
     WrongArguments = 0x28,
 
@@ -113,10 +111,7 @@ pub enum RadonErrors {
     /// Values returned from a majority of data sources did not match the expected schema:
     MalformedResponses = 0x56,
     /// The data request was not properly formated:
-    MalformedDataRequest = 0x57,
-    /// The size of serialized tally result exceeds allowance:
-    OversizedTallyResult = 0x5F,
-    
+    MalformedDataRequest = 0x57,    
 
     ///////////////////////////////////////////////////////////////////////////
     // Inter-stage runtime error sub-codes
@@ -133,8 +128,6 @@ pub enum RadonErrors {
     ArrayIndexOutOfBounds = 0x70,
     /// Tried to access a value from a map using a key that does not exist.
     MapKeyNotFound = 0x71,
-    /// Tried to extract value from a map using a JSON Path that returns no values.
-    JsonPathNotFound = 0x72,
     
     ///////////////////////////////////////////////////////////////////////////
     // Inter-client first-order error codes.
