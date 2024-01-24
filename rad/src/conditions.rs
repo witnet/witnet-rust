@@ -51,7 +51,7 @@ pub fn evaluate_tally_precondition_clause(
     }
     // Short-circuit if there were no reveals
     if reveals.is_empty() {
-        return Err(RadError::NoReveals);
+        return Err(RadError::InsufficientQuorum);
     }
 
     let error_type_discriminant =

@@ -245,7 +245,7 @@ fn test_tally_precondition_clause_no_reveals() {
     let v = vec![];
     let out = evaluate_tally_precondition_clause(v, 0.51, 1, &current_active_wips()).unwrap_err();
 
-    assert_eq!(out, RadError::NoReveals);
+    assert_eq!(out, RadError::InsufficientQuorum);
 }
 
 #[test]

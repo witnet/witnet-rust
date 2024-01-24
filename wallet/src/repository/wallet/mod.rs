@@ -2156,7 +2156,7 @@ fn build_tally_report(
                         *pkh,
                         model::Reveal {
                             value: RadonTypes::from(
-                                RadonError::try_from(RadError::NoReveals).unwrap(),
+                                RadonError::try_from(RadError::InsufficientQuorum).unwrap(),
                             )
                             .to_string(),
                             in_consensus: false,

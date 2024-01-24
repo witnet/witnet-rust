@@ -626,7 +626,7 @@ pub fn run_tally_with_context_report(
         create_radon_script_from_filters_and_reducer(filters, reducer, &active_wips)?;
 
     if radon_types_vec.is_empty() {
-        return Ok(RadonReport::from_result(Err(RadError::NoReveals), context));
+        return Ok(RadonReport::from_result(Err(RadError::InsufficientQuorum), context));
     }
 
     let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));
@@ -1529,7 +1529,7 @@ mod tests {
             &current_active_wips(),
         );
         let report = res.unwrap().into_inner();
-        let expected = RadonTypes::from(RadonError::try_from(RadError::NoReveals).unwrap());
+        let expected = RadonTypes::from(RadonError::try_from(RadError::InsufficientQuorum).unwrap());
 
         assert_eq!(report, expected);
     }
