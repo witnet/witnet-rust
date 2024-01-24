@@ -6,6 +6,7 @@ use failure::{self, Fail};
 use serde::{Serialize, Serializer};
 use serde_cbor::value::Value as SerdeCborValue;
 
+use witnet_data_structures::chain::tapi::ActiveWips;
 use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
 
 use crate::types::RadonTypes;
@@ -445,6 +446,229 @@ pub enum RadError {
 
 
 impl RadError {
+   
+    pub fn into_error_code(&self) -> RadonErrors {
+        match self {
+
+            RadError::CircumstantialFailure { .. }
+                | RadError::ArrayIndexOutOfBounds { .. }
+                | RadError::JsonPathNotFound { .. }
+                | RadError::HttpStatus { .. }
+                | RadError::MapKeyNotFound { .. }
+                | RadError::ModeTie { .. }
+                | RadError::RetrieveTimeout
+                | RadError::TallyExecution { .. }
+            => {
+                RadonErrors::CircumstantialFailure
+            }
+            RadError::InconsistentSource
+                | RadError::InconsistentSources
+            => {
+                RadonErrors::InconsistentSources
+            }
+            RadError::InsufficientCommits => RadonErrors::InsufficientCommits,
+            RadError::InsufficientMajority { .. } => RadonErrors::InsufficientMajority,
+            RadError::InsufficientQuorum => RadonErrors::InsufficientQuorum,
+            RadError::MalformedDataRequest { .. }
+                | RadError::ArrayFilterWrongSubscript { .. }
+                | RadError::BadSubscriptFormat { .. }
+                | RadError::HttpOther { .. }
+                | RadError::InvalidHttpBody { .. } 
+                | RadError::InvalidHttpHeader { .. }
+                | RadError::InvalidScript { .. }
+                | RadError::JsonPathParse { .. }
+                | RadError::NoOperatorInCompoundCall
+                | RadError::NotIntegerOperator
+                | RadError::NotNaturalOperator { .. }
+                | RadError::RequestTooManySources
+                | RadError::ScriptNotArray { .. }
+                | RadError::ScriptTooManyCalls { .. }
+                | RadError::SourceScriptNotArray 
+                | RadError::SourceScriptNotCBOR
+                | RadError::SourceScriptNotRADON
+                | RadError::UnknownFilter { .. }
+                | RadError::UnknownOperator { .. }
+                | RadError::UnknownReducer { .. }
+                | RadError::UnknownRetrieval { .. }
+                | RadError::UnsupportedEncodingSchema { .. } 
+                | RadError::UnsupportedFilter { .. }
+                | RadError::UnsupportedFilterInAT { .. }
+                | RadError::UnsupportedHashFunction { .. }
+                | RadError::UnsupportedOperator { .. }
+                | RadError::UnsupportedOperatorInTally { .. }
+                | RadError::UnsupportedOpNonHomogeneous { .. }
+                | RadError::UnsupportedReducer { .. }
+                | RadError::UnsupportedReducerInAT { .. }
+                | RadError::UrlParseError { .. } 
+                | RadError::WrongArguments { .. }
+            => {
+                RadonErrors::MalformedDataRequest
+            }
+            RadError::MalformedResponses { .. }
+                | RadError::BufferIsNotValue { .. } 
+                | RadError::Decode { .. }
+                | RadError::DifferentSizeArrays { .. }
+                | RadError::EmptyArray 
+                | RadError::Encode { .. }
+                | RadError::EncodeReveal
+                | RadError::Hash
+                | RadError::InvalidHttpResponse { .. }
+                | RadError::JsonParse { .. }
+                | RadError::MalformedReveal 
+                | RadError::MathDivisionByZero
+                | RadError::MathOverflow
+                | RadError::MathUnderflow
+                | RadError::MismatchingTypes { .. }
+                | RadError::ParseBool { .. }
+                | RadError::ParseFloat { .. }
+                | RadError::ParseInt { .. }
+                | RadError::UnsupportedSortOp { .. }
+                | RadError::XmlParse { .. }
+                | RadError::XmlParseOverflow 
+            => {
+                RadonErrors::MalformedResponses
+            }
+            RadError::OversizedTallyResult { .. } => {
+                RadonErrors::OversizedTallyResult
+            }
+            RadError::Subscript { inner, .. } => {
+                inner.into_error_code()
+            }
+            RadError::DecodeRadonErrorArgumentsRadonTypesFail { .. }
+                | RadError::DecodeRadonErrorBadCode { .. }
+                | RadError::DecodeRadonErrorEmptyArray 
+                | RadError::DecodeRadonErrorMissingArguments
+                | RadError::DecodeRadonErrorNotArray { .. }
+                | RadError::DecodeRadonErrorUnknownCode { .. }
+                | RadError::DecodeRadonErrorWrongArguments { .. }
+                | RadError::EncodeRadonErrorArguments { .. }
+                | RadError::EncodeRadonErrorUnknownCode
+                | RadError::UnhandledIntercept { .. }
+                | RadError::UnhandledInterceptV2 { .. }
+                | RadError::Unknown
+            => {
+                RadonErrors::UnhandledIntercept
+            }
+        }
+    }
+
+    pub fn into_error_subcode(&self) -> RadonErrors {
+        match self {
+
+            RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
+            RadError::ArrayFilterWrongSubscript { .. } 
+                | RadError::UnsupportedSortOp { .. } 
+            => {
+                RadonErrors::WrongSubscriptInput
+            }
+            RadError::BadSubscriptFormat { .. }
+                | RadError::InvalidScript { .. }
+                | RadError::ScriptNotArray { .. }
+                | RadError::SourceScriptNotArray 
+            => {
+                RadonErrors::SourceScriptNotArray
+            }
+            RadError::BufferIsNotValue { .. } => RadonErrors::BufferIsNotValue,
+            RadError::CircumstantialFailure { subcode, .. } => {
+                RadonErrors::try_from(*subcode).unwrap_or_default()
+            }
+            RadError::Decode { .. } => RadonErrors::Decode,
+            RadError::DecodeRadonErrorArgumentsRadonTypesFail { .. }
+                | RadError::DecodeRadonErrorBadCode { .. }
+                | RadError::DecodeRadonErrorEmptyArray { .. }
+                | RadError::DecodeRadonErrorMissingArguments { .. }
+                | RadError::DecodeRadonErrorNotArray { .. }
+                | RadError::DecodeRadonErrorUnknownCode { .. }
+                | RadError::DecodeRadonErrorWrongArguments { .. }
+                | RadError::MalformedReveal
+            => {
+                RadonErrors::MalformedReveals
+            }
+            RadError::DifferentSizeArrays { .. } => RadonErrors::MismatchingArrays,
+            RadError::EmptyArray => RadonErrors::EmptyArray,
+            RadError::Encode { .. } => RadonErrors::Encode,
+            RadError::EncodeReveal 
+                | RadError::EncodeRadonErrorArguments { .. }
+                | RadError::EncodeRadonErrorUnknownCode { .. }
+            => {
+                RadonErrors::EncodeReveals
+            }
+            // RadError::Filter { .. } => RadonErrors::Filter,
+            RadError::Hash => RadonErrors::Hash,
+            RadError::HttpStatus { .. }
+                | RadError::HttpOther { .. }
+            => {
+                RadonErrors::HttpErrors
+            }
+            RadError::InvalidHttpBody { .. } => RadonErrors::SourceRequestBody,
+            RadError::InvalidHttpHeader { .. } => RadonErrors::SourceRequestHeaders,
+            RadError::JsonParse { .. } 
+                | RadError::JsonPathParse { .. }
+                | RadError::XmlParse { .. }
+                | RadError::ParseBool { .. } 
+                | RadError::ParseFloat { .. }
+                | RadError::ParseInt { .. }
+            => {
+                RadonErrors::Parse
+            }
+            RadError::JsonPathNotFound { .. } => RadonErrors::JsonPathNotFound,
+            RadError::MalformedDataRequest { subcode } => {
+                RadonErrors::try_from(*subcode).unwrap_or_default()
+            }
+            RadError::MalformedResponses { subcode } => {
+                RadonErrors::try_from(*subcode).unwrap_or_default()
+            }
+            RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
+            RadError::MathDivisionByZero => RadonErrors::MathDivisionByZero,
+            RadError::MathOverflow => RadonErrors::MathOverflow,
+            RadError::MathUnderflow => RadonErrors::MathUnderflow,
+            RadError::MismatchingTypes { .. }
+                | RadError::WrongArguments { .. }
+            => {
+                RadonErrors::WrongArguments
+            }
+            RadError::ModeTie { .. } => RadonErrors::ModeTie,
+            // RadError::Reduce { .. } => RadonErrors::Reduce,
+            RadError::RequestTooManySources => RadonErrors::RequestTooManySources,
+            RadError::RetrieveTimeout => RadonErrors::RetrievalsTimeout,
+            RadError::ScriptTooManyCalls { .. } => RadonErrors::ScriptTooManyCalls,
+            RadError::SourceScriptNotCBOR { .. } => RadonErrors::SourceScriptNotCBOR,
+            RadError::SourceScriptNotRADON { .. } => RadonErrors::SourceScriptNotRADON,
+            RadError::Subscript { inner, .. } => {
+                inner.as_ref().into_error_subcode()
+            }
+            RadError::UnknownFilter { .. }
+                | RadError::UnsupportedFilter { .. }
+                | RadError::UnsupportedFilterInAT { .. }
+            => {
+                RadonErrors::UnsupportedFilter
+            }
+            RadError::UnknownOperator { .. }
+                | RadError::UnsupportedOperator { .. }
+                | RadError::UnsupportedOperatorInTally { .. }
+                | RadError::NoOperatorInCompoundCall { .. } 
+                | RadError::NotIntegerOperator 
+                | RadError::NotNaturalOperator { .. }
+            => {
+                RadonErrors::UnsupportedOperator
+            }
+            RadError::UnknownReducer { .. }
+                | RadError::UnsupportedReducer { .. }
+                | RadError::UnsupportedReducerInAT { .. }
+            => {
+                RadonErrors::UnsupportedReducer
+            }
+            RadError::UnknownRetrieval => RadonErrors::UnsupportedRequestType,
+            RadError::UnsupportedHashFunction { .. } => RadonErrors::UnsupportedHashFunction,
+            RadError::UnsupportedOpNonHomogeneous { .. } => RadonErrors::NonHomogeneousArrays,
+            RadError::UrlParseError { .. } => RadonErrors::SourceRequestURL,
+            RadError::XmlParseOverflow => RadonErrors::ParseOverflow,
+            _ => {
+                RadonErrors::Unknown
+            }
+        }
+    }
+
     pub fn try_from_cbor_array(
         serde_cbor_array: Vec<SerdeCborValue>,
     ) -> Result<RadonError<Self>, RadError> {
@@ -465,7 +689,7 @@ impl RadError {
                         Some(tail.to_vec())
                     };
 
-                    Ok(RadError::try_from_kind_and_cbor_args(
+                    Ok(RadError::try_into_radon_error(
                         kind,
                         serde_cbor_error_args,
                     )?)
@@ -476,161 +700,76 @@ impl RadError {
                 }
             }
             None => {
-                println!("None");
                 Err(RadError::DecodeRadonErrorEmptyArray)
             }
         }
     }
 
-    pub fn try_from_kind_and_cbor_args(
-        kind: RadonErrors,
-        error_args: Option<Vec<SerdeCborValue>>,
-    ) -> Result<RadonError<Self>, RadError> {
-        // TODO: we currently allow extra arguments when the RadError does not expect any arguments
-        fn deserialize_args<T: serde::de::DeserializeOwned>(
-            error_args: Option<Vec<SerdeCborValue>>,
-        ) -> Result<T, RadError> {
-            let error_args = if let Some(x) = error_args {
-                SerdeCborValue::Array(x)
-            } else {
-                return Err(RadError::DecodeRadonErrorMissingArguments);
-            };
-
-            serde_cbor::value::from_value(error_args.clone()).map_err(|e| {
-                RadError::DecodeRadonErrorWrongArguments {
-                    arguments: Some(error_args),
-                    message: e.to_string(),
-                }
-            })
-        }
-
-        Ok(RadonError::new(match kind {
-            RadonErrors::BufferIsNotValue => {
-                let (description,) = deserialize_args(error_args)?;
-                RadError::BufferIsNotValue { description }
-            }
-            RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
-            RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
-            RadonErrors::Overflow => RadError::Overflow,
-            RadonErrors::InsufficientCommits => RadError::InsufficientCommits,
-            RadonErrors::NoReveals => RadError::NoReveals,
-            RadonErrors::SourceScriptNotCBOR => RadError::SourceScriptNotCBOR,
-            RadonErrors::SourceScriptNotArray => RadError::SourceScriptNotArray,
-            RadonErrors::SourceScriptNotRADON => RadError::SourceScriptNotRADON,
-            RadonErrors::Underflow => RadError::Underflow,
-            RadonErrors::DivisionByZero => RadError::DivisionByZero,
-            RadonErrors::RetrieveTimeout => RadError::RetrieveTimeout,
-            RadonErrors::MalformedReveal => RadError::MalformedReveal,
-            RadonErrors::EncodeReveal => RadError::EncodeReveal,
-            RadonErrors::ArrayIndexOutOfBounds => {
-                let (index,) = deserialize_args(error_args)?;
-                RadError::ArrayIndexOutOfBounds { index }
-            }
-            RadonErrors::MapKeyNotFound => {
-                let (key,) = deserialize_args(error_args)?;
-                RadError::MapKeyNotFound { key }
-            }
-            RadonErrors::UnsupportedOperator => {
-                let (input_type, operator, args) = deserialize_args(error_args)?;
-                RadError::UnsupportedOperator {
-                    input_type,
-                    operator,
-                    args,
-                }
-            }
-            RadonErrors::HTTPError => {
-                let (status_code,) = deserialize_args(error_args)?;
-                RadError::HttpStatus { status_code }
-            }
-            RadonErrors::InsufficientConsensus => {
-                let (achieved, required) = deserialize_args(error_args)?;
-                RadError::InsufficientConsensus { achieved, required }
-            }
-            RadonErrors::TallyExecution => {
-                let (message,) = deserialize_args(error_args)?;
-                RadError::TallyExecution {
-                    inner: None,
-                    message: Some(message),
-                }
-            }
-            RadonErrors::UnhandledIntercept => {
-                if error_args.is_none() {
-                    RadError::UnhandledInterceptV2 { inner: None }
-                } else {
-                    let (message,) = deserialize_args(error_args)?;
-                    RadError::UnhandledIntercept {
-                        inner: None,
-                        message: Some(message),
-                    }
-                }
-            }
-            RadonErrors::Unknown => RadError::Unknown,
-            // The only case where a Bridge RadonError could be included in the protocol is that
-            // if a witness node report as a reveal, and in that case it would be considered
-            // as a MalformedReveal
-            RadonErrors::BridgeMalformedRequest
-            | RadonErrors::BridgePoorIncentives
-            | RadonErrors::BridgeOversizedResult => RadError::MalformedReveal,
-        }))
-    }
-
     pub fn try_into_cbor_array(&self) -> Result<Vec<SerdeCborValue>, RadError> {
-        fn serialize_args<T: serde::Serialize + std::fmt::Debug>(
-            args: T,
-        ) -> Result<SerdeCborValue, RadError> {
-            serde_cbor::value::to_value(&args).map_err(|_| RadError::EncodeRadonErrorArguments {
-                error_args: format!("{:?}", args),
-            })
-        }
-
-        let kind = u8::from(self.try_into_error_code()?);
-
-        let args = match self {
-            RadError::UnsupportedOperator {
-                input_type,
-                operator,
-                args,
-            } => Some(serialize_args((input_type, operator, args))?),
-            RadError::HttpStatus { status_code } => Some(serialize_args((status_code,))?),
-            RadError::InsufficientConsensus { achieved, required } => {
-                Some(serialize_args((achieved, required))?)
-            }
-            RadError::TallyExecution { inner, message } => {
-                let message = match (inner, message) {
-                    // Only serialize the message
-                    (_, Some(message)) => message.clone(),
-                    // But if there is no message, serialize the debug representation of inner
-                    (Some(inner), None) => format!("inner: {:?}", inner),
-                    // And if there is no inner, serialize this string
-                    (None, None) => "inner: None".to_string(),
-                };
-                Some(serialize_args((message,))?)
-            }
-            RadError::ArrayIndexOutOfBounds { index } => Some(serialize_args((index,))?),
-            RadError::MapKeyNotFound { key } => Some(serialize_args((key,))?),
-            RadError::UnhandledIntercept { inner, message } => {
-                let message = match (inner, message) {
-                    // Only serialize the message
-                    (_, Some(message)) => message.clone(),
-                    // But if there is no message, serialize the debug representation of inner
-                    (Some(inner), None) => {
-                        // Fix #1993 by emulating a bug from old versions of Rust (rust-lang/rust#83046)
-                        if_rust_version::if_rust_version! { >= 1.53 {
-                            format!("inner: {:?}", inner).replace('\'', "\\'")
-                        } else {
-                            format!("inner: {:?}", inner)
-                        }}
+        let (kind, subcode) = (self.into_error_code(), u8::from(self.into_error_subcode()));
+        let args = match kind {
+            
+            RadonErrors::CircumstantialFailure => {
+                match self {
+                    RadError::ArrayIndexOutOfBounds { index } => Some(legacy::serialize_args((subcode, index,))?),
+                    RadError::CircumstantialFailure { subcode, args } => Some(legacy::serialize_args((subcode, args))?),
+                    RadError::JsonPathNotFound { path } => Some(legacy::serialize_args((subcode, path,))?),
+                    RadError::HttpStatus { status_code } => Some(legacy::serialize_args((subcode, status_code,))?),
+                    RadError::MapKeyNotFound { key } => Some(legacy::serialize_args((subcode, key,))?),
+                    RadError::TallyExecution { inner, message } => {
+                        let message = match (inner, message) {
+                            // Only serialize the message
+                            (_, Some(message)) => message.clone(),
+                            // But if there is no message, serialize the debug representation of inner
+                            (Some(inner), None) => format!("inner: {:?}", inner),
+                            // And if there is no inner, serialize this string
+                            (None, None) => "inner: None".to_string(),
+                        };
+                        Some(legacy::serialize_args((subcode, message,))?)
                     }
-                    // And if there is no inner, serialize this string
-                    (None, None) => "inner: None".to_string(),
-                };
-                Some(serialize_args((message,))?)
+                    _ => Some(legacy::serialize_args((u8::from(subcode),))?)
+                }
             }
-            RadError::BufferIsNotValue { description } => Some(serialize_args((description,))?),
-            _ => None,
+
+            RadonErrors::InconsistentSources | RadonErrors::InsufficientCommits | RadonErrors::InsufficientQuorum => {
+                None
+            }
+            
+            RadonErrors::InsufficientMajority => {
+                if let RadError::InsufficientMajority { achieved, required } = self {
+                    Some(legacy::serialize_args((achieved, required,))?)
+                } else {
+                    None
+                }
+            }
+
+            RadonErrors::MalformedDataRequest | RadonErrors::MalformedResponses => {
+                Some(legacy::serialize_args((subcode, ))?)
+            }
+
+            RadonErrors::OversizedTallyResult => {
+                if let RadError::OversizedTallyResult { actual, allowance } = self {
+                    Some(legacy::serialize_args((actual, allowance,))?)
+                } else {
+                    None
+                }
+            }
+
+            _ => {
+                // Unhandled intercepts must be serialized without a subcode
+                let message = if_rust_version::if_rust_version! { >= 1.53 {
+                    format!("{:?}", self).replace('\'', "\\'")
+                } else {
+                    format!("{:?}", self)
+                }};
+                Some(legacy::serialize_args((message,))?)
+            }
         };
 
-        let mut v = vec![SerdeCborValue::Integer(i128::from(kind))];
+        let mut v = vec![
+            SerdeCborValue::Integer(i128::from(u8::from(kind))),
+            SerdeCborValue::Integer(i128::from(subcode)),
+        ];
 
         match args {
             None => {}
@@ -650,44 +789,69 @@ impl RadError {
         Ok(v)
     }
 
-    pub fn try_into_error_code(&self) -> Result<RadonErrors, RadError> {
-        Ok(match self {
-            RadError::Unknown => RadonErrors::Unknown,
-            RadError::BufferIsNotValue { .. } => RadonErrors::BufferIsNotValue,
-            RadError::SourceScriptNotCBOR => RadonErrors::SourceScriptNotCBOR,
-            RadError::SourceScriptNotArray => RadonErrors::SourceScriptNotArray,
-            RadError::SourceScriptNotRADON => RadonErrors::SourceScriptNotRADON,
-            RadError::RequestTooManySources => RadonErrors::RequestTooManySources,
-            RadError::ScriptTooManyCalls => RadonErrors::ScriptTooManyCalls,
-            RadError::UnsupportedOperator { .. } => RadonErrors::UnsupportedOperator,
-            RadError::HttpStatus { .. } => RadonErrors::HTTPError,
-            RadError::Underflow => RadonErrors::Underflow,
-            RadError::Overflow => RadonErrors::Overflow,
-            RadError::DivisionByZero => RadonErrors::DivisionByZero,
-            RadError::InsufficientCommits => RadonErrors::InsufficientCommits,
-            RadError::NoReveals => RadonErrors::NoReveals,
-            RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
-            RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,
-            RadError::TallyExecution { .. } => RadonErrors::TallyExecution,
-            RadError::UnhandledIntercept { .. } | RadError::UnhandledInterceptV2 { .. } => {
-                RadonErrors::UnhandledIntercept
+    pub fn try_into_radon_error(
+        kind: RadonErrors, 
+        error_args: Option<Vec<SerdeCborValue>>
+    ) -> Result<RadonError<Self>, Self> {
+        Ok(RadonError::new(match kind {
+
+            RadonErrors::CircumstantialFailure => {
+                match error_args.unwrap_or_default().split_first() {
+                    Some((head, tail)) => {
+                        if let SerdeCborValue::Integer(error_code) = head {
+                            let error_code = u8::try_from(*error_code).map_err(|_| {
+                                RadError::DecodeRadonErrorBadCode {
+                                    actual_type: format!("{:?}", error_code),
+                                }
+                            })?;
+                            
+                            let subcode = RadonErrors::try_from(error_code)
+                                .map_err(|_| RadError::DecodeRadonErrorUnknownCode { error_code })?;
+                            
+                            let subcode_args = if tail.is_empty() {
+                                None
+                            } else {
+                                Some(tail.to_vec())
+                            };
+
+                            RadError::CircumstantialFailure { 
+                                subcode: u8::from(subcode), 
+                                args: subcode_args
+                            }
+                        } else {
+                            return Err(RadError::DecodeRadonErrorBadCode {
+                                actual_type: format!("{:?}", head),
+                            });
+                        }
+                    }
+                    None => {
+                        return Err(RadError::DecodeRadonErrorEmptyArray);
+                    }
+                }
             }
-            RadError::MalformedReveal => RadonErrors::MalformedReveal,
-            RadError::EncodeReveal => RadonErrors::EncodeReveal,
-            RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
-            RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
-            // The `InconsistentSource` error is mapped here for the sake of backwards
-            // compatibility. Namely, to enable paranoid retrieval without having to immediately
-            // introduce a breaking change that may jeopardize oracle queries. The point of making
-            // the mapping here is to only affect actual witnessing and committing, but not the
-            // `try_data_request` function, which can rather use the `InconsistentSource` error for
-            // clarity.
-            // TODO: pursue a WIP that introduces `InconsistentSource` as a proper
-            //  RadonError at the protocol level
-            //  https://github.com/witnet/WIPs/issues/86
-            RadError::InconsistentSource => RadonErrors::Unknown,
-            _ => return Err(RadError::EncodeRadonErrorUnknownCode),
-        })
+
+            RadonErrors::InconsistentSources => RadError::InconsistentSource,
+
+            RadonErrors::MalformedDataRequest => {
+                let (subcode, ) = legacy::deserialize_args(error_args)?;
+                RadError::MalformedDataRequest { subcode }
+            }
+
+            RadonErrors::MalformedResponses => {
+                let (subcode, ) = legacy::deserialize_args(error_args)?;
+                RadError::MalformedResponses { subcode }
+            }
+
+            RadonErrors::OversizedTallyResult => {
+                let (actual, allowance,) = legacy::deserialize_args(error_args)?;
+                RadError::OversizedTallyResult { actual, allowance}
+            }
+            
+            _ => {
+                return Self::try_into_radon_error_before_wip0028(kind, error_args);
+            }
+
+        }))
     }
 
     /// Replaces the `from` field in instances of `RadError::Decode`
