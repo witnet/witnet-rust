@@ -16,7 +16,7 @@ pub fn absolute(input: &RadonInteger) -> Result<RadonInteger, RadError> {
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
 }
 
@@ -56,7 +56,7 @@ pub fn multiply(input: &RadonInteger, args: &[Value]) -> Result<RadonInteger, Ra
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
 }
 
@@ -96,7 +96,7 @@ pub fn modulo(input: &RadonInteger, args: &[Value]) -> Result<RadonInteger, RadE
 
     match input.value().checked_rem(modulo) {
         Some(x) => Ok(RadonInteger::from(x)),
-        None => Err(RadError::Overflow),
+        None => Err(RadError::MathOverflow),
     }
 }
 
@@ -106,7 +106,7 @@ pub fn negate(input: &RadonInteger) -> Result<RadonInteger, RadError> {
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
 }
 
@@ -124,7 +124,7 @@ pub fn power(input: &RadonInteger, args: &[Value]) -> Result<RadonInteger, RadEr
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
 }
 
@@ -257,12 +257,12 @@ fn test_integer_modulo() {
 
     assert_eq!(
         modulo(&RadonInteger::from(5), &[Value::Integer(0)]).unwrap_err(),
-        RadError::Overflow,
+        RadError::MathOverflow,
     );
 
     assert_eq!(
         modulo(&RadonInteger::from(i128::MIN), &[Value::Integer(-1)]).unwrap_err(),
-        RadError::Overflow,
+        RadError::MathOverflow,
     );
 }
 
