@@ -430,6 +430,7 @@ impl RadError {
 
             RadError::CircumstantialFailure { .. }
                 | RadError::ArrayIndexOutOfBounds { .. }
+                | RadError::HttpOther { .. }
                 | RadError::HttpStatus { .. }
                 | RadError::MapKeyNotFound { .. }
                 | RadError::ModeTie { .. }
@@ -449,7 +450,6 @@ impl RadError {
             RadError::MalformedDataRequest { .. }
                 | RadError::ArrayFilterWrongSubscript { .. }
                 | RadError::BadSubscriptFormat { .. }
-                | RadError::HttpOther { .. }
                 | RadError::InvalidHttpBody { .. } 
                 | RadError::InvalidHttpHeader { .. }
                 | RadError::InvalidScript { .. }
