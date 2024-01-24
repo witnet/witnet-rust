@@ -14,66 +14,198 @@ use crate::{operators::RadonOpCodes, types::array::RadonArray};
 /// RAD errors.
 #[derive(Clone, Debug, Fail, PartialEq)]
 pub enum RadError {
-    /// An unknown error. Something went really bad!
-    #[fail(display = "Unknown error")]
-    Unknown,
-    /// Failed to decode a type from other
-    #[fail(display = "Failed to decode {} from {}", to, from)]
-    Decode {
-        from: &'static str,
-        to: &'static str,
-    },
-    /// Failed to encode a type into other
-    #[fail(display = "Failed to encode {} into {}", from, to)]
-    Encode {
-        from: &'static str,
-        to: &'static str,
-    },
-    /// Failed to calculate the hash of a RADON value or structure
-    #[fail(display = "Failed to calculate the hash of a RADON value or structure")]
-    Hash,
-    /// Failed to parse an object from a JSON buffer
-    #[fail(
-        display = "Failed to parse an object from a JSON buffer: {:?}",
-        description
-    )]
-    JsonParse { description: String },
-    /// The given JSON path is not present in a JSON-stringified object
-    #[fail(display = "Failed to find JSON path `{}` from RadonString", path)]
-    JsonPathNotFound { path: String },
-    /// Failed to parse a JSON path selector from a string value
-    #[fail(
-        display = "Failed to parse a JSON path from a string value: {:?}",
-        description
-    )]
-    JsonPathParse { description: String },
-    /// Failed to parse an object from a XML buffer
-    #[fail(
-        display = "Failed to parse an object from a XML buffer: {:?}",
-        description
-    )]
-    XmlParse { description: String },
-    /// Failed to parse an object from a XML buffer by depth overflow
-    #[fail(display = "Failed to parse an object from a XML buffer: XML depth overflow")]
-    XmlParseOverflow,
-    /// The given index is not present in a RadonArray
-    #[fail(display = "Failed to get item at index `{}` from RadonArray", index)]
-    ArrayIndexOutOfBounds { index: i32 },
-    /// The given key is not present in a RadonMap
-    #[fail(display = "Failed to get key `{}` from RadonMap", key)]
-    MapKeyNotFound { key: String },
+
     /// The given subscript does not return RadonBoolean in an ArrayFilter
     #[fail(
         display = "ArrayFilter subscript output was not RadonBoolean (was `{}`)",
         value
     )]
-    ArrayFilterWrongSubscript { value: String },
+    ArrayFilterWrongSubscript { value: String },    
+    /// The given index is not present in a RadonArray
+    #[fail(display = "Failed to get item at index `{}` from RadonArray", index)]
+    ArrayIndexOutOfBounds { index: i32 },
+    /// Subscripts should be an array
+    #[fail(display = "Subscript should be an array but is: {:?}", value)]
+    BadSubscriptFormat { value: SerdeCborValue },
     /// Failed to parse a Value from a buffer
     #[fail(
         display = "Failed to parse a Value from a buffer. Error message: {}",
         description
     )]
     BufferIsNotValue { description: String },
+    /// Failed to decode a type from other
+    #[fail(display = "Failed to decode {} from {}", to, from)]
+    Decode {
+        from: &'static str,
+        to: &'static str,
+    },
+    /// Alleged `RadonError` has a `RadonTypes` argument which was wrongly serialized
+    // FIXME(#953): this error should not exist, but it is useful to detect problems with the
+    // current hacky implementation
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments (`{:?}`) were not compatible: {}",
+        arguments, message
+    )]
+    DecodeRadonErrorArgumentsRadonTypesFail {
+        arguments: Option<Vec<SerdeCborValue>>,
+        message: String,
+    },
+    /// Alleged `RadonError` contains an error code that is not `u8`
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its first element (the error code) was not `cbor::value::Value::U8` (was actually `{}`)",
+        actual_type
+    )]
+    DecodeRadonErrorBadCode { actual_type: String },
+    /// Alleged `RadonError` is actually an empty `cbor::value::Value::Array`
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because the array was empty"
+    )]
+    DecodeRadonErrorEmptyArray,
+    /// Alleged `RadonError` does not have any arguments
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments are empty"
+    )]
+    DecodeRadonErrorMissingArguments,
+    /// Alleged `RadonError` is actually not an instance of `cbor::value::Value::Array`
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value` that was not `Array` (was actually `{}`)",
+        actual_type
+    )]
+    DecodeRadonErrorNotArray { actual_type: String },    
+    /// Alleged `RadonError` contains an unknown error code
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its first element (`{:?}`) did not match any known error code",
+        error_code
+    )]
+    DecodeRadonErrorUnknownCode { error_code: u8 },
+    /// Alleged `RadonError` does not have the expected arguments
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments (`{:?}`) were not compatible: {}",
+        arguments, message
+    )]
+    DecodeRadonErrorWrongArguments {
+        arguments: Option<SerdeCborValue>,
+        message: String,
+    },
+    /// Arrays to be reduced have different sizes
+    #[fail(
+        display = "Arrays to be reduced in {} have different sizes. {} != {}",
+        method, first, second
+    )]
+    DifferentSizeArrays {
+        method: String,
+        first: usize,
+        second: usize,
+    },
+    /// Tried to apply mode reducer on an empty array
+    #[fail(display = "Tried to apply mode reducer on an empty array")]
+    EmptyArray,
+    /// Failed to encode a type into other
+    #[fail(display = "Failed to encode {} into {}", from, to)]
+    Encode {
+        from: &'static str,
+        to: &'static str,
+    },
+    /// Failed to encode `RadonError` arguments
+    #[fail(display = "Failed to encode `RadonError` arguments `{}`", error_args)]
+    EncodeRadonErrorArguments { error_args: String },
+    /// `RadError` cannot be converted to `RadonError` because the error code is not defined
+    #[fail(
+        display = "`RadError` cannot be converted to `RadonError` because the error code is not defined"
+    )]
+    EncodeRadonErrorUnknownCode,
+    /// Failed to encode reveal
+    #[fail(display = "Error when encoding reveal value")]
+    EncodeReveal,
+    /// Failed to calculate the hash of a RADON value or structure
+    #[fail(display = "Failed to calculate the hash of a RADON value or structure")]
+    Hash,
+    /// Failed to execute HTTP request
+    #[fail(
+        display = "Failed to execute HTTP request with error message: {}",
+        message
+    )]
+    HttpOther { message: String },
+    /// The HTTP response was an error code
+    #[fail(display = "HTTP GET response was an HTTP error code: {}", status_code)]
+    HttpStatus { status_code: u16 },
+    /// Source looks inconsistent when queried through multiple transports at once.
+    #[fail(display = "Source looks inconsistent when queried through multiple transports at once")]
+    InconsistentSource,
+    /// Error while parsing HTTP header
+    #[fail(
+        display = "invalid HTTP body: {}",
+        error
+    )]
+    InvalidHttpBody { error: String },
+    /// Error while parsing HTTP header
+    #[fail(
+        display = "invalid HTTP header: {}. name={:?}, value={:?}",
+        error, name, value
+    )]
+    InvalidHttpHeader {
+        name: String,
+        value: String,
+        error: String,
+    },
+    /// Error while parsing HTTP response
+    #[fail(
+        display = "invalid HTTP response: {}",
+        error
+    )]
+    InvalidHttpResponse { error: String },
+    /// Invalid script
+    #[fail(
+        display = "CBOR value cannot be translated into a proper RADON script: {:?}",
+        value
+    )]
+    InvalidScript { value: SerdeCborValue },
+    /// Failed to parse an object from a JSON buffer
+    #[fail(
+        display = "Failed to parse an object from a JSON buffer: {:?}",
+        description
+    )]
+    JsonParse { description: String },
+    /// Failed to parse a JSON path selector from a string value
+    #[fail(
+        display = "Failed to parse a JSON path from a string value: {:?}",
+        description
+    )]
+    JsonPathParse { description: String },
+    /// The given JSON path is not present in a JSON-stringified object
+    #[fail(display = "Failed to find JSON path `{}` from RadonString", path)]
+    JsonPathNotFound { path: String },
+    /// Invalid reveal serialization (malformed reveals are converted to this value)
+    #[fail(display = "The reveal was not serialized correctly")]
+    MalformedReveal,
+    /// The given key is not present in a RadonMap
+    #[fail(display = "Failed to get key `{}` from RadonMap", key)]
+    MapKeyNotFound { key: String },
+    /// Tried to divide by zero.
+    #[fail(display = "Tried to divide by zero")]
+    MathDivisionByZero,
+    /// Overflow error
+    #[fail(display = "Overflow error")]
+    MathOverflow,
+    /// Math operator caused an underflow.
+    #[fail(display = "Math operator caused an underflow")]
+    MathUnderflow,
+    /// Mismatching types
+    #[fail(
+        display = "Mismatching types in {}. Expected: {}, found: {}",
+        method, expected, found
+    )]
+    MismatchingTypes {
+        method: String,
+        expected: &'static str,
+        found: &'static str,
+    },
+    /// There was a tie after applying the mode reducer
+    #[fail(
+        display = "There was a tie after applying the mode reducer on values: `{:?}`",
+        values
+    )]
+    ModeTie { values: RadonArray, max_count: u16 },
     /// No operator found in compound call
     #[fail(display = "No operator found in compound call")]
     NoOperatorInCompoundCall,
@@ -83,24 +215,91 @@ pub enum RadError {
     /// The given operator code is not a valid natural number
     #[fail(display = "Operator code `{}` is not a valid natural number", code)]
     NotNaturalOperator { code: i128 },
+    /// Failed to convert string to bool
+    #[fail(
+        display = "Failed to convert string to bool with error message: {}",
+        message
+    )]
+    ParseBool { message: String },
+    /// Failed to convert string to float
+    #[fail(
+        display = "Failed to convert string to float with error message: {}",
+        message
+    )]
+    ParseFloat { message: String },
+    /// Failed to convert string to int
+    #[fail(
+        display = "Failed to convert string to int with error message: {}",
+        message
+    )]
+    ParseInt { message: String },
+    /// The request contains too many sources.
+    #[fail(display = "The request contains too many sources")]
+    RequestTooManySources,
+    /// Timeout during retrieval phase
+    #[fail(display = "Timeout during retrieval phase")]
+    RetrieveTimeout,
     /// The parsed value was expected to be a script but is not even an Array
     #[fail(
         display = "The parsed value was expected to be a script but is not even an Array (it was a `{}`)",
         input_type
     )]
     ScriptNotArray { input_type: String },
-    /// The given operator code is unknown
-    #[fail(display = "Operator code `{}` is unknown", code)]
-    UnknownOperator { code: i128 },
+    /// The script contains too many calls.
+    #[fail(display = "The script contains too many calls")]
+    ScriptTooManyCalls,
+    /// At least one of the source scripts is not a valid CBOR-encoded value.
+    #[fail(display = "At least one of the source scripts is not a valid CBOR-encoded value")]
+    SourceScriptNotCBOR,
+    /// The CBOR value decoded from a source script is not an Array.
+    #[fail(display = "The CBOR value decoded from a source script is not an Array")]
+    SourceScriptNotArray,
+    /// The Array value decoded form a source script is not a valid RADON script.
+    #[fail(display = "The Array value decoded form a source script is not a valid RADON script")]
+    SourceScriptNotRADON,
+    /// Error while executing subscript
+    #[fail(
+        display = "`{}::{}()`: Error in subscript: {}",
+        input_type, operator, inner
+    )]
+    Subscript {
+        input_type: String,
+        operator: String,
+        inner: Box<RadError>,
+    },
+    /// An unknown error. Something went really bad!
+    #[fail(display = "Unknown error")]
+    Unknown,
     /// The given filter code is unknown
     #[fail(display = "Filter code `{}` is unknown", code)]
     UnknownFilter { code: i128 },
+    /// The given operator code is unknown
+    #[fail(display = "Operator code `{}` is unknown", code)]
+    UnknownOperator { code: i128 },
     /// The given reducer code is unknown
     #[fail(display = "Reducer code `{}` is unknown", code)]
     UnknownReducer { code: i128 },
     /// The given retrieval code is unknown
     #[fail(display = "Retrieval code is unknown")]
-    UnknownRetrieval,
+    UnknownRetrieval,    
+    /// The given encoding schema is not implemented
+    #[fail(
+        display = "Encoding schema #{} not implemented",
+        schema
+    )]
+    UnsupportedEncodingSchema { schema: usize },
+    /// The given filter is not implemented for the type of the input Array
+    #[fail(
+        display = "Filter `{}` is not implemented for Array `{:?}`",
+        filter, array
+    )]
+    UnsupportedFilter { array: RadonArray, filter: String },
+    /// This filter cannot be used in aggregation or tally stage
+    #[fail(
+        display = "Filter {} cannot be used in aggregation or tally stage",
+        operator
+    )]
+    UnsupportedFilterInAT { operator: u8 },
     /// The given hash function is not implemented
     #[fail(display = "Hash function `{}` is not implemented", function)]
     UnsupportedHashFunction { function: String },
@@ -114,51 +313,37 @@ pub enum RadError {
         operator: String,
         args: Option<Vec<SerdeCborValue>>,
     },
-    /// The given reducer is not implemented for the type of the input Array
-    #[fail(
-        display = "Reducer `{}` is not implemented for Array `{:?}`",
-        reducer, array
-    )]
-    UnsupportedReducer { array: RadonArray, reducer: String },
-    /// The given filter is not implemented for the type of the input Array
-    #[fail(
-        display = "Filter `{}` is not implemented for Array `{:?}`",
-        filter, array
-    )]
-    UnsupportedFilter { array: RadonArray, filter: String },
-    /// The sort operator is not implemented for non-string arrays
-    #[fail(display = "ArraySort is not supported for RadonArray `{:?}`", array)]
-    UnsupportedSortOp { array: RadonArray },
+    /// This operator cannot be used in tally stage
+    #[fail(display = "Operator {} cannot be used in tally stage", operator)]
+    UnsupportedOperatorInTally { operator: RadonOpCodes },
     /// The operator is not implemented for non-homogeneous arrays
     #[fail(
         display = "`{}` is not supported for RadonArray with non homogeneous types",
         operator
     )]
     UnsupportedOpNonHomogeneous { operator: String },
-    /// This operator cannot be used in tally stage
-    #[fail(display = "Operator {} cannot be used in tally stage", operator)]
-    UnsupportedOperatorInTally { operator: RadonOpCodes },
-    /// This filter cannot be used in aggregation or tally stage
+    /// The given reducer is not implemented for the type of the input Array
     #[fail(
-        display = "Filter {} cannot be used in aggregation or tally stage",
-        operator
+        display = "Reducer `{}` is not implemented for Array `{:?}`",
+        reducer, array
     )]
-    UnsupportedFilterInAT { operator: u8 },
+    UnsupportedReducer { array: RadonArray, reducer: String },
     /// This reducer cannot be used in aggregation or tally stage
     #[fail(
         display = "Reducer {} cannot be used in aggregation or tally stage",
         operator
     )]
     UnsupportedReducerInAT { operator: u8 },
-    /// There was a tie after applying the mode reducer
-    #[fail(
-        display = "There was a tie after applying the mode reducer on values: `{:?}`",
-        values
-    )]
-    ModeTie { values: RadonArray, max_count: u16 },
-    /// Tried to apply mod reducer on an empty array
-    #[fail(display = "Tried to apply mode reducer on an empty array")]
-    EmptyArray,
+    /// The sort operator is not implemented for non-string arrays
+    #[fail(display = "ArraySort is not supported for RadonArray `{:?}`", array)]
+    UnsupportedSortOp { array: RadonArray },
+    /// Error while parsing retrieval URL
+    #[fail(display = "URL parse error: {}: url={:?}", inner, url)]
+    UrlParseError {
+        #[cause]
+        inner: url::ParseError,
+        url: String,
+    },
     /// The given arguments are not valid for the given operator
     #[fail(
         display = "Wrong `{}::{}()` arguments: `{:?}`",
@@ -169,175 +354,75 @@ pub enum RadError {
         operator: String,
         args: Vec<SerdeCborValue>,
     },
-    /// The HTTP response was an error code
-    #[fail(display = "HTTP GET response was an HTTP error code: {}", status_code)]
-    HttpStatus { status_code: u16 },
-    /// Failed to execute HTTP request
+    /// Failed to parse an object from a XML buffer
     #[fail(
-        display = "Failed to execute HTTP GET request with error message: {}",
-        message
+        display = "Failed to parse an object from a XML buffer: {:?}",
+        description
     )]
-    HttpOther { message: String },
-    /// Failed to convert string to float
-    #[fail(
-        display = "Failed to convert string to float with error message: {}",
-        message
-    )]
-    ParseFloat { message: String },
-    /// Failed to convert string to int
-    #[fail(
-        display = "Failed to convert string to int with error message: {}",
-        message
-    )]
-    ParseInt { message: String },
-    /// Failed to convert string to bool
-    #[fail(
-        display = "Failed to convert string to bool with error message: {}",
-        message
-    )]
-    ParseBool { message: String },
-    /// Overflow error
-    #[fail(display = "Overflow error")]
-    Overflow,
-    /// Mismatching types
-    #[fail(
-        display = "Mismatching types in {}. Expected: {}, found: {}",
-        method, expected, found
-    )]
-    MismatchingTypes {
-        method: String,
-        expected: &'static str,
-        found: &'static str,
-    },
-    /// Arrays to be reduced have different sizes
-    #[fail(
-        display = "Arrays to be reduced in {} have different sizes. {} != {}",
-        method, first, second
-    )]
-    DifferentSizeArrays {
-        method: String,
-        first: usize,
-        second: usize,
-    },
-    /// Subscripts should be an array
-    #[fail(display = "Subscript should be an array but is: {:?}", value)]
-    BadSubscriptFormat { value: SerdeCborValue },
-    /// Error while executing subscript
-    #[fail(
-        display = "`{}::{}()`: Error in subscript: {}",
-        input_type, operator, inner
-    )]
-    Subscript {
-        input_type: String,
-        operator: String,
-        inner: Box<RadError>,
-    },
-    /// Error while parsing retrieval URL
-    #[fail(display = "URL parse error: {}: url={:?}", inner, url)]
-    UrlParseError {
-        #[cause]
-        inner: url::ParseError,
-        url: String,
-    },
-    /// Timeout during retrieval phase
-    #[fail(display = "Timeout during retrieval phase")]
-    RetrieveTimeout,
-    /// Invalid script
-    #[fail(
-        display = "CBOR value cannot be translated into a proper RADON script: {:?}",
-        value
-    )]
-    InvalidScript { value: SerdeCborValue },
-    /// Failed to encode `RadonError` arguments
-    #[fail(display = "Failed to encode `RadonError` arguments `{}`", error_args)]
-    EncodeRadonErrorArguments { error_args: String },
-    /// Alleged `RadonError` is actually not an instance of `cbor::value::Value::Array`
-    #[fail(
-        display = "Failed to decode a `RadonError` from a `cbor::value::Value` that was not `Array` (was actually `{}`)",
-        actual_type
-    )]
-    DecodeRadonErrorNotArray { actual_type: String },
-    /// Alleged `RadonError` is actually an empty `cbor::value::Value::Array`
-    #[fail(
-        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because the array was empty"
-    )]
-    DecodeRadonErrorEmptyArray,
-    /// Alleged `RadonError` contains an error code that is not `u8`
-    #[fail(
-        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its first element (the error code) was not `cbor::value::Value::U8` (was actually `{}`)",
-        actual_type
-    )]
-    DecodeRadonErrorBadCode { actual_type: String },
-    /// Alleged `RadonError` contains an unknown error code
-    #[fail(
-        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its first element (`{:?}`) did not match any known error code",
-        error_code
-    )]
-    DecodeRadonErrorUnknownCode { error_code: u8 },
-    /// Alleged `RadonError` does not have any arguments
-    #[fail(
-        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments are empty"
-    )]
-    DecodeRadonErrorMissingArguments,
-    /// Alleged `RadonError` does not have the expected arguments
-    #[fail(
-        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments (`{:?}`) were not compatible: {}",
-        arguments, message
-    )]
-    DecodeRadonErrorWrongArguments {
-        arguments: Option<SerdeCborValue>,
-        message: String,
-    },
-    /// Alleged `RadonError` has a `RadonTypes` argument which was wrongly serialized
-    // FIXME(#953): this error should not exist, but it is useful to detect problems with the
-    // current hacky implementation
-    #[fail(
-        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments (`{:?}`) were not compatible: {}",
-        arguments, message
-    )]
-    DecodeRadonErrorArgumentsRadonTypesFail {
-        arguments: Option<Vec<SerdeCborValue>>,
-        message: String,
-    },
-    /// No commits received
+    XmlParse { description: String },
+    /// Failed to parse an object from a XML buffer by depth overflow
+    #[fail(display = "Failed to parse an object from a XML buffer: XML depth overflow")]
+    XmlParseOverflow,
+
+    /// ===============================================================================================================
+    /// Errors that can be eventually wrapped into a RadonTypes::RadonError<RadError> ---------------------------------
+    
+    /// Received insufficient commits 
     #[fail(display = "Insufficient commits received")]
     InsufficientCommits,
-    /// No reveals received
-    #[fail(display = "No reveals received")]
-    NoReveals,
+    
+    /// Received insufficient reveals
+    #[fail(display = "Insufficient reveals received")]
+    InsufficientQuorum,
+    
     /// Insufficient consensus in tally precondition clause
     #[fail(
         display = "Tally precondition clause failed because of insufficient consensus (achieved: {}, required: {})",
         achieved, required
     )]
-    InsufficientConsensus { achieved: f64, required: f64 },
-    /// The request contains too many sources.
-    #[fail(display = "The request contains too many sources")]
-    RequestTooManySources,
-    /// The script contains too many calls.
-    #[fail(display = "The script contains too many calls")]
-    ScriptTooManyCalls,
-    /// At least one of the source scripts is not a valid CBOR-encoded value.
-    #[fail(display = "At least one of the source scripts is not a valid CBOR-encoded value")]
-    SourceScriptNotCBOR,
-    /// The CBOR value decoded from a source script is not an Array.
-    #[fail(display = "The CBOR value decoded from a source script is not an Array")]
-    SourceScriptNotArray,
-    /// The Array value decoded form a source script is not a valid RADON script.
-    #[fail(display = "The Array value decoded form a source script is not a valid RADON script")]
-    SourceScriptNotRADON,
-    /// Math operator caused an underflow.
-    #[fail(display = "Math operator caused an underflow")]
-    Underflow,
-    /// Tried to divide by zero.
-    #[fail(display = "Tried to divide by zero")]
-    DivisionByZero,
-    /// `RadError` cannot be converted to `RadonError` because the error code is not defined
+    InsufficientMajority { achieved: f64, required: f64 },    
+    
+    /// A majority of data sources could either be temporarily unresponsive or failing to report the requested data:
     #[fail(
-        display = "`RadError` cannot be converted to `RadonError` because the error code is not defined"
+        display = "Data sources seems to be temporarily unresponsive: subcode {:?}: args: {:?}",
+        subcode,
+        args
     )]
-    EncodeRadonErrorUnknownCode,
-    /// Generic error during tally execution
+    CircumstantialFailure { subcode: u8, args: Option<Vec<serde_cbor::Value>> },
+
+    /// At least one data source is inconsistent when queried through multiple transports at once:
+    #[fail(display = "Inconsistent sources")]
+    InconsistentSources,
+    
+    /// Any one of the (multiple) Retrieve, Aggregate or Tally scripts were badly formated:
+    #[fail(
+        display = "Malformed data request: {:?}",
+        subcode
+    )]
+    MalformedDataRequest { subcode: u8 },
+    
+    /// Values returned from data sources seem not to match the expected schema:
+    #[fail(
+        display = "Malformed response from data sources: {:?}",
+        subcode
+    )]
+    MalformedResponses { subcode: u8 },
+
+    /// Size of serialized tally result exceeds allowance:
+    #[fail(
+        display = "Tally result size exceeded allowance (actual: {}, allowance: {})", 
+        actual, allowance
+    )]
+    OversizedTallyResult { actual: usize, allowance: usize },
+    
+    /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
+    #[fail(
+        display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Inner: `{:?}`",
+        inner
+    )]
+    UnhandledInterceptV2 { inner: Option<Box<RadError>> },
+    
+    /// Legacy: Errors during tally execution
     #[fail(
         display = "Error during tally execution. Message: {:?}. Inner: `{:?}`",
         message, inner
@@ -346,7 +431,8 @@ pub enum RadError {
         inner: Option<Box<RadError>>,
         message: Option<String>,
     },
-    /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
+    
+    /// Legacy: `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
     #[fail(
         display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Message: {:?}. Inner: `{:?}`",
         message, inner
@@ -355,32 +441,8 @@ pub enum RadError {
         inner: Option<Box<RadError>>,
         message: Option<String>,
     },
-    /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
-    #[fail(
-        display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Inner: `{:?}`",
-        inner
-    )]
-    UnhandledInterceptV2 { inner: Option<Box<RadError>> },
-    /// Invalid reveal serialization (malformed reveals are converted to this value)
-    #[fail(display = "The reveal was not serialized correctly")]
-    MalformedReveal,
-    /// Failed to encode reveal
-    #[fail(display = "Error when encoding reveal value")]
-    EncodeReveal,
-    /// Error while parsing HTTP header
-    #[fail(
-        display = "invalid HTTP header: {}. name={:?}, value={:?}",
-        error, name, value
-    )]
-    InvalidHttpHeader {
-        name: String,
-        value: String,
-        error: String,
-    },
-    /// Source looks inconsistent when queried through multiple transports at once.
-    #[fail(display = "Source looks inconsistent when queried through multiple transports at once")]
-    InconsistentSource,
 }
+
 
 impl RadError {
     pub fn try_from_cbor_array(
