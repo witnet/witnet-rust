@@ -295,7 +295,7 @@ fn test_tally_precondition_clause_insufficient_consensus() {
 
     assert_eq!(
         out,
-        RadError::InsufficientConsensus {
+        RadError::InsufficientMajority {
             achieved: 0.5,
             required: 0.51,
         }
@@ -304,7 +304,7 @@ fn test_tally_precondition_clause_insufficient_consensus() {
 
 #[test]
 fn test_tally_precondition_clause_errors_insufficient_consensus() {
-    // Two revealers that report two different errors result in `InsufficientConsensus`
+    // Two revealers that report two different errors result in `InsufficientMajority`
     // because there is only 50% consensus (1/2)
     let rad_err1 = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
     let rad_err2 = RadonError::try_from(RadError::RetrieveTimeout).unwrap();
@@ -322,7 +322,7 @@ fn test_tally_precondition_clause_errors_insufficient_consensus() {
 
     assert_eq!(
         out,
-        RadError::InsufficientConsensus {
+        RadError::InsufficientMajority {
             achieved: 0.5,
             required: 0.51,
         }

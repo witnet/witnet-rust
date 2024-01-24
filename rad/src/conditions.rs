@@ -84,7 +84,7 @@ pub fn evaluate_tally_precondition_clause(
     }
 
     // If the achieved consensus is over the user-defined threshold, continue.
-    // Otherwise, return `RadError::InsufficientConsensus`.
+    // Otherwise, return `RadError::InsufficientMajority`.
     if achieved_consensus >= minimum_consensus {
         // Decide based on the most frequent type.
         match counter.max_pos {
@@ -111,7 +111,7 @@ pub fn evaluate_tally_precondition_clause(
                 let errors_array = RadonArray::from(errors);
                 // Use the mode filter to get the count of the most common error.
                 // That count must be greater than or equal to minimum_consensus,
-                // otherwise RadError::InsufficientConsensus is returned
+                // otherwise RadError::InsufficientMajority is returned
                 let most_common_error_array =
                     filters::mode::mode_filter(&errors_array, &mut ReportContext::default());
 
@@ -127,7 +127,7 @@ pub fn evaluate_tally_precondition_clause(
                                 _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
                             }
                         } else {
-                            Err(RadError::InsufficientConsensus {
+                            Err(RadError::InsufficientMajority {
                                 achieved: achieved_consensus,
                                 required: minimum_consensus,
                             })
@@ -139,7 +139,7 @@ pub fn evaluate_tally_precondition_clause(
                     Err(RadError::ModeTie { values, max_count }) => {
                         let achieved_consensus = f64::from(max_count) / num_commits_f;
                         if achieved_consensus < minimum_consensus {
-                            Err(RadError::InsufficientConsensus {
+                            Err(RadError::InsufficientMajority {
                                 achieved: achieved_consensus,
                                 required: minimum_consensus,
                             })
@@ -174,7 +174,7 @@ pub fn evaluate_tally_precondition_clause(
             }
         }
     } else {
-        Err(RadError::InsufficientConsensus {
+        Err(RadError::InsufficientMajority {
             achieved: achieved_consensus,
             required: minimum_consensus,
         })
@@ -214,7 +214,7 @@ pub fn evaluate_tally_postcondition_clause(
             // and not rewarded.
             let num_reveals = metadata.liars.len();
             radon_report_from_error(
-                RadError::InsufficientConsensus {
+                RadError::InsufficientMajority {
                     achieved: achieved_consensus,
                     required: minimum_consensus,
                 },
