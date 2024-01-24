@@ -266,13 +266,12 @@ async fn http_response(
         for (name, value) in &retrieve.headers {
             // Handle invalid header names and values with a specific and friendly error message
             validate_header(name, value)?;
-
             builder = builder.header(name, value);
         }
 
         // Finally attach the body to complete building the HTTP request
-        builder.body(body).map_err(|e| RadError::HttpOther {
-            message: e.to_string(),
+        builder.body(body).map_err(|e| RadError::InvalidHttpBody {
+            error: e.to_string(),
         })
     })?;
 
@@ -280,8 +279,8 @@ async fn http_response(
     let response = client
         .send(request)
         .await
-        .map_err(|x| RadError::HttpOther {
-            message: x.to_string(),
+        .map_err(|err| RadError::InvalidHttpResponse {
+            error: err.to_string()
         })?
         .inner();
 
@@ -301,8 +300,8 @@ async fn http_response(
         // todo: before reading the response buffer, an error should be thrown if it was too big
         body.read_to_end(&mut response_bytes)
             .await
-            .map_err(|x| RadError::HttpOther {
-                message: x.to_string(),
+            .map_err(|x| RadError::InvalidHttpResponse {
+                error: x.to_string(),
             })?;
         response = RadonTypes::from(RadonBytes::from(response_bytes));
     } else {
@@ -315,8 +314,8 @@ async fn http_response(
             _ => {
                 body.read_to_string(&mut response_string)
                     .await
-                    .map_err(|x| RadError::HttpOther {
-                        message: x.to_string(),
+                    .map_err(|x| RadError::InvalidHttpResponse {
+                        error: x.to_string(),
                     })?;
             }
         }
