@@ -555,6 +555,10 @@ impl ActiveWips {
         self.wip_active("WIP0027")
     }
 
+    pub fn wip_guidiaz_extended_radon_errors(&self) -> bool {
+        self.wip_active("WIP0028")
+    }
+
     /// Convenience method for inserting WIPs.
     pub fn insert_wip(&mut self, wip: &str, activation_epoch: Epoch) {
         self.active_wips.insert(String::from(wip), activation_epoch);

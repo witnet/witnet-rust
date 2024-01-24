@@ -5,8 +5,8 @@ use serde_cbor::value::{from_value, Value};
 use crate::{
     error::RadError,
     types::{
-        boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, string::RadonString,
-        RadonType,
+        boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
+        string::RadonString, RadonType,
     },
 };
 
@@ -16,8 +16,22 @@ pub fn absolute(input: &RadonInteger) -> Result<RadonInteger, RadError> {
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
+}
+
+pub fn to_bytes(input: RadonInteger) -> Result<RadonBytes, RadError> {
+    let mut bytes_array = [0u8; 16];
+    bytes_array.copy_from_slice(&input.value().to_be_bytes());
+    let mut leading_zeros = 0;
+    for i in 0..bytes_array.len() {
+        if bytes_array[i] != 0u8 {
+            break;
+        } else {
+            leading_zeros += 1;
+        }
+    }
+    Ok(RadonBytes::from(bytes_array[leading_zeros..].to_vec()))
 }
 
 pub fn to_float(input: RadonInteger) -> Result<RadonFloat, RadError> {
@@ -42,7 +56,7 @@ pub fn multiply(input: &RadonInteger, args: &[Value]) -> Result<RadonInteger, Ra
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
 }
 
@@ -82,7 +96,7 @@ pub fn modulo(input: &RadonInteger, args: &[Value]) -> Result<RadonInteger, RadE
 
     match input.value().checked_rem(modulo) {
         Some(x) => Ok(RadonInteger::from(x)),
-        None => Err(RadError::Overflow),
+        None => Err(RadError::MathOverflow),
     }
 }
 
@@ -92,7 +106,7 @@ pub fn negate(input: &RadonInteger) -> Result<RadonInteger, RadError> {
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
 }
 
@@ -110,7 +124,7 @@ pub fn power(input: &RadonInteger, args: &[Value]) -> Result<RadonInteger, RadEr
     if let Some(result) = result {
         Ok(RadonInteger::from(result))
     } else {
-        Err(RadError::Overflow)
+        Err(RadError::MathOverflow)
     }
 }
 
@@ -243,12 +257,12 @@ fn test_integer_modulo() {
 
     assert_eq!(
         modulo(&RadonInteger::from(5), &[Value::Integer(0)]).unwrap_err(),
-        RadError::Overflow,
+        RadError::MathOverflow,
     );
 
     assert_eq!(
         modulo(&RadonInteger::from(i128::MIN), &[Value::Integer(-1)]).unwrap_err(),
-        RadError::Overflow,
+        RadError::MathOverflow,
     );
 }
 

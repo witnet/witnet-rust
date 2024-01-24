@@ -166,9 +166,11 @@ impl Operable for RadonArray {
                 array_operators::get::<RadonString, _>(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::ArrayFilter, Some(args)) => array_operators::filter(self, args, context),
+            (RadonOpCodes::ArrayJoin, Some(args)) => array_operators::join(self, args),
             (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(self, args, context),
             (RadonOpCodes::ArrayReduce, Some(args)) => array_operators::reduce(self, args, context),
             (RadonOpCodes::ArraySort, Some(args)) => array_operators::sort(self, args, context),
+            (RadonOpCodes::ArrayPick, Some(args)) => array_operators::pick(self, args, context),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_ARRAY_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

@@ -51,11 +51,11 @@ pub fn evaluate_tally_precondition_clause(
     }
     // Short-circuit if there were no reveals
     if reveals.is_empty() {
-        return Err(RadError::NoReveals);
+        return Err(RadError::InsufficientQuorum);
     }
 
     let error_type_discriminant =
-        RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap()).discriminant();
+        RadonTypes::RadonError(RadonError::new(RadError::default())).discriminant();
 
     // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
     // separately as they need to be handled differently.
@@ -72,6 +72,7 @@ pub fn evaluate_tally_precondition_clause(
     }
 
     let mut num_commits_f = f64::from(u32::try_from(num_commits).unwrap());
+    
     // Compute ratio of type consensus amongst reveals (percentage of reveals that have same type
     // as the frequent type).
     let achieved_consensus = f64::from(counter.max_val) / num_commits_f;
@@ -83,7 +84,7 @@ pub fn evaluate_tally_precondition_clause(
     }
 
     // If the achieved consensus is over the user-defined threshold, continue.
-    // Otherwise, return `RadError::InsufficientConsensus`.
+    // Otherwise, return `RadError::InsufficientMajority`.
     if achieved_consensus >= minimum_consensus {
         // Decide based on the most frequent type.
         match counter.max_pos {
@@ -110,7 +111,7 @@ pub fn evaluate_tally_precondition_clause(
                 let errors_array = RadonArray::from(errors);
                 // Use the mode filter to get the count of the most common error.
                 // That count must be greater than or equal to minimum_consensus,
-                // otherwise RadError::InsufficientConsensus is returned
+                // otherwise RadError::InsufficientMajority is returned
                 let most_common_error_array =
                     filters::mode::mode_filter(&errors_array, &mut ReportContext::default());
 
@@ -126,7 +127,7 @@ pub fn evaluate_tally_precondition_clause(
                                 _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
                             }
                         } else {
-                            Err(RadError::InsufficientConsensus {
+                            Err(RadError::InsufficientMajority {
                                 achieved: achieved_consensus,
                                 required: minimum_consensus,
                             })
@@ -138,7 +139,7 @@ pub fn evaluate_tally_precondition_clause(
                     Err(RadError::ModeTie { values, max_count }) => {
                         let achieved_consensus = f64::from(max_count) / num_commits_f;
                         if achieved_consensus < minimum_consensus {
-                            Err(RadError::InsufficientConsensus {
+                            Err(RadError::InsufficientMajority {
                                 achieved: achieved_consensus,
                                 required: minimum_consensus,
                             })
@@ -173,7 +174,7 @@ pub fn evaluate_tally_precondition_clause(
             }
         }
     } else {
-        Err(RadError::InsufficientConsensus {
+        Err(RadError::InsufficientMajority {
             achieved: achieved_consensus,
             required: minimum_consensus,
         })
@@ -190,8 +191,7 @@ pub fn evaluate_tally_postcondition_clause(
 ) -> RadonReport<RadonTypes> {
     if let Stage::Tally(metadata) = report.context.stage.clone() {
         let error_type_discriminant =
-            RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap())
-                .discriminant();
+            RadonTypes::RadonError(RadonError::new(RadError::default())).discriminant();
         // If the result is already a RadonError, return that error.
         // The result can be a RadonError in these scenarios:
         // * There is insufficient consensus before running the tally script
@@ -214,7 +214,7 @@ pub fn evaluate_tally_postcondition_clause(
             // and not rewarded.
             let num_reveals = metadata.liars.len();
             radon_report_from_error(
-                RadError::InsufficientConsensus {
+                RadError::InsufficientMajority {
                     achieved: achieved_consensus,
                     required: minimum_consensus,
                 },

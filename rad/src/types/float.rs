@@ -116,26 +116,22 @@ impl Operable for RadonFloat {
             (RadonOpCodes::FloatAbsolute, None) => {
                 Ok(RadonTypes::from(float_operators::absolute(self)))
             }
-            (RadonOpCodes::FloatAsString, None) => float_operators::to_string(self.clone())
-                .map(RadonTypes::from)
-                .map_err(Into::into),
             (RadonOpCodes::FloatCeiling, None) => {
                 Ok(RadonTypes::from(float_operators::ceiling(self)))
             }
+            (RadonOpCodes::FloatFloor, None) => Ok(RadonTypes::from(float_operators::floor(self))),
             (RadonOpCodes::FloatGreaterThan, Some(args)) => {
                 float_operators::greater_than(self, args).map(Into::into)
             }
             (RadonOpCodes::FloatLessThan, Some(args)) => {
                 float_operators::less_than(self, args).map(Into::into)
             }
-            (RadonOpCodes::FloatMultiply, Some(args)) => {
-                float_operators::multiply(self, args.as_slice()).map(Into::into)
-            }
             (RadonOpCodes::FloatModulo, Some(args)) => {
                 float_operators::modulo(self, args.as_slice()).map(Into::into)
             }
-            (RadonOpCodes::FloatFloor, None) => Ok(RadonTypes::from(float_operators::floor(self))),
-
+            (RadonOpCodes::FloatMultiply, Some(args)) => {
+                float_operators::multiply(self, args.as_slice()).map(Into::into)
+            }
             (RadonOpCodes::FloatNegate, None) => {
                 Ok(RadonTypes::from(float_operators::negate(self)))
             }
@@ -143,6 +139,9 @@ impl Operable for RadonFloat {
                 float_operators::power(self, args.as_slice()).map(Into::into)
             }
             (RadonOpCodes::FloatRound, None) => Ok(RadonTypes::from(float_operators::round(self))),
+            (RadonOpCodes::FloatToString, None) => float_operators::to_string(self.clone())
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (RadonOpCodes::FloatTruncate, None) => {
                 Ok(RadonTypes::from(float_operators::truncate(self)))
             }

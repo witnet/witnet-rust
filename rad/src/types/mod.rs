@@ -11,7 +11,7 @@ use serde_json::Value as JsonValue;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{tapi::ActiveWips, Hash},
-    radon_error::{try_from_cbor_value_for_serde_cbor_value, RadonError},
+    radon_error::{try_from_cbor_value_for_serde_cbor_value, RadonError, RadonErrors},
     radon_report::{RadonReport, ReportContext, TypeLike},
 };
 
@@ -55,7 +55,7 @@ pub enum RadonTypes {
 
 impl RadonTypes {
     pub fn hash(self) -> Result<Hash, RadError> {
-        self.encode()
+        self.encode_legacy()
             .map(|vector: Vec<u8>| calculate_sha256(&vector))
             .map(Hash::from)
             .map_err(|_| RadError::Hash)
@@ -139,24 +139,74 @@ impl TypeLike for RadonTypes {
     type Error = RadError;
 
     // FIXME(953): Unify all CBOR libraries
-    fn encode(&self) -> Result<Vec<u8>, Self::Error> {
-        Vec::<u8>::try_from((*self).clone())
+    fn encode_legacy(&self) -> Result<Vec<u8>, Self::Error> {
+        let type_name = self.radon_type_name();
+        let value: Value = self.clone().try_into()?;
+        to_vec(&value).map_err(|_| RadError::Encode {
+            from: type_name,
+            to: "Vec<u8>",
+        })
+    }
+
+    // FIXME(953): Unify all CBOR libraries
+    fn encode(&self, active_wips: &Option<ActiveWips>) -> Result<Vec<u8>, Self::Error> {
+        let type_name = self.radon_type_name();
+        match self {
+            RadonTypes::RadonError(radon_error) => {
+                radon_error
+                    .encode_tagged_bytes(active_wips)
+                    .map_err(|_| RadError::Encode {
+                        from: type_name,
+                        to: "Vec<u8>",
+                    })
+            }
+            _ => {
+                let value: Value = self.clone().try_into()?;
+                to_vec(&value).map_err(|_| RadError::Encode {
+                    from: type_name,
+                    to: "Vec<u8>",
+                })
+            }
+        }
     }
 
     /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
     /// they can be handled as valid `RadonTypes::RadonError` values, which are subject to
     /// commitment, revealing, tallying, etc.
-    fn intercept(result: Result<Self, Self::Error>) -> Self {
+    fn intercept(result: Result<Self, Self::Error>, active_wips: &Option<ActiveWips>) -> Self {
+        let active_wip0028 = active_wips.as_ref()
+            .map(ActiveWips::wip_guidiaz_extended_radon_errors)
+            .unwrap_or_default();
         match result {
             Err(rad_error) => {
-                RadonTypes::RadonError(RadonError::try_from(rad_error).unwrap_or_else(|error| {
-                    let unhandled_rad_error = RadError::UnhandledIntercept {
-                        inner: Some(Box::new(error)),
-                        message: None,
-                    };
-                    log::warn!("{}", unhandled_rad_error);
-                    RadonError::new(unhandled_rad_error)
-                }))
+                if active_wip0028 {
+                    RadonTypes::RadonError(match rad_error.into_error_code() {
+                        RadonErrors::UnhandledIntercept => {
+                            log::warn!("Unhandled RadError: {}", rad_error);
+                            RadonError::new(RadError::UnhandledIntercept { 
+                                inner: Some(Box::new(rad_error)),
+                                message: None,
+                            })
+                        }
+                        _ => {
+                            RadonError::new(rad_error)
+                        }
+                    })
+                } else {
+                    RadonTypes::RadonError(match rad_error.try_into_error_code_before_wip0028() {
+                        Err(error) => {
+                            let unhandled_rad_error = RadError::UnhandledIntercept {
+                                inner: Some(Box::new(error)),
+                                message: None,
+                            };
+                            log::warn!("{}", unhandled_rad_error);
+                            RadonError::new(unhandled_rad_error)
+                        }
+                        _ => {
+                            RadonError::new(rad_error)
+                        }
+                    })
+                }
             }
             Ok(x) => x,
         }
@@ -214,8 +264,8 @@ impl PartialEq for RadonTypes {
             return false;
         }
 
-        let vec1 = self.encode();
-        let vec2 = other.encode();
+        let vec1 = self.encode_legacy();
+        let vec2 = other.encode_legacy();
 
         vec1 == vec2
     }
@@ -224,7 +274,7 @@ impl PartialEq for RadonTypes {
 impl std::hash::Hash for RadonTypes {
     // FIXME(953): Unify all CBOR libraries
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self.encode() {
+        match self.encode_legacy() {
             Ok(vec) => vec.hash(state),
             Err(e) => {
                 let error_vec = e.to_string();
@@ -355,36 +405,6 @@ impl TryFrom<&[u8]> for RadonTypes {
         let cbor_value = decoder.value()?;
 
         RadonTypes::try_from(cbor_value)
-    }
-}
-
-/// Allow CBOR encoding of any variant of `RadonTypes`.
-impl TryFrom<RadonTypes> for Vec<u8> {
-    type Error = RadError;
-
-    // FIXME(953): Unify all CBOR libraries
-    fn try_from(
-        radon_types: RadonTypes,
-    ) -> Result<Vec<u8>, <Vec<u8> as TryFrom<RadonTypes>>::Error> {
-        let type_name = RadonTypes::radon_type_name(&radon_types);
-
-        match radon_types {
-            RadonTypes::RadonError(radon_error) => {
-                radon_error
-                    .encode_tagged_bytes()
-                    .map_err(|_| RadError::Encode {
-                        from: type_name,
-                        to: "Vec<u8>",
-                    })
-            }
-            _ => {
-                let value: Value = radon_types.try_into()?;
-                to_vec(&value).map_err(|_| RadError::Encode {
-                    from: type_name,
-                    to: "Vec<u8>",
-                })
-            }
-        }
     }
 }
 
