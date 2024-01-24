@@ -697,18 +697,22 @@ impl RadError {
             other => other,
         }
     }
+
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
 /// `witnet_data_structures`.
 impl ErrorLike for RadError {
-    fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
-        self.try_into_cbor_array().map_err(Into::into)
+    fn encode_cbor_array(&self, active_wips: &Option<ActiveWips>) -> Result<Vec<SerdeCborValue>, failure::Error> {
+        if let Some(active_wips) = active_wips {
+            if active_wips.wip_guidiaz_extended_radon_errors() {
+                return self.try_into_cbor_array().map_err(Into::into);
+            }
+        }
+        self.try_into_cbor_array_before_wip0028().map_err(Into::into)
     }
 
-    fn decode_cbor_array(
-        serde_cbor_array: Vec<SerdeCborValue>,
-    ) -> Result<RadonError<Self>, failure::Error> {
+    fn decode_cbor_array(serde_cbor_array: Vec<SerdeCborValue>) -> Result<RadonError<Self>, failure::Error> {
         Self::try_from_cbor_array(serde_cbor_array).map_err(Into::into)
     }
 }
@@ -777,11 +781,7 @@ impl TryFrom<RadError> for RadonError<RadError> {
     /// This is the main logic for intercepting `RadError` items and converting them into
     /// `RadonError` so that they can be committed, revealed, tallied, etc.
     fn try_from(rad_error: RadError) -> Result<Self, Self::Error> {
-        // Assume that there exists a conversion if try_into_error_code returns Ok
-        match rad_error.try_into_error_code() {
-            Ok(_) => Ok(RadonError::new(rad_error)),
-            Err(_) => Err(rad_error),
-        }
+        Ok(RadonError::new(rad_error))
     }
 }
 

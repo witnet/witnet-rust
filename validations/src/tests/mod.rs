@@ -4730,7 +4730,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
         get_rewarded_and_slashed(reveals_count, liars, errors, commits);
 
     // TODO: here liars_count must be equal to reveals_count if the result of the data request is
-    // "InsufficientConsensus"
+    // "InsufficientMajority"
     // Calculate tally change
     let change = calculate_tally_change(
         commits_count,
@@ -4847,7 +4847,7 @@ fn dr_pool_with_dr_in_tally_stage_with_errors(
         &ReportContext::default(),
     )
     .result
-    .encode()
+    .encode_legacy()
     .unwrap();
 
     dr_pool_with_dr_in_tally_stage_generic(
@@ -5064,7 +5064,7 @@ fn tally_valid_1_reveal_5_commits() {
 
     let tally_value = RadonReport::from_result(
         Ok(RadonTypes::from(
-            RadonError::try_from(RadError::InsufficientConsensus {
+            RadonError::try_from(RadError::InsufficientMajority {
                 achieved: 0.2,
                 required: 0.51,
             })
@@ -5072,7 +5072,7 @@ fn tally_valid_1_reveal_5_commits() {
         )),
         &ReportContext::default(),
     );
-    let tally_bytes = tally_value.into_inner().encode().unwrap();
+    let tally_bytes = tally_value.into_inner().encode_legacy().unwrap();
 
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -5255,7 +5255,7 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
 
     let tally_value = RadonReport::from_result(
         Ok(RadonTypes::from(
-            RadonError::try_from(RadError::InsufficientConsensus {
+            RadonError::try_from(RadError::InsufficientMajority {
                 achieved: 0.2,
                 required: 0.51,
             })
@@ -5263,7 +5263,7 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
         )),
         &ReportContext::default(),
     );
-    let tally_bytes = tally_value.into_inner().encode().unwrap();
+    let tally_bytes = tally_value.into_inner().encode_legacy().unwrap();
 
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -5327,7 +5327,7 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
 
     let tally_value = RadonReport::from_result(
         Ok(RadonTypes::from(
-            RadonError::try_from(RadError::InsufficientConsensus {
+            RadonError::try_from(RadError::InsufficientMajority {
                 achieved: 0.2,
                 required: 0.51,
             })
@@ -5335,7 +5335,7 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
         )),
         &ReportContext::default(),
     );
-    let tally_bytes = tally_value.into_inner().encode().unwrap();
+    let tally_bytes = tally_value.into_inner().encode_legacy().unwrap();
 
     let vt0 = ValueTransferOutput {
         time_lock: u64::MAX,
@@ -6320,8 +6320,8 @@ fn create_tally_validation_dr_liar() {
             3,
             3,
             1,
-            reveal_value.result.encode().unwrap(),
-            liar_value.result.encode().unwrap(),
+            reveal_value.result.encode_legacy().unwrap(),
+            liar_value.result.encode_legacy().unwrap(),
             active_wips.clone(),
         );
 
@@ -6403,8 +6403,8 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
             5,
             1,
             1,
-            reveal_value.result.encode().unwrap(),
-            liar_value.result.encode().unwrap(),
+            reveal_value.result.encode_legacy().unwrap(),
+            liar_value.result.encode_legacy().unwrap(),
             active_wips.clone(),
         );
 
@@ -6493,7 +6493,7 @@ fn create_tally_validation_4_commits_2_reveals() {
             4,
             2,
             0,
-            reveal_value.result.encode().unwrap(),
+            reveal_value.result.encode_legacy().unwrap(),
             vec![],
             active_wips.clone(),
         );
@@ -6559,7 +6559,7 @@ fn tally_valid_zero_commits() {
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
-    let tally_value = report.result.encode().unwrap();
+    let tally_value = report.result.encode_legacy().unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
         pkh: dr_pkh,
@@ -6624,7 +6624,7 @@ fn tally_invalid_zero_commits() {
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
-    let tally_value = report.result.encode().unwrap();
+    let tally_value = report.result.encode_legacy().unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
         pkh: PublicKeyHash::default(),
@@ -6670,13 +6670,13 @@ fn tally_valid_zero_reveals() {
     // You get your collateral back
     assert_eq!(reward, DEFAULT_COLLATERAL);
 
-    // Tally value: NoReveals commits Error
+    // Tally value: InsufficientQuorum commits Error
     let min_consensus = 0.51;
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
-    let tally_value = report.result.encode().unwrap();
+    let tally_value = report.result.encode_legacy().unwrap();
 
     assert_eq!(reward, dr_output.collateral);
     let vt1 = ValueTransferOutput {
@@ -6738,7 +6738,7 @@ fn create_tally_validation_zero_reveals() {
     // There were no reveals, you get your collateral back
     assert_eq!(reward, DEFAULT_COLLATERAL);
 
-    // Tally value: NoReveals commits Error
+    // Tally value: InsufficientQuorum commits Error
     let min_consensus = 0.51;
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
@@ -6785,7 +6785,7 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
     // No rewards, you just get your collateral back
     assert_eq!(reward, DEFAULT_COLLATERAL);
 
-    // Tally value: NoReveals commits Error
+    // Tally value: InsufficientQuorum commits Error
     let min_consensus = 0.51;
     let clause_result = evaluate_tally_precondition_clause(vec![], min_consensus, 5, &active_wips);
     let script = RADTally::default();
@@ -7714,14 +7714,14 @@ fn tally_valid_rng() {
                 .unwrap(),
         )),
     ];
-    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let reveals = reveals.into_iter().map(|x| x.encode_legacy().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
     let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
         hex::decode("26dd11b019b78ed2aea221fd9d27a90031c6550b004e443b7e81f1a176235a26").unwrap(),
     ))
-    .encode()
+    .encode_legacy()
     .unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -7768,14 +7768,14 @@ fn tally_valid_rng_wrong_bytes_len() {
         RadonTypes::from(RadonBytes::from(hex::decode("4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce").unwrap())),
         RadonTypes::from(RadonBytes::from(hex::decode("4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8affffffffffffffffffffffff").unwrap())),
     ];
-    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let reveals = reveals.into_iter().map(|x| x.encode_legacy().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
     let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
         hex::decode("8ccdac64f7d20bcaff0ac8306ce67d7dfe2623feaa5c9066aa6c91e4a1b0dddd").unwrap(),
     ))
-    .encode()
+    .encode_legacy()
     .unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -7837,7 +7837,7 @@ fn tally_valid_rng_one_error() {
             .unwrap(),
         ),
     ];
-    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let reveals = reveals.into_iter().map(|x| x.encode_legacy().unwrap()).collect();
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let reward = collateral + DEFAULT_WITNESS_REWARD;
@@ -7846,7 +7846,7 @@ fn tally_valid_rng_one_error() {
     let tally_value = RadonTypes::from(RadonBytes::from(
         hex::decode("d167af9c78f098e4b064f7f8c98a34f27b406a529565c1da9e832cdd52e332cb").unwrap(),
     ))
-    .encode()
+    .encode_legacy()
     .unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -7922,7 +7922,7 @@ fn tally_valid_rng_all_errors() {
             .unwrap(),
         ),
     ];
-    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let reveals = reveals.into_iter().map(|x| x.encode_legacy().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let reward = collateral + DEFAULT_WITNESS_REWARD;
@@ -7934,7 +7934,7 @@ fn tally_valid_rng_all_errors() {
         })
         .unwrap(),
     )
-    .encode()
+    .encode_legacy()
     .unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -7990,7 +7990,7 @@ fn tally_valid_rng_one_invalid_type() {
         )),
         RadonTypes::from(RadonInteger::from(4)),
     ];
-    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let reveals = reveals.into_iter().map(|x| x.encode_legacy().unwrap()).collect();
     let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let active_wips = current_active_wips();
@@ -8004,7 +8004,7 @@ fn tally_valid_rng_one_invalid_type() {
     let tally_value = RadonTypes::from(RadonBytes::from(
         hex::decode("d167af9c78f098e4b064f7f8c98a34f27b406a529565c1da9e832cdd52e332cb").unwrap(),
     ))
-    .encode()
+    .encode_legacy()
     .unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,
@@ -8051,7 +8051,7 @@ fn tally_valid_rng_all_invalid_type() {
         RadonTypes::from(RadonInteger::from(3)),
         RadonTypes::from(RadonInteger::from(4)),
     ];
-    let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
+    let reveals = reveals.into_iter().map(|x| x.encode_legacy().unwrap()).collect();
     let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let reward = collateral + DEFAULT_WITNESS_REWARD;
@@ -8059,7 +8059,7 @@ fn tally_valid_rng_all_invalid_type() {
     let tally_value = RadonTypes::from(
         RadonError::try_from(RadError::UnhandledInterceptV2 { inner: None }).unwrap(),
     )
-    .encode()
+    .encode_legacy()
     .unwrap();
     let vt0 = ValueTransferOutput {
         time_lock: 0,

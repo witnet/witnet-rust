@@ -36,7 +36,7 @@ where
     /// Factory for constructing a `RadonReport` from the `Result` of something that could be
     /// `TypeLike` or `ErrorLike` plus a `ReportContext`.
     pub fn from_result(result: Result<RT, RT::Error>, context: &ReportContext<RT>) -> Self {
-        let intercepted = RT::intercept(result);
+        let intercepted = RT::intercept(result, &context.active_wips);
         RadonReport {
             context: context.clone(),
             partial_results: None,
@@ -51,7 +51,10 @@ where
         partial_results: Vec<Result<RT, RT::Error>>,
         context: &ReportContext<RT>,
     ) -> Self {
-        let intercepted: Vec<RT> = partial_results.into_iter().map(RT::intercept).collect();
+        let intercepted: Vec<RT> = partial_results
+            .into_iter()
+            .map(|r| RT::intercept(r, &context.active_wips))
+            .collect();
         let result = (*intercepted
             .last()
             .expect("Partial result vectors must always contain at least 1 item"))
@@ -80,7 +83,7 @@ where
     type Error = RT::Error;
 
     fn try_from(report: &RadonReport<RT>) -> Result<Self, Self::Error> {
-        report.result.encode()
+        report.result.encode(&report.context.active_wips)
     }
 }
 
@@ -91,12 +94,13 @@ pub trait TypeLike: Clone + Sized {
     type Error: ErrorLike;
 
     /// Serialize the `TypeLike` as a `Vec<u8>`.
-    fn encode(&self) -> Result<Vec<u8>, Self::Error>;
-
+    fn encode(&self, _active_wips: &Option<ActiveWips>) -> Result<Vec<u8>, Self::Error>;
+    fn encode_legacy(&self) -> Result<Vec<u8>, Self::Error>;
+    
     /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
     /// they can be handled as valid `RadonTypes::RadonError` values, which are subject to
     /// commitment, revealing, tallying, etc.
-    fn intercept(result: Result<Self, Self::Error>) -> Self;
+    fn intercept(result: Result<Self, Self::Error>, _active_wips: &Option<ActiveWips>) -> Self;
 }
 
 /// A generic structure for bubbling up any kind of metadata that may be generated during the
@@ -348,11 +352,15 @@ mod tests {
     impl TypeLike for DummyType {
         type Error = DummyError;
 
-        fn encode(&self) -> Result<Vec<u8>, Self::Error> {
+        fn encode(&self, _active_wips: &Option<ActiveWips>) -> Result<Vec<u8>, Self::Error> {
             unimplemented!()
         }
 
-        fn intercept(_result: Result<Self, Self::Error>) -> Self {
+        fn encode_legacy(&self) -> Result<Vec<u8>, Self::Error> {
+            unimplemented!()
+        }
+
+        fn intercept(_result: Result<Self, Self::Error>, _active_wips: &Option<ActiveWips>) -> Self {
             unimplemented!()
         }
     }
@@ -366,7 +374,7 @@ mod tests {
 
     // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
     impl ErrorLike for DummyError {
-        fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
+        fn encode_cbor_array(&self, _active_wips: &Option<ActiveWips>) -> Result<Vec<SerdeCborValue>, failure::Error> {
             let kind = u8::from(RadonErrors::SourceScriptNotCBOR);
             let arg0 = 2;
 
@@ -394,7 +402,7 @@ mod tests {
     fn test_encode_not_cbor() {
         let error = RadonError::new(DummyError);
 
-        let encoded: Vec<u8> = error.encode_tagged_bytes().unwrap();
+        let encoded: Vec<u8> = error.encode_tagged_bytes(&None).unwrap();
         let expected = vec![216, 39, 130, 1, 2];
 
         assert_eq!(encoded, expected);

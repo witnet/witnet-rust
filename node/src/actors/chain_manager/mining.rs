@@ -603,7 +603,7 @@ impl ChainManager {
                         Err(e) => {
                             if active_wips.wip0026() {
                                 log::warn!("Couldn't encode reveal value to bytes, will commit RadError::EncodeReveal instead: {}", e);
-                                let reveal_bytes: Vec<u8> = RadonTypes::RadonError(RadonError::try_from(RadError::EncodeReveal).unwrap()).encode().unwrap();
+                                let reveal_bytes: Vec<u8> = RadonTypes::RadonError(RadonError::try_from(RadError::EncodeReveal).unwrap()).encode(&Some(active_wips)).unwrap();
                                 actix::fut::ok((reveal_bytes, vrf_proof_dr, collateral))
                             } else {
                                 log::error!("Couldn't encode reveal value to bytes: {}", e);

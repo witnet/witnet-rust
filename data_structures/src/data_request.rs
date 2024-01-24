@@ -630,7 +630,7 @@ where
         // Check if we need to reward revealers
         let any_honest_revealers = if is_after_second_hard_fork {
             let honests_count = commits_count - liars_count - errors_count - non_reveals_count;
-
+            
             honests_count > 0
         } else {
             reveals_count > 0

@@ -1545,7 +1545,7 @@ mod tests {
         let kind = RadonErrors::try_from(0).unwrap();
         let err = RadonTypes::from(RadError::try_from_kind_and_cbor_args(kind, None).unwrap());
         // Ensure they encoded differently (errors are tagged using `39` as CBOR tag)
-        assert_ne!(int.encode(), err.encode());
+        assert_ne!(int.encode_legacy(), err.encode_legacy());
         // And they are not equal in runtime either
         assert_ne!(int, err);
     }

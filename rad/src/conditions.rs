@@ -55,7 +55,7 @@ pub fn evaluate_tally_precondition_clause(
     }
 
     let error_type_discriminant =
-        RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap()).discriminant();
+        RadonTypes::RadonError(RadonError::new(RadError::default())).discriminant();
 
     // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
     // separately as they need to be handled differently.
@@ -72,6 +72,7 @@ pub fn evaluate_tally_precondition_clause(
     }
 
     let mut num_commits_f = f64::from(u32::try_from(num_commits).unwrap());
+    
     // Compute ratio of type consensus amongst reveals (percentage of reveals that have same type
     // as the frequent type).
     let achieved_consensus = f64::from(counter.max_val) / num_commits_f;
@@ -190,8 +191,7 @@ pub fn evaluate_tally_postcondition_clause(
 ) -> RadonReport<RadonTypes> {
     if let Stage::Tally(metadata) = report.context.stage.clone() {
         let error_type_discriminant =
-            RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap())
-                .discriminant();
+            RadonTypes::RadonError(RadonError::new(RadError::default())).discriminant();
         // If the result is already a RadonError, return that error.
         // The result can be a RadonError in these scenarios:
         // * There is insufficient consensus before running the tally script
