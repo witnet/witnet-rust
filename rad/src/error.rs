@@ -802,6 +802,229 @@ impl TryFrom<Result<RadonTypes, RadError>> for RadonTypes {
     }
 }
 
+/// This module was introduced for encapsulating the interim legacy logic before WIP-0028 is
+/// introduced, for the sake of maintainability.
+pub mod legacy {
+    use super::*;
+
+    pub fn deserialize_args<T: serde::de::DeserializeOwned>(
+        error_args: Option<Vec<SerdeCborValue>>,
+    ) -> Result<T, RadError> {
+        let error_args = if let Some(x) = error_args {
+            SerdeCborValue::Array(x)
+        } else {
+            return Err(RadError::DecodeRadonErrorMissingArguments);
+        };
+    
+        serde_cbor::value::from_value(error_args.clone()).map_err(|e| {
+            RadError::DecodeRadonErrorWrongArguments {
+                arguments: Some(error_args),
+                message: e.to_string(),
+            }
+        })
+    }
+    
+    pub fn serialize_args<T: serde::Serialize + std::fmt::Debug>(
+        args: T,
+    ) -> Result<SerdeCborValue, RadError> {
+        serde_cbor::value::to_value(&args).map_err(|_| RadError::EncodeRadonErrorArguments {
+            error_args: format!("{:?}", args),
+        })
+    }
+
+    impl RadError {
+
+        pub fn try_into_error_code_before_wip0028(&self) -> Result<RadonErrors, RadError> {
+            Ok(match self {
+                RadError::ArrayIndexOutOfBounds { .. } => RadonErrors::ArrayIndexOutOfBounds,
+                RadError::BufferIsNotValue { .. } => RadonErrors::BufferIsNotValue,
+                RadError::EncodeReveal => RadonErrors::EncodeReveals,
+                RadError::HttpStatus { .. } => RadonErrors::HttpErrors,               
+                RadError::InsufficientCommits => RadonErrors::InsufficientCommits,
+                RadError::InsufficientMajority { .. } => RadonErrors::InsufficientMajority,
+                RadError::InsufficientQuorum => RadonErrors::InsufficientQuorum,
+                RadError::MalformedReveal => RadonErrors::MalformedReveals,
+                RadError::MapKeyNotFound { .. } => RadonErrors::MapKeyNotFound,
+                RadError::MathDivisionByZero => RadonErrors::MathDivisionByZero,
+                RadError::MathOverflow => RadonErrors::MathOverflow,
+                RadError::MathUnderflow => RadonErrors::MathUnderflow,
+                RadError::RequestTooManySources => RadonErrors::RequestTooManySources,
+                RadError::RetrieveTimeout => RadonErrors::RetrievalsTimeout,
+                RadError::ScriptTooManyCalls => RadonErrors::ScriptTooManyCalls,
+                RadError::SourceScriptNotCBOR => RadonErrors::SourceScriptNotCBOR,
+                RadError::SourceScriptNotArray => RadonErrors::SourceScriptNotArray,
+                RadError::SourceScriptNotRADON => RadonErrors::SourceScriptNotRADON,
+                RadError::TallyExecution { .. } => RadonErrors::CircumstantialFailure,
+                RadError::UnhandledIntercept { .. } | RadError::UnhandledInterceptV2 { .. } => {
+                    RadonErrors::UnhandledIntercept
+                }
+                RadError::UnsupportedOperator { .. } => RadonErrors::UnsupportedOperator,
+                
+                // The `InconsistentSource` error was mapped here before WIP#0028 for the sake of backwards
+                // compatibility. Namely, to enable paranoid retrieval without having to immediately
+                // introduce a breaking change that may jeopardize oracle queries. The point of making
+                // the mapping here was to only affect actual witnessing and committing, but not the
+                // `try_data_request` function, which could rather use the `InconsistentSource` error for
+                // clarity.
+                RadError::Unknown | RadError::InconsistentSource => RadonErrors::Unknown,
+
+                _ => return Err(RadError::EncodeRadonErrorUnknownCode),
+            })
+        } 
+
+        pub fn try_into_cbor_array_before_wip0028(&self) -> Result<Vec<SerdeCborValue>, RadError> {
+            let kind = u8::from(self.try_into_error_code_before_wip0028()?);
+            let args = match self {
+                
+                RadError::ArrayIndexOutOfBounds { index } => Some(serialize_args((index,))?),
+                RadError::BufferIsNotValue { description } => Some(serialize_args((description,))?),
+                RadError::HttpStatus { status_code } => Some(serialize_args((status_code,))?),
+                RadError::MapKeyNotFound { key } => Some(serialize_args((key,))?),
+                
+                RadError::InsufficientMajority { achieved, required } => {
+                    Some(serialize_args((achieved, required))?)
+                }
+                
+                RadError::TallyExecution { inner, message } => {
+                    let message = match (inner, message) {
+                        // Only serialize the message
+                        (_, Some(message)) => message.clone(),
+                        // But if there is no message, serialize the debug representation of inner
+                        (Some(inner), None) => format!("inner: {:?}", inner),
+                        // And if there is no inner, serialize this string
+                        (None, None) => "inner: None".to_string(),
+                    };
+                    Some(serialize_args((message,))?)
+                }
+                
+                RadError::UnsupportedOperator {
+                    input_type,
+                    operator,
+                    args,
+                } => Some(serialize_args((input_type, operator, args))?),
+
+                RadError::UnhandledIntercept { inner, message } => {
+                    let message = match (inner, message) {
+                        // Only serialize the message
+                        (_, Some(message)) => message.clone(),
+                        // But if there is no message, serialize the debug representation of inner
+                        (Some(inner), None) => {
+                            // Fix #1993 by emulating a bug from old versions of Rust (rust-lang/rust#83046)
+                            if_rust_version::if_rust_version! { >= 1.53 {
+                                format!("inner: {:?}", inner).replace('\'', "\\'")
+                            } else {
+                                format!("inner: {:?}", inner)
+                            }}
+                        }
+                        // And if there is no inner, serialize this string
+                        (None, None) => "inner: None".to_string(),
+                    };
+                    Some(serialize_args((message,))?)
+                }
+                
+                _ => None,
+            };
+    
+            let mut v = vec![SerdeCborValue::Integer(i128::from(kind))];
+    
+            match args {
+                None => {}
+                Some(SerdeCborValue::Array(a)) => {
+                    // Append arguments to resulting array. The format of the resulting array is:
+                    // [kind, arg0, arg1, arg2, ...]
+                    v.extend(a);
+                }
+                Some(value) => {
+                    // This can only happen if `serialize_args` is called with a non-tuple argument
+                    // For example:
+                    // `serialize_args(x)` is invalid, it should be `serialize_args((x,))`
+                    panic!("Args should be an array, is {:?}", value);
+                }
+            }
+    
+            Ok(v)
+        }
+
+        pub fn try_into_radon_error_before_wip0028(
+            kind: RadonErrors, 
+            error_args: Option<Vec<SerdeCborValue>>
+        ) -> Result<RadonError<Self>, Self> {
+            Ok(RadonError::new(match kind {
+    
+                RadonErrors::InsufficientCommits => RadError::InsufficientCommits,
+                RadonErrors::InsufficientQuorum => RadError::InsufficientQuorum,
+                RadonErrors::InsufficientMajority => {
+                    let (achieved, required) = deserialize_args(error_args)?;
+                    RadError::InsufficientMajority { achieved, required }
+                }
+                RadonErrors::EncodeReveals => RadError::EncodeReveal,
+                RadonErrors::ArrayIndexOutOfBounds => {
+                    let (index,) = deserialize_args(error_args)?;
+                    RadError::ArrayIndexOutOfBounds { index }
+                }
+                RadonErrors::BufferIsNotValue => {
+                    let (description,) = deserialize_args(error_args)?;
+                    RadError::BufferIsNotValue { description }
+                }
+                RadonErrors::HttpErrors => {
+                    let (status_code,) = deserialize_args(error_args)?;
+                    RadError::HttpStatus { status_code }
+                }
+                RadonErrors::MapKeyNotFound => {
+                    let (key,) = deserialize_args(error_args)?;
+                    RadError::MapKeyNotFound { key }
+                }
+                RadonErrors::MathDivisionByZero => RadError::MathDivisionByZero,
+                RadonErrors::MathOverflow => RadError::MathOverflow,
+                RadonErrors::MathUnderflow => RadError::MathUnderflow,
+                RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
+                RadonErrors::RetrievalsTimeout => RadError::RetrieveTimeout,
+                RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
+                RadonErrors::SourceScriptNotCBOR => RadError::SourceScriptNotCBOR,
+                RadonErrors::SourceScriptNotArray => RadError::SourceScriptNotArray,
+                RadonErrors::SourceScriptNotRADON => RadError::SourceScriptNotRADON,
+                RadonErrors::TallyExecution => {
+                    let (message,) = deserialize_args(error_args)?;
+                    RadError::TallyExecution {
+                        inner: None,
+                        message: Some(message),
+                    }
+                }
+                RadonErrors::MalformedReveals => RadError::MalformedReveal,
+                RadonErrors::UnsupportedOperator => {
+                    let (input_type, operator, args) = deserialize_args(error_args)?;
+                    RadError::UnsupportedOperator {
+                        input_type,
+                        operator,
+                        args,
+                    }
+                }
+                RadonErrors::UnhandledIntercept => {
+                    if error_args.is_none() {
+                        RadError::UnhandledInterceptV2 { inner: None }
+                    } else {
+                        let (message,) = deserialize_args(error_args)?;
+                        RadError::UnhandledIntercept {
+                            inner: None,
+                            message: Some(message),
+                        }
+                    }
+                }
+                // The only case where a Bridge RadonError could be included in the protocol is that
+                // if a witness node report as a reveal, and in that case it would be considered
+                // as a MalformedReveal
+                RadonErrors::BridgeMalformedRequest
+                | RadonErrors::BridgePoorIncentives
+                | RadonErrors::BridgeOversizedResult => RadError::MalformedReveal,
+                
+                _ => RadError::Unknown
+            }))
+        }
+
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use num_enum::TryFromPrimitive;
@@ -816,8 +1039,8 @@ mod tests {
                 operator: "IntegerAdd".to_string(),
                 args: Some(vec![SerdeCborValue::Integer(1)]),
             },
-            RadonErrors::HTTPError => RadError::HttpStatus { status_code: 404 },
-            RadonErrors::InsufficientConsensus => RadError::InsufficientConsensus {
+            RadonErrors::HttpErrors => RadError::HttpStatus { status_code: 404 },
+            RadonErrors::InsufficientMajority => RadError::InsufficientMajority {
                 achieved: 49.0,
                 required: 51.0,
             },
@@ -828,6 +1051,9 @@ mod tests {
             RadonErrors::ArrayIndexOutOfBounds => RadError::ArrayIndexOutOfBounds { index: 2 },
             RadonErrors::MapKeyNotFound => RadError::MapKeyNotFound {
                 key: String::from("value"),
+            },
+            RadonErrors::JsonPathNotFound => RadError::JsonPathNotFound { 
+                path: String::from("*.*") 
             },
             RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept {
                 inner: None,
@@ -870,7 +1096,7 @@ mod tests {
         for radon_errors in all_radon_errors() {
             // Try to convert RadonErrors to RadError with no arguments
             let maybe_rad_error =
-                RadError::try_from_kind_and_cbor_args(radon_errors, None).map(|r| r.into_inner());
+                RadError::try_into_radon_error_before_wip0028(radon_errors, None).map(|r| r.into_inner());
             let rad_error = match maybe_rad_error {
                 Ok(x) => {
                     // Good
@@ -884,11 +1110,7 @@ mod tests {
             };
 
             // Now try the inverse: convert from RadError to RadonErrors
-            let again_radon_errors = rad_error.try_into_error_code();
-            match again_radon_errors {
-                Ok(x) => assert_eq!(x, radon_errors),
-                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
-            }
+            assert_eq!(rad_error.into_error_code(), radon_errors);
         }
     }
 
@@ -897,7 +1119,7 @@ mod tests {
         for radon_errors in all_radon_errors() {
             // Try to convert RadonErrors to RadError with no arguments
             let maybe_rad_error =
-                RadError::try_from_kind_and_cbor_args(radon_errors, None).map(|r| r.into_inner());
+                RadError::try_into_radon_error_before_wip0028(radon_errors, None).map(|r| r.into_inner());
             let rad_error = match maybe_rad_error {
                 Ok(x) => {
                     // Good
@@ -911,7 +1133,7 @@ mod tests {
             };
 
             // Now try to serialize the resulting rad_error
-            let serde_cbor_array = match rad_error.try_into_cbor_array() {
+            let serde_cbor_array = match rad_error.try_into_cbor_array_before_wip0028() {
                 Ok(x) => x,
                 Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
             };
@@ -921,6 +1143,7 @@ mod tests {
             assert_eq!(serde_cbor_array[0], Value::Integer(error_code.into()));
 
             // Deserialize the result and compare
+            println!("{:?}", serde_cbor_array[0]);
             let deserialized_rad_error =
                 RadError::try_from_cbor_array(serde_cbor_array).map(|r| r.into_inner());
 
@@ -948,7 +1171,7 @@ mod tests {
         };
 
         // Now try to serialize the resulting rad_error
-        let serde_cbor_array = rad_error.try_into_cbor_array().unwrap();
+        let serde_cbor_array = rad_error.try_into_cbor_array_before_wip0028().unwrap();
         // The first element of the serialized CBOR array is the error code
         // the rest are arguments
         let error_code = u8::from(RadonErrors::UnhandledIntercept);
