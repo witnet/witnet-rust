@@ -1,7 +1,9 @@
 //! Error type definitions for the data structure module.
 
 use failure::Fail;
+use hex::FromHexError;
 use std::num::ParseIntError;
+use witnet_crypto::secp256k1;
 
 use crate::chain::{
     DataRequestOutput, Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash, RADType,
@@ -484,7 +486,7 @@ pub enum OutputPointerParseError {
 }
 
 /// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
-#[derive(Debug, PartialEq, Eq, Fail)]
+#[derive(Debug, PartialEq, Fail)]
 pub enum Secp256k1ConversionError {
     #[fail(
         display = "Failed to convert `witnet_data_structures::Signature` into `secp256k1::Signature`"
@@ -503,6 +505,15 @@ pub enum Secp256k1ConversionError {
         display = "Failed to convert `witnet_data_structures::SecretKey` into `secp256k1::SecretKey`"
     )]
     FailSecretKeyConversion,
+    #[fail(
+        display = "Cannot decode a `witnet_data_structures::KeyedSignature` from the allegedly hex-encoded string '{}': {}",
+        hex, inner
+    )]
+    HexDecode { hex: String, inner: FromHexError },
+    #[fail(display = "{}", inner)]
+    Secp256k1 { inner: secp256k1::Error },
+    #[fail(display = "{}", inner)]
+    Other { inner: String },
 }
 
 /// The error type for operations on a [`DataRequestPool`](DataRequestPool)

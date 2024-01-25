@@ -136,7 +136,11 @@ pub fn get_protocol_version(epoch: Option<Epoch>) -> ProtocolVersion {
     }
 }
 
-pub fn register_protocol_version(epoch: Epoch, protocol_version: ProtocolVersion) {
+/// Let the protocol versions controller know about the a protocol version, and its activation epoch.
+pub fn register_protocol_version(protocol_version: ProtocolVersion, epoch: Epoch) {
+    log::debug!(
+        "Registering protocol version {protocol_version}, which enters into force at epoch {epoch}"
+    );
     // This unwrap is safe as long as the lock is not poisoned.
     // The lock can only become poisoned when a writer panics.
     let mut protocol_info = PROTOCOL.write().unwrap();
@@ -144,10 +148,17 @@ pub fn register_protocol_version(epoch: Epoch, protocol_version: ProtocolVersion
 }
 
 /// Set the protocol version that we are running.
-/// #[cfg(not(test))]
 pub fn set_protocol_version(protocol_version: ProtocolVersion) {
+    // The lock can only become poisoned when a writer panics.
     let mut protocol = PROTOCOL.write().unwrap();
     protocol.current_version = protocol_version;
+}
+
+/// Refresh the protocol version, i.e. derive the current version from the current epoch, and update `current_version`
+/// accordingly.
+pub fn refresh_protocol_version(current_epoch: Epoch) {
+    let current_version = get_protocol_version(Some(current_epoch));
+    set_protocol_version(current_version)
 }
 
 #[cfg(test)]
@@ -170,9 +181,9 @@ mod tests {
         assert_eq!(version, ProtocolVersion::V1_7);
 
         // Register the different protocol versions
-        register_protocol_version(100, ProtocolVersion::V1_7);
-        register_protocol_version(200, ProtocolVersion::V1_8);
-        register_protocol_version(300, ProtocolVersion::V2_0);
+        register_protocol_version(ProtocolVersion::V1_7, 100);
+        register_protocol_version(ProtocolVersion::V1_8, 200);
+        register_protocol_version(ProtocolVersion::V2_0, 300);
 
         // The initial protocol version should be the default one
         let version = get_protocol_version(Some(0));

@@ -2,13 +2,18 @@
 //!
 //! This module contains per-environment default values for the Witnet
 //! protocol params.
-use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+    time::Duration,
+};
 
 use witnet_crypto::hash::HashFunction;
-use witnet_data_structures::chain::Hash;
+use witnet_data_structures::{
+    chain::{Epoch, Hash},
+    proto::versioning::ProtocolVersion,
+};
 use witnet_protected::ProtectedString;
 
 // When changing the defaults, remember to update the documentation!
@@ -474,6 +479,10 @@ pub trait Defaults {
 
     fn mempool_max_reinserted_transactions(&self) -> u32 {
         100
+    }
+
+    fn protocol_versions(&self) -> HashMap<ProtocolVersion, Epoch> {
+        [(ProtocolVersion::V1_7, 0)].into_iter().collect()
     }
 }
 
