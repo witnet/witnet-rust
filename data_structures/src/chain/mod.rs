@@ -1569,50 +1569,74 @@ pub struct KeyedSignature {
 }
 
 impl KeyedSignature {
-    pub fn from_recoverable_hex(string: &str, msg: &[u8]) -> Self {
-        // FIXME: make this safe by using a `Result` instead of unwrapping
-        let bytes = hex::decode(string).unwrap();
+    pub fn from_recoverable_hex(
+        string: &str,
+        msg: &[u8],
+    ) -> Result<Self, Secp256k1ConversionError> {
+        let bytes = hex::decode(string).map_err(|e| Secp256k1ConversionError::HexDecode {
+            hex: String::from(string),
+            inner: e,
+        })?;
 
         Self::from_recoverable_slice(&bytes, msg)
     }
-    pub fn from_recoverable(recoverable: &RecoverableSignature, message: &[u8]) -> Self {
-        // FIXME: make this safe by using a `Result` instead of unwrapping
-        let msg = secp256k1::Message::from_digest_slice(message).unwrap();
+    pub fn from_recoverable(
+        recoverable: &RecoverableSignature,
+        message: &[u8],
+    ) -> Result<Self, Secp256k1ConversionError> {
+        let msg = secp256k1::Message::from_digest_slice(message)
+            .map_err(|e| Secp256k1ConversionError::Secp256k1 { inner: e })?;
         let signature = recoverable.to_standard();
-        let public_key = recoverable.recover(&msg).unwrap();
+        let public_key = recoverable
+            .recover(&msg)
+            .map_err(|e| Secp256k1ConversionError::Secp256k1 { inner: e })?;
 
-        KeyedSignature {
+        Ok(KeyedSignature {
             signature: signature.into(),
             public_key: public_key.into(),
-        }
+        })
     }
 
     // Recovers a keyed signature from its serialized form and a known message.
-    pub fn from_recoverable_slice(compact: &[u8], message: &[u8]) -> Self {
-        // FIXME: make this safe by using a `Result` instead of unwrapping
-        let recid = RecoveryId::from_i32(compact[0] as i32).unwrap();
-        let recoverable = RecoverableSignature::from_compact(&compact[1..], recid).unwrap();
+    pub fn from_recoverable_slice(
+        compact: &[u8],
+        message: &[u8],
+    ) -> Result<Self, Secp256k1ConversionError> {
+        let recid = RecoveryId::from_i32(compact[0] as i32)
+            .map_err(|e| Secp256k1ConversionError::Secp256k1 { inner: e })?;
+        let recoverable = RecoverableSignature::from_compact(&compact[1..], recid)
+            .map_err(|e| Secp256k1ConversionError::Secp256k1 { inner: e })?;
 
         Self::from_recoverable(&recoverable, message)
     }
 
     /// Serializes a `KeyedSignature` into a compact encoding form that contains the public key recovery ID as a prefix.
-    pub fn to_recoverable_bytes(self, message: &[u8]) -> [u8; 65] {
-        // FIXME: make this safe by using a `Result` instead of unwrapping
+    pub fn to_recoverable_bytes(
+        self,
+        message: &[u8],
+    ) -> Result<[u8; 65], Secp256k1ConversionError> {
         let mut recoverable_bytes = [0; 65];
-        recoverable_bytes[1..].clone_from_slice(&self.signature.to_bytes().unwrap());
+        let bytes = self
+            .signature
+            .to_bytes()
+            .map_err(|e| Secp256k1ConversionError::Other {
+                inner: e.to_string(),
+            })?;
+        recoverable_bytes[1..].clone_from_slice(&bytes);
 
+        // Silly algorithm that tries recovery with different recovery IDs in an attempt to guess which one is correct,
+        // provided that our `KeyedSignature` misses that information in comparison with `RecoverableSignature`
         for i in 0..4 {
             recoverable_bytes[0] = i;
 
-            let recovered = KeyedSignature::from_recoverable_slice(&recoverable_bytes, message);
+            let recovered = KeyedSignature::from_recoverable_slice(&recoverable_bytes, message)?;
 
             if recovered.public_key == self.public_key {
                 break;
             }
         }
 
-        recoverable_bytes
+        Ok(recoverable_bytes)
     }
 }
 
@@ -4925,7 +4949,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let msg = Secp256k1_Message::from_slice(&data).unwrap();
+        let msg = Secp256k1_Message::from_digest_slice(&data).unwrap();
         let signature = secp.sign_ecdsa(&msg, &secret_key);
 
         let witnet_signature = Secp256k1Signature::from(signature);
@@ -4946,7 +4970,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let msg = Secp256k1_Message::from_slice(&data).unwrap();
+        let msg = Secp256k1_Message::from_digest_slice(&data).unwrap();
         let signature = secp.sign_ecdsa(&msg, &secret_key);
 
         let witnet_signature = Signature::from(signature);

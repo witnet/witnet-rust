@@ -1971,9 +1971,9 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
 
     // If no authorization message is provided, generate a new one using the withdrawer address
     let authorization = if let Some(signature) = params.authorization {
-        // TODO: change to `try_do_magic` once `from_recoverable_hex` is made safe
-        let signature =
-            signature.do_magic(|hex_str| KeyedSignature::from_recoverable_hex(&hex_str, &msg));
+        let signature = signature
+            .try_do_magic(|hex_str| KeyedSignature::from_recoverable_hex(&hex_str, &msg))
+            .map_err(internal_error)?;
         validator = PublicKeyHash::from_public_key(&signature.public_key);
         log::debug!(
             "[STAKE] A stake authorization was provided, and it was signed by validator {}",
@@ -2034,9 +2034,9 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
                         withdrawer,
                     };
 
-                    serde_json::to_value(bsr).map_err(|e| internal_error(e))
+                    serde_json::to_value(bsr).map_err(internal_error)
                 } else {
-                    serde_json::to_value(transaction).map_err(|e| internal_error(e))
+                    serde_json::to_value(transaction).map_err(internal_error)
                 }
             }
             Ok(Err(e)) => {

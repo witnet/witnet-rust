@@ -1,8 +1,8 @@
 use failure::{Error, Fail};
 use protobuf::Message as _;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use std::fmt;
-use std::fmt::Formatter;
+use strum_macros::{Display, EnumString};
 
 use crate::chain::Epoch;
 use crate::proto::schema::witnet::SuperBlock;
@@ -58,7 +58,9 @@ impl VersionsMap {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize,
+)]
 pub enum ProtocolVersion {
     /// The original Witnet protocol.
     // TODO: update this default once 2.0 is completely active
@@ -73,18 +75,6 @@ pub enum ProtocolVersion {
 impl ProtocolVersion {
     pub fn guess() -> Self {
         get_protocol_version(None)
-    }
-}
-
-impl fmt::Display for ProtocolVersion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            ProtocolVersion::V1_7 => "v1.7 (legacy)",
-            ProtocolVersion::V1_8 => "v1.8 (transitional)",
-            ProtocolVersion::V2_0 => "v2.0 (final)",
-        };
-
-        f.write_str(s)
     }
 }
 
@@ -110,7 +100,7 @@ pub trait Versioned: ProtobufConvert {
     where
         <Self as ProtobufConvert>::ProtoStruct: protobuf::Message,
     {
-        Ok(self.to_versioned_pb(version)?.write_to_bytes().unwrap())
+        Ok(self.to_versioned_pb(version)?.write_to_bytes()?)
     }
 
     /// Constructs an instance of this data structure based on a protobuf instance of its legacy
@@ -256,6 +246,8 @@ where
     <Self as ProtobufConvert>::ProtoStruct: protobuf::Message,
 {
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        // This unwrap is kept in here just because we want `VersionedHashable` to have the same interface as
+        // `Hashable`.
         witnet_crypto::hash::calculate_sha256(&self.to_versioned_pb_bytes(version).unwrap()).into()
     }
 }

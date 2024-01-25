@@ -38,16 +38,20 @@
 //! // Default config for mainnet
 //! // Config::from_partial(&PartialConfig::default_mainnet());
 //! ```
-use std::convert::TryFrom;
 use std::{
-    collections::HashSet, fmt, marker::PhantomData, net::SocketAddr, path::PathBuf, time::Duration,
+    array::IntoIter, collections::HashSet, convert::TryFrom, fmt, marker::PhantomData,
+    net::SocketAddr, path::PathBuf, time::Duration,
 };
 
-use partial_struct::PartialStruct;
 use serde::{de, Deserialize, Deserializer, Serialize};
+
+use partial_struct::PartialStruct;
 use witnet_crypto::hash::HashFunction;
-use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
-use witnet_data_structures::witnessing::WitnessingConfig;
+use witnet_data_structures::{
+    chain::{ConsensusConstants, Environment, Epoch, PartialConsensusConstants},
+    proto::versioning::ProtocolVersion,
+    witnessing::WitnessingConfig,
+};
 use witnet_protected::ProtectedString;
 
 use crate::{
@@ -125,6 +129,11 @@ pub struct Config {
     #[partial_struct(ty = "PartialWitnessing")]
     #[partial_struct(serde(default))]
     pub witnessing: Witnessing,
+
+    /// Configuration related with protocol versions
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub protocol: Protocol,
 }
 
 /// Log-specific configuration.
@@ -420,6 +429,25 @@ pub struct Tapi {
     pub oppose_wip0027: bool,
 }
 
+/// Configuration related to protocol versions.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Protocol {
+    pub v1_7: Option<Epoch>,
+    pub v1_8: Option<Epoch>,
+    pub v2_0: Option<Epoch>,
+}
+
+impl Protocol {
+    pub fn iter(&self) -> IntoIter<(ProtocolVersion, Option<Epoch>), 3> {
+        [
+            (ProtocolVersion::V1_7, self.v1_7),
+            (ProtocolVersion::V1_8, self.v1_8),
+            (ProtocolVersion::V2_0, self.v2_0),
+        ]
+        .into_iter()
+    }
+}
+
 fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusConstants {
     PartialConsensusConstants {
         checkpoint_zero_timestamp: Some(c.checkpoint_zero_timestamp),
@@ -450,6 +478,13 @@ fn to_partial_consensus_constants(c: &ConsensusConstants) -> PartialConsensusCon
     }
 }
 
+pub trait Partializable {
+    type Partial;
+
+    fn from_partial(config: &Self::Partial, defaults: &dyn Defaults) -> Self;
+    fn to_partial(&self) -> Self::Partial;
+}
+
 impl Config {
     pub fn from_partial(config: &PartialConfig) -> Self {
         let defaults: &dyn Defaults = match config.environment {
@@ -478,6 +513,7 @@ impl Config {
             mempool: Mempool::from_partial(&config.mempool, defaults),
             tapi: config.tapi.clone(),
             witnessing: Witnessing::from_partial(&config.witnessing, defaults),
+            protocol: Protocol::from_partial(&config.protocol, defaults),
         }
     }
 
@@ -496,6 +532,7 @@ impl Config {
             mempool: self.mempool.to_partial(),
             tapi: self.tapi.clone(),
             witnessing: self.witnessing.to_partial(),
+            protocol: self.protocol.to_partial(),
         }
     }
 }
@@ -1168,6 +1205,30 @@ impl Witnessing {
             paranoid_threshold: paranoid,
             transports,
         }
+    }
+}
+
+impl Partializable for Protocol {
+    type Partial = Self;
+
+    fn from_partial(config: &Self::Partial, defaults: &dyn Defaults) -> Self {
+        let defaults = defaults.protocol_versions();
+
+        Protocol {
+            v1_7: config
+                .v1_7
+                .or(defaults.get(&ProtocolVersion::V1_7).copied()),
+            v1_8: config
+                .v1_8
+                .or(defaults.get(&ProtocolVersion::V1_8).copied()),
+            v2_0: config
+                .v2_0
+                .or(defaults.get(&ProtocolVersion::V2_0).copied()),
+        }
+    }
+
+    fn to_partial(&self) -> Self::Partial {
+        self.clone()
     }
 }
 

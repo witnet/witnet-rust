@@ -862,6 +862,7 @@ pub fn send_dr(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn send_st(
     addr: SocketAddr,
     value: u64,
@@ -1000,7 +1001,7 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
 
     let message = authorization.withdrawer.as_secp256k1_msg();
 
-    let auth_bytes = authorization.signature.to_recoverable_bytes(&message);
+    let auth_bytes = authorization.signature.to_recoverable_bytes(&message)?;
     let auth_string = hex::encode(auth_bytes);
 
     let auth_qr = qrcode::QrCode::new(&auth_string)?;
