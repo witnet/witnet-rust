@@ -1,5 +1,4 @@
-use std::rc::Rc;
-use std::sync::RwLock;
+use std::{rc::Rc, str::FromStr, sync::RwLock};
 
 use super::prelude::*;
 
@@ -10,14 +9,49 @@ pub type SyncStake<Address, Coins, Epoch, Power> = Rc<RwLock<Stake<Address, Coin
 pub type Result<T, Address, Coins, Epoch> =
     std::result::Result<T, StakesError<Address, Coins, Epoch>>;
 
-/// Couples an amount of coins and an address together. This is to be used in `Stakes` as the index
-/// of the `by_coins` index..
+/// Couples a validator address with a withdrawer address together. This is meant to be used in `Stakes` as the index
+/// for the `by_key` index.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct StakeKey<Address> {
+    /// A validator address.
+    pub validator: Address,
+    /// A withdrawer address.
+    pub withdrawer: Address,
+}
+
+impl<Address, T> From<(T, T)> for StakeKey<Address>
+where
+    T: Into<Address>,
+{
+    fn from(val: (T, T)) -> Self {
+        StakeKey {
+            validator: val.0.into(),
+            withdrawer: val.1.into(),
+        }
+    }
+}
+
+impl<Address> From<&str> for StakeKey<Address>
+where
+    Address: FromStr,
+    <Address as FromStr>::Err: std::fmt::Debug,
+{
+    fn from(val: &str) -> Self {
+        StakeKey {
+            validator: Address::from_str(val).unwrap(),
+            withdrawer: Address::from_str(val).unwrap(),
+        }
+    }
+}
+
+/// Couples an amount of coins, a validator address and a withdrawer address together. This is meant to be used in
+/// `Stakes` as the index of the `by_coins` index.
 #[derive(Eq, Ord, PartialEq, PartialOrd)]
-pub struct CoinsAndAddress<Coins, Address> {
+pub struct CoinsAndAddresses<Coins, Address> {
     /// An amount of coins.
     pub coins: Coins,
-    /// The address of a staker.
-    pub address: Address,
+    /// A validator and withdrawer addresses pair.
+    pub addresses: StakeKey<Address>,
 }
 
 /// Allows telling the `census` method in `Stakes` to source addresses from its internal `by_coins`

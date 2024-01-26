@@ -16,12 +16,12 @@ where
     Epoch: Default,
 {
     /// A listing of all the stakers, indexed by their address.
-    by_address: BTreeMap<Address, SyncStake<Address, Coins, Epoch, Power>>,
+    by_key: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
     /// A listing of all the stakers, indexed by their coins and address.
     ///
     /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
     /// have staked a particular amount, we just need to run a range lookup on the tree.
-    by_coins: BTreeMap<CoinsAndAddress<Coins, Address>, SyncStake<Address, Coins, Epoch, Power>>,
+    by_coins: BTreeMap<CoinsAndAddresses<Coins, Address>, SyncStake<Address, Coins, Epoch, Power>>,
     /// The amount of coins that can be staked or can be left staked after unstaking.
     minimum_stakeable: Option<Coins>,
 }
@@ -49,17 +49,19 @@ where
         + 'static,
 {
     /// Register a certain amount of additional stake for a certain address and epoch.
-    pub fn add_stake<IA>(
+    pub fn add_stake<ISK>(
         &mut self,
-        address: IA,
+        key: ISK,
         coins: Coins,
         epoch: Epoch,
     ) -> Result<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch>
     where
-        IA: Into<Address>,
+        ISK: Into<StakeKey<Address>>,
     {
-        let address = address.into();
-        let stake_arc = self.by_address.entry(address.clone()).or_default();
+        let key = key.into();
+
+        // Find or create a matching stake entry
+        let stake_arc = self.by_key.entry(key.clone()).or_default();
 
         // Actually increase the number of coins
         stake_arc
@@ -68,9 +70,9 @@ where
 
         // Update the position of the staker in the `by_coins` index
         // If this staker was not indexed by coins, this will index it now
-        let key = CoinsAndAddress {
+        let key = CoinsAndAddresses {
             coins,
-            address: address.clone(),
+            addresses: key,
         };
         self.by_coins.remove(&key);
         self.by_coins.insert(key, stake_arc.clone());
@@ -92,7 +94,7 @@ where
         capability: Capability,
         epoch: Epoch,
         strategy: CensusStrategy,
-    ) -> Box<dyn Iterator<Item = Address>> {
+    ) -> Box<dyn Iterator<Item = StakeKey<Address>> + '_> {
         let iterator = self.rank(capability, epoch).map(|(address, _)| address);
 
         match strategy {
@@ -109,18 +111,21 @@ where
     }
 
     /// Tells what is the power of an identity in the network on a certain epoch.
-    pub fn query_power(
+    pub fn query_power<ISK>(
         &self,
-        address: &Address,
+        key: ISK,
         capability: Capability,
         epoch: Epoch,
-    ) -> Result<Power, Address, Coins, Epoch> {
+    ) -> Result<Power, Address, Coins, Epoch>
+    where
+        ISK: Into<StakeKey<Address>>,
+    {
+        let key = key.into();
+
         Ok(self
-            .by_address
-            .get(address)
-            .ok_or(StakesError::IdentityNotFound {
-                identity: address.clone(),
-            })?
+            .by_key
+            .get(&key)
+            .ok_or(StakesError::EntryNotFound { key })?
             .read()?
             .power(capability, epoch))
     }
@@ -131,29 +136,30 @@ where
         &self,
         capability: Capability,
         current_epoch: Epoch,
-    ) -> impl Iterator<Item = (Address, Power)> + 'static {
+    ) -> impl Iterator<Item = (StakeKey<Address>, Power)> + '_ {
         self.by_coins
             .iter()
-            .flat_map(move |(CoinsAndAddress { address, .. }, stake)| {
+            .flat_map(move |(CoinsAndAddresses { addresses, .. }, stake)| {
                 stake
                     .read()
-                    .map(move |stake| (address.clone(), stake.power(capability, current_epoch)))
+                    .map(move |stake| (addresses.clone(), stake.power(capability, current_epoch)))
             })
             .sorted_by_key(|(_, power)| *power)
             .rev()
     }
 
     /// Remove a certain amount of staked coins from a given identity at a given epoch.
-    pub fn remove_stake<IA>(
+    pub fn remove_stake<ISK>(
         &mut self,
-        address: IA,
+        key: ISK,
         coins: Coins,
     ) -> Result<Coins, Address, Coins, Epoch>
     where
-        IA: Into<Address>,
+        ISK: Into<StakeKey<Address>>,
     {
-        let address = address.into();
-        if let Entry::Occupied(mut by_address_entry) = self.by_address.entry(address.clone()) {
+        let key = key.into();
+
+        if let Entry::Occupied(mut by_address_entry) = self.by_key.entry(key.clone()) {
             let (initial_coins, final_coins) = {
                 let mut stake = by_address_entry.get_mut().write()?;
 
@@ -169,34 +175,35 @@ where
             // No need to keep the entry if the stake has gone to zero
             if final_coins.is_zero() {
                 by_address_entry.remove();
-                self.by_coins.remove(&CoinsAndAddress {
+                self.by_coins.remove(&CoinsAndAddresses {
                     coins: initial_coins,
-                    address,
+                    addresses: key,
                 });
             }
 
             Ok(final_coins)
         } else {
-            Err(StakesError::IdentityNotFound { identity: address })
+            Err(StakesError::EntryNotFound { key })
         }
     }
 
     /// Set the epoch for a certain address and capability. Most normally, the epoch is the current
     /// epoch.
-    pub fn reset_age<IA>(
+    pub fn reset_age<ISK>(
         &mut self,
-        address: IA,
+        key: ISK,
         capability: Capability,
         current_epoch: Epoch,
     ) -> Result<(), Address, Coins, Epoch>
     where
-        IA: Into<Address>,
+        ISK: Into<StakeKey<Address>>,
     {
-        let address = address.into();
+        let key = key.into();
+
         let mut stake = self
-            .by_address
-            .get_mut(&address)
-            .ok_or(StakesError::IdentityNotFound { identity: address })?
+            .by_key
+            .get_mut(&key)
+            .ok_or(StakesError::EntryNotFound { key })?
             .write()?;
         stake.epochs.update(capability, current_epoch);
 
@@ -226,26 +233,37 @@ mod tests {
     #[test]
     fn test_add_stake() {
         let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
-        let alice = "Alice".into();
-        let bob = "Bob".into();
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+
+        let alice_charlie = (alice, charlie);
+        let bob_david = (bob, david);
 
         // Let's check default power
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 0),
-            Err(StakesError::IdentityNotFound {
-                identity: alice.clone()
+            stakes.query_power(alice_charlie, Capability::Mining, 0),
+            Err(StakesError::EntryNotFound {
+                key: StakeKey {
+                    validator: alice.into(),
+                    withdrawer: charlie.into()
+                },
             })
         );
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 1_000),
-            Err(StakesError::IdentityNotFound {
-                identity: alice.clone()
+            stakes.query_power(alice_charlie, Capability::Mining, 1_000),
+            Err(StakesError::EntryNotFound {
+                key: StakeKey {
+                    validator: alice.into(),
+                    withdrawer: charlie.into()
+                },
             })
         );
 
         // Let's make Alice stake 100 Wit at epoch 100
         assert_eq!(
-            stakes.add_stake(&alice, 100, 100).unwrap(),
+            stakes.add_stake(alice_charlie, 100, 100).unwrap(),
             Stake::from_parts(
                 100,
                 CapabilityMap {
@@ -256,17 +274,26 @@ mod tests {
         );
 
         // Let's see how Alice's stake accrues power over time
-        assert_eq!(stakes.query_power(&alice, Capability::Mining, 99), Ok(0));
-        assert_eq!(stakes.query_power(&alice, Capability::Mining, 100), Ok(0));
-        assert_eq!(stakes.query_power(&alice, Capability::Mining, 101), Ok(100));
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 200),
+            stakes.query_power(alice_charlie, Capability::Mining, 99),
+            Ok(0)
+        );
+        assert_eq!(
+            stakes.query_power(alice_charlie, Capability::Mining, 100),
+            Ok(0)
+        );
+        assert_eq!(
+            stakes.query_power(alice_charlie, Capability::Mining, 101),
+            Ok(100)
+        );
+        assert_eq!(
+            stakes.query_power(alice_charlie, Capability::Mining, 200),
             Ok(10_000)
         );
 
         // Let's make Alice stake 50 Wits at epoch 150 this time
         assert_eq!(
-            stakes.add_stake(&alice, 50, 300).unwrap(),
+            stakes.add_stake(alice_charlie, 50, 300).unwrap(),
             Stake::from_parts(
                 150,
                 CapabilityMap {
@@ -276,25 +303,25 @@ mod tests {
             )
         );
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 299),
+            stakes.query_power(alice_charlie, Capability::Mining, 299),
             Ok(19_950)
         );
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 300),
+            stakes.query_power(alice_charlie, Capability::Mining, 300),
             Ok(20_100)
         );
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 301),
+            stakes.query_power(alice_charlie, Capability::Mining, 301),
             Ok(20_250)
         );
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 400),
+            stakes.query_power(alice_charlie, Capability::Mining, 400),
             Ok(35_100)
         );
 
         // Now let's make Bob stake 500 Wits at epoch 1000 this time
         assert_eq!(
-            stakes.add_stake(&bob, 500, 1_000).unwrap(),
+            stakes.add_stake(bob_david, 500, 1_000).unwrap(),
             Stake::from_parts(
                 500,
                 CapabilityMap {
@@ -306,32 +333,41 @@ mod tests {
 
         // Before Bob stakes, Alice has all the power
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 999),
+            stakes.query_power(alice_charlie, Capability::Mining, 999),
             Ok(124950)
         );
-        assert_eq!(stakes.query_power(&bob, Capability::Mining, 999), Ok(0));
+        assert_eq!(
+            stakes.query_power(bob_david, Capability::Mining, 999),
+            Ok(0)
+        );
 
         // New stakes don't change power in the same epoch
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 1_000),
+            stakes.query_power(alice_charlie, Capability::Mining, 1_000),
             Ok(125100)
         );
-        assert_eq!(stakes.query_power(&bob, Capability::Mining, 1_000), Ok(0));
+        assert_eq!(
+            stakes.query_power(bob_david, Capability::Mining, 1_000),
+            Ok(0)
+        );
 
         // Shortly after, Bob's stake starts to gain power
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 1_001),
+            stakes.query_power(alice_charlie, Capability::Mining, 1_001),
             Ok(125250)
         );
-        assert_eq!(stakes.query_power(&bob, Capability::Mining, 1_001), Ok(500));
+        assert_eq!(
+            stakes.query_power(bob_david, Capability::Mining, 1_001),
+            Ok(500)
+        );
 
         // After enough time, Bob overpowers Alice
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 2_000),
+            stakes.query_power(alice_charlie, Capability::Mining, 2_000),
             Ok(275_100)
         );
         assert_eq!(
-            stakes.query_power(&bob, Capability::Mining, 2_000),
+            stakes.query_power(bob_david, Capability::Mining, 2_000),
             Ok(500_000)
         );
     }
@@ -340,126 +376,146 @@ mod tests {
     fn test_coin_age_resets() {
         // First, lets create a setup with a few stakers
         let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
-        let alice = "Alice".into();
-        let bob = "Bob".into();
-        let charlie = "Charlie".into();
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+        let erin = "Erin";
 
-        stakes.add_stake(&alice, 10, 0).unwrap();
-        stakes.add_stake(&bob, 20, 20).unwrap();
-        stakes.add_stake(&charlie, 30, 30).unwrap();
+        let alice_charlie = (alice, charlie);
+        let bob_david = (bob, david);
+        let charlie_erin = (charlie, erin);
+
+        stakes.add_stake(alice_charlie, 10, 0).unwrap();
+        stakes.add_stake(bob_david, 20, 20).unwrap();
+        stakes.add_stake(charlie_erin, 30, 30).unwrap();
 
         // Let's really start our test at epoch 100
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 100),
-            Ok(1_000)
-        );
-        assert_eq!(stakes.query_power(&bob, Capability::Mining, 100), Ok(1_600));
-        assert_eq!(
-            stakes.query_power(&charlie, Capability::Mining, 100),
-            Ok(2_100)
-        );
-        assert_eq!(
-            stakes.query_power(&alice, Capability::Witnessing, 100),
+            stakes.query_power(alice_charlie, Capability::Mining, 100),
             Ok(1_000)
         );
         assert_eq!(
-            stakes.query_power(&bob, Capability::Witnessing, 100),
+            stakes.query_power(bob_david, Capability::Mining, 100),
             Ok(1_600)
         );
         assert_eq!(
-            stakes.query_power(&charlie, Capability::Witnessing, 100),
+            stakes.query_power(charlie_erin, Capability::Mining, 100),
+            Ok(2_100)
+        );
+        assert_eq!(
+            stakes.query_power(alice_charlie, Capability::Witnessing, 100),
+            Ok(1_000)
+        );
+        assert_eq!(
+            stakes.query_power(bob_david, Capability::Witnessing, 100),
+            Ok(1_600)
+        );
+        assert_eq!(
+            stakes.query_power(charlie_erin, Capability::Witnessing, 100),
             Ok(2_100)
         );
         assert_eq!(
             stakes.rank(Capability::Mining, 100).collect::<Vec<_>>(),
             [
-                (charlie.clone(), 2100),
-                (bob.clone(), 1600),
-                (alice.clone(), 1000)
+                (charlie_erin.into(), 2100),
+                (bob_david.into(), 1600),
+                (alice_charlie.into(), 1000)
             ]
         );
         assert_eq!(
             stakes.rank(Capability::Witnessing, 100).collect::<Vec<_>>(),
             [
-                (charlie.clone(), 2100),
-                (bob.clone(), 1600),
-                (alice.clone(), 1000)
+                (charlie_erin.into(), 2100),
+                (bob_david.into(), 1600),
+                (alice_charlie.into(), 1000)
             ]
         );
 
         // Now let's slash Charlie's mining coin age right after
-        stakes.reset_age(&charlie, Capability::Mining, 101).unwrap();
+        stakes
+            .reset_age(charlie_erin, Capability::Mining, 101)
+            .unwrap();
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 101),
-            Ok(1_010)
-        );
-        assert_eq!(stakes.query_power(&bob, Capability::Mining, 101), Ok(1_620));
-        assert_eq!(stakes.query_power(&charlie, Capability::Mining, 101), Ok(0));
-        assert_eq!(
-            stakes.query_power(&alice, Capability::Witnessing, 101),
+            stakes.query_power(alice_charlie, Capability::Mining, 101),
             Ok(1_010)
         );
         assert_eq!(
-            stakes.query_power(&bob, Capability::Witnessing, 101),
+            stakes.query_power(bob_david, Capability::Mining, 101),
             Ok(1_620)
         );
         assert_eq!(
-            stakes.query_power(&charlie, Capability::Witnessing, 101),
+            stakes.query_power(charlie_erin, Capability::Mining, 101),
+            Ok(0)
+        );
+        assert_eq!(
+            stakes.query_power(alice_charlie, Capability::Witnessing, 101),
+            Ok(1_010)
+        );
+        assert_eq!(
+            stakes.query_power(bob_david, Capability::Witnessing, 101),
+            Ok(1_620)
+        );
+        assert_eq!(
+            stakes.query_power(charlie_erin, Capability::Witnessing, 101),
             Ok(2_130)
         );
         assert_eq!(
             stakes.rank(Capability::Mining, 101).collect::<Vec<_>>(),
             [
-                (bob.clone(), 1_620),
-                (alice.clone(), 1_010),
-                (charlie.clone(), 0)
+                (bob_david.into(), 1_620),
+                (alice_charlie.into(), 1_010),
+                (charlie_erin.into(), 0)
             ]
         );
         assert_eq!(
             stakes.rank(Capability::Witnessing, 101).collect::<Vec<_>>(),
             [
-                (charlie.clone(), 2_130),
-                (bob.clone(), 1_620),
-                (alice.clone(), 1_010)
+                (charlie_erin.into(), 2_130),
+                (bob_david.into(), 1_620),
+                (alice_charlie.into(), 1_010)
             ]
         );
 
         // Don't panic, Charlie! After enough time, you can take over again ;)
         assert_eq!(
-            stakes.query_power(&alice, Capability::Mining, 300),
-            Ok(3_000)
-        );
-        assert_eq!(stakes.query_power(&bob, Capability::Mining, 300), Ok(5_600));
-        assert_eq!(
-            stakes.query_power(&charlie, Capability::Mining, 300),
-            Ok(5_970)
-        );
-        assert_eq!(
-            stakes.query_power(&alice, Capability::Witnessing, 300),
+            stakes.query_power(alice_charlie, Capability::Mining, 300),
             Ok(3_000)
         );
         assert_eq!(
-            stakes.query_power(&bob, Capability::Witnessing, 300),
+            stakes.query_power(bob_david, Capability::Mining, 300),
             Ok(5_600)
         );
         assert_eq!(
-            stakes.query_power(&charlie, Capability::Witnessing, 300),
+            stakes.query_power(charlie_erin, Capability::Mining, 300),
+            Ok(5_970)
+        );
+        assert_eq!(
+            stakes.query_power(alice_charlie, Capability::Witnessing, 300),
+            Ok(3_000)
+        );
+        assert_eq!(
+            stakes.query_power(bob_david, Capability::Witnessing, 300),
+            Ok(5_600)
+        );
+        assert_eq!(
+            stakes.query_power(charlie_erin, Capability::Witnessing, 300),
             Ok(8_100)
         );
         assert_eq!(
             stakes.rank(Capability::Mining, 300).collect::<Vec<_>>(),
             [
-                (charlie.clone(), 5_970),
-                (bob.clone(), 5_600),
-                (alice.clone(), 3_000)
+                (charlie_erin.into(), 5_970),
+                (bob_david.into(), 5_600),
+                (alice_charlie.into(), 3_000)
             ]
         );
         assert_eq!(
             stakes.rank(Capability::Witnessing, 300).collect::<Vec<_>>(),
             [
-                (charlie.clone(), 8_100),
-                (bob.clone(), 5_600),
-                (alice.clone(), 3_000)
+                (charlie_erin.into(), 8_100),
+                (bob_david.into(), 5_600),
+                (alice_charlie.into(), 3_000)
             ]
         );
     }

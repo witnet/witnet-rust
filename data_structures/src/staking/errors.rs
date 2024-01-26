@@ -1,5 +1,7 @@
 use std::sync::PoisonError;
 
+use crate::staking::aux::StakeKey;
+
 /// All errors related to the staking functionality.
 #[derive(Debug, PartialEq)]
 pub enum StakesError<Address, Coins, Epoch> {
@@ -25,10 +27,10 @@ pub enum StakesError<Address, Coins, Epoch> {
         /// The maximum Epoch.
         maximum: Epoch,
     },
-    /// Tried to query `Stakes` for the address of a staker that is not registered in `Stakes`.
-    IdentityNotFound {
-        /// The unknown address.
-        identity: Address,
+    /// Tried to query for a stake entry that is not registered in `Stakes`.
+    EntryNotFound {
+        /// A validator and withdrawer address pair.
+        key: StakeKey<Address>,
     },
     /// Tried to obtain a lock on a write-locked piece of data that is already locked.
     PoisonedLock,

@@ -12,7 +12,7 @@ fn populate(b: &mut Bencher) {
         let address = format!("{i}");
         let coins = i;
         let epoch = i;
-        stakes.add_stake(address, coins, epoch).unwrap();
+        stakes.add_stake(address.as_str(), coins, epoch).unwrap();
 
         i += 1;
     });
@@ -32,7 +32,7 @@ fn rank(b: &mut Bencher) {
         let epoch = i;
         let address = format!("{}", rng.gen::<u64>());
 
-        stakes.add_stake(address, coins, epoch).unwrap();
+        stakes.add_stake(address.as_str(), coins, epoch).unwrap();
 
         i += 1;
 
@@ -62,7 +62,7 @@ fn query_power(b: &mut Bencher) {
         let epoch = i;
         let address = format!("{i}");
 
-        stakes.add_stake(address, coins, epoch).unwrap();
+        stakes.add_stake(address.as_str(), coins, epoch).unwrap();
 
         i += 1;
 
@@ -75,7 +75,7 @@ fn query_power(b: &mut Bencher) {
 
     b.iter(|| {
         let address = format!("{i}");
-        let _power = stakes.query_power(&address, Capability::Mining, i);
+        let _power = stakes.query_power(address.as_str(), Capability::Mining, i);
 
         i += 1;
     })
