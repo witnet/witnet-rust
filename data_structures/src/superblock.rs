@@ -2595,16 +2595,17 @@ mod tests {
 
     #[test]
     fn test_two_thirds_consensus() {
-        assert!(!two_thirds_consensus(2, 3));
+        assert!(!two_thirds_consensus(1, 3));
+        assert!(two_thirds_consensus(2, 3));
         assert!(two_thirds_consensus(3, 3));
-        assert!(!two_thirds_consensus(2, 4));
+        assert!(!two_thirds_consensus(1, 4));
         assert!(two_thirds_consensus(3, 4));
-        assert!(!two_thirds_consensus(21, 32));
-        assert!(two_thirds_consensus(22, 32));
-        assert!(!two_thirds_consensus(22, 33));
-        assert!(two_thirds_consensus(23, 33));
-        assert!(!two_thirds_consensus(22, 34));
-        assert!(two_thirds_consensus(23, 34));
+        assert!(!two_thirds_consensus(20, 32));
+        assert!(two_thirds_consensus(21, 32));
+        assert!(!two_thirds_consensus(21, 33));
+        assert!(two_thirds_consensus(22, 33));
+        assert!(!two_thirds_consensus(21, 34));
+        assert!(two_thirds_consensus(22, 34));
     }
 
     #[test]
@@ -2686,7 +2687,7 @@ mod tests {
 
         // 4 valid votes -> SameAsLocal
         let mut v3 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
-        v3.secp256k1_signature.public_key = p3;
+        v3.secp256k1_signature.public_key = p3.clone();
         assert_eq!(sbs.add_vote(&v3, 2), AddSuperBlockVote::ValidWithSameHash);
         let mut v4 = SuperBlockVote::new_unsigned(sb2.hash(), 2);
         v4.secp256k1_signature.public_key = p4;
@@ -2694,13 +2695,16 @@ mod tests {
 
         assert_eq!(sbs.has_consensus(), SuperBlockConsensus::SameAsLocal);
 
-        // 2 valid votes, 2 double votes and 1 missing vote -> NoConsensus
+        // 1 valid votes, 3 double votes and 1 missing vote -> NoConsensus
         let mut v1_b = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
         v1_b.secp256k1_signature.public_key = p1;
         assert_eq!(sbs.add_vote(&v1_b, 2), AddSuperBlockVote::DoubleVote);
         let mut v2_b = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
         v2_b.secp256k1_signature.public_key = p2;
         assert_eq!(sbs.add_vote(&v2_b, 2), AddSuperBlockVote::DoubleVote);
+        let mut v3_b = SuperBlockVote::new_unsigned(Hash::SHA256([2; 32]), 2);
+        v3_b.secp256k1_signature.public_key = p3;
+        assert_eq!(sbs.add_vote(&v3_b, 2), AddSuperBlockVote::DoubleVote);
 
         assert_eq!(sbs.has_consensus(), SuperBlockConsensus::NoConsensus);
     }
