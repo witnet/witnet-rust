@@ -4,8 +4,8 @@ use std::{
     future,
     future::Future,
     sync::{
-        atomic::{self, AtomicU16},
         Arc,
+        atomic::{self, AtomicU16},
     },
 };
 
@@ -14,13 +14,14 @@ use actix::{
     WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
-use futures::future::{try_join_all, FutureExt};
+use futures::future::{FutureExt, try_join_all};
+
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
-        tapi::{after_second_hard_fork, ActiveWips},
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
+        Block,
+        BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon, CheckpointVRF,
+        DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash, tapi::{ActiveWips, after_second_hard_fork},
         TransactionsPool, ValueTransferOutput,
     },
     data_request::{
@@ -28,7 +29,8 @@ use witnet_data_structures::{
         DataRequestPool,
     },
     error::TransactionError,
-    get_environment,
+    get_environment, get_protocol_version,
+    proto::versioning::ProtocolVersion,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::{
@@ -44,7 +46,7 @@ use witnet_futures_utils::TryFutureExt2;
 use witnet_rad::{
     conditions::radon_report_from_error,
     error::RadError,
-    types::{serial_iter_decode, RadonTypes},
+    types::{RadonTypes, serial_iter_decode},
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
@@ -1004,8 +1006,21 @@ pub fn build_block(
     let commit_hash_merkle_root = merkle_tree_root(&commit_txns);
     let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
     let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
-    let stake_hash_merkle_root = merkle_tree_root(&stake_txns);
-    let unstake_hash_merkle_root = merkle_tree_root(&unstake_txns);
+
+    let protocol = get_protocol_version(Some(beacon.checkpoint));
+
+    let stake_hash_merkle_root = if protocol == ProtocolVersion::V1_7 {
+        Hash::default()
+    } else {
+        merkle_tree_root(&stake_txns)
+    };
+
+    let unstake_hash_merkle_root = if protocol == ProtocolVersion::V1_7 {
+        Hash::default()
+    } else {
+        merkle_tree_root(&unstake_txns)
+    };
+
     let merkle_roots = BlockMerkleRoots {
         mint_hash: mint.hash(),
         vt_hash_merkle_root,
