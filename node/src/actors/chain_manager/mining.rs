@@ -4,8 +4,8 @@ use std::{
     future,
     future::Future,
     sync::{
-        Arc,
         atomic::{self, AtomicU16},
+        Arc,
     },
 };
 
@@ -14,14 +14,14 @@ use actix::{
     WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
-use futures::future::{FutureExt, try_join_all};
+use futures::future::{try_join_all, FutureExt};
 
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
-        Block,
-        BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon, CheckpointVRF,
-        DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash, tapi::{ActiveWips, after_second_hard_fork},
+        tapi::{after_second_hard_fork, ActiveWips},
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
+        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
         TransactionsPool, ValueTransferOutput,
     },
     data_request::{
@@ -46,7 +46,7 @@ use witnet_futures_utils::TryFutureExt2;
 use witnet_rad::{
     conditions::radon_report_from_error,
     error::RadError,
-    types::{RadonTypes, serial_iter_decode},
+    types::{serial_iter_decode, RadonTypes},
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{

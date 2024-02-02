@@ -1,3 +1,14 @@
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    convert::TryFrom,
+    fmt,
+    fs::File,
+    io::{self, BufRead, BufReader, Read, Write},
+    net::{SocketAddr, TcpStream},
+    path::Path,
+    str::FromStr,
+};
+
 use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
@@ -28,30 +39,18 @@ use witnet_data_structures::{
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::Wit,
 };
-use witnet_node::actors::messages::{BuildStakeResponse, MagicEither};
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult},
     messages::{
-        AuthorizeStake, BuildDrt, BuildStakeParams, BuildVtt, GetBalanceTarget,
-        GetReputationResult, SignalingInfo, StakeAuthorization,
+        AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildVtt, GetBalanceTarget,
+        GetReputationResult, MagicEither, SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{files::create_private_file, timestamp::pretty_print};
 use witnet_validations::validations::{
     run_tally_panic_safe, validate_data_request_output, validate_rad_request,
-};
-
-use std::{
-    collections::{BTreeSet, HashMap},
-    convert::TryFrom,
-    fmt,
-    fs::File,
-    io::{self, BufRead, BufReader, Read, Write},
-    net::{SocketAddr, TcpStream},
-    path::Path,
-    str::FromStr,
 };
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
@@ -943,9 +942,9 @@ pub fn send_st(
                     dry_run: true,
                     ..build_stake_params.clone()
                 };
-                let (dry_st, ..): (StakeTransaction, _) =
+                let (bsr, ..): (BuildStakeResponse, _) =
                     issue_method("stake", Some(dry_params), &mut stream, id.next())?;
-                let dry_weight = dry_st.weight();
+                let dry_weight = bsr.transaction.weight();
 
                 // We retry up to 5 times, or until the weight is stable
                 if rounds > 5 || dry_weight == weight {
@@ -963,29 +962,49 @@ pub fn send_st(
         build_stake_params.fee = prompt_user_for_priority_selection(estimates)?;
     }
 
-    if requires_confirmation.unwrap_or(true) {
+    let confirmation = if requires_confirmation.unwrap_or(true) {
         let params = BuildStakeParams {
             dry_run: true,
             ..build_stake_params.clone()
         };
-        let (bsr, _): (BuildStakeResponse, _) =
+        let (dry, _): (BuildStakeResponse, _) =
             issue_method("stake", Some(params), &mut stream, id.next())?;
 
-        prompt_user_for_stake_confirmation(bsr)?;
-    }
-
-    // Finally ask the node to create the transaction with the chosen fee.
-    build_stake_params.dry_run = dry_run;
-    let (_st, (request, response)): (StakeTransaction, _) =
-        issue_method("stake", Some(build_stake_params), &mut stream, id.next())?;
-
-    // On dry run mode, print the request, otherwise, print the response.
-    // This is kept like this strictly for backwards compatibility.
-    // TODO: wouldn't it be better to always print the response or both?
-    if dry_run {
-        println!("{}", request);
+        // Exactly what it says: shows all the facts about the staking transaction, and expects confirmation through
+        // user input
+        if prompt_user_for_stake_confirmation(&dry)? {
+            Some(dry)
+        } else {
+            None
+        }
     } else {
-        println!("{}", response);
+        None
+    };
+
+    if let Some(dry) = confirmation {
+        // Finally ask the node to create the transaction with the chosen fee.
+        build_stake_params.dry_run = dry_run;
+        let (st, (request, response)): (StakeTransaction, _) =
+            issue_method("stake", Some(build_stake_params), &mut stream, id.next())?;
+
+        println!("> {}", request);
+        println!("< {}", response);
+
+        let environment = get_environment();
+        let value = Wit::from_nanowits(st.body.output.value).to_string();
+        let staker = dry
+            .staker
+            .iter()
+            .map(|pkh| pkh.bech32(environment))
+            .collect::<HashSet<_>>()
+            .iter()
+            .join(",");
+        let validator = dry.validator.bech32(environment);
+        let withdrawer = dry.withdrawer.bech32(environment);
+
+        println!("Congratulations! {} Wit have been staked by addresses {:?} onto validator {}, using {} as the withdrawal address.", value, staker, validator, withdrawer);
+    } else {
+        println!("The stake facts have not been confirmed. No stake transaction has been created.");
     }
 
     Ok(())
@@ -2064,7 +2083,7 @@ fn prompt_user_for_priority_selection(
     Ok(fee)
 }
 
-fn prompt_user_for_stake_confirmation(data: BuildStakeResponse) -> Result<(), failure::Error> {
+fn prompt_user_for_stake_confirmation(data: &BuildStakeResponse) -> Result<bool, failure::Error> {
     let environment = get_environment();
     let value = Wit::from_nanowits(data.transaction.body.output.value).to_string();
 
@@ -2125,11 +2144,21 @@ fn prompt_user_for_stake_confirmation(data: BuildStakeResponse) -> Result<(), fa
     let mut input = String::new();
     let stdin = io::stdin();
     let mut stdin = stdin.lock();
-    io::stdout().flush()?;
-    input.clear();
-    stdin.read_line(&mut input)?;
+    loop {
+        print!("Please double-check the information above and confirm if it is correct (y/N): ",);
+        io::stdout().flush()?;
+        input.clear();
+        stdin.read_line(&mut input)?;
+        let selected = input.trim().to_uppercase();
 
-    Ok(())
+        if ["Y", "YES"].contains(&selected.as_str()) {
+            return Ok(true);
+        } else if ["", "N", "NO"].contains(&selected.as_str()) {
+            break;
+        }
+    }
+
+    Ok(false)
 }
 
 #[cfg(test)]
