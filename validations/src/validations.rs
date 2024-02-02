@@ -30,7 +30,7 @@ use witnet_data_structures::{
     },
     error::{BlockError, DataRequestError, TransactionError},
     get_protocol_version,
-    proto::versioning::ProtocolVersion,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
@@ -1320,9 +1320,9 @@ pub fn validate_block_signature(
     let signature = keyed_signature.signature.clone().try_into()?;
     let public_key = keyed_signature.public_key.clone().try_into()?;
 
-    // TODO: take into account block epoch to decide protocol version (with regards to data
-    //  structures and hashing)
-    let Hash::SHA256(message) = block.hash();
+    let Hash::SHA256(message) = block.versioned_hash(get_protocol_version(Some(
+        block.block_header.beacon.checkpoint,
+    )));
 
     add_secp_block_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
 
