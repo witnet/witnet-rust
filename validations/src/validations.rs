@@ -11,18 +11,14 @@ use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
-use witnet_crypto::{
-    hash::{calculate_sha256, Sha256},
-    merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
-    signature::{verify, PublicKey, Signature},
-};
+use witnet_crypto::{hash::{calculate_sha256, Sha256}, hash, merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree}, signature::{PublicKey, Signature, verify}};
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
-        ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
-        EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
-        RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
-        StakeOutput, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
+        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants,
+        Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest,
+        RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify, StakeOutput,
+        tapi::ActiveWips, ValueTransferOutput,
     },
     data_request::{
         calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
@@ -50,7 +46,7 @@ use witnet_rad::{
     error::RadError,
     operators::RadonOpCodes,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
-    types::{serial_iter_decode, RadonTypes},
+    types::{RadonTypes, serial_iter_decode},
 };
 
 // TODO: move to a configuration
@@ -1988,10 +1984,10 @@ pub fn validate_block_transactions(
             // }
         }
 
-        (Hash::from(st_mt.root()), Hash::from(ut_mt.root()))
+        (st_mt.root(), ut_mt.root())
     } else {
         // Nullify stake and unstake merkle roots for the legacy protocol version
-        Default::default()
+        (hash::EMPTY_SHA256, hash::EMPTY_SHA256)
     };
 
     // Validate Merkle Root
@@ -2002,12 +1998,12 @@ pub fn validate_block_transactions(
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
         reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
         tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
-        stake_hash_merkle_root: st_root,
-        unstake_hash_merkle_root: ut_root,
+        stake_hash_merkle_root: Hash::from(st_root),
+        unstake_hash_merkle_root: Hash::from(ut_root),
     };
 
     if merkle_roots != block.block_header.merkle_roots {
-        println!(
+        log::debug!(
             "{:?} vs {:?}",
             merkle_roots, block.block_header.merkle_roots
         );
