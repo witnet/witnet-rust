@@ -122,6 +122,7 @@ pub struct Account {
     pub internal: ExtendedSK,
 }
 
+#[derive(Debug)]
 pub struct WalletData {
     pub id: String,
     pub name: Option<String>,
