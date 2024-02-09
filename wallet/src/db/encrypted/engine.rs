@@ -1,5 +1,6 @@
-use super::*;
 use crate::types;
+
+use super::*;
 
 #[derive(Clone)]
 pub struct CryptoEngine {

@@ -13,7 +13,7 @@ use state::State;
 use witnet_crypto::{
     hash::calculate_sha256,
     key::{ExtendedPK, ExtendedSK, KeyPath, PK},
-    signature,
+    secp256k1, signature,
 };
 use witnet_data_structures::{
     chain::{
@@ -37,7 +37,7 @@ use witnet_util::timestamp::get_timestamp;
 
 use crate::{
     constants, crypto,
-    db::{Database, WriteBatch as _},
+    db::{Database, GetWith, WriteBatch as _},
     model,
     params::Params,
     types,
@@ -189,7 +189,7 @@ pub struct Wallet<T> {
 
 impl<T> Wallet<T>
 where
-    T: Database,
+    T: Database + GetWith,
 {
     /// Generate transient addresses for synchronization purposes
     /// This function only creates and inserts addresses
@@ -295,6 +295,11 @@ where
         let id = id.to_owned();
         let name = db.get_opt(&keys::wallet_name())?;
         let description = db.get_opt(&keys::wallet_description())?;
+        log::debug!(
+            "Unlocking wallet with name '{}' and description '{}'",
+            name.clone().unwrap_or_default(),
+            description.clone().unwrap_or_default()
+        );
         let account = db.get_or_default(&keys::wallet_default_account())?;
         let available_accounts = db
             .get_opt(&keys::wallet_accounts())?
@@ -333,6 +338,7 @@ where
             unconfirmed: balance_info,
             confirmed: balance_info,
         };
+        log::debug!("Wallet {id} has balance: {:?}", balance);
 
         let last_sync = db
             .get(&keys::wallet_last_sync())
@@ -342,17 +348,34 @@ where
             });
 
         let last_confirmed = last_sync;
+        log::debug!(
+            "Wallet {id} has last_sync={:?} and last_confirmed={:?}",
+            last_sync,
+            last_confirmed
+        );
 
-        let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
+        let external_key = db.get_with(
+            &keys::account_key(account, constants::EXTERNAL_KEYCHAIN),
+            backwards_compatible_keypair_decoding,
+        )?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
             account,
             constants::EXTERNAL_KEYCHAIN,
         ))?;
-        let internal_key = db.get(&keys::account_key(account, constants::INTERNAL_KEYCHAIN))?;
+        log::debug!(
+            "Loaded external keys for wallet {id}. Next external index is {next_external_index}."
+        );
+        let internal_key = db.get_with(
+            &keys::account_key(account, constants::INTERNAL_KEYCHAIN),
+            backwards_compatible_keypair_decoding,
+        )?;
         let next_internal_index = db.get_or_default(&keys::account_next_index(
             account,
             constants::INTERNAL_KEYCHAIN,
         ))?;
+        log::debug!(
+            "Loaded internal keys for wallet {id}. Next internal index is {next_internal_index}."
+        );
         let keychains = [external_key, internal_key];
         let epoch_constants = params.epoch_constants;
         let birth_date = db.get(&keys::birth_date()).unwrap_or(CheckpointBeacon {
@@ -2275,6 +2298,15 @@ fn vtt_to_outputs(
         .collect::<Vec<model::Output>>()
 }
 
+#[inline]
+fn backwards_compatible_keypair_decoding(bytes: &[u8]) -> Vec<u8> {
+    let skip = bytes
+        .len()
+        .saturating_sub(8 + 2 * secp256k1::constants::SECRET_KEY_SIZE);
+
+    bytes[skip..].to_vec()
+}
+
 #[cfg(test)]
 impl<T> Wallet<T>
 where
@@ -2360,4 +2392,17 @@ fn test_get_tx_ranges_exceed() {
     assert_eq!(local_range, None);
     assert_eq!(pending_range, None);
     assert_eq!(db_range, Some(0..5));
+}
+
+#[test]
+fn test_backwards_compatible_keypair_decoding() {
+    // Test that the old keypair prefix is detected and omitted
+    let old = backwards_compatible_keypair_decoding(&hex::decode("20000000000000001837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf6720000000000000007923408dadd3c7b56eed15567707ae5e5dca089de972e07f3b860450e2a3b70e").unwrap());
+    let new = backwards_compatible_keypair_decoding(&hex::decode("1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf6720000000000000007923408dadd3c7b56eed15567707ae5e5dca089de972e07f3b860450e2a3b70e").unwrap());
+    assert_eq!(old, new);
+
+    // Test that shorter strings don't get clipped or panic
+    let short = hex::decode("fabadaacabadaa").unwrap();
+    let compatible = backwards_compatible_keypair_decoding(&short);
+    assert_eq!(short, compatible);
 }

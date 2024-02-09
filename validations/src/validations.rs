@@ -11,14 +11,19 @@ use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
-use witnet_crypto::{hash::{calculate_sha256, Sha256}, hash, merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree}, signature::{PublicKey, Signature, verify}};
+use witnet_crypto::{
+    hash,
+    hash::{calculate_sha256, Sha256},
+    merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
+    signature::{verify, PublicKey, Signature},
+};
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
-        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants,
-        Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest,
-        RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify, StakeOutput,
-        tapi::ActiveWips, ValueTransferOutput,
+        tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
+        ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
+        EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+        RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
+        StakeOutput, ValueTransferOutput,
     },
     data_request::{
         calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
@@ -46,7 +51,7 @@ use witnet_rad::{
     error::RadError,
     operators::RadonOpCodes,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
-    types::{RadonTypes, serial_iter_decode},
+    types::{serial_iter_decode, RadonTypes},
 };
 
 // TODO: move to a configuration
@@ -2005,7 +2010,8 @@ pub fn validate_block_transactions(
     if merkle_roots != block.block_header.merkle_roots {
         log::debug!(
             "{:?} vs {:?}",
-            merkle_roots, block.block_header.merkle_roots
+            merkle_roots,
+            block.block_header.merkle_roots
         );
         Err(BlockError::NotValidMerkleTree.into())
     } else {
