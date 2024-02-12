@@ -744,7 +744,7 @@ pub fn run_tally_panic_safe(
     commits_count: usize,
     active_wips: &ActiveWips,
 ) -> RadonReport<RadonTypes> {
-    match panic::catch_unwind(|| {
+    let unwind_fn = || {
         let results = serial_iter_decode(
             &mut reveals
                 .iter()
@@ -765,7 +765,9 @@ pub fn run_tally_panic_safe(
         );
 
         run_tally(results, tally, non_error_min, commits_count, active_wips)
-    }) {
+    };
+
+    match panic::catch_unwind(unwind_fn) {
         Ok(x) => x,
         Err(_e) => {
             // If there is a panic during tally creation: set tally result to RadError::Unknown
