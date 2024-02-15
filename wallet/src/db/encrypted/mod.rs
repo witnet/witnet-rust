@@ -4,7 +4,9 @@ use std::sync::Arc;
 use witnet_crypto::cipher;
 
 use super::*;
-use crate::{db::encrypted::write_batch::EncryptedWriteBatch, types};
+use crate::{
+    db::{encrypted::write_batch::EncryptedWriteBatch, GetWith}, types,
+};
 
 mod engine;
 mod prefix;

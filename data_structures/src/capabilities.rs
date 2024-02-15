@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
 pub enum Capability {
@@ -7,7 +9,7 @@ pub enum Capability {
     Witnessing = 1,
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct CapabilityMap<T>
 where
     T: Default,

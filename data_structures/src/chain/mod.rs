@@ -43,6 +43,7 @@ use crate::{
         versioning::{ProtocolVersion, Versioned},
         ProtobufConvert,
     },
+    staking::prelude::*,
     superblock::SuperBlockState,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
@@ -54,6 +55,7 @@ use crate::{
     },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
+    wit::Wit,
 };
 
 /// Keeps track of priority being used by transactions included in recent blocks, and provides
@@ -3776,6 +3778,8 @@ pub struct ChainState {
     /// Unspent Outputs Pool
     #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,
+    /// Tracks stakes for every validator in the network
+    pub stakes: Stakes<PublicKeyHash, Wit, Epoch, u64>,
 }
 
 impl ChainState {

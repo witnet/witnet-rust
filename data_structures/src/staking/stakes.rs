@@ -1,7 +1,7 @@
-use std::collections::btree_map::Entry;
-use std::collections::BTreeMap;
+use std::collections::{btree_map::Entry, BTreeMap};
 
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
 use super::prelude::*;
 
@@ -9,10 +9,11 @@ use super::prelude::*;
 ///
 /// This structure holds indexes of stake entries. Because the entries themselves are reference
 /// counted and write-locked, we can have as many indexes here as we need at a negligible cost.
-#[derive(Default)]
+#[derive(Clone, Debug, Deserialize, Default, PartialEq, Serialize)]
 pub struct Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Default,
+    Address: Default + Ord,
+    Coins: Ord,
     Epoch: Default,
 {
     /// A listing of all the stakers, indexed by their address.
@@ -54,17 +55,18 @@ where
         key: ISK,
         coins: Coins,
         epoch: Epoch,
-    ) -> Result<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch>
+    ) -> StakingResult<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
     {
         let key = key.into();
 
         // Find or create a matching stake entry
-        let stake_arc = self.by_key.entry(key.clone()).or_default();
+        let stake = self.by_key.entry(key.clone()).or_default();
 
         // Actually increase the number of coins
-        stake_arc
+        stake
+            .value
             .write()?
             .add_stake(coins, epoch, self.minimum_stakeable)?;
 
@@ -75,9 +77,9 @@ where
             addresses: key,
         };
         self.by_coins.remove(&key);
-        self.by_coins.insert(key, stake_arc.clone());
+        self.by_coins.insert(key, stake.clone());
 
-        Ok(stake_arc.read()?.clone())
+        Ok(stake.value.read()?.clone())
     }
 
     /// Obtain a list of stakers, conveniently ordered by one of several strategies.
@@ -116,7 +118,7 @@ where
         key: ISK,
         capability: Capability,
         epoch: Epoch,
-    ) -> Result<Power, Address, Coins, Epoch>
+    ) -> StakingResult<Power, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
     {
@@ -126,6 +128,7 @@ where
             .by_key
             .get(&key)
             .ok_or(StakesError::EntryNotFound { key })?
+            .value
             .read()?
             .power(capability, epoch))
     }
@@ -141,6 +144,7 @@ where
             .iter()
             .flat_map(move |(CoinsAndAddresses { addresses, .. }, stake)| {
                 stake
+                    .value
                     .read()
                     .map(move |stake| (addresses.clone(), stake.power(capability, current_epoch)))
             })
@@ -153,7 +157,7 @@ where
         &mut self,
         key: ISK,
         coins: Coins,
-    ) -> Result<Coins, Address, Coins, Epoch>
+    ) -> StakingResult<Coins, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
     {
@@ -161,7 +165,7 @@ where
 
         if let Entry::Occupied(mut by_address_entry) = self.by_key.entry(key.clone()) {
             let (initial_coins, final_coins) = {
-                let mut stake = by_address_entry.get_mut().write()?;
+                let mut stake = by_address_entry.get_mut().value.write()?;
 
                 // Check the former amount of stake
                 let initial_coins = stake.coins;
@@ -194,7 +198,7 @@ where
         key: ISK,
         capability: Capability,
         current_epoch: Epoch,
-    ) -> Result<(), Address, Coins, Epoch>
+    ) -> StakingResult<(), Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
     {
@@ -204,6 +208,7 @@ where
             .by_key
             .get_mut(&key)
             .ok_or(StakesError::EntryNotFound { key })?
+            .value
             .write()?;
         stake.epochs.update(capability, current_epoch);
 
