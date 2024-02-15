@@ -71,6 +71,7 @@ use witnet_data_structures::{
     data_request::DataRequestPool,
     get_environment,
     radon_report::{RadonReport, ReportContext},
+    staking::prelude::*,
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{RevealTransaction, TallyTransaction, Transaction},
     types::{
@@ -79,6 +80,7 @@ use witnet_data_structures::{
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
+    wit::Wit,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
@@ -247,6 +249,8 @@ pub struct ChainManager {
     import: Force<ChainImport<ImportError>>,
     /// Signals that a chain snapshot export is due.
     export: Force<PathBuf>,
+    /// Tracks stakes for every validator in the network.
+    stakes: Stakes<PublicKeyHash, Wit, Epoch, u64>,
 }
 
 impl ChainManager {

@@ -1,10 +1,12 @@
 use std::marker::PhantomData;
 
+use serde::{Deserialize, Serialize};
+
 use super::prelude::*;
 
 /// A data structure that keeps track of a staker's staked coins and the epochs for different
 /// capabilities.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Stake<Address, Coins, Epoch, Power>
 where
     Address: Default,
@@ -48,7 +50,7 @@ where
         coins: Coins,
         epoch: Epoch,
         minimum_stakeable: Option<Coins>,
-    ) -> Result<Coins, Address, Coins, Epoch> {
+    ) -> StakingResult<Coins, Address, Coins, Epoch> {
         // Make sure that the amount to be staked is equal or greater than the minimum
         let minimum = minimum_stakeable.unwrap_or(Coins::from(MINIMUM_STAKEABLE_AMOUNT_WITS));
         if coins < minimum {
@@ -96,7 +98,7 @@ where
         &mut self,
         coins: Coins,
         minimum_stakeable: Option<Coins>,
-    ) -> Result<Coins, Address, Coins, Epoch> {
+    ) -> StakingResult<Coins, Address, Coins, Epoch> {
         let coins_after = self.coins.sub(coins);
 
         if coins_after > Coins::zero() {

@@ -1,17 +1,43 @@
 use std::{rc::Rc, str::FromStr, sync::RwLock};
 
+use serde::{Deserialize, Serialize};
+
 use super::prelude::*;
 
-/// Type alias for a reference-counted and read-write-locked instance of `Stake`.
-pub type SyncStake<Address, Coins, Epoch, Power> = Rc<RwLock<Stake<Address, Coins, Epoch, Power>>>;
-
 /// The resulting type for all the fallible functions in this module.
-pub type Result<T, Address, Coins, Epoch> =
-    std::result::Result<T, StakesError<Address, Coins, Epoch>>;
+pub type StakingResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
+
+/// Newtype for a reference-counted and read-write-locked instance of `Stake`.
+///
+/// This newtype is needed for implementing `PartialEq` manually on the locked data, which cannot be done directly
+/// because those are externally owned types.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct SyncStake<Address, Coins, Epoch, Power>
+where
+    Address: Default,
+    Epoch: Default,
+{
+    /// The lock itself.
+    pub value: Rc<RwLock<Stake<Address, Coins, Epoch, Power>>>,
+}
+
+impl<Address, Coins, Epoch, Power> PartialEq for SyncStake<Address, Coins, Epoch, Power>
+where
+    Address: Default,
+    Epoch: Default + PartialEq,
+    Coins: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        let self_stake = self.value.read().unwrap();
+        let other_stake = other.value.read().unwrap();
+
+        self_stake.coins.eq(&other_stake.coins) && other_stake.epochs.eq(&other_stake.epochs)
+    }
+}
 
 /// Couples a validator address with a withdrawer address together. This is meant to be used in `Stakes` as the index
 /// for the `by_key` index.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct StakeKey<Address> {
     /// A validator address.
     pub validator: Address,
@@ -46,7 +72,7 @@ where
 
 /// Couples an amount of coins, a validator address and a withdrawer address together. This is meant to be used in
 /// `Stakes` as the index of the `by_coins` index.
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct CoinsAndAddresses<Coins, Address> {
     /// An amount of coins.
     pub coins: Coins,
