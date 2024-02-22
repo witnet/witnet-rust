@@ -3,7 +3,11 @@ use std::sync::{Arc, RwLock};
 
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
-use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
+
+use witnet_crypto::{
+    hash::calculate_sha256, merkle::FullMerkleTree, secp256k1::Message as Secp256k1Message,
+    signature::PublicKey,
+};
 
 use crate::{
     chain::{
@@ -754,6 +758,16 @@ pub struct StakeTransactionBody {
 }
 
 impl StakeTransactionBody {
+    pub fn authorization_is_valid(&self) -> Result<(), failure::Error> {
+        let msg = Secp256k1Message::from_digest(self.output.key.withdrawer.as_secp256k1_msg());
+        let public_key = PublicKey::from_slice(&self.output.authorization.public_key.bytes)?;
+
+        self.output
+            .authorization
+            .signature
+            .verify(&msg, &public_key)
+    }
+
     /// Construct a `StakeTransactionBody` from a list of inputs and one `StakeOutput`.
     pub fn new(
         inputs: Vec<Input>,
@@ -823,7 +837,7 @@ impl UnstakeTransaction {
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::UnstakeTransactionBody")]
 pub struct UnstakeTransactionBody {
-    pub operator: PublicKeyHash,
+    pub validator: PublicKeyHash,
     pub withdrawal: ValueTransferOutput,
 
     #[protobuf_convert(skip)]
@@ -833,9 +847,9 @@ pub struct UnstakeTransactionBody {
 
 impl UnstakeTransactionBody {
     /// Creates a new stake transaction body.
-    pub fn new(operator: PublicKeyHash, withdrawal: ValueTransferOutput) -> Self {
+    pub fn new(validator: PublicKeyHash, withdrawal: ValueTransferOutput) -> Self {
         UnstakeTransactionBody {
-            operator,
+            validator,
             withdrawal,
             ..Default::default()
         }

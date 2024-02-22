@@ -27,6 +27,7 @@ use witnet_data_structures::{
         PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
     },
     get_environment,
+    staking::prelude::*,
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -2001,6 +2002,11 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
         signature
     };
 
+    let key = StakeKey {
+        validator,
+        withdrawer,
+    };
+
     // Construct a BuildStake message that we can relay to the ChainManager for creation of the Stake transaction
     let build_stake = BuildStake {
         dry_run: params.dry_run,
@@ -2008,6 +2014,7 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
         utxo_strategy: params.utxo_strategy,
         stake_output: StakeOutput {
             authorization,
+            key,
             value: params.value,
         },
     };

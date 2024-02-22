@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::*};
 
 use serde::{Deserialize, Serialize};
 
@@ -28,14 +28,13 @@ where
         + From<u64>
         + PartialOrd
         + num_traits::Zero
-        + std::ops::Add<Output = Coins>
-        + std::ops::Sub<Output = Coins>
-        + std::ops::Mul
-        + std::ops::Mul<Epoch, Output = Power>,
-    Epoch: Copy + Default + num_traits::Saturating + std::ops::Sub<Output = Epoch>,
-    Power: std::ops::Add<Output = Power>
-        + std::ops::Div<Output = Power>
-        + std::ops::Div<Coins, Output = Epoch>,
+        + Add<Output = Coins>
+        + Sub<Output = Coins>
+        + Mul
+        + Mul<Epoch, Output = Power>,
+    Epoch: Copy + Default + num_traits::Saturating + Sub<Output = Epoch> + From<u32>,
+    Power: Add<Output = Power> + Div<Output = Power>,
+    u64: From<Coins> + From<Power>,
 {
     /// Increase the amount of coins staked by a certain staker.
     ///
@@ -67,7 +66,9 @@ where
         let product_added = coins * epoch;
 
         let coins_after = coins_before + coins;
-        let epoch_after = (product_before + product_added) / coins_after;
+        let epoch_after = Epoch::from(
+            (u64::from(product_before + product_added) / u64::from(coins_after)) as u32,
+        );
 
         self.coins = coins_after;
         self.epochs.update_all(epoch_after);

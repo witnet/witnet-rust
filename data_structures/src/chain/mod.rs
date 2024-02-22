@@ -25,7 +25,7 @@ use witnet_crypto::{
     secp256k1::{
         self,
         ecdsa::{RecoverableSignature, RecoveryId, Signature as Secp256k1_Signature},
-        PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
+        Message, PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
     },
 };
 use witnet_protected::Protected;
@@ -1012,6 +1012,25 @@ impl Signature {
             }
         }
     }
+
+    pub fn verify(
+        &self,
+        msg: &Message,
+        public_key: &Secp256k1_PublicKey,
+    ) -> Result<(), failure::Error> {
+        match self {
+            Secp256k1(x) => {
+                let signature = Secp256k1_Signature::from_der(x.der.as_slice())
+                    .map_err(|_| Secp256k1ConversionError::FailSignatureConversion)?;
+
+                signature
+                    .verify(msg, public_key)
+                    .map_err(|inner| Secp256k1ConversionError::Secp256k1 { inner })?;
+
+                Ok(())
+            }
+        }
+    }
 }
 
 /// ECDSA (over secp256k1) signature
@@ -1498,11 +1517,12 @@ impl DataRequestOutput {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "crate::proto::schema::witnet::StakeOutput")]
 pub struct StakeOutput {
-    pub value: u64,
     pub authorization: KeyedSignature,
+    pub key: StakeKey<PublicKeyHash>,
+    pub value: u64,
 }
 
 impl StakeOutput {

@@ -1,8 +1,14 @@
 use std::{rc::Rc, str::FromStr, sync::RwLock};
 
+use failure::Error;
 use serde::{Deserialize, Serialize};
 
+use crate::{chain::PublicKeyHash, proto::ProtobufConvert};
+
 use super::prelude::*;
+
+/// Just a type alias for consistency of using the same data type to represent power.
+pub type Power = u64;
 
 /// The resulting type for all the fallible functions in this module.
 pub type StakingResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
@@ -37,12 +43,25 @@ where
 
 /// Couples a validator address with a withdrawer address together. This is meant to be used in `Stakes` as the index
 /// for the `by_key` index.
-#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct StakeKey<Address> {
     /// A validator address.
     pub validator: Address,
     /// A withdrawer address.
     pub withdrawer: Address,
+}
+
+impl ProtobufConvert for StakeKey<PublicKeyHash> {
+    type ProtoStruct = crate::proto::schema::witnet::StakeKey;
+
+    fn to_pb(&self) -> Self::ProtoStruct {
+        let _proto = Self::ProtoStruct::new();
+        todo!()
+    }
+
+    fn from_pb(_pb: Self::ProtoStruct) -> Result<Self, Error> {
+        todo!()
+    }
 }
 
 impl<Address, T> From<(T, T)> for StakeKey<Address>
