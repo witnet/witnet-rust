@@ -287,9 +287,15 @@ message MintTransaction {
     repeated ValueTransferOutput outputs = 2;
 }
 
+message StakeKey {
+    PublicKeyHash validator = 1;
+    PublicKeyHash withdrawer = 2;
+}
+
 message StakeOutput {
     uint64 value = 1;
-    KeyedSignature authorization = 2;
+    StakeKey key = 2;
+    KeyedSignature authorization = 3;
 }
 
 message StakeTransactionBody {
@@ -304,7 +310,7 @@ message StakeTransaction {
 }
 
 message UnstakeTransactionBody {
-    PublicKeyHash operator = 1;
+    PublicKeyHash validator = 1;
     ValueTransferOutput withdrawal = 2;
     ValueTransferOutput change = 3;
 }

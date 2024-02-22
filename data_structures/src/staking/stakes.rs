@@ -1,7 +1,12 @@
-use std::collections::{btree_map::Entry, BTreeMap};
+use std::{
+    collections::{btree_map::Entry, BTreeMap},
+    ops::{Add, Div, Mul, Sub},
+};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+
+use crate::{chain::PublicKeyHash, transaction::StakeTransaction, wit::Wit};
 
 use super::prelude::*;
 
@@ -34,20 +39,16 @@ where
         + Default
         + Ord
         + From<u64>
+        + Into<u64>
         + num_traits::Zero
-        + std::ops::Add<Output = Coins>
-        + std::ops::Sub<Output = Coins>
-        + std::ops::Mul
-        + std::ops::Mul<Epoch, Output = Power>,
+        + Add<Output = Coins>
+        + Sub<Output = Coins>
+        + Mul
+        + Mul<Epoch, Output = Power>,
     Address: Clone + Ord + 'static,
-    Epoch: Copy + Default + num_traits::Saturating + std::ops::Sub<Output = Epoch>,
-    Power: Copy
-        + Default
-        + Ord
-        + std::ops::Add<Output = Power>
-        + std::ops::Div<Output = Power>
-        + std::ops::Div<Coins, Output = Epoch>
-        + 'static,
+    Epoch: Copy + Default + num_traits::Saturating + Sub<Output = Epoch> + From<u32>,
+    Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power>,
+    u64: From<Coins> + From<Power>,
 {
     /// Register a certain amount of additional stake for a certain address and epoch.
     pub fn add_stake<ISK>(
@@ -222,6 +223,59 @@ where
             ..Default::default()
         }
     }
+}
+
+/// Adds stake, based on the data from a stake transaction.
+///
+/// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
+/// `Coins`.
+pub fn process_stake_transaction<Epoch, Power>(
+    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+    transaction: &StakeTransaction,
+    epoch: Epoch,
+) -> StakingResult<(), PublicKeyHash, Wit, Epoch>
+where
+    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32>,
+    Power:
+        Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord,
+    Wit: Mul<Epoch, Output = Power>,
+    u64: From<Wit> + From<Power>,
+{
+    // This line would check that the authorization message is valid for the provided validator and withdrawer
+    // address. But it is commented out here because stake transactions should be validated upfront (when
+    // considering block candidates). The line is reproduced here for later reference when implementing those
+    // validations. Once those are in place, we're ok to remove this comment.
+    //transaction.body.authorization_is_valid().map_err(|_| StakesError::InvalidAuthentication)?;
+
+    let key = transaction.body.output.key.clone();
+    let coins = Wit::from_nanowits(transaction.body.output.value);
+
+    stakes.add_stake(key, coins, epoch)?;
+
+    Ok(())
+}
+
+/// Adds stakes, based on the data from multiple stake transactions.
+///
+/// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
+/// `Coins`.
+pub fn process_stake_transactions<'a, Epoch, Power>(
+    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+    transactions: impl Iterator<Item = &'a StakeTransaction>,
+    epoch: Epoch,
+) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
+where
+    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32>,
+    Power:
+        Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord,
+    Wit: Mul<Epoch, Output = Power>,
+    u64: From<Wit> + From<Power>,
+{
+    for transaction in transactions {
+        process_stake_transaction(stakes, transaction, epoch)?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

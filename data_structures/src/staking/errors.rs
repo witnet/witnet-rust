@@ -34,6 +34,9 @@ pub enum StakesError<Address, Coins, Epoch> {
     },
     /// Tried to obtain a lock on a write-locked piece of data that is already locked.
     PoisonedLock,
+    /// The authentication signature contained within a stake transaction is not valid for the given validator and
+    /// withdrawer addresses.
+    InvalidAuthentication,
 }
 
 impl<T, Address, Coins, Epoch> From<PoisonError<T>> for StakesError<Address, Coins, Epoch> {

@@ -1,6 +1,8 @@
-use std::fmt;
+use std::{fmt, ops::*};
 
 use serde::{Deserialize, Serialize};
+
+use crate::{chain::Epoch, staking::aux::Power};
 
 /// 1 nanowit is the minimal unit of value
 /// 1 wit = 10^9 nanowits
@@ -19,7 +21,7 @@ impl Wit {
     /// Create from wits
     #[inline]
     pub fn from_wits(wits: u64) -> Self {
-        Self(wits.checked_mul(NANOWITS_PER_WIT).expect("overflow"))
+        Self::from_nanowits(wits.checked_mul(NANOWITS_PER_WIT).expect("overflow"))
     }
 
     /// Create from nanowits
@@ -59,21 +61,46 @@ impl fmt::Display for Wit {
     }
 }
 
-impl std::ops::Add for Wit {
+impl Add for Wit {
     type Output = Self;
 
     #[inline]
     fn add(self, rhs: Self) -> Self::Output {
-        Self(self.nanowits() + rhs.nanowits())
+        Self::from_nanowits(self.nanowits() + rhs.nanowits())
     }
 }
 
-impl std::ops::Sub for Wit {
+impl Div for Wit {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        Self::from_nanowits(self.nanowits() / rhs.nanowits())
+    }
+}
+
+impl Mul for Wit {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self::from_nanowits(self.nanowits() * rhs.nanowits())
+    }
+}
+
+impl Mul<Epoch> for Wit {
+    type Output = Power;
+
+    fn mul(self, rhs: Epoch) -> Self::Output {
+        Power::from(self.nanowits() * u64::from(rhs))
+    }
+}
+
+impl Sub for Wit {
     type Output = Self;
 
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.nanowits() - rhs.nanowits())
+        Self::from_nanowits(self.nanowits() - rhs.nanowits())
     }
 }
 
@@ -86,6 +113,28 @@ impl num_traits::Zero for Wit {
     #[inline]
     fn is_zero(&self) -> bool {
         matches!(self, &Wit(0))
+    }
+}
+
+impl num_traits::ops::saturating::Saturating for Wit {
+    fn saturating_add(self, v: Self) -> Self {
+        Self::from_nanowits(self.nanowits().saturating_add(v.nanowits()))
+    }
+
+    fn saturating_sub(self, v: Self) -> Self {
+        Self::from_nanowits(self.nanowits().saturating_sub(v.nanowits()))
+    }
+}
+
+impl From<u64> for Wit {
+    fn from(value: u64) -> Self {
+        Self::from_nanowits(value)
+    }
+}
+
+impl From<Wit> for u64 {
+    fn from(value: Wit) -> Self {
+        value.0
     }
 }
 

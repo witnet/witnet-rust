@@ -910,6 +910,7 @@ impl ChainManager {
             ChainState {
                 chain_info: Some(ref mut chain_info),
                 reputation_engine: Some(ref mut reputation_engine),
+                ref mut stakes,
                 ..
             } => {
                 let block_hash = block.hash();
@@ -974,7 +975,7 @@ impl ChainManager {
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
 
-                // Do not update reputation when consolidating genesis block
+                // Do not update reputation or stakes when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {
                     update_reputation(
                         reputation_engine,
@@ -986,6 +987,13 @@ impl ChainManager {
                         block_epoch,
                         self.own_pkh.unwrap_or_default(),
                     );
+
+                    let _ = process_stake_transactions(
+                        stakes,
+                        block.txns.stake_txns.iter(),
+                        block_epoch,
+                    );
+                    //process_unstake_transactions(stakes, block.txns.unstake_txns.iter(), block_epoch);
                 }
 
                 // Update bn256 public keys with block information
