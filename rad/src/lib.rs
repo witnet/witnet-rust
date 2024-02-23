@@ -3,6 +3,7 @@
 extern crate witnet_data_structures;
 
 use futures::{executor::block_on, future::join_all, AsyncReadExt};
+use script::RadonScript;
 use serde::Serialize;
 pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
 #[cfg(test)]
@@ -176,6 +177,16 @@ fn handle_response_with_data_report(
     execute_radon_script(response, &radon_script, context, settings)
 }
 
+/// Execute Radon Script using as input the RadonScript and the RadonTypes value deserialized from a retrieval response
+fn process_response_with_data_report(
+    response: RadonTypes,
+    radon_script: &RadonScript,
+    context: &mut ReportContext<RadonTypes>,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
+    execute_radon_script(response, radon_script, context, settings)
+}
+
 /// Run retrieval without performing any external network requests, return `Result<RadonReport>`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
@@ -218,6 +229,9 @@ async fn http_response(
             url: retrieve.url.clone(),
         })?
     };
+
+    // Validate the retrieval's radon script before performing the http request
+    let radon_script: RadonScript = unpack_radon_script(&retrieve.script)?;
 
     // Use the provided HTTP client, or instantiate a new one if none
     let client = match client {
@@ -292,37 +306,42 @@ async fn http_response(
 
     let (parts, mut body) = response.into_parts();
 
-    let response: RadonTypes;
-    if retrieve.kind != RADType::HttpHead && parts.headers.contains_key("accept-ranges") {
-        // http response is a binary stream
-        let mut response_bytes = Vec::<u8>::default();
-
-        // todo: before reading the response buffer, an error should be thrown if it was too big
-        body.read_to_end(&mut response_bytes).await.map_err(|x| {
-            RadError::HttpOther {
-                message: x.to_string(),
-            }
-        })?;
-        response = RadonTypes::from(RadonBytes::from(response_bytes));
-    } else {
-        // response is a string
-        let mut response_string = String::default();
-        match retrieve.kind {
-            RADType::HttpHead => {
-                response_string = format!("{:?}", parts.headers);
-            }
-            _ => {
-                body.read_to_string(&mut response_string)
-                    .await
-                    .map_err(|x| RadError::HttpOther {
-                        message: x.to_string(),
-                    })?;
+    let response: RadonTypes = match retrieve.kind {
+        RADType::HttpHead => {
+            RadonTypes::from(RadonString::from(
+                format!("{:?}", parts.headers)
+            ))
+        }
+        RADType::HttpGet | RADType::HttpPost => {
+            let expect_binary_response = if let Some((first_opcode, _)) = radon_script.first() {
+                (0x30 .. 0x3f).contains(&u8::from(*first_opcode))
+            } else {
+                false
+            };
+            if expect_binary_response {
+                let mut response_bytes = Vec::<u8>::default();
+                match body.read_to_end(&mut response_bytes).await {
+                    Ok(_) => RadonTypes::from(RadonBytes::from(response_bytes)),
+                    Err(err) => {
+                        return Err(RadError::InvalidHttpResponse { 
+                            error: err.to_string() 
+                        });
+                    }
+                }
+            } else {
+                let mut response_string = String::default();
+                match body.read_to_string(&mut response_string).await {
+                    Ok(_) => RadonTypes::from(RadonString::from(response_string)),
+                    Err(err) => {
+                        return Err(RadError::InvalidHttpResponse {
+                            error: err.to_string()
+                        });
+                    }
+                }
             }
         }
-        response = RadonTypes::from(RadonString::from(response_string));
-    }
-
-    let result = handle_response_with_data_report(retrieve, response, context, settings);
+        _ => unreachable!()
+    };
     match &result {
         Ok(report) => {
             log::debug!(
