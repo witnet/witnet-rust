@@ -307,14 +307,10 @@ async fn http_response(
     let (parts, mut body) = response.into_parts();
 
     let response: RadonTypes = match retrieve.kind {
-        RADType::HttpHead => {
-            RadonTypes::from(RadonString::from(
-                format!("{:?}", parts.headers)
-            ))
-        }
+        RADType::HttpHead => RadonTypes::from(RadonString::from(format!("{:?}", parts.headers))),
         RADType::HttpGet | RADType::HttpPost => {
             let expect_binary_response = if let Some((first_opcode, _)) = radon_script.first() {
-                (0x30 .. 0x3f).contains(&u8::from(*first_opcode))
+                (0x30..0x3f).contains(&u8::from(*first_opcode))
             } else {
                 false
             };
@@ -323,8 +319,8 @@ async fn http_response(
                 match body.read_to_end(&mut response_bytes).await {
                     Ok(_) => RadonTypes::from(RadonBytes::from(response_bytes)),
                     Err(err) => {
-                        return Err(RadError::InvalidHttpResponse { 
-                            error: err.to_string() 
+                        return Err(RadError::InvalidHttpResponse {
+                            error: err.to_string(),
                         });
                     }
                 }
@@ -334,13 +330,13 @@ async fn http_response(
                     Ok(_) => RadonTypes::from(RadonString::from(response_string)),
                     Err(err) => {
                         return Err(RadError::InvalidHttpResponse {
-                            error: err.to_string()
+                            error: err.to_string(),
                         });
                     }
                 }
             }
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     };
     match &result {
         Ok(report) => {
