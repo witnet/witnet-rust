@@ -319,8 +319,8 @@ async fn http_response(
                 match body.read_to_end(&mut response_bytes).await {
                     Ok(_) => RadonTypes::from(RadonBytes::from(response_bytes)),
                     Err(err) => {
-                        return Err(RadError::InvalidHttpResponse {
-                            error: err.to_string(),
+                        return Err(RadError::HttpOther {
+                            message: err.to_string(),
                         });
                     }
                 }
@@ -329,8 +329,8 @@ async fn http_response(
                 match body.read_to_string(&mut response_string).await {
                     Ok(_) => RadonTypes::from(RadonString::from(response_string)),
                     Err(err) => {
-                        return Err(RadError::InvalidHttpResponse {
-                            error: err.to_string(),
+                        return Err(RadError::HttpOther {
+                            message: err.to_string(),
                         });
                     }
                 }
@@ -338,6 +338,7 @@ async fn http_response(
         }
         _ => unreachable!(),
     };
+    let result = process_response_with_data_report(response, &radon_script, context, settings);
     match &result {
         Ok(report) => {
             log::debug!(
