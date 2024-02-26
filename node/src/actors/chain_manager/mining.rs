@@ -16,7 +16,10 @@ use actix::{
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
 
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
+use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
+};
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -115,6 +118,7 @@ impl ChainManager {
         let chain_info = self.chain_state.chain_info.as_mut().unwrap();
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
+        let max_st_weight = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT;
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
         let mining_rf = chain_info.consensus_constants.mining_replication_factor;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
@@ -232,6 +236,7 @@ impl ChainManager {
                     ),
                     max_vt_weight,
                     max_dr_weight,
+                    max_st_weight,
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
@@ -814,11 +819,13 @@ impl ChainManager {
 /// Build a new Block using the supplied leadership proof and by filling transactions from the
 /// `transaction_pool`
 /// Returns an unsigned block!
+/// TODO: simplify function signature, e.g. through merging multiple related fields into new data structures.
 #[allow(clippy::too_many_arguments)]
 pub fn build_block(
     pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_vt_weight: u32,
     max_dr_weight: u32,
+    max_st_weight: u32,
     beacon: CheckpointBeacon,
     proof: BlockEligibilityClaim,
     tally_transactions: &[TallyTransaction],
@@ -842,18 +849,21 @@ pub fn build_block(
     let mut transaction_fees: u64 = 0;
     let mut vt_weight: u32 = 0;
     let mut dr_weight: u32 = 0;
+    let mut st_weight: u32 = 0;
     let mut value_transfer_txns = Vec::new();
     let mut data_request_txns = Vec::new();
     let mut tally_txns = Vec::new();
-    // TODO: handle stake tx
-    let stake_txns = Vec::new();
+    let mut stake_txns = Vec::new();
     // TODO: handle unstake tx
     let unstake_txns = Vec::new();
 
+    // Calculate the base weight for different types of transactions, to know when to give up trying to fit more
+    // transactions into a block
     let min_vt_weight =
         VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()])
             .weight();
-    // Currently only value transfer transactions weight is taking into account
+    let min_st_weight =
+        StakeTransactionBody::new(vec![Input::default()], Default::default(), None).weight();
 
     for vt_tx in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();
@@ -868,7 +878,7 @@ pub fn build_block(
             }
         };
 
-        let new_vt_weight = vt_weight.saturating_add(transaction_weight);
+        let new_vt_weight = st_weight.saturating_add(transaction_weight);
         if new_vt_weight <= max_vt_weight {
             update_utxo_diff(
                 &mut utxo_diff,
@@ -994,6 +1004,39 @@ pub fn build_block(
         }
     }
 
+    for st_tx in transactions_pool.st_iter() {
+        let transaction_weight = st_tx.weight();
+        let transaction_fee = match st_transaction_fee(st_tx, &utxo_diff, epoch, epoch_constants) {
+            Ok(x) => x,
+            Err(e) => {
+                log::warn!(
+                    "Error when calculating transaction fee for transaction: {}",
+                    e
+                );
+                continue;
+            }
+        };
+
+        let new_st_weight = st_weight.saturating_add(transaction_weight);
+        if new_st_weight <= max_st_weight {
+            update_utxo_diff(
+                &mut utxo_diff,
+                st_tx.body.inputs.iter(),
+                st_tx.body.change.iter(),
+                st_tx.hash(),
+            );
+            stake_txns.push(st_tx.clone());
+            transaction_fees = transaction_fees.saturating_add(transaction_fee);
+            st_weight = new_st_weight;
+        }
+
+        // The condition to stop is if the free space in the block for VTTransactions
+        // is less than the minimum stake transaction weight
+        if st_weight > max_st_weight.saturating_sub(min_st_weight) {
+            break;
+        }
+    }
+
     // Include Mint Transaction by miner
     let reward = block_reward(epoch, initial_block_reward, halving_period) + transaction_fees;
     let mint = MintTransaction::with_external_address(
@@ -1096,6 +1139,7 @@ mod tests {
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
         let max_vt_weight = 0;
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1109,6 +1153,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1277,6 +1322,7 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = vt_tx1.weight();
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1313,6 +1359,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1378,6 +1425,7 @@ mod tests {
         // Set `max_vt_weight` to fit only 1 transaction weight
         let max_vt_weight = vt_tx2.weight();
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1414,6 +1462,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1493,6 +1542,7 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx1.weight();
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1529,6 +1579,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1591,6 +1642,7 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx2.weight();
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1627,6 +1679,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
