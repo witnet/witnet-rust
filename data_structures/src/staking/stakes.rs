@@ -1,12 +1,13 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap},
+    fmt::Debug,
     ops::{Add, Div, Mul, Sub},
 };
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::PublicKeyHash, transaction::StakeTransaction, wit::Wit};
+use crate::{chain::PublicKeyHash, get_environment, transaction::StakeTransaction, wit::Wit};
 
 use super::prelude::*;
 
@@ -29,6 +30,10 @@ where
     /// have staked a particular amount, we just need to run a range lookup on the tree.
     by_coins: BTreeMap<CoinsAndAddresses<Coins, Address>, SyncStake<Address, Coins, Epoch, Power>>,
     /// The amount of coins that can be staked or can be left staked after unstaking.
+    /// TODO: reconsider whether this should be here, taking into account that it hinders the possibility of adjusting
+    ///  the minimum through TAPI or whatever. Maybe what we can do is set a skip directive for the Serialize macro so
+    ///  it never gets persisted and rather always read from constants, or hide the field and the related method
+    ///  behind a #[test] thing.
     minimum_stakeable: Option<Coins>,
 }
 
@@ -235,9 +240,8 @@ pub fn process_stake_transaction<Epoch, Power>(
     epoch: Epoch,
 ) -> StakingResult<(), PublicKeyHash, Wit, Epoch>
 where
-    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32>,
-    Power:
-        Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord,
+    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32> + Debug,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -250,7 +254,17 @@ where
     let key = transaction.body.output.key.clone();
     let coins = Wit::from_nanowits(transaction.body.output.value);
 
+    let environment = get_environment();
+    log::debug!(
+        "{} added {} Wit more stake on validator {}",
+        key.withdrawer.bech32(environment),
+        coins.wits_and_nanowits().0,
+        key.validator.bech32(environment)
+    );
+
     stakes.add_stake(key, coins, epoch)?;
+
+    log::debug!("Current state of the stakes tracker: {:#?}", stakes);
 
     Ok(())
 }
@@ -265,9 +279,8 @@ pub fn process_stake_transactions<'a, Epoch, Power>(
     epoch: Epoch,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
 where
-    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32>,
-    Power:
-        Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord,
+    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32> + Debug,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {

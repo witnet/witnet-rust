@@ -30,12 +30,13 @@ use witnet_data_structures::{
     },
     error::TransactionError,
     get_environment, get_protocol_version,
-    proto::versioning::ProtocolVersion,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
-        RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
+        RevealTransaction, RevealTransactionBody, StakeTransactionBody, TallyTransaction,
+        VTTransactionBody,
     },
     transaction_factory::{build_commit_collateral, check_commit_collateral},
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
@@ -52,7 +53,7 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
     calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
-    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
+    st_transaction_fee, tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
 };
 
 use crate::{
@@ -248,7 +249,10 @@ impl ChainManager {
                 );
 
                 // Sign the block hash
-                signature_mngr::sign(&block_header)
+                let protocol = get_protocol_version(Some(block_header.beacon.checkpoint));
+                let block_header_data = block_header.versioned_hash(protocol).data();
+
+                signature_mngr::sign_data(block_header_data)
                     .map(|res| {
                         res.map_err(|e| log::error!("Couldn't sign beacon: {}", e))
                             .map(|block_sig| Block::new(block_header, block_sig, txns))
@@ -1010,8 +1014,10 @@ pub fn build_block(
     let protocol = get_protocol_version(Some(beacon.checkpoint));
 
     let stake_hash_merkle_root = if protocol == ProtocolVersion::V1_7 {
+        log::debug!("Legacy protocol: the default stake hash merkle root will be used");
         Hash::default()
     } else {
+        log::debug!("Pseudo-2.0 protocol: a merkle tree will be built for the stake transactions");
         merkle_tree_root(&stake_txns)
     };
 

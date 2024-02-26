@@ -131,7 +131,7 @@ pub struct Config {
     pub witnessing: Witnessing,
 
     /// Configuration related with protocol versions
-    #[partial_struct(skip)]
+    #[partial_struct(ty = "Protocol")]
     #[partial_struct(serde(default))]
     pub protocol: Protocol,
 }
