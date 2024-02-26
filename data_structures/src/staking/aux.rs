@@ -55,12 +55,21 @@ impl ProtobufConvert for StakeKey<PublicKeyHash> {
     type ProtoStruct = crate::proto::schema::witnet::StakeKey;
 
     fn to_pb(&self) -> Self::ProtoStruct {
-        let _proto = Self::ProtoStruct::new();
-        todo!()
+        let mut proto = Self::ProtoStruct::new();
+        proto.set_validator(self.validator.to_pb());
+        proto.set_withdrawer(self.withdrawer.to_pb());
+
+        proto
     }
 
-    fn from_pb(_pb: Self::ProtoStruct) -> Result<Self, Error> {
-        todo!()
+    fn from_pb(mut pb: Self::ProtoStruct) -> Result<Self, Error> {
+        let validator = PublicKeyHash::from_pb(pb.take_validator())?;
+        let withdrawer = PublicKeyHash::from_pb(pb.take_withdrawer())?;
+
+        Ok(Self {
+            validator,
+            withdrawer,
+        })
     }
 }
 

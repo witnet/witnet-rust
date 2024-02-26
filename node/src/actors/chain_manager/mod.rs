@@ -80,7 +80,6 @@ use witnet_data_structures::{
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
-    wit::Wit,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
@@ -249,8 +248,6 @@ pub struct ChainManager {
     import: Force<ChainImport<ImportError>>,
     /// Signals that a chain snapshot export is due.
     export: Force<PathBuf>,
-    /// Tracks stakes for every validator in the network.
-    stakes: Stakes<PublicKeyHash, Wit, Epoch, u64>,
 }
 
 impl ChainManager {
@@ -988,11 +985,16 @@ impl ChainManager {
                         self.own_pkh.unwrap_or_default(),
                     );
 
-                    let _ = process_stake_transactions(
-                        stakes,
-                        block.txns.stake_txns.iter(),
-                        block_epoch,
-                    );
+                    let stake_txns_count = block.txns.stake_txns.len();
+                    if stake_txns_count > 0 {
+                        log::debug!("Processing {stake_txns_count} stake transactions");
+
+                        let _ = process_stake_transactions(
+                            stakes,
+                            block.txns.stake_txns.iter(),
+                            block_epoch,
+                        );
+                    }
                     //process_unstake_transactions(stakes, block.txns.unstake_txns.iter(), block_epoch);
                 }
 

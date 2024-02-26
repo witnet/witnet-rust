@@ -5,7 +5,8 @@ use witnet_crypto::cipher;
 
 use super::*;
 use crate::{
-    db::{encrypted::write_batch::EncryptedWriteBatch, GetWith}, types,
+    db::{encrypted::write_batch::EncryptedWriteBatch, GetWith},
+    types,
 };
 
 mod engine;

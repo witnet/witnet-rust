@@ -1218,6 +1218,16 @@ impl Hash {
 
         (d_hash, m_u64)
     }
+
+    /// Obtains the bytes that represent the hash digest.
+    ///
+    /// This allows for compatibility with functions that take hashes and other data as raw bytes without a newtype or
+    /// any other kind of wrapper.
+    pub fn data(&self) -> [u8; 32] {
+        match self {
+            Hash::SHA256(bytes) => *bytes,
+        }
+    }
 }
 
 /// Error when parsing hash from string
