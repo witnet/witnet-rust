@@ -282,6 +282,7 @@ async fn http_response(
         })
     })?;
 
+    let start_ts = std::time::SystemTime::now();
     let response = client
         .send(request)
         .await
@@ -306,7 +307,21 @@ async fn http_response(
             message: x.to_string(),
         })?;
 
-    let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
+    let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings).map(
+        |report| {
+            let completion_ts = std::time::SystemTime::now();
+            
+            RadonReport {
+                context: ReportContext {
+                    start_time: Some(start_ts),
+                    completion_time: Some(completion_ts),
+                    ..report.context
+                },
+                running_time: completion_ts.duration_since(start_ts).unwrap_or_default(),
+                ..report
+            }
+        },
+    );
 
     match &result {
         Ok(report) => {
