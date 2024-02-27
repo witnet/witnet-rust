@@ -83,9 +83,12 @@ use witnet_data_structures::{
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
-use witnet_validations::validations::{
-    compare_block_candidates, validate_block, validate_block_transactions,
-    validate_new_transaction, validate_rad_request, verify_signatures, VrfSlots,
+use witnet_validations::{
+    eligibility::legacy::VrfSlots,
+    validations::{
+        compare_block_candidates, validate_block, validate_block_transactions,
+        validate_new_transaction, validate_rad_request, verify_signatures,
+    },
 };
 
 use crate::{
