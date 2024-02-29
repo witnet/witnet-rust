@@ -27,6 +27,7 @@ use witnet_data_structures::{
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
+    staking::{aux::StakeKey, stakes::QueryStakesKey},
     transaction::{
         CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
         VTTransaction,
@@ -34,6 +35,7 @@ use witnet_data_structures::{
     transaction_factory::NodeBalance,
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
+    wit::Wit,
 };
 use witnet_p2p::{
     error::SessionsError,
@@ -303,6 +305,50 @@ pub struct StakeAuthorization {
 
 impl Message for StakeAuthorization {
     type Result = Result<String, failure::Error>;
+}
+
+/// Stake key for quering stakes
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum QueryStakesParams {
+    /// To search by the validator public key hash
+    Validator(PublicKeyHash),
+    /// To search by the withdrawer public key hash
+    Withdrawer(PublicKeyHash),
+    /// To search by validator and withdrawer public key hashes
+    Key((PublicKeyHash, PublicKeyHash)),
+}
+
+impl Default for QueryStakesParams {
+    fn default() -> Self {
+        QueryStakesParams::Validator(PublicKeyHash::default())
+    }
+}
+
+/// Message for querying stakes
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct QueryStake {
+    /// stake key used to search the stake
+    pub key: QueryStakesParams,
+}
+
+impl Message for QueryStake {
+    type Result = Result<Wit, failure::Error>;
+}
+
+impl<Address> From<QueryStakesParams> for QueryStakesKey<Address>
+where
+    Address: Default + Ord + From<PublicKeyHash>,
+{
+    fn from(query: QueryStakesParams) -> Self {
+        match query {
+            QueryStakesParams::Key(key) => QueryStakesKey::Key(StakeKey {
+                validator: key.0.into(),
+                withdrawer: key.1.into(),
+            }),
+            QueryStakesParams::Validator(v) => QueryStakesKey::Validator(v.into()),
+            QueryStakesParams::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
+        }
+    }
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`
