@@ -45,8 +45,8 @@ use crate::{
             GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
             GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
             GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
-            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
-            SnapshotExport, SnapshotImport, StakeAuthorization,
+            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, QueryStake,
+            QueryStakesParams, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -139,6 +139,9 @@ pub fn attach_regular_methods<H>(
         Box::pin(signaling_info())
     });
     server.add_actix_method(system, "priority", |_params: Params| Box::pin(priority()));
+    server.add_actix_method(system, "queryStakes", |params: Params| {
+        Box::pin(query_stakes(params.parse()))
+    });
 }
 
 /// Attach the sensitive JSON-RPC methods to a multi-transport server.
@@ -2090,6 +2093,62 @@ pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcRe
 
                 serde_json::to_value(authorization).map_err(internal_error)
             })
+        })
+        .await
+}
+
+/// Param for query_stakes  
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum QueryStakesArgument {
+    /// To query by stake validator
+    Validator(String),
+    /// To query by stake withdrawer
+    Withdrawer(String),
+    /// To query by stake validator and withdrawer
+    Key((String, String)),
+}
+
+/// Query the amount of nanowits staked by an address.
+pub async fn query_stakes(params: Result<Option<QueryStakesArgument>, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+
+    // If a withdrawer address is not specified, default to local node address
+    let key: QueryStakesParams = if let Some(address) = params {
+        match address {
+            QueryStakesArgument::Validator(validator) => QueryStakesParams::Validator(
+                PublicKeyHash::from_bech32(get_environment(), &validator)
+                    .map_err(internal_error)?,
+            ),
+            QueryStakesArgument::Withdrawer(withdrawer) => QueryStakesParams::Withdrawer(
+                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
+                    .map_err(internal_error)?,
+            ),
+            QueryStakesArgument::Key((validator, withdrawer)) => QueryStakesParams::Key((
+                PublicKeyHash::from_bech32(get_environment(), &validator)
+                    .map_err(internal_error)?,
+                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
+                    .map_err(internal_error)?,
+            )),
+        }
+    } else {
+        let pk = signature_mngr::public_key().await.map_err(internal_error)?;
+
+        QueryStakesParams::Validator(PublicKeyHash::from_public_key(&pk))
+    };
+
+    ChainManager::from_registry()
+        .send(QueryStake { key })
+        .map(|res| match res {
+            Ok(Ok(staked_amount)) => serde_json::to_value(staked_amount).map_err(internal_error),
+            Ok(Err(e)) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
         })
         .await
 }

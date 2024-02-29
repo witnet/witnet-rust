@@ -1,6 +1,6 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap},
-    fmt::Debug,
+    fmt::{Debug, Display},
     ops::{Add, Div, Mul, Sub},
 };
 
@@ -10,6 +10,47 @@ use serde::{Deserialize, Serialize};
 use crate::{chain::PublicKeyHash, get_environment, transaction::StakeTransaction, wit::Wit};
 
 use super::prelude::*;
+
+/// Message for querying stakes
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum QueryStakesKey<Address: Default + Ord> {
+    /// Query stakes by validator address
+    Validator(Address),
+    /// Query stakes by withdrawer address
+    Withdrawer(Address),
+    /// Query stakes by validator and withdrawer addresses
+    Key(StakeKey<Address>),
+}
+
+impl<Address> Default for QueryStakesKey<Address>
+where
+    Address: Default + Ord,
+{
+    fn default() -> Self {
+        QueryStakesKey::Validator(Address::default())
+    }
+}
+
+impl<Address, T> TryFrom<(Option<T>, Option<T>)> for QueryStakesKey<Address>
+where
+    Address: Default + Ord,
+    T: Into<Address>,
+{
+    type Error = String;
+    fn try_from(val: (Option<T>, Option<T>)) -> Result<Self, Self::Error> {
+        match val {
+            (Some(validator), Some(withdrawer)) => Ok(QueryStakesKey::Key(StakeKey {
+                validator: validator.into(),
+                withdrawer: withdrawer.into(),
+            })),
+            (Some(validator), _) => Ok(QueryStakesKey::Validator(validator.into())),
+            (_, Some(withdrawer)) => Ok(QueryStakesKey::Withdrawer(withdrawer.into())),
+            _ => Err(String::from(
+                "Either a validator address, a withdrawer address or both must be provided.",
+            )),
+        }
+    }
+}
 
 /// The main data structure that provides the "stakes tracker" functionality.
 ///
@@ -24,6 +65,10 @@ where
 {
     /// A listing of all the stakers, indexed by their address.
     by_key: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
+    /// A listing of all the stakers, indexed by validator.
+    by_validator: BTreeMap<Address, SyncStake<Address, Coins, Epoch, Power>>,
+    /// A listing of all the stakers, indexed by withdrawer.
+    by_withdrawer: BTreeMap<Address, SyncStake<Address, Coins, Epoch, Power>>,
     /// A listing of all the stakers, indexed by their coins and address.
     ///
     /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
@@ -39,7 +84,7 @@ where
 
 impl<Address, Coins, Epoch, Power> Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Default,
+    Address: Default + Send + Sync + Display,
     Coins: Copy
         + Default
         + Ord
@@ -49,9 +94,21 @@ where
         + Add<Output = Coins>
         + Sub<Output = Coins>
         + Mul
-        + Mul<Epoch, Output = Power>,
-    Address: Clone + Ord + 'static,
-    Epoch: Copy + Default + num_traits::Saturating + Sub<Output = Epoch> + From<u32>,
+        + Mul<Epoch, Output = Power>
+        + Debug
+        + Send
+        + Sync
+        + Display,
+    Address: Clone + Ord + 'static + Debug,
+    Epoch: Copy
+        + Default
+        + num_traits::Saturating
+        + Sub<Output = Epoch>
+        + From<u32>
+        + Debug
+        + Display
+        + Send
+        + Sync,
     Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power>,
     u64: From<Coins> + From<Power>,
 {
@@ -78,12 +135,21 @@ where
 
         // Update the position of the staker in the `by_coins` index
         // If this staker was not indexed by coins, this will index it now
-        let key = CoinsAndAddresses {
+        let coins_and_addresses = CoinsAndAddresses {
             coins,
             addresses: key,
         };
-        self.by_coins.remove(&key);
-        self.by_coins.insert(key, stake.clone());
+        self.by_coins.remove(&coins_and_addresses);
+        self.by_coins
+            .insert(coins_and_addresses.clone(), stake.clone());
+
+        let validator_key = coins_and_addresses.clone().addresses.validator;
+        self.by_validator.remove(&validator_key);
+        self.by_validator.insert(validator_key, stake.clone());
+
+        let withdrawer_key = coins_and_addresses.addresses.withdrawer;
+        self.by_withdrawer.remove(&withdrawer_key);
+        self.by_withdrawer.insert(withdrawer_key, stake.clone());
 
         Ok(stake.value.read()?.clone())
     }
@@ -228,6 +294,64 @@ where
             ..Default::default()
         }
     }
+
+    /// Query stakes based on different keys.
+    pub fn query_stakes<TIQSK>(
+        &mut self,
+        query: TIQSK,
+    ) -> StakingResult<Coins, Address, Coins, Epoch>
+    where
+        TIQSK: TryInto<QueryStakesKey<Address>>,
+    {
+        match query.try_into() {
+            Ok(QueryStakesKey::Key(key)) => self.query_by_key(key),
+            Ok(QueryStakesKey::Validator(validator)) => self.query_by_validator(validator),
+            Ok(QueryStakesKey::Withdrawer(withdrawer)) => self.query_by_withdrawer(withdrawer),
+            Err(_) => Err(StakesError::EmptyQuery),
+        }
+    }
+
+    /// Query stakes by stake key.
+    #[inline(always)]
+    fn query_by_key(&self, key: StakeKey<Address>) -> StakingResult<Coins, Address, Coins, Epoch> {
+        Ok(self
+            .by_key
+            .get(&key)
+            .ok_or(StakesError::EntryNotFound { key })?
+            .value
+            .read()?
+            .coins)
+    }
+
+    /// Query stakes by validator address.
+    #[inline(always)]
+    fn query_by_validator(
+        &self,
+        validator: Address,
+    ) -> StakingResult<Coins, Address, Coins, Epoch> {
+        Ok(self
+            .by_validator
+            .get(&validator)
+            .ok_or(StakesError::ValidatorNotFound { validator })?
+            .value
+            .read()?
+            .coins)
+    }
+
+    /// Query stakes by withdrawer address.
+    #[inline(always)]
+    fn query_by_withdrawer(
+        &self,
+        withdrawer: Address,
+    ) -> StakingResult<Coins, Address, Coins, Epoch> {
+        Ok(self
+            .by_withdrawer
+            .get(&withdrawer)
+            .ok_or(StakesError::WithdrawerNotFound { withdrawer })?
+            .value
+            .read()?
+            .coins)
+    }
 }
 
 /// Adds stake, based on the data from a stake transaction.
@@ -240,7 +364,15 @@ pub fn process_stake_transaction<Epoch, Power>(
     epoch: Epoch,
 ) -> StakingResult<(), PublicKeyHash, Wit, Epoch>
 where
-    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32> + Debug,
+    Epoch: Copy
+        + Default
+        + Sub<Output = Epoch>
+        + num_traits::Saturating
+        + From<u32>
+        + Debug
+        + Display
+        + Send
+        + Sync,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
@@ -279,7 +411,15 @@ pub fn process_stake_transactions<'a, Epoch, Power>(
     epoch: Epoch,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
 where
-    Epoch: Copy + Default + Sub<Output = Epoch> + num_traits::Saturating + From<u32> + Debug,
+    Epoch: Copy
+        + Default
+        + Sub<Output = Epoch>
+        + num_traits::Saturating
+        + From<u32>
+        + Debug
+        + Send
+        + Sync
+        + Display,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
@@ -590,5 +730,28 @@ mod tests {
                 (alice_charlie.into(), 3_000)
             ]
         );
+    }
+
+    #[test]
+    fn test_query_stakes() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+        let erin = "Erin";
+
+        let alice_charlie = (alice, charlie);
+        let bob_david = (bob, david);
+        let charlie_erin = (charlie, erin);
+
+        stakes.add_stake(alice_charlie, 10, 0).unwrap();
+        stakes.add_stake(bob_david, 20, 20).unwrap();
+        stakes.add_stake(charlie_erin, 30, 30).unwrap();
+
+        let result = stakes.query_stakes(QueryStakesKey::Key(alice_charlie.into()));
+
+        assert_eq!(result, Ok(10))
     }
 }

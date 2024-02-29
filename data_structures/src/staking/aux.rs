@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display, Formatter};
 use std::{rc::Rc, str::FromStr, sync::RwLock};
 
 use failure::Error;
@@ -95,6 +96,19 @@ where
             validator: Address::from_str(val).unwrap(),
             withdrawer: Address::from_str(val).unwrap(),
         }
+    }
+}
+
+impl<Address> Display for StakeKey<Address>
+where
+    Address: Display,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "validator: {} withdrawer: {}",
+            self.validator, self.withdrawer
+        )
     }
 }
 

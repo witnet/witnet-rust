@@ -3,6 +3,7 @@ use std::{marker::PhantomData, ops::*};
 use serde::{Deserialize, Serialize};
 
 use super::prelude::*;
+use std::fmt::{Debug, Display};
 
 /// A data structure that keeps track of a staker's staked coins and the epochs for different
 /// capabilities.
@@ -23,7 +24,7 @@ where
 
 impl<Address, Coins, Epoch, Power> Stake<Address, Coins, Epoch, Power>
 where
-    Address: Default,
+    Address: Default + Debug + Display + Sync + Send,
     Coins: Copy
         + From<u64>
         + PartialOrd
@@ -31,8 +32,20 @@ where
         + Add<Output = Coins>
         + Sub<Output = Coins>
         + Mul
-        + Mul<Epoch, Output = Power>,
-    Epoch: Copy + Default + num_traits::Saturating + Sub<Output = Epoch> + From<u32>,
+        + Mul<Epoch, Output = Power>
+        + Debug
+        + Display
+        + Send
+        + Sync,
+    Epoch: Copy
+        + Default
+        + num_traits::Saturating
+        + Sub<Output = Epoch>
+        + From<u32>
+        + Debug
+        + Display
+        + Sync
+        + Send,
     Power: Add<Output = Power> + Div<Output = Power>,
     u64: From<Coins> + From<Power>,
 {

@@ -19,6 +19,7 @@ use witnet_data_structures::{
         Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
+    staking::errors::StakesError,
     transaction::{DRTransaction, StakeTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
@@ -37,7 +38,7 @@ use crate::{
             GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
             GetMempoolResult, GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo,
             GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock,
-            PeersBeacons, ReputationStats, Rewind, SendLastBeacon, SessionUnitResult,
+            PeersBeacons, QueryStake, ReputationStats, Rewind, SendLastBeacon, SessionUnitResult,
             SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport,
             TryMineBlock,
         },
@@ -1353,6 +1354,17 @@ impl Handler<BuildStake> for ChainManager {
                 Box::pin(fut)
             }
         }
+    }
+}
+
+impl Handler<QueryStake> for ChainManager {
+    type Result = <QueryStake as Message>::Result;
+
+    fn handle(&mut self, msg: QueryStake, _ctx: &mut Self::Context) -> Self::Result {
+        // build address from public key hash
+        let stakes = self.chain_state.stakes.query_stakes(msg.key);
+
+        stakes.map_err(StakesError::from).map_err(Into::into)
     }
 }
 
