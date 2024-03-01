@@ -55,11 +55,11 @@ pub struct DrInfoBridge {
 /// Data request state
 #[derive(Clone, Copy, Default, Serialize, Deserialize)]
 pub enum DrState {
-    /// New: a new query was detected on the Witnet Oracle contract, 
+    /// New: a new query was detected on the Witnet Oracle contract,
     /// but has not yet been attended.
     #[default]
     New,
-    /// Pending: a data request transaction was broadcasted to the Witnet blockchain, 
+    /// Pending: a data request transaction was broadcasted to the Witnet blockchain,
     /// but has not yet been resolved.
     Pending,
     /// Finished: the data request result was reported back to the Witnet Oracle contract.
@@ -252,11 +252,7 @@ impl Handler<SetDrState> for DrDatabase {
         match self.dr.entry(dr_id) {
             Entry::Occupied(entry) => {
                 entry.into_mut().dr_state = DrState::Finished;
-                log::debug!(
-                    "Data request #{} updated to state {}",
-                    dr_id,
-                    dr_state,
-                );
+                log::debug!("Data request #{} updated to state {}", dr_id, dr_state,);
             }
             Entry::Vacant(entry) => {
                 entry.insert(DrInfoBridge {
@@ -265,11 +261,7 @@ impl Handler<SetDrState> for DrDatabase {
                     dr_tx_hash: None,
                     dr_tx_creation_timestamp: None,
                 });
-                log::debug!(
-                    "Data request #{} inserted with state {}",
-                    dr_id,
-                    dr_state,
-                );
+                log::debug!("Data request #{} inserted with state {}", dr_id, dr_state,);
             }
         }
 

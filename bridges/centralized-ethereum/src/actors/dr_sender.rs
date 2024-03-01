@@ -51,10 +51,7 @@ impl Actor for DrSender {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("DrSender actor has been started!");
 
-        self.check_new_drs(
-            ctx,
-            Duration::from_millis(self.polling_rate_ms),
-        );
+        self.check_new_drs(ctx, Duration::from_millis(self.polling_rate_ms));
     }
 }
 
@@ -91,14 +88,13 @@ impl DrSender {
 
             if witnet_node_pkh.is_none() {
                 // get witnet node's pkh if not yet known
-                let req = jsonrpc::Request::method("getPkh")
-                    .timeout(Duration::from_millis(5000));
+                let req = jsonrpc::Request::method("getPkh").timeout(Duration::from_millis(5000));
                 let res = witnet_client.send(req).await;
                 witnet_node_pkh = match res {
                     Ok(Ok(res)) => match serde_json::from_value::<String>(res) {
                         Ok(pkh) => Some(pkh),
-                        Err(_) => None
-                    }
+                        Err(_) => None,
+                    },
                     Ok(Err(_)) => {
                         log::warn!("Cannot deserialize witnet node's pkh, will retry later");
 
@@ -106,10 +102,10 @@ impl DrSender {
                     }
                     Err(_) => {
                         log::warn!("Cannot get witnet node's pkh, will retry later");
-                        
+
                         None
                     }
-                };   
+                };
             } else {
                 // TODO: alert if number of big enough utxos is less number of drs to broadcast
                 // let req = jsonrpc::Request::method("getUtxoInfo")
@@ -124,9 +120,9 @@ impl DrSender {
 
             for (dr_id, dr_bytes) in new_drs {
                 match deserialize_and_validate_dr_bytes(
-                        &dr_bytes,
-                        witnet_dr_min_collateral_nanowits,
-                        witnet_dr_max_value_nanowits,
+                    &dr_bytes,
+                    witnet_dr_min_collateral_nanowits,
+                    witnet_dr_max_value_nanowits,
                 ) {
                     Ok(dr_output) => {
                         let req = jsonrpc::Request::method("sendRequest")
@@ -172,11 +168,7 @@ impl DrSender {
                             Err(e) => {
                                 // Error sending transaction: node not synced, not enough balance, etc.
                                 // Do nothing, will retry later.
-                                log::error!(
-                                    "[{}]: cannot broadcast dr_tx: {}",
-                                    dr_id,
-                                    e
-                                );
+                                log::error!("[{}]: cannot broadcast dr_tx: {}", dr_id, e);
                                 continue;
                             }
                         }
@@ -184,12 +176,9 @@ impl DrSender {
                     Err(err) => {
                         // Error deserializing or validating data request: mark data request as
                         // error and report error as result to ethereum.
-                        log::error!("[{}]: unacceptable data request bytecode: {}", 
-                            dr_id, 
-                            err
-                        );
+                        log::error!("[{}]: unacceptable data request bytecode: {}", dr_id, err);
                         let result = err.encode_cbor();
-                        // In this case there is no data request transaction, so 
+                        // In this case there is no data request transaction, so
                         // we set both the dr_tx_hash and dr_tally_tx_hash to zero values.
                         let zero_hash =
                             "0000000000000000000000000000000000000000000000000000000000000000"
@@ -324,7 +313,7 @@ fn deserialize_and_validate_dr_bytes(
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
             validate_data_request_output(
                 &dr_output,
-                dr_output.collateral, // we don't want to ever alter the dro_hash 
+                dr_output.collateral, // we don't want to ever alter the dro_hash
                 required_reward_collateral_ratio,
                 &current_active_wips(),
             )
