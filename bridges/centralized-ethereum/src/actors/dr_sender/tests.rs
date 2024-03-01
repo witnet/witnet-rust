@@ -113,7 +113,7 @@ fn deserialize_and_validate_dr_bytes_wip_0022() {
     };
 
     let dro_bytes = dro.to_pb_bytes().unwrap();
-    let max_dr_value_nanowits = 100_000_000_000;
-    let err = deserialize_and_validate_dr_bytes(&dro_bytes, max_dr_value_nanowits).unwrap_err();
+    let witnet_dr_max_value_nanowits = 100_000_000_000;
+    let err = deserialize_and_validate_dr_bytes(&dro_bytes, witnet_dr_max_value_nanowits).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }

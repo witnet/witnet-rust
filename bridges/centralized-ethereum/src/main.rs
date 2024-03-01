@@ -114,48 +114,47 @@ fn run(callback: fn()) -> Result<(), String> {
         } else {
             let witnet_client_url = config.witnet_jsonrpc_addr.to_string();
 
-            // Check if Ethereum and Witnet nodes are running before starting actors
-            check_ethereum_node_running(&config.eth_client_url)
-                .await
-                .expect("ethereum node not running");
-            check_witnet_node_running(&witnet_client_url)
-                .await
-                .expect("witnet node not running");
+        // Check if Ethereum and Witnet nodes are running before starting actors
+        check_ethereum_node_running(&config.eth_jsonrpc_url)
+            .await
+            .expect("ethereum node not running");
+        check_witnet_node_running(&config.witnet_jsonrpc_socket.to_string())
+            .await
+            .expect("witnet node not running");
 
-            // Web3 contract using HTTP transport with an Ethereum client
-            let (web3, wrb_contract) =
-                create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
-            let wrb_contract = Arc::new(wrb_contract);
+        // Start DrDatabase actor
+        let dr_database_addr = DrDatabase::default().start();
+        SystemRegistry::set(dr_database_addr);
 
-            // Start DrDatabase actor
-            let dr_database_addr = DrDatabase::default().start();
-            SystemRegistry::set(dr_database_addr);
+        // Web3 contract using HTTP transport with an Ethereum client
+        let (web3, wrb_contract) =
+            create_wrb_contract(&config.eth_jsonrpc_url, config.eth_witnet_oracle);
+        let wrb_contract = Arc::new(wrb_contract);
 
-            // Start Json-RPC actor connected to Witnet node
-            let node_client = JsonRpcClient::start(&witnet_client_url)
-                .expect("Json-RPC Client actor failed to started");
+        // Start EthPoller actor
+        let eth_poller_addr = EthPoller::from_config(&config, web3.clone(), wrb_contract.clone()).start();
+        SystemRegistry::set(eth_poller_addr);
 
-            // Start WitPoller actor
-            let wit_poller_addr = WitPoller::from_config(&config, node_client.clone()).start();
-            SystemRegistry::set(wit_poller_addr);
+        // Start DrReporter actor
+        let dr_reporter_addr = DrReporter::from_config(&config, web3, wrb_contract).start();
+        SystemRegistry::set(dr_reporter_addr);
 
-            // Start DrSender actor
-            let dr_sender_addr = DrSender::from_config(&config, node_client).start();
-            SystemRegistry::set(dr_sender_addr);
+        // Start Json-RPC actor connected to Witnet node
+        let node_client = JsonRpcClient::start(&config.witnet_jsonrpc_socket.to_string())
+        .expect("Json-RPC Client actor failed to started");
+    
+        // Start WitPoller actor
+        let wit_poller_addr = WitPoller::from_config(&config, node_client.clone()).start();
+        SystemRegistry::set(wit_poller_addr);
 
-            // Start EthPoller actor
-            let eth_poller_addr = EthPoller::from_config(&config, wrb_contract.clone()).start();
-            SystemRegistry::set(eth_poller_addr);
+        // Start DrSender actor
+        let dr_sender_addr = DrSender::from_config(&config, node_client).start();
+        SystemRegistry::set(dr_sender_addr);
 
-            // Start DrReporter actor
-            let dr_reporter_addr = DrReporter::from_config(&config, wrb_contract, web3).start();
-            SystemRegistry::set(dr_reporter_addr);
-
-            // Initialize Storage Manager
-            let mut node_config = NodeConfig::default();
-            node_config.storage.db_path = config.storage.db_path.clone();
-            storage_mngr::start_from_config(node_config);
-        }
+        // Initialize Storage Manager
+        let mut node_config = NodeConfig::default();
+        node_config.storage.db_path = config.storage.db_path.clone();
+        storage_mngr::start_from_config(node_config);
     });
 
     // Run system

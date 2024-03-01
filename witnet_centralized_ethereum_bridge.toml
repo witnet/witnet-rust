@@ -1,49 +1,49 @@
 # Address of the witnet node JSON-RPC server
-witnet_jsonrpc_addr = "127.0.0.1:21338"
+witnet_jsonrpc_socket = "127.0.0.1:21338"
 
 # Url of the ethereum client
-eth_client_url = "http://127.0.0.1:8544"
+eth_jsonrpc_url = "http://127.0.0.1:8544"
 
 # Address of the WitnetRequestsBoard deployed contract
-wrb_contract_addr = "0x6cE42a35C61ccfb42907EEE57eDF14Bb69C7fEF4"
+eth_witnet_oracle = "0x6cE42a35C61ccfb42907EEE57eDF14Bb69C7fEF4"
 
 # Address of a Request Example deployed contract
 request_example_contract_addr = "0xEaA9e7Ea612b169f5b41cfF86dA6322f57264a19"
 
 # Ethereum account used to create the transactions
-eth_account = "0x8d86Bc475bEDCB08179c5e6a4d494EbD3b44Ea8B"
+eth_from = "0x8d86Bc475bEDCB08179c5e6a4d494EbD3b44Ea8B"
 
 # Period to check for new requests in the WRB
-eth_new_dr_polling_rate_ms = 45_000
+eth_new_drs_polling_rate_ms = 45_000
 
 # Period to check for completed requests in Witnet
-wit_tally_polling_rate_ms = 45_000
+witnet_tallies_polling_rate_ms = 45_000
 
 # Period to post new requests to Witnet
-wit_dr_sender_polling_rate_ms = 45_000
+witnet_polling_rate_ms = 45_000
 
 # If the data request has been sent to witnet but it is not included in a block, retry after this many milliseconds
-dr_tx_unresolved_timeout_ms = 600_000 # 10 minutes
+witnet_dr_tx_retry_timeout_ms = 600_000 # 10 minutes
 
 # Maximum data request result size (in bytes)
 # TODO: Choose a proper value
-max_result_size = 100
+witnet_dr_max_result_size = 100
 
 # Max time to wait for an ethereum transaction to be confirmed before returning an error
-eth_confirmation_timeout_ms = 900_000 # 15 minutes
+eth_txs_timeout_ms = 900_000 # 15 minutes
 
 # Max value that will be accepted by the bridge node in a data request
 # This is the maximum amount that the relayer is willing to lose per one data request
-max_dr_value_nanowits = 100_000_000_000
+witnet_dr_max_value_nanowits = 100_000_000_000
 
 # Running in the witnet testnet?
 witnet_testnet = false
 
 # Number of block confirmations needed to assume finality when sending transactions to ethereum
-num_confirmations = 1
+eth_txs_confirmations = 1
 
 # Miner fee for the witnet data request transactions, in nanowits
-dr_fee_nanowits = 10_000
+witnet_dr_max_fee_nanowits = 10_000
 
 # Max ratio between the gas price recommended by the provider and the gas price of the requests in the WRB
 # That is, the bridge will refrain from paying more than these times the gas price originally set forth by the requesters.
@@ -51,7 +51,7 @@ report_result_max_network_gas_price_ratio = 1.0
 
 # Gas limits for some methods.
 # To let the client estimate, comment out the fields
-[gas_limits]
+[eth_gas_limits]
 post_data_request = 10000000
 report_result = 2000000
 
