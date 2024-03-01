@@ -97,7 +97,8 @@ fn run(callback: fn()) -> Result<(), String> {
         let wrb_contract = Arc::new(wrb_contract);
 
         // Start EthPoller actor
-        let eth_poller_addr = EthPoller::from_config(&config, web3.clone(), wrb_contract.clone()).start();
+        let eth_poller_addr =
+            EthPoller::from_config(&config, web3.clone(), wrb_contract.clone()).start();
         SystemRegistry::set(eth_poller_addr);
 
         // Start DrReporter actor
@@ -106,8 +107,8 @@ fn run(callback: fn()) -> Result<(), String> {
 
         // Start Json-RPC actor connected to Witnet node
         let node_client = JsonRpcClient::start(&config.witnet_jsonrpc_socket.to_string())
-        .expect("Json-RPC Client actor failed to started");
-    
+            .expect("Json-RPC Client actor failed to started");
+
         // Start WitPoller actor
         let wit_poller_addr = WitPoller::from_config(&config, node_client.clone()).start();
         SystemRegistry::set(wit_poller_addr);

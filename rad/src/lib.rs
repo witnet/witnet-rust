@@ -25,7 +25,7 @@ use crate::{
         create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
         RadonScriptExecutionSettings,
     },
-    types::{array::RadonArray, bytes::RadonBytes, string::RadonString, map::RadonMap, RadonTypes},
+    types::{array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
 use core::convert::From;
@@ -181,12 +181,18 @@ fn headers_response_with_data_report(
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let headers: BTreeMap<String, RadonTypes> = response.split("\r\n").map(|line| {
-       let parts: Vec<&str> = line.split(":").map(|part| part.trim()).collect();
-        // todo: check there are two parts, and two parts only
-        // todo: make sure that values from repeated keys get appended within a RadonArray
-        (String::from(parts[0]), RadonTypes::from(RadonString::from(parts[1])))
-    }).collect();
+    let headers: BTreeMap<String, RadonTypes> = response
+        .split("\r\n")
+        .map(|line| {
+            let parts: Vec<&str> = line.split(":").map(|part| part.trim()).collect();
+            // todo: check there are two parts, and two parts only
+            // todo: make sure that values from repeated keys get appended within a RadonArray
+            (
+                String::from(parts[0]),
+                RadonTypes::from(RadonString::from(parts[1])),
+            )
+        })
+        .collect();
     let input = RadonTypes::from(RadonMap::from(headers));
     let radon_script = unpack_radon_script(&retrieve.script)?;
 
@@ -216,10 +222,10 @@ pub fn run_retrieval_with_data_report(
         RADType::Rng => rng_response_with_data_report(response, context),
         RADType::HttpPost => {
             string_response_with_data_report(retrieve, response, context, settings)
-        },
+        }
         RADType::HttpHead => {
             headers_response_with_data_report(retrieve, response, context, settings)
-        },
+        }
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -281,7 +287,7 @@ async fn http_response(
                     builder.method("POST").uri(&retrieve.url),
                     WitnetHttpBody::from(retrieve.body.clone()),
                 )
-            },
+            }
             RADType::HttpHead => (
                 builder.method("HEAD").uri(&retrieve.url),
                 WitnetHttpBody::empty(),

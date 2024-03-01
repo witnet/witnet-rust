@@ -13,7 +13,6 @@ use witnet_data_structures::chain::Environment;
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-
     /// Ethereum account used to report data request results
     pub eth_from: H160,
     /// Ethereum account balance under which alerts will be logged
@@ -37,7 +36,7 @@ pub struct Config {
     pub eth_txs_timeout_ms: u64,
     /// Address of the WitnetRequestsBoard contract
     pub eth_witnet_oracle: H160,
-    
+
     /// Minimum collateral required on data requests read from the WitnetOracle contract
     pub witnet_dr_min_collateral_nanowits: u64,
     /// Maximium data request transaction fee assumed by the bridge
