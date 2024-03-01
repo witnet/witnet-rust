@@ -53,17 +53,20 @@ pub struct DrInfoBridge {
 }
 
 /// Data request state
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Serialize, Deserialize)]
 pub enum DrState {
-    /// New: the data request has just been posted to the smart contract.
+    /// New: a new query was detected on the Witnet Oracle contract, 
+    /// but has not yet been attended.
     #[default]
     New,
-    /// Pending: the data request has been created and broadcast to witnet, but it has not been
-    /// included in a witnet block yet.
+    /// Pending: a data request transaction was broadcasted to the Witnet blockchain, 
+    /// but has not yet been resolved.
     Pending,
-    /// Finished: data request has been resolved in witnet and the result is in the smart
-    /// contract.
+    /// Finished: the data request result was reported back to the Witnet Oracle contract.
     Finished,
+    /// Dismissed: the data request result cannot be reported back to the Witnet Oracle contract,
+    /// or was already reported by another bridge instance.
+    Dismissed,
 }
 
 impl fmt::Display for DrState {
@@ -72,24 +75,24 @@ impl fmt::Display for DrState {
             DrState::New => "New",
             DrState::Pending => "Pending",
             DrState::Finished => "Finished",
+            DrState::Dismissed => "Dismissed",
         };
 
         f.write_str(s)
     }
 }
 
-/// Data request states in Witnet Request Board contract
+/// Possible query states in the Witnet Oracle contract
 #[derive(Serialize, Deserialize, Clone)]
 pub enum WitnetQueryStatus {
-    /// Unknown: the data request does not exist.
+    /// Unknown: the query does not exist, or got eventually deleted.
     Unknown,
-    /// Posted: the data request has just been posted to the smart contract.
+    /// Posted: the query exists, but has not yet been reported.
     Posted,
-    /// Reported: the data request has been resolved in witnet and the result is in the smart
-    /// contract.
+    /// Reported: some query result got stored into the WitnetOracle, although not yet finalized.
     Reported,
-    /// Deleted: the data request has been resolved in witnet but the result was deleted.
-    Deleted,
+    /// Finalized: the query was reported, and considered to be final.
+    Finalized,
 }
 
 impl WitnetQueryStatus {
@@ -98,7 +101,7 @@ impl WitnetQueryStatus {
         match i {
             1 => WitnetQueryStatus::Posted,
             2 => WitnetQueryStatus::Reported,
-            3 => WitnetQueryStatus::Deleted,
+            3 => WitnetQueryStatus::Finalized,
             _ => WitnetQueryStatus::Unknown,
         }
     }
@@ -164,13 +167,15 @@ impl Message for GetLastDrId {
     type Result = Result<DrId, ()>;
 }
 
-/// Set data request id as "finished"
-pub struct SetFinished {
-    /// Data Request Id
+/// Set state of given data request id
+pub struct SetDrState {
+    /// Data Request id
     pub dr_id: DrId,
+    /// Data Request new state
+    pub dr_state: DrState,
 }
 
-impl Message for SetFinished {
+impl Message for SetDrState {
     type Result = Result<(), ()>;
 }
 
@@ -239,31 +244,31 @@ impl Handler<GetLastDrId> for DrDatabase {
     }
 }
 
-impl Handler<SetFinished> for DrDatabase {
+impl Handler<SetDrState> for DrDatabase {
     type Result = Result<(), ()>;
 
-    fn handle(&mut self, msg: SetFinished, ctx: &mut Self::Context) -> Self::Result {
-        let SetFinished { dr_id } = msg;
+    fn handle(&mut self, msg: SetDrState, ctx: &mut Self::Context) -> Self::Result {
+        let SetDrState { dr_id, dr_state } = msg;
         match self.dr.entry(dr_id) {
             Entry::Occupied(entry) => {
                 entry.into_mut().dr_state = DrState::Finished;
                 log::debug!(
                     "Data request #{} updated to state {}",
                     dr_id,
-                    DrState::Finished
+                    dr_state,
                 );
             }
             Entry::Vacant(entry) => {
                 entry.insert(DrInfoBridge {
                     dr_bytes: vec![],
-                    dr_state: DrState::Finished,
+                    dr_state: dr_state,
                     dr_tx_hash: None,
                     dr_tx_creation_timestamp: None,
                 });
                 log::debug!(
                     "Data request #{} inserted with state {}",
                     dr_id,
-                    DrState::Finished
+                    dr_state,
                 );
             }
         }
